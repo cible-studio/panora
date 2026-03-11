@@ -1,49 +1,71 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Pige extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
-        'panel_id', 'campaign_id', 'user_id',
-        'photo_path', 'taken_at',
-        'gps_lat', 'gps_lng',
-        'is_verified', 'verified_by',
-        'verified_at', 'notes'
+        'panel_id',
+        'campaign_id',
+        'user_id',
+        'photo_path',
+        'taken_at',
+        'gps_lat',
+        'gps_lng',
+        'is_verified',
+        'notes',
     ];
 
     protected $casts = [
         'taken_at'    => 'datetime',
-        'verified_at' => 'datetime',
-        'is_verified' => 'boolean',
         'gps_lat'     => 'decimal:7',
         'gps_lng'     => 'decimal:7',
+        'is_verified' => 'boolean',
     ];
 
-    // ── RELATIONS ──
+    // ── Relations ──────────────────────────────
 
-    // Une pige concerne un panneau
     public function panel()
     {
         return $this->belongsTo(Panel::class);
     }
 
-    // Une pige est liée à une campagne
     public function campaign()
     {
         return $this->belongsTo(Campaign::class);
     }
 
-    // Une pige est prise par un user
-    public function takenBy()
+    public function user()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class);
     }
 
-    // Une pige est vérifiée par un user
-    public function verifiedBy()
+    // ── Scopes ─────────────────────────────────
+
+    public function scopeVerified($query)
     {
-        return $this->belongsTo(User::class, 'verified_by');
+        return $query->where('is_verified', true);
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('is_verified', false);
+    }
+
+    // ── Helpers ────────────────────────────────
+
+    public function getPhotoUrlAttribute(): string
+    {
+        return asset('storage/' . $this->photo_path);
+    }
+
+    public function hasGps(): bool
+    {
+        return !is_null($this->gps_lat) && !is_null($this->gps_lng);
     }
 }

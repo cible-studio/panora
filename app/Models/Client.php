@@ -1,21 +1,33 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Client extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'name', 'sector', 'contact_name',
-        'email', 'phone', 'address', 'user_id'
+        'name',
+        'sector',
+        'contact_name',
+        'email',
+        'phone',
+        'address',
+        'user_id',
     ];
 
-    // ── RELATIONS ──
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
 
-    // Un client peut avoir un compte user
+    // ── Relations ──────────────────────────────
+
+    // Un client peut avoir un compte utilisateur
     public function user()
     {
         return $this->belongsTo(User::class);

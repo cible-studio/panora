@@ -1,72 +1,95 @@
 <?php
+
 namespace App\Models;
 
-use App\Enums\ReservationStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Reservation extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'reference', 'client_id', 'user_id',
-        'start_date', 'end_date', 'status',
-        'total_amount', 'notes', 'confirmed_at'
+        'reference',
+        'client_id',
+        'user_id',
+        'start_date',
+        'end_date',
+        'status',
+        'total_amount',
+        'notes',
+        'confirmed_at',
     ];
 
     protected $casts = [
-        'status'       => ReservationStatus::class,
         'start_date'   => 'date',
         'end_date'     => 'date',
         'confirmed_at' => 'datetime',
         'total_amount' => 'decimal:2',
     ];
 
-    // ── RELATIONS ──
+    // Statuts qui bloquent un panneau
+    const BLOCKING_STATUSES = ['en_attente', 'confirme'];
 
-    // Une réservation appartient à un client
+    // Statuts qui libèrent un panneau
+    const FREE_STATUSES = ['refuse', 'annule'];
+
+    // ── Relations ──────────────────────────────
+
     public function client()
     {
         return $this->belongsTo(Client::class);
     }
 
-    // Une réservation est faite par un agent
-    public function agent()
+    public function user()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class);
     }
 
-    // Une réservation a plusieurs panneaux
+    // Panneaux liés via la table pivot
     public function panels()
     {
-        return $this->belongsToMany(
-            Panel::class,
-            'reservation_panels'
-        )->withPivot('unit_price', 'total_price')
-         ->withTimestamps();
+        return $this->belongsToMany(Panel::class, 'reservation_panels')
+                    ->withPivot(['unit_price', 'total_price'])
+                    ->withTimestamps();
     }
 
-    // Une réservation génère une campagne
+    // Une réservation confirmée génère une campagne
     public function campaign()
     {
         return $this->hasOne(Campaign::class);
     }
 
-    // ── SCOPES ──
+    // ── Scopes ─────────────────────────────────
 
+    // Réservations actives (qui bloquent les panneaux)
     public function scopeActive($query)
     {
-        return $query->whereNotIn('status', ['refuse', 'annule']);
+        return $query->whereIn('status', self::BLOCKING_STATUSES);
     }
 
-    public function scopeEnAttente($query)
+    // Réservations en attente de confirmation
+    public function scopePending($query)
     {
         return $query->where('status', 'en_attente');
     }
 
-    public function scopeConfirme($query)
+    // Réservations confirmées
+    public function scopeConfirmed($query)
     {
         return $query->where('status', 'confirme');
+    }
+
+    // ── Helpers ────────────────────────────────
+
+    public function isActive(): bool
+    {
+        return in_array($this->status, self::BLOCKING_STATUSES);
+    }
+
+    public function isConfirmed(): bool
+    {
+        return $this->status === 'confirme';
     }
 }

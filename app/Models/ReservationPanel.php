@@ -1,13 +1,21 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class ReservationPanel extends Model
 {
+    use HasFactory;
+
+    protected $table = 'reservation_panels';
+
     protected $fillable = [
-        'reservation_id', 'panel_id',
-        'unit_price', 'total_price'
+        'reservation_id',
+        'panel_id',
+        'unit_price',
+        'total_price',
     ];
 
     protected $casts = [
@@ -15,7 +23,7 @@ class ReservationPanel extends Model
         'total_price' => 'decimal:2',
     ];
 
-    // ── RELATIONS ──
+    // ── Relations ──────────────────────────────
 
     public function reservation()
     {

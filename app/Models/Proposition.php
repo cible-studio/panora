@@ -1,31 +1,51 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Proposition extends Model
 {
+    use HasFactory, SoftDeletes;
+
     protected $fillable = [
-        'client_id', 'created_by', 'numero',
-        'nb_panneaux', 'date_debut', 'date_fin',
-        'montant', 'statut', 'notes'
+        'client_id',
+        'user_id',
+        'reservation_id',
+        'status',
+        'notes',
+        'sent_at',
+        'confirmed_at',
     ];
 
     protected $casts = [
-        'date_debut' => 'date',
-        'date_fin'   => 'date',
-        'montant'    => 'decimal:2',
+        'sent_at'      => 'datetime',
+        'confirmed_at' => 'datetime',
     ];
 
-    // ── RELATIONS ──
+    // ── Relations ──────────────────────────────
 
     public function client()
     {
         return $this->belongsTo(Client::class);
     }
 
-    public function creator()
+    public function user()
     {
-        return $this->belongsTo(User::class, 'created_by');
+        return $this->belongsTo(User::class);
+    }
+
+    public function reservation()
+    {
+        return $this->belongsTo(Reservation::class);
+    }
+
+    // ── Helpers ────────────────────────────────
+
+    public function isConfirmed(): bool
+    {
+        return $this->status === 'confirme';
     }
 }
