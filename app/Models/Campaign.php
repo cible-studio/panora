@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CampaignStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,15 +12,9 @@ class Campaign extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'name',
-        'client_id',
-        'reservation_id',
-        'start_date',
-        'end_date',
-        'status',
-        'total_panels',
-        'total_amount',
-        'notes',
+        'name', 'client_id', 'reservation_id',
+        'start_date', 'end_date', 'status',
+        'total_panels', 'total_amount', 'notes',
     ];
 
     protected $casts = [
@@ -27,9 +22,8 @@ class Campaign extends Model
         'end_date'     => 'date',
         'total_amount' => 'decimal:2',
         'total_panels' => 'integer',
+        'status'       => CampaignStatus::class,
     ];
-
-    // ── Relations ──────────────────────────────
 
     public function client()
     {
@@ -41,49 +35,41 @@ class Campaign extends Model
         return $this->belongsTo(Reservation::class);
     }
 
-    // Panneaux internes liés à la campagne
     public function panels()
     {
         return $this->belongsToMany(Panel::class, 'campaign_panels')
                     ->withTimestamps();
     }
 
-    // Panneaux externes liés à la campagne
     public function externalPanels()
     {
         return $this->belongsToMany(ExternalPanel::class, 'campaign_panels')
                     ->withTimestamps();
     }
 
-    // Piges photos de la campagne
     public function piges()
     {
         return $this->hasMany(Pige::class);
     }
 
-    // Factures de la campagne
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
     }
 
-    // ── Scopes ─────────────────────────────────
-
     public function scopeActive($query)
     {
-        return $query->where('status', 'actif');
+        return $query->where('status', CampaignStatus::ACTIF->value);
     }
 
     public function scopeEnded($query)
     {
-        return $query->where('status', 'termine');
+        return $query->where('status', CampaignStatus::TERMINE->value);
     }
-
-    // ── Helpers ────────────────────────────────
 
     public function isActive(): bool
     {
-        return $this->status === 'actif';
+        return $this->status === CampaignStatus::ACTIF;
     }
 
     public function durationInDays(): int

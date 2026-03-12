@@ -3,30 +3,25 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Invoice extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory;
 
     protected $fillable = [
-        'reference',
-        'client_id',
-        'campaign_id',
-        'amount',
-        'issued_at',
-        'paid_at',
-        'status',
+        'reference', 'client_id', 'campaign_id', 'created_by',
+        'amount', 'tva', 'amount_ttc',
+        'issued_at', 'paid_at', 'status',
     ];
 
     protected $casts = [
-        'amount'    => 'decimal:2',
-        'issued_at' => 'date',
-        'paid_at'   => 'date',
+        'amount'     => 'decimal:2',
+        'tva'        => 'decimal:2',
+        'amount_ttc' => 'decimal:2',
+        'issued_at'  => 'date',
+        'paid_at'    => 'date',
     ];
-
-    // ── Relations ──────────────────────────────
 
     public function client()
     {
@@ -38,27 +33,13 @@ class Invoice extends Model
         return $this->belongsTo(Campaign::class);
     }
 
-    // ── Scopes ─────────────────────────────────
-
-    public function scopePaid($query)
+    public function createdBy()
     {
-        return $query->where('status', 'paye');
+        return $this->belongsTo(User::class, 'created_by');
     }
-
-    public function scopeUnpaid($query)
-    {
-        return $query->where('status', 'en_attente');
-    }
-
-    // ── Helpers ────────────────────────────────
 
     public function isPaid(): bool
     {
-        return $this->status === 'paye';
-    }
-
-    public function isOverdue(): bool
-    {
-        return !$this->isPaid() && $this->issued_at->isPast();
+        return $this->status === 'payee';
     }
 }

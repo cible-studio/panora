@@ -9,11 +9,10 @@ class ExternalAgencyFactory extends Factory
     public function definition(): array
     {
         return [
-            'name'         => $this->faker->company() . ' Pub',
-            'contact_name' => $this->faker->name(),
-            'email'        => $this->faker->companyEmail(),
-            'phone'        => '+225 0' . $this->faker->numerify('# ## ## ## ##'),
-            'address'      => $this->faker->address(),
+            'name'    => $this->faker->company() . ' Pub',
+            'contact' => $this->faker->name(),
+            'email'   => $this->faker->unique()->companyEmail(),
+            'address' => $this->faker->address(),
         ];
     }
 }

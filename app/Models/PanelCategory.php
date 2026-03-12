@@ -1,15 +1,18 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class PanelCategory extends Model
 {
-    protected $fillable = ['name', 'description'];
+    use HasFactory;
 
-    // ── RELATIONS ──
+    protected $fillable = [
+        'name', 'description'
+    ];
 
-    // Une catégorie a plusieurs panneaux
     public function panels()
     {
         return $this->hasMany(Panel::class, 'category_id');

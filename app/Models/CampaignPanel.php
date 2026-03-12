@@ -12,13 +12,8 @@ class CampaignPanel extends Model
     protected $table = 'campaign_panels';
 
     protected $fillable = [
-        'campaign_id',
-        'panel_id',
-        'external_panel_id',
-        'type',
+        'campaign_id', 'panel_id', 'external_panel_id', 'type',
     ];
-
-    // ── Relations ──────────────────────────────
 
     public function campaign()
     {

@@ -10,25 +10,19 @@ class Pige extends Model
     use HasFactory;
 
     protected $fillable = [
-        'panel_id',
-        'campaign_id',
-        'user_id',
-        'photo_path',
-        'taken_at',
-        'gps_lat',
-        'gps_lng',
-        'is_verified',
-        'notes',
+        'panel_id', 'campaign_id', 'user_id',
+        'photo_path', 'taken_at',
+        'gps_lat', 'gps_lng',
+        'is_verified', 'verified_by', 'verified_at', 'notes',
     ];
 
     protected $casts = [
         'taken_at'    => 'datetime',
+        'verified_at' => 'datetime',
         'gps_lat'     => 'decimal:7',
         'gps_lng'     => 'decimal:7',
         'is_verified' => 'boolean',
     ];
-
-    // ── Relations ──────────────────────────────
 
     public function panel()
     {
@@ -45,19 +39,10 @@ class Pige extends Model
         return $this->belongsTo(User::class);
     }
 
-    // ── Scopes ─────────────────────────────────
-
-    public function scopeVerified($query)
+    public function verifiedBy()
     {
-        return $query->where('is_verified', true);
+        return $this->belongsTo(User::class, 'verified_by');
     }
-
-    public function scopePending($query)
-    {
-        return $query->where('is_verified', false);
-    }
-
-    // ── Helpers ────────────────────────────────
 
     public function getPhotoUrlAttribute(): string
     {

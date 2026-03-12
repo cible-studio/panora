@@ -16,7 +16,7 @@ class TaxFactory extends Factory
             'amount'     => $this->faker->randomFloat(2, 50000, 500000),
             'due_date'   => $this->faker->dateTimeBetween('now', '+6 months'),
             'paid_at'    => $this->faker->optional()->dateTimeBetween('-3 months', 'now'),
-            'status'     => $this->faker->randomElement(['en_attente', 'paye', 'en_retard']),
+            'status'     => $this->faker->randomElement(['en_attente', 'payee', 'en_retard']),
         ];
     }
 }

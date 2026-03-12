@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ReservationStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,15 +12,9 @@ class Reservation extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'reference',
-        'client_id',
-        'user_id',
-        'start_date',
-        'end_date',
-        'status',
-        'total_amount',
-        'notes',
-        'confirmed_at',
+        'reference', 'client_id', 'user_id',
+        'start_date', 'end_date', 'status',
+        'total_amount', 'notes', 'confirmed_at',
     ];
 
     protected $casts = [
@@ -27,15 +22,8 @@ class Reservation extends Model
         'end_date'     => 'date',
         'confirmed_at' => 'datetime',
         'total_amount' => 'decimal:2',
+        'status'       => ReservationStatus::class,
     ];
-
-    // Statuts qui bloquent un panneau
-    const BLOCKING_STATUSES = ['en_attente', 'confirme'];
-
-    // Statuts qui libèrent un panneau
-    const FREE_STATUSES = ['refuse', 'annule'];
-
-    // ── Relations ──────────────────────────────
 
     public function client()
     {
@@ -47,7 +35,6 @@ class Reservation extends Model
         return $this->belongsTo(User::class);
     }
 
-    // Panneaux liés via la table pivot
     public function panels()
     {
         return $this->belongsToMany(Panel::class, 'reservation_panels')
@@ -55,41 +42,44 @@ class Reservation extends Model
                     ->withTimestamps();
     }
 
-    // Une réservation confirmée génère une campagne
     public function campaign()
     {
         return $this->hasOne(Campaign::class);
     }
 
-    // ── Scopes ─────────────────────────────────
+    public function proposition()
+    {
+        return $this->hasOne(Proposition::class);
+    }
 
-    // Réservations actives (qui bloquent les panneaux)
     public function scopeActive($query)
     {
-        return $query->whereIn('status', self::BLOCKING_STATUSES);
+        return $query->whereIn('status', [
+            ReservationStatus::EN_ATTENTE->value,
+            ReservationStatus::CONFIRME->value,
+        ]);
     }
 
-    // Réservations en attente de confirmation
     public function scopePending($query)
     {
-        return $query->where('status', 'en_attente');
+        return $query->where('status', ReservationStatus::EN_ATTENTE->value);
     }
 
-    // Réservations confirmées
     public function scopeConfirmed($query)
     {
-        return $query->where('status', 'confirme');
+        return $query->where('status', ReservationStatus::CONFIRME->value);
     }
-
-    // ── Helpers ────────────────────────────────
 
     public function isActive(): bool
     {
-        return in_array($this->status, self::BLOCKING_STATUSES);
+        return in_array($this->status, [
+            ReservationStatus::EN_ATTENTE,
+            ReservationStatus::CONFIRME,
+        ]);
     }
 
     public function isConfirmed(): bool
     {
-        return $this->status === 'confirme';
+        return $this->status === ReservationStatus::CONFIRME;
     }
 }

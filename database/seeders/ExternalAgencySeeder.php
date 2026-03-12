@@ -10,9 +10,9 @@ class ExternalAgencySeeder extends Seeder
     public function run(): void
     {
         $agencies = [
-            ['name' => 'Média Plus CI',  'contact_name' => 'Aka Serge',    'email' => 'contact@mediaplus.ci',  'phone' => '+225 07 11 11 11', 'address' => 'Adjamé, Abidjan'],
-            ['name' => 'Afrique Pub',    'contact_name' => 'Traoré Luc',   'email' => 'contact@afriquepub.ci', 'phone' => '+225 07 22 22 22', 'address' => 'Cocody, Abidjan'],
-            ['name' => 'PanneauxCom CI', 'contact_name' => 'Ouédraogo Ben','email' => 'info@panneauxcom.ci',  'phone' => '+225 07 33 33 33', 'address' => 'Plateau, Abidjan'],
+            ['name' => 'Média Plus CI',  'contact' => 'Aka Serge',     'email' => 'contact@mediaplus.ci',  'address' => 'Adjamé, Abidjan'],
+            ['name' => 'Afrique Pub',    'contact' => 'Traoré Luc',    'email' => 'contact@afriquepub.ci', 'address' => 'Cocody, Abidjan'],
+            ['name' => 'PanneauxCom CI', 'contact' => 'Ouédraogo Ben', 'email' => 'info@panneauxcom.ci',   'address' => 'Plateau, Abidjan'],
         ];
 
         foreach ($agencies as $agency) {
