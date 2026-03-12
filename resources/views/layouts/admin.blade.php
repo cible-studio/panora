@@ -43,8 +43,12 @@
           <span class="nav-badge blue">12</span>
         </a>
         <a href="{{ route('admin.clients.index') }}"
-           class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
+          class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
           <span class="icon">👥</span> Clients
+        </a>
+        <a href="{{ route('admin.external-agencies.index') }}"
+          class="nav-item {{ request()->routeIs('admin.external-agencies.*') ? 'active' : '' }}">
+          <span class="icon">🏢</span> Régies externes
         </a>
         <a href="#" class="nav-item">
           <span class="icon">📄</span> Propositions

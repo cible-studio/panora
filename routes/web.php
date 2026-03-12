@@ -4,6 +4,10 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Admin\ClientController;
+use App\Http\Controllers\Admin\ExternalAgencyController;
+
+
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -34,5 +38,25 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
 
     // Clients
     Route::resource('clients', ClientController::class);
+
+    // Régies CRUD
+    Route::resource('external-agencies', ExternalAgencyController::class)
+        ->except(['create', 'edit']);
+
+    // Panneaux imbriqués
+    Route::post(
+        'external-agencies/{externalAgency}/panels',
+        [ExternalAgencyController::class, 'storePanel']
+    )->name('external-agencies.panels.store');
+
+    Route::put(
+        'external-agencies/{externalAgency}/panels/{panel}',
+        [ExternalAgencyController::class, 'updatePanel']
+    )->name('external-agencies.panels.update');
+
+    Route::delete(
+        'external-agencies/{externalAgency}/panels/{panel}',
+        [ExternalAgencyController::class, 'destroyPanel']
+    )->name('external-agencies.panels.destroy');
 
 });
