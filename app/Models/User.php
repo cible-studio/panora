@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
 {
@@ -14,7 +15,8 @@ class User extends Authenticatable
     protected $fillable = [
         'name', 'email', 'password',
         'role', 'agent_code', 'is_active',
-        'two_fa_enabled', 'last_login_at'
+        'two_fa_enabled', 'last_login_at',
+        'reservations_last_seen_at',
     ];
 
     protected $hidden = [
@@ -26,6 +28,7 @@ class User extends Authenticatable
         'is_active'      => 'boolean',
         'two_fa_enabled' => 'boolean',
         'last_login_at'  => 'datetime',
+        'reservations_last_seen_at' => 'datetime',
     ];
 
     public function panelsCreated()

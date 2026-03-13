@@ -31,10 +31,24 @@
            class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
           <span class="icon">📊</span> Tableau de bord
         </a>
-        <a href="#" class="nav-item">
+        {{-- Disponibilités = écran principal --}}
+        <a href="{{ route('admin.reservations.disponibilites') }}"
+          class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
           <span class="icon">📋</span> Disponibilités
-          <span class="nav-badge">64</span>
+          <span class="nav-badge">{{ App\Models\Panel::where('status','libre')->count() }}</span>
         </a>
+
+        {{-- Réservations = liste de gestion --}}
+        <a href="{{ route('admin.reservations.index') }}"
+          class="nav-item {{ request()->routeIs('admin.reservations.*')
+            && !request()->routeIs('admin.reservations.disponibilites')
+            ? 'active' : '' }}">
+          <span class="icon">🗂️</span> Réservations
+          <span class="nav-badge blue">
+            {{ App\Models\Reservation::where('status','en_attente')->count() }}
+          </span>
+        </a>
+        
         <a href="#" class="nav-item">
           <span class="icon">🗂️</span> Inventaire
         </a>
@@ -43,11 +57,11 @@
           <span class="nav-badge blue">12</span>
         </a>
         <a href="{{ route('admin.clients.index') }}"
-          class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
+           class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
           <span class="icon">👥</span> Clients
         </a>
         <a href="{{ route('admin.external-agencies.index') }}"
-          class="nav-item {{ request()->routeIs('admin.external-agencies.*') ? 'active' : '' }}">
+           class="nav-item {{ request()->routeIs('admin.external-agencies.*') ? 'active' : '' }}">
           <span class="icon">🏢</span> Régies externes
         </a>
         <a href="#" class="nav-item">
@@ -103,10 +117,11 @@
         </div>
         <form method="POST" action="{{ route('logout') }}" style="margin-left:auto">
           @csrf
-          <button type="submit" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;"
-                  title="Déconnexion" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">
-            ⏻
-          </button>
+          <button type="submit"
+                  style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;"
+                  title="Déconnexion"
+                  onmouseover="this.style.color='var(--red)'"
+                  onmouseout="this.style.color='var(--text3)'">⏻</button>
         </form>
       </div>
     </div>
@@ -116,17 +131,17 @@
   {{-- ══ CONTENU ══ --}}
   <div class="main-area" style="margin-left:235px;">
 
-    {{-- Topbar --}}
     <div class="topbar">
       <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
       <div style="display:flex;align-items:center;gap:10px;">
         <input type="text" class="topbar-search" placeholder="🔍 Rechercher...">
-        <button class="btn btn-ghost btn-sm">🔔 <span class="nav-badge red" style="position:relative">5</span></button>
+        <button class="btn btn-ghost btn-sm">🔔
+          <span class="nav-badge red" style="position:relative">5</span>
+        </button>
         {{ $topbarActions ?? '' }}
       </div>
     </div>
 
-    {{-- Flash messages --}}
     <div style="padding: 0 20px;">
       @if(session('success'))
         <div class="flash flash-success" style="margin-top:16px;">
@@ -140,7 +155,6 @@
       @endif
     </div>
 
-    {{-- Page --}}
     <div class="page-content">
       {{ $slot }}
     </div>
@@ -148,5 +162,6 @@
   </div>
 
 </div>
+@stack('scripts')
 </body>
 </html>

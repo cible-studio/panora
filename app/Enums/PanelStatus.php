@@ -8,4 +8,17 @@ enum PanelStatus: string
     case OPTION      = 'option';
     case CONFIRME    = 'confirme';
     case MAINTENANCE = 'maintenance';
+    
+    public function label(): string
+    {
+        return match($this) {
+            self::LIBRE       => 'Libre',
+            self::OPTION      => 'En option',
+            self::CONFIRME    => 'Confirmé',
+            self::OCCUPE      => 'Occupé',
+            self::MAINTENANCE => 'Maintenance',
+        };
+    }
 }
+
+
