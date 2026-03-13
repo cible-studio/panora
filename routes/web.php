@@ -18,16 +18,17 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+require __DIR__.'/admin.php';
 
-// ══════════════════════════════════════════════════════════
-// ROUTES ADMIN — Dev B
-// ══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// ROUTES ADMIN - Dev B
+// ═══════════════════════════════════════════════════════════
 Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () {
 
-    // ── Clients ────────────────────────────────────────────
+    // -- Clients ─────────────────────────────────────────────
     Route::resource('clients', ClientController::class);
 
-    // ── Régies externes ────────────────────────────────────
+    // -- Régies externes ─────────────────────────────────────
     Route::resource('external-agencies', ExternalAgencyController::class)
         ->except(['create', 'edit']);
     Route::post('external-agencies/{externalAgency}/panels',
@@ -40,7 +41,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
         [ExternalAgencyController::class, 'destroyPanel'])
         ->name('external-agencies.panels.destroy');
 
-    // ── Disponibilités (⚠️ avant resource reservations) ───
+    // -- Disponibilités (avant resource reservations) ────────
     Route::get('disponibilites',
         [ReservationController::class, 'disponibilites'])
         ->name('reservations.disponibilites');
@@ -49,13 +50,13 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
         [ReservationController::class, 'confirmerSelection'])
         ->name('reservations.confirmer-selection');
 
-    // ── API AJAX — rate limité ─────────────────────────────
+    // -- API AJAX rate limité ─────────────────────────────────
     Route::get('reservations/available-panels',
         [ReservationController::class, 'availablePanels'])
         ->name('reservations.available-panels')
         ->middleware('throttle:60,1');
 
-    // ── Réservations CRUD ──────────────────────────────────
+    // -- Réservations CRUD ───────────────────────────────────
     Route::resource('reservations', ReservationController::class)
         ->except(['create', 'store']);
 
