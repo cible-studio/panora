@@ -1,65 +1,65 @@
 <?php
-
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Models\Zone;
+use App\Models\Commune;
 use Illuminate\Http\Request;
 
 class ZoneController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        //
+        $zones = Zone::with('commune')->latest()->paginate(15);
+        return view('settings.zones.index', compact('zones'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        //
+        $communes = Commune::orderBy('name')->get();
+        return view('settings.zones.create', compact('communes'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'name'         => 'required|string|max:100',
+            'commune_id'   => 'nullable|exists:communes,id',
+            'description'  => 'nullable|string',
+            'demand_level' => 'required|in:faible,normale,haute,tres_haute',
+        ]);
+
+        Zone::create($request->all());
+
+        return redirect()->route('admin.settings.zones.index')
+            ->with('success', 'Zone créée avec succès !');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function edit(Zone $zone)
     {
-        //
+        $communes = Commune::orderBy('name')->get();
+        return view('settings.zones.edit', compact('zone', 'communes'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    public function update(Request $request, Zone $zone)
     {
-        //
+        $request->validate([
+            'name'         => 'required|string|max:100',
+            'commune_id'   => 'nullable|exists:communes,id',
+            'description'  => 'nullable|string',
+            'demand_level' => 'required|in:faible,normale,haute,tres_haute',
+        ]);
+
+        $zone->update($request->all());
+
+        return redirect()->route('admin.settings.zones.index')
+            ->with('success', 'Zone modifiée avec succès !');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function destroy(Zone $zone)
     {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $zone->delete();
+        return redirect()->route('admin.settings.zones.index')
+            ->with('success', 'Zone supprimée !');
     }
 }

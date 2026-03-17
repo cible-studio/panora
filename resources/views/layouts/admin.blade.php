@@ -31,14 +31,13 @@
            class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
           <span class="icon">📊</span> Tableau de bord
         </a>
-        {{-- Disponibilités = écran principal --}}
+
         <a href="{{ route('admin.reservations.disponibilites') }}"
           class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
           <span class="icon">📋</span> Disponibilités
           <span class="nav-badge">{{ App\Models\Panel::where('status','libre')->count() }}</span>
         </a>
 
-        {{-- Réservations = liste de gestion --}}
         <a href="{{ route('admin.reservations.index') }}"
           class="nav-item {{ request()->routeIs('admin.reservations.*')
             && !request()->routeIs('admin.reservations.disponibilites')
@@ -48,7 +47,7 @@
             {{ App\Models\Reservation::where('status','en_attente')->count() }}
           </span>
         </a>
-        
+
         <a href="#" class="nav-item">
           <span class="icon">🗂️</span> Inventaire
         </a>
@@ -131,7 +130,8 @@
   {{-- ══ CONTENU ══ --}}
   <div class="main-area" style="margin-left:235px;">
 
-    <div class="topbar">
+    {{-- TOPBAR FIXE --}}
+    <div class="topbar" style="position:fixed; top:0; left:235px; right:0; z-index:30;">
       <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
       <div style="display:flex;align-items:center;gap:10px;">
         <input type="text" class="topbar-search" placeholder="🔍 Rechercher...">
@@ -141,6 +141,9 @@
         {{ $topbarActions ?? '' }}
       </div>
     </div>
+
+    {{-- ESPACE POUR LA TOPBAR FIXE --}}
+    <div style="height:52px;"></div>
 
     <div style="padding: 0 20px;">
       @if(session('success'))
