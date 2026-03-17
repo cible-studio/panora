@@ -4,12 +4,13 @@ use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\ExternalAgencyController;
 use App\Http\Controllers\Admin\ReservationController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\DashboardController;
 
 Route::get('/', fn() => view('welcome'));
 
-Route::get('/dashboard', fn() => view('dashboard'))
-    ->middleware(['auth', 'verified'])
-    ->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])
+     ->middleware(['auth', 'verified'])
+     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile',    [ProfileController::class, 'edit'])->name('profile.edit');
