@@ -29,5 +29,10 @@ class DatabaseSeeder extends Seeder
             CampaignSeeder::class,
             ReservationSeeder::class,
         ]);
+
+        $this->call([
+            RoleSeeder::class,
+            // autres seeders de votre binôme...
+        ]);
     }
 }

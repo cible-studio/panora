@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -7,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class CampaignPanel extends Model
 {
+<<<<<<< HEAD
     use HasFactory;
 
     protected $table = 'campaign_panels';
@@ -30,3 +30,7 @@ class CampaignPanel extends Model
         return $this->belongsTo(ExternalPanel::class);
     }
 }
+=======
+    //
+}
+>>>>>>> a1831ad3b4dae4af9cc7002b8d31eda3189f9202
