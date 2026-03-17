@@ -13,7 +13,7 @@
 <div x-data="disponibilites()" x-init="init()">
 
   {{-- ── Filtres ── --}}
-  <form method="GET" action="{{ route('admin.reservations.disponibilites') }}"
+  <form method="GET" id="filter-form" onsubmit="return validateDatesForm()" action="{{ route('admin.reservations.disponibilites') }}"
         style="background:var(--surface);border:1px solid var(--border);
                border-radius:12px;padding:14px 16px;margin-bottom:16px;">
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
@@ -55,18 +55,33 @@
       </div>
 
       <div class="filter-group">
-        <label class="filter-label">Dispo du</label>
-        <input type="date" name="dispo_du"
-               value="{{ request('dispo_du') }}"
-               class="filter-input"/>
+          <label class="filter-label">Dispo du</label>
+          <input type="date"
+              name="dispo_du"
+              id="input-dispo-du"
+              value="{{ request('dispo_du') }}"
+              class="filter-input"
+              onchange="onStartDateChange(this.value)"/>
+      </div>
+    
+      <div class="filter-group">
+          <label class="filter-label">Au</label>
+          <input type="date"
+            name="dispo_au"
+            id="input-dispo-au"
+            value="{{ request('dispo_au') }}"
+            class="filter-input"
+            {{-- min dynamique = start_date + 1 jour si déjà renseigné --}}
+            min="{{ request('dispo_du') ? \Carbon\Carbon::parse(request('dispo_du'))->addDay()->format('Y-m-d') : '' }}"
+            onchange="onEndDateChange(this.value)"/>
       </div>
 
-      <div class="filter-group">
-        <label class="filter-label">Au</label>
-        <input type="date" name="dispo_au"
-               value="{{ request('dispo_au') }}"
-               class="filter-input"/>
-      </div>
+      @if(isset($dateError) && $dateError)
+        <div style="width:100%; margin-top:4px; padding:8px 12px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:8px; font-size:12px; color:var(--red); display:flex; align-items:center; gap:6px;">
+          <span>⚠️</span>
+          <span>{{ $dateError }}</span>
+        </div>
+      @endif
 
       <div class="filter-group">
         <label class="filter-label">Statut</label>
@@ -80,11 +95,9 @@
         </select>
       </div>
 
-      <div>
-        <label>Dimensions</label>
-        <select name="dimensions"
-                style="background:var(--surface2);border:1px solid var(--border2);
-                       border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;outline:none;">
+      <div class="filter-group">
+        <label class="filter-label">Dimensions</label>
+        <select name="dimensions" class="filter-select">
             <option value="">Toutes</option>
             @foreach($dimensions as $dim)
                 <option value="{{ $dim }}"
@@ -594,6 +607,137 @@ function disponibilites() {
     }
   }
 }
+
+  // ── Validation dates côté client ────────────────────────────────
+  
+  /**
+   * Quand on change la date de début :
+   *  - met le min de la date de fin à start + 1 jour
+   *  - si la date de fin est déjà renseignée et devient invalide, on la vide
+   *  - met à jour le message d'erreur inline
+   */
+  function onStartDateChange(startVal) {
+      const endInput = document.getElementById('input-dispo-au');
+      if (! endInput) return;
+  
+      if (startVal) {
+          // min = start + 1 jour
+          const minDate = new Date(startVal);
+          minDate.setDate(minDate.getDate() + 1);
+          const minStr = minDate.toISOString().split('T')[0];
+          endInput.min = minStr;
+  
+          // Si la date de fin est déjà définie et invalide → la vider
+          if (endInput.value && endInput.value <= startVal) {
+              endInput.value = '';
+              showDateError('La date de fin a été réinitialisée car elle était antérieure ou égale à la date de début.');
+          } else {
+              clearDateError();
+          }
+      } else {
+          endInput.min = '';
+          clearDateError();
+      }
+  }
+  
+  /**
+   * Quand on change la date de fin :
+   *  - vérifie qu'elle est après start
+   *  - affiche une erreur inline si non
+   */
+  function onEndDateChange(endVal) {
+      const startInput = document.getElementById('input-dispo-du');
+      if (! startInput || ! startInput.value) return;
+  
+      if (endVal && endVal <= startInput.value) {
+          showDateError('La date de fin doit être strictement après la date de début.');
+          document.getElementById('input-dispo-au').value = '';
+      } else {
+          clearDateError();
+      }
+  }
+  
+  /**
+   * Validation finale avant soumission du formulaire
+   * Retourne false pour bloquer si les dates sont incohérentes
+   */
+  function validateDatesForm() {
+      const start = document.getElementById('input-dispo-du')?.value;
+      const end   = document.getElementById('input-dispo-au')?.value;
+  
+      // Les deux vides → OK (pas de filtre période)
+      if (! start && ! end) return true;
+  
+      // Une seule renseignée
+      if (start && ! end) {
+          showDateError('Veuillez renseigner la date de fin.');
+          document.getElementById('input-dispo-au')?.focus();
+          return false;
+      }
+      if (! start && end) {
+          showDateError('Veuillez renseigner la date de début.');
+          document.getElementById('input-dispo-du')?.focus();
+          return false;
+      }
+  
+      // Les deux renseignées : end doit être > start
+      if (end <= start) {
+          showDateError('La date de fin doit être strictement après la date de début.');
+          document.getElementById('input-dispo-au')?.focus();
+          return false;
+      }
+  
+      clearDateError();
+      return true;
+  }
+  
+  function showDateError(msg) {
+      let el = document.getElementById('date-error-inline');
+      if (! el) {
+          // Créer dynamiquement si l'alerte serveur n'est pas présente
+          el = document.createElement('div');
+          el.id = 'date-error-inline';
+          el.style.cssText = [
+              'width:100%',
+              'margin-top:4px',
+              'padding:8px 12px',
+              'background:rgba(239,68,68,0.08)',
+              'border:1px solid rgba(239,68,68,0.3)',
+              'border-radius:8px',
+              'font-size:12px',
+              'color:var(--red)',
+              'display:flex',
+              'align-items:center',
+              'gap:6px',
+          ].join(';');
+  
+          // Insérer après l'input dispo_au
+          const endInput = document.getElementById('input-dispo-au');
+          if (endInput?.parentElement?.parentElement) {
+              endInput.parentElement.parentElement.after(el);
+          }
+      }
+      el.innerHTML = '<span>⚠️</span><span>' + msg + '</span>';
+      el.style.display = 'flex';
+  }
+  
+  function clearDateError() {
+      const el = document.getElementById('date-error-inline');
+      if (el) el.style.display = 'none';
+  }
+  
+  // ── Au chargement : si dates déjà présentes, restaurer le min ───
+  document.addEventListener('DOMContentLoaded', () => {
+      const startVal = document.getElementById('input-dispo-du')?.value;
+      if (startVal) {
+          const minDate = new Date(startVal);
+          minDate.setDate(minDate.getDate() + 1);
+          const endInput = document.getElementById('input-dispo-au');
+          if (endInput) {
+              endInput.min = minDate.toISOString().split('T')[0];
+          }
+      }
+  });
 </script>
 @endpush
 

@@ -27,63 +27,103 @@ class ReservationController extends Controller
     // DISPONIBILITÉS — écran principal
     // ══════════════════════════════════════════════════════
 
-    public function disponibilites(Request $request)
+        public function disponibilites(Request $request)
     {
-        $communes = Commune::orderBy('name')->get();
-        $formats  = PanelFormat::orderBy('name')->get();
-        $zones    = Zone::orderBy('name')->get();
-        $clients  = Client::orderBy('name')->get();
-
-        $dimensions = \App\Models\PanelFormat::whereNotNull('width')
-        ->whereNotNull('height')
-        ->orderBy('width')->orderBy('height')
-        ->get()
-        ->map(fn($f) => ReservationController::formatDimensions($f->width, $f->height))
-        ->filter()
-        ->unique()
-        ->values();
- 
-        if ($request->dimensions) {
-            [$w, $h] = explode('×', str_replace('m', '', $request->dimensions));
-            $query->whereHas('format', fn($q) =>
-                $q->whereBetween('width',  [(float)$w - 0.01, (float)$w + 0.01])
-                ->whereBetween('height', [(float)$h - 0.01, (float)$h + 0.01])
-            );
-        }
-
+        $communes   = Commune::orderBy('name')->get();
+        $formats    = PanelFormat::orderBy('name')->get();
+        $zones      = Zone::orderBy('name')->get();
+        $clients    = Client::orderBy('name')->get();
+    
+        // ── Liste des dimensions disponibles pour le select ───────────
+        // Format affiché : "4×3m", "8×3m", "2.5×2.5m" (pas de .0 inutile)
+        $dimensions = PanelFormat::whereNotNull('width')
+            ->whereNotNull('height')
+            ->orderBy('width')
+            ->orderBy('height')
+            ->get()
+            ->map(fn($f) => $this->formatDimensions($f->width, $f->height))
+            ->filter()
+            ->unique()
+            ->values();
+    
+        // ── Construction de la query AVANT tout filtre ─────────────────
         $query = Panel::with(['commune', 'format', 'zone', 'category'])
             ->whereNull('deleted_at');
-
-        if ($request->commune_id) $query->where('commune_id', $request->commune_id);
-        if ($request->zone_id)    $query->where('zone_id',    $request->zone_id);
-        if ($request->format_id)  $query->where('format_id',  $request->format_id);
+    
+        // Filtres classiques
+        if ($request->commune_id) {
+            $query->where('commune_id', $request->commune_id);
+        }
+        if ($request->zone_id) {
+            $query->where('zone_id', $request->zone_id);
+        }
+        if ($request->format_id) {
+            $query->where('format_id', $request->format_id);
+        }
         if ($request->statut && $request->statut !== 'tous') {
             $query->where('status', $request->statut);
         }
-
+    
+        // Filtre par dimensions ex: "4×3m" ou "5×2m"
+        // ⚠️ Appliqué SUR $query, qui est déjà défini ci-dessus
+        if ($request->dimensions) {
+            // Nettoyer : "5×2m" → "5×2" → ["5", "2"]
+            $dimClean = str_replace('m', '', $request->dimensions);
+    
+            // Support des deux séparateurs : × (UTF-8) et x (ASCII)
+            if (str_contains($dimClean, '×')) {
+                [$w, $h] = explode('×', $dimClean);
+            } elseif (str_contains($dimClean, 'x')) {
+                [$w, $h] = explode('x', $dimClean);
+            } else {
+                $w = $h = null;
+            }
+    
+            if ($w !== null && $h !== null && is_numeric(trim($w)) && is_numeric(trim($h))) {
+                $query->whereHas('format', fn($q) =>
+                    $q->whereBetween('width',  [(float) trim($w) - 0.01, (float) trim($w) + 0.01])
+                    ->whereBetween('height', [(float) trim($h) - 0.01, (float) trim($h) + 0.01])
+                );
+            }
+        }
+    
         $allPanels   = $query->orderBy('reference')->get();
         $occupiedIds = collect();
         $optionIds   = collect();
+        $dateError  = null;       // ← nouveau
         $startDate   = $request->dispo_du;
         $endDate     = $request->dispo_au;
 
         if ($startDate && $endDate) {
-            $occupiedIds = ReservationPanel::whereHas('reservation', fn($q) =>
-                $q->where('status', ReservationStatus::CONFIRME->value)
-                  ->where('start_date', '<=', $endDate)
-                  ->where('end_date',   '>=', $startDate)
-            )->pluck('panel_id')->unique();
-
-            $optionIds = ReservationPanel::whereHas('reservation', fn($q) =>
-                $q->where('status', ReservationStatus::EN_ATTENTE->value)
-                  ->where('start_date', '<=', $endDate)
-                  ->where('end_date',   '>=', $startDate)
-            )->pluck('panel_id')->unique();
+            // Validation : end doit être STRICTEMENT après start
+            if ($endDate <= $startDate) {
+                $dateError = 'La date de fin doit être après la date de début.';
+                // On ne charge PAS les occupiedIds — les panneaux restent affichables
+                // mais sans calcul de disponibilité (cohérent et safe)
+            } else {
+                $occupiedIds = ReservationPanel::whereHas('reservation', fn($q) =>
+                    $q->where('status', ReservationStatus::CONFIRME->value)
+                    ->where('start_date', '<=', $endDate)
+                    ->where('end_date',   '>=', $startDate)
+                )->pluck('panel_id')->unique();
+        
+                $optionIds = ReservationPanel::whereHas('reservation', fn($q) =>
+                    $q->where('status', ReservationStatus::EN_ATTENTE->value)
+                    ->where('start_date', '<=', $endDate)
+                    ->where('end_date',   '>=', $startDate)
+                )->pluck('panel_id')->unique();
+            }
+        } elseif ($startDate && ! $endDate) {
+            $dateError = 'Veuillez renseigner la date de fin.';
+        } elseif (! $startDate && $endDate) {
+            $dateError = 'Veuillez renseigner la date de début.';
         }
-
+        
         return view('admin.reservations.disponibilites', compact(
             'allPanels', 'communes', 'formats', 'zones', 'clients',
-            'occupiedIds', 'optionIds', 'startDate', 'endDate'
+            'dimensions', 'occupiedIds', 'optionIds',
+            'startDate', 'endDate',
+            'dateError'           // ← passer à la vue
         ));
     }
 
@@ -215,6 +255,18 @@ class ReservationController extends Controller
         return redirect()
             ->route('admin.reservations.disponibilites')
             ->with('success', $msg);
+    }
+
+    // ── Méthode utilitaire (private static) ───────────────────────────
+    // Formate les dimensions : 4.0 → "4", 2.5 → "2.5", résultat : "4×3m"
+    private function formatDimensions(?float $w, ?float $h): ?string
+    {
+        if (! $w || ! $h) return null;
+    
+        $wStr = rtrim(rtrim(number_format($w, 2, '.', ''), '0'), '.');
+        $hStr = rtrim(rtrim(number_format($h, 2, '.', ''), '0'), '.');
+    
+        return "{$wStr}×{$hStr}m";
     }
 
     // ══════════════════════════════════════════════════════
@@ -583,20 +635,6 @@ class ReservationController extends Controller
         );
     }
     
-    /**
-     * Formate les dimensions : 4.0×3.0m → "4×3m", 2.5×2.5m → "2.5×2.5m"
-     */
-    private static function formatDimensions(?float $w, ?float $h): ?string
-    {
-        if (! $w || ! $h) return null;
-    
-        // Supprimer les .0 inutiles : 4.0 → 4, 2.5 → 2.5
-        $wStr = rtrim(rtrim(number_format($w, 2, '.', ''), '0'), '.');
-        $hStr = rtrim(rtrim(number_format($h, 2, '.', ''), '0'), '.');
-    
-        return "{$wStr}×{$hStr}m";
-    }
- 
 
     // ══════════════════════════════════════════════════════
     // UTILITAIRE
