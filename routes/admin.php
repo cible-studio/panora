@@ -10,6 +10,7 @@ use App\Http\Controllers\Settings\ZoneController;
 use App\Http\Controllers\Settings\CommuneController;
 use App\Http\Controllers\Settings\PanelFormatController;
 use App\Http\Controllers\Settings\PanelCategoryController;
+use App\Http\Controllers\Admin\PdfController;
 
 Route::prefix('admin')
     ->name('admin.')
@@ -43,7 +44,7 @@ Route::prefix('admin')
         Route::post('maintenances/{maintenance}/resolve', [MaintenanceController::class, 'resolve'])
             ->name('maintenances.resolve');
 
-    
+
         // Alertes
         Route::get('alerts', [AlertController::class, 'index'])
             ->name('alerts.index');
@@ -73,4 +74,13 @@ Route::prefix('admin')
             Route::get('audit-logs', [UserController::class, 'auditLogs'])
                 ->name('audit.logs');
         });
+
+        // Export PDF
+
+        Route::get('panels/{panel}/pdf', [PanelController::class, 'exportPdf'])
+            ->name('panels.pdf');
+        Route::get('panels/export/list', [PanelController::class, 'exportList'])
+            ->name('panels.export.list');
+        Route::get('panels/export/network', [PanelController::class, 'exportNetwork'])
+            ->name('panels.export.network');
     });

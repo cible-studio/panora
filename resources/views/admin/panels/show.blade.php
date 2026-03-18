@@ -2,6 +2,9 @@
 <x-slot name="title">{{ $panel->reference }}</x-slot>
 
 <x-slot name="topbarActions">
+    <a href="{{ route('admin.panels.pdf', $panel) }}" class="btn btn-ghost btn-sm">
+        📄 Export PDF
+    </a>
     <a href="{{ route('admin.panels.edit', $panel) }}" class="btn btn-ghost btn-sm">
         ✏️ Modifier
     </a>
@@ -147,12 +150,16 @@
         <div class="card">
             <div class="card-header">
                 <div class="card-title">🔧 Maintenances</div>
+                <a href="{{ route('admin.maintenances.create') }}?panel_id={{ $panel->id }}"
+                   class="btn btn-ghost btn-sm">＋</a>
             </div>
             <div class="card-body">
                 @forelse($panel->maintenances->take(3) as $maintenance)
                 <div style="padding-bottom:10px; margin-bottom:10px; border-bottom:1px solid var(--border);">
                     <div style="font-size:12px; font-weight:600;">{{ $maintenance->type_panne }}</div>
-                    <div style="font-size:11px; color:var(--text3);">{{ $maintenance->date_signalement->format('d/m/Y') }}</div>
+                    <div style="font-size:11px; color:var(--text3);">
+                        {{ $maintenance->date_signalement->format('d/m/Y') }}
+                    </div>
                     @if($maintenance->statut === 'resolu')
                         <span class="badge badge-green" style="margin-top:4px;">Résolu</span>
                     @else
@@ -175,7 +182,9 @@
             <div class="card-body">
                 @forelse($panel->piges->take(3) as $pige)
                 <div style="padding-bottom:10px; margin-bottom:10px; border-bottom:1px solid var(--border);">
-                    <div style="font-size:12px; color:var(--text2);">{{ $pige->taken_at->format('d/m/Y') }}</div>
+                    <div style="font-size:12px; color:var(--text2);">
+                        {{ $pige->taken_at->format('d/m/Y') }}
+                    </div>
                     @if($pige->is_verified)
                         <span class="badge badge-green" style="margin-top:4px;">✓ Vérifiée</span>
                     @else

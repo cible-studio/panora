@@ -2,6 +2,12 @@
 <x-slot name="title">Inventaire Panneaux</x-slot>
 
 <x-slot name="topbarActions">
+    <a href="{{ route('admin.panels.export.list') }}" class="btn btn-ghost btn-sm">
+        📄 Export PDF
+    </a>
+    <a href="{{ route('admin.panels.export.network') }}" class="btn btn-ghost btn-sm">
+        📊 Rapport réseau
+    </a>
     <a href="{{ route('admin.panels.create') }}" class="btn btn-primary btn-sm">
         ＋ Nouveau panneau
     </a>
@@ -171,6 +177,8 @@
                                class="btn btn-ghost btn-sm" title="Voir">👁️</a>
                             <a href="{{ route('admin.panels.edit', $panel) }}"
                                class="btn btn-ghost btn-sm" title="Modifier">✏️</a>
+                            <a href="{{ route('admin.panels.pdf', $panel) }}"
+                               class="btn btn-ghost btn-sm" title="PDF">📄</a>
                             <form method="POST"
                                   action="{{ route('admin.panels.destroy', $panel) }}"
                                   onsubmit="return confirm('Supprimer ce panneau ?')">

@@ -11,6 +11,7 @@ use App\Models\PanelPhoto;
 use App\Enums\PanelStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Services\PdfExportService;
 
 class PanelController extends Controller
 {
@@ -261,5 +262,26 @@ class PanelController extends Controller
         });
 
         return response()->json($panels);
+    }
+
+    // ── EXPORT PDF FICHE ──
+    public function exportPdf(Panel $panel)
+    {
+        $service = new PdfExportService();
+        return $service->exportPanelSheet($panel);
+    }
+
+    // ── EXPORT PDF LISTE ──
+    public function exportList(Request $request)
+    {
+        $service = new PdfExportService();
+        return $service->exportPanelList($request->all());
+    }
+
+    // ── EXPORT PDF RÉSEAU ──
+    public function exportNetwork()
+    {
+        $service = new PdfExportService();
+        return $service->exportNetworkReport();
     }
 }
