@@ -2,9 +2,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Maintenance extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'panel_id', 'technicien_id', 'signale_par',
         'type_panne', 'priorite', 'statut',
@@ -17,21 +20,16 @@ class Maintenance extends Model
         'date_resolution'  => 'date',
     ];
 
-    // ── RELATIONS ──
-
-    // Une maintenance concerne un panneau
     public function panel()
     {
         return $this->belongsTo(Panel::class);
     }
 
-    // Une maintenance est assignée à un technicien
     public function technicien()
     {
         return $this->belongsTo(User::class, 'technicien_id');
     }
 
-    // Une maintenance est signalée par un user
     public function signaledBy()
     {
         return $this->belongsTo(User::class, 'signale_par');
