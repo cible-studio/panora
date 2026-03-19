@@ -24,10 +24,11 @@
                 <div>
                     <div class="card-title">{{ $panel->name }}</div>
                     <div style="font-size:12px; color:var(--text3); margin-top:3px;">
-                        Réf : <span style="color:var(--accent); font-family:monospace;">{{ $panel->reference }}</span>
+                        Réf : <span style="color:var(--accent); font-family:monospace;">
+                            {{ $panel->reference }}
+                        </span>
                     </div>
                 </div>
-                {{-- Statut --}}
                 @if($panel->status->value === 'libre')
                     <span class="badge badge-green" style="font-size:13px; padding:5px 14px;">Libre</span>
                 @elseif($panel->status->value === 'option')
@@ -41,6 +42,8 @@
                 @endif
             </div>
             <div class="card-body">
+
+                {{-- INFOS DE BASE --}}
                 <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
                     <div>
                         <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">COMMUNE</div>
@@ -70,21 +73,96 @@
                     </div>
                 </div>
 
+                {{-- CARACTÉRISTIQUES TECHNIQUES --}}
+                <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+                    <div style="font-size:11px; color:var(--accent); margin-bottom:10px;
+                                font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+                        Caractéristiques techniques
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+                        <div>
+                            <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">NOMBRE DE FACES</div>
+                            <div style="font-weight:600;">{{ $panel->nombre_faces ?? 1 }}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">TYPE SUPPORT</div>
+                            <div style="font-weight:600;">{{ $panel->type_support ?? '—' }}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">ORIENTATION</div>
+                            <div style="font-weight:600;">
+                                {{ $panel->orientation ? ucfirst($panel->orientation) : '—' }}
+                            </div>
+                        </div>
+                        @if($panel->format->width && $panel->format->height)
+                        <div>
+                            <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">DIMENSIONS</div>
+                            <div style="font-weight:600;">
+                                {{ $panel->format->width }}m × {{ $panel->format->height }}m
+                            </div>
+                        </div>
+                        @endif
+                        @if($panel->format->surface)
+                        <div>
+                            <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">SURFACE</div>
+                            <div style="font-weight:600;">{{ $panel->format->surface }} m²</div>
+                        </div>
+                        @endif
+                        @if($panel->daily_traffic)
+                        <div>
+                            <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">TRAFIC/JOUR</div>
+                            <div style="font-weight:600;">
+                                {{ number_format($panel->daily_traffic, 0, ',', ' ') }} véhicules
+                            </div>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+
+                {{-- LOCALISATION --}}
+                <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+                    <div style="font-size:11px; color:var(--accent); margin-bottom:10px;
+                                font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+                        Localisation
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+                        <div>
+                            <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">ADRESSE</div>
+                            <div style="font-weight:600;">{{ $panel->adresse ?? '—' }}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">QUARTIER</div>
+                            <div style="font-weight:600;">{{ $panel->quartier ?? '—' }}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">AXE ROUTIER</div>
+                            <div style="font-weight:600;">{{ $panel->axe_routier ?? '—' }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- DESCRIPTION --}}
                 @if($panel->zone_description)
                 <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
-                    <div style="font-size:11px; color:var(--text3); margin-bottom:6px;">DESCRIPTION EMPLACEMENT</div>
+                    <div style="font-size:11px; color:var(--text3); margin-bottom:6px;">
+                        DESCRIPTION EMPLACEMENT
+                    </div>
                     <div style="color:var(--text2);">{{ $panel->zone_description }}</div>
                 </div>
                 @endif
 
+                {{-- GPS --}}
                 @if($panel->latitude && $panel->longitude)
                 <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
-                    <div style="font-size:11px; color:var(--text3); margin-bottom:6px;">COORDONNÉES GPS</div>
+                    <div style="font-size:11px; color:var(--text3); margin-bottom:6px;">
+                        COORDONNÉES GPS
+                    </div>
                     <div style="font-family:monospace; color:var(--text2);">
                         {{ $panel->latitude }}, {{ $panel->longitude }}
                     </div>
                 </div>
                 @endif
+
             </div>
         </div>
 
@@ -98,12 +176,12 @@
                 <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px;">
                     @foreach($panel->photos as $photo)
                     <img src="{{ asset('storage/'.$photo->path) }}"
-                         style="width:100%; height:120px; object-fit:cover; border-radius:8px; border:1px solid var(--border);">
+                         style="width:100%; height:120px; object-fit:cover;
+                                border-radius:8px; border:1px solid var(--border);">
                     @endforeach
                 </div>
                 @endif
 
-                {{-- Ajouter photo --}}
                 <form method="POST" action="{{ route('admin.panels.photos', $panel) }}"
                       enctype="multipart/form-data"
                       style="display:flex; gap:10px; align-items:center;">
@@ -143,6 +221,35 @@
                         Mettre à jour
                     </button>
                 </form>
+            </div>
+        </div>
+
+        {{-- TARIFS --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">💰 Tarifs</div>
+            </div>
+            <div class="card-body">
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text3);">Mensuel</span>
+                        <span style="font-weight:700; color:var(--accent);">
+                            {{ number_format($panel->monthly_rate, 0, ',', ' ') }} FCFA
+                        </span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text3);">Trimestriel</span>
+                        <span style="font-weight:600;">
+                            {{ number_format($panel->monthly_rate * 3, 0, ',', ' ') }} FCFA
+                        </span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text3);">Annuel</span>
+                        <span style="font-weight:600;">
+                            {{ number_format($panel->monthly_rate * 12, 0, ',', ' ') }} FCFA
+                        </span>
+                    </div>
+                </div>
             </div>
         </div>
 

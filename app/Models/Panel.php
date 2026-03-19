@@ -11,22 +11,36 @@ class Panel extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'reference', 'name',
-        'commune_id', 'zone_id',
-        'format_id', 'category_id',
-        'latitude', 'longitude',
-        'status', 'is_lit',
-        'monthly_rate', 'daily_traffic',
+        'reference',
+        'name',
+        'commune_id',
+        'zone_id',
+        'format_id',
+        'category_id',
+        'latitude',
+        'longitude',
+        'status',
+        'is_lit',
+        'monthly_rate',
+        'daily_traffic',
         'maintenance_status',
-        'zone_description', 'created_by',
+        'zone_description',
+        'created_by',
+        // ← Nouveaux champs
+        'nombre_faces',
+        'type_support',
+        'orientation',
+        'adresse',
+        'quartier',
+        'axe_routier',
     ];
 
     protected $casts = [
-        'is_lit'       => 'boolean',
+        'is_lit' => 'boolean',
         'monthly_rate' => 'decimal:2',
-        'latitude'     => 'decimal:7',
-        'longitude'    => 'decimal:7',
-        'status'       => PanelStatus::class,
+        'latitude' => 'decimal:7',
+        'longitude' => 'decimal:7',
+        'status' => PanelStatus::class,
     ];
 
     public function photos()

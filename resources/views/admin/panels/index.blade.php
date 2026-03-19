@@ -104,6 +104,9 @@
                     <th>Nom</th>
                     <th>Commune</th>
                     <th>Format</th>
+                    <th>Faces</th>
+                    <th>Orientation</th>
+                    <th>Adresse / Quartier</th>
                     <th>Tarif/mois</th>
                     <th>Statut</th>
                     <th>Actions</th>
@@ -140,7 +143,7 @@
                         <div style="font-weight:500;">{{ $panel->name }}</div>
                         <div style="font-size:11px; color:var(--text3);">
                             {{ $panel->category?->name ?? '—' }}
-                            @if($panel->is_lit) · 💡 Éclairé @endif
+                            @if($panel->is_lit) · 💡 @endif
                         </div>
                     </td>
 
@@ -148,7 +151,49 @@
                     <td>{{ $panel->commune->name }}</td>
 
                     {{-- FORMAT --}}
-                    <td>{{ $panel->format->name }}</td>
+                    <td>
+                        <div>{{ $panel->format->name }}</div>
+                        @if($panel->format->surface)
+                        <div style="font-size:11px; color:var(--text3);">
+                            {{ $panel->format->surface }}m²
+                        </div>
+                        @endif
+                    </td>
+
+                    {{-- NOMBRE DE FACES --}}
+                    <td style="text-align:center;">
+                        <span style="font-weight:700; color:var(--text2);">
+                            {{ $panel->nombre_faces ?? 1 }}
+                        </span>
+                    </td>
+
+                    {{-- ORIENTATION --}}
+                    <td>
+                        @if($panel->orientation)
+                            <span class="badge badge-gray">
+                                {{ ucfirst($panel->orientation) }}
+                            </span>
+                        @else
+                            <span style="color:var(--text3);">—</span>
+                        @endif
+                    </td>
+
+                    {{-- ADRESSE / QUARTIER --}}
+                    <td>
+                        @if($panel->quartier)
+                            <div style="font-weight:500; font-size:12px;">
+                                {{ $panel->quartier }}
+                            </div>
+                        @endif
+                        @if($panel->adresse)
+                            <div style="font-size:11px; color:var(--text3);">
+                                {{ $panel->adresse }}
+                            </div>
+                        @endif
+                        @if(!$panel->quartier && !$panel->adresse)
+                            <span style="color:var(--text3);">—</span>
+                        @endif
+                    </td>
 
                     {{-- TARIF --}}
                     <td style="color:var(--accent); font-weight:600;">
@@ -191,7 +236,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" style="text-align:center; color:var(--text3); padding:32px;">
+                    <td colspan="11" style="text-align:center; color:var(--text3); padding:32px;">
                         Aucun panneau trouvé
                     </td>
                 </tr>
