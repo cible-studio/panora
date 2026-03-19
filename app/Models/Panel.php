@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use App\Enums\PanelStatus;
@@ -26,7 +27,7 @@ class Panel extends Model
         'maintenance_status',
         'zone_description',
         'created_by',
-        // ← Nouveaux champs
+        // Champs Dev A ajoutés
         'nombre_faces',
         'type_support',
         'orientation',
@@ -36,12 +37,14 @@ class Panel extends Model
     ];
 
     protected $casts = [
-        'is_lit' => 'boolean',
+        'is_lit'       => 'boolean',
         'monthly_rate' => 'decimal:2',
-        'latitude' => 'decimal:7',
-        'longitude' => 'decimal:7',
-        'status' => PanelStatus::class,
+        'latitude'     => 'decimal:7',
+        'longitude'    => 'decimal:7',
+        'status'       => PanelStatus::class,
     ];
+
+    // ── Relations Dev A ───────────────────────────────────────────
 
     public function photos()
     {
@@ -73,6 +76,18 @@ class Panel extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function maintenances()
+    {
+        return $this->hasMany(Maintenance::class);
+    }
+
+    public function poseTasks()
+    {
+        return $this->hasMany(PoseTask::class);
+    }
+
+    // ── Relations Dev B ───────────────────────────────────────────
+
     public function reservations()
     {
         return $this->belongsToMany(Reservation::class, 'reservation_panels')
@@ -91,15 +106,7 @@ class Panel extends Model
         return $this->hasMany(Pige::class);
     }
 
-    public function maintenances()
-    {
-        return $this->hasMany(Maintenance::class);
-    }
-
-    public function poseTasks()
-    {
-        return $this->hasMany(PoseTask::class);
-    }
+    // ── Helpers ───────────────────────────────────────────────────
 
     public function isAvailable(): bool
     {
