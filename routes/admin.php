@@ -18,10 +18,10 @@ use App\Http\Controllers\Admin\ExternalAgencyController;
 use App\Http\Controllers\Admin\ReservationController;
 use App\Http\Controllers\Admin\CampaignController;
 
-Route::prefix('admin')
-    ->name('admin.')
-    ->middleware(['auth', 'role:admin,commercial,mediaplanner,technique'])
-    ->group(function () {
+    Route::prefix('admin')
+        ->name('admin.')
+        ->middleware(['auth', 'role:admin,commercial,mediaplanner,technique'])
+        ->group(function () {
 
         // ── Dashboard ─────────────────────────────────── Dev A ───
         Route::get('/dashboard', [DashboardController::class, 'index'])
@@ -68,7 +68,6 @@ Route::prefix('admin')
         Route::delete('alerts/{alert}', [AlertController::class, 'destroy'])
             ->name('alerts.destroy');
 
-<<<<<<< HEAD
         // ── Paramètres (admin uniquement) ─────────────── Dev A ───
         Route::middleware('role:admin')
             ->prefix('settings')
@@ -152,7 +151,7 @@ Route::prefix('admin')
             ->name('campaigns.panels.remove');
 
     });
-=======
+
     // Utilisateurs — admin seulement
     Route::middleware('role:admin')->group(function () {
         Route::resource('users', UserController::class);
@@ -222,5 +221,3 @@ Route::prefix('admin')
 
 
 
-});
->>>>>>> feature/DEV-B-setup
