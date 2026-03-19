@@ -52,9 +52,12 @@
         <a href="#" class="nav-item">
           <span class="icon">🗂️</span> Inventaire
         </a>
-        <a href="#" class="nav-item">
+        <a href="{{ route('admin.campaigns.index') }}"
+           class="nav-item {{ request()->routeIs('admin.campaigns.*') ? 'active' : '' }}">
           <span class="icon">📁</span> Campagnes
-          <span class="nav-badge blue">12</span>
+          <span class="nav-badge blue">
+              {{ App\Models\Campaign::where('status','actif')->count() }}
+          </span>
         </a>
         <a href="{{ route('admin.clients.index') }}"
            class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">

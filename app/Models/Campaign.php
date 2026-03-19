@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use App\Enums\CampaignStatus;
@@ -13,6 +12,7 @@ class Campaign extends Model
 
     protected $fillable = [
         'name', 'client_id', 'reservation_id',
+        'user_id', 'updated_by',
         'start_date', 'end_date', 'status',
         'total_panels', 'total_amount', 'notes',
     ];
@@ -25,9 +25,20 @@ class Campaign extends Model
         'status'       => CampaignStatus::class,
     ];
 
+    // ── Relations ─────────────────────────────────────────────────
     public function client()
     {
-        return $this->belongsTo(Client::class);
+        return $this->belongsTo(Client::class)->withTrashed();
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function updatedBy()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 
     public function reservation()
@@ -57,6 +68,7 @@ class Campaign extends Model
         return $this->hasMany(Invoice::class);
     }
 
+    // ── Scopes ────────────────────────────────────────────────────
     public function scopeActive($query)
     {
         return $query->where('status', CampaignStatus::ACTIF->value);
@@ -67,6 +79,13 @@ class Campaign extends Model
         return $query->where('status', CampaignStatus::TERMINE->value);
     }
 
+    public function scopeNonFacturees($query)
+    {
+        return $query->whereIn('status', ['actif', 'pose', 'termine'])
+                     ->doesntHave('invoices');
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────
     public function isActive(): bool
     {
         return $this->status === CampaignStatus::ACTIF;
@@ -74,11 +93,23 @@ class Campaign extends Model
 
     public function durationInDays(): int
     {
-        return $this->start_date->diffInDays($this->end_date);
+        return (int) $this->start_date->diffInDays($this->end_date);
     }
 
     public function durationInMonths(): int
     {
-        return $this->start_date->diffInMonths($this->end_date);
+        return max(1, (int) ceil($this->start_date->diffInDays($this->end_date) / 30));
+    }
+
+    public function progressPercent(): int
+    {
+        $total   = $this->start_date->diffInDays($this->end_date);
+        $elapsed = min($total, max(0, $this->start_date->diffInDays(now())));
+        return $total > 0 ? (int) round($elapsed / $total * 100) : 0;
+    }
+
+    public function daysRemaining(): int
+    {
+        return max(0, (int) now()->diffInDays($this->end_date, false));
     }
 }

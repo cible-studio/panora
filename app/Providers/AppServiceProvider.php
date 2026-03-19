@@ -18,6 +18,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191);
         Gate::policy(Reservation::class, ReservationPolicy::class);
+        Gate::policy(Campaign::class, \App\Policies\CampaignPolicy::class);
 
         // Force UTF8 pour WAMP
         \DB::statement('SET NAMES utf8');

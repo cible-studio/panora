@@ -1,19 +1,26 @@
 <x-admin-layout title="Modifier {{ $reservation->reference }}">
 
-<x-slot name="topbarActions">
+<x-slot:topbarActions>
     <a href="{{ route('admin.reservations.show', $reservation) }}"
        class="btn btn-ghost">← Retour</a>
-</x-slot>
+</x-slot:topbarActions>
 
 <div style="max-width:960px;">
 
     @if($errors->any())
-        <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
-                    border-radius:10px;padding:14px 16px;margin-bottom:16px;">
-            @foreach($errors->all() as $e)
-                <div style="color:var(--red);font-size:13px;margin-bottom:3px;">✕ {{ $e }}</div>
-            @endforeach
-        </div>
+    <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
+                border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+        @foreach($errors->all() as $e)
+        <div style="color:var(--red);font-size:13px;margin-bottom:3px;">✕ {{ $e }}</div>
+        @endforeach
+    </div>
+    @endif
+
+    @if(session('error'))
+    <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
+                border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+        <div style="color:var(--red);font-size:13px;">✕ {{ session('error') }}</div>
+    </div>
     @endif
 
     <form method="POST"
@@ -21,7 +28,11 @@
           x-data="reservationEditForm()">
         @csrf @method('PUT')
 
-        {{-- ── Informations générales ── --}}
+        {{-- Protection modification concurrente --}}
+        <input type="hidden" name="last_updated_at"
+               value="{{ $reservation->updated_at->timestamp }}">
+
+        {{-- Informations générales --}}
         <div class="card" style="margin-bottom:16px;">
             <div class="card-header">
                 <span class="card-title">Informations générales</span>
@@ -41,11 +52,11 @@
                                    border-radius:8px;padding:9px 12px;color:var(--text);
                                    font-size:13px;outline:none;width:100%;">
                         @foreach($clients as $client)
-                            <option value="{{ $client->id }}"
-                                    {{ old('client_id', $reservation->client_id) == $client->id
-                                        ? 'selected' : '' }}>
-                                {{ $client->name }}
-                            </option>
+                        <option value="{{ $client->id }}"
+                                {{ old('client_id', $reservation->client_id) == $client->id
+                                    ? 'selected' : '' }}>
+                            {{ $client->name }}
+                        </option>
                         @endforeach
                     </select>
                 </div>
@@ -68,10 +79,9 @@
                 </div>
 
                 {{-- Résumé durée + montant --}}
-                <div x-show="startDate && endDate && getDuration()"
-                     style="font-size:12px;color:var(--text2);
-                            margin-top:-8px;margin-bottom:12px;
-                            padding:8px 10px;background:var(--surface2);
+                <div x-show="startDate && endDate && getDuration() !== ''"
+                     style="font-size:12px;color:var(--text2);margin-top:-8px;
+                            margin-bottom:12px;padding:8px 10px;background:var(--surface2);
                             border-radius:7px;display:inline-flex;gap:16px;">
                     <span>📅 <span x-text="getDuration()"></span></span>
                     <span style="color:var(--accent);font-weight:700;">
@@ -91,7 +101,7 @@
             </div>
         </div>
 
-        {{-- ── Panneaux disponibles ── --}}
+        {{-- Panneaux disponibles --}}
         <div class="card" style="margin-bottom:16px;">
             <div class="card-header">
                 <span class="card-title">Panneaux disponibles</span>
@@ -100,41 +110,39 @@
                           x-text="selectedIds.length + ' sélectionné(s) / '
                                   + filteredPanels.length + ' disponible(s)'">
                     </span>
-                    {{-- Filtre commune --}}
+
                     <select x-model="filterCommune" @change="applyFilters"
                             style="background:var(--surface2);border:1px solid var(--border2);
                                    border-radius:7px;padding:5px 9px;color:var(--text);
                                    font-size:12px;outline:none;">
                         <option value="">Toutes communes</option>
                         @foreach($communes as $c)
-                            <option value="{{ $c->name }}">{{ $c->name }}</option>
+                        <option value="{{ $c->name }}">{{ $c->name }}</option>
                         @endforeach
                     </select>
-                    {{-- Filtre format --}}
+
                     <select x-model="filterFormat" @change="applyFilters"
                             style="background:var(--surface2);border:1px solid var(--border2);
                                    border-radius:7px;padding:5px 9px;color:var(--text);
                                    font-size:12px;outline:none;">
                         <option value="">Tous formats</option>
                         @foreach($formats as $f)
-                            <option value="{{ $f->name }}">{{ $f->name }}</option>
+                        <option value="{{ $f->name }}">{{ $f->name }}</option>
                         @endforeach
                     </select>
 
                     <select x-model="filterDimension" @change="applyFilters"
                             style="background:var(--surface2);border:1px solid var(--border2);
-                                border-radius:7px;padding:5px 9px;color:var(--text);
-                                font-size:12px;outline:none;">
+                                   border-radius:7px;padding:5px 9px;color:var(--text);
+                                   font-size:12px;outline:none;">
                         <option value="">Toutes dimensions</option>
                         <template x-for="dim in availableDimensions" :key="dim">
                             <option :value="dim" x-text="dim"></option>
                         </template>
                     </select>
-
                 </div>
             </div>
 
-            {{-- Note pédagogique --}}
             <div style="padding:10px 17px;background:var(--accent-dim);
                         border-bottom:1px solid rgba(232,160,32,.2);
                         font-size:12px;color:var(--text2);">
@@ -143,33 +151,28 @@
                 Les panneaux déjà sur cette réservation sont pré-sélectionnés.
             </div>
 
-            {{-- Chargement --}}
             <div x-show="loading"
                  style="padding:40px;text-align:center;color:var(--text2);">
                 <div style="font-size:28px;margin-bottom:8px;">⏳</div>
                 Chargement des disponibilités…
             </div>
 
-            {{-- Erreur dates --}}
             <div x-show="!loading && error"
                  style="padding:16px 17px;color:var(--red);font-size:13px;">
                 ⚠️ <span x-text="error"></span>
             </div>
 
-            {{-- Attente saisie dates --}}
-            <div x-show="!loading && !error && !startDate || !endDate"
+            <div x-show="!loading && !error && (!startDate || !endDate)"
                  style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">
                 Saisissez les dates pour voir les panneaux disponibles.
             </div>
 
-            {{-- Aucun résultat --}}
             <div x-show="!loading && !error && startDate && endDate && filteredPanels.length === 0"
                  style="padding:40px;text-align:center;color:var(--text3);">
                 <div style="font-size:28px;margin-bottom:8px;">🔍</div>
                 Aucun panneau disponible sur cette période.
             </div>
 
-            {{-- Tableau panneaux --}}
             <div x-show="!loading && !error && filteredPanels.length > 0" class="table-wrap">
                 <table>
                     <thead>
@@ -195,8 +198,7 @@
                             <tr @click="togglePanel(panel.id)"
                                 style="cursor:pointer;transition:background .1s;"
                                 :style="selectedIds.includes(panel.id)
-                                    ? 'background:var(--accent-dim);'
-                                    : ''">
+                                    ? 'background:var(--accent-dim);' : ''">
                                 <td @click.stop>
                                     <input type="checkbox"
                                            :value="panel.id"
@@ -216,14 +218,15 @@
                                 <td style="color:var(--text2);" x-text="panel.format ?? '—'"></td>
                                 <td>
                                     <span x-show="panel.is_lit"
-                                          style="color:var(--accent);font-size:12px;">✦ Oui</span>
+                                          style="color:var(--accent);font-size:12px;">💡 Oui</span>
                                     <span x-show="!panel.is_lit"
                                           style="color:var(--text3);font-size:12px;">Non</span>
                                 </td>
                                 <td style="text-align:right;font-weight:600;color:var(--accent);"
                                     x-text="panel.monthly_rate
                                         ? Number(panel.monthly_rate).toLocaleString('fr-FR') + ' FCFA'
-                                        : '—'"></td>
+                                        : '—'">
+                                </td>
                             </tr>
                         </template>
                     </tbody>
@@ -250,13 +253,13 @@
             </div>
 
             @error('panel_ids')
-                <div style="padding:10px 17px;color:var(--red);font-size:13px;">
-                    ✕ {{ $message }}
-                </div>
+            <div style="padding:10px 17px;color:var(--red);font-size:13px;">
+                ✕ {{ $message }}
+            </div>
             @enderror
         </div>
 
-        {{-- ── Actions ── --}}
+        {{-- Actions --}}
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
             <span style="font-size:12px;color:var(--text3);">
                 ⚠️ La modification recalcule le montant automatiquement.
@@ -279,30 +282,27 @@
 @push('scripts')
 <script>
 function reservationEditForm() {
-
-    filterDimension: '',
     return {
-        startDate:      '{{ $reservation->start_date->format('Y-m-d') }}',
-        endDate:        '{{ $reservation->end_date->format('Y-m-d') }}',
-        panels:         [],
-        filteredPanels: [],
-        // Pré-sélection : panneaux déjà sur cette réservation
-        selectedIds:    @json(old('panel_ids', $selectedPanelIds)),
-        loading:        false,
-        error:          null,
-        excludeId:      {{ $reservation->id }},
-        filterCommune:  '',
-        filterFormat:   '',
+        startDate:       '{{ $reservation->start_date->format('Y-m-d') }}',
+        endDate:         '{{ $reservation->end_date->format('Y-m-d') }}',
+        panels:          [],
+        filteredPanels:  [],
+        selectedIds:     @json(old('panel_ids', $selectedPanelIds)),
+        loading:         false,
+        error:           null,
+        excludeId:       {{ $reservation->id }},
+        filterCommune:   '',
+        filterFormat:    '',
+        filterDimension: '',
 
         init() {
-            // Charger immédiatement si dates déjà présentes
             if (this.startDate && this.endDate) {
                 this.loadPanels();
             }
         },
 
         async loadPanels() {
-            if (! this.startDate || ! this.endDate) return;
+            if (!this.startDate || !this.endDate) return;
 
             if (this.endDate <= this.startDate) {
                 this.error          = 'La date de fin doit être après la date de début.';
@@ -318,8 +318,6 @@ function reservationEditForm() {
                 const params = new URLSearchParams({
                     start_date:             this.startDate,
                     end_date:               this.endDate,
-                    // CRUCIAL : exclure cette réservation pour que ses panneaux
-                    // apparaissent dans la liste et restent sélectionnables
                     exclude_reservation_id: this.excludeId,
                 });
 
@@ -333,13 +331,11 @@ function reservationEditForm() {
                     }
                 );
 
-                if (! res.ok) throw new Error('Erreur serveur (' + res.status + ')');
+                if (!res.ok) throw new Error('Erreur serveur (' + res.status + ')');
 
                 const available = await res.json();
 
-                // ── SÉCURITÉ : ne garder en sélection QUE les panneaux
-                //    présents dans la liste retournée par l'API.
-                //    Empêche de soumettre un panneau occupé/maintenance.
+                // Sécurité : ne garder en sélection que les panneaux retournés par l'API
                 this.selectedIds = this.selectedIds.filter(
                     id => available.some(p => p.id === id)
                 );
@@ -358,18 +354,15 @@ function reservationEditForm() {
 
         applyFilters() {
             this.filteredPanels = this.panels.filter(p => {
-                const okCommune = ! this.filterCommune || p.commune === this.filterCommune;
-                const okFormat  = ! this.filterFormat  || p.format  === this.filterFormat;
-                const okDim = ! this.filterDimension || p.dimensions === this.filterDimension;
+                const okCommune = !this.filterCommune   || p.commune    === this.filterCommune;
+                const okFormat  = !this.filterFormat    || p.format     === this.filterFormat;
+                const okDim     = !this.filterDimension || p.dimensions === this.filterDimension;
                 return okCommune && okFormat && okDim;
-                return okCommune && okFormat;
             });
         },
-        
+
         get availableDimensions() {
-            const dims = this.panels
-                .map(p => p.dimensions)
-                .filter(Boolean);
+            const dims = this.panels.map(p => p.dimensions).filter(Boolean);
             return [...new Set(dims)].sort();
         },
 
@@ -383,24 +376,24 @@ function reservationEditForm() {
             const filteredIds = this.filteredPanels.map(p => p.id);
             if (e.target.checked) {
                 filteredIds.forEach(id => {
-                    if (! this.selectedIds.includes(id)) this.selectedIds.push(id);
+                    if (!this.selectedIds.includes(id)) this.selectedIds.push(id);
                 });
             } else {
                 this.selectedIds = this.selectedIds.filter(
-                    id => ! filteredIds.includes(id)
+                    id => !filteredIds.includes(id)
                 );
             }
         },
 
         getMonths() {
-            if (! this.startDate || ! this.endDate) return 1;
-            const diff   = (new Date(this.endDate) - new Date(this.startDate))
-                           / (1000 * 60 * 60 * 24);
+            if (!this.startDate || !this.endDate) return 1;
+            const diff = (new Date(this.endDate) - new Date(this.startDate))
+                         / (1000 * 60 * 60 * 24);
             return Math.max(Math.ceil(diff / 30), 1);
         },
 
         getDuration() {
-            if (! this.startDate || ! this.endDate) return '';
+            if (!this.startDate || !this.endDate) return '';
             const days = Math.round(
                 (new Date(this.endDate) - new Date(this.startDate))
                 / (1000 * 60 * 60 * 24)

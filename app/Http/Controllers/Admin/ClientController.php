@@ -1,104 +1,128 @@
 <?php
-
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Client\StoreClientRequest;
 use App\Http\Requests\Client\UpdateClientRequest;
 use App\Models\Client;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ClientController extends Controller
 {
-    // Liste des clients avec recherche et pagination
-    public function index()
+    public function index(Request $request)
     {
-        $clients = Client::query()
+        $query = Client::query()
             ->withCount('campaigns')
-            ->withCount(['campaigns as active_panels_count' => function ($q) {
-                $q->where('status', 'actif');
-            }])
-            ->withSum('invoices', 'amount_ttc')
-            ->when(request('search'), function ($query, $search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('contact_name', 'like', "%{$search}%")
-                    ->orWhere('phone', 'like', "%{$search}%");
-            })
-            ->when(request('sector'), function ($query, $sector) {
-                $query->where('sector', $sector);
-            })
-            ->orderBy('name')
-            ->paginate(15)
-            ->withQueryString();
+            ->withCount(['campaigns as active_campaigns_count' => fn($q) =>
+                $q->where('status', 'actif')
+            ])
+            ->withCount('reservations')
+            ->when($request->search, fn($q) =>
+                $q->search($request->search)
+            )
+            ->when($request->sector, fn($q, $sector) =>
+                $q->where('sector', $sector)
+            );
 
-        $sectors = Client::whereNotNull('sector')
-            ->distinct()
-            ->pluck('sector')
-            ->sort()
-            ->values();
+        // Tri
+        $sort      = $request->get('sort', 'name');
+        $direction = $request->get('direction', 'asc');
+        $allowed   = ['name', 'created_at', 'campaigns_count'];
 
-        return view('admin.clients.index', compact('clients', 'sectors'));
+        if (in_array($sort, $allowed)) {
+            $query->orderBy($sort, $direction === 'desc' ? 'desc' : 'asc');
+        }
+
+        $clients = $query->paginate(20)->withQueryString();
+        $sectors = Client::SECTORS;
+
+        // Stats globales — 1 requête agrégée
+        $stats = [
+            'total'  => Client::count(),
+            'actifs' => Client::whereHas('campaigns', fn($q) => $q->where('status', 'actif'))->count(),
+        ];
+
+        return view('admin.clients.index', compact('clients', 'sectors', 'stats'));
     }
 
-    // Formulaire de création
     public function create()
     {
-        $sectors = Client::whereNotNull('sector')
-            ->distinct()
-            ->pluck('sector')
-            ->sort()
-            ->values();
-
+        $sectors = Client::SECTORS;
         return view('admin.clients.create', compact('sectors'));
     }
 
-    // Enregistrement d'un nouveau client
     public function store(StoreClientRequest $request)
     {
-        Client::create($request->validated());
+        $client = Client::create($request->validated());
+
+        Log::info('client.created', [
+            'client_id' => $client->id,
+            'ncc'       => $client->ncc,
+            'user_id'   => auth()->id(),
+        ]);
 
         return redirect()
-            ->route('admin.clients.index')
-            ->with('success', 'Client créé avec succès.');
+            ->route('admin.clients.show', $client)
+            ->with('success', "Client {$client->name} créé avec succès. NCC : {$client->ncc}");
     }
 
-    // Détail d'un client
     public function show(Client $client)
     {
-        $client->load(['reservations', 'campaigns', 'invoices']);
+        $client->load([
+            'reservations' => fn($q) => $q->latest()->limit(5),
+            'campaigns'    => fn($q) => $q->latest()->limit(8),
+            'invoices'     => fn($q) => $q->latest()->limit(5),
+        ]);
 
-        return view('admin.clients.show', compact('client'));
+        // Montant total facturé — requête directe sans N+1
+        $totalFacture = $client->invoices()->sum('amount_ttc');
+
+        $sectors = Client::SECTORS;
+
+        return view('admin.clients.show', compact('client', 'totalFacture', 'sectors'));
     }
 
-    // Formulaire d'édition
     public function edit(Client $client)
     {
-        $sectors = Client::whereNotNull('sector')
-            ->distinct()
-            ->pluck('sector')
-            ->sort()
-            ->values();
-
+        $sectors = Client::SECTORS;
         return view('admin.clients.edit', compact('client', 'sectors'));
     }
 
-    // Mise à jour d'un client
     public function update(UpdateClientRequest $request, Client $client)
     {
         $client->update($request->validated());
 
+        Log::info('client.updated', [
+            'client_id' => $client->id,
+            'user_id'   => auth()->id(),
+        ]);
+
         return redirect()
-            ->route('admin.clients.index')
+            ->route('admin.clients.show', $client)
             ->with('success', 'Client mis à jour avec succès.');
     }
 
-    // Suppression (soft delete)
     public function destroy(Client $client)
     {
+        // Bloquer suppression si campagnes actives
+        if ($client->hasActiveCampaigns()) {
+            return back()->with('error',
+                'Impossible de supprimer ce client : il a des campagnes actives en cours.'
+            );
+        }
+
+        $name = $client->name;
         $client->delete();
+
+        Log::info('client.deleted', [
+            'client_id'   => $client->id,
+            'client_name' => $name,
+            'user_id'     => auth()->id(),
+        ]);
 
         return redirect()
             ->route('admin.clients.index')
-            ->with('success', 'Client supprimé avec succès.');
+            ->with('success', "Client {$name} supprimé.");
     }
 }

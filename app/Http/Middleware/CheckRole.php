@@ -5,7 +5,7 @@ use Closure;
 use Illuminate\Http\Request;
 use App\Models\AuditLog;
 
-class AuditLogger
+class CheckRole
 {
     public function handle(Request $request, Closure $next)
     {

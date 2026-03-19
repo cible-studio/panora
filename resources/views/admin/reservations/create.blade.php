@@ -73,8 +73,7 @@
 
         <div class="mfg">
           <label>Notes</label>
-          <textarea name="notes"
-                    placeholder="Remarques, conditions particulières…">{{ old('notes') }}</textarea>
+          <textarea name="notes" placeholder="Remarques, conditions particulières…">{{ old('notes') }}</textarea>
         </div>
 
       </div>

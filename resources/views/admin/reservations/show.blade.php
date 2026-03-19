@@ -3,7 +3,7 @@
 {{-- ══════════════════════════════════════════════════════
      TOPBAR ACTIONS
 ══════════════════════════════════════════════════════ --}}
-<x-slot name="actions">
+<x-slot:topbarActions>
     <a href="{{ route('admin.reservations.index') }}"
        class="btn btn-ghost text-sm">← Retour aux réservations</a>
 
@@ -115,11 +115,19 @@
                 <div class="text-xs uppercase tracking-wider mb-1" style="color:var(--text3)">Campagne liée</div>
                 @if($reservation->campaign)
                     <a href="{{ route('admin.campaigns.show', $reservation->campaign) }}"
-                       class="text-sm font-medium hover:underline" style="color:var(--accent)">
-                        {{ $reservation->campaign->reference }}
+                    class="text-sm font-medium hover:underline" style="color:var(--accent)">
+                        {{ $reservation->campaign->name }} →
+                    </a>
+                @elseif($reservation->status->value === 'confirme')
+                    <a href="{{ route('admin.campaigns.create', ['reservation_id' => $reservation->id]) }}"
+                    class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--green);
+                            border-color:rgba(34,197,94,0.3);">
+                        + Créer une campagne
                     </a>
                 @else
-                    <span class="text-sm" style="color:var(--text2)">Aucune campagne</span>
+                    <span class="text-sm" style="color:var(--text3)">
+                        Disponible après confirmation
+                    </span>
                 @endif
             </div>
         </div>
