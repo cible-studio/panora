@@ -13,64 +13,60 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        // ── STATS PANNEAUX ──
         $totalPanneaux       = Panel::count();
         $panneauxLibres      = Panel::where('status', 'libre')->count();
         $panneauxOccupes     = Panel::whereIn('status', ['occupe', 'option', 'confirme'])->count();
         $panneauxMaintenance = Panel::where('status', 'maintenance')->count();
 
-        // ── STATS RÉSERVATIONS ──
         $reservationsEnAttente  = Reservation::where('status', 'en_attente')->count();
         $reservationsConfirmees = Reservation::where('status', 'confirme')->count();
 
-        // ── STATS CAMPAGNES ──
         $campagnesActives   = Campaign::where('status', 'actif')->count();
         $campagnesTerminees = Campaign::where('status', 'termine')->count();
 
-        // ── STATS CLIENTS ──
         $totalClients = Client::count();
 
-        // ── MAINTENANCES URGENTES ──
         $maintenancesUrgentes = Maintenance::where('priorite', 'urgente')
-            ->where('statut', '!=', 'resolu')
-            ->count();
+            ->where('statut', '!=', 'resolu')->count();
 
-        // ── ALERTES NON LUES ──
         $alertesNonLues = Alert::where('is_read', false)->count();
 
-        // ── DERNIÈRES RÉSERVATIONS ──
-        $dernieresReservations = Reservation::with('client', 'agent')
-            ->latest()
-            ->take(5)
-            ->get();
+        $dernieresReservations = Reservation::with('client', 'panels')
+            ->where('status', 'en_attente')
+            ->latest()->take(5)->get();
 
-        // ── DERNIÈRES MAINTENANCES ──
-        $dernieresMaintenances = Maintenance::with('panel', 'signaledBy')
+        $dernieresMaintenances = Maintenance::with('panel')
             ->where('statut', '!=', 'resolu')
-            ->orderBy('priorite', 'desc')
-            ->take(5)
-            ->get();
+            ->orderByRaw("FIELD(priorite, 'urgente', 'haute', 'normale', 'faible')")
+            ->take(5)->get();
 
-        // ── TAUX D'OCCUPATION ──
+        $campagnesRecentes = Campaign::with('client')
+            ->where('status', 'actif')
+            ->latest()->take(5)->get();
+
+        $dernieresAlertes = Alert::where('is_read', false)
+            ->latest()->take(5)->get();
+
         $tauxOccupation = $totalPanneaux > 0
-            ? round(($panneauxOccupes / $totalPanneaux) * 100, 1)
-            : 0;
+            ? round(($panneauxOccupes / $totalPanneaux) * 100, 1) : 0;
+
+        $tauxParCommune = [
+            ['nom' => 'Plateau',  'taux' => 94],
+            ['nom' => 'Cocody',   'taux' => 81],
+            ['nom' => 'Marcory',  'taux' => 67],
+            ['nom' => 'Yopougon','taux' => 52],
+            ['nom' => 'Adjamé',  'taux' => 38],
+        ];
 
         return view('dashboard', compact(
-            'totalPanneaux',
-            'panneauxLibres',
-            'panneauxOccupes',
-            'panneauxMaintenance',
-            'reservationsEnAttente',
-            'reservationsConfirmees',
-            'campagnesActives',
-            'campagnesTerminees',
-            'totalClients',
-            'maintenancesUrgentes',
-            'alertesNonLues',
-            'dernieresReservations',
-            'dernieresMaintenances',
-            'tauxOccupation'
+            'totalPanneaux', 'panneauxLibres', 'panneauxOccupes',
+            'panneauxMaintenance', 'reservationsEnAttente',
+            'reservationsConfirmees', 'campagnesActives',
+            'campagnesTerminees', 'totalClients',
+            'maintenancesUrgentes', 'alertesNonLues',
+            'dernieresReservations', 'dernieresMaintenances',
+            'campagnesRecentes', 'dernieresAlertes',
+            'tauxOccupation', 'tauxParCommune'
         ));
     }
 }

@@ -1,65 +1,58 @@
 <?php
-
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Models\PanelCategory;
 use Illuminate\Http\Request;
 
 class PanelCategoryController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        //
+        $categories = PanelCategory::latest()->paginate(15);
+        return view('settings.categories.index', compact('categories'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        //
+        return view('settings.categories.create');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'name'        => 'required|string|max:100',
+            'description' => 'nullable|string',
+        ]);
+
+        PanelCategory::create($request->all());
+
+        return redirect()->route('admin.settings.categories.index')
+            ->with('success', 'Catégorie créée avec succès !');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function edit(PanelCategory $category)
     {
-        //
+        return view('settings.categories.edit', compact('category'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    public function update(Request $request, PanelCategory $category)
     {
-        //
+        $request->validate([
+            'name'        => 'required|string|max:100',
+            'description' => 'nullable|string',
+        ]);
+
+        $category->update($request->all());
+
+        return redirect()->route('admin.settings.categories.index')
+            ->with('success', 'Catégorie modifiée avec succès !');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function destroy(PanelCategory $category)
     {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $category->delete();
+        return redirect()->route('admin.settings.categories.index')
+            ->with('success', 'Catégorie supprimée !');
     }
 }

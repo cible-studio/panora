@@ -3,24 +3,19 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use App\Models\AuditLog;
 
-class AuditLogger
+class CheckRole
 {
-    public function handle(Request $request, Closure $next)
+    public function handle(Request $request, Closure $next, string ...$roles)
     {
-        $response = $next($request);
-
-        if (auth()->check() && in_array($request->method(), [
-            'POST', 'PUT', 'PATCH', 'DELETE'
-        ])) {
-            AuditLog::create([
-                'user_id'    => auth()->id(),
-                'action'     => $request->method() . ' ' . $request->path(),
-                'ip_address' => $request->ip(),
-            ]);
+        if (!auth()->check()) {
+            return redirect()->route('login');
         }
 
-        return $response;
+        if (!in_array(auth()->user()->role->value, $roles)) {
+            abort(403, 'Accès non autorisé.');
+        }
+
+        return $next($request);
     }
 }

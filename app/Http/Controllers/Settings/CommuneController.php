@@ -1,65 +1,64 @@
 <?php
-
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Models\Commune;
 use Illuminate\Http\Request;
 
 class CommuneController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        //
+        $communes = Commune::latest()->paginate(15);
+        return view('settings.communes.index', compact('communes'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        //
+        return view('settings.communes.create');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'name'     => 'required|string|max:100',
+            'city'     => 'nullable|string|max:100',
+            'region'   => 'nullable|string|max:100',
+            'odp_rate' => 'nullable|numeric|min:0',
+            'tm_rate'  => 'nullable|numeric|min:0',
+        ]);
+
+        Commune::create($request->all());
+
+        return redirect()->route('admin.settings.communes.index')
+            ->with('success', 'Commune créée avec succès !');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function edit(Commune $commune)
     {
-        //
+        return view('settings.communes.edit', compact('commune'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    public function update(Request $request, Commune $commune)
     {
-        //
+        $request->validate([
+            'name'     => 'required|string|max:100',
+            'city'     => 'nullable|string|max:100',
+            'region'   => 'nullable|string|max:100',
+            'odp_rate' => 'nullable|numeric|min:0',
+            'tm_rate'  => 'nullable|numeric|min:0',
+        ]);
+
+        $commune->update($request->all());
+
+        return redirect()->route('admin.settings.communes.index')
+            ->with('success', 'Commune modifiée avec succès !');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function destroy(Commune $commune)
     {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $commune->delete();
+        return redirect()->route('admin.settings.communes.index')
+            ->with('success', 'Commune supprimée !');
     }
 }
