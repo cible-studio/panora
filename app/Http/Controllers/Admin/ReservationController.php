@@ -27,128 +27,170 @@ class ReservationController extends Controller
     // ══════════════════════════════════════════════════════
 
     public function disponibilites(Request $request)
-    {
-        $communes = Commune::orderBy('name')->get();
-        $formats  = PanelFormat::orderBy('name')->get();
-        $zones    = Zone::orderBy('name')->get();
-        $clients  = Client::orderBy('name')->get();
+{
+    $communes = Commune::orderBy('name')->get();
+    $formats  = PanelFormat::orderBy('name')->get();
+    $zones    = Zone::orderBy('name')->get();
+    $clients  = Client::orderBy('name')->get();
 
-        $startDate = $request->dispo_du  ?: null;
-        $endDate   = $request->dispo_au  ?: null;
-        $statut    = $request->get('statut', 'tous');
-        $dateError = null;
+    // ── Dimensions disponibles pour le filtre ─────────────────────
+    $dimensions = PanelFormat::whereNotNull('width')
+        ->whereNotNull('height')
+        ->orderBy('width')->orderBy('height')
+        ->get()
+        ->map(function ($f) {
+            if (!$f->width || !$f->height) return null;
+            $w = rtrim(rtrim(number_format($f->width, 2, '.', ''), '0'), '.');
+            $h = rtrim(rtrim(number_format($f->height, 2, '.', ''), '0'), '.');
+            return "{$w}×{$h}m";
+        })
+        ->filter()
+        ->unique()
+        ->values();
 
-        // ── Requête panneaux ──────────────────────────────────────────
-        $query = Panel::with(['commune', 'format', 'zone', 'category'])
-            ->whereNull('deleted_at');
+    $startDate = $request->dispo_du  ?: null;
+    $endDate   = $request->dispo_au  ?: null;
+    $statut    = $request->get('statut', 'tous');
+    $dateError = null;
 
-        $communeIds = array_filter((array)$request->get('commune_ids', []));
-        if (!empty($communeIds)) {
-            $query->whereIn('commune_id', $communeIds);
-        }
+    // ── Requête panneaux ──────────────────────────────────────────
+    $query = Panel::with(['commune', 'format', 'zone', 'category'])
+        ->whereNull('deleted_at');
 
-        $zoneIds = array_filter((array)$request->get('zone_ids', []));
-        if (!empty($zoneIds)) {
-            $query->whereIn('zone_id', $zoneIds);
-        }
-
-        $formatIds = array_filter((array)$request->get('format_ids', []));
-        if (!empty($formatIds)) {
-            $query->whereIn('format_id', $formatIds);
-        }
-
-        // Éclairage — uniquement si valeur explicite
-        $isLit = $request->input('is_lit', '');
-        if ($isLit === '1') {
-            $query->where('is_lit', true);
-        } elseif ($isLit === '0') {
-            $query->where('is_lit', false);
-        }
-
-        // Filtre statut DB direct (hors période)
-        if (in_array($statut, ['maintenance', 'libre', 'confirme'])) {
-            $query->where('status', $statut);
-        }
-
-        $allPanels   = $query->orderBy('reference')->get();
-        $occupiedIds = collect();
-        $optionIds   = collect();
-        $releaseDates = collect(); // ← dates de libération
-
-        // ── Calcul occupation + dates de libération ───────────────────
-        if ($startDate && $endDate) {
-            if ($endDate <= $startDate) {
-                $dateError = 'La date de fin doit être après la date de début.';
-            } else {
-                // Panneaux confirmés sur la période
-                $occupiedIds = \App\Models\ReservationPanel::whereHas('reservation', fn($q) =>
-                    $q->where('status', \App\Enums\ReservationStatus::CONFIRME->value)
-                    ->where('start_date', '<', $endDate)
-                    ->where('end_date',   '>', $startDate)
-                )->pluck('panel_id')->unique();
-
-                // Panneaux en option sur la période
-                $optionIds = \App\Models\ReservationPanel::whereHas('reservation', fn($q) =>
-                    $q->where('status', \App\Enums\ReservationStatus::EN_ATTENTE->value)
-                    ->where('start_date', '<', $endDate)
-                    ->where('end_date',   '>', $startDate)
-                )->pluck('panel_id')->unique();
-
-                // ── Dates de libération — pour les panneaux occupés/option ──
-                // On cherche la date de fin MAX de toutes les réservations actives
-                // qui bloquent ces panneaux
-                $blockedIds = $occupiedIds->merge($optionIds)->unique();
-
-                if ($blockedIds->isNotEmpty()) {
-                    $releaseDates = \App\Models\ReservationPanel::whereIn('panel_id', $blockedIds)
-                        ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-                        ->whereIn('reservations.status', [
-                            \App\Enums\ReservationStatus::CONFIRME->value,
-                            \App\Enums\ReservationStatus::EN_ATTENTE->value,
-                        ])
-                        ->where('reservations.end_date', '>', $startDate)
-                        ->select(
-                            'reservation_panels.panel_id',
-                            \DB::raw('MAX(reservations.end_date) as release_date')
-                        )
-                        ->groupBy('reservation_panels.panel_id')
-                        ->pluck('release_date', 'panel_id');
-                }
-            }
-        } elseif ($startDate && !$endDate) {
-            $dateError = 'Veuillez renseigner la date de fin.';
-        } elseif (!$startDate && $endDate) {
-            $dateError = 'Veuillez renseigner la date de début.';
-        }
-
-        // ── Post-filtrage statut période ──────────────────────────────
-        if (!$dateError && $startDate && $endDate) {
-            if ($statut === 'occupe') {
-                $allPanels = $allPanels->filter(fn($p) =>
-                    $occupiedIds->contains($p->id) || $optionIds->contains($p->id)
-                )->values();
-            } elseif ($statut === 'option') {
-                $allPanels = $allPanels->filter(fn($p) =>
-                    $optionIds->contains($p->id)
-                )->values();
-            } elseif ($statut === 'libre') {
-                $allPanels = $allPanels->filter(fn($p) =>
-                    !$occupiedIds->contains($p->id) &&
-                    !$optionIds->contains($p->id) &&
-                    $p->status->value !== 'maintenance'
-                )->values();
-            }
-        } elseif (in_array($statut, ['occupe', 'option']) && (!$startDate || !$endDate)) {
-            $allPanels = collect();
-            $dateError = 'Veuillez saisir une période pour filtrer par statut Occupé ou Option.';
-        }
-
-        return view('admin.reservations.disponibilites', compact(
-            'allPanels', 'communes', 'formats', 'zones', 'clients',
-            'occupiedIds', 'optionIds', 'releaseDates',
-            'startDate', 'endDate', 'dateError', 'statut'
-        ));
+    // Multi-communes
+    $communeIds = array_filter((array)$request->get('commune_ids', []));
+    if (!empty($communeIds)) {
+        $query->whereIn('commune_id', $communeIds);
     }
+
+    // Multi-zones
+    $zoneIds = array_filter((array)$request->get('zone_ids', []));
+    if (!empty($zoneIds)) {
+        $query->whereIn('zone_id', $zoneIds);
+    }
+
+    // Multi-formats
+    $formatIds = array_filter((array)$request->get('format_ids', []));
+    if (!empty($formatIds)) {
+        $query->whereIn('format_id', $formatIds);
+    }
+
+    // Éclairage — uniquement si valeur explicite
+    $isLit = $request->input('is_lit', '');
+    if ($isLit === '1') {
+        $query->where('is_lit', true);
+    } elseif ($isLit === '0') {
+        $query->where('is_lit', false);
+    }
+
+    // Filtre dimensions
+    if ($request->filled('dimensions')) {
+        $dimClean = str_replace('m', '', $request->dimensions);
+        $w = $h = null;
+        if (str_contains($dimClean, '×')) {
+            [$w, $h] = explode('×', $dimClean);
+        } elseif (str_contains($dimClean, 'x')) {
+            [$w, $h] = explode('x', $dimClean);
+        }
+        if ($w !== null && $h !== null
+            && is_numeric(trim($w)) && is_numeric(trim($h))) {
+            $query->whereHas('format', fn($q) =>
+                $q->whereBetween('width',  [(float)trim($w)-0.01, (float)trim($w)+0.01])
+                  ->whereBetween('height', [(float)trim($h)-0.01, (float)trim($h)+0.01])
+            );
+        }
+    }
+
+    // Filtre statut DB direct (hors période)
+    if (in_array($statut, ['maintenance', 'libre', 'confirme'])) {
+        $query->where('status', $statut);
+    }
+
+    $allPanels    = $query->orderBy('reference')->get();
+    $occupiedIds  = collect();
+    $optionIds    = collect();
+    $releaseDates = collect();
+
+    // ── Calcul occupation + dates de libération ───────────────────
+    if ($startDate && $endDate) {
+        if ($endDate <= $startDate) {
+            $dateError = 'La date de fin doit être après la date de début.';
+        } else {
+            // Panneaux avec réservation CONFIRME sur la période
+            $occupiedIds = ReservationPanel::whereHas('reservation', fn($q) =>
+                $q->where('status', ReservationStatus::CONFIRME->value)
+                  ->where('start_date', '<', $endDate)
+                  ->where('end_date',   '>', $startDate)
+            )->pluck('panel_id')->unique();
+
+            // Panneaux avec réservation EN_ATTENTE (option) sur la période
+            $optionIds = ReservationPanel::whereHas('reservation', fn($q) =>
+                $q->where('status', ReservationStatus::EN_ATTENTE->value)
+                  ->where('start_date', '<', $endDate)
+                  ->where('end_date',   '>', $startDate)
+            )->pluck('panel_id')->unique();
+
+            // ── Dates de libération ───────────────────────────────
+            // Pour chaque panneau bloqué, on cherche la date de fin MAX
+            // de ses réservations actives → "Libre le JJ/MM/YYYY"
+            $blockedIds = $occupiedIds->merge($optionIds)->unique();
+
+            if ($blockedIds->isNotEmpty()) {
+                $releaseDates = ReservationPanel::whereIn('panel_id', $blockedIds)
+                    ->join('reservations',
+                        'reservations.id', '=', 'reservation_panels.reservation_id')
+                    ->whereIn('reservations.status', [
+                        ReservationStatus::CONFIRME->value,
+                        ReservationStatus::EN_ATTENTE->value,
+                    ])
+                    ->where('reservations.end_date', '>', $startDate)
+                    ->select(
+                        'reservation_panels.panel_id',
+                        DB::raw('MAX(reservations.end_date) as release_date')
+                    )
+                    ->groupBy('reservation_panels.panel_id')
+                    ->pluck('release_date', 'panel_id');
+            }
+        }
+    } elseif ($startDate && !$endDate) {
+        $dateError = 'Veuillez renseigner la date de fin.';
+    } elseif (!$startDate && $endDate) {
+        $dateError = 'Veuillez renseigner la date de début.';
+    }
+
+    // ── Post-filtrage statut période ──────────────────────────────
+    if (!$dateError && $startDate && $endDate) {
+        if ($statut === 'occupe') {
+            // Occupé = confirmé OU option sur la période
+            $allPanels = $allPanels->filter(fn($p) =>
+                $occupiedIds->contains($p->id) || $optionIds->contains($p->id)
+            )->values();
+        } elseif ($statut === 'option') {
+            $allPanels = $allPanels->filter(fn($p) =>
+                $optionIds->contains($p->id)
+            )->values();
+        } elseif ($statut === 'libre') {
+            // Disponible = pas bloqué ET pas maintenance
+            $allPanels = $allPanels->filter(fn($p) =>
+                !$occupiedIds->contains($p->id) &&
+                !$optionIds->contains($p->id) &&
+                $p->status->value !== 'maintenance'
+            )->values();
+        }
+    } elseif (in_array($statut, ['occupe', 'option'])
+        && (!$startDate || !$endDate)) {
+        // Sans période on ne peut pas calculer l'occupation
+        $allPanels = collect();
+        $dateError = 'Veuillez saisir une période pour filtrer par '
+            . ($statut === 'option' ? 'Option' : 'Occupé') . '.';
+    }
+
+    return view('admin.reservations.disponibilites', compact(
+        'allPanels', 'communes', 'formats', 'zones', 'clients',
+        'dimensions', 'occupiedIds', 'optionIds', 'releaseDates',
+        'startDate', 'endDate', 'dateError', 'statut'
+    ));
+}
     // ── Confirmer sélection ───────────────────────────────
     public function confirmerSelection(Request $request)
     {
