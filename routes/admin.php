@@ -68,6 +68,7 @@ Route::prefix('admin')
         Route::delete('alerts/{alert}', [AlertController::class, 'destroy'])
             ->name('alerts.destroy');
 
+<<<<<<< HEAD
         // ── Paramètres (admin uniquement) ─────────────── Dev A ───
         Route::middleware('role:admin')
             ->prefix('settings')
@@ -151,3 +152,75 @@ Route::prefix('admin')
             ->name('campaigns.panels.remove');
 
     });
+=======
+    // Utilisateurs — admin seulement
+    Route::middleware('role:admin')->group(function () {
+        Route::resource('users', UserController::class);
+        Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])
+             ->name('users.toggle');
+        Route::get('audit-logs', [UserController::class, 'auditLogs'])
+             ->name('audit.logs');
+    });
+
+
+    // ── Clients ──────────────────────────────── Dev B ───
+    Route::resource('clients', \App\Http\Controllers\Admin\ClientController::class);
+
+    // ── Régies externes ──────────────────────── Dev B ───
+    Route::resource('external-agencies', \App\Http\Controllers\Admin\ExternalAgencyController::class)
+        ->except(['create', 'edit']);
+    Route::post('external-agencies/{externalAgency}/panels',
+        [\App\Http\Controllers\Admin\ExternalAgencyController::class, 'storePanel'])
+        ->name('external-agencies.panels.store');
+    Route::put('external-agencies/{externalAgency}/panels/{panel}',
+        [\App\Http\Controllers\Admin\ExternalAgencyController::class, 'updatePanel'])
+        ->name('external-agencies.panels.update');
+    Route::delete('external-agencies/{externalAgency}/panels/{panel}',
+        [\App\Http\Controllers\Admin\ExternalAgencyController::class, 'destroyPanel'])
+        ->name('external-agencies.panels.destroy');
+
+    // ── Disponibilités ───────────────────────── Dev B ───
+    Route::get('disponibilites',
+        [\App\Http\Controllers\Admin\ReservationController::class, 'disponibilites'])
+        ->name('reservations.disponibilites');
+    Route::post('disponibilites/confirmer',
+        [\App\Http\Controllers\Admin\ReservationController::class, 'confirmerSelection'])
+        ->name('reservations.confirmer-selection');
+
+    // ── Réservations ─────────────────────────── Dev B ───
+    Route::get('reservations/available-panels',
+        [\App\Http\Controllers\Admin\ReservationController::class, 'availablePanels'])
+        ->name('reservations.available-panels')
+        ->middleware('throttle:60,1');
+    Route::resource('reservations', \App\Http\Controllers\Admin\ReservationController::class)
+        ->except(['create', 'store']);
+    Route::patch('reservations/{reservation}/status',
+        [\App\Http\Controllers\Admin\ReservationController::class, 'updateStatus'])
+        ->name('reservations.update-status');
+    Route::patch('reservations/{reservation}/annuler',
+        [\App\Http\Controllers\Admin\ReservationController::class, 'annuler'])
+        ->name('reservations.annuler');
+    Route::post('reservations/mark-seen',
+        [\App\Http\Controllers\Admin\ReservationController::class, 'markSeen'])
+        ->name('reservations.mark-seen');
+
+    // ── Campagnes ────────────────────────────── Dev B ───
+    Route::resource('campaigns', \App\Http\Controllers\Admin\CampaignController::class);
+    Route::patch('campaigns/{campaign}/status',
+        [\App\Http\Controllers\Admin\CampaignController::class, 'updateStatus'])
+        ->name('campaigns.update-status');
+    Route::post('campaigns/{campaign}/panels',
+        [\App\Http\Controllers\Admin\CampaignController::class, 'addPanel'])
+        ->name('campaigns.panels.add');
+    Route::delete('campaigns/{campaign}/panels/{panel}',
+        [\App\Http\Controllers\Admin\CampaignController::class, 'removePanel'])
+        ->name('campaigns.panels.remove');
+
+    Route::patch('campaigns/{campaign}/prolonger',
+    [\App\Http\Controllers\Admin\CampaignController::class, 'prolonger'])
+    ->name('campaigns.prolonger');
+
+
+
+});
+>>>>>>> feature/DEV-B-setup

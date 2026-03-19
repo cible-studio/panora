@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use App\Enums\CampaignStatus;
@@ -13,6 +12,7 @@ class Campaign extends Model
 
     protected $fillable = [
         'name', 'client_id', 'reservation_id',
+        'user_id', 'updated_by',
         'start_date', 'end_date', 'status',
         'total_panels', 'total_amount', 'notes',
     ];
@@ -25,9 +25,20 @@ class Campaign extends Model
         'status'       => CampaignStatus::class,
     ];
 
+    // ── Relations ─────────────────────────────────────────────────
     public function client()
     {
-        return $this->belongsTo(Client::class);
+        return $this->belongsTo(Client::class)->withTrashed();
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function updatedBy()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 
     public function reservation()
@@ -41,12 +52,6 @@ class Campaign extends Model
                     ->withTimestamps();
     }
 
-    public function externalPanels()
-    {
-        return $this->belongsToMany(ExternalPanel::class, 'campaign_panels')
-                    ->withTimestamps();
-    }
-
     public function piges()
     {
         return $this->hasMany(Pige::class);
@@ -57,6 +62,7 @@ class Campaign extends Model
         return $this->hasMany(Invoice::class);
     }
 
+    // ── Scopes ────────────────────────────────────────────────────
     public function scopeActive($query)
     {
         return $query->where('status', CampaignStatus::ACTIF->value);
@@ -67,18 +73,103 @@ class Campaign extends Model
         return $query->where('status', CampaignStatus::TERMINE->value);
     }
 
-    public function isActive(): bool
+    public function scopeNonFacturees($query)
     {
-        return $this->status === CampaignStatus::ACTIF;
+        return $query->whereIn('status', ['actif', 'pose', 'termine'])
+                     ->doesntHave('invoices');
     }
+
+    // ── Helpers durée ─────────────────────────────────────────────
 
     public function durationInDays(): int
     {
-        return $this->start_date->diffInDays($this->end_date);
+        return (int) $this->start_date->startOfDay()
+                          ->diffInDays($this->end_date->startOfDay());
     }
 
     public function durationInMonths(): int
     {
-        return $this->start_date->diffInMonths($this->end_date);
+        return max(1, (int) ceil($this->durationInDays() / 30));
+    }
+
+    /**
+     * Durée lisible : "3 mois", "15 jours", "2 mois 5 j"
+     */
+    public function durationHuman(): string
+    {
+        $days   = $this->durationInDays();
+        $months = (int) floor($days / 30);
+        $remDays = $days % 30;
+
+        if ($months === 0) {
+            return $days . ' jour' . ($days > 1 ? 's' : '');
+        }
+        if ($remDays === 0) {
+            return $months . ' mois';
+        }
+        return $months . ' mois ' . $remDays . ' j';
+    }
+
+    // ── Helpers progression ───────────────────────────────────────
+
+    /**
+     * Jours restants — entier, 0 si terminé
+     */
+    public function daysRemaining(): int
+    {
+        $now = now()->startOfDay();
+        $end = $this->end_date->startOfDay();
+        $diff = (int) $now->diffInDays($end, false);
+        return max(0, $diff);
+    }
+
+    /**
+     * Pourcentage d'avancement — corrigé pour éviter 0 sur une longue période
+     */
+    public function progressPercent(): int
+    {
+        $start   = $this->start_date->startOfDay();
+        $end     = $this->end_date->startOfDay();
+        $total   = (int) $start->diffInDays($end);
+        $elapsed = (int) $start->diffInDays(now()->startOfDay());
+
+        if ($total <= 0) return 100;
+        return (int) min(100, max(0, round($elapsed / $total * 100)));
+    }
+
+    /**
+     * Texte humain lisible sur le temps restant
+     * Ex : "Se termine aujourd'hui à 23:59", "Dans 3 jours", "Dans 2 mois"
+     */
+    public function humanTimeRemaining(): string
+    {
+        $days = $this->daysRemaining();
+
+        if ($days === 0) {
+            // Vérifier si c'est vraiment aujourd'hui ou passé
+            if (now()->startOfDay()->eq($this->end_date->startOfDay())) {
+                return "Se termine aujourd'hui";
+            }
+            return 'Terminée';
+        }
+
+        if ($days === 1) return 'Se termine demain';
+        if ($days <= 7)  return "Se termine dans {$days} jours";
+        if ($days <= 30) return "Se termine dans {$days} jours (" . ceil($days/7) . " sem.)";
+
+        $months = (int) round($days / 30);
+        if ($months === 1) return "Se termine dans environ 1 mois ({$days} j)";
+        return "Se termine dans environ {$months} mois ({$days} j)";
+    }
+
+    /**
+     * Alerte fin proche — true si actif et se termine dans <= 14 jours
+     */
+    public function isEndingSoon(): bool
+    {
+        $days = $this->daysRemaining();
+        return $this->status === CampaignStatus::ACTIF
+            && $days > 0
+            && $days <= 14;
     }
 }

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use App\Enums\PanelStatus;
@@ -12,6 +11,7 @@ class Panel extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+<<<<<<< HEAD
         'reference',
         'name',
         'commune_id',
@@ -34,6 +34,16 @@ class Panel extends Model
         'adresse',
         'quartier',
         'axe_routier',
+=======
+        'reference', 'name',
+        'commune_id', 'zone_id',
+        'format_id', 'category_id',
+        'latitude', 'longitude',
+        'status', 'is_lit',
+        'monthly_rate', 'daily_traffic',
+        'maintenance_status',
+        'zone_description', 'created_by',
+>>>>>>> feature/DEV-B-setup
     ];
 
     protected $casts = [
@@ -44,8 +54,11 @@ class Panel extends Model
         'status'       => PanelStatus::class,
     ];
 
+<<<<<<< HEAD
     // ── Relations Dev A ───────────────────────────────────────────
 
+=======
+>>>>>>> feature/DEV-B-setup
     public function photos()
     {
         return $this->hasMany(PanelPhoto::class);
@@ -106,7 +119,19 @@ class Panel extends Model
         return $this->hasMany(Pige::class);
     }
 
+<<<<<<< HEAD
     // ── Helpers ───────────────────────────────────────────────────
+=======
+    public function maintenances()
+    {
+        return $this->hasMany(Maintenance::class);
+    }
+
+    public function poseTasks()
+    {
+        return $this->hasMany(PoseTask::class);
+    }
+>>>>>>> feature/DEV-B-setup
 
     public function isAvailable(): bool
     {

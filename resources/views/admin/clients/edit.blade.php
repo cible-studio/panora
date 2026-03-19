@@ -1,86 +1,179 @@
-<x-admin-layout title="Modifier le client">
+<x-admin-layout title="Modifier — {{ $client->name }}">
 
-    <div class="mb-6">
+<x-slot:topbarActions>
+    <a href="{{ route('admin.clients.show', $client) }}" class="btn btn-ghost">← Retour</a>
+</x-slot:topbarActions>
+
+<div style="max-width:680px;margin:0 auto;">
+
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">
         <a href="{{ route('admin.clients.index') }}"
-           class="inline-flex items-center text-sm text-gray-500 hover:text-gray-700">
-            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-            </svg>
-            Retour à la liste
-        </a>
+           style="color:var(--text3);text-decoration:none;">Clients</a>
+        <span style="margin:0 6px;">›</span>
+        <a href="{{ route('admin.clients.show', $client) }}"
+           style="color:var(--text3);text-decoration:none;">{{ $client->name }}</a>
+        <span style="margin:0 6px;">›</span>
+        <span style="color:var(--text);">Modifier</span>
     </div>
 
-    <div class="max-w-2xl">
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-800 mb-6">Modifier — {{ $client->name }}</h2>
+    @if($errors->any())
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);
+                border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+        @foreach($errors->all() as $error)
+        <div style="color:var(--red);font-size:13px;display:flex;gap:6px;margin-bottom:3px;">
+            <span>⚠️</span><span>{{ $error }}</span>
+        </div>
+        @endforeach
+    </div>
+    @endif
 
-            <form method="POST" action="{{ route('admin.clients.update', $client) }}" class="space-y-5">
-                @csrf @method('PUT')
+    <div style="background:var(--surface);border:1px solid var(--border);
+                border-radius:14px;padding:28px 32px;">
 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Nom de l'entreprise <span class="text-red-500">*</span>
+        <h2 style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px;">
+            Modifier le client
+        </h2>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:24px;">
+            NCC : <span style="font-family:monospace;background:var(--surface3);
+                               padding:2px 6px;border-radius:4px;">
+                {{ $client->ncc ?? '—' }}
+            </span>
+            · Créé le {{ $client->created_at->format('d/m/Y') }}
+        </p>
+
+        <form method="POST" action="{{ route('admin.clients.update', $client) }}">
+            @csrf @method('PUT')
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+                {{-- Nom --}}
+                <div style="grid-column:1/-1;">
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);
+                                  letter-spacing:.5px;display:block;margin-bottom:6px;">
+                        NOM DE L'ENTREPRISE *
                     </label>
-                    <input type="text" name="name" value="{{ old('name', $client->name) }}"
-                           class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 @error('name') border-red-400 @enderror"/>
+                    <input type="text" name="name"
+                           value="{{ old('name', $client->name) }}"
+                           style="width:100%;background:var(--surface2);
+                                  border:1px solid {{ $errors->has('name') ? 'var(--red)' : 'var(--border2)' }};
+                                  border-radius:8px;padding:10px 14px;color:var(--text);
+                                  font-size:13px;outline:none;box-sizing:border-box;
+                                  text-transform:uppercase;">
                     @error('name')
-                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                    <p style="font-size:11px;color:var(--red);margin-top:4px;">{{ $message }}</p>
                     @enderror
                 </div>
 
+                {{-- Secteur --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Secteur d'activité</label>
-                    <input type="text" name="sector" value="{{ old('sector', $client->sector) }}"
-                           list="sectors-list"
-                           class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"/>
-                    <datalist id="sectors-list">
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);
+                                  letter-spacing:.5px;display:block;margin-bottom:6px;">
+                        SECTEUR D'ACTIVITÉ
+                    </label>
+                    <select name="sector"
+                            style="width:100%;background:var(--surface2);
+                                   border:1px solid var(--border2);border-radius:8px;
+                                   padding:10px 14px;color:var(--text);font-size:13px;outline:none;">
+                        <option value="">— Sélectionner —</option>
                         @foreach($sectors as $sector)
-                            <option value="{{ $sector }}">
+                        <option value="{{ $sector }}"
+                            {{ old('sector', $client->sector) === $sector ? 'selected' : '' }}>
+                            {{ $sector }}
+                        </option>
                         @endforeach
-                    </datalist>
+                    </select>
                 </div>
 
+                {{-- Nom contact --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Nom du contact</label>
-                    <input type="text" name="contact_name" value="{{ old('contact_name', $client->contact_name) }}"
-                           class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"/>
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);
+                                  letter-spacing:.5px;display:block;margin-bottom:6px;">
+                        NOM DU CONTACT
+                    </label>
+                    <input type="text" name="contact_name"
+                           value="{{ old('contact_name', $client->contact_name) }}"
+                           style="width:100%;background:var(--surface2);border:1px solid var(--border2);
+                                  border-radius:8px;padding:10px 14px;color:var(--text);
+                                  font-size:13px;outline:none;box-sizing:border-box;">
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                        <input type="email" name="email" value="{{ old('email', $client->email) }}"
-                               class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 @error('email') border-red-400 @enderror"/>
-                        @error('email')
-                            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
-                        <input type="text" name="phone" value="{{ old('phone', $client->phone) }}"
-                               class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"/>
-                    </div>
-                </div>
-
+                {{-- Email --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);
+                                  letter-spacing:.5px;display:block;margin-bottom:6px;">
+                        EMAIL
+                    </label>
+                    <input type="email" name="email"
+                           value="{{ old('email', $client->email) }}"
+                           style="width:100%;background:var(--surface2);
+                                  border:1px solid {{ $errors->has('email') ? 'var(--red)' : 'var(--border2)' }};
+                                  border-radius:8px;padding:10px 14px;color:var(--text);
+                                  font-size:13px;outline:none;box-sizing:border-box;">
+                    @error('email')
+                    <p style="font-size:11px;color:var(--red);margin-top:4px;">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                {{-- Téléphone --}}
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);
+                                  letter-spacing:.5px;display:block;margin-bottom:6px;">
+                        TÉLÉPHONE
+                    </label>
+                    <input type="text" name="phone"
+                           value="{{ old('phone', $client->phone) }}"
+                           style="width:100%;background:var(--surface2);
+                                  border:1px solid {{ $errors->has('phone') ? 'var(--red)' : 'var(--border2)' }};
+                                  border-radius:8px;padding:10px 14px;color:var(--text);
+                                  font-size:13px;outline:none;box-sizing:border-box;">
+                    @error('phone')
+                    <p style="font-size:11px;color:var(--red);margin-top:4px;">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                {{-- NCC --}}
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);
+                                  letter-spacing:.5px;display:block;margin-bottom:6px;">
+                        NCC
+                    </label>
+                    <input type="text" name="ncc"
+                           value="{{ old('ncc', $client->ncc) }}"
+                           style="width:100%;background:var(--surface2);
+                                  border:1px solid {{ $errors->has('ncc') ? 'var(--red)' : 'var(--border2)' }};
+                                  border-radius:8px;padding:10px 14px;color:var(--text);
+                                  font-size:13px;outline:none;box-sizing:border-box;
+                                  font-family:monospace;">
+                    @error('ncc')
+                    <p style="font-size:11px;color:var(--red);margin-top:4px;">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                {{-- Adresse --}}
+                <div style="grid-column:1/-1;">
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);
+                                  letter-spacing:.5px;display:block;margin-bottom:6px;">
+                        ADRESSE
+                    </label>
                     <textarea name="address" rows="3"
-                              class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">{{ old('address', $client->address) }}</textarea>
+                              style="width:100%;background:var(--surface2);
+                                     border:1px solid var(--border2);border-radius:8px;
+                                     padding:10px 14px;color:var(--text);font-size:13px;
+                                     outline:none;resize:vertical;box-sizing:border-box;">{{ old('address', $client->address) }}</textarea>
                 </div>
 
-                <div class="flex items-center justify-end space-x-3 pt-2">
-                    <a href="{{ route('admin.clients.index') }}"
-                       class="px-4 py-2.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition">
-                        Annuler
-                    </a>
-                    <button type="submit"
-                            class="px-6 py-2.5 text-sm text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition font-medium">
-                        Enregistrer les modifications
-                    </button>
-                </div>
+            </div>
 
-            </form>
-        </div>
+            <div style="display:flex;justify-content:flex-end;gap:10px;
+                        margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+                <a href="{{ route('admin.clients.show', $client) }}"
+                   class="btn btn-ghost">Annuler</a>
+                <button type="submit" class="btn btn-primary">
+                    ✓ Enregistrer les modifications
+                </button>
+            </div>
+        </form>
     </div>
+</div>
 
 </x-admin-layout>

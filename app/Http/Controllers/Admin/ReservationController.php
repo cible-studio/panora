@@ -3,7 +3,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\ReservationStatus;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Reservation\StoreReservationRequest;
 use App\Http\Requests\Reservation\UpdateReservationRequest;
 use App\Models\Client;
 use App\Models\Commune;
@@ -24,127 +23,156 @@ class ReservationController extends Controller
     public function __construct(protected AvailabilityService $availability) {}
 
     // ══════════════════════════════════════════════════════
-    // DISPONIBILITÉS — écran principal
+    // DISPONIBILITÉS
     // ══════════════════════════════════════════════════════
 
-        public function disponibilites(Request $request)
+    public function disponibilites(Request $request)
     {
-        $communes   = Commune::orderBy('name')->get();
-        $formats    = PanelFormat::orderBy('name')->get();
-        $zones      = Zone::orderBy('name')->get();
-        $clients    = Client::orderBy('name')->get();
-    
-        // ── Liste des dimensions disponibles pour le select ───────────
-        // Format affiché : "4×3m", "8×3m", "2.5×2.5m" (pas de .0 inutile)
-        $dimensions = PanelFormat::whereNotNull('width')
-            ->whereNotNull('height')
-            ->orderBy('width')
-            ->orderBy('height')
-            ->get()
-            ->map(fn($f) => $this->formatDimensions($f->width, $f->height))
-            ->filter()
-            ->unique()
-            ->values();
-    
-        // ── Construction de la query AVANT tout filtre ─────────────────
+        $communes = Commune::orderBy('name')->get();
+        $formats  = PanelFormat::orderBy('name')->get();
+        $zones    = Zone::orderBy('name')->get();
+        $clients  = Client::orderBy('name')->get();
+
+        $startDate = $request->dispo_du  ?: null;
+        $endDate   = $request->dispo_au  ?: null;
+        $statut    = $request->get('statut', 'tous');
+        $dateError = null;
+
+        // ── Requête panneaux ──────────────────────────────────────────
         $query = Panel::with(['commune', 'format', 'zone', 'category'])
             ->whereNull('deleted_at');
-    
-        // Filtres classiques
-        if ($request->commune_id) {
-            $query->where('commune_id', $request->commune_id);
+
+        $communeIds = array_filter((array)$request->get('commune_ids', []));
+        if (!empty($communeIds)) {
+            $query->whereIn('commune_id', $communeIds);
         }
-        if ($request->zone_id) {
-            $query->where('zone_id', $request->zone_id);
+
+        $zoneIds = array_filter((array)$request->get('zone_ids', []));
+        if (!empty($zoneIds)) {
+            $query->whereIn('zone_id', $zoneIds);
         }
-        if ($request->format_id) {
-            $query->where('format_id', $request->format_id);
+
+        $formatIds = array_filter((array)$request->get('format_ids', []));
+        if (!empty($formatIds)) {
+            $query->whereIn('format_id', $formatIds);
         }
-        if ($request->statut && $request->statut !== 'tous') {
-            $query->where('status', $request->statut);
+
+        // Éclairage — uniquement si valeur explicite
+        $isLit = $request->input('is_lit', '');
+        if ($isLit === '1') {
+            $query->where('is_lit', true);
+        } elseif ($isLit === '0') {
+            $query->where('is_lit', false);
         }
-    
-        // Filtre par dimensions ex: "4×3m" ou "5×2m"
-        // ⚠️ Appliqué SUR $query, qui est déjà défini ci-dessus
-        if ($request->dimensions) {
-            // Nettoyer : "5×2m" → "5×2" → ["5", "2"]
-            $dimClean = str_replace('m', '', $request->dimensions);
-    
-            // Support des deux séparateurs : × (UTF-8) et x (ASCII)
-            if (str_contains($dimClean, '×')) {
-                [$w, $h] = explode('×', $dimClean);
-            } elseif (str_contains($dimClean, 'x')) {
-                [$w, $h] = explode('x', $dimClean);
-            } else {
-                $w = $h = null;
-            }
-    
-            if ($w !== null && $h !== null && is_numeric(trim($w)) && is_numeric(trim($h))) {
-                $query->whereHas('format', fn($q) =>
-                    $q->whereBetween('width',  [(float) trim($w) - 0.01, (float) trim($w) + 0.01])
-                    ->whereBetween('height', [(float) trim($h) - 0.01, (float) trim($h) + 0.01])
-                );
-            }
+
+        // Filtre statut DB direct (hors période)
+        if (in_array($statut, ['maintenance', 'libre', 'confirme'])) {
+            $query->where('status', $statut);
         }
-    
+
         $allPanels   = $query->orderBy('reference')->get();
         $occupiedIds = collect();
         $optionIds   = collect();
-        $dateError  = null;       // ← nouveau
-        $startDate   = $request->dispo_du;
-        $endDate     = $request->dispo_au;
+        $releaseDates = collect(); // ← dates de libération
 
+        // ── Calcul occupation + dates de libération ───────────────────
         if ($startDate && $endDate) {
-            // Validation : end doit être STRICTEMENT après start
             if ($endDate <= $startDate) {
                 $dateError = 'La date de fin doit être après la date de début.';
-                // On ne charge PAS les occupiedIds — les panneaux restent affichables
-                // mais sans calcul de disponibilité (cohérent et safe)
             } else {
-                $occupiedIds = ReservationPanel::whereHas('reservation', fn($q) =>
-                    $q->where('status', ReservationStatus::CONFIRME->value)
-                    ->where('start_date', '<=', $endDate)
-                    ->where('end_date',   '>=', $startDate)
+                // Panneaux confirmés sur la période
+                $occupiedIds = \App\Models\ReservationPanel::whereHas('reservation', fn($q) =>
+                    $q->where('status', \App\Enums\ReservationStatus::CONFIRME->value)
+                    ->where('start_date', '<', $endDate)
+                    ->where('end_date',   '>', $startDate)
                 )->pluck('panel_id')->unique();
-        
-                $optionIds = ReservationPanel::whereHas('reservation', fn($q) =>
-                    $q->where('status', ReservationStatus::EN_ATTENTE->value)
-                    ->where('start_date', '<=', $endDate)
-                    ->where('end_date',   '>=', $startDate)
+
+                // Panneaux en option sur la période
+                $optionIds = \App\Models\ReservationPanel::whereHas('reservation', fn($q) =>
+                    $q->where('status', \App\Enums\ReservationStatus::EN_ATTENTE->value)
+                    ->where('start_date', '<', $endDate)
+                    ->where('end_date',   '>', $startDate)
                 )->pluck('panel_id')->unique();
+
+                // ── Dates de libération — pour les panneaux occupés/option ──
+                // On cherche la date de fin MAX de toutes les réservations actives
+                // qui bloquent ces panneaux
+                $blockedIds = $occupiedIds->merge($optionIds)->unique();
+
+                if ($blockedIds->isNotEmpty()) {
+                    $releaseDates = \App\Models\ReservationPanel::whereIn('panel_id', $blockedIds)
+                        ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                        ->whereIn('reservations.status', [
+                            \App\Enums\ReservationStatus::CONFIRME->value,
+                            \App\Enums\ReservationStatus::EN_ATTENTE->value,
+                        ])
+                        ->where('reservations.end_date', '>', $startDate)
+                        ->select(
+                            'reservation_panels.panel_id',
+                            \DB::raw('MAX(reservations.end_date) as release_date')
+                        )
+                        ->groupBy('reservation_panels.panel_id')
+                        ->pluck('release_date', 'panel_id');
+                }
             }
-        } elseif ($startDate && ! $endDate) {
+        } elseif ($startDate && !$endDate) {
             $dateError = 'Veuillez renseigner la date de fin.';
-        } elseif (! $startDate && $endDate) {
+        } elseif (!$startDate && $endDate) {
             $dateError = 'Veuillez renseigner la date de début.';
         }
-        
+
+        // ── Post-filtrage statut période ──────────────────────────────
+        if (!$dateError && $startDate && $endDate) {
+            if ($statut === 'occupe') {
+                $allPanels = $allPanels->filter(fn($p) =>
+                    $occupiedIds->contains($p->id) || $optionIds->contains($p->id)
+                )->values();
+            } elseif ($statut === 'option') {
+                $allPanels = $allPanels->filter(fn($p) =>
+                    $optionIds->contains($p->id)
+                )->values();
+            } elseif ($statut === 'libre') {
+                $allPanels = $allPanels->filter(fn($p) =>
+                    !$occupiedIds->contains($p->id) &&
+                    !$optionIds->contains($p->id) &&
+                    $p->status->value !== 'maintenance'
+                )->values();
+            }
+        } elseif (in_array($statut, ['occupe', 'option']) && (!$startDate || !$endDate)) {
+            $allPanels = collect();
+            $dateError = 'Veuillez saisir une période pour filtrer par statut Occupé ou Option.';
+        }
+
         return view('admin.reservations.disponibilites', compact(
             'allPanels', 'communes', 'formats', 'zones', 'clients',
-            'dimensions', 'occupiedIds', 'optionIds',
-            'startDate', 'endDate',
-            'dateError'           // ← passer à la vue
+            'occupiedIds', 'optionIds', 'releaseDates',
+            'startDate', 'endDate', 'dateError', 'statut'
         ));
     }
-
-    // ── Confirmer sélection depuis la page disponibilités ──
+    // ── Confirmer sélection ───────────────────────────────
     public function confirmerSelection(Request $request)
     {
         $request->validate([
-            'client_id'    => 'required|exists:clients,id',
-            'start_date'   => 'required|date|after_or_equal:today',
-            'end_date'     => 'required|date|after:start_date',
-            'notes'        => 'nullable|string|max:2000',
-            'panel_ids'    => 'required|array|min:1|max:50',
-            'panel_ids.*'  => 'required|integer|exists:panels,id',
-            'type'         => 'required|in:option,ferme',
+            'client_id'     => 'required|exists:clients,id',
+            'start_date'    => [
+                'required', 'date',
+                function ($attr, $value, $fail) {
+                    if ($value < now()->subDay()->format('Y-m-d')) {
+                        $fail('La date de début ne peut pas être dans le passé.');
+                    }
+                },
+            ],
+            'end_date'      => 'required|date|after:start_date',
+            'notes'         => 'nullable|string|max:2000',
+            'panel_ids'     => 'required|array|min:1|max:50',
+            'panel_ids.*'   => 'required|integer|exists:panels,id',
+            'type'          => 'required|in:option,ferme',
+            'campaign_name' => 'nullable|string|max:150',
         ]);
 
-        // Vérifier qu'aucun panneau soumis n'est en maintenance
+        // Vérifications préalables
         $maintenancePanels = Panel::whereIn('id', $request->panel_ids)
-            ->where('status', 'maintenance')
-            ->pluck('reference');
-
+            ->where('status', 'maintenance')->pluck('reference');
         if ($maintenancePanels->isNotEmpty()) {
             return back()->withErrors([
                 'panel_ids' => 'Panneaux en maintenance non réservables : '
@@ -152,34 +180,28 @@ class ReservationController extends Controller
             ])->withInput();
         }
 
-        // Vérifier qu'aucun panneau n'est soft deleted
-        $deletedCount = Panel::whereIn('id', $request->panel_ids)
-            ->onlyTrashed()
-            ->count();
-
+        $deletedCount = Panel::whereIn('id', $request->panel_ids)->onlyTrashed()->count();
         if ($deletedCount > 0) {
             return back()->withErrors([
                 'panel_ids' => 'Un ou plusieurs panneaux sélectionnés n\'existent plus.',
             ])->withInput();
         }
 
-        try {
-            DB::transaction(function () use ($request) {
-                // ── Verrou pessimiste anti race condition ──
-                Panel::whereIn('id', $request->panel_ids)
-                    ->lockForUpdate()
-                    ->get();
+        $createdCampaignId = null;
 
-                // Re-vérification DANS la transaction
+        try {
+            DB::transaction(function () use ($request, &$createdCampaignId) {
+                // Verrou pessimiste anti race-condition
+                Panel::whereIn('id', $request->panel_ids)->lockForUpdate()->get();
+
                 $conflicts = $this->availability->getUnavailablePanelIds(
                     $request->panel_ids,
                     $request->start_date,
                     $request->end_date
                 );
 
-                if (! empty($conflicts)) {
-                    $refs = Panel::whereIn('id', $conflicts)
-                        ->pluck('reference')->join(', ');
+                if (!empty($conflicts)) {
+                    $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
                     throw new \RuntimeException("CONFLICT:$refs");
                 }
 
@@ -187,20 +209,33 @@ class ReservationController extends Controller
                     ? ReservationStatus::CONFIRME
                     : ReservationStatus::EN_ATTENTE;
 
-                // Référence unique avec retry
+                // Référence unique avec limite d'essais
+                $reference = null;
+                $attempts  = 0;
                 do {
-                    $reference = 'RES-' . strtoupper(Str::random(8));
-                } while (Reservation::where('reference', $reference)->exists());
+                    $candidate = 'RES-' . strtoupper(Str::random(8));
+                    $attempts++;
+                    if ($attempts > 10) {
+                        $candidate = 'RES-' . strtoupper(substr(
+                            str_replace('-', '', Str::uuid()), 0, 8
+                        ));
+                    }
+                    if ($attempts > 20) {
+                        throw new \RuntimeException('SYSTEM:Référence impossible à générer.');
+                    }
+                    if (!Reservation::where('reference', $candidate)->exists()) {
+                        $reference = $candidate;
+                    }
+                } while ($reference === null);
 
-                // Calcul du total AVANT création
-                $panelData = Panel::whereIn('id', $request->panel_ids)->get()->keyBy('id');
-                $months    = $this->monthsBetween($request->start_date, $request->end_date);
-                $total     = 0;
+                $panelData  = Panel::whereIn('id', $request->panel_ids)->get()->keyBy('id');
+                $months     = $this->monthsBetween($request->start_date, $request->end_date);
+                $total      = 0;
                 $attachData = [];
 
                 foreach ($request->panel_ids as $panelId) {
                     $panel      = $panelData[$panelId];
-                    $unitPrice  = (float) ($panel->monthly_rate ?? 0);
+                    $unitPrice  = (float)($panel->monthly_rate ?? 0);
                     $totalPrice = $unitPrice * $months;
                     $total     += $totalPrice;
                     $attachData[$panelId] = [
@@ -223,16 +258,49 @@ class ReservationController extends Controller
                 ]);
 
                 $reservation->panels()->attach($attachData);
-
-                // Sync statuts panneaux
                 $this->availability->syncPanelStatuses($request->panel_ids);
 
-                // Log d'audit
+                // Création automatique campagne si ferme + nom
+                if ($request->type === 'ferme' && $request->filled('campaign_name')) {
+                    $campaignExists = \App\Models\Campaign::where('client_id', $request->client_id)
+                        ->where('name', $request->campaign_name)
+                        ->exists();
+
+                    if ($campaignExists) {
+                        throw new \RuntimeException(
+                            'CAMPAIGN_EXISTS:Une campagne avec ce nom existe déjà pour ce client.'
+                        );
+                    }
+
+                    $campaign = \App\Models\Campaign::create([
+                        'name'           => $request->campaign_name,
+                        'client_id'      => $request->client_id,
+                        'reservation_id' => $reservation->id,
+                        'user_id'      => auth()->id(),
+                        'start_date'     => $request->start_date,
+                        'end_date'       => $request->end_date,
+                        'status'         => \App\Enums\CampaignStatus::ACTIF->value,
+                        'total_panels'   => count($request->panel_ids),
+                        'total_amount'   => $total,
+                        'notes'          => $request->notes,
+                    ]);
+
+                    $campaign->panels()->sync(array_keys($attachData));
+                    $createdCampaignId = $campaign->id;
+
+                    Log::info('campaign.auto_created', [
+                        'campaign_id'    => $campaign->id,
+                        'reservation_id' => $reservation->id,
+                        'user_id'        => auth()->id(),
+                    ]);
+                }
+
                 Log::info('reservation.created', [
                     'reservation_id' => $reservation->id,
                     'reference'      => $reservation->reference,
                     'type'           => $request->type,
                     'panel_ids'      => $request->panel_ids,
+                    'total_amount'   => $total,
                     'user_id'        => auth()->id(),
                     'ip'             => request()->ip(),
                 ]);
@@ -240,33 +308,34 @@ class ReservationController extends Controller
 
         } catch (\RuntimeException $e) {
             if (str_starts_with($e->getMessage(), 'CONFLICT:')) {
-                $refs = substr($e->getMessage(), 9);
                 return back()->withErrors([
-                    'panel_ids' => "Conflit détecté (réservé entre temps) : $refs",
+                    'panel_ids' => 'Conflit détecté (réservé entre temps) : '
+                        . substr($e->getMessage(), 9),
                 ])->withInput();
+            }
+            if (str_starts_with($e->getMessage(), 'CAMPAIGN_EXISTS:')) {
+                return back()->withErrors([
+                    'campaign_name' => substr($e->getMessage(), 16),
+                ])->withInput();
+            }
+            if (str_starts_with($e->getMessage(), 'SYSTEM:')) {
+                return back()->with('error', substr($e->getMessage(), 7))->withInput();
             }
             throw $e;
         }
 
-        $msg = $request->type === 'ferme'
-            ? 'Réservation ferme créée. Panneaux confirmés.'
-            : 'Panneaux mis sous option.';
+        if ($createdCampaignId) {
+            return redirect()
+                ->route('admin.campaigns.show', $createdCampaignId)
+                ->with('success', 'Réservation ferme créée et campagne lancée automatiquement. ✅');
+        }
 
         return redirect()
             ->route('admin.reservations.disponibilites')
-            ->with('success', $msg);
-    }
-
-    // ── Méthode utilitaire (private static) ───────────────────────────
-    // Formate les dimensions : 4.0 → "4", 2.5 → "2.5", résultat : "4×3m"
-    private function formatDimensions(?float $w, ?float $h): ?string
-    {
-        if (! $w || ! $h) return null;
-    
-        $wStr = rtrim(rtrim(number_format($w, 2, '.', ''), '0'), '.');
-        $hStr = rtrim(rtrim(number_format($h, 2, '.', ''), '0'), '.');
-    
-        return "{$wStr}×{$hStr}m";
+            ->with('success', $request->type === 'ferme'
+                ? 'Réservation ferme créée. Panneaux confirmés.'
+                : 'Panneaux mis sous option. Créez une campagne dès confirmation client.'
+            );
     }
 
     // ══════════════════════════════════════════════════════
@@ -285,15 +354,27 @@ class ReservationController extends Controller
             ->when($request->status,    fn($q, $s)  => $q->where('status',    $s))
             ->when($request->type,      fn($q, $t)  => $q->where('type',      $t))
             ->when($request->client_id, fn($q, $id) => $q->where('client_id', $id))
+            ->when($request->periode, function ($q, $p) { return match($p) {
+                    'this_month'   => $q->whereMonth('created_at', now()->month)
+                                    ->whereYear('created_at', now()->year),
+                    'last_month'   => $q->whereMonth('created_at', now()->subMonth()->month)
+                                    ->whereYear('created_at', now()->subMonth()->year),
+                    'this_quarter' => $q->whereBetween('created_at', [
+                                        now()->startOfQuarter(),
+                                        now()->endOfQuarter(),
+                                    ]),
+                    'this_year'    => $q->whereYear('created_at', now()->year),
+                    default        => $q,
+                };
+            })
             ->orderByDesc('created_at')
             ->paginate(15)
             ->withQueryString();
- 
-        // ── Counts en une seule requête agrégée ────────
+
         $rawCounts = Reservation::selectRaw('status, count(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
- 
+
         $counts = [
             'total'      => $rawCounts->sum(),
             'en_attente' => $rawCounts['en_attente'] ?? 0,
@@ -301,93 +382,85 @@ class ReservationController extends Controller
             'refuse'     => $rawCounts['refuse']     ?? 0,
             'annule'     => $rawCounts['annule']     ?? 0,
         ];
- 
-        // ── Nouvelles réservations depuis dernière visite ──
+
         $lastSeenAt = auth()->user()->reservations_last_seen_at;
         $newCount   = $lastSeenAt
             ? Reservation::where('created_at', '>', $lastSeenAt)->count()
             : 0;
- 
+
         $clients  = Client::orderBy('name')->get();
         $statuses = ReservationStatus::cases();
- 
+
         return view('admin.reservations.index',
-            compact('reservations', 'clients', 'statuses', 'counts',
-                    'lastSeenAt', 'newCount'));
+            compact('reservations', 'clients', 'statuses', 'counts', 'lastSeenAt', 'newCount')
+        );
     }
 
-    // ── markSeen() — NOUVELLE MÉTHODE ─────────────────
     public function markSeen()
     {
-        auth()->user()->update([
-            'reservations_last_seen_at' => now(),
-        ]);
- 
+        auth()->user()->update(['reservations_last_seen_at' => now()]);
         return response()->json(['ok' => true]);
     }
 
     public function show(Reservation $reservation)
     {
         $reservation->load([
-            'client',
-            'user',
-            'panels.commune',
-            'panels.format',
+            'client', 'user',
+            'panels.commune', 'panels.format',
             'campaign',
         ]);
- 
+
         $user = auth()->user();
- 
+
         $can = [
-            // Modifier : en_attente + client actif + droits
             'update'       => $reservation->isEditable()
                                 && $user->can('update', $reservation),
- 
-            // Changer statut : client non supprimé + transitions dispo + droits
             'updateStatus' => $reservation->canChangeStatus()
                                 && $user->can('updateStatus', $reservation),
- 
-            // Annuler : en_attente/confirme + client actif + droits
             'annuler'      => $reservation->isCancellable()
                                 && $user->can('annuler', $reservation),
- 
-            // Supprimer : annulé/refusé + pas campagne active + admin
             'delete'       => $reservation->isDeletable()
                                 && $user->can('delete', $reservation),
         ];
- 
+
         return view('admin.reservations.show', compact('reservation', 'can'));
     }
 
-     public function edit(Reservation $reservation)
+    public function edit(Reservation $reservation)
     {
-        if (! $reservation->isEditable()) {
-            abort(403,
-                'Cette réservation ne peut plus être modifiée '
+        if (!$reservation->isEditable()) {
+            abort(403, 'Cette réservation ne peut plus être modifiée '
                 . '(statut : ' . $reservation->status->label() . ').');
         }
- 
+
         $reservation->load('panels');
         $clients  = Client::orderBy('name')->get();
         $communes = Commune::orderBy('name')->get();
         $formats  = PanelFormat::orderBy('name')->get();
         $zones    = Zone::orderBy('name')->get();
- 
+
         $selectedPanelIds = $reservation->panels->pluck('id')->toArray();
- 
+
         return view('admin.reservations.edit',
-            compact('reservation', 'clients', 'communes', 'formats',
-                    'zones', 'selectedPanelIds'));
+            compact('reservation', 'clients', 'communes', 'formats', 'zones', 'selectedPanelIds')
+        );
     }
 
     public function update(UpdateReservationRequest $request, Reservation $reservation)
     {
-        if (! $reservation->isEditable()) {
+        if (!$reservation->isEditable()) {
             abort(403, 'Cette réservation ne peut plus être modifiée.');
         }
-
         if ($reservation->client?->trashed()) {
             abort(403, 'Client supprimé — modification impossible.');
+        }
+
+        // Protection modification concurrente
+        if ((int)$request->last_updated_at !== $reservation->updated_at->timestamp) {
+            return back()->with('error',
+                'Cette réservation a été modifiée par un autre utilisateur. '
+                . 'Veuillez recharger la page.'
+            );
         }
 
         $data      = $request->validated();
@@ -395,10 +468,7 @@ class ReservationController extends Controller
 
         try {
             DB::transaction(function () use ($data, $reservation, $oldPanels) {
-                // Verrou pessimiste
-                Panel::whereIn('id', $data['panel_ids'])
-                    ->lockForUpdate()
-                    ->get();
+                Panel::whereIn('id', $data['panel_ids'])->lockForUpdate()->get();
 
                 $conflicts = $this->availability->getUnavailablePanelIds(
                     $data['panel_ids'],
@@ -407,20 +477,19 @@ class ReservationController extends Controller
                     $reservation->id
                 );
 
-                if (! empty($conflicts)) {
-                    $refs = Panel::whereIn('id', $conflicts)
-                        ->pluck('reference')->join(', ');
+                if (!empty($conflicts)) {
+                    $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
                     throw new \RuntimeException("CONFLICT:$refs");
                 }
 
-                $months = $this->monthsBetween($data['start_date'], $data['end_date']);
+                $months    = $this->monthsBetween($data['start_date'], $data['end_date']);
                 $panelData = Panel::whereIn('id', $data['panel_ids'])->get()->keyBy('id');
-                $sync  = [];
-                $total = 0;
+                $sync      = [];
+                $total     = 0;
 
                 foreach ($data['panel_ids'] as $panelId) {
                     $panel      = $panelData[$panelId];
-                    $unitPrice  = (float) ($panel->monthly_rate ?? 0);
+                    $unitPrice  = (float)($panel->monthly_rate ?? 0);
                     $totalPrice = $unitPrice * $months;
                     $total     += $totalPrice;
                     $sync[$panelId] = [
@@ -451,9 +520,8 @@ class ReservationController extends Controller
 
         } catch (\RuntimeException $e) {
             if (str_starts_with($e->getMessage(), 'CONFLICT:')) {
-                $refs = substr($e->getMessage(), 9);
                 return back()->withInput()
-                    ->withErrors(['panel_ids' => "Conflit détecté : $refs"]);
+                    ->withErrors(['panel_ids' => 'Conflit détecté : ' . substr($e->getMessage(), 9)]);
             }
             throw $e;
         }
@@ -465,39 +533,36 @@ class ReservationController extends Controller
 
     public function updateStatus(Request $request, Reservation $reservation)
     {
-        // Client supprimé → lecture seule totale, aucune action
         if ($reservation->client?->trashed()) {
             return back()->with('error',
                 'Impossible : le client de cette réservation a été supprimé.');
         }
- 
+
         $request->validate([
             'status' => 'required|in:' . implode(',',
                 array_column(ReservationStatus::cases(), 'value')),
         ]);
- 
+
         $newStatus = $request->status;
- 
-        // Vérification matrice
-        if (! $reservation->canTransitionTo($newStatus)) {
+
+        if (!$reservation->canTransitionTo($newStatus)) {
             return back()->with('error',
                 "Transition interdite : {$reservation->status->value} → $newStatus.");
         }
- 
+
         $oldStatus = $reservation->status->value;
         $data      = ['status' => $newStatus];
- 
+
         if ($newStatus === ReservationStatus::CONFIRME->value) {
             $data['confirmed_at'] = now();
             $data['type']         = 'ferme';
         }
- 
+
         $reservation->update($data);
- 
         $this->availability->syncPanelStatuses(
             $reservation->panels->pluck('id')->toArray()
         );
- 
+
         Log::info('reservation.status_changed', [
             'reservation_id' => $reservation->id,
             'from'           => $oldStatus,
@@ -505,7 +570,7 @@ class ReservationController extends Controller
             'user_id'        => auth()->id(),
             'ip'             => request()->ip(),
         ]);
- 
+
         return redirect()
             ->route('admin.reservations.show', $reservation)
             ->with('success', "Statut mis à jour : {$newStatus}.");
@@ -513,23 +578,19 @@ class ReservationController extends Controller
 
     public function annuler(Reservation $reservation)
     {
-        // Client supprimé → lecture seule
         if ($reservation->client?->trashed()) {
             abort(403, 'Impossible : client supprimé.');
         }
- 
-        if (! $reservation->isCancellable()) {
+        if (!$reservation->isCancellable()) {
             abort(403, 'Cette réservation ne peut pas être annulée.');
         }
- 
+
         $panelIds  = $reservation->panels->pluck('id')->toArray();
         $oldStatus = $reservation->status->value;
- 
+
         $reservation->update(['status' => ReservationStatus::ANNULE]);
- 
-        // Libération immédiate des panneaux
         $this->availability->syncPanelStatuses($panelIds);
- 
+
         Log::info('reservation.cancelled', [
             'reservation_id' => $reservation->id,
             'from_status'    => $oldStatus,
@@ -537,22 +598,20 @@ class ReservationController extends Controller
             'user_id'        => auth()->id(),
             'ip'             => request()->ip(),
         ]);
- 
+
         return redirect()
             ->route('admin.reservations.index')
-            ->with('success',
-                'Réservation annulée. '
-                . count($panelIds) . ' panneau(x) libéré(s).');
+            ->with('success', 'Réservation annulée. ' . count($panelIds) . ' panneau(x) libéré(s).');
     }
+
     public function destroy(Reservation $reservation)
     {
-        if (! $reservation->isDeletable()) {
-            abort(403,
-                'Impossible de supprimer : la réservation est active ou liée à une campagne.');
+        if (!$reservation->isDeletable()) {
+            abort(403, 'Impossible de supprimer : la réservation est active ou liée à une campagne.');
         }
- 
+
         $panelIds = $reservation->panels->pluck('id')->toArray();
- 
+
         Log::info('reservation.deleted', [
             'reservation_id' => $reservation->id,
             'reference'      => $reservation->reference,
@@ -560,46 +619,36 @@ class ReservationController extends Controller
             'user_id'        => auth()->id(),
             'ip'             => request()->ip(),
         ]);
- 
+
         $reservation->delete();
- 
-        // Sync par précaution (panneaux déjà libres normalement)
-        if (! empty($panelIds)) {
+
+        if (!empty($panelIds)) {
             $this->availability->syncPanelStatuses($panelIds);
         }
- 
+
         return redirect()
             ->route('admin.reservations.index')
             ->with('success', 'Réservation supprimée définitivement.');
     }
 
-    // ══════════════════════════════════════════════════════
-    // API AJAX — Panneaux disponibles
-    // ══════════════════════════════════════════════════════
-
     public function availablePanels(Request $request)
     {
         $request->validate([
-            'start_date'   => 'required|date',
-            'end_date'     => [
-                'required',
-                'date',
-                'after:start_date',          // ← strictement après
-            ],
+            'start_date'    => 'required|date',
+            'end_date'      => 'required|date|after:start_date',
             'format_width'  => 'nullable|numeric|min:0',
             'format_height' => 'nullable|numeric|min:0',
         ]);
-    
-        // Vérification croisée supplémentaire
+
         $start = Carbon::parse($request->start_date);
         $end   = Carbon::parse($request->end_date);
-    
+
         if ($end->lte($start)) {
             return response()->json([
                 'error' => 'La date de fin doit être après la date de début.'
             ], 422);
         }
-    
+
         $panels = $this->availability->getAvailablePanels(
             $request->start_date,
             $request->end_date,
@@ -612,7 +661,7 @@ class ReservationController extends Controller
                 'format_height' => $request->format_height,
             ]
         );
-    
+
         return response()->json(
             $panels->map(fn($p) => [
                 'id'            => $p->id,
@@ -620,9 +669,8 @@ class ReservationController extends Controller
                 'name'          => $p->name,
                 'commune'       => $p->commune?->name,
                 'format'        => $p->format?->name,
-                // Dimensions formatées : "4.00×3.00m" ou "4×3m" selon les données
                 'dimensions'    => $p->format
-                    ? self::formatDimensions($p->format->width, $p->format->height)
+                    ? $this->formatDimensions($p->format->width, $p->format->height)
                     : null,
                 'format_width'  => $p->format?->width,
                 'format_height' => $p->format?->height,
@@ -634,26 +682,25 @@ class ReservationController extends Controller
             ])
         );
     }
-    
 
     // ══════════════════════════════════════════════════════
-    // UTILITAIRE
+    // UTILITAIRES PRIVÉS
     // ══════════════════════════════════════════════════════
 
-    /**
-     * Calcule le nombre de mois entre deux dates.
-     * Arrondit au mois supérieur si reste > 0 jours.
-     */
+    private function formatDimensions(?float $w, ?float $h): ?string
+    {
+        if (!$w || !$h) return null;
+        $wStr = rtrim(rtrim(number_format($w, 2, '.', ''), '0'), '.');
+        $hStr = rtrim(rtrim(number_format($h, 2, '.', ''), '0'), '.');
+        return "{$wStr}×{$hStr}m";
+    }
+
     private function monthsBetween(string $start, string $end): float
     {
         $s      = Carbon::parse($start)->startOfDay();
         $e      = Carbon::parse($end)->endOfDay();
-        $months = (int) $s->diffInMonths($e);
+        $months = (int)$s->diffInMonths($e);
         $remain = $s->copy()->addMonths($months)->diffInDays($e);
-
-        // Si reste des jours → facturer un mois de plus
-        $result = $remain > 0 ? $months + 1 : $months;
-
-        return max((float) $result, 1.0);
+        return max((float)($remain > 0 ? $months + 1 : $months), 1.0);
     }
 }
