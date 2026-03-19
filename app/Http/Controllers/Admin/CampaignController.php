@@ -15,17 +15,18 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-
 class CampaignController extends Controller
 {
-    // ── Index ────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    // INDEX — optimisé 1M de campagnes
+    // ══════════════════════════════════════════════════════════════
     public function index(Request $request)
     {
         $this->authorize('viewAny', Campaign::class);
 
-        // ✅ APRÈS
-        $campaigns = Campaign::with(['client', 'user', 'reservation', 'invoices'])
-            ->withCount('panels')
+        // Eager load minimal + withCount pour éviter N+1 et chargement mémoire
+        $campaigns = Campaign::with(['client', 'user'])
+            ->withCount(['panels', 'invoices'])
             ->when($request->search, fn($q, $s) =>
                 $q->where('name', 'like', "%$s%")
             )
@@ -35,33 +36,43 @@ class CampaignController extends Controller
             ->when($request->date_to,   fn($q, $d)  => $q->where('end_date', '<=', $d))
             ->when($request->non_facturee, fn($q) =>
                 $q->whereIn('status', ['actif', 'pose', 'termine'])
-                ->doesntHave('invoices')
+                  ->doesntHave('invoices')
             )
             ->orderByDesc('created_at')
-            ->paginate(15)
+            ->paginate(20)
             ->withQueryString();
 
-        // Counts en 1 requête
+        // Counts par statut — 1 requête agrégée
         $rawCounts = Campaign::selectRaw('status, count(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
 
         $counts = [
             'actif'   => $rawCounts['actif']   ?? 0,
-            'pose'    => $rawCounts['pose']    ?? 0,
-            'termine' => $rawCounts['termine'] ?? 0,
-            'annule'  => $rawCounts['annule']  ?? 0,
+            'pose'    => $rawCounts['pose']     ?? 0,
+            'termine' => $rawCounts['termine']  ?? 0,
+            'annule'  => $rawCounts['annule']   ?? 0,
         ];
 
+        // Non facturées — requête directe avec index
         $nonFactureesCount = Campaign::nonFacturees()->count();
-        $clients           = Client::orderBy('name')->get();
+
+        // Alertes fin proche — campagnes actives se terminant dans 14 jours
+        $endingSoonCount = Campaign::where('status', CampaignStatus::ACTIF->value)
+            ->where('end_date', '>=', now()->startOfDay())
+            ->where('end_date', '<=', now()->addDays(14)->endOfDay())
+            ->count();
+
+        $clients = Client::orderBy('name')->get();
 
         return view('admin.campaigns.index', compact(
-            'campaigns', 'counts', 'nonFactureesCount', 'clients'
+            'campaigns', 'counts', 'nonFactureesCount', 'endingSoonCount', 'clients'
         ));
     }
 
-    // ── Show ─────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    // SHOW
+    // ══════════════════════════════════════════════════════════════
     public function show(Campaign $campaign)
     {
         $this->authorize('view', $campaign);
@@ -70,11 +81,9 @@ class CampaignController extends Controller
             'client',
             'user',
             'updatedBy',
-            'reservation.panels',
+            'reservation',
             'panels.commune',
             'panels.format',
-            'externalPanels',
-            'piges',
             'invoices',
         ]);
 
@@ -88,8 +97,7 @@ class CampaignController extends Controller
             'delete'       => $user->can('delete', $campaign),
         ];
 
-        // Panneaux disponibles — UNIQUEMENT si managePanel autorisé
-        // Limité à 200 pour éviter surcharge en prod
+        // Panneaux disponibles pour ajout — limités à 200
         $availablePanels = collect();
         if ($can['managePanel']) {
             $availablePanels = app(AvailabilityService::class)
@@ -98,24 +106,47 @@ class CampaignController extends Controller
                     $campaign->end_date->format('Y-m-d'),
                     $campaign->reservation_id
                 )
-                ->filter(fn($p) => !$campaign->panels->contains('id', $p->id))
-                ->take(200);
+                ->filter(fn($p) =>
+                    !$campaign->panels->contains('id', $p->id)
+                    && $p->status->value === 'libre'  // uniquement libres
+                )
+                ->take(200)
+                ->values();
         }
 
         $communes = Commune::orderBy('name')->get();
         $formats  = PanelFormat::orderBy('name')->get();
 
+        // Transitions lisibles
+        $transitions = [
+            'actif'   => [
+                'termine' => 'Terminer la campagne',
+                'annule'  => 'Annuler la campagne',
+            ],
+            'pose'    => [
+                'actif'   => 'Remettre en cours',
+                'termine' => 'Terminer la campagne',
+                'annule'  => 'Annuler la campagne',
+            ],
+            'termine' => [],
+            'annule'  => [],
+        ];
+        $allowed = $transitions[$campaign->status->value] ?? [];
+
         return view('admin.campaigns.show', compact(
-            'campaign', 'can', 'availablePanels', 'communes', 'formats'
+            'campaign', 'can', 'availablePanels',
+            'communes', 'formats', 'allowed'
         ));
     }
 
-    // ── Create ───────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    // CREATE / STORE
+    // ══════════════════════════════════════════════════════════════
     public function create(Request $request)
     {
         $this->authorize('create', Campaign::class);
 
-        $clients = Client::orderBy('name')->get();
+        $clients      = Client::orderBy('name')->get();
         $reservations = Reservation::with('client', 'panels')
             ->where('status', 'confirme')
             ->whereDoesntHave('campaign')
@@ -133,7 +164,6 @@ class CampaignController extends Controller
             compact('clients', 'reservations', 'preselectedReservation'));
     }
 
-    // ── Store ────────────────────────────────────────────────────
     public function store(Request $request)
     {
         $this->authorize('create', Campaign::class);
@@ -157,16 +187,18 @@ class CampaignController extends Controller
         }
 
         try {
-            $campaign = DB::transaction(function () use ($data, $request) {
+            $campaign = DB::transaction(function () use ($data) {
                 $data['status']  = CampaignStatus::ACTIF->value;
                 $data['user_id'] = auth()->id();
 
                 $reservation = null;
                 if (!empty($data['reservation_id'])) {
-                    $reservation = Reservation::with('panels')->findOrFail($data['reservation_id']);
+                    $reservation = Reservation::with('panels')
+                        ->findOrFail($data['reservation_id']);
 
                     if ($reservation->campaign()->exists()) {
-                        throw new \Exception('Cette réservation est déjà liée à une campagne.');
+                        throw new \Exception(
+                            'Cette réservation est déjà liée à une campagne.');
                     }
                     if ($reservation->client_id !== (int)$data['client_id']) {
                         throw new \Exception(
@@ -196,14 +228,16 @@ class CampaignController extends Controller
 
             return redirect()
                 ->route('admin.campaigns.show', $campaign)
-                ->with('success', 'Campagne créée avec succès.');
+                ->with('success', "Campagne « {$campaign->name} » créée avec succès.");
 
         } catch (\Exception $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
     }
 
-    // ── Edit ─────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    // EDIT / UPDATE
+    // ══════════════════════════════════════════════════════════════
     public function edit(Campaign $campaign)
     {
         $this->authorize('update', $campaign);
@@ -211,7 +245,6 @@ class CampaignController extends Controller
         return view('admin.campaigns.edit', compact('campaign', 'clients'));
     }
 
-    // ── Update ───────────────────────────────────────────────────
     public function update(Request $request, Campaign $campaign)
     {
         $this->authorize('update', $campaign);
@@ -242,7 +275,9 @@ class CampaignController extends Controller
             ->with('success', 'Campagne mise à jour.');
     }
 
-    // ── Update Status ─────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    // UPDATE STATUS
+    // ══════════════════════════════════════════════════════════════
     public function updateStatus(Request $request, Campaign $campaign)
     {
         $this->authorize('updateStatus', $campaign);
@@ -286,7 +321,9 @@ class CampaignController extends Controller
             ->with('success', "Statut mis à jour : {$newStatus->label()}.");
     }
 
-    // ── Add Panel(s) — multi-sélection + vérif dispo ──────────────
+    // ══════════════════════════════════════════════════════════════
+    // ADD PANEL — bloque les non-libres + recalcule le prix
+    // ══════════════════════════════════════════════════════════════
     public function addPanel(Request $request, Campaign $campaign)
     {
         $this->authorize('managePanel', $campaign);
@@ -301,9 +338,32 @@ class CampaignController extends Controller
                 'Impossible d\'ajouter des panneaux à une campagne terminée ou annulée.');
         }
 
-        // Vérifier disponibilité sur la période de la campagne
+        $panelIds = $request->panel_ids;
+
+        // Doublons dans la campagne
+        $alreadyIn = $campaign->panels->pluck('id')
+            ->intersect($panelIds)->toArray();
+        if (!empty($alreadyIn)) {
+            $refs = Panel::whereIn('id', $alreadyIn)->pluck('reference')->join(', ');
+            return back()->with('error',
+                "Ces panneaux sont déjà dans cette campagne : {$refs}");
+        }
+
+        // Bloquer panneaux non libres
+        $nonLibres = Panel::whereIn('id', $panelIds)
+            ->where('status', '!=', 'libre')
+            ->get();
+        if ($nonLibres->isNotEmpty()) {
+            $refs = $nonLibres->map(fn($p) =>
+                "{$p->reference} ({$p->status->label()})"
+            )->join(', ');
+            return back()->with('error',
+                "Panneaux non disponibles (statut ≠ libre) : {$refs}");
+        }
+
+        // Vérifier disponibilité sur la période
         $conflicts = app(AvailabilityService::class)->getUnavailablePanelIds(
-            $request->panel_ids,
+            $panelIds,
             $campaign->start_date->format('Y-m-d'),
             $campaign->end_date->format('Y-m-d'),
             $campaign->reservation_id
@@ -315,25 +375,41 @@ class CampaignController extends Controller
                 "Panneaux non disponibles sur cette période : {$refs}");
         }
 
-        DB::transaction(function () use ($campaign, $request) {
-            $campaign->panels()->syncWithoutDetaching($request->panel_ids);
+        // Attacher + recalculer prix total
+        $months    = $campaign->durationInMonths();
+        $panelData = Panel::whereIn('id', $panelIds)->get()->keyBy('id');
+
+        DB::transaction(function () use ($campaign, $panelIds, $panelData, $months) {
+            $campaign->panels()->syncWithoutDetaching($panelIds);
+
+            // Recalculer le montant total de la campagne
+            $newTotal = $campaign->panels()->get()->sum(fn($p) =>
+                (float)($p->monthly_rate ?? 0) * $months
+            );
+
             $campaign->update([
                 'total_panels' => $campaign->panels()->count(),
+                'total_amount' => $newTotal,
                 'updated_by'   => auth()->id(),
             ]);
+
+            // Sync statut des panneaux ajoutés → confirme
+            app(AvailabilityService::class)->syncPanelStatuses($panelIds);
         });
 
         Log::info('campaign.panels_added', [
             'campaign_id' => $campaign->id,
-            'panel_ids'   => $request->panel_ids,
+            'panel_ids'   => $panelIds,
             'user_id'     => auth()->id(),
         ]);
 
         return back()->with('success',
-            count($request->panel_ids) . ' panneau(x) ajouté(s) à la campagne.');
+            count($panelIds) . ' panneau(x) ajouté(s). Montant recalculé.');
     }
 
-    // ── Remove Panel ──────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    // REMOVE PANEL
+    // ══════════════════════════════════════════════════════════════
     public function removePanel(Campaign $campaign, Panel $panel)
     {
         $this->authorize('managePanel', $campaign);
@@ -343,10 +419,18 @@ class CampaignController extends Controller
                 'Impossible de modifier les panneaux d\'une campagne terminée ou annulée.');
         }
 
-        DB::transaction(function () use ($campaign, $panel) {
+        $months = $campaign->durationInMonths();
+
+        DB::transaction(function () use ($campaign, $panel, $months) {
             $campaign->panels()->detach($panel->id);
+
+            $newTotal = $campaign->panels()->get()->sum(fn($p) =>
+                (float)($p->monthly_rate ?? 0) * $months
+            );
+
             $campaign->update([
                 'total_panels' => $campaign->panels()->count(),
+                'total_amount' => $newTotal,
                 'updated_by'   => auth()->id(),
             ]);
 
@@ -369,10 +453,13 @@ class CampaignController extends Controller
             'user_id'     => auth()->id(),
         ]);
 
-        return back()->with('success', "Panneau {$panel->reference} retiré. Statut mis à jour.");
+        return back()->with('success',
+            "Panneau {$panel->reference} retiré. Montant recalculé.");
     }
 
-    // ── Destroy ───────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    // DESTROY
+    // ══════════════════════════════════════════════════════════════
     public function destroy(Campaign $campaign)
     {
         $this->authorize('delete', $campaign);
@@ -397,7 +484,9 @@ class CampaignController extends Controller
             ->with('success', 'Campagne supprimée. ' . count($panelIds) . ' panneau(x) libéré(s).');
     }
 
-    // ── Prolonger ─────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    // PROLONGER
+    // ══════════════════════════════════════════════════════════════
     public function prolonger(Request $request, Campaign $campaign)
     {
         $this->authorize('update', $campaign);
@@ -414,6 +503,7 @@ class CampaignController extends Controller
         ]);
 
         $oldEnd = $campaign->end_date->format('d/m/Y');
+        $newEnd = \Carbon\Carbon::parse($request->new_end_date)->format('d/m/Y');
 
         DB::transaction(function () use ($campaign, $request) {
             $campaign->update([
@@ -425,17 +515,23 @@ class CampaignController extends Controller
             if ($campaign->reservation) {
                 $campaign->reservation->update(['end_date' => $request->new_end_date]);
             }
+
+            // Recalculer le montant avec la nouvelle durée
+            $months   = $campaign->fresh()->durationInMonths();
+            $newTotal = $campaign->panels()->get()->sum(fn($p) =>
+                (float)($p->monthly_rate ?? 0) * $months
+            );
+            $campaign->update(['total_amount' => $newTotal]);
         });
 
         Log::info('campaign.prolonged', [
             'campaign_id'  => $campaign->id,
             'old_end_date' => $oldEnd,
-            'new_end_date' => $request->new_end_date,
+            'new_end_date' => $newEnd,
             'user_id'      => auth()->id(),
         ]);
 
         return back()->with('success',
-            "Campagne prolongée du {$oldEnd} au "
-            . \Carbon\Carbon::parse($request->new_end_date)->format('d/m/Y') . '.');
+            "Campagne prolongée jusqu'au {$newEnd}. Montant recalculé.");
     }
 }
