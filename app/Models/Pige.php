@@ -10,17 +10,24 @@ class Pige extends Model
     use HasFactory;
 
     protected $fillable = [
-        'panel_id', 'campaign_id', 'user_id',
-        'photo_path', 'taken_at',
-        'gps_lat', 'gps_lng',
-        'is_verified', 'verified_by', 'verified_at', 'notes',
+        'panel_id',
+        'campaign_id',
+        'user_id',
+        'photo_path',
+        'taken_at',
+        'gps_lat',
+        'gps_lng',
+        'is_verified',
+        'verified_by',
+        'verified_at',
+        'notes',
     ];
 
     protected $casts = [
-        'taken_at'    => 'datetime',
+        'taken_at' => 'datetime',
         'verified_at' => 'datetime',
-        'gps_lat'     => 'decimal:7',
-        'gps_lng'     => 'decimal:7',
+        'gps_lat' => 'decimal:7',
+        'gps_lng' => 'decimal:7',
         'is_verified' => 'boolean',
     ];
 
@@ -53,4 +60,12 @@ class Pige extends Model
     {
         return !is_null($this->gps_lat) && !is_null($this->gps_lng);
     }
+
+    public function takenBy()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    
+
 }

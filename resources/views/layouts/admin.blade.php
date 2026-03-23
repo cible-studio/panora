@@ -88,7 +88,8 @@
                         <span class="icon">🏗️</span> Gestion Pose OOH
                     </a>
 
-                    <a href="#" class="nav-item">
+                    <a href="{{ route('admin.piges.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.piges.*') ? 'active' : '' }}">
                         <span class="icon">📷</span> Piges Photos
                     </a>
 
