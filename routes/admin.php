@@ -13,6 +13,7 @@ use App\Http\Controllers\Settings\ZoneController;
 use App\Http\Controllers\Settings\CommuneController;
 use App\Http\Controllers\Settings\PanelFormatController;
 use App\Http\Controllers\Settings\PanelCategoryController;
+use App\Http\Controllers\Admin\PropositionController;
 
 // ── Dev B ──────────────────────────────────────────────────────────
 use App\Http\Controllers\Admin\ClientController;
@@ -155,5 +156,15 @@ Route::prefix('admin')
     Route::delete('campaigns/{campaign}/panels/{panel}',
         [CampaignController::class, 'removePanel'])
         ->name('campaigns.panels.remove');
+
+        // ── Propositions ──────────────────────────────── Dev A ───
+
+Route::resource('propositions', PropositionController::class);
+Route::patch('propositions/{proposition}/status',
+    [PropositionController::class, 'updateStatus'])
+    ->name('propositions.update-status');
+Route::get('propositions/{proposition}/pdf',
+    [PropositionController::class, 'exportPdf'])
+    ->name('propositions.pdf');
 
 });

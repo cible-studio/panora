@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Client;
+use App\Models\User;
 
 class Proposition extends Model
 {
@@ -35,4 +37,9 @@ class Proposition extends Model
     {
         return $this->statut === 'acceptee';
     }
+
+    public function creator()
+{
+    return $this->belongsTo(User::class, 'created_by');
+}
 }
