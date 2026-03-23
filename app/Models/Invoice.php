@@ -42,4 +42,8 @@ class Invoice extends Model
     {
         return $this->status === 'payee';
     }
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 }

@@ -16,6 +16,7 @@ use App\Http\Controllers\Settings\PanelCategoryController;
 use App\Http\Controllers\Admin\PropositionController;
 use App\Http\Controllers\Admin\PigeController;
 use App\Http\Controllers\Admin\TaxController;
+use App\Http\Controllers\Admin\InvoiceController;
 // ── Dev B ──────────────────────────────────────────────────────────
 use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\ExternalAgencyController;
@@ -221,5 +222,16 @@ Route::prefix('admin')
             ->name('taxes.pay');
         Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])
             ->name('taxes.export.pdf');
+
+
+        // ── Facturation ───────────────────────────────── Dev A ───
+
+        Route::resource('invoices', InvoiceController::class);
+        Route::patch('invoices/{invoice}/send', [InvoiceController::class, 'markSent'])
+            ->name('invoices.send');
+        Route::patch('invoices/{invoice}/pay', [InvoiceController::class, 'markPaid'])
+            ->name('invoices.pay');
+        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])
+            ->name('invoices.pdf');
 
     });

@@ -93,16 +93,13 @@
                         <span class="icon">📷</span> Piges Photos
                     </a>
 
-                    <a href="#" class="nav-item">
-                        <span class="icon">📤</span> Export Piges
-                    </a>
-
                     <a href="{{ route('admin.taxes.index') }}"
                         class="nav-item {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
                         <span class="icon">🏛️</span> Taxes Communes
                     </a>
 
-                    <a href="#" class="nav-item">
+                    <a href="{{ route('admin.invoices.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
                         <span class="icon">💰</span> Facturation
                     </a>
 
