@@ -15,6 +15,7 @@ use App\Http\Controllers\Settings\PanelFormatController;
 use App\Http\Controllers\Settings\PanelCategoryController;
 use App\Http\Controllers\Admin\PropositionController;
 use App\Http\Controllers\Admin\PigeController;
+use App\Http\Controllers\Admin\TaxController;
 // ── Dev B ──────────────────────────────────────────────────────────
 use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\ExternalAgencyController;
@@ -197,19 +198,28 @@ Route::prefix('admin')
         )
             ->name('propositions.pdf');
 
-            // ── Piges Photos ──────────────────────────────── Dev A ───
+        // ── Piges Photos ──────────────────────────────── Dev A ───
 
-Route::get('piges', [PigeController::class, 'index'])
-    ->name('piges.index');
-Route::post('piges/upload', [PigeController::class, 'upload'])
-    ->name('piges.upload');
-Route::get('piges/{pige}', [PigeController::class, 'show'])
-    ->name('piges.show');
-Route::post('piges/{pige}/verify', [PigeController::class, 'verify'])
-    ->name('piges.verify');
-Route::delete('piges/{pige}', [PigeController::class, 'destroy'])
-    ->name('piges.destroy');
-Route::get('piges/export/pdf', [PigeController::class, 'exportPdf'])
-    ->name('piges.export.pdf');
+        Route::get('piges', [PigeController::class, 'index'])
+            ->name('piges.index');
+        Route::post('piges/upload', [PigeController::class, 'upload'])
+            ->name('piges.upload');
+        Route::get('piges/{pige}', [PigeController::class, 'show'])
+            ->name('piges.show');
+        Route::post('piges/{pige}/verify', [PigeController::class, 'verify'])
+            ->name('piges.verify');
+        Route::delete('piges/{pige}', [PigeController::class, 'destroy'])
+            ->name('piges.destroy');
+        Route::get('piges/export/pdf', [PigeController::class, 'exportPdf'])
+            ->name('piges.export.pdf');
+
+        // ── Taxes Communes ────────────────────────────── Dev A ───
+
+
+        Route::resource('taxes', TaxController::class);
+        Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])
+            ->name('taxes.pay');
+        Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])
+            ->name('taxes.export.pdf');
 
     });

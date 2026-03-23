@@ -97,7 +97,8 @@
                         <span class="icon">📤</span> Export Piges
                     </a>
 
-                    <a href="#" class="nav-item">
+                    <a href="{{ route('admin.taxes.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
                         <span class="icon">🏛️</span> Taxes Communes
                     </a>
 
