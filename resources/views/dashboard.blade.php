@@ -42,7 +42,7 @@
                 <div class="card-title">Campagnes actives</div>
                 <div style="display:flex; gap:8px;">
                     <button class="btn btn-ghost btn-sm">📊 Excel</button>
-                    <button class="btn btn-ghost btn-sm">Voir tout</button>
+                    <a href="{{ route('admin.campaigns.index') }}" class="btn btn-ghost btn-sm">Voir tout</a>
                 </div>
             </div>
             <div class="table-wrap">
