@@ -7,6 +7,7 @@ enum ReservationStatus: string
     case CONFIRME   = 'confirme';
     case REFUSE     = 'refuse';
     case ANNULE     = 'annule';
+    case TERMINE     = 'termine';
 
     public function label(): string
     {
@@ -15,6 +16,7 @@ enum ReservationStatus: string
             self::CONFIRME   => 'Confirmée',
             self::REFUSE     => 'Refusée',
             self::ANNULE     => 'Annulée',
+            self::TERMINE    => 'Terminée',
         };
     }
 
@@ -25,6 +27,7 @@ enum ReservationStatus: string
             self::CONFIRME   => 'green',
             self::REFUSE     => 'red',
             self::ANNULE     => 'gray',
+            self::TERMINE    => 'blue',
         };
     }
 
@@ -54,6 +57,12 @@ enum ReservationStatus: string
                 'color'  => '#6b7280',
                 'bg'     => 'rgba(107,114,128,0.08)',
                 'border' => 'rgba(107,114,128,0.3)',
+            ],
+            self::TERMINE    => [
+                'icon'   => '🏁',
+                'color'  => '#3b82f6',
+                'bg'     => 'rgba(59,130,246,0.08)',
+                'border' => 'rgba(59,130,246,0.3)',
             ],
         };
     }

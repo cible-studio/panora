@@ -13,6 +13,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Services\PdfExportService;
 
+use App\Models\Panel;
+use App\Models\Reservation;
+use App\Models\ReservationPanel;
+use App\Models\Client;
+use App\Enums\ReservationStatus;
+use Illuminate\Support\Facades\DB;
+
+
 class PanelController extends Controller
 {
     // ── LISTE ──
@@ -284,4 +292,51 @@ class PanelController extends Controller
         $service = new PdfExportService();
         return $service->exportNetworkReport();
     }
+
+    // Dans app/Http/Controllers/Admin/PanelController.php
+
+    public function quickDetails(Panel $panel)
+    {
+        $now = now()->startOfDay();
+        
+        // Occupation en cours
+        $current = DB::table('reservation_panels')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->join('clients', 'clients.id', '=', 'reservations.client_id')
+            ->where('reservation_panels.panel_id', $panel->id)
+            ->where('reservations.start_date', '<=', $now)
+            ->where('reservations.end_date', '>=', $now)
+            ->whereIn('reservations.status', ['en_attente', 'confirme'])
+            ->select('clients.name as client_name', 'reservations.start_date', 'reservations.end_date', 'reservations.status')
+            ->first();
+        
+        // Prochaine occupation
+        $next = null;
+        if (!$current) {
+            $next = DB::table('reservation_panels')
+                ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                ->join('clients', 'clients.id', '=', 'reservations.client_id')
+                ->where('reservation_panels.panel_id', $panel->id)
+                ->where('reservations.start_date', '>', $now)
+                ->whereIn('reservations.status', ['en_attente', 'confirme'])
+                ->orderBy('reservations.start_date')
+                ->select('clients.name as client_name', 'reservations.start_date', 'reservations.end_date')
+                ->first();
+        }
+        
+        return response()->json([
+            'current_occupation' => $current ? [
+                'client_name' => $current->client_name,
+                'start_date' => $current->start_date,
+                'end_date' => $current->end_date,
+                'status' => $current->status === 'confirme' ? 'confirme' : 'option'
+            ] : null,
+            'next_occupation' => $next ? [
+                'client_name' => $next->client_name,
+                'start_date' => $next->start_date,
+                'end_date' => $next->end_date,
+            ] : null,
+        ]);
+    }
+
 }

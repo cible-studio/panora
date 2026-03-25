@@ -1,42 +1,48 @@
 <?php
+// ══════════════════════════════════════════════════════════════════════
+// FICHIER 3 — app/Console/Commands/SyncExpiredCampaigns.php
+// Campagnes actives dont end_date est passée → statut 'termine'
+// ══════════════════════════════════════════════════════════════════════
+
 namespace App\Console\Commands;
 
-use App\Enums\CampaignStatus;
 use App\Models\Campaign;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 class SyncExpiredCampaigns extends Command
 {
     protected $signature   = 'campaigns:sync-expired';
-    protected $description = 'Passe les campagnes expirées au statut termine';
+    protected $description = 'Passe les campagnes actives expirées en "termine"';
 
     public function handle(): int
     {
-        $expired = Campaign::whereIn('status', [
-                CampaignStatus::ACTIF->value,
-            ])
-            ->where('end_date', '<', now()->startOfDay())
+        $today = Carbon::today()->format('Y-m-d');
+
+        $expired = Campaign::whereIn('status', ['actif', 'pose'])
+            ->where('end_date', '<', $today)
             ->get();
 
         if ($expired->isEmpty()) {
-            $this->info('✓ Aucune campagne expirée.');
-            return self::SUCCESS;
+            $this->info('Aucune campagne expirée à traiter.');
+            return Command::SUCCESS;
         }
 
+        $count = 0;
         foreach ($expired as $campaign) {
-            $campaign->update(['status' => CampaignStatus::TERMINE->value]);
+            $campaign->update(['status' => 'termine']);
 
             Log::info('campaign.auto_expired', [
                 'campaign_id' => $campaign->id,
                 'name'        => $campaign->name,
-                'end_date'    => $campaign->end_date->toDateString(),
+                'end_date'    => $campaign->end_date,
             ]);
 
-            $this->line("  → {$campaign->name} terminée");
+            $count++;
         }
 
-        $this->info("✓ {$expired->count()} campagne(s) passée(s) en terminée.");
-        return self::SUCCESS;
+        $this->info("$count campagne(s) expirée(s) terminée(s).");
+        return Command::SUCCESS;
     }
 }

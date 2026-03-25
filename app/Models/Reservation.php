@@ -35,6 +35,7 @@ class Reservation extends Model
         'confirme'   => ['annule'],
         'refuse'     => [],   // terminal
         'annule'     => [],   // terminal
+        'termine'    => [],   // terminal
     ];
 
     // ── Validation au niveau Model ─────────────────────────
@@ -167,4 +168,6 @@ class Reservation extends Model
     {
         return $query->where('status', 'en_attente')->where('type', 'option');
     }
+
+    
 }
