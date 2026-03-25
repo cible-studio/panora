@@ -1,61 +1,65 @@
 <?php
+// ══════════════════════════════════════════════════════════════════════
+// FICHIER 1 — app/Console/Commands/SyncExpiredReservations.php
+// Réservations confirmées dont end_date est passée → statut 'termine'
+// Libère les panneaux associés
+// ══════════════════════════════════════════════════════════════════════
+
 namespace App\Console\Commands;
 
 use App\Enums\ReservationStatus;
 use App\Models\Reservation;
 use App\Services\AvailabilityService;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class SyncExpiredReservations extends Command
 {
     protected $signature   = 'reservations:sync-expired';
-    protected $description = 'Libère les panneaux des réservations expirées';
+    protected $description = 'Passe les réservations confirmées expirées en "termine" et libère les panneaux';
 
-    public function handle(AvailabilityService $availability): int
+    public function __construct(protected AvailabilityService $availability)
     {
-        $today = now()->startOfDay();
+        parent::__construct();
+    }
 
-        $expired = Reservation::whereIn('status', [
-                ReservationStatus::EN_ATTENTE->value,
-                ReservationStatus::CONFIRME->value,
-            ])
+    public function handle(): int
+    {
+        $today = Carbon::today()->format('Y-m-d');
+
+        // Réservations confirmées dont la date de fin est passée
+        $expired = Reservation::where('status', ReservationStatus::CONFIRME->value)
             ->where('end_date', '<', $today)
             ->with('panels')
             ->get();
 
         if ($expired->isEmpty()) {
-            $this->info('✓ Aucune réservation expirée.');
-            return self::SUCCESS;
+            $this->info('Aucune réservation expirée à traiter.');
+            return Command::SUCCESS;
         }
 
-        $allPanelIds = [];
+        $count = 0;
+        foreach ($expired as $reservation) {
+            $panelIds = $reservation->panels->pluck('id')->toArray();
 
-        DB::transaction(function () use ($expired, &$allPanelIds) {
-            foreach ($expired as $reservation) {
-                $panelIds    = $reservation->panels->pluck('id')->toArray();
-                $allPanelIds = array_merge($allPanelIds, $panelIds);
+            $reservation->update(['status' => 'termine']);
 
-                $reservation->update(['status' => ReservationStatus::ANNULE->value]);
-
-                Log::info('reservation.auto_expired', [
-                    'reservation_id' => $reservation->id,
-                    'reference'      => $reservation->reference,
-                    'end_date'       => $reservation->end_date->toDateString(),
-                    'panels_freed'   => count($panelIds),
-                ]);
-
-                $this->line("  → {$reservation->reference} expirée");
+            if (!empty($panelIds)) {
+                $this->availability->syncPanelStatuses($panelIds);
             }
-        });
 
-        // Sync global en une passe après toutes les annulations
-        if (!empty($allPanelIds)) {
-            $availability->syncPanelStatuses(array_unique($allPanelIds));
+            Log::info('reservation.auto_expired', [
+                'reservation_id' => $reservation->id,
+                'reference'      => $reservation->reference,
+                'end_date'       => $reservation->end_date->format('Y-m-d'),
+                'panels_freed'   => count($panelIds),
+            ]);
+
+            $count++;
         }
 
-        $this->info("✓ {$expired->count()} réservation(s) expirée(s) traitée(s).");
-        return self::SUCCESS;
+        $this->info("$count réservation(s) expirée(s) traitée(s).");
+        return Command::SUCCESS;
     }
 }

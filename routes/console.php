@@ -8,11 +8,15 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Schedule::command('reservations:sync-expired')->hourly();
-// Libération panneaux expirés — chaque nuit à minuit
-Schedule::command('reservations:sync-expired')->dailyAt('00:05');
-Schedule::command('campaigns:sync-expired')->dailyAt('00:10');
-// Expiration options — chaque nuit à 3h (options expirant dans 7 jours)
-Schedule::command('reservations:expire-options --days=7')->dailyAt('03:00');
-
+// 1. Réservations confirmées expirées → "termine" + panneaux libérés
+//    Tous les jours à 01h00
+Schedule::command('reservations:sync-expired')->dailyAt('01:00');
+ 
+// 2. Options (en_attente) expirées → "annule" + panneaux libérés
+//    Tous les jours à 01h15
+Schedule::command('reservations:expire-options')->dailyAt('01:15');
+ 
+// 3. Campagnes actives expirées → "termine"
+//    Tous les jours à 01h30
+Schedule::command('campaigns:sync-expired')->dailyAt('01:30');
 

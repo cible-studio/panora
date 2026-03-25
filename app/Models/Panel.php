@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use App\Enums\PanelStatus;
@@ -11,14 +12,29 @@ class Panel extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'reference', 'name',
-        'commune_id', 'zone_id',
-        'format_id', 'category_id',
-        'latitude', 'longitude',
-        'status', 'is_lit',
-        'monthly_rate', 'daily_traffic',
+        'reference',
+        'name',
+        'commune_id',
+        'zone_id',
+        'format_id',
+        'category_id',
+        'latitude',
+        'longitude',
+        'status',
+        'is_lit',
+        'monthly_rate',
+        'daily_traffic',
         'maintenance_status',
-        'zone_description', 'created_by',
+        'zone_description',
+        'created_by',
+
+        // Champs Dev A
+        'nombre_faces',
+        'type_support',
+        'orientation',
+        'adresse',
+        'quartier',
+        'axe_routier',
     ];
 
     protected $casts = [
@@ -28,6 +44,8 @@ class Panel extends Model
         'longitude'    => 'decimal:7',
         'status'       => PanelStatus::class,
     ];
+
+    // ───────────── Relations principales ─────────────
 
     public function photos()
     {
@@ -59,6 +77,18 @@ class Panel extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function maintenances()
+    {
+        return $this->hasMany(Maintenance::class);
+    }
+
+    public function poseTasks()
+    {
+        return $this->hasMany(PoseTask::class);
+    }
+
+    // ───────────── Relations commerciales ─────────────
+
     public function reservations()
     {
         return $this->belongsToMany(Reservation::class, 'reservation_panels')
@@ -77,15 +107,7 @@ class Panel extends Model
         return $this->hasMany(Pige::class);
     }
 
-    public function maintenances()
-    {
-        return $this->hasMany(Maintenance::class);
-    }
-
-    public function poseTasks()
-    {
-        return $this->hasMany(PoseTask::class);
-    }
+    // ───────────── Helpers ─────────────
 
     public function isAvailable(): bool
     {

@@ -1,58 +1,65 @@
 <?php
+// ══════════════════════════════════════════════════════════════════════
+// FICHIER 2 — app/Console/Commands/ExpireOptions.php
+// Options (en_attente) dont end_date est passée → statut 'annule'
+// Libère les panneaux en option non confirmés
+// ══════════════════════════════════════════════════════════════════════
+
 namespace App\Console\Commands;
 
 use App\Enums\ReservationStatus;
 use App\Models\Reservation;
 use App\Services\AvailabilityService;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class ExpireOptions extends Command
 {
-    protected $signature   = 'reservations:expire-options {--days=7}';
-    protected $description = 'Expire les options non confirmées après N jours';
+    protected $signature   = 'reservations:expire-options';
+    protected $description = 'Annule les réservations en option dont la date de fin est passée et libère les panneaux';
 
-    public function handle(AvailabilityService $availability): int
+    public function __construct(protected AvailabilityService $availability)
     {
-        $days   = (int) $this->option('days');
-        $cutoff = now()->subDays($days);
+        parent::__construct();
+    }
 
-        $oldOptions = Reservation::where('status', ReservationStatus::EN_ATTENTE->value)
-            ->where('type', 'option')
-            ->where('created_at', '<', $cutoff)
+    public function handle(): int
+    {
+        $today = Carbon::today()->format('Y-m-d');
+
+        // Options (en_attente) expirées — la date de fin est passée
+        $expired = Reservation::where('status', ReservationStatus::EN_ATTENTE->value)
+            ->where('end_date', '<', $today)
             ->with('panels')
             ->get();
 
-        if ($oldOptions->isEmpty()) {
-            $this->info("✓ Aucune option expirée (seuil : {$days} jours).");
-            return self::SUCCESS;
+        if ($expired->isEmpty()) {
+            $this->info('Aucune option expirée à traiter.');
+            return Command::SUCCESS;
         }
 
-        $allPanelIds = [];
+        $count = 0;
+        foreach ($expired as $reservation) {
+            $panelIds = $reservation->panels->pluck('id')->toArray();
 
-        DB::transaction(function () use ($oldOptions, &$allPanelIds) {
-            foreach ($oldOptions as $reservation) {
-                $panelIds    = $reservation->panels->pluck('id')->toArray();
-                $allPanelIds = array_merge($allPanelIds, $panelIds);
+            $reservation->update(['status' => ReservationStatus::ANNULE->value]);
 
-                $reservation->update(['status' => ReservationStatus::ANNULE->value]);
-
-                Log::info('reservation.option_expired', [
-                    'reservation_id' => $reservation->id,
-                    'reference'      => $reservation->reference,
-                    'days_old'       => $days,
-                ]);
-
-                $this->line("  → {$reservation->reference} option expirée ({$days}j)");
+            if (!empty($panelIds)) {
+                $this->availability->syncPanelStatuses($panelIds);
             }
-        });
 
-        if (!empty($allPanelIds)) {
-            $availability->syncPanelStatuses(array_unique($allPanelIds));
+            Log::info('reservation.option_expired', [
+                'reservation_id' => $reservation->id,
+                'reference'      => $reservation->reference,
+                'end_date'       => $reservation->end_date->format('Y-m-d'),
+                'panels_freed'   => count($panelIds),
+            ]);
+
+            $count++;
         }
 
-        $this->info("✓ {$oldOptions->count()} option(s) expirée(s).");
-        return self::SUCCESS;
+        $this->info("$count option(s) expirée(s) annulée(s) et panneaux libérés.");
+        return Command::SUCCESS;
     }
 }

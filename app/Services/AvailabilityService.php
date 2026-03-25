@@ -7,15 +7,28 @@ use App\Models\Panel;
 use App\Models\ReservationPanel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
+/**
+ * AvailabilityService — Source de vérité unique pour la disponibilité des panneaux.
+ *
+ * RÈGLE FONDAMENTALE :
+ * Un panneau est BLOQUÉ si reservation_panels contient une ligne
+ * liée à une réservation (en_attente OU confirme) dont la période
+ * chevauche la période demandée.
+ *
+ * panels.status = cache de lecture — JAMAIS utilisé pour décider
+ * de la disponibilité réelle.
+ */
 class AvailabilityService
 {
-    private const BLOCKING = [
+    // Statuts qui bloquent un panneau — source unique
+    public const BLOCKING_STATUSES = [
         ReservationStatus::EN_ATTENTE->value,
         ReservationStatus::CONFIRME->value,
     ];
 
-    // ── Vérifier un seul panneau ──────────────────────────────────
+    // ── 1. Vérifier UN panneau ────────────────────────────────────
     public function isPanelAvailable(
         int    $panelId,
         string $startDate,
@@ -27,7 +40,7 @@ class AvailabilityService
         ));
     }
 
-    // ── IDs en conflit — condition stricte ────────────────────────
+    // ── 2. IDs bloqués parmi une liste — requête optimisée ────────
     public function getUnavailablePanelIds(
         array  $panelIds,
         string $startDate,
@@ -36,139 +49,179 @@ class AvailabilityService
     ): array {
         if (empty($panelIds)) return [];
 
-        return ReservationPanel::whereIn('panel_id', $panelIds)
-            ->whereHas('reservation', function ($q) use (
-                $startDate, $endDate, $excludeReservationId
-            ) {
-                $q->whereIn('status', self::BLOCKING)
-                  ->where('start_date', '<', $endDate)
-                  ->where('end_date',   '>', $startDate);
-
-                if ($excludeReservationId) {
-                    $q->where('id', '!=', $excludeReservationId);
-                }
-            })
-            ->pluck('panel_id')
-            ->unique()
+        return ReservationPanel::select('reservation_panels.panel_id')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.start_date', '<', $endDate)   // chevauchement strict
+            ->where('reservations.end_date',   '>', $startDate) // chevauchement strict
+            ->when($excludeReservationId, fn($q) =>
+                $q->where('reservations.id', '!=', $excludeReservationId)
+            )
+            ->distinct()
+            ->pluck('reservation_panels.panel_id')
             ->toArray();
     }
 
-    // ── Panneaux disponibles — sous-requête optimisée ─────────────
+    // ── 3. Panneaux disponibles avec données de libération ────────
     public function getAvailablePanels(
         string $startDate,
         string $endDate,
         ?int   $excludeReservationId = null,
         array  $filters = []
     ): Collection {
-        $blockedIds = ReservationPanel::select('panel_id')
-            ->whereHas('reservation', fn($q) =>
-                $q->whereIn('status', self::BLOCKING)
-                  ->where('start_date', '<', $endDate)
-                  ->where('end_date',   '>', $startDate)
-                  ->when($excludeReservationId,
-                      fn($q) => $q->where('id', '!=', $excludeReservationId)
-                  )
+        // Sous-requête : IDs des panneaux bloqués sur la période
+        $blockedSubQuery = ReservationPanel::select('panel_id')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.start_date', '<', $endDate)
+            ->where('reservations.end_date',   '>', $startDate)
+            ->when($excludeReservationId, fn($q) =>
+                $q->where('reservations.id', '!=', $excludeReservationId)
             );
 
-        return Panel::whereNotIn('id', $blockedIds)
+        $query = Panel::whereNotIn('id', $blockedSubQuery)
             ->where('status', '!=', PanelStatus::MAINTENANCE->value)
             ->whereNull('deleted_at')
-            ->when($filters['commune_id'] ?? null,
-                fn($q, $id) => $q->where('commune_id', $id))
-            ->when($filters['zone_id'] ?? null,
-                fn($q, $id) => $q->where('zone_id', $id))
-            ->when($filters['format_id'] ?? null,
-                fn($q, $id) => $q->where('format_id', $id))
-            ->when(
-                ($filters['format_width'] ?? null) || ($filters['format_height'] ?? null),
-                fn($q) => $q->whereHas('format', function ($fq) use ($filters) {
-                    if ($filters['format_width'] ?? null) {
-                        $fq->whereBetween('width', [
-                            (float) $filters['format_width'] - 0.01,
-                            (float) $filters['format_width'] + 0.01,
-                        ]);
-                    }
-                    if ($filters['format_height'] ?? null) {
-                        $fq->whereBetween('height', [
-                            (float) $filters['format_height'] - 0.01,
-                            (float) $filters['format_height'] + 0.01,
-                        ]);
-                    }
-                })
-            )
-            ->with(['commune', 'format', 'zone'])
-            ->orderBy('reference')
-            ->get();
+            ->with(['commune:id,name', 'format:id,name,width,height', 'zone:id,name']);
+
+        if ($filters['commune_id'] ?? null) {
+            $query->where('commune_id', (int)$filters['commune_id']);
+        }
+        if ($filters['zone_id'] ?? null) {
+            $query->where('zone_id', (int)$filters['zone_id']);
+        }
+        if ($filters['format_id'] ?? null) {
+            $query->where('format_id', (int)$filters['format_id']);
+        }
+        if (($filters['format_width'] ?? null) && ($filters['format_height'] ?? null)) {
+            $query->whereHas('format', fn($q) =>
+                $q->whereBetween('width',  [(float)$filters['format_width']  - 0.01, (float)$filters['format_width']  + 0.01])
+                  ->whereBetween('height', [(float)$filters['format_height'] - 0.01, (float)$filters['format_height'] + 0.01])
+            );
+        }
+
+        return $query->orderBy('reference')->get();
     }
 
-    // ── Sync statuts — VERSION OPTIMISÉE (5 requêtes max) ────────
+    // ── 4. Données complètes de disponibilité avec release_dates ──
+    // Retourne pour chaque panneau : disponible=true/false + date de libération
+    public function getPanelAvailabilityData(
+        array  $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null
+    ): Collection {
+        if (empty($panelIds)) return collect();
+
+        $bookings = ReservationPanel::select(
+                'reservation_panels.panel_id',
+                'reservations.status as res_status',
+                DB::raw('MAX(reservations.end_date) as release_date')
+            )
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.start_date', '<', $endDate)
+            ->where('reservations.end_date',   '>', $startDate)
+            ->when($excludeReservationId, fn($q) =>
+                $q->where('reservations.id', '!=', $excludeReservationId)
+            )
+            ->groupBy('reservation_panels.panel_id', 'reservations.status')
+            ->get()
+            ->groupBy('panel_id');
+
+        return collect($panelIds)->mapWithKeys(function ($id) use ($bookings) {
+            $panelBookings = $bookings->get($id);
+            if (!$panelBookings || $panelBookings->isEmpty()) {
+                return [$id => ['available' => true, 'release_date' => null, 'blocking_status' => null]];
+            }
+            // Prioriser confirme sur en_attente
+            $confirmed = $panelBookings->firstWhere('res_status', ReservationStatus::CONFIRME->value);
+            $blocking  = $confirmed ?? $panelBookings->first();
+            return [$id => [
+                'available'       => false,
+                'release_date'    => $blocking->release_date,
+                'blocking_status' => $blocking->res_status,
+            ]];
+        });
+    }
+
+    // ── 5. Sync statuts — transaction atomique, 3 UPDATE max ──────
     public function syncPanelStatuses(array $panelIds): void
     {
         if (empty($panelIds)) return;
 
         $today = now()->toDateString();
 
-        $panels = Panel::whereIn('id', $panelIds)->get()->keyBy('id');
-
-        // Panneaux avec au moins une réservation confirmée active
-        $confirmedPanelIds = ReservationPanel::whereIn('panel_id', $panelIds)
-            ->whereHas('reservation', fn($q) =>
-                $q->where('status', ReservationStatus::CONFIRME->value)
-                  ->where('end_date', '>=', $today)
+        // Une requête pour tous les statuts actifs
+        $activeBookings = DB::table('reservation_panels')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.end_date', '>=', $today)
+            ->select(
+                'reservation_panels.panel_id',
+                DB::raw('MAX(CASE WHEN reservations.status = "confirme"   THEN 1 ELSE 0 END) as has_confirmed'),
+                DB::raw('MAX(CASE WHEN reservations.status = "en_attente" THEN 1 ELSE 0 END) as has_option')
             )
-            ->pluck('panel_id')
-            ->unique()
-            ->flip();
+            ->groupBy('reservation_panels.panel_id')
+            ->get()
+            ->keyBy('panel_id');
 
-        // Panneaux avec au moins une option active
-        $optionPanelIds = ReservationPanel::whereIn('panel_id', $panelIds)
-            ->whereHas('reservation', fn($q) =>
-                $q->where('status', ReservationStatus::EN_ATTENTE->value)
-                  ->where('end_date', '>=', $today)
-            )
-            ->pluck('panel_id')
-            ->unique()
+        // Panneau maintenance → intouchable
+        $maintenanceIds = Panel::whereIn('id', $panelIds)
+            ->where('status', PanelStatus::MAINTENANCE->value)
+            ->pluck('id')
             ->flip();
 
         $toConfirme = [];
         $toOption   = [];
         $toLibre    = [];
 
-        foreach ($panels as $panel) {
-            // Maintenance — intouchable
-            if ($panel->status === PanelStatus::MAINTENANCE) continue;
+        foreach ($panelIds as $id) {
+            if (isset($maintenanceIds[$id])) continue;
 
-            if (isset($confirmedPanelIds[$panel->id])) {
-                $toConfirme[] = $panel->id;
-            } elseif (isset($optionPanelIds[$panel->id])) {
-                $toOption[]   = $panel->id;
+            $booking = $activeBookings->get($id);
+            if ($booking?->has_confirmed) {
+                $toConfirme[] = $id;
+            } elseif ($booking?->has_option) {
+                $toOption[]   = $id;
             } else {
-                $toLibre[]    = $panel->id;
+                $toLibre[]    = $id;
             }
         }
 
-        // 3 UPDATE groupés max
-        if (!empty($toConfirme)) {
-            Panel::whereIn('id', $toConfirme)
-                 ->update(['status' => PanelStatus::CONFIRME->value]);
-        }
-        if (!empty($toOption)) {
-            Panel::whereIn('id', $toOption)
-                 ->update(['status' => PanelStatus::OPTION->value]);
-        }
-        if (!empty($toLibre)) {
-            Panel::whereIn('id', $toLibre)
-                 ->update(['status' => PanelStatus::LIBRE->value]);
-        }
+        // 3 UPDATE groupés max — atomique
+        DB::transaction(function () use ($toConfirme, $toOption, $toLibre) {
+            if (!empty($toConfirme)) {
+                Panel::whereIn('id', $toConfirme)
+                    ->update(['status' => PanelStatus::CONFIRME->value]);
+            }
+            if (!empty($toOption)) {
+                Panel::whereIn('id', $toOption)
+                    ->update(['status' => PanelStatus::OPTION->value]);
+            }
+            if (!empty($toLibre)) {
+                Panel::whereIn('id', $toLibre)
+                    ->update(['status' => PanelStatus::LIBRE->value]);
+            }
+        });
+
+        Log::debug('availability.sync_done', [
+            'confirme' => count($toConfirme),
+            'option'   => count($toOption),
+            'libre'    => count($toLibre),
+        ]);
     }
 
-    // ── Vérification rapide sans chargement modèle ────────────────
+    // ── 6. Vérification rapide sans chargement modèle ────────────
     public function quickCheck(int $panelId, string $start, string $end): bool
     {
-        return ! DB::table('reservation_panels')
+        return !DB::table('reservation_panels')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->where('reservation_panels.panel_id', $panelId)
-            ->whereIn('reservations.status', self::BLOCKING)
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
             ->where('reservations.start_date', '<', $end)
             ->where('reservations.end_date',   '>', $start)
             ->exists();
