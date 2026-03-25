@@ -119,14 +119,14 @@ Route::prefix('admin')
         Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
 
 
-        // ════════════════════════════════════════════════
+        // ══════════════════════════════════════════════════════════
         // DEV B
-        // ════════════════════════════════════════════════
+        // ══════════════════════════════════════════════════════════
 
-        // ── Clients ─────────────────────────────────────
+        // ── Clients ───────────────────────────────────── Dev B ───
         Route::resource('clients', ClientController::class);
 
-        // ── Régies externes ─────────────────────────────
+        // ── Régies externes ───────────────────────────── Dev B ───
         Route::resource('external-agencies', ExternalAgencyController::class)
             ->except(['create', 'edit']);
         Route::post('external-agencies/{externalAgency}/panels',
@@ -139,51 +139,60 @@ Route::prefix('admin')
             [ExternalAgencyController::class, 'destroyPanel'])
             ->name('external-agencies.panels.destroy');
 
-        // ⚠️ Routes AVANT resource reservations
+        // ══════════════════════════════════════════════════════════
+        // ⚠️ RÈGLE CRITIQUE : toutes les routes GET spécifiques
+        // DOIVENT être déclarées AVANT Route::resource()
+        // sinon Laravel capte /reservations/xxx comme {reservation}
+        // ══════════════════════════════════════════════════════════
+
+        // ── Disponibilités ────────────── ⚠️ AVANT resource ───────
         Route::get('disponibilites',
             [ReservationController::class, 'disponibilites'])
             ->name('reservations.disponibilites');
-
         Route::post('disponibilites/confirmer',
             [ReservationController::class, 'confirmerSelection'])
             ->name('reservations.confirmer-selection');
 
+        // ── AJAX disponibilités (grille panneaux) ── ⚠️ AVANT ─────
+        // Utilisé par disponibilites.blade.php pour charger les cartes panneaux
+        Route::get('disponibilites/panneaux',
+            [ReservationController::class, 'panneauxAjax'])
+            ->name('disponibilites.panneaux')
+            ->middleware('throttle:120,1');
+
+        // ── AJAX réservations edit ──────────────── ⚠️ AVANT ──────
+        // Utilisé par edit.blade.php pour charger les panneaux dispo sur période
         Route::get('reservations/available-panels',
             [ReservationController::class, 'availablePanels'])
             ->name('reservations.available-panels')
             ->middleware('throttle:60,1');
 
+        // ── mark-seen ────────────────────────────── ⚠️ AVANT ─────
         Route::post('reservations/mark-seen',
             [ReservationController::class, 'markSeen'])
             ->name('reservations.mark-seen');
 
-        // ── Réservations ────────────────────────────────
+        // ── Réservations CRUD ── ⚠️ EN DERNIER (capte {reservation}) ──
         Route::resource('reservations', ReservationController::class)
             ->except(['create', 'store']);
-
         Route::patch('reservations/{reservation}/status',
             [ReservationController::class, 'updateStatus'])
             ->name('reservations.update-status');
-
         Route::patch('reservations/{reservation}/annuler',
             [ReservationController::class, 'annuler'])
             ->name('reservations.annuler');
 
-        // ── Campagnes ───────────────────────────────────
+        // ── Campagnes ─────────────────────────────────── Dev B ───
         Route::resource('campaigns', CampaignController::class);
-
         Route::patch('campaigns/{campaign}/status',
             [CampaignController::class, 'updateStatus'])
             ->name('campaigns.update-status');
-
         Route::patch('campaigns/{campaign}/prolonger',
             [CampaignController::class, 'prolonger'])
             ->name('campaigns.prolonger');
-
         Route::post('campaigns/{campaign}/panels',
             [CampaignController::class, 'addPanel'])
             ->name('campaigns.panels.add');
-
         Route::delete('campaigns/{campaign}/panels/{panel}',
             [CampaignController::class, 'removePanel'])
             ->name('campaigns.panels.remove');

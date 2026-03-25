@@ -13,7 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Services\PdfExportService;
 
-use App\Models\Panel;
 use App\Models\Reservation;
 use App\Models\ReservationPanel;
 use App\Models\Client;
@@ -293,7 +292,6 @@ class PanelController extends Controller
         return $service->exportNetworkReport();
     }
 
-    // Dans app/Http/Controllers/Admin/PanelController.php
 
     public function quickDetails(Panel $panel)
     {
