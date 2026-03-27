@@ -221,12 +221,12 @@
         }
 
         $statusConfig = [
-            'libre'          => ['label'=>'Disponible',      'color'=>'#22c55e','bg'=>'rgba(34,197,94,0.08)',  'border'=>'rgba(34,197,94,0.3)',  'selectable'=>true],
-            'occupe'         => ['label'=>'Occupé',           'color'=>'#ef4444','bg'=>'rgba(239,68,68,0.08)', 'border'=>'rgba(239,68,68,0.3)',  'selectable'=>false],
-            'option_periode' => ['label'=>'En option',        'color'=>'#e8a020','bg'=>'rgba(232,160,32,0.08)','border'=>'rgba(232,160,32,0.3)', 'selectable'=>false],
-            'confirme'       => ['label'=>'Confirmé',         'color'=>'#a855f7','bg'=>'rgba(168,85,247,0.08)','border'=>'rgba(168,85,247,0.3)', 'selectable'=>false],
-            'option'         => ['label'=>'Option',           'color'=>'#e8a020','bg'=>'rgba(232,160,32,0.08)','border'=>'rgba(232,160,32,0.3)', 'selectable'=>false],
-            'maintenance'    => ['label'=>'Maintenance',      'color'=>'#6b7280','bg'=>'rgba(107,114,128,0.08)','border'=>'rgba(107,114,128,0.3)','selectable'=>false],
+            'libre'          => ['label'=>'Disponible', 'color'=>'white','bg'=>'rgba(34,197,94,0.08)',  'border'=>'rgba(34,197,94,0.3)',  'badge'=>'#22c55e','selectable'=>true],
+            'occupe'         => ['label'=>'Occupé',     'color'=>'white','bg'=>'rgba(239,68,68,0.08)',  'border'=>'rgba(239,68,68,0.3)',  'badge'=>'#ef4444','selectable'=>false],
+            'option_periode' => ['label'=>'En option',  'color'=>'white','bg'=>'rgba(232,160,32,0.08)', 'border'=>'rgba(232,160,32,0.3)', 'badge'=>'#e8a020','selectable'=>false],
+            'confirme'       => ['label'=>'Confirmé',   'color'=>'white','bg'=>'rgba(168,85,247,0.08)', 'border'=>'rgba(168,85,247,0.3)', 'badge'=>'#a855f7','selectable'=>false],
+            'option'         => ['label'=>'Option',     'color'=>'white','bg'=>'rgba(232,160,32,0.08)', 'border'=>'rgba(232,160,32,0.3)', 'badge'=>'#e8a020','selectable'=>false],
+            'maintenance'    => ['label'=>'Maintenance','color'=>'white','bg'=>'rgba(107,114,128,0.08)','border'=>'rgba(107,114,128,0.3)','badge'=>'#6b7280','selectable'=>false],
         ];
         $sc = $statusConfig[$displayStatus] ?? $statusConfig['libre'];
 
@@ -234,6 +234,10 @@
         $cardBg     = $cardColors[abs(crc32($panel->reference) % count($cardColors))];
 
         $isSelectable = $sc['selectable'];
+
+        // ── Image du panneau ──────────────────────────────────────────
+        $photo    = $panel->photos->sortBy('ordre')->first();
+        $imageUrl = $photo ? asset('storage/' . ltrim($photo->path, '/')) : null;
 
         // ── Date de libération du panneau ─────────────────────────────
         $releaseDate     = null;
@@ -249,22 +253,24 @@
 
     {{-- ── Carte panneau — hauteur fixe uniforme ── --}}
     <div style="background:var(--surface);
-                border:1px solid {{ $sc['border'] }};
+                border:1.5px solid {{ $sc['bg'] }};
                 border-radius:14px;overflow:hidden;position:relative;
                 transition:transform 0.15s,box-shadow 0.15s;
                 display:flex;flex-direction:column;
                 min-height:320px;"
          :style="selectedIds.includes({{ $panel->id }})
-             ? 'border-color:var(--accent);box-shadow:0 0 0 2px rgba(232,160,32,0.3);'
-             : ''"
+             ? 'position:relative;border-color:var(--accent);box-shadow:0 0 0 2px rgba(232,160,32,0.3);'
+             : 'position:relative;'"
          @mouseenter="$el.style.transform='translateY(-2px)';$el.style.boxShadow='0 8px 24px rgba(0,0,0,0.2)'"
          @mouseleave="$el.style.transform='translateY(0)';$el.style.boxShadow=selectedIds.includes({{ $panel->id }})?'0 0 0 2px rgba(232,160,32,0.3)':''">
 
         {{-- Badge statut --}}
         <div style="position:absolute;top:10px;right:10px;z-index:2;
-                    padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;
-                    background:{{ $sc['bg'] }};color:{{ $sc['color'] }};
-                    border:1px solid {{ $sc['border'] }};">
+                    padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;
+                    background:{{ $sc['badge'] }};color:white;
+                    border:1px solid rgba(255,255,255,0.3);
+                    box-shadow:0 2px 8px rgba(0,0,0,0.25);
+                    text-transform:uppercase;letter-spacing:0.6px;">
             {{ $sc['label'] }}
         </div>
 
@@ -279,17 +285,27 @@
         </div>
         @endif
 
-        {{-- Visuel carte — hauteur fixe --}}
-        <div style="background:{{ $sc['bg'] }};padding:28px 20px 14px;
-                    display:flex;justify-content:center;align-items:center;
-                    height:100px;flex-shrink:0;cursor:{{ $isSelectable ? 'pointer' : 'default' }};"
+        {{-- Visuel carte — image de fond --}}
+        <div style="position:relative;
+                    height:110px;flex-shrink:0;
+                    cursor:{{ $isSelectable ? 'pointer' : 'default' }};
+                    overflow:hidden;
+                    {{ $imageUrl ? 'background:url(\''.$imageUrl.'\') center/cover no-repeat;' : 'background:'.$cardBg.';' }}"
              @if($isSelectable)
              @click="togglePanel({{ $panel->id }}, {{ $panel->monthly_rate ?? 0 }})"
              @endif>
-            <div style="background:{{ $cardBg }};border-radius:8px;
-                        padding:8px 20px;font-family:monospace;font-size:14px;
-                        font-weight:700;color:#fff;letter-spacing:1px;
-                        box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+
+            {{-- Overlay sombre --}}
+            <div style="position:absolute;inset:0;
+                        background:{{ $imageUrl ? 'linear-gradient(135deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65))' : 'rgba(0,0,0,0.15)' }};"></div>
+
+            {{-- Badge référence --}}
+            <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+                        background:rgba(0,0,0,0.75);border-radius:8px;
+                        padding:6px 18px;font-family:monospace;font-size:14px;
+                        font-weight:700;color:#fff;letter-spacing:1.5px;
+                        box-shadow:0 4px 12px rgba(0,0,0,0.4);
+                        white-space:nowrap;backdrop-filter:blur(4px);">
                 {{ $panel->reference }}
             </div>
         </div>

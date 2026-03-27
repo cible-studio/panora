@@ -15,12 +15,11 @@ use App\Services\PdfExportService;
 
 class PanelController extends Controller
 {
-    // ── LISTE ──
+// ── LISTE ──
     public function index(Request $request)
     {
         $query = Panel::with('commune', 'zone', 'format', 'category', 'photos');
 
-        // Filtres
         if ($request->filled('commune_id')) {
             $query->where('commune_id', $request->commune_id);
         }
@@ -37,24 +36,38 @@ class PanelController extends Controller
             });
         }
 
+        $source = $request->get('source', 'all');
         $panels = $query->latest()->paginate(15)->withQueryString();
-        $communes = Commune::orderBy('name')->get();
+        $communes   = Commune::orderBy('name')->get();
         $categories = PanelCategory::orderBy('name')->get();
 
+        // Panneaux externes
+        $externalQuery = \App\Models\ExternalPanel::with('commune', 'format', 'category', 'agency');
+        if ($request->filled('commune_id')) {
+            $externalQuery->where('commune_id', $request->commune_id);
+        }
+        if ($request->filled('search')) {
+            $externalQuery->where(function ($q) use ($request) {
+                $q->where('code_panneau', 'like', '%' . $request->search . '%')
+                  ->orWhere('designation', 'like', '%' . $request->search . '%');
+            });
+        }
+        // Les externes n'ont pas de statut => on les masque si filtre status ou source=cible
+        $externalPanels = ($source !== 'cible' && !$request->filled('status'))
+            ? $externalQuery->get()
+            : collect();
+
         // Stats
-        $totalPanneaux = Panel::count();
-        $panneauxLibres = Panel::where('status', 'libre')->count();
+        $totalPanneaux   = Panel::count();
+        $panneauxLibres  = Panel::where('status', 'libre')->count();
         $panneauxOccupes = Panel::whereIn('status', ['occupe', 'option', 'confirme'])->count();
-        $enMaintenance = Panel::where('status', 'maintenance')->count();
+        $enMaintenance   = Panel::where('status', 'maintenance')->count();
+        $totalExternes   = \App\Models\ExternalPanel::count();
 
         return view('admin.panels.index', compact(
-            'panels',
-            'communes',
-            'categories',
-            'totalPanneaux',
-            'panneauxLibres',
-            'panneauxOccupes',
-            'enMaintenance'
+            'panels', 'communes', 'categories',
+            'totalPanneaux', 'panneauxLibres', 'panneauxOccupes', 'enMaintenance',
+            'externalPanels', 'totalExternes', 'source'
         ));
     }
 
