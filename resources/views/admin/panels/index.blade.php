@@ -15,26 +15,37 @@
 
 {{-- STATS --}}
 <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
-    <div class="stat-card">
+    <a href="{{ route('admin.panels.index', ['source' => 'all']) }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;
+              {{ ($source ?? 'all') === 'all' && !request('status') ? 'border-color:var(--accent);' : '' }}">
         <div class="stat-label">Total CIBLE CI</div>
         <div class="stat-value">{{ $totalPanneaux }}</div>
-    </div>
-    <div class="stat-card">
+    </a>
+    <a href="{{ route('admin.panels.index', ['source' => 'cible', 'status' => 'libre']) }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;
+              {{ request('status') === 'libre' ? 'border-color:var(--green);' : '' }}">
         <div class="stat-label">Libres</div>
         <div class="stat-value" style="color:var(--green);">{{ $panneauxLibres }}</div>
-    </div>
-    <div class="stat-card">
+    </a>
+    <a href="{{ route('admin.panels.index', ['source' => 'cible', 'status' => 'occupe']) }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;
+              {{ request('status') === 'occupe' ? 'border-color:var(--accent);' : '' }}">
         <div class="stat-label">Occupés</div>
         <div class="stat-value" style="color:var(--accent);">{{ $panneauxOccupes }}</div>
-    </div>
-    <div class="stat-card">
+    </a>
+    <a href="{{ route('admin.panels.index', ['source' => 'cible', 'status' => 'maintenance']) }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;
+              {{ request('status') === 'maintenance' ? 'border-color:var(--red);' : '' }}">
         <div class="stat-label">Maintenance</div>
         <div class="stat-value" style="color:var(--red);">{{ $enMaintenance }}</div>
-    </div>
-    <div class="stat-card" style="border-color:rgba(168,85,247,0.3);background:rgba(168,85,247,0.05);">
+    </a>
+    <a href="{{ route('admin.panels.index', ['source' => 'externe']) }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;
+              border-color:{{ ($source ?? '') === 'externe' ? 'var(--purple)' : 'rgba(168,85,247,0.3)' }};
+              background:rgba(168,85,247,0.05);">
         <div class="stat-label" style="color:var(--purple);">Régies externes</div>
         <div class="stat-value" style="color:var(--purple);">{{ $totalExternes }}</div>
-    </div>
+    </a>
 </div>
 
 {{-- FILTRE SOURCE --}}
@@ -54,8 +65,8 @@
     </a>
 </div>
 
-{{-- FILTRES --}}
-{{-- FILTRES --}}
+{{-- FILTRES AUTO — masqués si vue externe --}}
+@if(($source ?? 'all') !== 'externe')
 <div class="card" style="margin-bottom:16px;">
     <form id="filter-form" method="GET" action="{{ route('admin.panels.index') }}">
         <input type="hidden" name="source" value="{{ $source ?? 'all' }}">
@@ -79,9 +90,6 @@
                     @endforeach
                 </select>
             </div>
-
-            {{-- Filtres uniquement pour panneaux CIBLE CI --}}
-            @if(($source ?? 'all') !== 'externe')
             <div class="filter-group">
                 <label class="filter-label">Statut</label>
                 <select name="status" class="filter-select" onchange="this.form.submit()">
@@ -105,8 +113,6 @@
                     @endforeach
                 </select>
             </div>
-            @endif
-
             @if(request()->hasAny(['search','commune_id','status','category_id']))
             <div class="filter-group" style="justify-content:flex-end;">
                 <label class="filter-label">&nbsp;</label>
@@ -117,6 +123,7 @@
         </div>
     </form>
 </div>
+@endif
 
 {{-- TABLEAU --}}
 <div class="card">

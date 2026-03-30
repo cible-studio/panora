@@ -195,9 +195,90 @@
             </div>
         </div>
 
-    </div>
+        {{-- OCCUPANTS ACTUELS --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">👤 Occupants actuels</div>
+            </div>
+            @if($occupants->isEmpty())
+            <div class="card-body" style="text-align:center;padding:28px;color:var(--text3);font-size:13px;">
+                @if($panel->status->value === 'libre')
+                    ✅ Ce panneau est libre — aucun client associé.
+                @elseif($panel->status->value === 'maintenance')
+                    🔧 Panneau en maintenance.
+                @else
+                    Aucun occupant actif trouvé.
+                @endif
+            </div>
+            @else
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Client</th>
+                            <th>Source</th>
+                            <th>Période</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($occupants as $occ)
+                        @php
+                            $sc = match($occ['status']) {
+                                'actif','confirme' => ['bg'=>'rgba(34,197,94,0.1)',  'color'=>'#22c55e', 'border'=>'rgba(34,197,94,0.3)'],
+                                'en_attente','option' => ['bg'=>'rgba(232,160,32,0.1)','color'=>'#e8a020','border'=>'rgba(232,160,32,0.3)'],
+                                'pose'             => ['bg'=>'rgba(59,130,246,0.1)', 'color'=>'#3b82f6', 'border'=>'rgba(59,130,246,0.3)'],
+                                default            => ['bg'=>'rgba(107,114,128,0.1)','color'=>'#6b7280','border'=>'rgba(107,114,128,0.3)'],
+                            };
+                        @endphp
+                        <tr onmouseover="this.style.background='var(--surface2)'"
+                            onmouseout="this.style.background=''">
+                            <td>
+                                @if($occ['client'])
+                                <a href="{{ route('admin.clients.show', $occ['client']) }}"
+                                   style="font-weight:700;color:var(--text);text-decoration:none;
+                                          display:flex;align-items:center;gap:6px;">
+                                    <span style="font-size:18px;">👤</span>
+                                    {{ $occ['client']->name }}
+                                </a>
+                                @else
+                                <span style="color:var(--text3);">—</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($occ['type'] === 'campaign')
+                                <a href="{{ route('admin.campaigns.show', $occ['source_id']) }}"
+                                   style="font-size:12px;color:#3b82f6;text-decoration:none;font-weight:600;">
+                                    📢 {{ $occ['reference'] }}
+                                </a>
+                                @else
+                                <a href="{{ route('admin.reservations.show', $occ['source_id']) }}"
+                                   style="font-size:12px;color:var(--accent);text-decoration:none;font-weight:600;">
+                                    📋 {{ $occ['reference'] }}
+                                </a>
+                                @endif
+                            </td>
+                            <td style="font-size:11px;color:var(--text3);white-space:nowrap;">
+                                {{ \Carbon\Carbon::parse($occ['start_date'])->format('d/m/Y') }}
+                                → {{ \Carbon\Carbon::parse($occ['end_date'])->format('d/m/Y') }}
+                            </td>
+                            <td>
+                                <span style="padding:3px 10px;border-radius:20px;font-size:11px;
+                                             font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+                                             background:{{ $sc['bg'] }};color:{{ $sc['color'] }};
+                                             border:1px solid {{ $sc['border'] }};">
+                                    {{ $occ['status_label'] }}
+                                </span>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @endif
+        </div>
 
-    {{-- COLONNE DROITE --}}
+    </div>
     <div>
 
         {{-- CHANGER STATUT --}}

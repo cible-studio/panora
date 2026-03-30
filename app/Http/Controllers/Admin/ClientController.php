@@ -80,7 +80,52 @@ class ClientController extends Controller
 
         $sectors = Client::SECTORS;
 
-        return view('admin.clients.show', compact('client', 'totalFacture', 'sectors'));
+        // ── Inventaire panneaux du client ──────────────────────────
+        // Panneaux via réservations
+        $panneauxReservations = \App\Models\ReservationPanel::with([
+                'panel.commune', 'panel.format', 'reservation'
+            ])
+            ->whereHas('reservation', fn($q) => $q->where('client_id', $client->id))
+            ->get()
+            ->map(fn($rp) => [
+                'panel'      => $rp->panel,
+                'source'     => 'reservation',
+                'reference_source' => $rp->reservation->reference ?? '—',
+                'source_id'  => $rp->reservation->id,
+                'start_date' => $rp->reservation->start_date,
+                'end_date'   => $rp->reservation->end_date,
+                'status'     => $rp->reservation->status->value ?? 'inconnu',
+                'status_label' => $rp->reservation->status->label() ?? '—',
+            ]);
+
+        // Panneaux via campagnes
+        $panneauxCampagnes = \App\Models\CampaignPanel::with([
+                'panel.commune', 'panel.format', 'campaign'
+            ])
+            ->where('type', 'interne')
+            ->whereHas('campaign', fn($q) => $q->where('client_id', $client->id))
+            ->get()
+            ->map(fn($cp) => [
+                'panel'      => $cp->panel,
+                'source'     => 'campaign',
+                'reference_source' => $cp->campaign->name ?? '—',
+                'source_id'  => $cp->campaign->id,
+                'start_date' => $cp->campaign->start_date,
+                'end_date'   => $cp->campaign->end_date,
+                'status'     => $cp->campaign->status->value ?? 'inconnu',
+                'status_label' => $cp->campaign->status->label() ?? '—',
+            ]);
+
+        // Fusionner + dédoublonner par panel_id (priorité campagne > reservation)
+        $panneauxClient = $panneauxCampagnes->concat($panneauxReservations)
+            ->unique(fn($item) => $item['panel']?->id . '-' . $item['source_id'])
+            ->filter(fn($item) => $item['panel'] !== null)
+            ->sortBy('panel.reference')
+            ->values();
+
+        return view('admin.clients.show', compact(
+            'client', 'totalFacture', 'sectors', 'panneauxClient'
+        ));
     }
 
     public function edit(Client $client)

@@ -13,6 +13,7 @@ use App\Http\Controllers\Settings\ZoneController;
 use App\Http\Controllers\Settings\CommuneController;
 use App\Http\Controllers\Settings\PanelFormatController;
 use App\Http\Controllers\Settings\PanelCategoryController;
+use App\Http\Controllers\Settings\SettingsController;
 use App\Http\Controllers\Admin\PropositionController;
 use App\Http\Controllers\Admin\PigeController;
 use App\Http\Controllers\Admin\TaxController;
@@ -82,6 +83,8 @@ Route::prefix('admin')
             ->prefix('settings')
             ->name('settings.')
             ->group(function () {
+            Route::get('/', [SettingsController::class, 'index'])
+                ->name('index');
             Route::resource('zones', ZoneController::class);
             Route::resource('communes', CommuneController::class);
             Route::resource('formats', PanelFormatController::class);
@@ -134,6 +137,14 @@ Route::prefix('admin')
             [ReservationController::class, 'confirmerSelection']
         )
             ->name('reservations.confirmer-selection');
+        Route::post(
+            'disponibilites/pdf-images',
+            [ReservationController::class, 'pdfImages']
+        )->name('reservations.disponibilites.pdf-images');
+        Route::post(
+            'disponibilites/pdf-liste',
+            [ReservationController::class, 'pdfListe']
+        )->name('reservations.disponibilites.pdf-liste');
 
         // ── Réservations API AJAX ⚠️ AVANT resource ───────────────
         Route::get(
@@ -184,6 +195,11 @@ Route::prefix('admin')
             [CampaignController::class, 'removePanel']
         )
             ->name('campaigns.panels.remove');
+        Route::delete(
+            'campaigns/{campaign}/external-panels/{externalPanel}',
+            [CampaignController::class, 'removeExternalPanel']
+        )
+            ->name('campaigns.external-panels.remove');
 
         // ── Propositions ──────────────────────────────── Dev A ───
 

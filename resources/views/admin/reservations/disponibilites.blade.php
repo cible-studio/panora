@@ -466,11 +466,13 @@
             ✕ Tout désélectionner
         </button>
         <button type="button" class="btn btn-ghost btn-sm"
-                style="border-color:var(--red);color:var(--red);">
+                style="border-color:var(--red);color:var(--red);"
+                @click="submitPdf('pdf-images')">
             📄 PDF images
         </button>
         <button type="button" class="btn btn-ghost btn-sm"
-                style="border-color:var(--blue);color:var(--blue);">
+                style="border-color:var(--blue);color:var(--blue);"
+                @click="submitPdf('pdf-liste')">
             📋 PDF liste
         </button>
         <button type="button" id="btn-confirm-bottom"
@@ -480,6 +482,24 @@
         </button>
     </div>
 </div>
+
+{{-- Formulaires PDF cachés --}}
+<form id="form-pdf-images" method="POST"
+      action="{{ route('admin.reservations.disponibilites.pdf-images') }}"
+      style="display:none;">
+    @csrf
+    <div id="pdf-images-inputs"></div>
+    <input type="hidden" name="start_date" value="{{ request('dispo_du') }}">
+    <input type="hidden" name="end_date" value="{{ request('dispo_au') }}">
+</form>
+<form id="form-pdf-liste" method="POST"
+      action="{{ route('admin.reservations.disponibilites.pdf-liste') }}"
+      style="display:none;">
+    @csrf
+    <div id="pdf-liste-inputs"></div>
+    <input type="hidden" name="start_date" value="{{ request('dispo_du') }}">
+    <input type="hidden" name="end_date" value="{{ request('dispo_au') }}">
+</form>
 
 </div>{{-- fin x-data --}}
 
@@ -691,6 +711,23 @@ function disponibilites() {
                 });
             }
             document.getElementById('modal-confirm-selection').style.display = 'flex';
+        },
+
+        submitPdf(type) {
+            const formId    = type === 'pdf-images' ? 'form-pdf-images' : 'form-pdf-liste';
+            const inputsId  = type === 'pdf-images' ? 'pdf-images-inputs' : 'pdf-liste-inputs';
+            const container = document.getElementById(inputsId);
+            if (container) {
+                container.innerHTML = '';
+                this.selectedIds.forEach(id => {
+                    const input = document.createElement('input');
+                    input.type  = 'hidden';
+                    input.name  = 'panel_ids[]';
+                    input.value = id;
+                    container.appendChild(input);
+                });
+            }
+            document.getElementById(formId).submit();
         },
     };
 }

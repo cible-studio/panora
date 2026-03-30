@@ -191,6 +191,60 @@ class ReservationController extends Controller
         'startDate', 'endDate', 'dateError', 'statut'
     ));
 }
+
+    // ── PDF images des panneaux sélectionnés ─────────────────────
+    public function pdfImages(Request $request)
+    {
+        $request->validate([
+            'panel_ids'   => 'required|array|min:1',
+            'panel_ids.*' => 'integer|exists:panels,id',
+        ]);
+
+        $panels = \App\Models\Panel::with(['commune', 'format', 'category', 'photos'])
+            ->whereIn('id', $request->panel_ids)
+            ->orderBy('reference')
+            ->get();
+
+        $startDate = $request->start_date;
+        $endDate   = $request->end_date;
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.selection-images', compact(
+            'panels', 'startDate', 'endDate'
+        ));
+        $pdf->setPaper('A4', 'portrait');
+
+        return $pdf->download('selection-panneaux-images-' . now()->format('Ymd') . '.pdf');
+    }
+
+    // ── PDF liste des panneaux sélectionnés ──────────────────────
+    public function pdfListe(Request $request)
+    {
+        $request->validate([
+            'panel_ids'   => 'required|array|min:1',
+            'panel_ids.*' => 'integer|exists:panels,id',
+        ]);
+
+        $panels = \App\Models\Panel::with(['commune', 'format', 'category'])
+            ->whereIn('id', $request->panel_ids)
+            ->orderBy('reference')
+            ->get();
+
+        $startDate    = $request->start_date;
+        $endDate      = $request->end_date;
+        $dureeEnMois  = ($startDate && $endDate)
+            ? max(1, (int) ceil(\Carbon\Carbon::parse($startDate)->diffInDays(\Carbon\Carbon::parse($endDate)) / 30))
+            : 1;
+        $totalMensuel = $panels->sum(fn($p) => (float)($p->monthly_rate ?? 0));
+        $totalPeriode = $totalMensuel * $dureeEnMois;
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.selection-liste', compact(
+            'panels', 'startDate', 'endDate', 'dureeEnMois', 'totalMensuel', 'totalPeriode'
+        ));
+        $pdf->setPaper('A4', 'landscape');
+
+        return $pdf->download('selection-panneaux-liste-' . now()->format('Ymd') . '.pdf');
+    }
+
     // ── Confirmer sélection ───────────────────────────────
     public function confirmerSelection(Request $request)
     {

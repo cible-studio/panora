@@ -15,11 +15,12 @@ use App\Services\PdfExportService;
 
 class PanelController extends Controller
 {
-// ── LISTE ──
+    // ── LISTE ──
     public function index(Request $request)
     {
         $query = Panel::with('commune', 'zone', 'format', 'category', 'photos');
 
+        // Filtres
         if ($request->filled('commune_id')) {
             $query->where('commune_id', $request->commune_id);
         }
@@ -36,38 +37,32 @@ class PanelController extends Controller
             });
         }
 
-        $source = $request->get('source', 'all');
         $panels = $query->latest()->paginate(15)->withQueryString();
-        $communes   = Commune::orderBy('name')->get();
+        $communes = Commune::orderBy('name')->get();
         $categories = PanelCategory::orderBy('name')->get();
 
-        // Panneaux externes
-        $externalQuery = \App\Models\ExternalPanel::with('commune', 'format', 'category', 'agency');
-        if ($request->filled('commune_id')) {
-            $externalQuery->where('commune_id', $request->commune_id);
-        }
-        if ($request->filled('search')) {
-            $externalQuery->where(function ($q) use ($request) {
-                $q->where('code_panneau', 'like', '%' . $request->search . '%')
-                  ->orWhere('designation', 'like', '%' . $request->search . '%');
-            });
-        }
-        // Les externes n'ont pas de statut => on les masque si filtre status ou source=cible
-        $externalPanels = ($source !== 'cible' && !$request->filled('status'))
-            ? $externalQuery->get()
-            : collect();
-
         // Stats
-        $totalPanneaux   = Panel::count();
-        $panneauxLibres  = Panel::where('status', 'libre')->count();
+        $totalPanneaux = Panel::count();
+        $panneauxLibres = Panel::where('status', 'libre')->count();
         $panneauxOccupes = Panel::whereIn('status', ['occupe', 'option', 'confirme'])->count();
-        $enMaintenance   = Panel::where('status', 'maintenance')->count();
-        $totalExternes   = \App\Models\ExternalPanel::count();
+        $enMaintenance = Panel::where('status', 'maintenance')->count();
+
+        // Panneaux externes
+        $externalPanels = \App\Models\ExternalPanel::with(['agency', 'commune', 'format', 'category'])->get();
+        $totalExternes = $externalPanels->count();
+        $source = $request->input('source', 'all');
 
         return view('admin.panels.index', compact(
-            'panels', 'communes', 'categories',
-            'totalPanneaux', 'panneauxLibres', 'panneauxOccupes', 'enMaintenance',
-            'externalPanels', 'totalExternes', 'source'
+            'panels',
+            'communes',
+            'categories',
+            'totalPanneaux',
+            'panneauxLibres',
+            'panneauxOccupes',
+            'enMaintenance',
+            'externalPanels',
+            'totalExternes',
+            'source'
         ));
     }
 
@@ -135,17 +130,63 @@ class PanelController extends Controller
     public function show(Panel $panel)
     {
         $panel->load(
-            'commune',
-            'zone',
-            'format',
-            'category',
-            'photos',
-            'createdBy',
-            'maintenances',
-            'piges'
+            'commune', 'zone', 'format', 'category',
+            'photos', 'createdBy', 'maintenances', 'piges'
         );
 
-        return view('admin.panels.show', compact('panel'));
+        // Qui occupe ce panneau ? (réservations + campagnes actives)
+        $occupants = collect();
+
+        // Via réservations
+        $reservationPanels = \App\Models\ReservationPanel::with(['reservation.client'])
+            ->where('panel_id', $panel->id)
+            ->whereHas('reservation', fn($q) =>
+                $q->whereNotIn('status', ['annule', 'termine'])
+                  ->where('end_date', '>=', now()->toDateString())
+            )
+            ->get();
+
+        foreach ($reservationPanels as $rp) {
+            $r = $rp->reservation;
+            $occupants->push([
+                'type'         => 'reservation',
+                'source_label' => 'Réservation',
+                'reference'    => $r->reference ?? '—',
+                'source_id'    => $r->id,
+                'client'       => $r->client,
+                'start_date'   => $r->start_date,
+                'end_date'     => $r->end_date,
+                'status'       => $r->status->value,
+                'status_label' => $r->status->label(),
+            ]);
+        }
+
+        // Via campagnes
+        $campaignPanels = \App\Models\CampaignPanel::with(['campaign.client'])
+            ->where('panel_id', $panel->id)
+            ->where('type', 'interne')
+            ->whereHas('campaign', fn($q) =>
+                $q->whereNotIn('status', ['annule', 'termine'])
+                  ->where('end_date', '>=', now()->toDateString())
+            )
+            ->get();
+
+        foreach ($campaignPanels as $cp) {
+            $c = $cp->campaign;
+            $occupants->push([
+                'type'         => 'campaign',
+                'source_label' => 'Campagne',
+                'reference'    => $c->name ?? '—',
+                'source_id'    => $c->id,
+                'client'       => $c->client,
+                'start_date'   => $c->start_date,
+                'end_date'     => $c->end_date,
+                'status'       => $c->status->value,
+                'status_label' => $c->status->label(),
+            ]);
+        }
+
+        return view('admin.panels.show', compact('panel', 'occupants'));
     }
     // ── FORMULAIRE MODIFICATION ──
     public function edit(Panel $panel)
