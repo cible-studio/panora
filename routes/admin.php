@@ -52,6 +52,11 @@ Route::prefix('admin')
         Route::get('panels/export/network', [PanelController::class, 'exportNetwork'])
             ->name('panels.export.network');
 
+        // ── Détails rapides des panneaux pour la fiche ──────────────
+        Route::get('panels/{panel}/quick-details', [PanelController::class, 'quickDetails'])
+            ->name('panels.quick-details')
+            ->middleware('throttle:60,1');
+
         // ── Carte / Heatmap ─────────────────────────────
         Route::get('map', [PanelController::class, 'map'])->name('map');
         Route::get('map/data', [PanelController::class, 'mapData'])->name('map.data');
@@ -125,6 +130,9 @@ Route::prefix('admin')
 
         // ── Clients ───────────────────────────────────── Dev B ───
         Route::resource('clients', ClientController::class);
+        Route::get('clients/{client}/data', [ClientController::class, 'getClientData'])
+            ->name('admin.clients.data')
+            ->middleware('throttle:60,1');
 
         // ── Régies externes ───────────────────────────── Dev B ───
         Route::resource('external-agencies', ExternalAgencyController::class)

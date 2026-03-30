@@ -66,10 +66,10 @@
                         <span class="icon">🏢</span> Régies externes
                     </a>
 
-                    <a href="{{ route('admin.propositions.index') }}"
+                    <!-- <a href="{{ route('admin.propositions.index') }}"
                         class="nav-item {{ request()->routeIs('admin.propositions.*') ? 'active' : '' }}">
                         <span class="icon">📄</span> Propositions
-                    </a>
+                    </a> -->
                 </div>
 
                 <div class="nav-section">

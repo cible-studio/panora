@@ -547,7 +547,20 @@
             closeAnnulerModal();
         }
     });
-    
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Marquer comme vu après 2 secondes
+        setTimeout(() => {
+            fetch('{{ route("admin.reservations.mark-seen") }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                    'Content-Type': 'application/json',
+                }
+            });
+        }, 2000);
+    });
+        
     // ══ FILTRES DYNAMIQUES ══
     (function() {
         let currentFilters = {

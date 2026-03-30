@@ -1,284 +1,538 @@
 <x-admin-layout title="Clients">
+    <x-slot:topbarActions>
+        <a href="{{ route('admin.clients.create') }}" class="btn btn-primary transition-all duration-200 hover:scale-105">
+            + Nouveau client
+        </a>
+    </x-slot:topbarActions>
 
-<x-slot:topbarActions>
-    <a href="{{ route('admin.clients.create') }}" class="btn btn-primary">
-        + Nouveau client
-    </a>
-</x-slot:topbarActions>
-
-{{-- Stats --}}
-<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
-                padding:12px 20px;display:flex;flex-direction:column;gap:2px;min-width:120px;">
-        <span style="font-size:24px;font-weight:800;color:var(--text);">{{ $stats['total'] }}</span>
-        <span style="font-size:11px;color:var(--text2);font-weight:600;">CLIENTS TOTAL</span>
-    </div>
-    <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);
-                border-radius:10px;padding:12px 20px;display:flex;flex-direction:column;
-                gap:2px;min-width:120px;">
-        <span style="font-size:24px;font-weight:800;color:#22c55e;">{{ $stats['actifs'] }}</span>
-        <span style="font-size:11px;color:var(--text2);font-weight:600;">AVEC CAMPAGNE ACTIVE</span>
-    </div>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-        <button class="btn btn-ghost btn-sm">📊 Excel</button>
-        <button class="btn btn-ghost btn-sm">📄 PDF</button>
-    </div>
-</div>
-
-{{-- Filtres --}}
-<form method="GET" action="{{ route('admin.clients.index') }}"
-      style="background:var(--surface);border:1px solid var(--border);border-radius:12px;
-             padding:14px 16px;margin-bottom:16px;">
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
-
-        <div style="flex:2;min-width:200px;">
-            <label style="font-size:11px;color:var(--text3);font-weight:600;
-                          display:block;margin-bottom:4px;">RECHERCHE</label>
-            <input type="text" name="search" value="{{ request('search') }}"
-                   placeholder="Nom, NCC, email, contact, téléphone…"
-                   style="width:100%;background:var(--surface2);border:1px solid var(--border2);
-                          border-radius:8px;padding:8px 12px;color:var(--text);
-                          font-size:13px;outline:none;box-sizing:border-box;">
+    {{-- ══ STATS OPTIMISÉES ══ --}}
+    <div class="stats-grid">
+        <div class="stat-card stat-total">
+            <div class="stat-icon">👥</div>
+            <div class="stat-number">{{ $stats['total'] }}</div>
+            <div class="stat-label">TOTAL CLIENTS</div>
         </div>
-
-        <div style="min-width:180px;">
-            <label style="font-size:11px;color:var(--text3);font-weight:600;
-                          display:block;margin-bottom:4px;">SECTEUR</label>
-            <select name="sector"
-                    style="width:100%;background:var(--surface2);border:1px solid var(--border2);
-                           border-radius:8px;padding:8px 12px;color:var(--text);
-                           font-size:13px;outline:none;">
-                <option value="">Tous les secteurs</option>
-                @foreach($sectors as $sector)
-                <option value="{{ $sector }}"
-                    {{ request('sector') === $sector ? 'selected' : '' }}>
-                    {{ $sector }}
-                </option>
-                @endforeach
-            </select>
+        <div class="stat-card stat-active">
+            <div class="stat-icon">📡</div>
+            <div class="stat-number">{{ $stats['actifs'] }}</div>
+            <div class="stat-label">AVEC CAMPAGNE ACTIVE</div>
         </div>
-
-        <div style="min-width:150px;">
-            <label style="font-size:11px;color:var(--text3);font-weight:600;
-                          display:block;margin-bottom:4px;">TRIER PAR</label>
-            <select name="sort"
-                    style="background:var(--surface2);border:1px solid var(--border2);
-                           border-radius:8px;padding:8px 12px;color:var(--text);
-                           font-size:13px;outline:none;width:100%;">
-                <option value="name"            {{ request('sort','name') === 'name'            ? 'selected' : '' }}>Nom A-Z</option>
-                <option value="created_at"      {{ request('sort') === 'created_at'             ? 'selected' : '' }}>Plus récents</option>
-                <option value="campaigns_count" {{ request('sort') === 'campaigns_count'        ? 'selected' : '' }}>Nb campagnes</option>
-            </select>
+        <div class="stat-card stat-ca">
+            <div class="stat-icon">💰</div>
+            <div class="stat-number">{{ number_format($stats['ca_total'] ?? 0, 0, ',', ' ') }}</div>
+            <div class="stat-label">CHIFFRE D'AFFAIRES</div>
         </div>
-
-        <div style="display:flex;gap:6px;">
-            <button type="submit" class="btn btn-primary btn-sm">Filtrer</button>
-            @if(request()->hasAny(['search','sector','sort']))
-            <a href="{{ route('admin.clients.index') }}" class="btn btn-ghost btn-sm">✕</a>
-            @endif
-        </div>
-    </div>
-</form>
-
-{{-- Tableau --}}
-<div style="background:var(--surface);border:1px solid var(--border);
-            border-radius:12px;overflow:hidden;">
-    <div style="padding:14px 18px;border-bottom:1px solid var(--border);
-                display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-weight:700;font-size:14px;color:var(--text);">
-            Portefeuille clients
-        </span>
-        <span style="font-size:12px;color:var(--text2);">
-            {{ $clients->total() }} client(s)
-        </span>
-    </div>
-
-    <table style="width:100%;border-collapse:collapse;">
-        <thead>
-            <tr style="border-bottom:1px solid var(--border);">
-                @foreach(['Client / NCC','Secteur','Campagnes','Réservations','Contact','Actions'] as $h)
-                <th style="padding:11px 16px;text-align:left;font-size:10px;font-weight:700;
-                           color:var(--text3);letter-spacing:.5px;text-transform:uppercase;">
-                    {{ $h }}
-                </th>
-                @endforeach
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($clients as $client)
-            @php
-                $hasActive = ($client->active_campaigns_count ?? 0) > 0;
-            @endphp
-            <tr style="border-bottom:1px solid var(--border);transition:background .15s;"
-                onmouseover="this.style.background='var(--surface2)'"
-                onmouseout="this.style.background=''">
-
-                {{-- Client / NCC --}}
-                <td style="padding:14px 16px;">
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <div style="width:36px;height:36px;border-radius:50%;
-                                    background:var(--accent);color:#000;
-                                    display:flex;align-items:center;justify-content:center;
-                                    font-weight:800;font-size:14px;flex-shrink:0;">
-                            {{ strtoupper(substr($client->name, 0, 1)) }}
-                        </div>
-                        <div>
-                            <a href="{{ route('admin.clients.show', $client) }}"
-                               style="font-weight:700;color:var(--text);text-decoration:none;
-                                      font-size:14px;display:block;">
-                                {{ $client->name }}
-                            </a>
-                            <div style="font-size:11px;color:var(--text3);margin-top:1px;">
-                                @if($client->ncc)
-                                    <span style="font-family:monospace;background:var(--surface3);
-                                                 padding:1px 5px;border-radius:3px;">
-                                        {{ $client->ncc }}
-                                    </span>
-                                @endif
-                                · Depuis {{ $client->created_at->format('d/m/Y') }}
-                            </div>
-                        </div>
-                    </div>
-                </td>
-
-                {{-- Secteur --}}
-                <td style="padding:14px 16px;">
-                    @if($client->sector)
-                    <span style="padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;
-                                 background:var(--surface3);color:var(--text2);">
-                        {{ $client->sector }}
-                    </span>
-                    @else
-                    <span style="color:var(--text3);font-size:13px;">—</span>
-                    @endif
-                </td>
-
-                {{-- Campagnes --}}
-                <td style="padding:14px 16px;">
-                    <div style="font-weight:600;color:var(--text);font-size:14px;">
-                        {{ $client->campaigns_count ?? 0 }}
-                    </div>
-                    @if($hasActive)
-                    <div style="font-size:10px;color:#22c55e;font-weight:600;">
-                        {{ $client->active_campaigns_count }} active(s)
-                    </div>
-                    @endif
-                </td>
-
-                {{-- Réservations --}}
-                <td style="padding:14px 16px;color:var(--text2);font-size:13px;">
-                    {{ $client->reservations_count ?? 0 }}
-                </td>
-
-                {{-- Contact --}}
-                <td style="padding:14px 16px;">
-                    @if($client->contact_name)
-                    <div style="font-size:13px;color:var(--text);">{{ $client->contact_name }}</div>
-                    @endif
-                    @if($client->email)
-                    <div style="font-size:11px;color:var(--text3);">{{ $client->email }}</div>
-                    @endif
-                    @if($client->phone)
-                    <div style="font-size:11px;color:var(--text3);">{{ $client->phone }}</div>
-                    @endif
-                    @if(!$client->contact_name && !$client->email && !$client->phone)
-                    <span style="color:var(--text3);font-size:13px;">—</span>
-                    @endif
-                </td>
-
-                {{-- Actions --}}
-                <td style="padding:14px 16px;">
-                    <div style="display:flex;gap:5px;">
-                        <a href="{{ route('admin.clients.show', $client) }}"
-                           class="btn btn-ghost btn-sm" title="Voir">👁</a>
-                        <a href="{{ route('admin.clients.edit', $client) }}"
-                           class="btn btn-ghost btn-sm" title="Modifier">✏️</a>
-                        <button type="button"
-                                onclick="openDeleteClient({{ $client->id }}, '{{ addslashes($client->name) }}', {{ $client->active_campaigns_count ?? 0 }})"
-                                class="btn btn-ghost btn-sm"
-                                style="color:var(--red);" title="Supprimer">🗑</button>
-                    </div>
-                </td>
-            </tr>
-            @empty
-            <tr>
-                <td colspan="6"
-                    style="padding:60px;text-align:center;color:var(--text3);font-size:14px;">
-                    <div style="font-size:32px;margin-bottom:8px;">👥</div>
-                    Aucun client trouvé.
-                    <div style="margin-top:8px;">
-                        <a href="{{ route('admin.clients.create') }}"
-                           style="color:var(--accent);text-decoration:none;font-size:13px;">
-                            + Créer le premier client
-                        </a>
-                    </div>
-                </td>
-            </tr>
-            @endforelse
-        </tbody>
-    </table>
-
-    @if($clients->hasPages())
-    <div style="padding:14px 16px;border-top:1px solid var(--border);
-                display:flex;justify-content:flex-end;">
-        {{ $clients->links() }}
-    </div>
-    @endif
-</div>
-
-{{-- Modal suppression --}}
-<div id="modal-delete-client" class="modal-overlay" style="display:none"
-     onclick="if(event.target===this) closeDeleteClient()">
-    <div class="modal" style="max-width:420px" onclick="event.stopPropagation()">
-        <div class="modal-header">
-            <div class="modal-title" style="color:var(--red)">🗑 Supprimer le client</div>
-            <button class="modal-close" onclick="closeDeleteClient()">✕</button>
-        </div>
-        <div class="modal-body" style="text-align:center;padding:28px 22px;">
-            <div style="font-size:44px;margin-bottom:12px;">👥</div>
-            <div style="font-weight:700;font-size:15px;margin-bottom:8px;">
-                Supprimer <span id="del-client-name" style="color:var(--accent);"></span> ?
-            </div>
-            <div id="del-client-warning"
-                 style="display:none;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);
-                        border-radius:8px;padding:10px;font-size:12px;color:var(--red);
-                        margin-bottom:12px;">
-                ⚠️ Ce client a des campagnes actives. La suppression sera bloquée.
-            </div>
-            <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">
-                Le client sera archivé (soft delete). Ses données historiques seront conservées.
-            </div>
-            <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);
-                        border-radius:8px;padding:10px;font-size:12px;color:var(--red);">
-                ⚠️ Ses réservations seront en lecture seule uniquement.
+        <div class="stat-card stat-export">
+            <div class="stat-actions">
+                <button class="btn-export" onclick="window.Toast?.info('Export en développement')">
+                    📊 Excel
+                </button>
+                <button class="btn-export" onclick="window.Toast?.info('Export en développement')">
+                    📄 PDF
+                </button>
             </div>
         </div>
-        <div class="modal-footer">
-            <button class="btn btn-ghost" onclick="closeDeleteClient()">Annuler</button>
-            <form id="del-client-form" method="POST" style="display:inline">
-                @csrf @method('DELETE')
-                <button type="submit" class="btn btn-danger">🗑 Supprimer</button>
-            </form>
+    </div>
+
+    {{-- ══ FILTRES DYNAMIQUES (sans bouton) ══ --}}
+    <div class="filters-card">
+        <div class="filters-grid">
+            <div class="filter-group">
+                <label class="filter-label">🔍 Recherche</label>
+                <input type="text" id="filter-search" class="filter-input" 
+                       placeholder="Nom, NCC, email, contact, téléphone…"
+                       value="{{ request('search') }}"
+                       data-filter="search">
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label">🏢 Secteur</label>
+                <select id="filter-sector" class="filter-select" data-filter="sector">
+                    <option value="">Tous les secteurs</option>
+                    @foreach($sectors as $sector)
+                    <option value="{{ $sector }}" {{ request('sector') === $sector ? 'selected' : '' }}>
+                        {{ $sector }}
+                    </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label">📊 Trier par</label>
+                <select id="filter-sort" class="filter-select" data-filter="sort">
+                    <option value="name" {{ request('sort', 'name') === 'name' ? 'selected' : '' }}>Nom A-Z</option>
+                    <option value="created_at" {{ request('sort') === 'created_at' ? 'selected' : '' }}>Plus récents</option>
+                    <option value="campaigns_count" {{ request('sort') === 'campaigns_count' ? 'selected' : '' }}>Nb campagnes</option>
+                </select>
+            </div>
+
+            <div class="filter-group" id="reset-wrapper" style="display:none;">
+                <label class="filter-label" style="visibility:hidden;">Actions</label>
+                <button id="btn-reset" class="reset-btn">↺ Réinitialiser</button>
+            </div>
         </div>
     </div>
-</div>
 
-@push('scripts')
-<script>
-function openDeleteClient(id, name, activeCampaigns) {
-    document.getElementById('del-client-name').textContent = name;
-    document.getElementById('del-client-form').action = `/admin/clients/${id}`;
-    document.getElementById('del-client-warning').style.display =
-        activeCampaigns > 0 ? 'block' : 'none';
-    document.getElementById('modal-delete-client').style.display = 'flex';
-}
-function closeDeleteClient() {
-    document.getElementById('modal-delete-client').style.display = 'none';
-}
-document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeDeleteClient();
-});
-</script>
-@endpush
+    {{-- ══ TABLEAU CLIENTS ══ --}}
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Portefeuille clients</span>
+            <div class="stats-info">
+                <span id="total-count" class="total-count">{{ $clients->total() }} client(s)</span>
+            </div>
+        </div>
 
+        <div class="table-responsive">
+            <table class="data-table" id="clients-table">
+                <thead>
+                    <tr>
+                        <th>Client / NCC</th>
+                        <th>Secteur</th>
+                        <th>Campagnes</th>
+                        <th>Réservations</th>
+                        <th>Contact</th>
+                        <th style="width:100px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    @include('admin.clients.partials.table-rows', ['clients' => $clients])
+                </tbody>
+            </table>
+        </div>
+
+        {{-- Pagination --}}
+        <div id="pagination-container" class="pagination-container">
+            {{ $clients->links() }}
+        </div>
+    </div>
+
+    {{-- ══ MODAL SUPPRESSION ══ --}}
+    <div id="modal-delete-client" class="modal-overlay hidden" onclick="if(event.target===this) closeDeleteClient()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title text-red-500">🗑 Supprimer le client</div>
+                <button class="modal-close" onclick="closeDeleteClient()">✕</button>
+            </div>
+            <div class="modal-body text-center">
+                <div class="text-5xl mb-3">👥</div>
+                <div class="font-bold text-lg mb-2">
+                    Supprimer <span id="del-client-name" class="text-accent"></span> ?
+                </div>
+                <div id="del-client-warning" class="hidden bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-500 mb-3">
+                    ⚠️ Ce client a des campagnes actives. La suppression sera bloquée.
+                </div>
+                <div class="text-sm text-text3 mb-4">
+                    Le client sera archivé (soft delete). Ses données historiques seront conservées.
+                </div>
+                <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-xs text-red-500">
+                    ⚠️ Ses réservations passeront en lecture seule uniquement.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeDeleteClient()">Annuler</button>
+                <form id="del-client-form" method="POST">
+                    @csrf @method('DELETE')
+                    <button type="submit" class="btn btn-danger">🗑 Supprimer</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 16px 20px;
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .stat-icon { font-size: 28px; margin-bottom: 8px; }
+        .stat-number { font-size: 28px; font-weight: 800; line-height: 1; }
+        .stat-label { font-size: 11px; color: var(--text3); font-weight: 600; letter-spacing: 0.4px; margin-top: 6px; }
+        .stat-total .stat-number { color: var(--text); }
+        .stat-active .stat-number { color: #22c55e; }
+        .stat-ca .stat-number { color: var(--accent); font-size: 22px; }
+        .stat-export { display: flex; align-items: center; justify-content: flex-end; }
+        .stat-actions { display: flex; gap: 8px; }
+        .btn-export {
+            padding: 8px 16px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-size: 12px;
+            color: var(--text2);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-export:hover { background: var(--surface3); border-color: var(--accent); color: var(--accent); }
+
+        /* Filters */
+        .filters-card {
+            background: var(--surface);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 16px 20px;
+            margin-bottom: 20px;
+        }
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            align-items: end;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 6px; }
+        .filter-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
+        .filter-input, .filter-select {
+            height: 42px;
+            padding: 0 12px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-size: 13px;
+            color: var(--text);
+            transition: all 0.2s;
+        }
+        .filter-input:focus, .filter-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px var(--accent-dim);
+        }
+        .reset-btn {
+            height: 42px;
+            padding: 0 20px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-muted);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .reset-btn:hover { background: var(--surface3); border-color: var(--danger); color: var(--danger); }
+
+        /* Card */
+        .card {
+            background: var(--surface);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+        .card-header {
+            padding: 14px 20px;
+            background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .card-title { font-size: 16px; font-weight: 600; }
+
+        /* Table */
+        .table-responsive { overflow-x: auto; }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .data-table th {
+            text-align: left;
+            padding: 12px 16px;
+            background: var(--surface2);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+        .data-table td {
+            padding: 14px 16px;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.12s;
+        }
+        .data-table tr:hover td { background: var(--surface2); }
+
+        /* Badges */
+        .client-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .client-name { font-weight: 700; color: var(--text); text-decoration: none; font-size: 14px; }
+        .client-ncc { font-family: monospace; background: var(--surface3); padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+        .sector-badge { padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; background: var(--surface3); color: var(--text2); }
+        .active-badge { font-size: 10px; color: #22c55e; font-weight: 600; margin-top: 2px; }
+        .campaign-count { font-weight: 600; color: var(--text); font-size: 14px; }
+        .reservation-count { color: var(--text2); font-size: 13px; }
+        .contact-name { font-size: 13px; color: var(--text); }
+        .contact-detail { font-size: 11px; color: var(--text3); }
+
+        /* Actions */
+        .actions { display: flex; gap: 6px; }
+        .btn-icon {
+            background: transparent;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-icon:hover { background: var(--surface3); transform: scale(1.05); }
+        .btn-delete { color: var(--danger); }
+
+        /* Pagination */
+        .pagination-container {
+            padding: 14px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+        }
+        .pagination { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; }
+        .pagination li a, .pagination li span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 34px;
+            height: 34px;
+            padding: 0 10px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .pagination li.active span { background: var(--accent); border-color: var(--accent); color: #000; }
+        .pagination li a:hover { background: var(--surface3); border-color: var(--accent); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal {
+            background: var(--surface);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            max-width: 90%;
+            width: 460px;
+            overflow: hidden;
+            animation: modalFade 0.2s ease;
+        }
+        @keyframes modalFade {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-title { font-size: 18px; font-weight: 600; }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+        .modal-body { padding: 24px; }
+        .modal-footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-primary:hover { background: #f0b040; transform: translateY(-1px); }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
+        .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* Utilitaires */
+        .hidden { display: none; }
+        .text-center { text-align: center; }
+        .text-5xl { font-size: 48px; }
+        .text-lg { font-size: 18px; }
+        .text-sm { font-size: 13px; }
+        .text-xs { font-size: 11px; }
+        .font-bold { font-weight: 700; }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-3 { margin-bottom: 12px; }
+        .mb-4 { margin-bottom: 16px; }
+        .text-accent { color: var(--accent); }
+        .text-red-500 { color: #ef4444; }
+
+        @media (max-width: 1024px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .filters-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .data-table { font-size: 12px; }
+            .data-table th, .data-table td { padding: 10px 12px; }
+        }
+    </style>
+
+    @push('scripts')
+    <script>
+    // ══ MODALS ══
+    function openDeleteClient(id, name, activeCampaigns) {
+        document.getElementById('del-client-name').textContent = name;
+        document.getElementById('del-client-form').action = `/admin/clients/${id}`;
+        const warning = document.getElementById('del-client-warning');
+        if (warning) warning.style.display = activeCampaigns > 0 ? 'block' : 'none';
+        document.getElementById('modal-delete-client').classList.remove('hidden');
+    }
+    function closeDeleteClient() {
+        document.getElementById('modal-delete-client').classList.add('hidden');
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDeleteClient(); });
+
+    // ══ FILTRES DYNAMIQUES ══
+    (function() {
+        let currentFilters = { search: '', sector: '', sort: 'name', page: 1 };
+        let isLoading = false;
+        let currentUrl = '{{ route("admin.clients.index") }}';
+        let debounceTimer = null;
+
+        function init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            currentFilters.search = urlParams.get('search') || '';
+            currentFilters.sector = urlParams.get('sector') || '';
+            currentFilters.sort = urlParams.get('sort') || 'name';
+
+            document.getElementById('filter-search').value = currentFilters.search;
+            document.getElementById('filter-sector').value = currentFilters.sector;
+            document.getElementById('filter-sort').value = currentFilters.sort;
+
+            updateResetButton();
+
+            document.getElementById('filter-search').addEventListener('input', debounce(applyFilters, 400));
+            document.getElementById('filter-sector').addEventListener('change', applyFilters);
+            document.getElementById('filter-sort').addEventListener('change', applyFilters);
+            document.getElementById('btn-reset').addEventListener('click', resetFilters);
+        }
+
+        function applyFilters() {
+            currentFilters.search = document.getElementById('filter-search').value;
+            currentFilters.sector = document.getElementById('filter-sector').value;
+            currentFilters.sort = document.getElementById('filter-sort').value;
+            currentFilters.page = 1;
+
+            updateResetButton();
+            fetchData();
+        }
+
+        function resetFilters() {
+            currentFilters = { search: '', sector: '', sort: 'name', page: 1 };
+            document.getElementById('filter-search').value = '';
+            document.getElementById('filter-sector').value = '';
+            document.getElementById('filter-sort').value = 'name';
+            updateResetButton();
+            fetchData();
+        }
+
+        function updateResetButton() {
+            const hasFilters = currentFilters.search || currentFilters.sector || currentFilters.sort !== 'name';
+            document.getElementById('reset-wrapper').style.display = hasFilters ? 'flex' : 'none';
+        }
+
+        async function fetchData() {
+            if (isLoading) return;
+            isLoading = true;
+
+            const params = new URLSearchParams();
+            if (currentFilters.search) params.set('search', currentFilters.search);
+            if (currentFilters.sector) params.set('sector', currentFilters.sector);
+            if (currentFilters.sort !== 'name') params.set('sort', currentFilters.sort);
+            params.set('ajax', '1');
+
+            try {
+                const response = await fetch(`${currentUrl}?${params}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (!response.ok) throw new Error('Erreur réseau');
+
+                const data = await response.json();
+                document.getElementById('table-body').innerHTML = data.html;
+                document.getElementById('pagination-container').innerHTML = data.pagination;
+                document.getElementById('total-count').textContent = data.total + ' client(s)';
+
+                const newUrl = buildUrl();
+                window.history.pushState({}, '', newUrl);
+            } catch (error) {
+                console.error('Erreur:', error);
+            } finally {
+                isLoading = false;
+            }
+        }
+
+        function buildUrl() {
+            const params = new URLSearchParams();
+            if (currentFilters.search) params.set('search', currentFilters.search);
+            if (currentFilters.sector) params.set('sector', currentFilters.sector);
+            if (currentFilters.sort !== 'name') params.set('sort', currentFilters.sort);
+            const query = params.toString();
+            return query ? `${currentUrl}?${query}` : currentUrl;
+        }
+
+        function debounce(func, wait) {
+            return function(...args) {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => func(...args), wait);
+            };
+        }
+
+        init();
+    })();
+    </script>
+    @endpush
 </x-admin-layout>

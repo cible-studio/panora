@@ -293,47 +293,66 @@ class PanelController extends Controller
     }
 
 
+
     public function quickDetails(Panel $panel)
     {
         $now = now()->startOfDay();
         
-        // Occupation en cours
+        // Occupation en cours avec détails complets
         $current = DB::table('reservation_panels')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->join('clients', 'clients.id', '=', 'reservations.client_id')
+            ->leftJoin('campaigns', 'campaigns.reservation_id', '=', 'reservations.id')
             ->where('reservation_panels.panel_id', $panel->id)
             ->where('reservations.start_date', '<=', $now)
             ->where('reservations.end_date', '>=', $now)
             ->whereIn('reservations.status', ['en_attente', 'confirme'])
-            ->select('clients.name as client_name', 'reservations.start_date', 'reservations.end_date', 'reservations.status')
+            ->select(
+                'clients.name as client_name',
+                'reservations.start_date',
+                'reservations.end_date',
+                'reservations.status',
+                'reservations.reference as reservation_ref',
+                'campaigns.name as campaign_name'
+            )
             ->first();
         
-        // Prochaine occupation
-        $next = null;
-        if (!$current) {
-            $next = DB::table('reservation_panels')
-                ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-                ->join('clients', 'clients.id', '=', 'reservations.client_id')
-                ->where('reservation_panels.panel_id', $panel->id)
-                ->where('reservations.start_date', '>', $now)
-                ->whereIn('reservations.status', ['en_attente', 'confirme'])
-                ->orderBy('reservations.start_date')
-                ->select('clients.name as client_name', 'reservations.start_date', 'reservations.end_date')
-                ->first();
-        }
+        // Prochaines occupations (futures)
+        $next = DB::table('reservation_panels')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->join('clients', 'clients.id', '=', 'reservations.client_id')
+            ->leftJoin('campaigns', 'campaigns.reservation_id', '=', 'reservations.id')
+            ->where('reservation_panels.panel_id', $panel->id)
+            ->where('reservations.start_date', '>', $now)
+            ->whereIn('reservations.status', ['en_attente', 'confirme'])
+            ->orderBy('reservations.start_date')
+            ->select(
+                'clients.name as client_name',
+                'reservations.start_date',
+                'reservations.end_date',
+                'reservations.status',
+                'reservations.reference as reservation_ref',
+                'campaigns.name as campaign_name'
+            )
+            ->get();
         
         return response()->json([
             'current_occupation' => $current ? [
-                'client_name' => $current->client_name,
-                'start_date' => $current->start_date,
-                'end_date' => $current->end_date,
-                'status' => $current->status === 'confirme' ? 'confirme' : 'option'
+                'client_name'     => $current->client_name,
+                'campaign_name'   => $current->campaign_name,
+                'reservation_ref' => $current->reservation_ref,
+                'start_date'      => Carbon::parse($current->start_date)->format('d/m/Y'),
+                'end_date'        => Carbon::parse($current->end_date)->format('d/m/Y'),
+                'status'          => $current->status === 'confirme' ? 'confirme' : 'option',
             ] : null,
-            'next_occupation' => $next ? [
-                'client_name' => $next->client_name,
-                'start_date' => $next->start_date,
-                'end_date' => $next->end_date,
-            ] : null,
+            'next_occupations' => $next->map(fn($n) => [
+                'client_name'     => $n->client_name,
+                'campaign_name'   => $n->campaign_name,
+                'reservation_ref' => $n->reservation_ref,
+                'start_date'      => Carbon::parse($n->start_date)->format('d/m/Y'),
+                'end_date'        => Carbon::parse($n->end_date)->format('d/m/Y'),
+                'status'          => $n->status === 'confirme' ? 'confirme' : 'option',
+            ])->values(),
         ]);
     }
 

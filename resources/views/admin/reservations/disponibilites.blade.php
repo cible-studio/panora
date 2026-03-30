@@ -2,1966 +2,1168 @@
 
 <x-slot:topbarActions>
     <div id="topbar-confirm-wrapper" style="display:none">
-        <button class="btn btn-primary" onclick="APP.openConfirmModal()">
-            ✅ Confirmer sélection (<span id="topbar-count">0</span>)
+        <button class="btn btn-primary" onclick="DISPO.openConfirmModal()">
+            ✅ Confirmer (<span id="topbar-count">0</span>)
         </button>
     </div>
 </x-slot:topbarActions>
 
-{{-- ══ DONNÉES INIT ══ --}}
+{{-- ══ DONNÉES SERVEUR ══ --}}
 <script>
-window.__DISPO_INIT__ = {
-    communes:   {!! json_encode($communes->map(fn($c) => ['id'=>$c->id,'name'=>$c->name])) !!},
-    zones:      {!! json_encode($zones->map(fn($z) => ['id'=>$z->id,'name'=>$z->name])) !!},
-    formats:    {!! json_encode($formats->map(fn($f) => ['id'=>$f->id,'name'=>$f->name,'width'=>$f->width,'height'=>$f->height])) !!},
-    dimensions: {!! json_encode($dimensions) !!},
-    clients:    {!! json_encode($clients->map(fn($c) => ['id'=>$c->id,'name'=>$c->name])) !!},
-    agencies:   {!! json_encode($agencies->map(fn($a) => ['id'=>$a->id,'name'=>$a->name])) !!},
-    ajaxUrl:    '{{ route('admin.disponibilites.panneaux') }}',
-    csrfToken:  '{{ csrf_token() }}',
-    cardColors: ['#3b82f6','#a855f7','#f97316','#14b8a6','#e8a020','#22c55e'],
+window.__DISPO__ = {
+    communes:    {!! json_encode($communes->map(function($c) { return ['id' => $c->id, 'name' => $c->name]; })->values()) !!},
+    zones:       {!! json_encode($zones->map(function($z) { return ['id' => $z->id, 'name' => $z->name]; })->values()) !!},
+    formats:     {!! json_encode($formats->map(function($f) { return ['id' => $f->id, 'name' => $f->name, 'width' => $f->width, 'height' => $f->height]; })->values()) !!},
+    dimensions:  {!! json_encode($dimensions) !!},
+    clients:     {!! json_encode($clients->map(function($c) { return ['id' => $c->id, 'name' => $c->name]; })->values()) !!},
+    agencies:    {!! json_encode($agencies->map(function($a) { return ['id' => $a->id, 'name' => $a->name]; })->values()) !!},
+    ajaxUrl:     '{{ route('admin.disponibilites.panneaux') }}',
+    confirmUrl:  '{{ route('admin.reservations.confirmer-selection') }}',
+    panelCreate: '{{ route('admin.panels.create') }}',
+    csrf:        '{{ csrf_token() }}',
+    colors:      ['#3b82f6','#a855f7','#f97316','#14b8a6','#e8a020','#22c55e'],
+    hasErrors:   {{ $errors->any() ? 'true' : 'false' }},
+    flashErrors: {!! json_encode($errors->all()) !!},
 };
 </script>
 
 <div id="dispo-app">
 
-{{-- ══ FILTRES AVEC DESIGN AMÉLIORÉ (Tailwind) ══ --}}
+{{-- ══ FILTRES ══ --}}
 <div class="bg-[#1a1a2a] rounded-2xl border border-[#2a2a35] p-5 mb-6">
-    {{-- Barre de recherche --}}
-    <div class="mb-5">
-        <div class="relative max-w-md">
-            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">🔍</span>
-            <input type="text" id="f-search" 
-                   class="w-full h-11 pl-9 pr-10 bg-[#252530] border border-[#3a3a48] rounded-xl text-sm text-gray-200 placeholder:text-gray-500 focus:border-[#e8a020] focus:outline-none focus:ring-2 focus:ring-[#e8a020]/20"
-                   placeholder="Rechercher par référence, nom, zone, commune..."
-                   oninput="APP.onSearchChange(this.value)">
-            <button type="button" id="clear-search" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 hidden" onclick="APP.clearSearch()">✕</button>
+
+    {{-- Recherche --}}
+    <div class="mb-4">
+        <div class="relative max-w-lg">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none">🔍</span>
+            <input type="text" id="f-search"
+                   class="w-full h-11 pl-9 pr-10 bg-[#252530] border border-[#3a3a48] rounded-xl text-sm text-gray-200 placeholder:text-gray-500 focus:border-[#e8a020] focus:outline-none focus:ring-2 focus:ring-[#e8a020]/20 transition-all"
+                   placeholder="Référence, nom, zone, commune..."
+                   oninput="DISPO.onSearch(this.value)">
+            <button id="btn-clear-search"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 hidden text-sm"
+                    onclick="DISPO.clearSearch()">✕</button>
         </div>
     </div>
 
-    {{-- Grille des filtres --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        {{-- Commune --}}
+    {{-- Grille filtres ligne 1 --}}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
         <div>
-            <label class="text-xs font-semibold uppercase tracking-wide text-gray-500 flex justify-between">
-                <span>📍 Commune</span>
-                <span id="badge-communes" class="bg-[#e8a020] text-black rounded-full px-2 py-0.5 text-[10px] font-bold hidden"></span>
-            </label>
-            <div class="multiselect-wrapper mt-1" id="ms-communes" data-filter="commune_ids" data-placeholder="Sélectionner"></div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="filter-label">📍 Commune</label>
+                <span id="badge-commune_ids" class="ms-badge hidden"></span>
+            </div>
+            <div class="ms-wrapper" data-key="commune_ids" data-placeholder="Toutes"></div>
         </div>
-
-        {{-- Zone --}}
         <div>
-            <label class="text-xs font-semibold uppercase tracking-wide text-gray-500 flex justify-between">
-                <span>🗺️ Zone</span>
-                <span id="badge-zones" class="bg-[#e8a020] text-black rounded-full px-2 py-0.5 text-[10px] font-bold hidden"></span>
-            </label>
-            <div class="multiselect-wrapper mt-1" id="ms-zones" data-filter="zone_ids" data-placeholder="Sélectionner"></div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="filter-label">🗺️ Zone</label>
+                <span id="badge-zone_ids" class="ms-badge hidden"></span>
+            </div>
+            <div class="ms-wrapper" data-key="zone_ids" data-placeholder="Toutes"></div>
         </div>
-
-        {{-- Format --}}
         <div>
-            <label class="text-xs font-semibold uppercase tracking-wide text-gray-500 flex justify-between">
-                <span>📏 Format</span>
-                <span id="badge-formats" class="bg-[#e8a020] text-black rounded-full px-2 py-0.5 text-[10px] font-bold hidden"></span>
-            </label>
-            <div class="multiselect-wrapper mt-1" id="ms-formats" data-filter="format_ids" data-placeholder="Sélectionner"></div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="filter-label">📏 Format</label>
+                <span id="badge-format_ids" class="ms-badge hidden"></span>
+            </div>
+            <div class="ms-wrapper" data-key="format_ids" data-placeholder="Tous"></div>
         </div>
-
-        {{-- Dimensions --}}
         <div>
-            <label class="text-xs font-semibold uppercase tracking-wide text-gray-500">📐 Dimensions</label>
-            <select id="f-dimensions" class="w-full h-10 mt-1 px-3 bg-[#252530] border border-[#3a3a48] rounded-xl text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none" onchange="APP.setFilter('dimensions', this.value)">
+            <label class="filter-label block mb-1">📐 Dimensions</label>
+            <select id="f-dimensions" class="filter-select w-full" onchange="DISPO.set('dimensions', this.value)">
                 <option value="">Toutes</option>
             </select>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        {{-- Éclairage --}}
+    {{-- Grille filtres ligne 2 --}}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <div>
-            <label class="text-xs font-semibold uppercase tracking-wide text-gray-500">💡 Éclairage</label>
-            <select id="f-is-lit" class="w-full h-10 mt-1 px-3 bg-[#252530] border border-[#3a3a48] rounded-xl text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none" onchange="APP.setFilter('is_lit', this.value)">
+            <label class="filter-label block mb-1">💡 Éclairage</label>
+            <select id="f-is_lit" class="filter-select w-full" onchange="DISPO.set('is_lit', this.value)">
                 <option value="">Tous</option>
                 <option value="1">💡 Éclairé</option>
                 <option value="0">🌙 Non éclairé</option>
             </select>
         </div>
-
-        {{-- Statut --}}
         <div>
-            <label class="text-xs font-semibold uppercase tracking-wide text-gray-500">📊 Statut</label>
-            <select id="f-statut" class="w-full h-10 mt-1 px-3 bg-[#252530] border border-[#3a3a48] rounded-xl text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none" onchange="APP.setFilter('statut', this.value)">
+            <label class="filter-label block mb-1">📊 Statut</label>
+            <select id="f-statut" class="filter-select w-full" onchange="DISPO.set('statut', this.value)">
                 <option value="tous">Tous</option>
                 <option value="libre">✅ Disponible</option>
                 <option value="occupe">🔒 Occupé</option>
                 <option value="option">⏳ En option</option>
-                <option value="confirme">✓ Confirmé</option>
                 <option value="maintenance">🔧 Maintenance</option>
             </select>
         </div>
-
-        {{-- Source --}}
         <div>
-            <label class="text-xs font-semibold uppercase tracking-wide text-gray-500">🏢 Source</label>
-            <select id="f-source" class="w-full h-10 mt-1 px-3 bg-[#252530] border border-[#3a3a48] rounded-xl text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none" onchange="APP.onSourceChange(this.value)">
+            <label class="filter-label block mb-1">🏢 Source</label>
+            <select id="f-source" class="filter-select w-full" onchange="DISPO.onSourceChange(this.value)">
                 <option value="all">📦 Tous</option>
                 <option value="internal">🏢 Internes</option>
                 <option value="external">🤝 Externes</option>
             </select>
         </div>
-
-        {{-- Régie (caché par défaut) --}}
-        <div id="filter-agency-wrapper">
-            <label class="text-xs font-semibold uppercase tracking-wide text-gray-500 flex justify-between">
-                <span>🤝 Régie</span>
-                <span id="badge-agencies" class="bg-[#e8a020] text-black rounded-full px-2 py-0.5 text-[10px] font-bold hidden"></span>
-            </label>
-            <div class="multiselect-wrapper mt-1" id="ms-agencies" data-filter="agency_ids" data-placeholder="Sélectionner"></div>
+        <div id="wrapper-agencies">
+            <div class="flex items-center justify-between mb-1">
+                <label class="filter-label">🤝 Régie</label>
+                <span id="badge-agency_ids" class="ms-badge hidden"></span>
+            </div>
+            <div class="ms-wrapper" data-key="agency_ids" data-placeholder="Toutes"></div>
         </div>
     </div>
 
-    {{-- Bouton reset --}}
-    <div class="flex justify-end mb-4">
-        <button type="button" id="btn-reset-filters" class="px-4 py-2 text-sm text-gray-400 border border-[#3a3a48] rounded-xl hover:border-red-500 hover:text-red-500 transition hidden" onclick="APP.resetFilters()">
-            ↻ Réinitialiser
-        </button>
-    </div>
-
-    {{-- Période et statistiques --}}
+    {{-- Période + reset + stats --}}
     <div class="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-[#2a2a35]">
         <div class="flex flex-wrap items-center gap-3">
-            <span class="text-xs font-semibold text-gray-500">📅 Période</span>
-            <div class="flex items-center gap-2 bg-[#252530] px-3 py-1 rounded-xl border border-[#3a3a48]">
-                <input type="date" id="f-dispo-du" class="bg-transparent border-none text-sm text-gray-200 focus:outline-none" onchange="APP.onStartDateChange(this.value)">
-                <span class="text-gray-500">→</span>
-                <input type="date" id="f-dispo-au" class="bg-transparent border-none text-sm text-gray-200 focus:outline-none" onchange="APP.onEndDateChange(this.value)">
+            <span class="filter-label">📅 Période</span>
+            <div class="flex items-center gap-2 bg-[#252530] px-3 py-1.5 rounded-xl border border-[#3a3a48]">
+                <input type="date" id="f-du"
+                       class="bg-transparent border-none text-sm text-gray-200 focus:outline-none"
+                       onchange="DISPO.onDateChange('du', this.value)">
+                <span class="text-gray-600 text-xs">→</span>
+                <input type="date" id="f-au"
+                       class="bg-transparent border-none text-sm text-gray-200 focus:outline-none"
+                       onchange="DISPO.onDateChange('au', this.value)">
             </div>
-            <div id="date-error-msg" class="text-xs text-red-400 bg-red-400/10 px-3 py-1 rounded-lg hidden"></div>
+            <div id="date-error" class="hidden text-xs text-red-400 bg-red-400/10 px-3 py-1 rounded-lg"></div>
         </div>
 
-        <div class="flex flex-wrap gap-2" id="stats-container">
-            <div class="flex items-center gap-2 px-3 py-1 bg-[#252530] rounded-full border border-[#3a3a48] text-xs" id="stat-total">
-                <span>📊</span>
-                <span class="font-bold text-white">0</span>
-                <span class="text-gray-500">panneaux</span>
+        <div class="flex items-center gap-3 flex-wrap">
+            {{-- Stats badges --}}
+            <div id="stats-bar" class="flex gap-2 flex-wrap">
+                <span id="stat-total" class="stat-pill">📊 <strong>0</strong> panneaux</span>
+                <span id="stat-dispo"   class="stat-pill hidden">✅ <strong>0</strong> dispos</span>
+                <span id="stat-occupes" class="stat-pill hidden">🔒 <strong>0</strong> occupés</span>
+                <span id="stat-options" class="stat-pill hidden">⏳ <strong>0</strong> options</span>
+                <span id="stat-ext"     class="stat-pill hidden">🤝 <strong>0</strong> externes</span>
             </div>
-            <div class="flex items-center gap-2 px-3 py-1 bg-[#252530] rounded-full border border-[#3a3a48] text-xs hidden" id="stat-dispo">
-                <span>✅</span>
-                <span class="font-bold text-green-400">0</span>
-                <span class="text-gray-500">dispos</span>
-            </div>
-            <div class="flex items-center gap-2 px-3 py-1 bg-[#252530] rounded-full border border-[#3a3a48] text-xs hidden" id="stat-occupes">
-                <span>🔒</span>
-                <span class="font-bold text-red-400">0</span>
-                <span class="text-gray-500">occupés</span>
-            </div>
-            <div class="flex items-center gap-2 px-3 py-1 bg-[#252530] rounded-full border border-[#3a3a48] text-xs hidden" id="stat-options">
-                <span>⏳</span>
-                <span class="font-bold text-[#e8a020]">0</span>
-                <span class="text-gray-500">options</span>
-            </div>
-            <div class="flex items-center gap-2 px-3 py-1 bg-[#252530] rounded-full border border-[#3a3a48] text-xs hidden" id="stat-externes">
-                <span>🤝</span>
-                <span class="font-bold text-blue-400">0</span>
-                <span class="text-gray-500">externes</span>
-            </div>
-            <div class="flex items-center gap-2 px-3 py-1 bg-[#252530] rounded-full border border-[#3a3a48] text-xs hidden" id="stat-a-verifier">
-                <span>❓</span>
-                <span class="font-bold text-gray-400">0</span>
-                <span class="text-gray-500">à vérifier</span>
-            </div>
+            {{-- Reset --}}
+            <button id="btn-reset" class="hidden px-3 py-1.5 text-xs text-gray-400 border border-[#3a3a48] rounded-xl hover:border-red-500 hover:text-red-500 transition-all" onclick="DISPO.reset()">
+                ↻ Réinitialiser
+            </button>
         </div>
     </div>
 
     {{-- Tags actifs --}}
-    <div id="active-tags" class="flex items-center gap-3 mt-4 pt-3 border-t border-[#2a2a35] flex-wrap hidden">
-        <span class="text-xs text-gray-500">Filtres actifs :</span>
-        <div id="tags-container" class="flex flex-wrap gap-2"></div>
+    <div id="tags-bar" class="hidden flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#2a2a35]">
+        <span class="text-xs text-gray-500">Filtres :</span>
+        <div id="tags-list" class="flex flex-wrap gap-2"></div>
     </div>
 </div>
 
+{{-- ══ GRILLE PANNEAUX ══ --}}
+<div id="panels-outer" style="margin-bottom:120px">
 
-{{-- ══ CONTENU DYNAMIQUE ══ --}}
-<div id="panels-container" style="margin-bottom:120px">
-
-    <div id="loader" style="display:none;text-align:center;padding:60px;color:var(--text2)">
-        <div style="font-size:32px;margin-bottom:12px;
-                    animation:spin 1s linear infinite;display:inline-block">⟳</div>
-        <div style="font-size:14px;font-weight:600">Chargement…</div>
+    {{-- Loader --}}
+    <div id="loader" style="display:none"
+         class="text-center py-20 text-gray-400">
+        <div class="text-4xl mb-3 animate-spin inline-block">⟳</div>
+        <div class="text-sm font-semibold">Chargement…</div>
     </div>
 
+    {{-- Grille --}}
     <div id="panels-grid"
-         style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px">
+         class="grid gap-4"
+         style="grid-template-columns:repeat(auto-fill,minmax(270px,1fr))">
+    </div>
+
+    {{-- Empty state --}}
+    <div id="empty-state" style="display:none"
+         class="text-center py-24 text-gray-500">
+        <div class="text-6xl mb-4">🪧</div>
+        <div id="empty-title" class="text-lg font-bold text-gray-300 mb-2">Aucun panneau</div>
+        <div id="empty-sub"   class="text-sm mb-6">Modifiez vos filtres ou créez un panneau.</div>
+        <a id="empty-cta" href="{{ route('admin.panels.create') }}"
+           class="inline-flex items-center gap-2 px-5 py-2.5 bg-[#e8a020] text-black font-bold rounded-xl hover:bg-yellow-400 transition-all text-sm">
+            + Créer un panneau
+        </a>
     </div>
 
     {{-- Pagination --}}
     <div id="pagination-bar"
-         style="display:none;margin-top:20px;padding:12px 0;
-                display:flex;justify-content:center;align-items:center;gap:12px">
-        <button id="btn-prev" class="btn btn-ghost btn-sm" onclick="APP.prevPage()">← Précédent</button>
-        <span id="pagination-info" style="font-size:13px;color:var(--text2)"></span>
-        <button id="btn-next" class="btn btn-ghost btn-sm" onclick="APP.nextPage()">Suivant →</button>
-    </div>
-
-    <div id="empty-state" style="display:none;text-align:center;padding:80px;color:var(--text3)">
-        <div style="font-size:48px;margin-bottom:12px">🪧</div>
-        <div id="empty-title" style="font-size:15px;font-weight:600;margin-bottom:6px">Aucun panneau trouvé</div>
-        <div id="empty-sub"   style="font-size:13px">Modifiez vos filtres.</div>
+         class="hidden mt-6 flex justify-center items-center gap-4">
+        <button id="btn-prev" onclick="DISPO.prevPage()"
+                class="btn btn-ghost btn-sm" disabled>← Précédent</button>
+        <span id="pag-info" class="text-sm text-gray-400"></span>
+        <button id="btn-next" onclick="DISPO.nextPage()"
+                class="btn btn-ghost btn-sm">Suivant →</button>
     </div>
 </div>
 
-{{-- ══ BARRE SÉLECTION ══ --}}
-<div id="selection-bar"
-     style="display:none;position:fixed;bottom:0;left:235px;right:0;
+{{-- ══ BARRE SÉLECTION (sticky bottom) ══ --}}
+<div id="sel-bar"
+     style="display:none;position:fixed;bottom:0;left:235px;right:0;z-index:300;
             background:var(--surface);border-top:2px solid var(--accent);
-            padding:12px 24px;z-index:300;box-shadow:0 -4px 24px rgba(0,0,0,0.4)">
-    <div style="display:flex;align-items:center;justify-content:space-between">
-        <div style="display:flex;align-items:center;gap:14px">
-            <span id="sel-count" style="font-size:26px;font-weight:800;color:var(--accent)"></span>
+            padding:12px 24px;box-shadow:0 -8px 32px rgba(0,0,0,.5)">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+        <div class="flex items-center gap-4">
             <div>
-                <div style="font-size:11px;font-weight:600;color:var(--text2)">panneau(x) sélectionné(s)</div>
-                <div style="font-size:14px;font-weight:800;color:var(--accent)">
-                    <span id="sel-total"></span> FCFA/mois
-                </div>
+                <span id="sel-count" class="text-3xl font-black text-[#e8a020]">0</span>
+                <span class="text-sm text-gray-400 ml-2">panneau(x) — </span>
+                <span id="sel-amount" class="text-base font-bold text-[#e8a020]">0 FCFA/mois</span>
             </div>
             <div id="sel-ext-badge"
-                 style="display:none;padding:3px 10px;background:rgba(96,165,250,0.12);
-                        border:1px solid rgba(96,165,250,0.3);border-radius:6px;
-                        font-size:11px;color:#60a5fa">
-                dont <span id="sel-ext-count">0</span> externe(s)
+                 class="hidden px-2 py-0.5 text-xs text-blue-400 border border-blue-400/30 bg-blue-400/10 rounded-lg">
+                dont <span id="sel-ext-n">0</span> externe(s)
             </div>
         </div>
-        <div style="display:flex;gap:8px">
-            <button class="btn btn-ghost btn-sm" onclick="APP.clearSelection()">✕ Vider</button>
-            <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(239,68,68,.4)">📄 PDF</button>
-            <button class="btn btn-primary" onclick="APP.openConfirmModal()">✅ Confirmer la sélection</button>
+        <div class="flex gap-2">
+            <button class="btn btn-ghost btn-sm" onclick="DISPO.clearSelection()">✕ Vider</button>
+            <button class="btn btn-primary" onclick="DISPO.openConfirmModal()">
+                ✅ Confirmer la sélection
+            </button>
         </div>
     </div>
 </div>
 
-</div>{{-- fin #dispo-app --}}
+</div>{{-- /dispo-app --}}
 
-{{-- ══ MODAL CONFIRMER ══ --}}
-<div id="modal-confirm" class="modal-overlay" style="display:none"
-     onclick="if(event.target===this) APP.closeConfirmModal()">
-    <div class="modal" style="max-width:560px" onclick="event.stopPropagation()">
-        <div class="modal-header">
-            <span class="modal-title">✅ Confirmer la réservation</span>
-            <button class="modal-close" onclick="APP.closeConfirmModal()">✕</button>
+{{-- ══ MODAL CONFIRMER RÉSERVATION ══ --}}
+<div id="modal-confirm"
+     class="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm items-center justify-center p-4"
+     style="display:none"
+     onclick="if(event.target===this)DISPO.closeConfirmModal()">
+    <div class="bg-[#1e1e2e] border border-[#3a3a48] rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl"
+         onclick="event.stopPropagation()">
+
+        {{-- Header --}}
+        <div class="px-6 py-4 border-b border-[#3a3a48] bg-[#252535] rounded-t-2xl flex justify-between items-center flex-shrink-0">
+            <div>
+                <div class="font-bold text-white">✅ Nouvelle réservation</div>
+                <div id="modal-summary" class="text-xs text-gray-500 mt-0.5"></div>
+            </div>
+            <button onclick="DISPO.closeConfirmModal()"
+                    class="w-8 h-8 flex items-center justify-center bg-white/5 border border-[#3a3a48] rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-all text-sm">
+                ✕
+            </button>
         </div>
-        <form method="POST"
+
+        {{-- Body --}}
+        <form id="form-confirm"
+              method="POST"
               action="{{ route('admin.reservations.confirmer-selection') }}"
-              id="confirm-form"
-              x-data="{ type: 'option' }">
+              class="flex flex-col flex-1 overflow-hidden">
             @csrf
-            <div id="hidden-panel-inputs"></div>
-            <div class="modal-body">
-                @if($errors->any())
-                <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);
-                            border-radius:8px;padding:12px;margin-bottom:14px">
-                    @foreach($errors->all() as $e)
-                    <div style="color:var(--red);font-size:12px;display:flex;gap:5px;margin-bottom:3px">
-                        <span>⚠️</span><span>{{ $e }}</span>
+            <div id="hidden-panels"></div>
+
+            <div class="p-5 overflow-y-auto flex-1 space-y-4">
+
+                {{-- Zone erreurs modal --}}
+                <div id="modal-errors" class="hidden bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-sm text-red-400 space-y-1"></div>
+
+                {{-- Anti-booking badge --}}
+                <div class="flex items-center gap-2 bg-green-500/5 border border-green-500/20 rounded-xl px-3 py-2 text-xs text-green-400">
+                    🛡️ Anti double-booking actif — vérification en temps réel
+                </div>
+
+                {{-- Warning externes --}}
+                <div id="modal-ext-warn"
+                     class="hidden items-center gap-2 bg-blue-500/5 border border-blue-500/20 rounded-xl px-3 py-2 text-xs text-blue-400">
+                    🤝 Sélection avec panneaux externes — vérifiez leur disponibilité auprès de la régie.
+                </div>
+
+                {{-- Type --}}
+                <div>
+                    <div class="filter-label mb-2">Type de réservation *</div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label id="lbl-option"
+                               class="cursor-pointer p-3 rounded-xl border-2 border-orange-500 bg-orange-500/8 flex items-center gap-3 transition-all"
+                               onclick="DISPO.setType('option')">
+                            <input type="radio" name="type" value="option" checked class="accent-orange-500">
+                            <div>
+                                <div class="text-sm font-bold text-orange-400">⏳ Option</div>
+                                <div class="text-xs text-gray-500">Temporaire</div>
+                            </div>
+                        </label>
+                        <label id="lbl-ferme"
+                               class="cursor-pointer p-3 rounded-xl border border-[#3a3a48] bg-[#252530] flex items-center gap-3 transition-all"
+                               onclick="DISPO.setType('ferme')">
+                            <input type="radio" name="type" value="ferme" class="accent-green-500">
+                            <div>
+                                <div class="text-sm font-bold text-gray-400">🔒 Ferme</div>
+                                <div class="text-xs text-gray-500">Définitive</div>
+                            </div>
+                        </label>
                     </div>
-                    @endforeach
                 </div>
-                @endif
-                <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);
-                            border-radius:8px;padding:10px 14px;margin-bottom:14px;
-                            font-size:12px;color:var(--green)">
-                    🛡️ Anti double-booking actif.
-                </div>
-                <div id="modal-ext-warning"
-                     style="display:none;background:rgba(96,165,250,0.08);
-                            border:1px solid rgba(96,165,250,0.3);border-radius:8px;
-                            padding:10px 14px;margin-bottom:14px;font-size:12px;color:#60a5fa">
-                    🤝 Votre sélection contient des panneaux externes. Confirmez leur disponibilité auprès de la régie.
-                </div>
-                <div style="display:flex;gap:8px;margin-bottom:14px">
-                    <label style="flex:1;cursor:pointer;padding:10px;border-radius:8px;
-                                  display:flex;align-items:center;gap:8px;"
-                           :style="type==='option'
-                               ? 'border:2px solid #f97316;background:rgba(249,115,22,0.08)'
-                               : 'border:1px solid var(--border2);background:var(--surface2)'">
-                        <input type="radio" name="type" value="option" x-model="type" style="accent-color:#f97316">
-                        <div>
-                            <div style="font-size:12px;font-weight:700">⏳ Option</div>
-                            <div style="font-size:10px;color:var(--text2)">Temporaire</div>
-                        </div>
-                    </label>
-                    <label style="flex:1;cursor:pointer;padding:10px;border-radius:8px;
-                                  display:flex;align-items:center;gap:8px;"
-                           :style="type==='ferme'
-                               ? 'border:2px solid #22c55e;background:rgba(34,197,94,0.08)'
-                               : 'border:1px solid var(--border2);background:var(--surface2)'">
-                        <input type="radio" name="type" value="ferme" x-model="type" style="accent-color:#22c55e">
-                        <div>
-                            <div style="font-size:12px;font-weight:700">🔒 Ferme</div>
-                            <div style="font-size:10px;color:var(--text2)">Définitive</div>
-                        </div>
-                    </label>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-                    <div class="mfg">
-                        <label>Client *</label>
-                        <select name="client_id" required
-                                style="background:var(--surface2);border:1px solid var(--border2);
-                                       border-radius:8px;padding:8px 12px;color:var(--text);
-                                       font-size:13px;outline:none;width:100%">
+
+                {{-- Client + Campagne --}}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="filter-label block mb-1">Client *</label>
+                        <select name="client_id" required id="modal-client" class="modal-input w-full">
                             <option value="">— Sélectionner —</option>
                             @foreach($clients as $c)
                             <option value="{{ $c->id }}">{{ $c->name }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div class="mfg" x-show="type === 'ferme'" x-transition>
-                        <label>Nom campagne <span style="font-size:10px;color:var(--text3)">(opt.)</span></label>
-                        <input type="text" name="campaign_name" placeholder="Ex: Ramadan 2026">
+                    <div id="wrapper-campaign-name" class="hidden">
+                        <label class="filter-label block mb-1">Nom campagne <span class="text-gray-600 font-normal">(optionnel)</span></label>
+                        <input type="text" name="campaign_name" id="modal-campaign"
+                               placeholder="Ex : Ramadan 2026"
+                               class="modal-input w-full">
                     </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-                    <div class="mfg">
-                        <label>Date début *</label>
-                        <input type="date" name="start_date" id="confirm-start" required>
+
+                {{-- Dates --}}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="filter-label block mb-1">Date début *</label>
+                        <input type="date" name="start_date" id="modal-du" required class="modal-input w-full"
+                               onchange="DISPO.calcEstimate()">
                     </div>
-                    <div class="mfg">
-                        <label>Date fin *</label>
-                        <input type="date" name="end_date" id="confirm-end" required>
+                    <div>
+                        <label class="filter-label block mb-1">Date fin *</label>
+                        <input type="date" name="end_date" id="modal-au" required class="modal-input w-full"
+                               onchange="DISPO.calcEstimate()">
                     </div>
                 </div>
-                <div class="mfg">
-                    <label>Note interne</label>
-                    <textarea name="notes" rows="2" placeholder="Remarques…"></textarea>
+                <div id="modal-date-err" class="hidden text-xs text-red-400 bg-red-400/10 px-3 py-2 rounded-lg flex items-center gap-2">
+                    <span>⚠️</span><span id="modal-date-err-text"></span>
+                </div>
+
+                {{-- Montant estimé --}}
+                <div class="flex justify-between items-center bg-[#e8a020]/5 border border-[#e8a020]/20 rounded-xl px-4 py-3">
+                    <div class="text-xs text-gray-400">
+                        Montant estimé
+                        <span id="modal-months" class="text-gray-600 ml-1"></span>
+                    </div>
+                    <div class="text-xl font-black text-[#e8a020]">
+                        <span id="modal-total">—</span>
+                        <span class="text-xs font-normal text-gray-500"> FCFA</span>
+                    </div>
+                </div>
+
+                {{-- Notes --}}
+                <div>
+                    <label class="filter-label block mb-1">Notes <span class="text-gray-600 font-normal">(optionnel)</span></label>
+                    <textarea name="notes" rows="2" placeholder="Remarques…"
+                              class="modal-input w-full resize-none min-h-[56px]"></textarea>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-ghost" onclick="APP.closeConfirmModal()">Annuler</button>
-                <button type="button" class="btn btn-primary" onclick="APP.submitConfirm()">✅ Confirmer et bloquer</button>
+
+            {{-- Footer --}}
+            <div class="px-5 py-3 border-t border-[#3a3a48] bg-[#252535] rounded-b-2xl flex justify-between items-center gap-3 flex-shrink-0">
+                <button type="button" onclick="DISPO.closeConfirmModal()"
+                        class="px-4 py-2 text-sm border border-[#3a3a48] rounded-xl text-gray-400 hover:border-[#e8a020] hover:text-[#e8a020] transition-all">
+                    Annuler
+                </button>
+                <button type="button" id="modal-submit" onclick="DISPO.submitForm()"
+                        class="px-5 py-2 bg-[#e8a020] text-black font-bold text-sm rounded-xl hover:bg-yellow-400 transition-all flex items-center gap-2 disabled:opacity-50">
+                    <span id="modal-submit-icon">✅</span>
+                    <span id="modal-submit-txt">Confirmer et bloquer</span>
+                </button>
             </div>
         </form>
     </div>
 </div>
 
-{{-- ══ MODAL FICHE ══ --}}
-<div id="modal-fiche" class="modal-overlay" style="display:none"
-     onclick="if(event.target===this) document.getElementById('modal-fiche').style.display='none'">
-    <div class="modal" style="max-width:600px;max-height:85vh;overflow-y:auto"
+{{-- ══ MODAL FICHE PANNEAU ══ --}}
+<div id="modal-fiche"
+     class="fixed inset-0 z-[9998] bg-black/70 backdrop-blur-sm items-center justify-center p-4"
+     style="display:none"
+     onclick="if(event.target===this)DISPO.closeFiche()">
+    <div class="bg-[#1e1e2e] border border-[#3a3a48] rounded-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto shadow-2xl"
          onclick="event.stopPropagation()">
-        <div class="modal-header">
-            <span class="modal-title" id="fiche-title">📋 Fiche technique</span>
-            <button class="modal-close"
-                    onclick="document.getElementById('modal-fiche').style.display='none'">✕</button>
+        <div class="px-5 py-4 border-b border-[#3a3a48] flex justify-between items-center">
+            <div id="fiche-title" class="font-bold text-white text-sm"></div>
+            <button onclick="DISPO.closeFiche()" class="text-gray-400 hover:text-white">✕</button>
         </div>
-        <div class="modal-body" id="fiche-body"></div>
-        <div class="modal-footer">
-            <button class="btn btn-ghost"
-                    onclick="document.getElementById('modal-fiche').style.display='none'">Fermer</button>
+        <div id="fiche-body" class="p-5"></div>
+    </div>
+</div>
+
+{{-- ══ MODAL ERREUR (réponse serveur) ══ --}}
+<div id="modal-error"
+     class="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm items-center justify-center p-4"
+     style="display:none"
+     onclick="if(event.target===this)DISPO.closeError()">
+    <div class="bg-[#1e1e2e] border border-red-500/40 rounded-2xl w-full max-w-md shadow-2xl"
+         onclick="event.stopPropagation()">
+        <div class="px-5 py-4 border-b border-red-500/30 flex justify-between items-center bg-red-500/5 rounded-t-2xl">
+            <div class="font-bold text-red-400 flex items-center gap-2">
+                <span class="text-xl">⚠️</span> Erreur
+            </div>
+            <button onclick="DISPO.closeError()" class="text-gray-400 hover:text-white">✕</button>
+        </div>
+        <div class="p-5">
+            <div id="error-body" class="text-sm text-gray-300 space-y-2"></div>
+        </div>
+        <div class="px-5 py-3 border-t border-[#3a3a48] flex justify-end">
+            <button onclick="DISPO.closeError()"
+                    class="px-4 py-2 bg-[#252530] border border-[#3a3a48] rounded-xl text-sm text-gray-300 hover:border-[#e8a020] hover:text-[#e8a020] transition-all">
+                Fermer
+            </button>
         </div>
     </div>
 </div>
 
-
 <style>
-/* ============================================
-   VARIABLES GLOBALES
-   ============================================ */
-:root {
-    --filter-bg: #1a1a2a;
-    --filter-surface: #252530;
-    --filter-surface-hover: #2d2d3a;
-    --filter-border: #3a3a48;
-    --filter-accent: #e8a020;
-    --filter-accent-dim: rgba(232, 160, 32, 0.12);
-    --filter-text: #e8e8f0;
-    --filter-text-dim: #9ca3af;
-    --filter-text-muted: #6b7280;
-    --filter-success: #22c55e;
-    --filter-danger: #ef4444;
-    --filter-warning: #e8a020;
-    --filter-info: #60a5fa;
-}
-
-/* ============================================
-   CONTAINER PRINCIPAL
-   ============================================ */
-.dispo-filters {
-    background: var(--filter-bg);
-    border-radius: 20px;
-    border: 1px solid var(--filter-border);
-    padding: 20px 24px;
-    margin-bottom: 24px;
-    transition: all 0.2s ease;
-}
-
-/* ============================================
-   RECHERCHE
-   ============================================ */
-.filter-search {
-    margin-bottom: 24px;
-}
-
-.search-input-wrapper {
-    position: relative;
-    max-width: 480px;
-}
-
-.search-icon {
-    position: absolute;
-    left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 16px;
-    color: var(--filter-text-muted);
-    pointer-events: none;
-    z-index: 1;
-}
-
-.search-field {
-    width: 100%;
-    height: 46px;
-    padding: 0 40px 0 42px;
-    background: var(--filter-surface);
-    border: 1px solid var(--filter-border);
-    border-radius: 14px;
-    font-size: 14px;
-    color: var(--filter-text);
-    transition: all 0.2s;
-}
-
-.search-field:focus {
-    outline: none;
-    border-color: var(--filter-accent);
-    box-shadow: 0 0 0 3px var(--filter-accent-dim);
-}
-
-.search-field::placeholder {
-    color: var(--filter-text-muted);
-}
-
-.search-clear-btn {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: transparent;
-    border: none;
-    color: var(--filter-text-muted);
-    cursor: pointer;
-    font-size: 14px;
-    padding: 4px 8px;
-    border-radius: 6px;
-    transition: all 0.2s;
-}
-
-.search-clear-btn:hover {
-    background: var(--filter-surface-hover);
-    color: var(--filter-text);
-}
-
-/* ============================================
-   GRILLE PRINCIPALE
-   ============================================ */
-.filters-main-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 24px;
-    align-items: start;
-    position: relative;
-}
-
-.filters-column {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.filter-item {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.filter-item-label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--filter-text-muted);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.filter-count-badge {
-    background: var(--filter-accent);
-    color: #000;
-    border-radius: 12px;
-    padding: 2px 8px;
-    font-size: 10px;
-    font-weight: 700;
-    display: none;
-}
-
-.filter-count-badge:not(:empty) {
-    display: inline-block;
-}
-
-/* ============================================
-   SELECTS STANDARDS
-   ============================================ */
-.filter-select {
-    height: 40px;
-    padding: 0 12px;
-    background: var(--filter-surface);
-    border: 1px solid var(--filter-border);
-    border-radius: 12px;
-    font-size: 13px;
-    color: var(--filter-text);
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.filter-select:hover {
-    border-color: var(--filter-accent);
-    background: var(--filter-surface-hover);
-}
-
-.filter-select:focus {
-    outline: none;
-    border-color: var(--filter-accent);
-    box-shadow: 0 0 0 2px var(--filter-accent-dim);
-}
-
-/* ============================================
-   MULTISELECT — OPTIMISÉ GRANDS VOLUMES
-   ============================================ */
-.multiselect-wrapper {
-    position: relative;
-    width: 100%;
-}
-
-.ms-trigger {
-    width: 100%;
-    min-height: 40px;
-    padding: 6px 32px 6px 12px;
-    background: #252530;
-    border: 1px solid #3a3a48;
-    border-radius: 12px;
-    font-size: 13px;
-    color: #e8e8f0;
-    cursor: pointer;
-    text-align: left;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.2s;
-    position: relative;
-}
-
-.ms-trigger:hover {
-    border-color: #e8a020;
-    background: #2d2d3a;
-}
-
-.ms-trigger::after {
-    content: "▾";
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 12px;
-    color: #6b7280;
-}
-
-.ms-trigger.open::after {
-    content: "▴";
-}
-
-.ms-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    flex: 1;
-    overflow: hidden;
-    max-height: 80px;
-    overflow-y: auto;
-}
-
-.ms-placeholder {
-    color: #6b7280;
-    font-size: 12px;
-}
-
-.ms-tag {
-    background: rgba(232, 160, 32, 0.12);
-    color: #e8a020;
-    border-radius: 6px;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 500;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.ms-tag button {
-    background: none;
-    border: none;
-    color: #e8a020;
-    cursor: pointer;
-    font-size: 12px;
-    padding: 0;
-    opacity: 0.6;
-}
-
-.ms-tag button:hover {
-    opacity: 1;
-}
-
-.ms-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    z-index: 1000;
-    background: #252530;
-    border: 1px solid #3a3a48;
-    border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    max-height: 300px;
-    overflow-y: auto;
-    overflow-x: hidden;
-}
-
-.ms-dropdown::-webkit-scrollbar {
-    width: 5px;
-}
-
-.ms-dropdown::-webkit-scrollbar-track {
-    background: #1a1a2a;
-    border-radius: 10px;
-}
-
-.ms-dropdown::-webkit-scrollbar-thumb {
-    background: #e8a020;
-    border-radius: 10px;
-}
-
-.ms-option {
-    padding: 10px 12px;
-    font-size: 13px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: #9ca3af;
-    border-bottom: 1px solid #3a3a48;
-    transition: all 0.15s;
-}
-
-.ms-option:last-child {
-    border-bottom: none;
-}
-
-.ms-option:hover {
-    background: #2d2d3a;
-    color: #e8e8f0;
-}
-
-.ms-option.selected {
-    background: rgba(232, 160, 32, 0.12);
-    color: #e8a020;
-}
-
-.ms-option input {
-    accent-color: #e8a020;
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-}
-
-/* ============================================
-   SEARCH DANS MULTISELECT
-   ============================================ */
-.ms-search {
-    padding: 8px;
-    border-bottom: 1px solid #3a3a48;
-    background: #252530;
-    position: sticky;
-    top: 0;
-    z-index: 2;
-}
-
-.ms-search input {
-    width: 100%;
-    height: 34px;
-    padding: 0 10px;
-    background: #1a1a2a;
-    border: 1px solid #3a3a48;
-    border-radius: 8px;
-    font-size: 12px;
-    color: #e8e8f0;
-    outline: none;
-    transition: all 0.2s;
-}
-
-.ms-search input::placeholder {
-    color: #6b7280;
-}
-
-.ms-search input:focus {
-    border-color: #e8a020;
-    box-shadow: 0 0 0 2px rgba(232,160,32,0.2);
-    background: #1a1a2a;
-}
-
-.ms-footer {
-    padding: 8px 12px;
-    border-top: 1px solid #3a3a48;
-    display: flex;
-    justify-content: space-between;
-    font-size: 11px;
-    color: #6b7280;
-    background: #2d2d3a;
-}
-
-.ms-footer button {
-    background: none;
-    border: none;
-    color: #e8a020;
-    cursor: pointer;
-    margin-left: 12px;
-}
-
-/* ============================================
-   BOUTON RESET - BIEN POSITIONNÉ
-   ============================================ */
-.filter-reset {
-    position: absolute;
-    top: 0;
-    right: 0;
-    display: flex;
-    align-items: flex-start;
-}
-
-.reset-btn {
-    height: 40px;
-    padding: 0 20px;
-    background: var(--filter-surface);
-    border: 1px solid var(--filter-border);
-    border-radius: 12px;
-    color: var(--filter-text-muted);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-}
-
-.reset-btn:hover {
-    background: var(--filter-surface-hover);
-    border-color: var(--filter-danger);
-    color: var(--filter-danger);
-}
-
-/* ============================================
-   PÉRIODE ET STATISTIQUES
-   ============================================ */
-.filter-period-stats {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 16px;
-    padding: 16px 0 0;
-    margin-top: 8px;
-    border-top: 1px solid var(--filter-border);
-}
-
-.period-controls {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-.period-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--filter-text-muted);
-    letter-spacing: 0.5px;
-}
-
-.date-range {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--filter-surface);
-    padding: 4px 12px;
-    border-radius: 12px;
-    border: 1px solid var(--filter-border);
-}
-
-.date-input {
-    background: transparent;
-    border: none;
-    padding: 8px 0;
-    font-size: 13px;
-    color: var(--filter-text);
-    font-family: monospace;
-}
-
-.date-input:focus {
-    outline: none;
-}
-
-.date-sep {
-    color: var(--filter-text-muted);
-    font-size: 12px;
-}
-
-.date-error-msg {
-    font-size: 12px;
-    color: var(--filter-danger);
-    background: rgba(239, 68, 68, 0.1);
-    padding: 4px 12px;
-    border-radius: 8px;
-}
-
-.stats-badges {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.stat-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    background: var(--filter-surface);
-    border-radius: 20px;
-    font-size: 12px;
-    border: 1px solid var(--filter-border);
-    transition: all 0.2s;
-}
-
-.stat-icon {
-    font-size: 13px;
-}
-
-.stat-number {
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--filter-text);
-}
-
-.stat-text {
-    color: var(--filter-text-muted);
-    font-size: 11px;
-}
-
-.stat-success .stat-number { color: var(--filter-success); }
-.stat-danger .stat-number  { color: var(--filter-danger); }
-.stat-warning .stat-number { color: var(--filter-warning); }
-.stat-info .stat-number    { color: var(--filter-info); }
-.stat-muted .stat-number   { color: var(--filter-text-muted); }
-
-/* ============================================
-   TAGS ACTIFS
-   ============================================ */
-.active-tags-bar {
-    margin-top: 16px;
-    padding-top: 12px;
-    border-top: 1px solid var(--filter-border);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.tags-label {
-    font-size: 11px;
-    color: var(--filter-text-muted);
-    font-weight: 500;
-}
-
-.tags-list {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-/* ============================================
-   CARDS PANNEAUX
-   ============================================ */
-.panel-card {
-    background: var(--filter-surface);
-    border-radius: 14px;
-    overflow: hidden;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    min-height: 300px;
-    border: 2px solid var(--filter-border);
-    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
-    contain: layout style;
-}
-
-.panel-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-}
-
-.panel-card.selected {
-    border-color: var(--filter-accent);
-    box-shadow: 0 0 0 3px rgba(232, 160, 32, 0.3);
-}
-
-.panel-card.selectable {
-    cursor: pointer;
-}
-
-.ext-badge {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    z-index: 2;
-    padding: 2px 7px;
-    border-radius: 4px;
-    font-size: 9px;
-    font-weight: 700;
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    white-space: nowrap;
-}
-
-/* ============================================
-   ANIMATIONS
-   ============================================ */
-@keyframes dropdownFade {
-    from {
-        opacity: 0;
-        transform: translateY(-8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-/* ============================================
-   RESPONSIVE
-   ============================================ */
-@media (max-width: 1200px) {
-    .filters-main-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 14px;
-    }
-    
-    .filter-reset {
-        position: relative;
-        grid-column: span 3;
-        justify-content: flex-end;
-        margin-top: 8px;
-        padding-right: 0;
-    }
-}
-
-@media (max-width: 992px) {
-    .filters-main-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 12px;
-    }
-    
-    .filter-reset {
-        grid-column: span 2;
-        margin-top: 8px;
-    }
-}
-
-@media (max-width: 768px) {
-    .dispo-filters {
-        padding: 16px;
-    }
-    
-    .filters-main-grid {
-        grid-template-columns: 1fr;
-        gap: 12px;
-    }
-    
-    .filter-reset {
-        position: relative;
-        grid-column: span 1;
-        justify-content: flex-start;
-        margin-top: 4px;
-    }
-    
-    .reset-btn {
-        width: 100%;
-        justify-content: center;
-    }
-    
-    .filter-period-stats {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .period-controls {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .date-range {
-        justify-content: space-between;
-    }
-    
-    .date-input {
-        flex: 1;
-    }
-    
-    .stats-badges {
-        justify-content: flex-start;
-    }
-}
-
-@media (max-width: 480px) {
-    .stats-badges {
-        gap: 6px;
-    }
-    
-    .stat-item {
-        padding: 3px 8px;
-    }
-    
-    .stat-text {
-        display: none;
-    }
-    
-    .ms-dropdown {
-        min-width: 220px;
-        max-width: 280px;
-    }
+.filter-label  { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:#6b7280; }
+.filter-select { height:40px; padding:0 12px; background:#252530; border:1px solid #3a3a48; border-radius:10px; font-size:13px; color:#e8e8f0; cursor:pointer; transition:border-color .2s; }
+.filter-select:hover, .filter-select:focus { border-color:#e8a020; outline:none; }
+.ms-badge { background:#e8a020; color:#000; border-radius:9999px; padding:1px 8px; font-size:10px; font-weight:700; }
+.stat-pill { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; background:#252530; border:1px solid #3a3a48; border-radius:9999px; font-size:12px; color:#9ca3af; }
+.modal-input { background:#252530; border:1px solid #3a3a48; border-radius:10px; padding:9px 12px; font-size:13px; color:#e8e8f0; transition:border-color .2s; }
+.modal-input:focus { border-color:#e8a020; outline:none; box-shadow:0 0 0 2px rgba(232,160,32,.2); }
+
+/* Multiselect */
+.ms-wrapper { position:relative; }
+.ms-btn { width:100%; min-height:40px; padding:6px 30px 6px 12px; background:#252530; border:1px solid #3a3a48; border-radius:10px; font-size:13px; color:#e8e8f0; cursor:pointer; text-align:left; display:flex; align-items:center; flex-wrap:wrap; gap:4px; position:relative; transition:border-color .2s; }
+.ms-btn:hover, .ms-btn.open { border-color:#e8a020; }
+.ms-btn::after { content:"▾"; position:absolute; right:10px; top:50%; transform:translateY(-50%); color:#6b7280; font-size:11px; pointer-events:none; }
+.ms-btn.open::after { content:"▴"; }
+.ms-placeholder { color:#6b7280; font-size:12px; }
+.ms-chip { background:rgba(232,160,32,.12); color:#e8a020; border-radius:6px; padding:2px 6px; font-size:11px; display:inline-flex; align-items:center; gap:3px; }
+.ms-chip button { background:none; border:none; color:#e8a020; cursor:pointer; opacity:.6; font-size:11px; padding:0; }
+.ms-chip button:hover { opacity:1; }
+.ms-drop { position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:500; background:#252530; border:1px solid #3a3a48; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.5); max-height:280px; display:flex; flex-direction:column; overflow:hidden; }
+.ms-search { padding:8px; border-bottom:1px solid #3a3a48; }
+.ms-search input { width:100%; height:32px; padding:0 10px; background:#1a1a2a; border:1px solid #3a3a48; border-radius:8px; font-size:12px; color:#e8e8f0; outline:none; }
+.ms-search input:focus { border-color:#e8a020; }
+.ms-list { overflow-y:auto; flex:1; }
+.ms-opt { padding:9px 12px; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:8px; color:#9ca3af; border-bottom:1px solid #3a3a48; transition:all .15s; }
+.ms-opt:last-child { border-bottom:none; }
+.ms-opt:hover { background:#2d2d3a; color:#e8e8f0; }
+.ms-opt.selected { background:rgba(232,160,32,.1); color:#e8a020; }
+.ms-opt input { accent-color:#e8a020; width:15px; height:15px; cursor:pointer; flex-shrink:0; }
+.ms-foot { padding:6px 12px; border-top:1px solid #3a3a48; background:#2d2d3a; display:flex; justify-content:space-between; font-size:11px; color:#6b7280; }
+.ms-foot button { background:none; border:none; color:#e8a020; cursor:pointer; font-size:11px; }
+
+/* Panel card */
+.panel-card { background:#252530; border-radius:14px; overflow:hidden; border:2px solid #3a3a48; transition:transform .15s, box-shadow .15s, border-color .15s; position:relative; display:flex; flex-direction:column; }
+.panel-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,.3); }
+.panel-card.selected { border-color:#e8a020; box-shadow:0 0 0 3px rgba(232,160,32,.25); }
+.panel-card.selectable { cursor:pointer; }
+
+@keyframes spin { to { transform:rotate(360deg); } }
+.animate-spin { animation:spin 1s linear infinite; }
+
+@media (max-width:768px) {
+    #sel-bar { left:0; }
 }
 </style>
 
 @push('scripts')
 <script>
-(function () {
+(function(){
 'use strict';
 
-const INIT   = window.__DISPO_INIT__;
-const COLORS = INIT.cardColors;
+const D = window.__DISPO__;
 
-// ══ STATE ════════════════════════════════════════════════════════
-const STATE = {
-    filters: {
-        commune_ids: [], zone_ids: [], format_ids: [],
+// ══════════════════════════════════════════════════
+// ÉTAT GLOBAL
+// ══════════════════════════════════════════════════
+const S = {
+    f: {                        // filtres
+        commune_ids: [], zone_ids: [], format_ids: [], agency_ids: [],
         dimensions: '', is_lit: '', statut: 'tous',
-        dispo_du: '', dispo_au: '',
-        source: 'all', agency_ids: [],
-        q: '',
+        du: '', au: '', source: 'all', q: '',
     },
-    selection: { ids: [], rates: {}, sources: {} },
-    loading:        false,
-    debounceTimer:  null,
-    searchTimer:    null,
-    lastRequestId:  0,
-    currentPage:    1,
-    totalPages:     1,
-    perPage:        48,
-    totalCount:     0,
+    sel: { ids: [], rates: {}, sources: {} },
+    page: 1, pages: 1, total: 0, perPage: 48,
+    loading: false, reqId: 0,
+    debounce: null, searchDebounce: null,
 };
 
-// ══ APP ══════════════════════════════════════════════════════════
-window.APP = {
+// Données multiselect
+const MS_DATA = {
+    commune_ids: D.communes,
+    zone_ids:    D.zones,
+    format_ids:  D.formats,
+    agency_ids:  D.agencies,
+};
 
-    // ── Filtres simples ────────────────────────────────────────
-    setFilter(key, value) {
-        STATE.filters[key] = value;
-        STATE.currentPage  = 1;
-        this._triggerFetch();
-        this._updateUI();
+// ══════════════════════════════════════════════════
+// API PUBLIQUE
+// ══════════════════════════════════════════════════
+window.DISPO = {
+
+    // ── Filtres ──────────────────────────────────
+    set(k, v) {
+        S.f[k] = v; S.page = 1;
+        this._fetch(); this._syncUI();
     },
 
-    onSourceChange(value) {
-        STATE.filters.source = value;
-        if (value === 'internal') {
-            STATE.filters.agency_ids = [];
-            this._syncAllMultiselects();
-        }
-        STATE.currentPage = 1;
-        this._triggerFetch();
-        this._updateUI();
+    onSearch(v) {
+        S.f.q = v.trim(); S.page = 1;
+        clearTimeout(S.searchDebounce);
+        S.searchDebounce = setTimeout(() => { this._fetch(); this._syncUI(); }, 350);
+        _el('btn-clear-search').classList.toggle('hidden', !v);
     },
 
-    onSearchChange(value) {
-        STATE.filters.q = value.trim();
-        STATE.currentPage = 1;
-        clearTimeout(STATE.searchTimer);
-        STATE.searchTimer = setTimeout(() => {
-            this._triggerFetch(0); // délai 0 — déjà debounced
-            this._updateUI();
-        }, 300);
+    clearSearch() {
+        S.f.q = ''; S.page = 1;
+        _el('f-search').value = '';
+        _el('btn-clear-search').classList.add('hidden');
+        this._fetch(); this._syncUI();
     },
 
-    // ── Multiselect ────────────────────────────────────────────
-    toggleMultiFilter(key, id) {
-        id = parseInt(id);
-        const arr = STATE.filters[key];
-        const idx = arr.indexOf(id);
-        if (idx === -1) arr.push(id);
-        else arr.splice(idx, 1);
-        STATE.currentPage = 1;
-        this._syncMultiselectTrigger(key);
-        this._triggerFetch();
-        this._updateUI();
+    onSourceChange(v) {
+        S.f.source = v;
+        if (v === 'internal') { S.f.agency_ids = []; _syncMs('agency_ids'); }
+        S.page = 1; this._fetch(); this._syncUI();
     },
 
-    removeMultiFilter(key, id) {
-        id = parseInt(id);
-        const arr = STATE.filters[key];
-        const idx = arr.indexOf(id);
-        if (idx !== -1) arr.splice(idx, 1);
-        STATE.currentPage = 1;
-        this._syncMultiselectTrigger(key);
-        this._triggerFetch();
-        this._updateUI();
-    },
-
-    _syncMultiselectTrigger(key) {
-        document.querySelectorAll('.multiselect-wrapper').forEach(el => {
-            if (el.dataset.filter === key && el.__ms) el.__ms.updateTrigger();
-        });
-    },
-
-    _syncAllMultiselects() {
-        document.querySelectorAll('.multiselect-wrapper').forEach(el => {
-            if (el.__ms) el.__ms.updateTrigger();
-        });
-    },
-
-    // ── Dates ──────────────────────────────────────────────────
-    onStartDateChange(val) {
-        STATE.filters.dispo_du = val;
-        STATE.currentPage = 1;
-        const endInput = document.getElementById('f-dispo-au');
-        if (val && endInput) {
-            const d = new Date(val);
-            d.setDate(d.getDate() + 1);
-            endInput.min = d.toISOString().split('T')[0];
-            if (endInput.value && endInput.value <= val) {
-                endInput.value = '';
-                STATE.filters.dispo_au = '';
-            }
-        }
-        this._hideDateError();
-        this._triggerFetch();
-        this._updateUI();
-    },
-
-    onEndDateChange(val) {
-        STATE.filters.dispo_au = val;
-        STATE.currentPage = 1;
-        if (STATE.filters.dispo_du && val && val <= STATE.filters.dispo_du) {
-            this._showDateError('La date de fin doit être après la date de début.');
-            STATE.filters.dispo_au = '';
-            document.getElementById('f-dispo-au').value = '';
-            return;
-        }
-        this._hideDateError();
-        this._triggerFetch();
-        this._updateUI();
-    },
-
-    // ── Pagination ─────────────────────────────────────────────
-    prevPage() {
-        if (STATE.currentPage > 1) {
-            STATE.currentPage--;
-            this._fetchPanels();
-        }
-    },
-
-    nextPage() {
-        if (STATE.currentPage < STATE.totalPages) {
-            STATE.currentPage++;
-            this._fetchPanels();
-            // scroll en haut de la grille
-            document.getElementById('panels-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    },
-
-    // ── Reset ──────────────────────────────────────────────────
-    resetFilters() {
-        STATE.filters = {
-            commune_ids: [], zone_ids: [], format_ids: [],
-            dimensions: '', is_lit: '', statut: 'tous',
-            dispo_du: '', dispo_au: '',
-            source: 'all', agency_ids: [],
-            q: '',
-        };
-        STATE.currentPage = 1;
-
-        // Reset DOM
-        ['f-dimensions', 'f-is-lit'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.value = '';
-        });
-        const s = document.getElementById('f-statut'); if (s) s.value = 'tous';
-        const r = document.getElementById('f-source'); if (r) r.value = 'all';
-        const du = document.getElementById('f-dispo-du');
-        const au = document.getElementById('f-dispo-au');
-        if (du) du.value = '';
-        if (au) { au.value = ''; au.min = ''; }
-        const sq = document.getElementById('f-search'); if (sq) sq.value = '';
-
-        this._syncAllMultiselects();
-        this._hideDateError();
-        this._triggerFetch();
-        this._updateUI();
-    },
-
-    // ── Sélection ──────────────────────────────────────────────
-    togglePanel(id, rate, source) {
-        rate   = parseFloat(rate) || 0;
-        source = source || 'internal';
-        const idx = STATE.selection.ids.indexOf(id);
-        if (idx === -1) {
-            STATE.selection.ids.push(id);
-            STATE.selection.rates[id]   = rate;
-            STATE.selection.sources[id] = source;
+    onDateChange(which, val) {
+        const f = S.f;
+        if (which === 'du') {
+            f.du = val;
+            const next = new Date(val); next.setDate(next.getDate()+1);
+            const auEl = _el('f-au');
+            auEl.min = next.toISOString().split('T')[0];
+            if (f.au && f.au <= val) { f.au = ''; auEl.value = ''; }
         } else {
-            STATE.selection.ids.splice(idx, 1);
-            delete STATE.selection.rates[id];
-            delete STATE.selection.sources[id];
+            f.au = val;
         }
-        const sel  = STATE.selection.ids.includes(id);
+        _hideDateErr();
+        if (f.du && f.au && f.au <= f.du) {
+            _showDateErr('La date de fin doit être après la date de début.');
+            f.au = ''; _el('f-au').value = ''; return;
+        }
+        S.page = 1; this._fetch(); this._syncUI();
+    },
+
+    reset() {
+        S.f = { commune_ids:[], zone_ids:[], format_ids:[], agency_ids:[],
+                dimensions:'', is_lit:'', statut:'tous',
+                du:'', au:'', source:'all', q:'' };
+        S.page = 1;
+        ['f-dimensions','f-is_lit','f-statut','f-source']
+            .forEach(id => { const el=_el(id); if(el) el.value = (id==='f-statut'?'tous':''); });
+        _el('f-source').value = 'all';
+        _el('f-du').value = ''; _el('f-au').value = '';
+        _el('f-search').value = '';
+        _el('btn-clear-search').classList.add('hidden');
+        ['commune_ids','zone_ids','format_ids','agency_ids'].forEach(_syncMs);
+        _hideDateErr();
+        this._fetch(); this._syncUI();
+    },
+
+    // ── Pagination ────────────────────────────────
+    prevPage() { if(S.page>1){ S.page--; this._fetch(); } },
+    nextPage() { if(S.page<S.pages){ S.page++; this._fetch(); _el('panels-grid')?.scrollIntoView({behavior:'smooth',block:'start'}); } },
+
+    // ── Sélection ─────────────────────────────────
+    toggle(id, rate, source) {
+        const idx = S.sel.ids.indexOf(id);
+        if (idx === -1) {
+            S.sel.ids.push(id);
+            S.sel.rates[id]   = parseFloat(rate)||0;
+            S.sel.sources[id] = source||'internal';
+        } else {
+            S.sel.ids.splice(idx,1);
+            delete S.sel.rates[id];
+            delete S.sel.sources[id];
+        }
+        const sel = S.sel.ids.includes(id);
         const card = document.querySelector(`.panel-card[data-id="${id}"]`);
         if (card) {
             card.classList.toggle('selected', sel);
-            const btn = card.querySelector('.btn-select');
+            const btn = card.querySelector('.btn-sel');
             if (btn) {
                 btn.textContent      = sel ? '✓ Sélectionné' : '+ Sélectionner';
                 btn.style.background = sel ? 'var(--accent)' : 'var(--surface3)';
                 btn.style.color      = sel ? '#000' : 'var(--text)';
-                btn.style.border     = sel ? 'none' : '1px solid var(--border2)';
             }
-            const chk = card.querySelector('.card-checkbox');
+            const chk = card.querySelector('.card-chk');
             if (chk) chk.checked = sel;
         }
-        this._updateSelectionBar();
+        this._syncSelBar();
     },
 
     clearSelection() {
-        STATE.selection = { ids: [], rates: {}, sources: {} };
+        S.sel = { ids:[], rates:{}, sources:{} };
         document.querySelectorAll('.panel-card.selected').forEach(c => {
             c.classList.remove('selected');
-            const btn = c.querySelector('.btn-select');
-            if (btn) {
-                btn.textContent = '+ Sélectionner';
-                btn.style.background = 'var(--surface3)';
-                btn.style.color = 'var(--text)';
-                btn.style.border = '1px solid var(--border2)';
-            }
-            const chk = c.querySelector('.card-checkbox');
-            if (chk) chk.checked = false;
+            const btn=c.querySelector('.btn-sel');
+            if(btn){ btn.textContent='+ Sélectionner'; btn.style.background='var(--surface3)'; btn.style.color='var(--text)'; }
+            const chk=c.querySelector('.card-chk'); if(chk) chk.checked=false;
         });
-        this._updateSelectionBar();
+        this._syncSelBar();
     },
 
-    // ── Modals ─────────────────────────────────────────────────
+    // ── Modal Confirmer ───────────────────────────
     openConfirmModal() {
-        const cs = document.getElementById('confirm-start');
-        const ce = document.getElementById('confirm-end');
-        if (cs) cs.value = STATE.filters.dispo_du || '';
-        if (ce) ce.value = STATE.filters.dispo_au || '';
+        _el('modal-du').value = S.f.du || '';
+        _el('modal-au').value = S.f.au || '';
+        _el('hidden-panels').innerHTML = S.sel.ids
+            .map(id=>`<input type="hidden" name="panel_ids[]" value="${id}">`)
+            .join('');
+        const hasExt = Object.values(S.sel.sources).includes('external');
+        _el('modal-ext-warn').classList.toggle('hidden', !hasExt);
+        _el('modal-ext-warn').classList.toggle('flex', hasExt);
+        _el('modal-errors').classList.add('hidden');
+        _el('modal-date-err').classList.add('hidden');
+        _el('modal-summary').textContent = `${S.sel.ids.length} panneau(x) sélectionné(s)`;
+        this.calcEstimate();
+        _show('modal-confirm');
+    },
 
-        const container = document.getElementById('hidden-panel-inputs');
-        if (container) {
-            container.innerHTML = '';
-            STATE.selection.ids.forEach(id => {
-                const inp = document.createElement('input');
-                inp.type = 'hidden'; inp.name = 'panel_ids[]'; inp.value = id;
-                container.appendChild(inp);
-            });
+    closeConfirmModal() { _hide('modal-confirm'); },
+
+    setType(type) {
+        document.querySelector(`input[name="type"][value="${type}"]`).checked = true;
+        _el('lbl-option').className = _el('lbl-option').className
+            .replace(/border-[^\s]+/, type==='option' ? 'border-orange-500' : 'border-[#3a3a48]');
+        _el('lbl-ferme').className = _el('lbl-ferme').className
+            .replace(/border-[^\s]+/, type==='ferme' ? 'border-green-500' : 'border-[#3a3a48]');
+        const showCamp = type === 'ferme';
+        _el('wrapper-campaign-name').classList.toggle('hidden', !showCamp);
+    },
+
+    calcEstimate() {
+        const du = _el('modal-du').value;
+        const au = _el('modal-au').value;
+        const errEl = _el('modal-date-err');
+
+        if (du && au) {
+            if (au <= du) {
+                errEl.classList.remove('hidden');
+                _el('modal-date-err-text').textContent = 'La date de fin doit être après la date de début.';
+                _el('modal-total').textContent = '—';
+                _el('modal-months').textContent = '';
+                return;
+            }
+            errEl.classList.add('hidden');
         }
-        const hasExt = Object.values(STATE.selection.sources).includes('external');
-        const w = document.getElementById('modal-ext-warning');
-        if (w) w.style.display = hasExt ? 'block' : 'none';
 
-        document.getElementById('modal-confirm').style.display = 'flex';
+        if (!du || !au) { _el('modal-total').textContent = '—'; _el('modal-months').textContent = ''; return; }
+
+        const months = _monthsBetween(du, au);
+        const total  = S.sel.ids.reduce((s,id) => s + (S.sel.rates[id]||0)*months, 0);
+        _el('modal-total').textContent  = Math.round(total).toLocaleString('fr-FR');
+        _el('modal-months').textContent = `(${months} mois)`;
     },
 
-    closeConfirmModal() {
-        document.getElementById('modal-confirm').style.display = 'none';
-    },
+    submitForm() {
+        const du = _el('modal-du').value;
+        const au = _el('modal-au').value;
+        const client = _el('modal-client').value;
+        const errors = [];
 
-    submitConfirm() {
-        const container = document.getElementById('hidden-panel-inputs');
-        if (container) {
-            container.innerHTML = '';
-            STATE.selection.ids.forEach(id => {
-                const inp = document.createElement('input');
-                inp.type = 'hidden'; inp.name = 'panel_ids[]'; inp.value = id;
-                container.appendChild(inp);
-            });
+        if (!client) errors.push('Veuillez sélectionner un client.');
+        if (!du) errors.push('La date de début est obligatoire.');
+        if (!au) errors.push('La date de fin est obligatoire.');
+        if (du && au && au <= du) errors.push('La date de fin doit être après la date de début.');
+
+        if (errors.length > 0) {
+            const errBox = _el('modal-errors');
+            errBox.innerHTML = errors.map(e=>`<div class="flex gap-2"><span>⚠️</span><span>${e}</span></div>`).join('');
+            errBox.classList.remove('hidden');
+            return;
         }
-        document.getElementById('confirm-form').submit();
+
+        // Mettre à jour les inputs cachés
+        _el('hidden-panels').innerHTML = S.sel.ids
+            .map(id=>`<input type="hidden" name="panel_ids[]" value="${id}">`)
+            .join('');
+
+        const btn = _el('modal-submit');
+        _el('modal-submit-txt').textContent = 'Envoi en cours…';
+        btn.disabled = true;
+
+        _el('form-confirm').submit();
     },
 
-    openFiche(panel) {
-        const tarif = panel.monthly_rate
-            ? Number(panel.monthly_rate).toLocaleString('fr-FR') + ' FCFA'
-            : 'Non renseigné';
-        const srcLabel = panel.source === 'external' ? `🤝 ${panel.agency_name}` : '🏢 Interne';
-
-        document.getElementById('fiche-title').textContent = `📋 ${panel.reference} — ${panel.name}`;
-        document.getElementById('fiche-body').innerHTML = `
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
-                ${[
-                    ['RÉFÉRENCE', panel.reference], ['SOURCE', srcLabel],
-                    ['COMMUNE', panel.commune],      ['ZONE', panel.zone],
-                    ['FORMAT', panel.format],         ['DIMENSIONS', panel.dimensions],
-                    ['CATÉGORIE', panel.category],    ['ÉCLAIRAGE', panel.is_lit ? '💡 Éclairé' : 'Non éclairé'],
-                    ['TRAFIC/JOUR', panel.daily_traffic ? panel.daily_traffic.toLocaleString('fr-FR') + ' contacts/j' : '—'],
-                ].map(([l, v]) => `
-                    <div style="background:var(--surface2);border-radius:8px;padding:9px">
-                        <div style="font-size:9px;color:var(--text3);font-weight:700;letter-spacing:.5px;margin-bottom:3px">${l}</div>
-                        <div style="font-size:13px;color:var(--text);font-weight:500">${v || '—'}</div>
-                    </div>`).join('')}
+    // ── Modal Fiche ───────────────────────────────
+    openFiche(p) {
+        _el('fiche-title').textContent = `📋 ${p.reference} — ${p.name}`;
+        const src = p.source === 'external' ? `🤝 ${p.agency_name}` : '🏢 Interne';
+        const fields = [
+            ['RÉFÉRENCE', p.reference], ['SOURCE', src],
+            ['COMMUNE', p.commune],     ['ZONE', p.zone],
+            ['FORMAT', p.format],       ['DIMENSIONS', p.dimensions||'—'],
+            ['ÉCLAIRAGE', p.is_lit?'💡 Éclairé':'Non éclairé'],
+            ['TRAFIC/JOUR', p.daily_traffic>0 ? p.daily_traffic.toLocaleString('fr-FR')+' contacts' : '—'],
+        ];
+        _el('fiche-body').innerHTML = `
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                ${fields.map(([l,v])=>`
+                <div class="bg-[#252530] rounded-lg p-3">
+                    <div class="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-1">${l}</div>
+                    <div class="text-sm text-gray-200 font-medium">${v||'—'}</div>
+                </div>`).join('')}
             </div>
-            <div style="background:rgba(232,160,32,0.08);border:1px solid rgba(232,160,32,0.3);
-                        border-radius:10px;padding:12px;text-align:center;margin-bottom:12px">
-                <div style="font-size:9px;color:var(--text3);font-weight:700;letter-spacing:.5px;margin-bottom:2px">TARIF MENSUEL</div>
-                <div style="font-size:22px;font-weight:800;color:var(--accent)">${tarif}</div>
+            <div class="bg-[#e8a020]/5 border border-[#e8a020]/20 rounded-xl p-4 text-center mb-3">
+                <div class="text-xs text-gray-500 mb-1">TARIF MENSUEL</div>
+                <div class="text-2xl font-black text-[#e8a020]">${p.monthly_rate?Math.round(p.monthly_rate).toLocaleString('fr-FR')+' FCFA':'—'}</div>
             </div>
-            ${panel.zone_description ? `
-            <div style="font-size:9px;color:var(--text3);font-weight:700;letter-spacing:.5px;margin-bottom:5px">DESCRIPTION DE ZONE</div>
-            <div style="background:var(--surface2);border-radius:8px;padding:10px;font-size:12px;color:var(--text2);line-height:1.5">
-                ${panel.zone_description}
-            </div>` : ''}`;
+            ${p.zone_description?`<div class="text-xs text-gray-500 mb-1 uppercase font-bold">Zone</div><div class="bg-[#252530] rounded-xl p-3 text-xs text-gray-300">${p.zone_description}</div>`:''}
+        `;
+        _show('modal-fiche');
+    },
+    closeFiche() { _hide('modal-fiche'); },
 
-        document.getElementById('modal-fiche').style.display = 'flex';
+    // ── Modal Erreur ──────────────────────────────
+    showError(msgs) {
+        _el('error-body').innerHTML = (Array.isArray(msgs)?msgs:[msgs])
+            .map(m=>`<div class="flex gap-2 items-start"><span class="text-red-400 flex-shrink-0">•</span><span>${m}</span></div>`).join('');
+        _show('modal-error');
+    },
+    closeError() { _hide('modal-error'); },
+
+    // ══════════════════════════════════════════════
+    // PRIVÉ — FETCH
+    // ══════════════════════════════════════════════
+    _fetch(delay) {
+        clearTimeout(S.debounce);
+        const d = delay !== undefined ? delay : 300;
+        S.debounce = setTimeout(() => this._doFetch(), d);
     },
 
-    // ══ PRIVÉ ════════════════════════════════════════════════════
+    async _doFetch() {
+        const rid = ++S.reqId;
+        S.loading = true;
+        _showLoader();
 
-    _triggerFetch(delay) {
-        clearTimeout(STATE.debounceTimer);
-        const d = delay !== undefined ? delay
-            : (STATE.filters.dispo_du && STATE.filters.dispo_au ? 350 : 250);
-        STATE.debounceTimer = setTimeout(() => this._fetchPanels(), d);
-    },
-
-    async _fetchPanels() {
-        const requestId = ++STATE.lastRequestId;
-        STATE.loading   = true;
-        this._showLoader();
-
-        const f      = STATE.filters;
-        const params = new URLSearchParams();
-
-        // Filtres multi-valeurs
-        f.commune_ids.forEach(id => params.append('commune_ids[]', id));
-        f.zone_ids.forEach(id    => params.append('zone_ids[]', id));
-        f.format_ids.forEach(id  => params.append('format_ids[]', id));
-        f.agency_ids.forEach(id  => params.append('agency_ids[]', id));
-
-        // Filtres scalaires
-        if (f.dimensions)    params.set('dimensions', f.dimensions);
-        if (f.is_lit !== '') params.set('is_lit', f.is_lit);
-        if (f.statut !== 'tous') params.set('statut', f.statut);
-        if (f.dispo_du)      params.set('dispo_du', f.dispo_du);
-        if (f.dispo_au)      params.set('dispo_au', f.dispo_au);
-        if (f.source !== 'all') params.set('source', f.source);
-        if (f.q)             params.set('q', f.q);
-
-        // Pagination
-        params.set('page',     STATE.currentPage);
-        params.set('per_page', STATE.perPage);
+        const p = new URLSearchParams();
+        S.f.commune_ids.forEach(id => p.append('commune_ids[]', id));
+        S.f.zone_ids.forEach(id    => p.append('zone_ids[]', id));
+        S.f.format_ids.forEach(id  => p.append('format_ids[]', id));
+        S.f.agency_ids.forEach(id  => p.append('agency_ids[]', id));
+        if (S.f.dimensions)   p.set('dimensions', S.f.dimensions);
+        if (S.f.is_lit !== '') p.set('is_lit', S.f.is_lit);
+        if (S.f.statut !== 'tous') p.set('statut', S.f.statut);
+        if (S.f.du) p.set('dispo_du', S.f.du);
+        if (S.f.au) p.set('dispo_au', S.f.au);
+        if (S.f.source !== 'all') p.set('source', S.f.source);
+        if (S.f.q) p.set('q', S.f.q);
+        p.set('page', S.page);
+        p.set('per_page', S.perPage);
 
         try {
-            const resp = await fetch(`${INIT.ajaxUrl}?${params}`, {
-                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': INIT.csrfToken }
+            const res  = await fetch(`${D.ajaxUrl}?${p}`, {
+                headers: { Accept:'application/json', 'X-CSRF-TOKEN': D.csrf }
             });
-            if (!resp.ok) throw new Error('Erreur ' + resp.status);
-            const data = await resp.json();
-            if (requestId !== STATE.lastRequestId) return; // requête obsolète
+            if (rid !== S.reqId) return; // requête périmée
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
 
-            STATE.loading = false;
+            S.loading = false;
+
             if (data.date_error) {
-                this._showDateError(data.date_error);
-                this._showEmpty(data.date_error, '');
-            } else {
-                this._hideDateError();
-                STATE.totalPages = data.stats.pages || 1;
-                STATE.totalCount = data.stats.total || 0;
-                this._renderPanels(data.panels);
-                this._updateStats(data.stats, data.has_period);
-                this._renderPagination(data.stats);
+                _showDateErr(data.date_error);
+                _showEmpty(data.date_error, '');
+                return;
             }
+
+            S.pages = data.stats.pages || 1;
+            S.total = data.stats.total || 0;
+            this._renderPanels(data.panels);
+            this._renderStats(data.stats, data.has_period);
+            this._renderPagination(data.stats);
+
         } catch (err) {
-            if (requestId !== STATE.lastRequestId) return;
-            STATE.loading = false;
-            this._showEmpty('Erreur de chargement. Réessayez.', '');
-            console.error(err);
+            if (rid !== S.reqId) return;
+            S.loading = false;
+            _showEmpty('Erreur de chargement', 'Vérifiez votre connexion.');
+            console.error('[DISPO]', err);
         }
     },
 
+    // ══════════════════════════════════════════════
+    // PRIVÉ — RENDU
+    // ══════════════════════════════════════════════
     _renderPanels(panels) {
-        const grid  = document.getElementById('panels-grid');
-        const empty = document.getElementById('empty-state');
-
-        document.getElementById('loader').style.display = 'none';
+        const grid  = _el('panels-grid');
+        const empty = _el('empty-state');
+        _hide('loader');
 
         if (!panels || panels.length === 0) {
-            grid.innerHTML       = '';
-            empty.style.display  = 'block';
-            document.getElementById('empty-title').textContent = 'Aucun panneau trouvé';
-            document.getElementById('empty-sub').textContent   = 'Modifiez vos filtres.';
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+            const hasPanels = S.total > 0;
+            _el('empty-title').textContent = hasPanels
+                ? 'Aucun panneau correspond à vos filtres'
+                : 'Aucun panneau enregistré';
+            _el('empty-sub').textContent = hasPanels
+                ? 'Modifiez ou réinitialisez vos filtres.'
+                : 'Commencez par créer votre premier panneau.';
+            _el('empty-cta').style.display = hasPanels ? 'none' : 'inline-flex';
             return;
         }
 
         empty.style.display = 'none';
-
-        // Fragment DOM — évite les reflows répétés
-        const fragment = document.createDocumentFragment();
+        const frag = document.createDocumentFragment();
         panels.forEach(p => {
             const div = document.createElement('div');
-            div.innerHTML = this._renderCard(p);
-            fragment.appendChild(div.firstElementChild);
+            div.innerHTML = this._card(p);
+            frag.appendChild(div.firstElementChild);
         });
         grid.innerHTML = '';
-        grid.appendChild(fragment);
+        grid.appendChild(frag);
 
-        // Restaurer sélection visuelle
-        STATE.selection.ids.forEach(id => {
+        // Restaurer état sélection
+        S.sel.ids.forEach(id => {
             const card = grid.querySelector(`.panel-card[data-id="${id}"]`);
             if (!card) return;
             card.classList.add('selected');
-            const btn = card.querySelector('.btn-select');
-            if (btn) {
-                btn.textContent = '✓ Sélectionné';
-                btn.style.background = 'var(--accent)';
-                btn.style.color = '#000';
-                btn.style.border = 'none';
-            }
-            const chk = card.querySelector('.card-checkbox');
-            if (chk) chk.checked = true;
+            const btn = card.querySelector('.btn-sel');
+            if (btn) { btn.textContent='✓ Sélectionné'; btn.style.background='var(--accent)'; btn.style.color='#000'; }
+            const chk = card.querySelector('.card-chk'); if(chk) chk.checked=true;
         });
     },
 
-    _renderCard(p) {
-        const STATUS = {
-            libre:          { label:'Disponible', c:'#22c55e', bg:'rgba(34,197,94,0.08)',  bd:'rgba(34,197,94,0.3)' },
-            occupe:         { label:'Occupé',      c:'#ef4444', bg:'rgba(239,68,68,0.08)',  bd:'rgba(239,68,68,0.3)' },
-            option_periode: { label:'En option',   c:'#e8a020', bg:'rgba(232,160,32,0.08)', bd:'rgba(232,160,32,0.3)' },
-            confirme:       { label:'Confirmé',    c:'#a855f7', bg:'rgba(168,85,247,0.08)', bd:'rgba(168,85,247,0.3)' },
-            option:         { label:'Option',      c:'#e8a020', bg:'rgba(232,160,32,0.08)', bd:'rgba(232,160,32,0.3)' },
-            maintenance:    { label:'Maintenance', c:'#6b7280', bg:'rgba(107,114,128,0.08)',bd:'rgba(107,114,128,0.3)' },
-            a_verifier:     { label:'À vérifier',  c:'#94a3b8', bg:'rgba(148,163,184,0.08)',bd:'rgba(148,163,184,0.3)' },
+    _card(p) {
+        const CFG = {
+            libre:          { l:'Disponible', c:'#22c55e', b:'rgba(34,197,94,.08)',  bd:'rgba(34,197,94,.3)' },
+            occupe:         { l:'Occupé',      c:'#ef4444', b:'rgba(239,68,68,.08)',  bd:'rgba(239,68,68,.3)' },
+            option_periode: { l:'En option',   c:'#e8a020', b:'rgba(232,160,32,.08)', bd:'rgba(232,160,32,.3)' },
+            option:         { l:'Option',      c:'#e8a020', b:'rgba(232,160,32,.08)', bd:'rgba(232,160,32,.3)' },
+            confirme:       { l:'Confirmé',    c:'#a855f7', b:'rgba(168,85,247,.08)', bd:'rgba(168,85,247,.3)' },
+            maintenance:    { l:'Maintenance', c:'#6b7280', b:'rgba(107,114,128,.08)',bd:'rgba(107,114,128,.3)' },
+            a_verifier:     { l:'À vérifier',  c:'#94a3b8', b:'rgba(148,163,184,.08)',bd:'rgba(148,163,184,.3)' },
         };
+        const sc   = CFG[p.display_status] || CFG.libre;
+        const bg   = D.colors[p.card_color_idx] || '#3b82f6';
+        const isSel = S.sel.ids.includes(p.id);
 
-        const sc    = STATUS[p.display_status] || STATUS.libre;
-        const bg    = COLORS[p.card_color_idx] || '#3b82f6';
-        const isSel = STATE.selection.ids.includes(p.id);
+        const safe = encodeURIComponent(JSON.stringify(p));
 
-        const agencyBadge = p.source === 'external'
-            ? `<div class="ext-badge">🤝 ${p.agency_name}</div>` : '';
-
-        const checkbox = p.is_selectable ? `
-            <div style="position:absolute;top:10px;left:10px;z-index:3">
-                <input type="checkbox" class="card-checkbox" ${isSel ? 'checked' : ''}
-                       onclick="event.stopPropagation();APP.togglePanel('${p.id}',${p.monthly_rate},'${p.source}')"
-                       style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer">
-            </div>` : '';
+        const tags = [
+            p.format     ? `<span class="tag">${p.format}</span>` : '',
+            p.dimensions ? `<span class="tag">${p.dimensions}</span>` : '',
+            p.is_lit     ? `<span class="tag text-[#e8a020]">💡</span>` : '',
+        ].filter(Boolean).join('');
 
         const releaseHtml = p.release_info ? `
-            <div style="margin:3px 0 5px;padding:3px 7px;border-radius:5px;font-size:10px;
-                        background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15)">
-                <span style="color:${p.release_info.color === 'green' ? 'var(--green)' : p.release_info.color === 'orange' ? 'var(--accent)' : 'var(--text2)'}">
+            <div class="mt-1 px-2 py-1 rounded bg-red-500/5 border border-red-500/15 text-xs">
+                <span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'#e8a020':'#9ca3af'}">
                     📅 ${p.release_info.label}
                 </span>
             </div>` : '';
 
-        const tags = [
-            p.format     ? `<span style="background:var(--surface3);color:var(--text2);font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600">${p.format}</span>` : '',
-            p.dimensions ? `<span style="background:var(--surface3);color:var(--text2);font-size:10px;padding:2px 6px;border-radius:4px">${p.dimensions}</span>` : '',
-            p.is_lit     ? `<span style="background:rgba(232,160,32,0.12);color:var(--accent);font-size:10px;padding:2px 6px;border-radius:4px">💡</span>` : '',
-            p.daily_traffic > 0 ? `<span style="background:var(--surface3);color:var(--text2);font-size:10px;padding:2px 6px;border-radius:4px">👁 ${p.daily_traffic.toLocaleString('fr-FR')}/j</span>` : '',
-        ].filter(Boolean).join('');
-
-        const price = p.monthly_rate
-            ? `${Math.round(p.monthly_rate / 1000).toLocaleString('fr-FR')}K <span style="font-size:11px;font-weight:400;color:var(--text3)">FCFA/mois</span>`
-            : `<span style="font-size:13px;color:var(--text3)">Tarif non défini</span>`;
-
-        // Sérialisation sûre pour l'attribut data
-        const panelData = encodeURIComponent(JSON.stringify(p));
-
-        const statusLabels = {
-            occupe:'🔒 Occupé', maintenance:'🔧 Maintenance',
-            option_periode:'⏳ Option', option:'⏳ Option',
-            confirme:'✅ Confirmé', a_verifier:'❓ À vérifier',
-        };
-
-        const actionBtn = p.is_selectable ? `
-            <button type="button" class="btn btn-sm btn-select"
-                    onclick="event.stopPropagation();APP.togglePanel('${p.id}',${p.monthly_rate},'${p.source}')"
-                    style="flex:1.2;font-size:11px;border-radius:7px;padding:5px 8px;
-                           background:${isSel ? 'var(--accent)' : 'var(--surface3)'};
-                           color:${isSel ? '#000' : 'var(--text)'};
-                           border:${isSel ? 'none' : '1px solid var(--border2)'}">
-                ${isSel ? '✓ Sélectionné' : '+ Sélectionner'}
+        const selBtn = p.is_selectable ? `
+            <button type="button" class="btn-sel flex-1 text-xs py-1.5 px-2 rounded-lg transition-all"
+                    style="background:${isSel?'var(--accent)':'var(--surface3)'};color:${isSel?'#000':'var(--text)'};border:1px solid ${isSel?'transparent':'var(--border2)'}"
+                    onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">
+                ${isSel?'✓ Sélectionné':'+ Sélectionner'}
             </button>` : `
-            <div style="flex:1.2;padding:5px 8px;background:var(--surface3);border-radius:7px;
-                        font-size:11px;color:var(--text3);text-align:center;border:1px solid var(--border2)">
-                ${statusLabels[p.display_status] || sc.label}
+            <div class="flex-1 text-center text-xs py-1.5 px-2 rounded-lg bg-[#1a1a2a] text-gray-500 border border-[#3a3a48]">
+                ${sc.l}
             </div>`;
 
-        const borderColor = isSel ? 'var(--accent)'
-            : (p.source === 'external' ? 'rgba(96,165,250,0.25)' : sc.bd);
-
         return `
-<div class="panel-card selectable ${isSel ? 'selected' : ''}"
+<div class="panel-card selectable ${isSel?'selected':''}"
      data-id="${p.id}"
-     data-source="${p.source}"
-     ${p.is_selectable ? `onclick="APP.togglePanel('${p.id}',${p.monthly_rate},'${p.source}')"` : ''}
-     style="border-color:${borderColor}">
-    <div style="position:absolute;top:8px;right:8px;z-index:2;padding:2px 8px;border-radius:20px;
-                font-size:10px;font-weight:700;background:${sc.bg};color:${sc.c};border:1px solid ${sc.bd}">
-        ${sc.label}
+     ${p.is_selectable?`onclick="DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')"`:''}>
+
+    ${p.source==='external'?`<div class="absolute top-2 left-2 z-10 text-[9px] font-bold px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-400/30">🤝 ${p.agency_name}</div>`:''}
+
+    ${p.is_selectable?`
+    <div class="absolute top-2 right-10 z-10">
+        <input type="checkbox" class="card-chk accent-[#e8a020] w-4 h-4 cursor-pointer" ${isSel?'checked':''}
+               onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">
+    </div>`:''}
+
+    <div class="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full text-[10px] font-bold"
+         style="background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">
+        ${sc.l}
     </div>
-    ${agencyBadge}
-    ${checkbox}
-    <div style="background:${sc.bg};height:90px;flex-shrink:0;
-                display:flex;justify-content:center;align-items:center">
-        <div style="background:${bg};border-radius:7px;padding:7px 16px;
-                    font-family:monospace;font-size:13px;font-weight:700;
-                    color:#fff;letter-spacing:1px;box-shadow:0 4px 10px rgba(0,0,0,0.3)">
+
+    {{-- Thumb --}}
+    <div class="h-20 flex-shrink-0 flex items-center justify-center" style="background:${sc.b}">
+        <div class="px-4 py-1.5 rounded-lg font-mono font-bold text-sm text-white tracking-wider shadow-lg"
+             style="background:${bg}">
             ${p.reference}
         </div>
     </div>
-    <div style="padding:10px 12px;flex:1;display:flex;flex-direction:column">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:1px">
-            ${p.commune}${p.zone && p.zone !== '—' ? ' · ' + p.zone : ''}
-        </div>
-        <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:6px;
-                    overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.name}">
-            ${p.name}
-        </div>
-        <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:6px">${tags}</div>
-        ${p.zone_description ? `
-        <div style="font-size:11px;color:var(--text2);margin-bottom:5px;
-                    overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-             title="${p.zone_description}">📍 ${p.zone_description}</div>` : ''}
-        <div style="margin-top:auto;padding-top:7px;border-top:1px solid var(--border)">
-            <div style="font-size:15px;font-weight:800;color:var(--accent);margin-bottom:4px">${price}</div>
+
+    {{-- Corps --}}
+    <div class="p-3 flex flex-col flex-1">
+        <div class="text-[10px] text-gray-500 mb-0.5">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div>
+        <div class="font-bold text-sm text-gray-100 mb-2 truncate" title="${p.name}">${p.name}</div>
+        <div class="flex gap-1 flex-wrap mb-2">${tags}</div>
+        ${p.zone_description?`<div class="text-[11px] text-gray-400 mb-2 truncate" title="${p.zone_description}">📍 ${p.zone_description}</div>`:''}
+        <div class="mt-auto pt-2 border-t border-[#3a3a48]">
+            <div class="text-base font-black text-[#e8a020] mb-1">
+                ${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K <span class="text-xs font-normal text-gray-500">FCFA/mois</span>':'<span class="text-sm text-gray-500">Tarif non défini</span>'}
+            </div>
             ${releaseHtml}
-            <div style="display:flex;gap:5px">
-                <button type="button" class="btn btn-ghost btn-sm"
-                        onclick="event.stopPropagation();APP.openFiche(JSON.parse(decodeURIComponent(this.dataset.panel)))"
-                        data-panel="${panelData}"
-                        style="flex:1;font-size:10px;padding:4px 6px">📋 Fiche</button>
-                ${actionBtn}
+            <div class="flex gap-1.5 mt-2">
+                <button type="button" class="flex-none text-[10px] px-2 py-1.5 rounded-lg bg-[#1a1a2a] border border-[#3a3a48] text-gray-400 hover:text-gray-200 hover:border-gray-400 transition-all"
+                        onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))"
+                        data-p="${safe}">
+                    📋 Fiche
+                </button>
+                ${selBtn}
             </div>
         </div>
     </div>
-</div>`;
+</div>
+<style>.tag{background:var(--surface3);color:var(--text2);font-size:10px;padding:2px 6px;border-radius:4px;}</style>`;
+    },
+
+    _renderStats(stats, hasPeriod) {
+        const set = (id, html, show=true) => {
+            const el = _el(id); if(!el) return;
+            el.style.display = show?'inline-flex':'none';
+            if(show) el.innerHTML = html;
+        };
+        set('stat-total', `📊 <strong>${stats.total}</strong> panneau(x)`);
+        set('stat-dispo',   `✅ <strong>${stats.disponibles}</strong> dispos`, hasPeriod && stats.disponibles>0);
+        set('stat-occupes', `🔒 <strong>${stats.occupes}</strong> occupés`,   hasPeriod && stats.occupes>0);
+        set('stat-options', `⏳ <strong>${stats.options}</strong> options`,    hasPeriod && stats.options>0);
+        set('stat-ext',     `🤝 <strong>${stats.externes}</strong> externes`, stats.externes>0);
     },
 
     _renderPagination(stats) {
-        const bar  = document.getElementById('pagination-bar');
-        const info = document.getElementById('pagination-info');
-        const prev = document.getElementById('btn-prev');
-        const next = document.getElementById('btn-next');
-
+        const bar  = _el('pagination-bar');
+        const info = _el('pag-info');
+        const prev = _el('btn-prev');
+        const next = _el('btn-next');
         if (!bar) return;
-
-        if (stats.pages <= 1) {
-            bar.style.display = 'none';
-            return;
-        }
-
-        bar.style.display = 'flex';
-        const from = (STATE.currentPage - 1) * STATE.perPage + 1;
-        const to   = Math.min(STATE.currentPage * STATE.perPage, stats.total);
-        if (info) info.textContent = `${from}–${to} sur ${stats.total} panneaux`;
-        if (prev) prev.disabled = STATE.currentPage <= 1;
-        if (next) next.disabled = STATE.currentPage >= stats.pages;
+        if (stats.pages <= 1) { bar.classList.add('hidden'); return; }
+        bar.classList.remove('hidden');
+        const from = (S.page-1)*S.perPage+1;
+        const to   = Math.min(S.page*S.perPage, stats.total);
+        if (info) info.textContent = `${from}–${to} sur ${stats.total}`;
+        if (prev) prev.disabled = S.page <= 1;
+        if (next) next.disabled = S.page >= stats.pages;
     },
 
-    _updateStats(stats, hasPeriod) {
-        const el = id => document.getElementById(id);
+    _syncSelBar() {
+        const n = S.sel.ids.length;
+        const total = Object.values(S.sel.rates).reduce((s,r)=>s+r,0);
+        const nExt  = Object.values(S.sel.sources).filter(s=>s==='external').length;
 
-        if (el('stat-total'))
-            el('stat-total').innerHTML = `<strong style="color:var(--text)">${stats.total}</strong> panneau(x)`;
-
-        if (hasPeriod) {
-            this._showStat('stat-dispo',   stats.disponibles > 0, `✅ <strong>${stats.disponibles}</strong> disponible(s)`);
-            this._showStat('stat-occupes', stats.occupes > 0,     `🔒 <strong>${stats.occupes}</strong> occupé(s)`);
-            this._showStat('stat-options', stats.options > 0,     `⏳ <strong>${stats.options}</strong> en option`);
-        } else {
-            ['stat-dispo', 'stat-occupes', 'stat-options'].forEach(id => {
-                const e = el(id); if (e) e.style.display = 'none';
-            });
-        }
-        this._showStat('stat-externes',   stats.externes   > 0, `🤝 <strong>${stats.externes}</strong> externe(s)`);
-        this._showStat('stat-a-verifier', stats.a_verifier > 0, `❓ <strong>${stats.a_verifier}</strong> à vérifier`);
+        _el('sel-bar').style.display = n > 0 ? 'block' : 'none';
+        const tw = _el('topbar-confirm-wrapper');
+        if(tw) tw.style.display = n > 0 ? 'block' : 'none';
+        _el('sel-count').textContent    = n;
+        _el('sel-amount').textContent   = Math.round(total).toLocaleString('fr-FR') + ' FCFA/mois';
+        _el('topbar-count').textContent = n;
+        const eb = _el('sel-ext-badge');
+        if(eb) { eb.classList.toggle('hidden', nExt===0); _el('sel-ext-n').textContent=nExt; }
     },
 
-    _showStat(id, condition, html) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.style.display = condition ? 'inline' : 'none';
-        if (condition) el.innerHTML = html;
+    _syncUI() {
+        const f = S.f;
+        const active = f.commune_ids.length||f.zone_ids.length||f.format_ids.length||
+            f.agency_ids.length||f.dimensions||f.is_lit!==''||
+            f.statut!=='tous'||f.du||f.au||f.source!=='all'||f.q;
+        _el('btn-reset').classList.toggle('hidden', !active);
+        this._renderTags();
     },
 
-    _updateSelectionBar() {
-        const n     = STATE.selection.ids.length;
-        const total = Object.values(STATE.selection.rates).reduce((s, r) => s + r, 0);
-        const nExt  = Object.values(STATE.selection.sources).filter(s => s === 'external').length;
-
-        const el = id => document.getElementById(id);
-        const bar = el('selection-bar');
-        if (bar) bar.style.display = n > 0 ? 'block' : 'none';
-
-        const tw = el('topbar-confirm-wrapper');
-        if (tw) tw.style.display = n > 0 ? 'block' : 'none';
-
-        if (el('sel-count'))    el('sel-count').textContent    = n;
-        if (el('sel-total'))    el('sel-total').textContent    = Math.round(total).toLocaleString('fr-FR');
-        if (el('topbar-count')) el('topbar-count').textContent = n;
-
-        const badge = el('sel-ext-badge');
-        if (badge) badge.style.display = nExt > 0 ? 'flex' : 'none';
-        const cnt = el('sel-ext-count');
-        if (cnt) cnt.textContent = nExt;
-    },
-
-    _updateUI() {
-        const f = STATE.filters;
-        const hasFilters = f.commune_ids.length || f.zone_ids.length || f.format_ids.length ||
-            f.agency_ids.length || f.dimensions || f.is_lit !== '' ||
-            f.statut !== 'tous' || f.dispo_du || f.dispo_au ||
-            f.source !== 'all' || f.q;
-
-        const resetBtn = document.getElementById('btn-reset-filters');
-        if (resetBtn) resetBtn.style.display = hasFilters ? 'block' : 'none';
-        this._renderActiveTags();
-    },
-
-    _renderActiveTags() {
-        const container = document.getElementById('active-tags');
-        const tagsDiv   = document.getElementById('tags-container');
-        if (!container || !tagsDiv) return;
-
-        const f = STATE.filters;
+    _renderTags() {
+        const f = S.f;
         const tags = [];
+        const addMS = (ids, key, data) => ids.forEach(id => {
+            const it = data.find(x=>x.id===id);
+            if(it) tags.push({ l:it.name, rm:()=>{ const i=S.f[key].indexOf(id); if(i>-1) S.f[key].splice(i,1); S.page=1; _syncMs(key); this._fetch(); this._syncUI(); } });
+        });
+        addMS(f.commune_ids, 'commune_ids', D.communes);
+        addMS(f.zone_ids,    'zone_ids',    D.zones);
+        addMS(f.format_ids,  'format_ids',  D.formats);
+        addMS(f.agency_ids,  'agency_ids',  D.agencies);
+        if(f.dimensions) tags.push({l:f.dimensions, rm:()=>{ S.f.dimensions=''; _el('f-dimensions').value=''; S.page=1; this._fetch(); this._syncUI(); }});
+        if(f.is_lit==='1') tags.push({l:'💡 Éclairé', rm:()=>{ S.f.is_lit=''; _el('f-is_lit').value=''; S.page=1; this._fetch(); this._syncUI(); }});
+        if(f.is_lit==='0') tags.push({l:'Non éclairé', rm:()=>{ S.f.is_lit=''; _el('f-is_lit').value=''; S.page=1; this._fetch(); this._syncUI(); }});
+        if(f.statut!=='tous') tags.push({l:'Statut: '+f.statut, rm:()=>{ S.f.statut='tous'; _el('f-statut').value='tous'; S.page=1; this._fetch(); this._syncUI(); }});
+        if(f.q) tags.push({l:'🔍 '+f.q, rm:()=>{ S.f.q=''; _el('f-search').value=''; _el('btn-clear-search').classList.add('hidden'); S.page=1; this._fetch(); this._syncUI(); }});
 
-        const addMulti = (ids, data, key, prefix = '') =>
-            ids.forEach(id => {
-                const item = data.find(x => x.id === id);
-                if (item) tags.push({ label: prefix + item.name, action: `APP.removeMultiFilter('${key}',${id})` });
-            });
-
-        addMulti(f.commune_ids, INIT.communes,  'commune_ids');
-        addMulti(f.zone_ids,    INIT.zones,     'zone_ids');
-        addMulti(f.format_ids,  INIT.formats,   'format_ids');
-        addMulti(f.agency_ids,  INIT.agencies,  'agency_ids', '🤝 ');
-
-        if (f.dimensions) tags.push({ label: f.dimensions,
-            action: `APP.setFilter('dimensions','');document.getElementById('f-dimensions').value=''` });
-        if (f.is_lit === '1') tags.push({ label: '💡 Éclairé',
-            action: `APP.setFilter('is_lit','');document.getElementById('f-is-lit').value=''` });
-        if (f.is_lit === '0') tags.push({ label: 'Non éclairé',
-            action: `APP.setFilter('is_lit','');document.getElementById('f-is-lit').value=''` });
-        if (f.statut !== 'tous') tags.push({ label: 'Statut : ' + f.statut,
-            action: `APP.setFilter('statut','tous');document.getElementById('f-statut').value='tous'` });
-        if (f.source !== 'all') tags.push({ label: f.source === 'internal' ? '🏢 Mes panneaux' : '🤝 Externes',
-            action: `APP.onSourceChange('all');document.getElementById('f-source').value='all'` });
-        if (f.dispo_du) tags.push({ label: 'Du ' + f.dispo_du,
-            action: `APP.setFilter('dispo_du','');document.getElementById('f-dispo-du').value=''` });
-        if (f.dispo_au) tags.push({ label: 'Au ' + f.dispo_au,
-            action: `APP.setFilter('dispo_au','');document.getElementById('f-dispo-au').value=''` });
-        if (f.q) tags.push({ label: '🔍 ' + f.q,
-            action: `APP.setFilter('q','');document.getElementById('f-search').value=''` });
-
-        container.style.display = tags.length > 0 ? 'flex' : 'none';
-        tagsDiv.innerHTML = tags.map(t => `
-            <span class="ms-tag">
-                ${t.label}
-                <button type="button" onclick="${t.action}" title="Retirer">✕</button>
+        const bar  = _el('tags-bar');
+        const list = _el('tags-list');
+        if(!bar||!list) return;
+        bar.classList.toggle('hidden', tags.length===0);
+        bar.classList.toggle('flex',   tags.length>0);
+        list.innerHTML = tags.map((t,i)=>`
+            <span class="ms-chip">
+                ${t.l}
+                <button type="button" onclick="__tagRemove(${i})" title="Retirer">✕</button>
             </span>`).join('');
-    },
-
-    _showLoader() {
-        document.getElementById('loader').style.display      = 'block';
-        document.getElementById('panels-grid').innerHTML     = '';
-        document.getElementById('empty-state').style.display = 'none';
-        document.getElementById('pagination-bar') && (document.getElementById('pagination-bar').style.display = 'none');
-    },
-
-    _showEmpty(title, sub) {
-        document.getElementById('loader').style.display      = 'none';
-        document.getElementById('panels-grid').innerHTML     = '';
-        const empty = document.getElementById('empty-state');
-        empty.style.display = 'block';
-        document.getElementById('empty-title').textContent = title;
-        document.getElementById('empty-sub').textContent   = sub;
-    },
-
-    _showDateError(msg) {
-        const el = document.getElementById('date-error-msg');
-        if (el) { el.textContent = '⚠️ ' + msg; el.style.display = 'block'; }
-    },
-    _hideDateError() {
-        const el = document.getElementById('date-error-msg');
-        if (el) el.style.display = 'none';
+        // Stocker callbacks
+        window.__tagCbs = tags.map(t=>t.rm);
     },
 };
 
-// ══ MULTISELECT — optimisé 1000+ items avec recherche intégrée ══
-function buildMultiselect(wrapper) {
-    const filter      = wrapper.dataset.filter;
-    const placeholder = wrapper.dataset.placeholder || 'Sélectionner';
+// Callback global pour les tags (évite l'eval inline)
+window.__tagRemove = i => { if(window.__tagCbs&&window.__tagCbs[i]) window.__tagCbs[i](); };
 
-    const DATA_MAP = {
-        commune_ids: INIT.communes,
-        zone_ids:    INIT.zones,
-        format_ids:  INIT.formats,
-        agency_ids:  INIT.agencies,
-    };
-    const data = DATA_MAP[filter] || [];
+// ══════════════════════════════════════════════════
+// MULTISELECT
+// ══════════════════════════════════════════════════
+const MS = {}; // instances { key: { el, btn, drop, list } }
 
-    // Badge key : agency_ids → agencies (exception), sinon strip _ids + s
-    const badgeKey = filter === 'agency_ids' ? 'agencies' : filter.replace('_ids', 's');
+function buildMs(wrapper) {
+    const key  = wrapper.dataset.key;
+    const ph   = wrapper.dataset.placeholder || 'Sélectionner';
+    const data = MS_DATA[key] || [];
 
-    wrapper.style.position = 'relative';
+    const btn  = document.createElement('button');
+    btn.type   = 'button';
+    btn.className = 'ms-btn';
+    btn.innerHTML = `<span class="ms-tags-inner"><span class="ms-placeholder">${ph}</span></span>`;
 
-    // ── Trigger ─────────────────────────────────────────────────
-    const trigger = document.createElement('button');
-    trigger.type      = 'button';
-    trigger.className = 'ms-trigger';
-    trigger.innerHTML = `<span class="ms-tags"><span class="ms-placeholder">${placeholder}</span></span>
-                         <span style="font-size:10px;color:var(--text3);flex-shrink:0">▾</span>`;
+    const drop = document.createElement('div');
+    drop.className     = 'ms-drop';
+    drop.style.display = 'none';
 
-    // ── Dropdown ─────────────────────────────────────────────────
-    const dropdown = document.createElement('div');
-    dropdown.className     = 'ms-dropdown';
-    dropdown.style.display = 'none';
+    // Recherche
+    const srch = document.createElement('div');
+    srch.className = 'ms-search';
+    const si = document.createElement('input');
+    si.type = 'text'; si.placeholder = 'Rechercher…'; si.autocomplete = 'off';
+    srch.appendChild(si); drop.appendChild(srch);
 
-    // Barre de recherche intégrée (utile pour 1000+ communes)
-    const searchWrapper = document.createElement('div');
-    searchWrapper.className = 'ms-search';
-    const searchInput = document.createElement('input');
-    searchInput.type        = 'text';
-    searchInput.placeholder = 'Rechercher…';
-    searchInput.autocomplete = 'off';
-    searchInput.className = 'ms-search-input';
-    searchWrapper.appendChild(searchInput);
-    dropdown.appendChild(searchWrapper);
+    // Liste
+    const listEl = document.createElement('div');
+    listEl.className = 'ms-list';
+    drop.appendChild(listEl);
 
-    // Liste scrollable
-    const list = document.createElement('div');
-    list.className = 'ms-list';
-    dropdown.appendChild(list);
+    // Pied
+    const foot = document.createElement('div');
+    foot.className = 'ms-foot';
+    foot.innerHTML = `<span id="ms-foot-${key}">0 sélectionné(s)</span>
+        <div><button type="button" onclick="__msAll('${key}')">Tout</button>
+             <button type="button" onclick="__msClear('${key}')">Aucun</button></div>`;
+    drop.appendChild(foot);
 
-    // Footer : tout sélectionner / tout désélectionner
-    const footer = document.createElement('div');
-    footer.className = 'ms-footer';
-    footer.innerHTML = `<span id="ms-count-${filter}">0 sélectionné(s)</span>
-                        <div style="display:flex;gap:8px">
-                            <button type="button" onclick="window.__ms_selectAll('${filter}')">Tout</button>
-                            <button type="button" onclick="window.__ms_clearAll('${filter}')">Aucun</button>
-                        </div>`;
-    dropdown.appendChild(footer);
+    wrapper.appendChild(btn);
+    wrapper.appendChild(drop);
 
-    wrapper.appendChild(trigger);
-    wrapper.appendChild(dropdown);
-
-    // ── Rendu de la liste (avec filtre texte) ─────────────────────
-    function renderList(filterText) {
-        const q       = (filterText || '').toLowerCase().trim();
-        const filtered = q ? data.filter(item => item.name.toLowerCase().includes(q)) : data;
-
+    function render(q='') {
+        const sel = S.f[key];
+        const filtered = q ? data.filter(i=>i.name.toLowerCase().includes(q.toLowerCase())) : data;
         if (filtered.length === 0) {
-            list.innerHTML = '<div class="ms-option" style="color:var(--text3);font-style:italic;justify-content:center">Aucun résultat</div>';
+            listEl.innerHTML = '<div class="ms-opt" style="justify-content:center;font-style:italic">Aucun résultat</div>';
             return;
         }
-
-        // Fragment DOM pour perf avec 1000+ items
         const frag = document.createDocumentFragment();
-        const selectedIds = STATE.filters[filter];
-
         filtered.forEach(item => {
-            const isSel = selectedIds.includes(item.id);
-            const label = document.createElement('label');
-            label.className = 'ms-option' + (isSel ? ' selected' : '');
-            label.dataset.id = item.id;
-
-            const dimStr = (filter === 'format_ids' && item.width && item.height)
-                ? ` <span style="color:var(--text3);font-size:10px">(${Math.round(item.width)}×${Math.round(item.height)}m)</span>`
-                : '';
-
-            label.innerHTML = `<input type="checkbox" ${isSel ? 'checked' : ''} style="accent-color:var(--accent)"> ${item.name}${dimStr}`;
-            label.querySelector('input').addEventListener('change', () => {
-                APP.toggleMultiFilter(filter, item.id);
-                // Mise à jour visuelle locale sans re-render complet
-                label.classList.toggle('selected', STATE.filters[filter].includes(item.id));
-                updateFooterCount();
+            const isSel = sel.includes(item.id);
+            const lbl = document.createElement('label');
+            lbl.className = 'ms-opt'+(isSel?' selected':'');
+            lbl.dataset.id = item.id;
+            const dim = (key==='format_ids'&&item.width&&item.height)
+                ? ` <small class="text-gray-500">(${Math.round(item.width)}×${Math.round(item.height)}m)</small>` : '';
+            lbl.innerHTML = `<input type="checkbox" ${isSel?'checked':''}> ${item.name}${dim}`;
+            lbl.querySelector('input').addEventListener('change', () => {
+                const arr = S.f[key];
+                const idx = arr.indexOf(item.id);
+                if (idx===-1) arr.push(item.id); else arr.splice(idx,1);
+                lbl.classList.toggle('selected', arr.includes(item.id));
+                updateTrigger(); updateFoot();
+                S.page=1; DISPO._fetch(); DISPO._syncUI();
             });
-            frag.appendChild(label);
+            frag.appendChild(lbl);
         });
-
-        list.innerHTML = '';
-        list.appendChild(frag);
+        listEl.innerHTML=''; listEl.appendChild(frag);
     }
 
-    function updateFooterCount() {
-        const n   = STATE.filters[filter].length;
-        const el  = document.getElementById(`ms-count-${filter}`);
-        if (el) el.textContent = n + ' sélectionné(s)';
-        const badge = document.getElementById('badge-' + badgeKey);
-        if (badge) { badge.textContent = n; badge.style.display = n > 0 ? 'inline' : 'none'; }
+    function updateTrigger() {
+        const sel   = S.f[key];
+        const inner = btn.querySelector('.ms-tags-inner');
+        if (!inner) return;
+        if (sel.length===0) {
+            inner.innerHTML = `<span class="ms-placeholder">${ph}</span>`;
+        } else {
+            inner.innerHTML = sel.map(id=>{
+                const it = data.find(x=>x.id===id);
+                return it ? `<span class="ms-chip">${it.name}<button type="button" onclick="event.preventDefault();event.stopPropagation();__msRemove('${key}',${id})" title="Retirer">✕</button></span>` : '';
+            }).join('');
+        }
+        const badge = _el(`badge-${key}`);
+        if (badge) { badge.textContent=sel.length; badge.classList.toggle('hidden',sel.length===0); }
+        // Sync checkboxes
+        listEl.querySelectorAll('label.ms-opt').forEach(l=>{
+            const id=parseInt(l.dataset.id);
+            const c=l.querySelector('input');
+            const s=sel.includes(id);
+            if(c) c.checked=s;
+            l.classList.toggle('selected',s);
+        });
     }
 
-    // Recherche dans le dropdown — debounced 150ms
-    let searchTimer;
-    searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => renderList(searchInput.value), 150);
-    });
+    function updateFoot() {
+        const n = S.f[key].length;
+        const el = _el(`ms-foot-${key}`); if(el) el.textContent=n+' sélectionné(s)';
+    }
 
-    // Helpers globaux pour "Tout / Aucun"
-    window.__ms_selectAll = window.__ms_selectAll || {};
-    window.__ms_clearAll  = window.__ms_clearAll  || {};
-    window[`__ms_selectAll`] = function(key) {
-        const src = DATA_MAP[key] || [];
-        const q   = key === filter ? searchInput.value.toLowerCase().trim() : '';
-        const visible = q ? src.filter(i => i.name.toLowerCase().includes(q)) : src;
-        visible.forEach(item => {
-            if (!STATE.filters[key].includes(item.id))
-                STATE.filters[key].push(item.id);
-        });
-        APP._syncMultiselectTrigger(key);
-        APP._triggerFetch();
-        APP._updateUI();
-        renderList(searchInput.value);
-        updateFooterCount();
-    };
-    window[`__ms_clearAll`] = function(key) {
-        STATE.filters[key] = [];
-        STATE.currentPage  = 1;
-        APP._syncMultiselectTrigger(key);
-        APP._triggerFetch();
-        APP._updateUI();
-        renderList(searchInput.value);
-        updateFooterCount();
-    };
+    let stimer;
+    si.addEventListener('input', () => { clearTimeout(stimer); stimer=setTimeout(()=>render(si.value),150); });
 
-    // ── Ouvrir / fermer ───────────────────────────────────────────
-    trigger.addEventListener('click', e => {
+    btn.addEventListener('click', e => {
         e.stopPropagation();
-        const isOpen = dropdown.style.display !== 'none';
-        closeAllDropdowns();
+        const isOpen = drop.style.display !== 'none';
+        _closeAllMs();
         if (!isOpen) {
-            dropdown.style.display = 'block';
-            trigger.classList.add('open');
-            renderList(''); // rendu initial complet
-            searchInput.value = '';
-            searchInput.focus();
-            updateFooterCount();
+            drop.style.display='flex'; btn.classList.add('open');
+            render(''); si.value=''; si.focus(); updateFoot();
         }
     });
 
-    // ── updateTrigger (appelé par APP._syncMultiselectTrigger) ─────
-    const ms = {
-        updateTrigger() {
-            const selected = STATE.filters[filter];
-            const tagsDiv  = trigger.querySelector('.ms-tags');
-
-            if (selected.length === 0) {
-                tagsDiv.innerHTML = `<span class="ms-placeholder">${placeholder}</span>`;
-            } else {
-                tagsDiv.innerHTML = selected.map(id => {
-                    const item = data.find(x => x.id === id);
-                    return item ? `
-                        <span class="ms-tag">
-                            ${item.name}
-                            <button type="button"
-                                    onclick="event.preventDefault();event.stopPropagation();
-                                             APP.removeMultiFilter('${filter}',${id})"
-                                    title="Retirer">✕</button>
-                        </span>` : '';
-                }).join('');
-            }
-
-            // Sync checkboxes visibles dans la liste
-            list.querySelectorAll('label.ms-option').forEach(label => {
-                const id  = parseInt(label.dataset.id);
-                const chk = label.querySelector('input');
-                const sel = selected.includes(id);
-                if (chk) chk.checked = sel;
-                label.classList.toggle('selected', sel);
-            });
-
-            updateFooterCount();
-        },
-    };
-
-    wrapper.__ms = ms;
-    return ms;
+    MS[key] = { el:wrapper, btn, drop, listEl, render, updateTrigger, updateFoot };
 }
 
-function closeAllDropdowns() {
-    document.querySelectorAll('.ms-dropdown').forEach(d => d.style.display = 'none');
-    document.querySelectorAll('.ms-trigger').forEach(t => t.classList.remove('open'));
+function _syncMs(key) { MS[key]?.updateTrigger(); }
+function _closeAllMs() {
+    Object.values(MS).forEach(m => { m.drop.style.display='none'; m.btn.classList.remove('open'); });
 }
 
-document.addEventListener('click', closeAllDropdowns);
+window.__msAll     = k => { const d=MS_DATA[k]||[]; const q=MS[k]?.drop?.querySelector('.ms-search input')?.value?.toLowerCase()||''; const visible=q?d.filter(i=>i.name.toLowerCase().includes(q)):d; visible.forEach(i=>{ if(!S.f[k].includes(i.id)) S.f[k].push(i.id); }); MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
+window.__msClear   = k => { S.f[k]=[]; MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
+window.__msRemove  = (k,id) => { const i=S.f[k].indexOf(id); if(i>-1) S.f[k].splice(i,1); MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
 
-// ══ INIT ═════════════════════════════════════════════════════════
+document.addEventListener('click', _closeAllMs);
+
+// ══════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════
+function _el(id) { return document.getElementById(id); }
+function _show(id) { const el=_el(id); if(el) el.style.display='flex'; }
+function _hide(id) { const el=_el(id); if(el) el.style.display='none'; }
+function _showLoader() { _show('loader'); _el('panels-grid').innerHTML=''; _el('empty-state').style.display='none'; const p=_el('pagination-bar'); if(p) p.classList.add('hidden'); }
+function _showEmpty(title, sub) { _hide('loader'); _el('panels-grid').innerHTML=''; const e=_el('empty-state'); e.style.display='block'; _el('empty-title').textContent=title; _el('empty-sub').textContent=sub; }
+function _showDateErr(msg) { const el=_el('date-error'); if(el){ el.textContent='⚠️ '+msg; el.classList.remove('hidden'); } }
+function _hideDateErr() { const el=_el('date-error'); if(el) el.classList.add('hidden'); }
+function _monthsBetween(s, e) {
+    const a=new Date(s), b=new Date(e);
+    const m=Math.floor((b-a)/(1000*60*60*24*30));
+    const rem=Math.floor((b-new Date(a.getFullYear(),a.getMonth()+m,a.getDate()))/(1000*60*60*24));
+    return Math.max(rem>0?m+1:m,1);
+}
+
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
-    // Construire tous les multiselects
-    document.querySelectorAll('.multiselect-wrapper').forEach(el => buildMultiselect(el));
 
-    // Peupler select dimensions
-    const dimSelect = document.getElementById('f-dimensions');
-    if (dimSelect) {
-        INIT.dimensions.forEach(dim => {
-            const opt = document.createElement('option');
-            opt.value = dim; opt.textContent = dim;
-            dimSelect.appendChild(opt);
-        });
-    }
+    // Multiselects
+    document.querySelectorAll('.ms-wrapper').forEach(buildMs);
 
-    // Escape = fermer
+    // Dimensions select
+    const dimSel = _el('f-dimensions');
+    if (dimSel) D.dimensions.forEach(d => {
+        const o=document.createElement('option'); o.value=d; o.textContent=d; dimSel.appendChild(o);
+    });
+
+    // Escape
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-            APP.closeConfirmModal();
-            document.getElementById('modal-fiche').style.display = 'none';
-            closeAllDropdowns();
+        if (e.key==='Escape') {
+            DISPO.closeConfirmModal();
+            DISPO.closeFiche();
+            DISPO.closeError();
+            _closeAllMs();
         }
     });
+
+    // Afficher erreurs Laravel si présentes (après redirection POST)
+    if (D.hasErrors && D.flashErrors.length > 0) {
+        DISPO.showError(D.flashErrors);
+    }
 
     // Premier chargement
-    APP._fetchPanels();
-    APP._updateSelectionBar();
+    DISPO._fetch(0);
+    DISPO._syncSelBar();
 });
 
-})(); // IIFE
+})();
 </script>
 @endpush
 </x-admin-layout>
