@@ -7,8 +7,7 @@
   </button>
 </x-slot:topbarActions>
 
-
-{{-- ── Retour ── --}}
+{{-- Retour --}}
 <div style="margin-bottom:16px;">
   <a href="{{ route('admin.external-agencies.index') }}"
      style="color:var(--text2);font-size:13px;text-decoration:none;">
@@ -16,7 +15,7 @@
   </a>
 </div>
 
-{{-- ── Fiche régie ── --}}
+{{-- Fiche régie --}}
 <div class="card" style="margin-bottom:20px;">
   <div class="card-header">
     <div style="display:flex;align-items:center;gap:14px;">
@@ -37,7 +36,7 @@
             })">✏️ Modifier</button>
   </div>
   <div class="card-body">
-    <div class="form-3col" style="gap:12px;">
+    <div class="form-3col">
       <div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">CONTACT</div>
         <div style="font-weight:500;">{{ $agency->contact ?? '—' }}</div>
@@ -54,10 +53,10 @@
   </div>
 </div>
 
-{{-- ── Tableau panneaux ── --}}
+{{-- Tableau panneaux --}}
 <div class="card">
   <div class="card-header">
-    <span class="card-title">Panneaux de la régie</span>
+    <span class="card-title">🪧 Panneaux de la régie</span>
     <span style="font-size:12px;color:var(--text2);">
       {{ $agency->externalPanels->count() }} panneau(x)
     </span>
@@ -68,8 +67,11 @@
         <tr>
           <th>Code</th>
           <th>Désignation</th>
-          <th>Type</th>
+          <th>Format / Catégorie</th>
           <th>Commune</th>
+          <th>Faces</th>
+          <th>Tarif/mois</th>
+          <th>Éclairé</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -83,16 +85,31 @@
                 {{ $panel->code_panneau }}
               </span>
             </td>
-            <td style="font-weight:500;">{{ $panel->designation }}</td>
             <td>
-              @if($panel->type)
-                <span class="badge badge-gray">{{ $panel->type }}</span>
+              <div style="font-weight:500;">{{ $panel->designation }}</div>
+              @if($panel->quartier)
+                <div style="font-size:11px;color:var(--text3);">{{ $panel->quartier }}</div>
+              @endif
+            </td>
+            <td>
+              <div>{{ $panel->format?->name ?? '—' }}</div>
+              @if($panel->category)
+                <div style="font-size:11px;color:var(--text3);">{{ $panel->category->name }}</div>
+              @endif
+            </td>
+            <td style="color:var(--text2);">{{ $panel->commune->name ?? '—' }}</td>
+            <td style="text-align:center;font-weight:700;color:var(--text2);">
+              {{ $panel->nombre_faces ?? 1 }}
+            </td>
+            <td style="color:var(--accent);font-weight:600;">
+              @if($panel->monthly_rate > 0)
+                {{ number_format($panel->monthly_rate, 0, ',', ' ') }} FCFA
               @else
                 <span style="color:var(--text3);">—</span>
               @endif
             </td>
-            <td style="color:var(--text2);">
-              {{ $panel->commune->name ?? '—' }}
+            <td style="text-align:center;">
+              {{ $panel->is_lit ? '💡' : '—' }}
             </td>
             <td>
               <div style="display:flex;gap:5px;">
@@ -114,7 +131,7 @@
           </tr>
         @empty
           <tr>
-            <td colspan="5"
+            <td colspan="8"
                 style="text-align:center;padding:40px;color:var(--text3);">
               Aucun panneau pour cette régie.
             </td>
@@ -126,7 +143,14 @@
 </div>
 
 {{-- ══════════════════════════════════════
-     MODAL — AJOUTER PANNEAU
+     MACRO : champs communs panneau
+══════════════════════════════════════ --}}
+@php
+$orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','sud-ouest'];
+@endphp
+
+{{-- ══════════════════════════════════════
+     MODAL — AJOUTER PANNEAU (formulaire complet)
 ══════════════════════════════════════ --}}
 <div x-data="{ open: false }"
      x-on:open-modal.window="if($event.detail === 'create-panel') open = true"
@@ -134,9 +158,9 @@
      class="modal-overlay"
      @click.self="open = false"
      style="display:none;">
-  <div class="modal" @click.stop>
+  <div class="modal modal-wide" @click.stop>
     <div class="modal-header">
-      <span class="modal-title">Ajouter un panneau</span>
+      <span class="modal-title">➕ Ajouter un panneau</span>
       <button class="modal-close" @click="open = false">✕</button>
     </div>
     <form method="POST"
@@ -145,21 +169,21 @@
       <input type="hidden" name="agency_id" value="{{ $agency->id }}"/>
       <div class="modal-body">
 
+        {{-- INFORMATIONS GÉNÉRALES --}}
+        <div class="section-label">Informations générales</div>
+
         <div class="form-2col">
           <div class="mfg">
             <label>Code panneau *</label>
             <input type="text" name="code_panneau"
                    value="{{ old('code_panneau') }}"
-                   class="{{ $errors->has('code_panneau') ? 'error' : '' }}"
                    placeholder="Ex : AP-0042" required/>
-            @error('code_panneau')
-              <div class="field-error">{{ $message }}</div>
-            @enderror
+            @error('code_panneau')<div class="field-error">{{ $message }}</div>@enderror
           </div>
           <div class="mfg">
-            <label>Type</label>
+            <label>Type de support</label>
             <input type="text" name="type" value="{{ old('type') }}"
-                   placeholder="Ex : 4x3, Mupi…"/>
+                   placeholder="Ex : 4x3, Mupi, LED…"/>
           </div>
         </div>
 
@@ -167,43 +191,169 @@
           <label>Désignation *</label>
           <input type="text" name="designation"
                  value="{{ old('designation') }}"
-                 class="{{ $errors->has('designation') ? 'error' : '' }}"
                  placeholder="Ex : Boulevard Latrille face mer" required/>
-          @error('designation')
-            <div class="field-error">{{ $message }}</div>
-          @enderror
+          @error('designation')<div class="field-error">{{ $message }}</div>@enderror
+        </div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Commune *</label>
+            <select name="commune_id" required>
+              <option value="">— Sélectionner —</option>
+              @foreach($communes as $commune)
+                <option value="{{ $commune->id }}"
+                  {{ old('commune_id') == $commune->id ? 'selected' : '' }}>
+                  {{ $commune->name }}
+                </option>
+              @endforeach
+            </select>
+            @error('commune_id')<div class="field-error">{{ $message }}</div>@enderror
+          </div>
+          <div class="mfg">
+            <label>Zone</label>
+            <select name="zone_id">
+              <option value="">— Aucune —</option>
+              @foreach($zones as $zone)
+                <option value="{{ $zone->id }}"
+                  {{ old('zone_id') == $zone->id ? 'selected' : '' }}>
+                  {{ $zone->name }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+        </div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Format</label>
+            <select name="format_id">
+              <option value="">— Aucun —</option>
+              @foreach($formats as $format)
+                <option value="{{ $format->id }}"
+                  {{ old('format_id') == $format->id ? 'selected' : '' }}>
+                  {{ $format->name }}@if($format->surface) ({{ $format->surface }}m²)@endif
+                </option>
+              @endforeach
+            </select>
+          </div>
+          <div class="mfg">
+            <label>Catégorie</label>
+            <select name="category_id">
+              <option value="">— Aucune —</option>
+              @foreach($categories as $cat)
+                <option value="{{ $cat->id }}"
+                  {{ old('category_id') == $cat->id ? 'selected' : '' }}>
+                  {{ $cat->name }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+        </div>
+
+        {{-- CARACTÉRISTIQUES TECHNIQUES --}}
+        <div class="section-label">Caractéristiques techniques</div>
+
+        <div class="form-3col">
+          <div class="mfg">
+            <label>Nombre de faces</label>
+            <input type="number" name="nombre_faces"
+                   value="{{ old('nombre_faces', 1) }}" min="1" max="6"/>
+          </div>
+          <div class="mfg">
+            <label>Orientation</label>
+            <select name="orientation">
+              <option value="">— Aucune —</option>
+              @foreach($orientations as $o)
+                <option value="{{ $o }}" {{ old('orientation') === $o ? 'selected' : '' }}>
+                  {{ ucfirst($o) }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+          <div class="mfg">
+            <label style="display:flex;align-items:center;gap:6px;margin-top:18px;cursor:pointer;">
+              <input type="checkbox" name="is_lit" value="1"
+                     {{ old('is_lit') ? 'checked' : '' }}
+                     style="width:15px;height:15px;accent-color:var(--accent);">
+              💡 Éclairé
+            </label>
+          </div>
+        </div>
+
+        {{-- TARIFICATION --}}
+        <div class="section-label">Tarification</div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Tarif mensuel (FCFA)</label>
+            <input type="number" name="monthly_rate"
+                   value="{{ old('monthly_rate', 0) }}" step="1000" min="0"/>
+          </div>
+          <div class="mfg">
+            <label>Trafic journalier</label>
+            <input type="number" name="daily_traffic"
+                   value="{{ old('daily_traffic') }}"
+                   min="0" placeholder="Nb véhicules/jour"/>
+          </div>
+        </div>
+
+        {{-- LOCALISATION --}}
+        <div class="section-label">Localisation</div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Adresse</label>
+            <input type="text" name="adresse" value="{{ old('adresse') }}"
+                   placeholder="Ex : Rue des Jardins, N°12"/>
+          </div>
+          <div class="mfg">
+            <label>Quartier</label>
+            <input type="text" name="quartier" value="{{ old('quartier') }}"
+                   placeholder="Ex : Deux Plateaux"/>
+          </div>
         </div>
 
         <div class="mfg">
-          <label>Commune *</label>
-          <select name="commune_id"
-                  class="filter-select {{ $errors->has('commune_id') ? 'error' : '' }}"
-                  style="width:100%;" required>
-            <option value="">— Sélectionner —</option>
-            @foreach($communes as $commune)
-              <option value="{{ $commune->id }}"
-                {{ old('commune_id') == $commune->id ? 'selected' : '' }}>
-                {{ $commune->name }}
-                @if($commune->city) · {{ $commune->city }}@endif
-              </option>
-            @endforeach
-          </select>
-          @error('commune_id')
-            <div class="field-error">{{ $message }}</div>
-          @enderror
+          <label>Axe routier</label>
+          <input type="text" name="axe_routier" value="{{ old('axe_routier') }}"
+                 placeholder="Ex : Boulevard Latrille, Autoroute du Nord…"/>
+        </div>
+
+        <div class="mfg">
+          <label>Description emplacement</label>
+          <textarea name="zone_description"
+                    placeholder="Ex : Face au carrefour, côté droit en venant du Plateau…">{{ old('zone_description') }}</textarea>
+        </div>
+
+        {{-- GPS --}}
+        <div class="section-label">Coordonnées GPS</div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Latitude</label>
+            <input type="number" name="latitude"
+                   value="{{ old('latitude') }}"
+                   step="0.0000001" placeholder="Ex : 5.3600"/>
+          </div>
+          <div class="mfg">
+            <label>Longitude</label>
+            <input type="number" name="longitude"
+                   value="{{ old('longitude') }}"
+                   step="0.0000001" placeholder="Ex : -4.0083"/>
+          </div>
         </div>
 
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" @click="open = false">Annuler</button>
-        <button type="submit" class="btn btn-primary">Ajouter</button>
+        <button type="submit" class="btn btn-primary">✅ Ajouter le panneau</button>
       </div>
     </form>
   </div>
 </div>
 
 {{-- ══════════════════════════════════════
-     MODAL — ÉDITER PANNEAU
+     MODAL — ÉDITER PANNEAU (formulaire complet)
 ══════════════════════════════════════ --}}
 <div x-data="{ open: false, panel: {} }"
      x-on:open-modal.window="if($event.detail?.name === 'edit-panel') {
@@ -213,15 +363,17 @@
      class="modal-overlay"
      @click.self="open = false"
      style="display:none;">
-  <div class="modal" @click.stop>
+  <div class="modal modal-wide" @click.stop>
     <div class="modal-header">
-      <span class="modal-title">Modifier le panneau</span>
+      <span class="modal-title">✏️ Modifier le panneau</span>
       <button class="modal-close" @click="open = false">✕</button>
     </div>
     <form method="POST"
           :action="`/admin/external-agencies/{{ $agency->id }}/panels/${panel.id}`">
       @csrf @method('PUT')
       <div class="modal-body">
+
+        <div class="section-label">Informations générales</div>
 
         <div class="form-2col">
           <div class="mfg">
@@ -230,8 +382,9 @@
                    :value="panel.code_panneau" required/>
           </div>
           <div class="mfg">
-            <label>Type</label>
-            <input type="text" name="type" :value="panel.type"/>
+            <label>Type de support</label>
+            <input type="text" name="type" :value="panel.type"
+                   placeholder="Ex : 4x3, Mupi, LED…"/>
           </div>
         </div>
 
@@ -241,19 +394,140 @@
                  :value="panel.designation" required/>
         </div>
 
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Commune *</label>
+            <select name="commune_id" required>
+              <option value="">— Sélectionner —</option>
+              @foreach($communes as $commune)
+                <option value="{{ $commune->id }}"
+                        :selected="panel.commune_id == {{ $commune->id }}">
+                  {{ $commune->name }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+          <div class="mfg">
+            <label>Zone</label>
+            <select name="zone_id">
+              <option value="">— Aucune —</option>
+              @foreach($zones as $zone)
+                <option value="{{ $zone->id }}"
+                        :selected="panel.zone_id == {{ $zone->id }}">
+                  {{ $zone->name }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+        </div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Format</label>
+            <select name="format_id">
+              <option value="">— Aucun —</option>
+              @foreach($formats as $format)
+                <option value="{{ $format->id }}"
+                        :selected="panel.format_id == {{ $format->id }}">
+                  {{ $format->name }}@if($format->surface) ({{ $format->surface }}m²)@endif
+                </option>
+              @endforeach
+            </select>
+          </div>
+          <div class="mfg">
+            <label>Catégorie</label>
+            <select name="category_id">
+              <option value="">— Aucune —</option>
+              @foreach($categories as $cat)
+                <option value="{{ $cat->id }}"
+                        :selected="panel.category_id == {{ $cat->id }}">
+                  {{ $cat->name }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+        </div>
+
+        <div class="section-label">Caractéristiques techniques</div>
+
+        <div class="form-3col">
+          <div class="mfg">
+            <label>Nombre de faces</label>
+            <input type="number" name="nombre_faces"
+                   :value="panel.nombre_faces ?? 1" min="1" max="6"/>
+          </div>
+          <div class="mfg">
+            <label>Orientation</label>
+            <select name="orientation">
+              <option value="">— Aucune —</option>
+              @foreach($orientations as $o)
+                <option value="{{ $o }}" :selected="panel.orientation === '{{ $o }}'">
+                  {{ ucfirst($o) }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+          <div class="mfg">
+            <label style="display:flex;align-items:center;gap:6px;margin-top:18px;cursor:pointer;">
+              <input type="checkbox" name="is_lit" value="1"
+                     :checked="panel.is_lit"
+                     style="width:15px;height:15px;accent-color:var(--accent);">
+              💡 Éclairé
+            </label>
+          </div>
+        </div>
+
+        <div class="section-label">Tarification</div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Tarif mensuel (FCFA)</label>
+            <input type="number" name="monthly_rate"
+                   :value="panel.monthly_rate ?? 0" step="1000" min="0"/>
+          </div>
+          <div class="mfg">
+            <label>Trafic journalier</label>
+            <input type="number" name="daily_traffic"
+                   :value="panel.daily_traffic" min="0"/>
+          </div>
+        </div>
+
+        <div class="section-label">Localisation</div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Adresse</label>
+            <input type="text" name="adresse" :value="panel.adresse"/>
+          </div>
+          <div class="mfg">
+            <label>Quartier</label>
+            <input type="text" name="quartier" :value="panel.quartier"/>
+          </div>
+        </div>
+
         <div class="mfg">
-          <label>Commune *</label>
-          <select name="commune_id" class="filter-select"
-                  style="width:100%;" required>
-            <option value="">— Sélectionner —</option>
-            @foreach($communes as $commune)
-              <option value="{{ $commune->id }}"
-                      :selected="panel.commune_id == {{ $commune->id }}">
-                {{ $commune->name }}
-                @if($commune->city) · {{ $commune->city }}@endif
-              </option>
-            @endforeach
-          </select>
+          <label>Axe routier</label>
+          <input type="text" name="axe_routier" :value="panel.axe_routier"/>
+        </div>
+
+        <div class="mfg">
+          <label>Description emplacement</label>
+          <textarea name="zone_description" x-text="panel.zone_description"></textarea>
+        </div>
+
+        <div class="section-label">Coordonnées GPS</div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Latitude</label>
+            <input type="number" name="latitude"
+                   :value="panel.latitude" step="0.0000001"/>
+          </div>
+          <div class="mfg">
+            <label>Longitude</label>
+            <input type="number" name="longitude"
+                   :value="panel.longitude" step="0.0000001"/>
+          </div>
         </div>
 
       </div>
@@ -278,9 +552,7 @@
      style="display:none;">
   <div class="modal" style="width:420px;" @click.stop>
     <div class="modal-header">
-      <span class="modal-title" style="color:var(--red);">
-        Supprimer le panneau
-      </span>
+      <span class="modal-title" style="color:var(--red);">🗑️ Supprimer le panneau</span>
       <button class="modal-close" @click="open = false">✕</button>
     </div>
     <div class="modal-body" style="text-align:center;padding:32px 22px;">
@@ -289,9 +561,7 @@
         Supprimer le panneau
         <span x-text="panel.label" style="color:var(--accent);"></span> ?
       </p>
-      <p style="font-size:13px;color:var(--text2);">
-        Cette action est irréversible.
-      </p>
+      <p style="font-size:13px;color:var(--text2);">Cette action est irréversible.</p>
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-ghost" @click="open = false">Annuler</button>
@@ -306,7 +576,7 @@
 </div>
 
 {{-- ══════════════════════════════════════
-     MODAL — ÉDITER RÉGIE (depuis show)
+     MODAL — ÉDITER RÉGIE
 ══════════════════════════════════════ --}}
 <div x-data="{ open: false, agency: {} }"
      x-on:open-modal.window="if($event.detail?.name === 'edit-agency-show') {
@@ -321,16 +591,13 @@
       <span class="modal-title">Modifier la régie</span>
       <button class="modal-close" @click="open = false">✕</button>
     </div>
-    <form method="POST"
-          :action="`/admin/external-agencies/${agency.id}`">
+    <form method="POST" :action="`/admin/external-agencies/${agency.id}`">
       @csrf @method('PUT')
       <div class="modal-body">
-
         <div class="mfg">
           <label>Nom de la régie *</label>
           <input type="text" name="name" :value="agency.name" required/>
         </div>
-
         <div class="form-2col">
           <div class="mfg">
             <label>Contact</label>
@@ -341,12 +608,10 @@
             <input type="email" name="email" :value="agency.email"/>
           </div>
         </div>
-
         <div class="mfg">
           <label>Adresse</label>
           <textarea name="address" x-text="agency.address"></textarea>
         </div>
-
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" @click="open = false">Annuler</button>

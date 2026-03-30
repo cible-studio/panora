@@ -249,6 +249,88 @@
     </div>
 </div>
 
+{{-- ══ INVENTAIRE PANNEAUX DU CLIENT ══ --}}
+@if($panneauxClient->isNotEmpty())
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <div class="card-title">🪧 Panneaux associés ({{ $panneauxClient->count() }})</div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Référence</th>
+                    <th>Désignation</th>
+                    <th>Commune</th>
+                    <th>Format</th>
+                    <th>Source</th>
+                    <th>Période</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($panneauxClient as $item)
+                @php
+                    $statusConfig = [
+                        'actif'      => ['label' => 'Actif',       'bg' => 'rgba(34,197,94,0.1)',   'color' => '#22c55e', 'border' => 'rgba(34,197,94,0.3)'],
+                        'confirme'   => ['label' => 'Confirmé',    'bg' => 'rgba(34,197,94,0.1)',   'color' => '#22c55e', 'border' => 'rgba(34,197,94,0.3)'],
+                        'en_attente' => ['label' => 'Option',      'bg' => 'rgba(232,160,32,0.1)',  'color' => '#e8a020', 'border' => 'rgba(232,160,32,0.3)'],
+                        'option'     => ['label' => 'Option',      'bg' => 'rgba(232,160,32,0.1)',  'color' => '#e8a020', 'border' => 'rgba(232,160,32,0.3)'],
+                        'pose'       => ['label' => 'Pose en cours','bg'=> 'rgba(59,130,246,0.1)',  'color' => '#3b82f6', 'border' => 'rgba(59,130,246,0.3)'],
+                        'termine'    => ['label' => 'Terminé',     'bg' => 'rgba(107,114,128,0.1)', 'color' => '#6b7280', 'border' => 'rgba(107,114,128,0.3)'],
+                        'annule'     => ['label' => 'Annulé',      'bg' => 'rgba(239,68,68,0.1)',   'color' => '#ef4444', 'border' => 'rgba(239,68,68,0.3)'],
+                    ];
+                    $sc = $statusConfig[$item['status']] ?? ['label' => ucfirst($item['status']), 'bg' => 'rgba(107,114,128,0.1)', 'color' => '#6b7280', 'border' => 'rgba(107,114,128,0.3)'];
+                @endphp
+                <tr onmouseover="this.style.background='var(--surface2)'"
+                    onmouseout="this.style.background=''">
+                    <td>
+                        <span style="font-family:monospace;font-weight:700;color:var(--accent);font-size:12px;">
+                            {{ $item['panel']->reference }}
+                        </span>
+                    </td>
+                    <td style="font-weight:500;font-size:13px;">
+                        {{ $item['panel']->name }}
+                    </td>
+                    <td style="font-size:12px;color:var(--text2);">
+                        {{ $item['panel']->commune?->name ?? '—' }}
+                    </td>
+                    <td style="font-size:12px;color:var(--text2);">
+                        {{ $item['panel']->format?->name ?? '—' }}
+                    </td>
+                    <td>
+                        @if($item['source'] === 'campaign')
+                            <a href="{{ route('admin.campaigns.show', $item['source_id']) }}"
+                               style="font-size:11px;color:#3b82f6;text-decoration:none;font-weight:600;">
+                                📢 {{ $item['reference_source'] }}
+                            </a>
+                        @else
+                            <a href="{{ route('admin.reservations.show', $item['source_id']) }}"
+                               style="font-size:11px;color:var(--text2);text-decoration:none;font-weight:600;">
+                                📋 {{ $item['reference_source'] }}
+                            </a>
+                        @endif
+                    </td>
+                    <td style="font-size:11px;color:var(--text3);white-space:nowrap;">
+                        {{ \Carbon\Carbon::parse($item['start_date'])->format('d/m/Y') }}
+                        → {{ \Carbon\Carbon::parse($item['end_date'])->format('d/m/Y') }}
+                    </td>
+                    <td>
+                        <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
+                                     background:{{ $sc['bg'] }};color:{{ $sc['color'] }};
+                                     border:1px solid {{ $sc['border'] }};
+                                     text-transform:uppercase;letter-spacing:.5px;">
+                            {{ $sc['label'] }}
+                        </span>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
+
 {{-- Modal suppression --}}
 <div id="modal-delete-client" class="modal-overlay" style="display:none"
      onclick="if(event.target===this) closeDeleteClient()">

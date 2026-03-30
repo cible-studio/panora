@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ExternalAgency\StoreExternalAgencyRequest;
 use App\Http\Requests\ExternalAgency\UpdateExternalAgencyRequest;
-use App\Http\Requests\ExternalPanel\StoreExternalPanelRequest;
-use App\Http\Requests\ExternalPanel\UpdateExternalPanelRequest;
+use App\Http\Requests\ExternalAgency\StoreExternalPanelRequest;
+use App\Http\Requests\ExternalAgency\UpdateExternalPanelRequest;
+use App\Models\PanelCategory;
 use App\Models\Commune;
 use App\Models\ExternalAgency;
 use App\Models\ExternalPanel;
+use App\Models\PanelFormat;
+use App\Models\Zone;
 use Illuminate\Http\Request;
 
 class ExternalAgencyController extends Controller
@@ -33,12 +36,18 @@ class ExternalAgencyController extends Controller
     // ── Fiche régie + ses panneaux ────────────────────────────
     public function show(ExternalAgency $externalAgency)
     {
-        $externalAgency->load(['externalPanels.commune']);
-        $communes = Commune::orderBy('name')->get();
+        $externalAgency->load(['externalPanels.commune', 'externalPanels.format', 'externalPanels.category']);
+        $communes   = Commune::orderBy('name')->get();
+        $zones      = Zone::orderBy('name')->get();
+        $formats    = PanelFormat::orderBy('name')->get();
+        $categories = PanelCategory::orderBy('name')->get();
 
         return view('admin.external-agencies.show', [
-            'agency'   => $externalAgency,
-            'communes' => $communes,
+            'agency'     => $externalAgency,
+            'communes'   => $communes,
+            'zones'      => $zones,
+            'formats'    => $formats,
+            'categories' => $categories,
         ]);
     }
 
