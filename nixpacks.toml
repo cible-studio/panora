@@ -1,12 +1,28 @@
+[variables]
+PHP_VERSION = "8.3"
+NIXPACKS_PHP_VERSION = "8.3"
+
 [phases.setup]
-nixPkgs = ["php82", "php82Extensions.pdo_mysql", "php82Extensions.mbstring",
-           "php82Extensions.xml", "php82Extensions.curl", "php82Extensions.zip",
-           "php82Extensions.gd", "php82Extensions.intl", "php82Extensions.bcmath",
-           "nodejs_20", "caddy"]
+nixPkgs = [
+    "php83",
+    "php83Extensions.pdo_mysql",
+    "php83Extensions.mbstring",
+    "php83Extensions.xml",
+    "php83Extensions.curl",
+    "php83Extensions.zip",
+    "php83Extensions.gd",
+    "php83Extensions.intl",
+    "php83Extensions.bcmath",
+    "php83Extensions.dom",
+    "php83Extensions.tokenizer",
+    "php83Extensions.fileinfo",
+    "php83Extensions.openssl",
+    "nodejs_20"
+]
 
 [phases.install]
 cmds = [
-    "composer install --no-dev --optimize-autoloader --no-interaction",
+    "composer install --optimize-autoloader --no-dev --no-interaction",
     "npm ci",
     "npm run build"
 ]
@@ -19,4 +35,4 @@ cmds = [
 ]
 
 [start]
-cmd = "php artisan migrate --force && php artisan storage:link && php-fpm & caddy run"
+cmd = "php artisan migrate --force && php artisan storage:link && php artisan serve --host=0.0.0.0 --port=$PORT"
