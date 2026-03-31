@@ -7,6 +7,29 @@ use App\Services\AvailabilityService;
 use App\Services\CampaignService;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * ReservationObserver
+ *
+ * RÔLE UNIQUE : quand une Reservation est annulée MANUELLEMENT
+ * (par l'utilisateur, pas par CampaignService::cancel()),
+ * cascader l'annulation vers la Campaign liée.
+ *
+ * ⚠️  CampaignService::cancel() utilise withoutObservers() pour
+ *     annuler la réservation → cet observer n'est PAS déclenché
+ *     dans ce cas → pas de boucle infinie possible.
+ *
+ * Flux :
+ *   ANNULATION CAMPAGNE  : CampaignController → CampaignService::cancel()
+ *                          → withoutObservers() → annule réservation
+ *                          → syncPanelStatuses() → panneaux libres
+ *                          (Observer NON déclenché)
+ *
+ *   ANNULATION RÉSERVATION : ReservationController → ReservationService::cancel()
+ *                            → reservation.update(annule)
+ *                            → Observer déclenché
+ *                            → CampaignService::cancel() sur la campagne liée
+ *                            → syncPanelStatuses()
+ */
 class ReservationObserver
 {
     public function __construct(
@@ -14,54 +37,42 @@ class ReservationObserver
         protected CampaignService     $campaignService
     ) {}
 
-    /**
-     * Déclenché après chaque UPDATE sur Reservation.
-     *
-     * RESPONSABILITÉ UNIQUE de cet observer :
-     * Cascader l'annulation vers la Campaign liée.
-     *
-     * La synchronisation des panneaux (syncPanelStatuses) est déjà
-     * effectuée par le controller AVANT d'appeler update().
-     * L'observer ne la répète PAS pour éviter les doublons.
-     *
-     * Exception : si l'observer est déclenché par un update()
-     * interne (ex: CampaignService), la synchronisation est gérée
-     * à ce niveau-là — pas ici.
-     */
     public function updated(Reservation $reservation): void
     {
+        // On n'agit que sur un changement de statut vers ANNULE
         if (!$reservation->wasChanged('status')) {
             return;
         }
 
-        $newStatus = $reservation->status->value;
-
-        // ── Seul cas qui déclenche une action de l'observer ──────
-        // Annulation → cascader vers la Campaign si elle est active
-        if ($newStatus !== ReservationStatus::ANNULE->value) {
+        if ($reservation->status->value !== ReservationStatus::ANNULE->value) {
             return;
         }
 
+        // ── Synchroniser les panneaux de la réservation ────────────
+        // C'est ici la source de vérité : réservation annulée → panneaux libres
+        $panelIds = $reservation->panels()->pluck('panels.id')->toArray();
+        if (!empty($panelIds)) {
+            $this->availability->syncPanelStatuses($panelIds);
+        }
+
+        // ── Cascader vers la Campaign si elle existe et est active ──
         $linkedCampaign = $reservation->campaign;
 
-        // Pas de campagne liée → rien à faire
         if (!$linkedCampaign) {
             return;
         }
 
-        // Campagne déjà dans un état terminal → idempotent, on skip
         if ($linkedCampaign->status->isTerminal()) {
             Log::debug('reservation_observer.campaign_already_terminal', [
-                'reservation_id' => $reservation->id,
-                'campaign_id'    => $linkedCampaign->id,
-                'campaign_status'=> $linkedCampaign->status->value,
+                'reservation_id'  => $reservation->id,
+                'campaign_id'     => $linkedCampaign->id,
+                'campaign_status' => $linkedCampaign->status->value,
             ]);
             return;
         }
 
-        // CASCADE : annuler la campagne
-        // CampaignService::cancel() gère son propre syncPanelStatuses()
-        // pour les panneaux de la campagne qui ne sont pas dans la réservation
+        // CampaignService::cancel() appellera withoutObservers()
+        // sur la réservation → pas de boucle
         $this->campaignService->cancel(
             $linkedCampaign,
             'Cascade — réservation liée annulée (' . $reservation->reference . ')'

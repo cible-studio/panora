@@ -54,7 +54,8 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
+            // ← Ajouter Railway lit stderr
+            'channels' => ['single', 'stderr'],
             'ignore_exceptions' => false,
         ],
 
