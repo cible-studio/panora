@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/health', fn() => response()->json(['status' => 'ok', 'time' => now()]));
 
-Route::get('/', fn() => view('welcome'));
+Route::get('/', fn() => view('auth.login'));
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
      ->middleware(['auth', 'verified'])
