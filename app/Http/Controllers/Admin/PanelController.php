@@ -13,13 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Services\PdfExportService;
 
-use App\Models\Reservation;
-use App\Models\ReservationPanel;
-use App\Models\Client;
-use App\Enums\ReservationStatus;
-use Illuminate\Support\Facades\DB;
-
-
 class PanelController extends Controller
 {
     // ── LISTE ──
@@ -276,6 +269,18 @@ class PanelController extends Controller
         return back()->with('success', 'Photo ajoutée !');
     }
 
+    public function deletePhoto(Panel $panel, PanelPhoto $photo)
+    {
+        if ($photo->panel_id !== $panel->id) {
+            abort(403);
+        }
+
+        \Illuminate\Support\Facades\Storage::disk('public')->delete($photo->path);
+        $photo->delete();
+
+        return back()->with('success', 'Photo supprimée.');
+    }
+
     // ── DISPONIBILITÉ ──
     public function availability(Request $request, Panel $panel)
     {
@@ -345,69 +350,4 @@ class PanelController extends Controller
         $service = new PdfExportService();
         return $service->exportNetworkReport();
     }
-
-
-
-    public function quickDetails(Panel $panel)
-    {
-        $now = now()->startOfDay();
-        
-        // Occupation en cours avec détails complets
-        $current = DB::table('reservation_panels')
-            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-            ->join('clients', 'clients.id', '=', 'reservations.client_id')
-            ->leftJoin('campaigns', 'campaigns.reservation_id', '=', 'reservations.id')
-            ->where('reservation_panels.panel_id', $panel->id)
-            ->where('reservations.start_date', '<=', $now)
-            ->where('reservations.end_date', '>=', $now)
-            ->whereIn('reservations.status', ['en_attente', 'confirme'])
-            ->select(
-                'clients.name as client_name',
-                'reservations.start_date',
-                'reservations.end_date',
-                'reservations.status',
-                'reservations.reference as reservation_ref',
-                'campaigns.name as campaign_name'
-            )
-            ->first();
-        
-        // Prochaines occupations (futures)
-        $next = DB::table('reservation_panels')
-            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-            ->join('clients', 'clients.id', '=', 'reservations.client_id')
-            ->leftJoin('campaigns', 'campaigns.reservation_id', '=', 'reservations.id')
-            ->where('reservation_panels.panel_id', $panel->id)
-            ->where('reservations.start_date', '>', $now)
-            ->whereIn('reservations.status', ['en_attente', 'confirme'])
-            ->orderBy('reservations.start_date')
-            ->select(
-                'clients.name as client_name',
-                'reservations.start_date',
-                'reservations.end_date',
-                'reservations.status',
-                'reservations.reference as reservation_ref',
-                'campaigns.name as campaign_name'
-            )
-            ->get();
-        
-        return response()->json([
-            'current_occupation' => $current ? [
-                'client_name'     => $current->client_name,
-                'campaign_name'   => $current->campaign_name,
-                'reservation_ref' => $current->reservation_ref,
-                'start_date'      => Carbon::parse($current->start_date)->format('d/m/Y'),
-                'end_date'        => Carbon::parse($current->end_date)->format('d/m/Y'),
-                'status'          => $current->status === 'confirme' ? 'confirme' : 'option',
-            ] : null,
-            'next_occupations' => $next->map(fn($n) => [
-                'client_name'     => $n->client_name,
-                'campaign_name'   => $n->campaign_name,
-                'reservation_ref' => $n->reservation_ref,
-                'start_date'      => Carbon::parse($n->start_date)->format('d/m/Y'),
-                'end_date'        => Carbon::parse($n->end_date)->format('d/m/Y'),
-                'status'          => $n->status === 'confirme' ? 'confirme' : 'option',
-            ])->values(),
-        ]);
-    }
-
 }

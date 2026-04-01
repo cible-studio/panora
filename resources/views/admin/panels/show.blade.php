@@ -173,24 +173,55 @@
             </div>
             <div class="card-body">
                 @if($panel->photos->count() > 0)
-                <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px;">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
                     @foreach($panel->photos as $photo)
-                    <img src="{{ asset('storage/'.$photo->path) }}"
-                         style="width:100%; height:120px; object-fit:cover;
-                                border-radius:8px; border:1px solid var(--border);">
+                    <div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);"
+                         onmouseover="this.querySelector('.photo-actions').style.opacity='1';this.querySelector('.photo-actions').style.background='rgba(0,0,0,0.55)'"
+                         onmouseout="this.querySelector('.photo-actions').style.opacity='0';this.querySelector('.photo-actions').style.background='rgba(0,0,0,0)'">
+                        <img src="{{ asset('storage/'.$photo->path) }}"
+                             style="width:100%;height:120px;object-fit:cover;display:block;">
+                        <div class="photo-actions"
+                             style="position:absolute;inset:0;opacity:0;transition:all .2s;
+                                    display:flex;align-items:center;justify-content:center;gap:6px;">
+                            {{-- Remplacer --}}
+                            <form method="POST" action="{{ route('admin.panels.photos', $panel) }}"
+                                  enctype="multipart/form-data" id="rep-{{ $photo->id }}">
+                                @csrf
+                                <input type="file" name="photo" accept="image/*"
+                                       id="rep-inp-{{ $photo->id }}" style="display:none;"
+                                       onchange="document.getElementById('rep-{{ $photo->id }}').submit()">
+                                <label for="rep-inp-{{ $photo->id }}"
+                                       style="cursor:pointer;padding:5px 10px;border-radius:6px;
+                                              font-size:11px;font-weight:600;background:var(--surface);
+                                              color:var(--text);border:1px solid var(--border2);">
+                                    ✏️ Changer
+                                </label>
+                            </form>
+                            {{-- Supprimer --}}
+                            <form method="POST"
+                                  action="{{ route('admin.panels.photos.delete', [$panel, $photo]) }}"
+                                  onsubmit="return confirm('Supprimer cette photo ?')">
+                                @csrf @method('DELETE')
+                                <button type="submit"
+                                        style="padding:5px 10px;border-radius:6px;font-size:11px;
+                                               font-weight:600;background:rgba(239,68,68,0.9);
+                                               color:white;border:none;cursor:pointer;">
+                                    🗑️
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                     @endforeach
                 </div>
                 @endif
 
                 <form method="POST" action="{{ route('admin.panels.photos', $panel) }}"
                       enctype="multipart/form-data"
-                      style="display:flex; gap:10px; align-items:center;">
+                      style="display:flex;gap:10px;align-items:center;">
                     @csrf
                     <input type="file" name="photo" accept="image/*"
-                           style="color:var(--text2); flex:1;">
-                    <button type="submit" class="btn btn-ghost btn-sm">
-                        ➕ Ajouter
-                    </button>
+                           style="color:var(--text2);flex:1;">
+                    <button type="submit" class="btn btn-ghost btn-sm">➕ Ajouter</button>
                 </form>
             </div>
         </div>
