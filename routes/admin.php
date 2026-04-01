@@ -168,6 +168,11 @@ Route::prefix('admin')
             ->name('disponibilites.panneaux')
             ->middleware('throttle:120,1');
 
+            // Export disponibilités
+        Route::get('disponibilites/export',
+            [ReservationController::class, 'exportDisponibilites'])
+            ->name('disponibilites.export');
+
         // ── AJAX réservations edit ──────────────── ⚠️ AVANT ──────
         // Utilisé par edit.blade.php pour charger les panneaux dispo sur période
         Route::get('reservations/available-panels',

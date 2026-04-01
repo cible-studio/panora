@@ -1,0 +1,6 @@
+echo "8.3" > .php-version
+```
+
+Contenu du fichier — juste ça :
+```
+8.3

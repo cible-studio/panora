@@ -3,6 +3,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\DashboardController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/health', fn() => response()->json(['status' => 'ok', 'time' => now()]));
+
 Route::get('/', fn() => view('welcome'));
 
 Route::get('/dashboard', [DashboardController::class, 'index'])

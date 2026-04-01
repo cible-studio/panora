@@ -18,6 +18,7 @@ class Reservation extends Model
         'start_date', 'end_date',
         'status', 'type',
         'total_amount', 'notes', 'confirmed_at',
+        'is_technical',
     ];
 
     protected $casts = [
@@ -26,6 +27,7 @@ class Reservation extends Model
         'confirmed_at' => 'datetime',
         'total_amount' => 'decimal:2',
         'status'       => ReservationStatus::class,
+        'is_technical' => 'boolean',
     ];
 
     // ── Matrice des transitions autorisées ─────────────────
