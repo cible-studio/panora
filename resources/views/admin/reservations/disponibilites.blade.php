@@ -1,801 +1,1169 @@
 <x-admin-layout title="Disponibilités & Panneaux">
 
 <x-slot:topbarActions>
-    <button class="btn btn-primary"
-            id="btn-confirm-top"
-            style="display:none;"
-            onclick="document.getElementById('btn-confirm-bottom').click()">
-        ✅ Confirmer sélection
-    </button>
+    <div id="topbar-confirm-wrapper" style="display:none">
+        <button class="btn btn-primary" onclick="DISPO.openConfirmModal()">
+            ✅ Confirmer (<span id="topbar-count">0</span>)
+        </button>
+    </div>
 </x-slot:topbarActions>
 
-<div x-data="disponibilites()" x-init="init()">
+{{-- ══ DONNÉES SERVEUR ══ --}}
+<script>
+window.__DISPO__ = {
+    communes:    {!! json_encode($communes->map(function($c) { return ['id' => $c->id, 'name' => $c->name]; })->values()) !!},
+    zones:       {!! json_encode($zones->map(function($z) { return ['id' => $z->id, 'name' => $z->name]; })->values()) !!},
+    formats:     {!! json_encode($formats->map(function($f) { return ['id' => $f->id, 'name' => $f->name, 'width' => $f->width, 'height' => $f->height]; })->values()) !!},
+    dimensions:  {!! json_encode($dimensions) !!},
+    clients:     {!! json_encode($clients->map(function($c) { return ['id' => $c->id, 'name' => $c->name]; })->values()) !!},
+    agencies:    {!! json_encode($agencies->map(function($a) { return ['id' => $a->id, 'name' => $a->name]; })->values()) !!},
+    ajaxUrl:     '{{ route('admin.disponibilites.panneaux') }}',
+    confirmUrl:  '{{ route('admin.reservations.confirmer-selection') }}',
+    panelCreate: '{{ route('admin.panels.create') }}',
+    csrf:        '{{ csrf_token() }}',
+    colors:      ['#3b82f6','#a855f7','#f97316','#14b8a6','#e8a020','#22c55e'],
+    hasErrors:   {{ $errors->any() ? 'true' : 'false' }},
+    flashErrors: {!! json_encode($errors->all()) !!},
+};
+</script>
 
-{{-- ══════════════════════════════════════════════════════════════
-     FILTRES COMBINABLES
-══════════════════════════════════════════════════════════════ --}}
-<div class="card" style="margin-bottom:16px;">
-    <div class="card-body" style="padding:14px 16px;">
-        <form id="filter-form"
-              method="GET"
-              action="{{ route('admin.reservations.disponibilites') }}"
-              onsubmit="return validateDatesDisponibilites()">
+<div id="dispo-app">
 
-            {{-- Ligne 1 : Localisation + Période --}}
-            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;
-                        margin-bottom:10px;">
+{{-- ══ FILTRES ══ --}}
+<div class="bg-[#1a1a2a] rounded-2xl border border-[#2a2a35] p-5 mb-6">
 
-                <div class="filter-group">
-                    <label class="filter-label">Commune</label>
-                    <select name="commune_id" class="filter-select">
-                        <option value="">Toutes</option>
-                        @foreach($communes as $c)
-                        <option value="{{ $c->id }}"
-                                {{ request('commune_id') == $c->id ? 'selected' : '' }}>
-                            {{ $c->name }}
-                        </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label class="filter-label">Zone</label>
-                    <select name="zone_id" class="filter-select">
-                        <option value="">Toutes</option>
-                        @foreach($zones as $z)
-                        <option value="{{ $z->id }}"
-                                {{ request('zone_id') == $z->id ? 'selected' : '' }}>
-                            {{ $z->name }}
-                        </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label class="filter-label">Format</label>
-                    <select name="format_id" class="filter-select">
-                        <option value="">Tous</option>
-                        @foreach($formats as $f)
-                        <option value="{{ $f->id }}"
-                                {{ request('format_id') == $f->id ? 'selected' : '' }}>
-                            {{ $f->name }}
-                        </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label class="filter-label">Dimensions</label>
-                    <select name="dimensions" class="filter-select">
-                        <option value="">Toutes</option>
-                        @foreach($dimensions as $dim)
-                        <option value="{{ $dim }}"
-                                {{ request('dimensions') === $dim ? 'selected' : '' }}>
-                            {{ $dim }}
-                        </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label class="filter-label">Éclairage</label>
-                    <select name="is_lit" class="filter-select">
-                        <option value="">Tous</option>
-                        <option value="1" {{ request('is_lit') === '1' ? 'selected' : '' }}>
-                            💡 Éclairé
-                        </option>
-                        <option value="0" {{ request('is_lit') === '0' ? 'selected' : '' }}>
-                            Non éclairé
-                        </option>
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label class="filter-label">Statut</label>
-                    <select name="statut" class="filter-select">
-                        <option value="tous" {{ request('statut','tous') === 'tous' ? 'selected' : '' }}>
-                            Tous
-                        </option>
-                        <option value="libre"       {{ request('statut') === 'libre'       ? 'selected' : '' }}>Disponible</option>
-                        <option value="occupe"      {{ request('statut') === 'occupe'       ? 'selected' : '' }}>Occupé</option>
-                        <option value="confirme"    {{ request('statut') === 'confirme'     ? 'selected' : '' }}>Confirmé</option>
-                        <option value="option"      {{ request('statut') === 'option'       ? 'selected' : '' }}>Option</option>
-                        <option value="maintenance" {{ request('statut') === 'maintenance'  ? 'selected' : '' }}>Maintenance</option>
-                    </select>
-                </div>
-            </div>
-
-            {{-- Ligne 2 : Dates disponibilité --}}
-            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;
-                        padding-top:10px;border-top:1px solid var(--border);">
-                <div style="font-size:12px;color:var(--text2);
-                            display:flex;align-items:center;gap:6px;padding-bottom:2px;">
-                    📅 <strong>Période de disponibilité :</strong>
-                </div>
-
-                <div class="filter-group">
-                    <label class="filter-label">Du</label>
-                    <input type="date"
-                           name="dispo_du"
-                           id="dispo-du"
-                           value="{{ request('dispo_du') }}"
-                           class="filter-input"
-                           onchange="onStartDateChange(this.value)"/>
-                </div>
-
-                <div class="filter-group">
-                    <label class="filter-label">Au</label>
-                    <input type="date"
-                           name="dispo_au"
-                           id="dispo-au"
-                           value="{{ request('dispo_au') }}"
-                           min="{{ request('dispo_du') ? \Carbon\Carbon::parse(request('dispo_du'))->addDay()->format('Y-m-d') : '' }}"
-                           class="filter-input"
-                           onchange="onEndDateChange(this.value)"/>
-                </div>
-
-                {{-- Erreur dates serveur --}}
-                @if(isset($dateError) && $dateError)
-                <div style="padding:6px 12px;background:rgba(239,68,68,0.08);
-                            border:1px solid rgba(239,68,68,0.3);border-radius:8px;
-                            font-size:12px;color:var(--red);display:flex;
-                            align-items:center;gap:6px;">
-                    ⚠️ {{ $dateError }}
-                </div>
-                @endif
-
-                <div id="date-error-inline" style="display:none;padding:6px 12px;
-                     background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);
-                     border-radius:8px;font-size:12px;color:var(--red);
-                     align-items:center;gap:6px;">
-                </div>
-
-                <div style="display:flex;gap:6px;margin-left:auto;">
-                    <button type="submit" class="btn btn-primary btn-sm">🔍 Filtrer</button>
-                    @if(request()->hasAny(['commune_id','zone_id','format_id','dispo_du','dispo_au','statut','dimensions','is_lit']))
-                    <a href="{{ route('admin.reservations.disponibilites') }}"
-                       class="btn btn-ghost btn-sm">↺ Reset</a>
-                    @endif
-                </div>
-            </div>
-
-        </form>
-
-        {{-- Stats résultats --}}
-        @if($allPanels->isNotEmpty())
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);
-                    display:flex;gap:16px;flex-wrap:wrap;">
-            @php
-                $libre       = $allPanels->filter(fn($p) => !$occupiedIds->contains($p->id) && $p->status->value === 'libre')->count();
-                $occupes     = $occupiedIds->count();
-                $maintenance = $allPanels->filter(fn($p) => $p->status->value === 'maintenance')->count();
-            @endphp
-            <span style="font-size:12px;color:var(--text2);">
-                <strong style="color:var(--text);">{{ $allPanels->count() }}</strong> panneau(x) affiché(s)
-            </span>
-            @if($startDate && $endDate && !($dateError ?? null))
-            <span style="font-size:12px;color:#22c55e;">
-                ✅ <strong>{{ $libre }}</strong> disponible(s)
-            </span>
-            <span style="font-size:12px;color:var(--red);">
-                🔒 <strong>{{ $occupes }}</strong> occupé(s) sur la période
-            </span>
-            @endif
-            @if($maintenance > 0)
-            <span style="font-size:12px;color:var(--text3);">
-                🔧 <strong>{{ $maintenance }}</strong> en maintenance
-            </span>
-            @endif
-        </div>
-        @endif
-    </div>
-</div>
-
-{{-- ══════════════════════════════════════════════════════════════
-     GRILLE PANNEAUX — tailles uniformes
-══════════════════════════════════════════════════════════════ --}}
-@if($allPanels->isEmpty())
-    <div style="text-align:center;padding:80px;color:var(--text3);">
-        <div style="font-size:48px;margin-bottom:12px;">🪧</div>
-        <div style="font-size:15px;font-weight:600;margin-bottom:6px;">
-            Aucun panneau trouvé
-        </div>
-        <div style="font-size:13px;">Modifiez vos filtres pour afficher des panneaux.</div>
-    </div>
-@else
-<div style="display:grid;
-            grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
-            gap:14px;margin-bottom:120px;">
-
-    @foreach($allPanels as $panel)
-    @php
-        $isOccupied = $occupiedIds->contains($panel->id);
-        $isOption   = isset($optionIds) && $optionIds->contains($panel->id);
-
-        if ($isOccupied && $startDate && $endDate && !($dateError ?? null)) {
-            $displayStatus = 'occupe';
-        } elseif ($isOption && $startDate && $endDate && !($dateError ?? null)) {
-            $displayStatus = 'option_periode';
-        } else {
-            $displayStatus = $panel->status->value;
-        }
-
-        $statusConfig = [
-            'libre'          => ['label'=>'Disponible', 'color'=>'white','bg'=>'rgba(34,197,94,0.08)',  'border'=>'rgba(34,197,94,0.3)',  'badge'=>'#22c55e','selectable'=>true],
-            'occupe'         => ['label'=>'Occupé',     'color'=>'white','bg'=>'rgba(239,68,68,0.08)',  'border'=>'rgba(239,68,68,0.3)',  'badge'=>'#ef4444','selectable'=>false],
-            'option_periode' => ['label'=>'En option',  'color'=>'white','bg'=>'rgba(232,160,32,0.08)', 'border'=>'rgba(232,160,32,0.3)', 'badge'=>'#e8a020','selectable'=>false],
-            'confirme'       => ['label'=>'Confirmé',   'color'=>'white','bg'=>'rgba(168,85,247,0.08)', 'border'=>'rgba(168,85,247,0.3)', 'badge'=>'#a855f7','selectable'=>false],
-            'option'         => ['label'=>'Option',     'color'=>'white','bg'=>'rgba(232,160,32,0.08)', 'border'=>'rgba(232,160,32,0.3)', 'badge'=>'#e8a020','selectable'=>false],
-            'maintenance'    => ['label'=>'Maintenance','color'=>'white','bg'=>'rgba(107,114,128,0.08)','border'=>'rgba(107,114,128,0.3)','badge'=>'#6b7280','selectable'=>false],
-        ];
-        $sc = $statusConfig[$displayStatus] ?? $statusConfig['libre'];
-
-        $cardColors = ['#3b82f6','#a855f7','#f97316','#14b8a6','#e8a020','#22c55e'];
-        $cardBg     = $cardColors[abs(crc32($panel->reference) % count($cardColors))];
-
-        $isSelectable = $sc['selectable'];
-
-        // ── Image du panneau ──────────────────────────────────────────
-        $photo    = $panel->photos->sortBy('ordre')->first();
-        $imageUrl = $photo ? asset('storage/' . ltrim($photo->path, '/')) : null;
-
-        // ── Date de libération du panneau ─────────────────────────────
-        $releaseDate     = null;
-        $releaseDaysLeft = null;
-        if (isset($releaseDates) && ($occupiedIds->contains($panel->id) || $optionIds->contains($panel->id))) {
-            $rdRaw = $releaseDates->get($panel->id);
-            if ($rdRaw) {
-                $releaseDate     = \Carbon\Carbon::parse($rdRaw);
-                $releaseDaysLeft = (int) now()->startOfDay()->diffInDays($releaseDate->startOfDay(), false);
-            }
-        }
-    @endphp
-
-    {{-- ── Carte panneau — hauteur fixe uniforme ── --}}
-    <div style="background:var(--surface);
-                border:1.5px solid {{ $sc['bg'] }};
-                border-radius:14px;overflow:hidden;position:relative;
-                transition:transform 0.15s,box-shadow 0.15s;
-                display:flex;flex-direction:column;
-                min-height:320px;"
-         :style="selectedIds.includes({{ $panel->id }})
-             ? 'position:relative;border-color:var(--accent);box-shadow:0 0 0 2px rgba(232,160,32,0.3);'
-             : 'position:relative;'"
-         @mouseenter="$el.style.transform='translateY(-2px)';$el.style.boxShadow='0 8px 24px rgba(0,0,0,0.2)'"
-         @mouseleave="$el.style.transform='translateY(0)';$el.style.boxShadow=selectedIds.includes({{ $panel->id }})?'0 0 0 2px rgba(232,160,32,0.3)':''">
-
-        {{-- Badge statut --}}
-        <div style="position:absolute;top:10px;right:10px;z-index:2;
-                    padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;
-                    background:{{ $sc['badge'] }};color:white;
-                    border:1px solid rgba(255,255,255,0.3);
-                    box-shadow:0 2px 8px rgba(0,0,0,0.25);
-                    text-transform:uppercase;letter-spacing:0.6px;">
-            {{ $sc['label'] }}
-        </div>
-
-        {{-- Checkbox sélection --}}
-        @if($isSelectable)
-        <div style="position:absolute;top:10px;left:10px;z-index:2;">
-            <input type="checkbox"
-                   :checked="selectedIds.includes({{ $panel->id }})"
-                   @change="togglePanel({{ $panel->id }}, {{ $panel->monthly_rate ?? 0 }})"
-                   @click.stop
-                   style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer;">
-        </div>
-        @endif
-
-        {{-- Visuel carte — image de fond --}}
-        <div style="position:relative;
-                    height:110px;flex-shrink:0;
-                    cursor:{{ $isSelectable ? 'pointer' : 'default' }};
-                    overflow:hidden;
-                    {{ $imageUrl ? 'background:url(\''.$imageUrl.'\') center/cover no-repeat;' : 'background:'.$cardBg.';' }}"
-             @if($isSelectable)
-             @click="togglePanel({{ $panel->id }}, {{ $panel->monthly_rate ?? 0 }})"
-             @endif>
-
-            {{-- Overlay sombre --}}
-            <div style="position:absolute;inset:0;
-                        background:{{ $imageUrl ? 'linear-gradient(135deg,rgba(0,0,0,0.45),rgba(0,0,0,0.65))' : 'rgba(0,0,0,0.15)' }};"></div>
-
-            {{-- Badge référence --}}
-            <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
-                        background:rgba(0,0,0,0.75);border-radius:8px;
-                        padding:6px 18px;font-family:monospace;font-size:14px;
-                        font-weight:700;color:#fff;letter-spacing:1.5px;
-                        box-shadow:0 4px 12px rgba(0,0,0,0.4);
-                        white-space:nowrap;backdrop-filter:blur(4px);">
-                {{ $panel->reference }}
-            </div>
-        </div>
-
-        {{-- Infos panneau — flex grow pour hauteur uniforme --}}
-        <div style="padding:12px 14px;flex:1;display:flex;flex-direction:column;">
-
-            {{-- Nom --}}
-            <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">
-                {{ $panel->commune?->name ?? '—' }}
-            </div>
-            <div style="font-weight:700;font-size:13px;color:var(--text);
-                        margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;
-                        white-space:nowrap;" title="{{ $panel->name }}">
-                {{ $panel->name }}
-            </div>
-
-            {{-- Tags --}}
-            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
-                @if($panel->category)
-                <span style="background:var(--surface3);color:var(--text2);font-size:10px;
-                             padding:2px 6px;border-radius:4px;font-weight:600;">
-                    {{ strtoupper(substr($panel->category->name ?? 'STD', 0, 3)) }}
-                </span>
-                @endif
-                @if($panel->format)
-                <span style="background:var(--surface3);color:var(--text2);font-size:10px;
-                             padding:2px 6px;border-radius:4px;">
-                    {{ $panel->format->width ?? '?' }}×{{ $panel->format->height ?? '?' }}m
-                </span>
-                @endif
-                @if($panel->is_lit)
-                <span style="background:rgba(232,160,32,0.12);color:var(--accent);font-size:10px;
-                             padding:2px 6px;border-radius:4px;">💡</span>
-                @endif
-                @if($panel->daily_traffic)
-                <span style="background:var(--surface3);color:var(--text2);font-size:10px;
-                             padding:2px 6px;border-radius:4px;">
-                    👁 {{ number_format($panel->daily_traffic) }}k/j
-                </span>
-                @endif
-            </div>
-
-            {{-- Emplacement --}}
-            @if($panel->zone_description)
-            <div style="font-size:11px;color:var(--text2);margin-bottom:6px;
-                        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
-                 title="{{ $panel->zone_description }}">
-                📍 {{ $panel->zone_description }}
-            </div>
-            @endif
-
-            {{-- Prix -- poussé en bas --}}
-            <div style="margin-top:auto;padding-top:8px;
-                        border-top:1px solid var(--border);">
-                <div style="font-size:17px;font-weight:800;color:var(--accent);margin-bottom:6px;">
-                    @if($panel->monthly_rate)
-                        {{ number_format($panel->monthly_rate / 1000, 0, ',', ' ') }}K
-                        <span style="font-size:11px;font-weight:400;color:var(--text3);">FCFA/mois</span>
-                    @else
-                        <span style="font-size:13px;color:var(--text3);">Tarif non défini</span>
-                    @endif
-                </div>
-
-                {{-- Date de libération ── --}}
-                @if($releaseDate && !$isSelectable)
-                <div style="margin-top:4px;margin-bottom:6px;padding:5px 8px;
-                            background:{{ $displayStatus === 'option_periode' || $displayStatus === 'option'
-                                ? 'rgba(232,160,32,0.08)'
-                                : 'rgba(239,68,68,0.06)' }};
-                            border-radius:6px;font-size:10px;border:1px solid
-                            {{ $displayStatus === 'option_periode' || $displayStatus === 'option'
-                                ? 'rgba(232,160,32,0.2)'
-                                : 'rgba(239,68,68,0.15)' }};">
-                    @if($releaseDaysLeft === 0)
-                        <span style="color:var(--green);">⚡ Libre aujourd'hui</span>
-                    @elseif($releaseDaysLeft === 1)
-                        <span style="color:var(--text2);">📅 Libre demain</span>
-                    @elseif($releaseDaysLeft > 0)
-                        <span style="color:var(--text2);">
-                            📅 Libre le {{ $releaseDate->format('d/m/Y') }}
-                            <span style="color:var(--text3);">(dans {{ $releaseDaysLeft }}j)</span>
-                        </span>
-                    @else
-                        <span style="color:var(--green);">✅ Date passée</span>
-                    @endif
-                </div>
-                @endif
-
-                {{-- Actions --}}
-                <div style="display:flex;gap:6px;">
-                    <button type="button"
-                            class="btn btn-ghost btn-sm"
-                            style="flex:1;font-size:11px;"
-                            @click.stop="openFiche({{ $panel->toJson() }})">
-                        📋 Fiche
-                    </button>
-                    @if($isSelectable)
-                    <button type="button"
-                            class="btn btn-sm"
-                            :style="selectedIds.includes({{ $panel->id }})
-                                ? 'background:var(--accent);color:#000;flex:1.2;font-size:11px;'
-                                : 'background:var(--surface3);color:var(--text);flex:1.2;font-size:11px;border:1px solid var(--border2);border-radius:7px;'"
-                            @click.stop="togglePanel({{ $panel->id }}, {{ $panel->monthly_rate ?? 0 }})">
-                        <span x-text="selectedIds.includes({{ $panel->id }}) ? '✓ Sélectionné' : '+ Sélectionner'"></span>
-                    </button>
-                    @else
-                    <div style="flex:1.2;padding:6px 10px;background:var(--surface3);
-                                border-radius:7px;font-size:11px;color:var(--text3);
-                                text-align:center;">
-                        @if($displayStatus === 'occupe')🔒 Occupé
-                        @elseif($displayStatus === 'maintenance')🔧 Maintenance
-                        @elseif($displayStatus === 'option' || $displayStatus === 'option_periode')⏳ Option
-                        @elseif($displayStatus === 'confirme')✅ Confirmé
-                        @else {{ $sc['label'] }}
-                        @endif
-                    </div>
-                    @endif
-                </div>
-            </div>
+    {{-- Recherche --}}
+    <div class="mb-4">
+        <div class="relative max-w-lg">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none">🔍</span>
+            <input type="text" id="f-search"
+                   class="w-full h-11 pl-9 pr-10 bg-[#252530] border border-[#3a3a48] rounded-xl text-sm text-gray-200 placeholder:text-gray-500 focus:border-[#e8a020] focus:outline-none focus:ring-2 focus:ring-[#e8a020]/20 transition-all"
+                   placeholder="Référence, nom, zone, commune..."
+                   oninput="DISPO.onSearch(this.value)">
+            <button id="btn-clear-search"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 hidden text-sm"
+                    onclick="DISPO.clearSearch()">✕</button>
         </div>
     </div>
-    @endforeach
 
-</div>
-@endif
-
-{{-- ── Barre sélection bottom ───────────────────────────────────── --}}
-<div x-show="selectedIds.length > 0"
-     x-transition:enter="transition ease-out duration-200"
-     x-transition:enter-start="opacity-0 translate-y-4"
-     x-transition:enter-end="opacity-100 translate-y-0"
-     style="position:fixed;bottom:0;left:235px;right:0;
-            background:var(--surface);border-top:2px solid var(--accent);
-            padding:14px 24px;display:flex;align-items:center;
-            justify-content:space-between;z-index:100;
-            box-shadow:0 -8px 32px rgba(0,0,0,0.4);">
-
-    <div style="display:flex;align-items:center;gap:16px;">
+    {{-- Grille filtres ligne 1 --}}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
         <div>
-            <span x-text="selectedIds.length"
-                  style="font-size:22px;font-weight:800;color:var(--accent);"></span>
-            <span style="font-size:13px;color:var(--text2);margin-left:4px;">
-                panneau(x) sélectionné(s)
-            </span>
+            <div class="flex items-center justify-between mb-1">
+                <label class="filter-label">📍 Commune</label>
+                <span id="badge-commune_ids" class="ms-badge hidden"></span>
+            </div>
+            <div class="ms-wrapper" data-key="commune_ids" data-placeholder="Toutes"></div>
         </div>
-        <div style="font-size:16px;font-weight:700;color:var(--text);">
-            <span x-text="formatTotal()"></span>
-            <span style="font-size:12px;font-weight:400;color:var(--text3);margin-left:3px;">
-                FCFA/mois
-            </span>
+        <div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="filter-label">🗺️ Zone</label>
+                <span id="badge-zone_ids" class="ms-badge hidden"></span>
+            </div>
+            <div class="ms-wrapper" data-key="zone_ids" data-placeholder="Toutes"></div>
+        </div>
+        <div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="filter-label">📏 Format</label>
+                <span id="badge-format_ids" class="ms-badge hidden"></span>
+            </div>
+            <div class="ms-wrapper" data-key="format_ids" data-placeholder="Tous"></div>
+        </div>
+        <div>
+            <label class="filter-label block mb-1">📐 Dimensions</label>
+            <select id="f-dimensions" class="filter-select w-full" onchange="DISPO.set('dimensions', this.value)">
+                <option value="">Toutes</option>
+            </select>
         </div>
     </div>
 
-    <div style="display:flex;gap:8px;">
-        <button type="button" class="btn btn-ghost btn-sm"
-                @click="selectedIds = []; selectedRates = {}">
-            ✕ Tout désélectionner
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm"
-                style="border-color:var(--red);color:var(--red);"
-                @click="submitPdf('pdf-images')">
-            📄 PDF images
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm"
-                style="border-color:var(--blue);color:var(--blue);"
-                @click="submitPdf('pdf-liste')">
-            📋 PDF liste
-        </button>
-        <button type="button" id="btn-confirm-bottom"
-                class="btn btn-primary"
-                @click="openConfirmModal()">
-            ✅ Confirmer la sélection
-        </button>
+    {{-- Grille filtres ligne 2 --}}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div>
+            <label class="filter-label block mb-1">💡 Éclairage</label>
+            <select id="f-is_lit" class="filter-select w-full" onchange="DISPO.set('is_lit', this.value)">
+                <option value="">Tous</option>
+                <option value="1">💡 Éclairé</option>
+                <option value="0">🌙 Non éclairé</option>
+            </select>
+        </div>
+        <div>
+            <label class="filter-label block mb-1">📊 Statut</label>
+            <select id="f-statut" class="filter-select w-full" onchange="DISPO.set('statut', this.value)">
+                <option value="tous">Tous</option>
+                <option value="libre">✅ Disponible</option>
+                <option value="occupe">🔒 Occupé</option>
+                <option value="option">⏳ En option</option>
+                <option value="maintenance">🔧 Maintenance</option>
+            </select>
+        </div>
+        <div>
+            <label class="filter-label block mb-1">🏢 Source</label>
+            <select id="f-source" class="filter-select w-full" onchange="DISPO.onSourceChange(this.value)">
+                <option value="all">📦 Tous</option>
+                <option value="internal">🏢 Internes</option>
+                <option value="external">🤝 Externes</option>
+            </select>
+        </div>
+        <div id="wrapper-agencies">
+            <div class="flex items-center justify-between mb-1">
+                <label class="filter-label">🤝 Régie</label>
+                <span id="badge-agency_ids" class="ms-badge hidden"></span>
+            </div>
+            <div class="ms-wrapper" data-key="agency_ids" data-placeholder="Toutes"></div>
+        </div>
+    </div>
+
+    {{-- Période + reset + stats --}}
+    <div class="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-[#2a2a35]">
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="filter-label">📅 Période</span>
+            <div class="flex items-center gap-2 bg-[#252530] px-3 py-1.5 rounded-xl border border-[#3a3a48]">
+                <input type="date" id="f-du"
+                       class="bg-transparent border-none text-sm text-gray-200 focus:outline-none"
+                       onchange="DISPO.onDateChange('du', this.value)">
+                <span class="text-gray-600 text-xs">→</span>
+                <input type="date" id="f-au"
+                       class="bg-transparent border-none text-sm text-gray-200 focus:outline-none"
+                       onchange="DISPO.onDateChange('au', this.value)">
+            </div>
+            <div id="date-error" class="hidden text-xs text-red-400 bg-red-400/10 px-3 py-1 rounded-lg"></div>
+        </div>
+
+        <div class="flex items-center gap-3 flex-wrap">
+            {{-- Stats badges --}}
+            <div id="stats-bar" class="flex gap-2 flex-wrap">
+                <span id="stat-total" class="stat-pill">📊 <strong>0</strong> panneaux</span>
+                <span id="stat-dispo"   class="stat-pill hidden">✅ <strong>0</strong> dispos</span>
+                <span id="stat-occupes" class="stat-pill hidden">🔒 <strong>0</strong> occupés</span>
+                <span id="stat-options" class="stat-pill hidden">⏳ <strong>0</strong> options</span>
+                <span id="stat-ext"     class="stat-pill hidden">🤝 <strong>0</strong> externes</span>
+            </div>
+            {{-- Reset --}}
+            <button id="btn-reset" class="hidden px-3 py-1.5 text-xs text-gray-400 border border-[#3a3a48] rounded-xl hover:border-red-500 hover:text-red-500 transition-all" onclick="DISPO.reset()">
+                ↻ Réinitialiser
+            </button>
+        </div>
+    </div>
+
+    {{-- Tags actifs --}}
+    <div id="tags-bar" class="hidden flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#2a2a35]">
+        <span class="text-xs text-gray-500">Filtres :</span>
+        <div id="tags-list" class="flex flex-wrap gap-2"></div>
     </div>
 </div>
 
-{{-- Formulaires PDF cachés --}}
-<form id="form-pdf-images" method="POST"
-      action="{{ route('admin.reservations.disponibilites.pdf-images') }}"
-      style="display:none;">
-    @csrf
-    <div id="pdf-images-inputs"></div>
-    <input type="hidden" name="start_date" value="{{ request('dispo_du') }}">
-    <input type="hidden" name="end_date" value="{{ request('dispo_au') }}">
-</form>
-<form id="form-pdf-liste" method="POST"
-      action="{{ route('admin.reservations.disponibilites.pdf-liste') }}"
-      style="display:none;">
-    @csrf
-    <div id="pdf-liste-inputs"></div>
-    <input type="hidden" name="start_date" value="{{ request('dispo_du') }}">
-    <input type="hidden" name="end_date" value="{{ request('dispo_au') }}">
-</form>
+{{-- ══ GRILLE PANNEAUX ══ --}}
+<div id="panels-outer" style="margin-bottom:120px">
 
-</div>{{-- fin x-data --}}
+    {{-- Loader --}}
+    <div id="loader" style="display:none"
+         class="text-center py-20 text-gray-400">
+        <div class="text-4xl mb-3 animate-spin inline-block">⟳</div>
+        <div class="text-sm font-semibold">Chargement…</div>
+    </div>
 
-{{-- ══════════════════════════════════════════════════════════════
-     MODAL — CONFIRMER SÉLECTION
-══════════════════════════════════════════════════════════════ --}}
-<div id="modal-confirm-selection" class="modal-overlay" style="display:none;"
-     onclick="if(event.target===this) closeConfirmModal()">
-    <div class="modal" style="max-width:580px;" onclick="event.stopPropagation()">
-        <div class="modal-header">
-            <span class="modal-title">✅ Confirmer la campagne</span>
-            <button class="modal-close" onclick="closeConfirmModal()">✕</button>
+    {{-- Grille --}}
+    <div id="panels-grid"
+         class="grid gap-4"
+         style="grid-template-columns:repeat(auto-fill,minmax(270px,1fr))">
+    </div>
+
+    {{-- Empty state --}}
+    <div id="empty-state" style="display:none"
+         class="text-center py-24 text-gray-500">
+        <div class="text-6xl mb-4">🪧</div>
+        <div id="empty-title" class="text-lg font-bold text-gray-300 mb-2">Aucun panneau</div>
+        <div id="empty-sub"   class="text-sm mb-6">Modifiez vos filtres ou créez un panneau.</div>
+        <a id="empty-cta" href="{{ route('admin.panels.create') }}"
+           class="inline-flex items-center gap-2 px-5 py-2.5 bg-[#e8a020] text-black font-bold rounded-xl hover:bg-yellow-400 transition-all text-sm">
+            + Créer un panneau
+        </a>
+    </div>
+
+    {{-- Pagination --}}
+    <div id="pagination-bar"
+         class="hidden mt-6 flex justify-center items-center gap-4">
+        <button id="btn-prev" onclick="DISPO.prevPage()"
+                class="btn btn-ghost btn-sm" disabled>← Précédent</button>
+        <span id="pag-info" class="text-sm text-gray-400"></span>
+        <button id="btn-next" onclick="DISPO.nextPage()"
+                class="btn btn-ghost btn-sm">Suivant →</button>
+    </div>
+</div>
+
+{{-- ══ BARRE SÉLECTION (sticky bottom) ══ --}}
+<div id="sel-bar"
+     style="display:none;position:fixed;bottom:0;left:235px;right:0;z-index:300;
+            background:var(--surface);border-top:2px solid var(--accent);
+            padding:12px 24px;box-shadow:0 -8px 32px rgba(0,0,0,.5)">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+        <div class="flex items-center gap-4">
+            <div>
+                <span id="sel-count" class="text-3xl font-black text-[#e8a020]">0</span>
+                <span class="text-sm text-gray-400 ml-2">panneau(x) — </span>
+                <span id="sel-amount" class="text-base font-bold text-[#e8a020]">0 FCFA/mois</span>
+            </div>
+            <div id="sel-ext-badge"
+                 class="hidden px-2 py-0.5 text-xs text-blue-400 border border-blue-400/30 bg-blue-400/10 rounded-lg">
+                dont <span id="sel-ext-n">0</span> externe(s)
+            </div>
         </div>
-        <form method="POST"
+        <div class="flex gap-2">
+            <button class="btn btn-ghost btn-sm" onclick="DISPO.clearSelection()">✕ Vider</button>
+            <button class="btn btn-primary" onclick="DISPO.openConfirmModal()">
+                ✅ Confirmer la sélection
+            </button>
+        </div>
+    </div>
+</div>
+
+</div>{{-- /dispo-app --}}
+
+{{-- ══ MODAL CONFIRMER RÉSERVATION ══ --}}
+<div id="modal-confirm"
+     class="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm items-center justify-center p-4"
+     style="display:none"
+     onclick="if(event.target===this)DISPO.closeConfirmModal()">
+    <div class="bg-[#1e1e2e] border border-[#3a3a48] rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl"
+         onclick="event.stopPropagation()">
+
+        {{-- Header --}}
+        <div class="px-6 py-4 border-b border-[#3a3a48] bg-[#252535] rounded-t-2xl flex justify-between items-center flex-shrink-0">
+            <div>
+                <div class="font-bold text-white">✅ Nouvelle réservation</div>
+                <div id="modal-summary" class="text-xs text-gray-500 mt-0.5"></div>
+            </div>
+            <button onclick="DISPO.closeConfirmModal()"
+                    class="w-8 h-8 flex items-center justify-center bg-white/5 border border-[#3a3a48] rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-all text-sm">
+                ✕
+            </button>
+        </div>
+
+        {{-- Body --}}
+        <form id="form-confirm"
+              method="POST"
               action="{{ route('admin.reservations.confirmer-selection') }}"
-              x-data="{ type: 'option' }">
+              class="flex flex-col flex-1 overflow-hidden">
             @csrf
-            <div id="hidden-panel-inputs"></div>
+            <div id="hidden-panels"></div>
 
-            <div class="modal-body">
-                <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);
-                            border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;
-                            color:var(--green);">
-                    🛡️ Anti double-booking : conflits vérifiés automatiquement avant confirmation.
+            <div class="p-5 overflow-y-auto flex-1 space-y-4">
+
+                {{-- Zone erreurs modal --}}
+                <div id="modal-errors" class="hidden bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-sm text-red-400 space-y-1"></div>
+
+                {{-- Anti-booking badge --}}
+                <div class="flex items-center gap-2 bg-green-500/5 border border-green-500/20 rounded-xl px-3 py-2 text-xs text-green-400">
+                    🛡️ Anti double-booking actif — vérification en temps réel
                 </div>
 
-                <div style="display:flex;gap:8px;margin-bottom:16px;">
-                    <label style="flex:1;cursor:pointer;padding:12px;border-radius:10px;
-                                  display:flex;align-items:center;gap:10px;"
-                           :style="type==='option'
-                               ? 'border:1px solid var(--orange);background:rgba(249,115,22,0.08);'
-                               : 'border:1px solid var(--border2);background:var(--surface2);'">
-                        <input type="radio" name="type" value="option" x-model="type"
-                               style="accent-color:var(--orange);">
-                        <div>
-                            <div style="font-size:13px;font-weight:600;">⏳ Mise sous option</div>
-                            <div style="font-size:11px;color:var(--text2);">Blocage temporaire</div>
-                        </div>
-                    </label>
-                    <label style="flex:1;cursor:pointer;padding:12px;border-radius:10px;
-                                  display:flex;align-items:center;gap:10px;"
-                           :style="type==='ferme'
-                               ? 'border:1px solid var(--green);background:rgba(34,197,94,0.08);'
-                               : 'border:1px solid var(--border2);background:var(--surface2);'">
-                        <input type="radio" name="type" value="ferme" x-model="type"
-                               style="accent-color:var(--green);">
-                        <div>
-                            <div style="font-size:13px;font-weight:600;">🔒 Réservation ferme</div>
-                            <div style="font-size:11px;color:var(--text2);">Confirmation définitive</div>
-                        </div>
-                    </label>
+                {{-- Warning externes --}}
+                <div id="modal-ext-warn"
+                     class="hidden items-center gap-2 bg-blue-500/5 border border-blue-500/20 rounded-xl px-3 py-2 text-xs text-blue-400">
+                    🤝 Sélection avec panneaux externes — vérifiez leur disponibilité auprès de la régie.
                 </div>
 
-                <div class="form-2col">
-                    <div class="mfg">
-                        <label>Client *</label>
-                        <select name="client_id" required
-                                style="background:var(--surface2);border:1px solid var(--border2);
-                                       border-radius:8px;padding:9px 12px;color:var(--text);
-                                       font-size:13px;outline:none;width:100%;">
+                {{-- Type --}}
+                <div>
+                    <div class="filter-label mb-2">Type de réservation *</div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label id="lbl-option"
+                               class="cursor-pointer p-3 rounded-xl border-2 border-orange-500 bg-orange-500/8 flex items-center gap-3 transition-all"
+                               onclick="DISPO.setType('option')">
+                            <input type="radio" name="type" value="option" checked class="accent-orange-500">
+                            <div>
+                                <div class="text-sm font-bold text-orange-400">⏳ Option</div>
+                                <div class="text-xs text-gray-500">Temporaire</div>
+                            </div>
+                        </label>
+                        <label id="lbl-ferme"
+                               class="cursor-pointer p-3 rounded-xl border border-[#3a3a48] bg-[#252530] flex items-center gap-3 transition-all"
+                               onclick="DISPO.setType('ferme')">
+                            <input type="radio" name="type" value="ferme" class="accent-green-500">
+                            <div>
+                                <div class="text-sm font-bold text-gray-400">🔒 Ferme</div>
+                                <div class="text-xs text-gray-500">Définitive</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                {{-- Client + Campagne --}}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="filter-label block mb-1">Client *</label>
+                        <select name="client_id" required id="modal-client" class="modal-input w-full">
                             <option value="">— Sélectionner —</option>
                             @foreach($clients as $c)
                             <option value="{{ $c->id }}">{{ $c->name }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div class="mfg">
-                        <label>Nom de la campagne</label>
-                        <input type="text" name="campaign_name"
-                               placeholder="ex: Lancement produit Ramadan"/>
+                    <div id="wrapper-campaign-name" class="hidden">
+                        <label class="filter-label block mb-1">Nom campagne <span class="text-gray-600 font-normal">(optionnel)</span></label>
+                        <input type="text" name="campaign_name" id="modal-campaign"
+                               placeholder="Ex : Ramadan 2026"
+                               class="modal-input w-full">
                     </div>
                 </div>
 
-                <div class="form-2col">
-                    <div class="mfg">
-                        <label>Date début *</label>
-                        <input type="date" name="start_date"
-                               value="{{ request('dispo_du') }}"
-                               id="modal-start-date"
-                               required/>
+                {{-- Dates --}}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="filter-label block mb-1">Date début *</label>
+                        <input type="date" name="start_date" id="modal-du" required class="modal-input w-full"
+                               onchange="DISPO.calcEstimate()">
                     </div>
-                    <div class="mfg">
-                        <label>Date fin *</label>
-                        <input type="date" name="end_date"
-                               value="{{ request('dispo_au') }}"
-                               id="modal-end-date"
-                               required/>
+                    <div>
+                        <label class="filter-label block mb-1">Date fin *</label>
+                        <input type="date" name="end_date" id="modal-au" required class="modal-input w-full"
+                               onchange="DISPO.calcEstimate()">
+                    </div>
+                </div>
+                <div id="modal-date-err" class="hidden text-xs text-red-400 bg-red-400/10 px-3 py-2 rounded-lg flex items-center gap-2">
+                    <span>⚠️</span><span id="modal-date-err-text"></span>
+                </div>
+
+                {{-- Montant estimé --}}
+                <div class="flex justify-between items-center bg-[#e8a020]/5 border border-[#e8a020]/20 rounded-xl px-4 py-3">
+                    <div class="text-xs text-gray-400">
+                        Montant estimé
+                        <span id="modal-months" class="text-gray-600 ml-1"></span>
+                    </div>
+                    <div class="text-xl font-black text-[#e8a020]">
+                        <span id="modal-total">—</span>
+                        <span class="text-xs font-normal text-gray-500"> FCFA</span>
                     </div>
                 </div>
 
-                <div class="mfg">
-                    <label>Note interne</label>
-                    <textarea name="notes"
-                              placeholder="Ex: Confirmation reçue par email le…"
-                              style="min-height:70px;"></textarea>
+                {{-- Notes --}}
+                <div>
+                    <label class="filter-label block mb-1">Notes <span class="text-gray-600 font-normal">(optionnel)</span></label>
+                    <textarea name="notes" rows="2" placeholder="Remarques…"
+                              class="modal-input w-full resize-none min-h-[56px]"></textarea>
                 </div>
             </div>
 
-            <div class="modal-footer">
-                <button type="button" class="btn btn-ghost"
-                        onclick="closeConfirmModal()">Annuler</button>
-                <button type="submit" class="btn btn-primary">
-                    ✅ Confirmer et bloquer les panneaux
+            {{-- Footer --}}
+            <div class="px-5 py-3 border-t border-[#3a3a48] bg-[#252535] rounded-b-2xl flex justify-between items-center gap-3 flex-shrink-0">
+                <button type="button" onclick="DISPO.closeConfirmModal()"
+                        class="px-4 py-2 text-sm border border-[#3a3a48] rounded-xl text-gray-400 hover:border-[#e8a020] hover:text-[#e8a020] transition-all">
+                    Annuler
+                </button>
+                <button type="button" id="modal-submit" onclick="DISPO.submitForm()"
+                        class="px-5 py-2 bg-[#e8a020] text-black font-bold text-sm rounded-xl hover:bg-yellow-400 transition-all flex items-center gap-2 disabled:opacity-50">
+                    <span id="modal-submit-icon">✅</span>
+                    <span id="modal-submit-txt">Confirmer et bloquer</span>
                 </button>
             </div>
         </form>
     </div>
 </div>
 
-{{-- ── Modal fiche technique ──────────────────────────────────── --}}
-<div x-data="{ open: false, panel: {} }"
-     x-on:open-fiche-panel.window="panel = $event.detail; open = true"
-     x-show="open" class="modal-overlay"
-     @click.self="open = false" style="display:none;">
-    <div class="modal" style="max-width:680px;max-height:85vh;overflow-y:auto;"
-         @click.stop>
-        <div class="modal-header">
-            <span class="modal-title">📋 Fiche technique</span>
-            <button class="modal-close" @click="open = false">✕</button>
+{{-- ══ MODAL FICHE PANNEAU ══ --}}
+<div id="modal-fiche"
+     class="fixed inset-0 z-[9998] bg-black/70 backdrop-blur-sm items-center justify-center p-4"
+     style="display:none"
+     onclick="if(event.target===this)DISPO.closeFiche()">
+    <div class="bg-[#1e1e2e] border border-[#3a3a48] rounded-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto shadow-2xl"
+         onclick="event.stopPropagation()">
+        <div class="px-5 py-4 border-b border-[#3a3a48] flex justify-between items-center">
+            <div id="fiche-title" class="font-bold text-white text-sm"></div>
+            <button onclick="DISPO.closeFiche()" class="text-gray-400 hover:text-white">✕</button>
         </div>
-        <div class="modal-body">
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px;">
-                @foreach([
-                    ['RÉFÉRENCE','reference'],['NOM','name'],['COMMUNE','commune'],
-                    ['GPS LAT','latitude'],['GPS LNG','longitude'],['ZONE','zone'],
-                    ['FORMAT','format'],['DIMENSIONS','dimensions'],['ÉCLAIRÉ','is_lit'],
-                    ['TRAFIC','daily_traffic'],['TARIF/MOIS','monthly_rate'],['STATUT','status'],
-                ] as [$label,$key])
-                <div>
-                    <div style="font-size:10px;color:var(--text3);text-transform:uppercase;
-                                letter-spacing:.6px;margin-bottom:4px;">{{ $label }}</div>
-                    <div style="font-size:13px;font-weight:500;color:var(--text);">
-                        <template x-if="'{{ $key }}' === 'is_lit'">
-                            <span x-text="panel.is_lit ? '💡 Oui' : 'Non'"></span>
-                        </template>
-                        <template x-if="'{{ $key }}' === 'monthly_rate'">
-                            <span x-text="panel.monthly_rate
-                                ? Number(panel.monthly_rate).toLocaleString('fr-FR') + ' FCFA'
-                                : '—'"></span>
-                        </template>
-                        <template x-if="'{{ $key }}' !== 'is_lit' && '{{ $key }}' !== 'monthly_rate'">
-                            <span x-text="panel['{{ $key }}'] || '—'"></span>
-                        </template>
-                    </div>
-                </div>
-                @endforeach
+        <div id="fiche-body" class="p-5"></div>
+    </div>
+</div>
+
+{{-- ══ MODAL ERREUR (réponse serveur) ══ --}}
+<div id="modal-error"
+     class="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm items-center justify-center p-4"
+     style="display:none"
+     onclick="if(event.target===this)DISPO.closeError()">
+    <div class="bg-[#1e1e2e] border border-red-500/40 rounded-2xl w-full max-w-md shadow-2xl"
+         onclick="event.stopPropagation()">
+        <div class="px-5 py-4 border-b border-red-500/30 flex justify-between items-center bg-red-500/5 rounded-t-2xl">
+            <div class="font-bold text-red-400 flex items-center gap-2">
+                <span class="text-xl">⚠️</span> Erreur
             </div>
-            <div>
-                <div style="font-size:10px;color:var(--text3);text-transform:uppercase;
-                            letter-spacing:.6px;margin-bottom:6px;">DESCRIPTION DE ZONE</div>
-                <div style="background:var(--surface3);border-radius:8px;padding:12px;
-                            font-size:13px;color:var(--text2);"
-                     x-text="panel.zone_description || 'Aucune description.'"></div>
-            </div>
+            <button onclick="DISPO.closeError()" class="text-gray-400 hover:text-white">✕</button>
         </div>
-        <div class="modal-footer">
-            <button class="btn btn-ghost" @click="open = false">Fermer</button>
+        <div class="p-5">
+            <div id="error-body" class="text-sm text-gray-300 space-y-2"></div>
+        </div>
+        <div class="px-5 py-3 border-t border-[#3a3a48] flex justify-end">
+            <button onclick="DISPO.closeError()"
+                    class="px-4 py-2 bg-[#252530] border border-[#3a3a48] rounded-xl text-sm text-gray-300 hover:border-[#e8a020] hover:text-[#e8a020] transition-all">
+                Fermer
+            </button>
         </div>
     </div>
 </div>
 
+<style>
+.filter-label  { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:#6b7280; }
+.filter-select { height:40px; padding:0 12px; background:#252530; border:1px solid #3a3a48; border-radius:10px; font-size:13px; color:#e8e8f0; cursor:pointer; transition:border-color .2s; }
+.filter-select:hover, .filter-select:focus { border-color:#e8a020; outline:none; }
+.ms-badge { background:#e8a020; color:#000; border-radius:9999px; padding:1px 8px; font-size:10px; font-weight:700; }
+.stat-pill { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; background:#252530; border:1px solid #3a3a48; border-radius:9999px; font-size:12px; color:#9ca3af; }
+.modal-input { background:#252530; border:1px solid #3a3a48; border-radius:10px; padding:9px 12px; font-size:13px; color:#e8e8f0; transition:border-color .2s; }
+.modal-input:focus { border-color:#e8a020; outline:none; box-shadow:0 0 0 2px rgba(232,160,32,.2); }
+
+/* Multiselect */
+.ms-wrapper { position:relative; }
+.ms-btn { width:100%; min-height:40px; padding:6px 30px 6px 12px; background:#252530; border:1px solid #3a3a48; border-radius:10px; font-size:13px; color:#e8e8f0; cursor:pointer; text-align:left; display:flex; align-items:center; flex-wrap:wrap; gap:4px; position:relative; transition:border-color .2s; }
+.ms-btn:hover, .ms-btn.open { border-color:#e8a020; }
+.ms-btn::after { content:"▾"; position:absolute; right:10px; top:50%; transform:translateY(-50%); color:#6b7280; font-size:11px; pointer-events:none; }
+.ms-btn.open::after { content:"▴"; }
+.ms-placeholder { color:#6b7280; font-size:12px; }
+.ms-chip { background:rgba(232,160,32,.12); color:#e8a020; border-radius:6px; padding:2px 6px; font-size:11px; display:inline-flex; align-items:center; gap:3px; }
+.ms-chip button { background:none; border:none; color:#e8a020; cursor:pointer; opacity:.6; font-size:11px; padding:0; }
+.ms-chip button:hover { opacity:1; }
+.ms-drop { position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:500; background:#252530; border:1px solid #3a3a48; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.5); max-height:280px; display:flex; flex-direction:column; overflow:hidden; }
+.ms-search { padding:8px; border-bottom:1px solid #3a3a48; }
+.ms-search input { width:100%; height:32px; padding:0 10px; background:#1a1a2a; border:1px solid #3a3a48; border-radius:8px; font-size:12px; color:#e8e8f0; outline:none; }
+.ms-search input:focus { border-color:#e8a020; }
+.ms-list { overflow-y:auto; flex:1; }
+.ms-opt { padding:9px 12px; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:8px; color:#9ca3af; border-bottom:1px solid #3a3a48; transition:all .15s; }
+.ms-opt:last-child { border-bottom:none; }
+.ms-opt:hover { background:#2d2d3a; color:#e8e8f0; }
+.ms-opt.selected { background:rgba(232,160,32,.1); color:#e8a020; }
+.ms-opt input { accent-color:#e8a020; width:15px; height:15px; cursor:pointer; flex-shrink:0; }
+.ms-foot { padding:6px 12px; border-top:1px solid #3a3a48; background:#2d2d3a; display:flex; justify-content:space-between; font-size:11px; color:#6b7280; }
+.ms-foot button { background:none; border:none; color:#e8a020; cursor:pointer; font-size:11px; }
+
+/* Panel card */
+.panel-card { background:#252530; border-radius:14px; overflow:hidden; border:2px solid #3a3a48; transition:transform .15s, box-shadow .15s, border-color .15s; position:relative; display:flex; flex-direction:column; }
+.panel-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,.3); }
+.panel-card.selected { border-color:#e8a020; box-shadow:0 0 0 3px rgba(232,160,32,.25); }
+.panel-card.selectable { cursor:pointer; }
+
+@keyframes spin { to { transform:rotate(360deg); } }
+.animate-spin { animation:spin 1s linear infinite; }
+
+@media (max-width:768px) {
+    #sel-bar { left:0; }
+}
+</style>
+
 @push('scripts')
 <script>
-// ── Alpine component disponibilités ────────────────────────────────
-function disponibilites() {
-    return {
-        selectedIds:   [],
-        selectedRates: {},
+(function(){
+'use strict';
 
-        init() {
-            // Afficher bouton topbar si sélection non vide
-            this.$watch('selectedIds', ids => {
-                document.getElementById('btn-confirm-top').style.display =
-                    ids.length > 0 ? 'block' : 'none';
-            });
-        },
+const D = window.__DISPO__;
 
-        togglePanel(id, rate) {
-            const idx = this.selectedIds.indexOf(id);
-            if (idx === -1) {
-                this.selectedIds.push(id);
-                this.selectedRates[id] = parseFloat(rate) || 0;
-            } else {
-                this.selectedIds.splice(idx, 1);
-                delete this.selectedRates[id];
-            }
-        },
+// ══════════════════════════════════════════════════
+// ÉTAT GLOBAL
+// ══════════════════════════════════════════════════
+const S = {
+    f: {                        // filtres
+        commune_ids: [], zone_ids: [], format_ids: [], agency_ids: [],
+        dimensions: '', is_lit: '', statut: 'tous',
+        du: '', au: '', source: 'all', q: '',
+    },
+    sel: { ids: [], rates: {}, sources: {} },
+    page: 1, pages: 1, total: 0, perPage: 48,
+    loading: false, reqId: 0,
+    debounce: null, searchDebounce: null,
+};
 
-        formatTotal() {
-            const total = Object.values(this.selectedRates).reduce((s, r) => s + r, 0);
-            return Math.round(total).toLocaleString('fr-FR');
-        },
+// Données multiselect
+const MS_DATA = {
+    commune_ids: D.communes,
+    zone_ids:    D.zones,
+    format_ids:  D.formats,
+    agency_ids:  D.agencies,
+};
 
-        openFiche(panelJson) {
-            this.$dispatch('open-fiche-panel', panelJson);
-        },
+// ══════════════════════════════════════════════════
+// API PUBLIQUE
+// ══════════════════════════════════════════════════
+window.DISPO = {
 
-        openConfirmModal() {
-            // Injecter les inputs hidden
-            const container = document.getElementById('hidden-panel-inputs');
-            if (container) {
-                container.innerHTML = '';
-                this.selectedIds.forEach(id => {
-                    const input = document.createElement('input');
-                    input.type  = 'hidden';
-                    input.name  = 'panel_ids[]';
-                    input.value = id;
-                    container.appendChild(input);
-                });
-            }
-            document.getElementById('modal-confirm-selection').style.display = 'flex';
-        },
+    // ── Filtres ──────────────────────────────────
+    set(k, v) {
+        S.f[k] = v; S.page = 1;
+        this._fetch(); this._syncUI();
+    },
 
-        submitPdf(type) {
-            const formId    = type === 'pdf-images' ? 'form-pdf-images' : 'form-pdf-liste';
-            const inputsId  = type === 'pdf-images' ? 'pdf-images-inputs' : 'pdf-liste-inputs';
-            const container = document.getElementById(inputsId);
-            if (container) {
-                container.innerHTML = '';
-                this.selectedIds.forEach(id => {
-                    const input = document.createElement('input');
-                    input.type  = 'hidden';
-                    input.name  = 'panel_ids[]';
-                    input.value = id;
-                    container.appendChild(input);
-                });
-            }
-            document.getElementById(formId).submit();
-        },
-    };
-}
+    onSearch(v) {
+        S.f.q = v.trim(); S.page = 1;
+        clearTimeout(S.searchDebounce);
+        S.searchDebounce = setTimeout(() => { this._fetch(); this._syncUI(); }, 350);
+        _el('btn-clear-search').classList.toggle('hidden', !v);
+    },
 
-function closeConfirmModal() {
-    document.getElementById('modal-confirm-selection').style.display = 'none';
-}
+    clearSearch() {
+        S.f.q = ''; S.page = 1;
+        _el('f-search').value = '';
+        _el('btn-clear-search').classList.add('hidden');
+        this._fetch(); this._syncUI();
+    },
 
-// ── Validation dates ────────────────────────────────────────────────
-function onStartDateChange(startVal) {
-    const endInput = document.getElementById('dispo-au');
-    if (startVal && endInput) {
-        const minDate = new Date(startVal);
-        minDate.setDate(minDate.getDate() + 1);
-        endInput.min = minDate.toISOString().split('T')[0];
-        if (endInput.value && endInput.value <= startVal) {
-            endInput.value = '';
-            showDateErr('La date de fin a été réinitialisée (antérieure au début).');
+    onSourceChange(v) {
+        S.f.source = v;
+        if (v === 'internal') { S.f.agency_ids = []; _syncMs('agency_ids'); }
+        S.page = 1; this._fetch(); this._syncUI();
+    },
+
+    onDateChange(which, val) {
+        const f = S.f;
+        if (which === 'du') {
+            f.du = val;
+            const next = new Date(val); next.setDate(next.getDate()+1);
+            const auEl = _el('f-au');
+            auEl.min = next.toISOString().split('T')[0];
+            if (f.au && f.au <= val) { f.au = ''; auEl.value = ''; }
         } else {
-            clearDateErr();
+            f.au = val;
         }
+        _hideDateErr();
+        if (f.du && f.au && f.au <= f.du) {
+            _showDateErr('La date de fin doit être après la date de début.');
+            f.au = ''; _el('f-au').value = ''; return;
+        }
+        S.page = 1; this._fetch(); this._syncUI();
+    },
+
+    reset() {
+        S.f = { commune_ids:[], zone_ids:[], format_ids:[], agency_ids:[],
+                dimensions:'', is_lit:'', statut:'tous',
+                du:'', au:'', source:'all', q:'' };
+        S.page = 1;
+        ['f-dimensions','f-is_lit','f-statut','f-source']
+            .forEach(id => { const el=_el(id); if(el) el.value = (id==='f-statut'?'tous':''); });
+        _el('f-source').value = 'all';
+        _el('f-du').value = ''; _el('f-au').value = '';
+        _el('f-search').value = '';
+        _el('btn-clear-search').classList.add('hidden');
+        ['commune_ids','zone_ids','format_ids','agency_ids'].forEach(_syncMs);
+        _hideDateErr();
+        this._fetch(); this._syncUI();
+    },
+
+    // ── Pagination ────────────────────────────────
+    prevPage() { if(S.page>1){ S.page--; this._fetch(); } },
+    nextPage() { if(S.page<S.pages){ S.page++; this._fetch(); _el('panels-grid')?.scrollIntoView({behavior:'smooth',block:'start'}); } },
+
+    // ── Sélection ─────────────────────────────────
+    toggle(id, rate, source) {
+        const idx = S.sel.ids.indexOf(id);
+        if (idx === -1) {
+            S.sel.ids.push(id);
+            S.sel.rates[id]   = parseFloat(rate)||0;
+            S.sel.sources[id] = source||'internal';
+        } else {
+            S.sel.ids.splice(idx,1);
+            delete S.sel.rates[id];
+            delete S.sel.sources[id];
+        }
+        const sel = S.sel.ids.includes(id);
+        const card = document.querySelector(`.panel-card[data-id="${id}"]`);
+        if (card) {
+            card.classList.toggle('selected', sel);
+            const btn = card.querySelector('.btn-sel');
+            if (btn) {
+                btn.textContent      = sel ? '✓ Sélectionné' : '+ Sélectionner';
+                btn.style.background = sel ? 'var(--accent)' : 'var(--surface3)';
+                btn.style.color      = sel ? '#000' : 'var(--text)';
+            }
+            const chk = card.querySelector('.card-chk');
+            if (chk) chk.checked = sel;
+        }
+        this._syncSelBar();
+    },
+
+    clearSelection() {
+        S.sel = { ids:[], rates:{}, sources:{} };
+        document.querySelectorAll('.panel-card.selected').forEach(c => {
+            c.classList.remove('selected');
+            const btn=c.querySelector('.btn-sel');
+            if(btn){ btn.textContent='+ Sélectionner'; btn.style.background='var(--surface3)'; btn.style.color='var(--text)'; }
+            const chk=c.querySelector('.card-chk'); if(chk) chk.checked=false;
+        });
+        this._syncSelBar();
+    },
+
+    // ── Modal Confirmer ───────────────────────────
+    openConfirmModal() {
+        _el('modal-du').value = S.f.du || '';
+        _el('modal-au').value = S.f.au || '';
+        _el('hidden-panels').innerHTML = S.sel.ids
+            .map(id=>`<input type="hidden" name="panel_ids[]" value="${id}">`)
+            .join('');
+        const hasExt = Object.values(S.sel.sources).includes('external');
+        _el('modal-ext-warn').classList.toggle('hidden', !hasExt);
+        _el('modal-ext-warn').classList.toggle('flex', hasExt);
+        _el('modal-errors').classList.add('hidden');
+        _el('modal-date-err').classList.add('hidden');
+        _el('modal-summary').textContent = `${S.sel.ids.length} panneau(x) sélectionné(s)`;
+        this.calcEstimate();
+        _show('modal-confirm');
+    },
+
+    closeConfirmModal() { _hide('modal-confirm'); },
+
+    setType(type) {
+        document.querySelector(`input[name="type"][value="${type}"]`).checked = true;
+        _el('lbl-option').className = _el('lbl-option').className
+            .replace(/border-[^\s]+/, type==='option' ? 'border-orange-500' : 'border-[#3a3a48]');
+        _el('lbl-ferme').className = _el('lbl-ferme').className
+            .replace(/border-[^\s]+/, type==='ferme' ? 'border-green-500' : 'border-[#3a3a48]');
+        const showCamp = type === 'ferme';
+        _el('wrapper-campaign-name').classList.toggle('hidden', !showCamp);
+    },
+
+    calcEstimate() {
+        const du = _el('modal-du').value;
+        const au = _el('modal-au').value;
+        const errEl = _el('modal-date-err');
+
+        if (du && au) {
+            if (au <= du) {
+                errEl.classList.remove('hidden');
+                _el('modal-date-err-text').textContent = 'La date de fin doit être après la date de début.';
+                _el('modal-total').textContent = '—';
+                _el('modal-months').textContent = '';
+                return;
+            }
+            errEl.classList.add('hidden');
+        }
+
+        if (!du || !au) { _el('modal-total').textContent = '—'; _el('modal-months').textContent = ''; return; }
+
+        const months = _monthsBetween(du, au);
+        const total  = S.sel.ids.reduce((s,id) => s + (S.sel.rates[id]||0)*months, 0);
+        _el('modal-total').textContent  = Math.round(total).toLocaleString('fr-FR');
+        _el('modal-months').textContent = `(${months} mois)`;
+    },
+
+    submitForm() {
+        const du = _el('modal-du').value;
+        const au = _el('modal-au').value;
+        const client = _el('modal-client').value;
+        const errors = [];
+
+        if (!client) errors.push('Veuillez sélectionner un client.');
+        if (!du) errors.push('La date de début est obligatoire.');
+        if (!au) errors.push('La date de fin est obligatoire.');
+        if (du && au && au <= du) errors.push('La date de fin doit être après la date de début.');
+
+        if (errors.length > 0) {
+            const errBox = _el('modal-errors');
+            errBox.innerHTML = errors.map(e=>`<div class="flex gap-2"><span>⚠️</span><span>${e}</span></div>`).join('');
+            errBox.classList.remove('hidden');
+            return;
+        }
+
+        // Mettre à jour les inputs cachés
+        _el('hidden-panels').innerHTML = S.sel.ids
+            .map(id=>`<input type="hidden" name="panel_ids[]" value="${id}">`)
+            .join('');
+
+        const btn = _el('modal-submit');
+        _el('modal-submit-txt').textContent = 'Envoi en cours…';
+        btn.disabled = true;
+
+        _el('form-confirm').submit();
+    },
+
+    // ── Modal Fiche ───────────────────────────────
+    openFiche(p) {
+        _el('fiche-title').textContent = `📋 ${p.reference} — ${p.name}`;
+        const src = p.source === 'external' ? `🤝 ${p.agency_name}` : '🏢 Interne';
+        const fields = [
+            ['RÉFÉRENCE', p.reference], ['SOURCE', src],
+            ['COMMUNE', p.commune],     ['ZONE', p.zone],
+            ['FORMAT', p.format],       ['DIMENSIONS', p.dimensions||'—'],
+            ['ÉCLAIRAGE', p.is_lit?'💡 Éclairé':'Non éclairé'],
+            ['TRAFIC/JOUR', p.daily_traffic>0 ? p.daily_traffic.toLocaleString('fr-FR')+' contacts' : '—'],
+        ];
+        _el('fiche-body').innerHTML = `
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                ${fields.map(([l,v])=>`
+                <div class="bg-[#252530] rounded-lg p-3">
+                    <div class="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-1">${l}</div>
+                    <div class="text-sm text-gray-200 font-medium">${v||'—'}</div>
+                </div>`).join('')}
+            </div>
+            <div class="bg-[#e8a020]/5 border border-[#e8a020]/20 rounded-xl p-4 text-center mb-3">
+                <div class="text-xs text-gray-500 mb-1">TARIF MENSUEL</div>
+                <div class="text-2xl font-black text-[#e8a020]">${p.monthly_rate?Math.round(p.monthly_rate).toLocaleString('fr-FR')+' FCFA':'—'}</div>
+            </div>
+            ${p.zone_description?`<div class="text-xs text-gray-500 mb-1 uppercase font-bold">Zone</div><div class="bg-[#252530] rounded-xl p-3 text-xs text-gray-300">${p.zone_description}</div>`:''}
+        `;
+        _show('modal-fiche');
+    },
+    closeFiche() { _hide('modal-fiche'); },
+
+    // ── Modal Erreur ──────────────────────────────
+    showError(msgs) {
+        _el('error-body').innerHTML = (Array.isArray(msgs)?msgs:[msgs])
+            .map(m=>`<div class="flex gap-2 items-start"><span class="text-red-400 flex-shrink-0">•</span><span>${m}</span></div>`).join('');
+        _show('modal-error');
+    },
+    closeError() { _hide('modal-error'); },
+
+    // ══════════════════════════════════════════════
+    // PRIVÉ — FETCH
+    // ══════════════════════════════════════════════
+    _fetch(delay) {
+        clearTimeout(S.debounce);
+        const d = delay !== undefined ? delay : 300;
+        S.debounce = setTimeout(() => this._doFetch(), d);
+    },
+
+    async _doFetch() {
+        const rid = ++S.reqId;
+        S.loading = true;
+        _showLoader();
+
+        const p = new URLSearchParams();
+        S.f.commune_ids.forEach(id => p.append('commune_ids[]', id));
+        S.f.zone_ids.forEach(id    => p.append('zone_ids[]', id));
+        S.f.format_ids.forEach(id  => p.append('format_ids[]', id));
+        S.f.agency_ids.forEach(id  => p.append('agency_ids[]', id));
+        if (S.f.dimensions)   p.set('dimensions', S.f.dimensions);
+        if (S.f.is_lit !== '') p.set('is_lit', S.f.is_lit);
+        if (S.f.statut !== 'tous') p.set('statut', S.f.statut);
+        if (S.f.du) p.set('dispo_du', S.f.du);
+        if (S.f.au) p.set('dispo_au', S.f.au);
+        if (S.f.source !== 'all') p.set('source', S.f.source);
+        if (S.f.q) p.set('q', S.f.q);
+        p.set('page', S.page);
+        p.set('per_page', S.perPage);
+
+        try {
+            const res  = await fetch(`${D.ajaxUrl}?${p}`, {
+                headers: { Accept:'application/json', 'X-CSRF-TOKEN': D.csrf }
+            });
+            if (rid !== S.reqId) return; // requête périmée
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            S.loading = false;
+
+            if (data.date_error) {
+                _showDateErr(data.date_error);
+                _showEmpty(data.date_error, '');
+                return;
+            }
+
+            S.pages = data.stats.pages || 1;
+            S.total = data.stats.total || 0;
+            this._renderPanels(data.panels);
+            this._renderStats(data.stats, data.has_period);
+            this._renderPagination(data.stats);
+
+        } catch (err) {
+            if (rid !== S.reqId) return;
+            S.loading = false;
+            _showEmpty('Erreur de chargement', 'Vérifiez votre connexion.');
+            console.error('[DISPO]', err);
+        }
+    },
+
+    // ══════════════════════════════════════════════
+    // PRIVÉ — RENDU
+    // ══════════════════════════════════════════════
+    _renderPanels(panels) {
+        const grid  = _el('panels-grid');
+        const empty = _el('empty-state');
+        _hide('loader');
+
+        if (!panels || panels.length === 0) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+            const hasPanels = S.total > 0;
+            _el('empty-title').textContent = hasPanels
+                ? 'Aucun panneau correspond à vos filtres'
+                : 'Aucun panneau enregistré';
+            _el('empty-sub').textContent = hasPanels
+                ? 'Modifiez ou réinitialisez vos filtres.'
+                : 'Commencez par créer votre premier panneau.';
+            _el('empty-cta').style.display = hasPanels ? 'none' : 'inline-flex';
+            return;
+        }
+
+        empty.style.display = 'none';
+        const frag = document.createDocumentFragment();
+        panels.forEach(p => {
+            const div = document.createElement('div');
+            div.innerHTML = this._card(p);
+            frag.appendChild(div.firstElementChild);
+        });
+        grid.innerHTML = '';
+        grid.appendChild(frag);
+
+        // Restaurer état sélection
+        S.sel.ids.forEach(id => {
+            const card = grid.querySelector(`.panel-card[data-id="${id}"]`);
+            if (!card) return;
+            card.classList.add('selected');
+            const btn = card.querySelector('.btn-sel');
+            if (btn) { btn.textContent='✓ Sélectionné'; btn.style.background='var(--accent)'; btn.style.color='#000'; }
+            const chk = card.querySelector('.card-chk'); if(chk) chk.checked=true;
+        });
+    },
+
+    _card(p) {
+        const CFG = {
+            libre:          { l:'Disponible', c:'#22c55e', b:'rgba(34,197,94,.08)',  bd:'rgba(34,197,94,.3)' },
+            occupe:         { l:'Occupé',      c:'#ef4444', b:'rgba(239,68,68,.08)',  bd:'rgba(239,68,68,.3)' },
+            option_periode: { l:'En option',   c:'#e8a020', b:'rgba(232,160,32,.08)', bd:'rgba(232,160,32,.3)' },
+            option:         { l:'Option',      c:'#e8a020', b:'rgba(232,160,32,.08)', bd:'rgba(232,160,32,.3)' },
+            confirme:       { l:'Confirmé',    c:'#a855f7', b:'rgba(168,85,247,.08)', bd:'rgba(168,85,247,.3)' },
+            maintenance:    { l:'Maintenance', c:'#6b7280', b:'rgba(107,114,128,.08)',bd:'rgba(107,114,128,.3)' },
+            a_verifier:     { l:'À vérifier',  c:'#94a3b8', b:'rgba(148,163,184,.08)',bd:'rgba(148,163,184,.3)' },
+        };
+        const sc   = CFG[p.display_status] || CFG.libre;
+        const bg   = D.colors[p.card_color_idx] || '#3b82f6';
+        const isSel = S.sel.ids.includes(p.id);
+
+        const safe = encodeURIComponent(JSON.stringify(p));
+
+        const tags = [
+            p.format     ? `<span class="tag">${p.format}</span>` : '',
+            p.dimensions ? `<span class="tag">${p.dimensions}</span>` : '',
+            p.is_lit     ? `<span class="tag text-[#e8a020]">💡</span>` : '',
+        ].filter(Boolean).join('');
+
+        const releaseHtml = p.release_info ? `
+            <div class="mt-1 px-2 py-1 rounded bg-red-500/5 border border-red-500/15 text-xs">
+                <span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'#e8a020':'#9ca3af'}">
+                    📅 ${p.release_info.label}
+                </span>
+            </div>` : '';
+
+        const selBtn = p.is_selectable ? `
+            <button type="button" class="btn-sel flex-1 text-xs py-1.5 px-2 rounded-lg transition-all"
+                    style="background:${isSel?'var(--accent)':'var(--surface3)'};color:${isSel?'#000':'var(--text)'};border:1px solid ${isSel?'transparent':'var(--border2)'}"
+                    onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">
+                ${isSel?'✓ Sélectionné':'+ Sélectionner'}
+            </button>` : `
+            <div class="flex-1 text-center text-xs py-1.5 px-2 rounded-lg bg-[#1a1a2a] text-gray-500 border border-[#3a3a48]">
+                ${sc.l}
+            </div>`;
+
+        return `
+<div class="panel-card selectable ${isSel?'selected':''}"
+     data-id="${p.id}"
+     ${p.is_selectable?`onclick="DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')"`:''}>
+
+    ${p.source==='external'?`<div class="absolute top-2 left-2 z-10 text-[9px] font-bold px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-400/30">🤝 ${p.agency_name}</div>`:''}
+
+    ${p.is_selectable?`
+    <div class="absolute top-2 right-10 z-10">
+        <input type="checkbox" class="card-chk accent-[#e8a020] w-4 h-4 cursor-pointer" ${isSel?'checked':''}
+               onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">
+    </div>`:''}
+
+    <div class="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full text-[10px] font-bold"
+         style="background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">
+        ${sc.l}
+    </div>
+
+    {{-- Thumb --}}
+    <div class="h-20 flex-shrink-0 flex items-center justify-center" style="background:${sc.b}">
+        <div class="px-4 py-1.5 rounded-lg font-mono font-bold text-sm text-white tracking-wider shadow-lg"
+             style="background:${bg}">
+            ${p.reference}
+        </div>
+    </div>
+
+    {{-- Corps --}}
+    <div class="p-3 flex flex-col flex-1">
+        <div class="text-[10px] text-gray-500 mb-0.5">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div>
+        <div class="font-bold text-sm text-gray-100 mb-2 truncate" title="${p.name}">${p.name}</div>
+        <div class="flex gap-1 flex-wrap mb-2">${tags}</div>
+        ${p.zone_description?`<div class="text-[11px] text-gray-400 mb-2 truncate" title="${p.zone_description}">📍 ${p.zone_description}</div>`:''}
+        <div class="mt-auto pt-2 border-t border-[#3a3a48]">
+            <div class="text-base font-black text-[#e8a020] mb-1">
+                ${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K <span class="text-xs font-normal text-gray-500">FCFA/mois</span>':'<span class="text-sm text-gray-500">Tarif non défini</span>'}
+            </div>
+            ${releaseHtml}
+            <div class="flex gap-1.5 mt-2">
+                <button type="button" class="flex-none text-[10px] px-2 py-1.5 rounded-lg bg-[#1a1a2a] border border-[#3a3a48] text-gray-400 hover:text-gray-200 hover:border-gray-400 transition-all"
+                        onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))"
+                        data-p="${safe}">
+                    📋 Fiche
+                </button>
+                ${selBtn}
+            </div>
+        </div>
+    </div>
+</div>
+<style>.tag{background:var(--surface3);color:var(--text2);font-size:10px;padding:2px 6px;border-radius:4px;}</style>`;
+    },
+
+    _renderStats(stats, hasPeriod) {
+        const set = (id, html, show=true) => {
+            const el = _el(id); if(!el) return;
+            el.style.display = show?'inline-flex':'none';
+            if(show) el.innerHTML = html;
+        };
+        set('stat-total', `📊 <strong>${stats.total}</strong> panneau(x)`);
+        set('stat-dispo',   `✅ <strong>${stats.disponibles}</strong> dispos`, hasPeriod && stats.disponibles>0);
+        set('stat-occupes', `🔒 <strong>${stats.occupes}</strong> occupés`,   hasPeriod && stats.occupes>0);
+        set('stat-options', `⏳ <strong>${stats.options}</strong> options`,    hasPeriod && stats.options>0);
+        set('stat-ext',     `🤝 <strong>${stats.externes}</strong> externes`, stats.externes>0);
+    },
+
+    _renderPagination(stats) {
+        const bar  = _el('pagination-bar');
+        const info = _el('pag-info');
+        const prev = _el('btn-prev');
+        const next = _el('btn-next');
+        if (!bar) return;
+        if (stats.pages <= 1) { bar.classList.add('hidden'); return; }
+        bar.classList.remove('hidden');
+        const from = (S.page-1)*S.perPage+1;
+        const to   = Math.min(S.page*S.perPage, stats.total);
+        if (info) info.textContent = `${from}–${to} sur ${stats.total}`;
+        if (prev) prev.disabled = S.page <= 1;
+        if (next) next.disabled = S.page >= stats.pages;
+    },
+
+    _syncSelBar() {
+        const n = S.sel.ids.length;
+        const total = Object.values(S.sel.rates).reduce((s,r)=>s+r,0);
+        const nExt  = Object.values(S.sel.sources).filter(s=>s==='external').length;
+
+        _el('sel-bar').style.display = n > 0 ? 'block' : 'none';
+        const tw = _el('topbar-confirm-wrapper');
+        if(tw) tw.style.display = n > 0 ? 'block' : 'none';
+        _el('sel-count').textContent    = n;
+        _el('sel-amount').textContent   = Math.round(total).toLocaleString('fr-FR') + ' FCFA/mois';
+        _el('topbar-count').textContent = n;
+        const eb = _el('sel-ext-badge');
+        if(eb) { eb.classList.toggle('hidden', nExt===0); _el('sel-ext-n').textContent=nExt; }
+    },
+
+    _syncUI() {
+        const f = S.f;
+        const active = f.commune_ids.length||f.zone_ids.length||f.format_ids.length||
+            f.agency_ids.length||f.dimensions||f.is_lit!==''||
+            f.statut!=='tous'||f.du||f.au||f.source!=='all'||f.q;
+        _el('btn-reset').classList.toggle('hidden', !active);
+        this._renderTags();
+    },
+
+    _renderTags() {
+        const f = S.f;
+        const tags = [];
+        const addMS = (ids, key, data) => ids.forEach(id => {
+            const it = data.find(x=>x.id===id);
+            if(it) tags.push({ l:it.name, rm:()=>{ const i=S.f[key].indexOf(id); if(i>-1) S.f[key].splice(i,1); S.page=1; _syncMs(key); this._fetch(); this._syncUI(); } });
+        });
+        addMS(f.commune_ids, 'commune_ids', D.communes);
+        addMS(f.zone_ids,    'zone_ids',    D.zones);
+        addMS(f.format_ids,  'format_ids',  D.formats);
+        addMS(f.agency_ids,  'agency_ids',  D.agencies);
+        if(f.dimensions) tags.push({l:f.dimensions, rm:()=>{ S.f.dimensions=''; _el('f-dimensions').value=''; S.page=1; this._fetch(); this._syncUI(); }});
+        if(f.is_lit==='1') tags.push({l:'💡 Éclairé', rm:()=>{ S.f.is_lit=''; _el('f-is_lit').value=''; S.page=1; this._fetch(); this._syncUI(); }});
+        if(f.is_lit==='0') tags.push({l:'Non éclairé', rm:()=>{ S.f.is_lit=''; _el('f-is_lit').value=''; S.page=1; this._fetch(); this._syncUI(); }});
+        if(f.statut!=='tous') tags.push({l:'Statut: '+f.statut, rm:()=>{ S.f.statut='tous'; _el('f-statut').value='tous'; S.page=1; this._fetch(); this._syncUI(); }});
+        if(f.q) tags.push({l:'🔍 '+f.q, rm:()=>{ S.f.q=''; _el('f-search').value=''; _el('btn-clear-search').classList.add('hidden'); S.page=1; this._fetch(); this._syncUI(); }});
+
+        const bar  = _el('tags-bar');
+        const list = _el('tags-list');
+        if(!bar||!list) return;
+        bar.classList.toggle('hidden', tags.length===0);
+        bar.classList.toggle('flex',   tags.length>0);
+        list.innerHTML = tags.map((t,i)=>`
+            <span class="ms-chip">
+                ${t.l}
+                <button type="button" onclick="__tagRemove(${i})" title="Retirer">✕</button>
+            </span>`).join('');
+        // Stocker callbacks
+        window.__tagCbs = tags.map(t=>t.rm);
+    },
+};
+
+// Callback global pour les tags (évite l'eval inline)
+window.__tagRemove = i => { if(window.__tagCbs&&window.__tagCbs[i]) window.__tagCbs[i](); };
+
+// ══════════════════════════════════════════════════
+// MULTISELECT
+// ══════════════════════════════════════════════════
+const MS = {}; // instances { key: { el, btn, drop, list } }
+
+function buildMs(wrapper) {
+    const key  = wrapper.dataset.key;
+    const ph   = wrapper.dataset.placeholder || 'Sélectionner';
+    const data = MS_DATA[key] || [];
+
+    const btn  = document.createElement('button');
+    btn.type   = 'button';
+    btn.className = 'ms-btn';
+    btn.innerHTML = `<span class="ms-tags-inner"><span class="ms-placeholder">${ph}</span></span>`;
+
+    const drop = document.createElement('div');
+    drop.className     = 'ms-drop';
+    drop.style.display = 'none';
+
+    // Recherche
+    const srch = document.createElement('div');
+    srch.className = 'ms-search';
+    const si = document.createElement('input');
+    si.type = 'text'; si.placeholder = 'Rechercher…'; si.autocomplete = 'off';
+    srch.appendChild(si); drop.appendChild(srch);
+
+    // Liste
+    const listEl = document.createElement('div');
+    listEl.className = 'ms-list';
+    drop.appendChild(listEl);
+
+    // Pied
+    const foot = document.createElement('div');
+    foot.className = 'ms-foot';
+    foot.innerHTML = `<span id="ms-foot-${key}">0 sélectionné(s)</span>
+        <div><button type="button" onclick="__msAll('${key}')">Tout</button>
+             <button type="button" onclick="__msClear('${key}')">Aucun</button></div>`;
+    drop.appendChild(foot);
+
+    wrapper.appendChild(btn);
+    wrapper.appendChild(drop);
+
+    function render(q='') {
+        const sel = S.f[key];
+        const filtered = q ? data.filter(i=>i.name.toLowerCase().includes(q.toLowerCase())) : data;
+        if (filtered.length === 0) {
+            listEl.innerHTML = '<div class="ms-opt" style="justify-content:center;font-style:italic">Aucun résultat</div>';
+            return;
+        }
+        const frag = document.createDocumentFragment();
+        filtered.forEach(item => {
+            const isSel = sel.includes(item.id);
+            const lbl = document.createElement('label');
+            lbl.className = 'ms-opt'+(isSel?' selected':'');
+            lbl.dataset.id = item.id;
+            const dim = (key==='format_ids'&&item.width&&item.height)
+                ? ` <small class="text-gray-500">(${Math.round(item.width)}×${Math.round(item.height)}m)</small>` : '';
+            lbl.innerHTML = `<input type="checkbox" ${isSel?'checked':''}> ${item.name}${dim}`;
+            lbl.querySelector('input').addEventListener('change', () => {
+                const arr = S.f[key];
+                const idx = arr.indexOf(item.id);
+                if (idx===-1) arr.push(item.id); else arr.splice(idx,1);
+                lbl.classList.toggle('selected', arr.includes(item.id));
+                updateTrigger(); updateFoot();
+                S.page=1; DISPO._fetch(); DISPO._syncUI();
+            });
+            frag.appendChild(lbl);
+        });
+        listEl.innerHTML=''; listEl.appendChild(frag);
     }
-}
 
-function onEndDateChange(endVal) {
-    const startVal = document.getElementById('dispo-du')?.value;
-    if (startVal && endVal && endVal <= startVal) {
-        showDateErr('La date de fin doit être après la date de début.');
-        document.getElementById('dispo-au').value = '';
-    } else {
-        clearDateErr();
+    function updateTrigger() {
+        const sel   = S.f[key];
+        const inner = btn.querySelector('.ms-tags-inner');
+        if (!inner) return;
+        if (sel.length===0) {
+            inner.innerHTML = `<span class="ms-placeholder">${ph}</span>`;
+        } else {
+            inner.innerHTML = sel.map(id=>{
+                const it = data.find(x=>x.id===id);
+                return it ? `<span class="ms-chip">${it.name}<button type="button" onclick="event.preventDefault();event.stopPropagation();__msRemove('${key}',${id})" title="Retirer">✕</button></span>` : '';
+            }).join('');
+        }
+        const badge = _el(`badge-${key}`);
+        if (badge) { badge.textContent=sel.length; badge.classList.toggle('hidden',sel.length===0); }
+        // Sync checkboxes
+        listEl.querySelectorAll('label.ms-opt').forEach(l=>{
+            const id=parseInt(l.dataset.id);
+            const c=l.querySelector('input');
+            const s=sel.includes(id);
+            if(c) c.checked=s;
+            l.classList.toggle('selected',s);
+        });
     }
+
+    function updateFoot() {
+        const n = S.f[key].length;
+        const el = _el(`ms-foot-${key}`); if(el) el.textContent=n+' sélectionné(s)';
+    }
+
+    let stimer;
+    si.addEventListener('input', () => { clearTimeout(stimer); stimer=setTimeout(()=>render(si.value),150); });
+
+    btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const isOpen = drop.style.display !== 'none';
+        _closeAllMs();
+        if (!isOpen) {
+            drop.style.display='flex'; btn.classList.add('open');
+            render(''); si.value=''; si.focus(); updateFoot();
+        }
+    });
+
+    MS[key] = { el:wrapper, btn, drop, listEl, render, updateTrigger, updateFoot };
 }
 
-function validateDatesDisponibilites() {
-    const start = document.getElementById('dispo-du')?.value;
-    const end   = document.getElementById('dispo-au')?.value;
-    if (!start && !end) return true;
-    if (start && !end) { showDateErr('Veuillez renseigner la date de fin.'); return false; }
-    if (!start && end) { showDateErr('Veuillez renseigner la date de début.'); return false; }
-    if (end <= start)  { showDateErr('La date de fin doit être après la date de début.'); return false; }
-    clearDateErr();
-    return true;
+function _syncMs(key) { MS[key]?.updateTrigger(); }
+function _closeAllMs() {
+    Object.values(MS).forEach(m => { m.drop.style.display='none'; m.btn.classList.remove('open'); });
 }
 
-function showDateErr(msg) {
-    const el = document.getElementById('date-error-inline');
-    if (el) { el.innerHTML = '⚠️ ' + msg; el.style.display = 'flex'; }
-}
-function clearDateErr() {
-    const el = document.getElementById('date-error-inline');
-    if (el) el.style.display = 'none';
+window.__msAll     = k => { const d=MS_DATA[k]||[]; const q=MS[k]?.drop?.querySelector('.ms-search input')?.value?.toLowerCase()||''; const visible=q?d.filter(i=>i.name.toLowerCase().includes(q)):d; visible.forEach(i=>{ if(!S.f[k].includes(i.id)) S.f[k].push(i.id); }); MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
+window.__msClear   = k => { S.f[k]=[]; MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
+window.__msRemove  = (k,id) => { const i=S.f[k].indexOf(id); if(i>-1) S.f[k].splice(i,1); MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
+
+document.addEventListener('click', _closeAllMs);
+
+// ══════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════
+function _el(id) { return document.getElementById(id); }
+function _show(id) { const el=_el(id); if(el) el.style.display='flex'; }
+function _hide(id) { const el=_el(id); if(el) el.style.display='none'; }
+function _showLoader() { _show('loader'); _el('panels-grid').innerHTML=''; _el('empty-state').style.display='none'; const p=_el('pagination-bar'); if(p) p.classList.add('hidden'); }
+function _showEmpty(title, sub) { _hide('loader'); _el('panels-grid').innerHTML=''; const e=_el('empty-state'); e.style.display='block'; _el('empty-title').textContent=title; _el('empty-sub').textContent=sub; }
+function _showDateErr(msg) { const el=_el('date-error'); if(el){ el.textContent='⚠️ '+msg; el.classList.remove('hidden'); } }
+function _hideDateErr() { const el=_el('date-error'); if(el) el.classList.add('hidden'); }
+function _monthsBetween(s, e) {
+    const a=new Date(s), b=new Date(e);
+    const m=Math.floor((b-a)/(1000*60*60*24*30));
+    const rem=Math.floor((b-new Date(a.getFullYear(),a.getMonth()+m,a.getDate()))/(1000*60*60*24));
+    return Math.max(rem>0?m+1:m,1);
 }
 
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
-    const startVal = document.getElementById('dispo-du')?.value;
-    if (startVal) {
-        const minDate = new Date(startVal);
-        minDate.setDate(minDate.getDate() + 1);
-        const endInput = document.getElementById('dispo-au');
-        if (endInput) endInput.min = minDate.toISOString().split('T')[0];
+
+    // Multiselects
+    document.querySelectorAll('.ms-wrapper').forEach(buildMs);
+
+    // Dimensions select
+    const dimSel = _el('f-dimensions');
+    if (dimSel) D.dimensions.forEach(d => {
+        const o=document.createElement('option'); o.value=d; o.textContent=d; dimSel.appendChild(o);
+    });
+
+    // Escape
+    document.addEventListener('keydown', e => {
+        if (e.key==='Escape') {
+            DISPO.closeConfirmModal();
+            DISPO.closeFiche();
+            DISPO.closeError();
+            _closeAllMs();
+        }
+    });
+
+    // Afficher erreurs Laravel si présentes (après redirection POST)
+    if (D.hasErrors && D.flashErrors.length > 0) {
+        DISPO.showError(D.flashErrors);
     }
+
+    // Premier chargement
+    DISPO._fetch(0);
+    DISPO._syncSelBar();
 });
 
-document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeConfirmModal();
-});
+})();
 </script>
 @endpush
-
 </x-admin-layout>

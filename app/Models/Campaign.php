@@ -113,28 +113,40 @@ class Campaign extends Model
     // ── Helpers progression ───────────────────────────────────────
 
     /**
-     * Jours restants — entier, 0 si terminé
+     * Pourcentage d'avancement — corrigé pour éviter 0 sur une longue période
      */
+    // ✅ Corrigé — logique complète
+    public function progressPercent(): int
+    {
+        $now   = now()->startOfDay();
+        $start = $this->start_date->startOfDay();
+        $end   = $this->end_date->startOfDay();
+
+        // Pas encore commencé
+        if ($now->lt($start)) return 0;
+        
+        // Terminé
+        if ($now->gte($end)) return 100;
+        
+        $total   = (int) $start->diffInDays($end);
+        $elapsed = (int) $start->diffInDays($now);
+
+        if ($total <= 0) return 100;
+        return (int) min(100, max(0, round($elapsed / $total * 100)));
+    }
+
+    // daysRemaining() — aussi à corriger
     public function daysRemaining(): int
     {
         $now = now()->startOfDay();
         $end = $this->end_date->startOfDay();
-        $diff = (int) $now->diffInDays($end, false);
-        return max(0, $diff);
-    }
-
-    /**
-     * Pourcentage d'avancement — corrigé pour éviter 0 sur une longue période
-     */
-    public function progressPercent(): int
-    {
-        $start   = $this->start_date->startOfDay();
-        $end     = $this->end_date->startOfDay();
-        $total   = (int) $start->diffInDays($end);
-        $elapsed = (int) $start->diffInDays(now()->startOfDay());
-
-        if ($total <= 0) return 100;
-        return (int) min(100, max(0, round($elapsed / $total * 100)));
+        
+        // Campagne future
+        if ($now->lt($this->start_date->startOfDay())) {
+            return (int) $now->diffInDays($end); // jours total restants
+        }
+        
+        return max(0, (int) $now->diffInDays($end, false));
     }
 
     /**

@@ -10,40 +10,55 @@ use Illuminate\Support\Facades\Log;
 
 class ClientController extends Controller
 {
+
     public function index(Request $request)
     {
-        $query = Client::query()
-            ->withCount('campaigns')
-            ->withCount(['campaigns as active_campaigns_count' => fn($q) =>
-                $q->where('status', 'actif')
-            ])
-            ->withCount('reservations')
-            ->when($request->search, fn($q) =>
-                $q->search($request->search)
-            )
-            ->when($request->sector, fn($q, $sector) =>
-                $q->where('sector', $sector)
-            );
+        $query = Client::withCount(['campaigns', 'reservations'])
+            ->with(['campaigns' => function($q) {
+                $q->whereIn('status', ['actif', 'pose']);
+            }]);
+
+        // Filtres
+        if ($request->search) {
+            $query->where(function($q) use ($request) {
+                $q->where('name', 'like', "%{$request->search}%")
+                ->orWhere('ncc', 'like', "%{$request->search}%")
+                ->orWhere('email', 'like', "%{$request->search}%")
+                ->orWhere('contact_name', 'like', "%{$request->search}%")
+                ->orWhere('phone', 'like', "%{$request->search}%");
+            });
+        }
+        if ($request->sector) {
+            $query->where('sector', $request->sector);
+        }
 
         // Tri
-        $sort      = $request->get('sort', 'name');
-        $direction = $request->get('direction', 'asc');
-        $allowed   = ['name', 'created_at', 'campaigns_count'];
+        $sort = $request->sort ?? 'name';
+        $query->orderBy($sort, $sort === 'name' ? 'asc' : 'desc');
 
-        if (in_array($sort, $allowed)) {
-            $query->orderBy($sort, $direction === 'desc' ? 'desc' : 'asc');
-        }
+        // Statistiques
+        $stats = [
+            'total' => Client::count(),
+            'actifs' => Client::whereHas('campaigns', function($q) {
+                $q->whereIn('status', ['actif', 'pose']);
+            })->count(),
+            'ca_total' => Client::with('campaigns')->get()->sum(function($client) {
+                return $client->campaigns->sum('total_amount');
+            }),
+        ];
 
         $clients = $query->paginate(20)->withQueryString();
         $sectors = Client::SECTORS;
 
-        // Stats globales — 1 requête agrégée
-        $stats = [
-            'total'  => Client::count(),
-            'actifs' => Client::whereHas('campaigns', fn($q) => $q->where('status', 'actif'))->count(),
-        ];
+        if ($request->ajax()) {
+            return response()->json([
+                'html' => view('admin.clients.partials.table-rows', compact('clients'))->render(),
+                'pagination' => $clients->links()->render(),
+                'total' => $clients->total(),
+            ]);
+        }
 
-        return view('admin.clients.index', compact('clients', 'sectors', 'stats'));
+        return view('admin.clients.index', compact('clients', 'stats', 'sectors'));
     }
 
     public function create()

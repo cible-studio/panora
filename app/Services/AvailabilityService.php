@@ -102,50 +102,7 @@ class AvailabilityService
         }
 
         return $query->orderBy('reference')->get();
-    }
-
-    // ── 4. Données complètes de disponibilité avec release_dates ──
-    // Retourne pour chaque panneau : disponible=true/false + date de libération
-    public function getPanelAvailabilityData(
-        array  $panelIds,
-        string $startDate,
-        string $endDate,
-        ?int   $excludeReservationId = null
-    ): Collection {
-        if (empty($panelIds)) return collect();
-
-        $bookings = ReservationPanel::select(
-                'reservation_panels.panel_id',
-                'reservations.status as res_status',
-                DB::raw('MAX(reservations.end_date) as release_date')
-            )
-            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-            ->whereIn('reservation_panels.panel_id', $panelIds)
-            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
-            ->where('reservations.start_date', '<', $endDate)
-            ->where('reservations.end_date',   '>', $startDate)
-            ->when($excludeReservationId, fn($q) =>
-                $q->where('reservations.id', '!=', $excludeReservationId)
-            )
-            ->groupBy('reservation_panels.panel_id', 'reservations.status')
-            ->get()
-            ->groupBy('panel_id');
-
-        return collect($panelIds)->mapWithKeys(function ($id) use ($bookings) {
-            $panelBookings = $bookings->get($id);
-            if (!$panelBookings || $panelBookings->isEmpty()) {
-                return [$id => ['available' => true, 'release_date' => null, 'blocking_status' => null]];
-            }
-            // Prioriser confirme sur en_attente
-            $confirmed = $panelBookings->firstWhere('res_status', ReservationStatus::CONFIRME->value);
-            $blocking  = $confirmed ?? $panelBookings->first();
-            return [$id => [
-                'available'       => false,
-                'release_date'    => $blocking->release_date,
-                'blocking_status' => $blocking->res_status,
-            ]];
-        });
-    }
+    }    
 
     // ── 5. Sync statuts — transaction atomique, 3 UPDATE max ──────
     public function syncPanelStatuses(array $panelIds): void
@@ -225,5 +182,86 @@ class AvailabilityService
             ->where('reservations.start_date', '<', $end)
             ->where('reservations.end_date',   '>', $start)
             ->exists();
+    }
+
+    /**
+     * Récupère les données de disponibilité complètes pour une liste de panneaux
+     * Retourne pour chaque panneau : disponible, date de libération, statut bloquant
+     */
+    public function getPanelAvailabilityData(
+        array  $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null
+    ): Collection {
+        if (empty($panelIds)) return collect();
+
+        $bookings = DB::table('reservation_panels')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->join('clients', 'clients.id', '=', 'reservations.client_id')
+            ->leftJoin('campaigns', 'campaigns.reservation_id', '=', 'reservations.id')
+            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.start_date', '<', $endDate)
+            ->where('reservations.end_date',   '>', $startDate)
+            ->when($excludeReservationId, fn($q) =>
+                $q->where('reservations.id', '!=', $excludeReservationId)
+            )
+            ->select(
+                'reservation_panels.panel_id',
+                'reservations.status as res_status',
+                'reservations.start_date',
+                'reservations.end_date',
+                'reservations.reference as reservation_ref',
+                'clients.name as client_name',
+                'campaigns.name as campaign_name',
+                DB::raw('MAX(reservations.end_date) as release_date')
+            )
+            ->groupBy(
+                'reservation_panels.panel_id',
+                'reservations.status',
+                'reservations.start_date',
+                'reservations.end_date',
+                'reservations.reference',
+                'clients.name',
+                'campaigns.name'
+            )
+            ->get()
+            ->groupBy('panel_id');
+
+        return collect($panelIds)->mapWithKeys(function ($id) use ($bookings) {
+            $panelBookings = $bookings->get($id);
+            if (!$panelBookings || $panelBookings->isEmpty()) {
+                return [$id => [
+                    'available'       => true,
+                    'release_date'    => null,
+                    'blocking_status' => null,
+                    'occupations'     => [],
+                ]];
+            }
+
+            // Prioriser confirme sur en_attente pour la date de libération principale
+            $confirmed = $panelBookings->firstWhere('res_status', ReservationStatus::CONFIRME->value);
+            $blocking = $confirmed ?? $panelBookings->first();
+
+            // Récupérer toutes les occupations pour affichage
+            $occupations = $panelBookings->map(function ($booking) {
+                return [
+                    'client_name'     => $booking->client_name,
+                    'campaign_name'   => $booking->campaign_name,
+                    'reservation_ref' => $booking->reservation_ref,
+                    'start_date'      => \Carbon\Carbon::parse($booking->start_date)->format('d/m/Y'),
+                    'end_date'        => \Carbon\Carbon::parse($booking->end_date)->format('d/m/Y'),
+                    'status'          => $booking->res_status,
+                ];
+            })->values();
+
+            return [$id => [
+                'available'       => false,
+                'release_date'    => $blocking->release_date,
+                'blocking_status' => $blocking->res_status,
+                'occupations'     => $occupations,
+            ]];
+        });
     }
 }

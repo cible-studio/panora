@@ -47,7 +47,7 @@ enum CampaignStatus: string
                 'color'       => '#ef4444',
                 'bg'          => 'rgba(239,68,68,0.08)',
                 'border'      => 'rgba(239,68,68,0.3)',
-                'description' => 'Annulée — panneaux libérés',
+                'description' => 'Annulée — panneaux libérés si aucune reservation en cours, sinon annulez la reservation associée',
             ],
         };
     }
@@ -69,13 +69,19 @@ enum CampaignStatus: string
             ->toArray();
     }
 
-    public function canTransitionTo(self $target): bool
+    public function canTransitionTo(CampaignStatus $new): bool
     {
-        return in_array($target, $this->allowedTransitions());
+        $allowed = match($this->value) {
+            'actif'   => ['pose', 'termine', 'annule'],
+            'pose'    => ['actif', 'termine', 'annule'],
+            'termine' => [],  // terminal
+            'annule'  => [],  // terminal
+        };
+        return in_array($new->value, $allowed);
     }
 
     public function isTerminal(): bool
     {
-        return empty($this->allowedTransitions());
+        return in_array($this->value, ['termine', 'annule']);
     }
 }
