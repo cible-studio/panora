@@ -47,7 +47,7 @@ enum CampaignStatus: string
                 'color'       => '#ef4444',
                 'bg'          => 'rgba(239,68,68,0.08)',
                 'border'      => 'rgba(239,68,68,0.3)',
-                'description' => 'Annulée — panneaux libérés si aucune reservation en cours, sinon annulez la reservation associée',
+                'description' => 'Annulée — panneaux libérés',
             ],
         };
     }

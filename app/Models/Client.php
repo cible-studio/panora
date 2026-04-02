@@ -1,26 +1,54 @@
 <?php
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
+// ⚠️ IMPORTANT : remplacer "use Illuminate\Database\Eloquent\Model;"
+// par "use Illuminate\Foundation\Auth\User as Authenticatable;"
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Notifications\Notifiable;
 
-class Client extends Model
+class Client extends Authenticatable  // ← était "extends Model"
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, Notifiable;
+
+    // Guard explicite — évite toute confusion avec le guard 'web' des admins
+    protected $guard = 'client';
 
     protected $fillable = [
+        // ── Champs existants (à conserver tels quels) ──
         'name',
-        'ncc',
-        'sector',
-        'contact_name',
         'email',
         'phone',
         'address',
+        'city',
+        'company',
+        'siret',
+        'contact_name',
+        'notes',
+        'ncc',
+        'sector',
         'user_id',
+        // Ajoute ici tout autre champ déjà présent dans ta table
+
+        // ── Nouveaux champs auth ──
+        'password',
+        'must_change_password',
+        'password_changed_at',
+        'last_login_at',
+        'last_login_ip',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
     ];
 
     protected $casts = [
+        'password_changed_at'  => 'datetime',
+        'last_login_at'        => 'datetime',
+        'must_change_password' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -76,6 +104,9 @@ class Client extends Model
         return $prefix . str_pad($next, 4, '0', STR_PAD_LEFT);
     }
 
+
+
+
     // ── Relations ─────────────────────────────────────────────────
     public function user()
     {
@@ -123,5 +154,21 @@ class Client extends Model
     public function hasActiveCampaigns(): bool
     {
         return $this->campaigns()->where('status', 'actif')->exists();
+    }
+
+    /**
+     * Le client doit-il changer son mot de passe à la prochaine connexion ?
+     */
+    public function mustChangePassword(): bool
+    {
+        return (bool) $this->must_change_password;
+    }
+
+    /**
+     * A-t-il un compte activé (password défini) ?
+     */
+    public function hasAccount(): bool
+    {
+        return !empty($this->password);
     }
 }

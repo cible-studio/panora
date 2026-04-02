@@ -1,141 +1,199 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
-use App\Models\Proposition;
-use App\Models\Client;
-use App\Models\Panel;
+use App\Services\PropositionService;
+use App\Http\Controllers\Controller;    
+use App\Models\Reservation;
 use Illuminate\Http\Request;
-use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 
+/**
+ * PropositionController — Page publique accessible via token uniquement.
+ * Pas d'authentification — le token EST l'authentification.
+ *
+ * Routes (dans routes/admin.php, AVANT le groupe auth) :
+ *   GET  /proposition/{token}            → show()
+ *   POST /proposition/{token}/confirmer  → confirmer()
+ *   POST /proposition/{token}/refuser    → refuser()
+ */
 class PropositionController extends Controller
 {
-    public function index(Request $request)
+    public function __construct(
+        protected PropositionService $propositionService
+    ) {}
+
+    // ══════════════════════════════════════════════════════════════
+    // SHOW
+    // ══════════════════════════════════════════════════════════════
+
+    public function show(string $token)
     {
-        $query = Proposition::with('client', 'creator');
-
-        if ($request->filled('statut')) {
-            $query->where('statut', $request->statut);
-        }
-        if ($request->filled('client_id')) {
-            $query->where('client_id', $request->client_id);
-        }
-        if ($request->filled('search')) {
-            $query->where('numero', 'like', '%'.$request->search.'%')
-                  ->orWhereHas('client', function($q) use ($request) {
-                      $q->where('name', 'like', '%'.$request->search.'%');
-                  });
+        try {
+            $reservation = $this->propositionService->validerToken($token);
+        } catch (\RuntimeException $e) {
+            return $this->pageErreur($e->getMessage());
         }
 
-        $propositions = $query->latest()->paginate(15)->withQueryString();
-        $clients      = Client::orderBy('name')->get();
+        $this->propositionService->marquerVue($reservation);
 
-        $totalEnAttente = Proposition::where('statut', 'en_attente')->count();
-        $totalAcceptees = Proposition::where('statut', 'acceptee')->count();
-        $totalRefusees  = Proposition::where('statut', 'refusee')->count();
-        $totalExpirees  = Proposition::where('statut', 'expiree')->count();
+        $months = $this->monthsBetween($reservation->start_date, $reservation->end_date);
+        // Calcul du temps restant avant expiration de la proposition (en heures)
+        $expiresIn  = $reservation->proposition_expires_at
+            ? now()->diffInHours($reservation->proposition_expires_at, false)
+            : null;
 
-        return view('admin.propositions.index', compact(
-            'propositions', 'clients',
-            'totalEnAttente', 'totalAcceptees',
-            'totalRefusees', 'totalExpirees'
-        ));
-    }
+        $panels = $reservation->panels->map(function ($panel) use ($months) {
+            $photo = $panel->photos->sortBy('ordre')->first();
+            return [
+                'id'           => $panel->id,
+                'reference'    => $panel->reference,
+                'name'         => $panel->name,
+                'commune'      => $panel->commune?->name ?? '—',
+                'zone'         => $panel->zone?->name ?? '—',
+                'format'       => $panel->format?->name ?? '—',
+                'dimensions'   => $this->formatDims($panel->format),
+                'category'     => $panel->category?->name ?? '—',
+                'is_lit'       => (bool) $panel->is_lit,
+                'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
+                'total'        => (float) ($panel->monthly_rate ?? 0) * $months,
+                'photo_url'    => $photo
+                    ? asset('storage/' . ltrim($photo->path, '/'))
+                    : null,
+            ];
+        });
 
-    public function create()
-    {
-        $clients = Client::orderBy('name')->get();
-        $panels  = Panel::with('commune', 'format')
-                        ->where('status', 'libre')
-                        ->orderBy('reference')
-                        ->get();
-
-        // Générer numéro automatique
-        $numero = 'PRO-' . str_pad(
-            Proposition::count() + 1, 3, '0', STR_PAD_LEFT
+        // Jours restants basé sur end_date (pas d'expires_at)
+        $joursRestants = now()->startOfDay()->diffInDays(
+            $reservation->end_date->startOfDay(), false
         );
 
-        return view('admin.propositions.create', compact(
-            'clients', 'panels', 'numero'
+        return view('admin.propositions.show', compact(
+            'reservation', 'panels', 'months', 'joursRestants', 'token', 'expiresIn'
         ));
     }
 
-    public function store(Request $request)
+    // ══════════════════════════════════════════════════════════════
+    // CONFIRMER
+    // ══════════════════════════════════════════════════════════════
+
+    public function confirmer(Request $request, string $token)
     {
-        $request->validate([
-            'client_id'   => 'required|exists:clients,id',
-            'numero'      => 'required|unique:propositions,numero',
-            'date_debut'  => 'required|date',
-            'date_fin'    => 'required|date|after:date_debut',
-            'montant'     => 'required|numeric|min:0',
-            'nb_panneaux' => 'required|integer|min:1',
-            'notes'       => 'nullable|string',
+        // Re-valider le token au moment du POST
+        try {
+            $reservation = $this->propositionService->validerToken($token);
+        } catch (\RuntimeException $e) {
+            $rawCode = explode(':', $e->getMessage())[0];
+
+            // Si déjà confirmée → afficher la page success directement
+            if ($rawCode === 'ALREADY_CONFIRMED') {
+                $reservation = Reservation::where('proposition_token', $token)
+                    ->with(['client', 'panels', 'campaign'])
+                    ->first();
+                if ($reservation) {
+                    return view('admin.propositions.confirmed', [
+                        'reservation' => $reservation,
+                        'campaign'    => $reservation->campaign,
+                        'client'      => $reservation->client,
+                    ]);
+                }
+            }
+
+            return redirect()
+                ->route('proposition.show', $token)
+                ->with('error', $this->codeToMessage($rawCode));
+        }
+
+        $result = $this->propositionService->confirmer($reservation);
+
+        if (!$result['ok']) {
+            $errorMsg = match($result['reason']) {
+                'panels_taken'      => 'Certains panneaux viennent d\'être réservés par un autre client. Notre équipe vous contactera avec d\'autres disponibilités.',
+                'already_processed' => 'Cette proposition a déjà été traitée.',
+                default             => 'Une erreur est survenue. Veuillez contacter notre équipe.',
+            };
+
+            return redirect()
+                ->route('proposition.show', $token)
+                ->with('error', $errorMsg);
+        }
+
+        return view('admin.propositions.confirmed', [
+            'reservation' => $result['reservation'],
+            'campaign'    => $result['campaign'],
+            'client'      => $result['reservation']->client,
         ]);
+    }
 
-        Proposition::create([
-            ...$request->all(),
-            'created_by' => auth()->id(),
-            'statut'     => 'en_attente',
+    // ══════════════════════════════════════════════════════════════
+    // REFUSER
+    // ══════════════════════════════════════════════════════════════
+
+    public function refuser(Request $request, string $token)
+    {
+
+        //dd("REFUSER - token: $token, motif: " . $request->input('motif', ''));
+        try {
+            $reservation = $this->propositionService->validerToken($token);
+        } catch (\RuntimeException $e) {
+            $rawCode = explode(':', $e->getMessage())[0];
+            return redirect()
+                ->route('proposition.show', $token)
+                ->with('error', $this->codeToMessage($rawCode));
+        }
+
+        $motif = $request->input('motif', '');
+        $this->propositionService->refuser($reservation, $motif);
+
+        return view('admin.propositions.refused', [
+            'reservation' => $reservation,
+            'client'      => $reservation->client,
         ]);
-
-        return redirect()->route('admin.propositions.index')
-            ->with('success', 'Proposition créée avec succès !');
     }
 
-    public function show(Proposition $proposition)
+    // ══════════════════════════════════════════════════════════════
+    // HELPERS PRIVÉS
+    // ══════════════════════════════════════════════════════════════
+
+    private function pageErreur(string $code)
     {
-        $proposition->load('client', 'creator');
-        return view('admin.propositions.show', compact('proposition'));
+        $rawCode = explode(':', $code)[0];
+        [$title, $message, $type] = match($rawCode) {
+            'TOKEN_INVALID'     => ['Lien invalide',        'Ce lien de proposition est invalide ou n\'existe pas.', 'warning'],
+            'TOKEN_EXPIRED'     => ['Proposition expirée',  'La période de campagne proposée est dépassée. Contactez notre équipe commerciale.', 'warning'],
+            'ALREADY_CONFIRMED' => ['Déjà confirmée',       'Vous avez déjà confirmé cette proposition. Merci !', 'success'],
+            'ALREADY_REFUSED'   => ['Proposition refusée',  'Cette proposition a été refusée ou annulée.', 'info'],
+            default             => ['Erreur',               'Une erreur est survenue.', 'error'],
+        };
+
+        return view('admin.propositions.error', compact('title', 'message', 'type'));
     }
 
-    public function edit(Proposition $proposition)
+    private function codeToMessage(string $rawCode): string
     {
-        $clients = Client::orderBy('name')->get();
-        return view('admin.propositions.edit', compact('proposition', 'clients'));
+        return match($rawCode) {
+            'TOKEN_EXPIRED'     => 'La période de cette proposition est dépassée.',
+            'ALREADY_CONFIRMED' => 'Cette proposition a déjà été confirmée.',
+            'ALREADY_REFUSED'   => 'Cette proposition a déjà été refusée ou annulée.',
+            'TOKEN_INVALID'     => 'Lien invalide.',
+            default             => 'Une erreur est survenue.',
+        };
     }
 
-    public function update(Request $request, Proposition $proposition)
+    private function monthsBetween($start, $end): float
     {
-        $request->validate([
-            'client_id'   => 'required|exists:clients,id',
-            'date_debut'  => 'required|date',
-            'date_fin'    => 'required|date|after:date_debut',
-            'montant'     => 'required|numeric|min:0',
-            'nb_panneaux' => 'required|integer|min:1',
-            'notes'       => 'nullable|string',
-        ]);
-
-        $proposition->update($request->all());
-
-        return redirect()->route('admin.propositions.show', $proposition)
-            ->with('success', 'Proposition modifiée !');
+        $s      = \Carbon\Carbon::parse($start)->startOfDay();
+        $e      = \Carbon\Carbon::parse($end)->endOfDay();
+        $months = (int) $s->diffInMonths($e);
+        $remain = $s->copy()->addMonths($months)->diffInDays($e);
+        return max((float) ($remain > 0 ? $months + 1 : $months), 1.0);
     }
 
-    public function destroy(Proposition $proposition)
+    private function formatDims($format): ?string
     {
-        $proposition->delete();
-        return redirect()->route('admin.propositions.index')
-            ->with('success', 'Proposition supprimée !');
-    }
-
-    public function updateStatus(Request $request, Proposition $proposition)
-    {
-        $request->validate([
-            'statut' => 'required|in:en_attente,acceptee,refusee,expiree'
-        ]);
-
-        $proposition->update(['statut' => $request->statut]);
-
-        return back()->with('success', 'Statut mis à jour !');
-    }
-
-    public function exportPdf(Proposition $proposition)
-    {
-        $proposition->load('client', 'creator');
-
-        $pdf = Pdf::loadView('pdf.proposition', compact('proposition'));
-        $pdf->setPaper('A4', 'portrait');
-
-        return $pdf->download("proposition-{$proposition->numero}.pdf");
+        if (!$format?->width || !$format?->height) return null;
+        $w = rtrim(rtrim(number_format($format->width, 2, '.', ''), '0'), '.');
+        $h = rtrim(rtrim(number_format($format->height, 2, '.', ''), '0'), '.');
+        return "{$w}×{$h}m";
     }
 }

@@ -9,7 +9,6 @@ use App\Models\Reservation;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class CampaignService
 {
@@ -98,8 +97,6 @@ class CampaignService
             }
 
             if ($remainingCount <= 1) {
-                // ── Dernier panneau → annulation complète via cancel() ──
-                // cancel() gère tout : campagne + réservation + panneaux
                 $this->cancel($campaign, 'Dernier panneau retiré automatiquement.');
                 return ['ok' => true, 'warning' => 'Campagne annulée — plus aucun panneau.'];
             }
@@ -111,106 +108,155 @@ class CampaignService
     }
 
     // ══════════════════════════════════════════════════════════════
-    // ANNULER UNE CAMPAGNE — SOURCE DE VÉRITÉ UNIQUE
+    // ANNULER UNE CAMPAGNE
     //
-    // Séquence garantie :
-    //   1. Annuler la RÉSERVATION liée (libère les panneaux via reservation_panels)
-    //   2. Annuler la CAMPAGNE
-    //   3. Sync statuts panneaux
+    // Cas : annulation volontaire, dernier panneau retiré, suppression.
+    // La réservation est marquée ANNULE et les panneaux libérés.
     //
-    // Résultat : 1 seul clic utilisateur → tout est libéré
+    // ⚠️ updateWithoutObservers() est obligatoire pour éviter :
+    //    Observer.updated() → campaignService.cancel() → boucle infinie
     // ══════════════════════════════════════════════════════════════
     public function cancel(Campaign $campaign, string $reason = ''): void
     {
-        // Idempotent — si déjà terminal, on ne fait rien
         if ($campaign->status->isTerminal()) {
-            Log::debug('campaign.cancel_skipped_already_terminal', [
-                'campaign_id' => $campaign->id,
-                'status'      => $campaign->status->value,
-            ]);
-            return;
+            return; // idempotent
         }
 
         DB::transaction(function () use ($campaign, $reason) {
 
-            // ── Étape 1 : Collecter TOUS les panneaux à libérer AVANT d'annuler ──
-            // On collecte maintenant car après annulation les relations peuvent être vidées
-            $campaignPanelIds = $campaign->panels()->pluck('panels.id')->toArray();
-
+            // ── Collecter les panneaux AVANT toute modification ──────────
+            $campaignPanelIds    = $campaign->panels()->pluck('panels.id')->toArray();
             $reservationPanelIds = [];
             $reservation         = null;
 
             if ($campaign->reservation_id) {
                 $reservation = $campaign->reservation()->first();
             }
-
             if ($reservation) {
                 $reservationPanelIds = $reservation->panels()->pluck('panels.id')->toArray();
             }
 
-            // Union de tous les panneaux concernés (campagne + réservation)
-            $allPanelIds = array_unique(
-                array_merge($campaignPanelIds, $reservationPanelIds)
-            );
+            $allPanelIds = array_unique(array_merge($campaignPanelIds, $reservationPanelIds));
 
-            // ── Étape 2 : Annuler la RÉSERVATION liée ──────────────────────────
-            // C'est elle qui bloque les panneaux dans reservation_panels.
-            // Sans cette étape, syncPanelStatuses() lirait encore la réservation
-            // active et garderait les panneaux comme occupés.
+            // ── Annuler la réservation sans déclencher l'Observer ────────
+            // NE PAS detach() les panels ici — syncPanelStatuses() en a besoin
+            // La réservation ANNULE est filtrée par BLOCKING_STATUSES → panneaux libres
             if ($reservation && !$reservation->status->isTerminal()) {
-                // On bypasse l'Observer en mettant à jour directement
-                // (évite une boucle Observer → CampaignService::cancel → Observer)
-                Reservation::withoutObservers(function () use ($reservation, $campaign) {
-                    $reservation->update([
-                        'status' => ReservationStatus::ANNULE->value,
-                        'notes'  => trim(
-                            ($reservation->notes ?? '') .
-                            "\n[Auto] Annulée — campagne #{$campaign->id} annulée"
-                        ),
-                    ]);
-                });
+                $reservation->updateWithoutObservers([
+                    'status' => ReservationStatus::ANNULE->value,
+                    'notes'  => trim(
+                        ($reservation->notes ?? '') .
+                        "\n[Auto] Annulée — campagne #{$campaign->id} annulée le " . now()->format('d/m/Y')
+                    ),
+                ]);
 
                 Log::info('reservation.cancelled_by_campaign', [
                     'reservation_id' => $reservation->id,
                     'campaign_id'    => $campaign->id,
-                    'reason'         => $reason,
                 ]);
             }
 
-            // ── Étape 3 : Annuler la CAMPAGNE ──────────────────────────────────
+            // ── Annuler la campagne ──────────────────────────────────────
             $campaign->update([
                 'status'     => CampaignStatus::ANNULE->value,
                 'notes'      => trim(($campaign->notes ?? '') . "\n[Auto] " . $reason),
                 'updated_by' => auth()->id() ?? null,
             ]);
 
-            // ── Étape 4 : Sync statuts panneaux ────────────────────────────────
-            // Maintenant que la réservation est annulée, syncPanelStatuses()
-            // ne trouvera plus de réservations actives → panneaux → libre
+            // ── Sync panneaux → libre ────────────────────────────────────
+            // reservation_panels toujours présents mais réservation ANNULE
+            // → exclue des BLOCKING_STATUSES → panneaux passent à libre
             if (!empty($allPanelIds)) {
                 $this->availability->syncPanelStatuses($allPanelIds);
             }
 
             Log::info('campaign.cancelled', [
-                'campaign_id'     => $campaign->id,
-                'reason'          => $reason,
-                'reservation_id'  => $reservation?->id,
-                'panels_freed'    => count($allPanelIds),
-                'user_id'         => auth()->id(),
+                'campaign_id'    => $campaign->id,
+                'reason'         => $reason,
+                'reservation_id' => $reservation?->id,
+                'panels_freed'   => count($allPanelIds),
+                'user_id'        => auth()->id(),
+            ]);
+        });
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // TERMINER UNE CAMPAGNE MANUELLEMENT (avant ou à l'échéance)
+    //
+    // LOGIQUE MÉTIER CIBLE CI :
+    // "Terminer" = résiliation anticipée ou clôture normale.
+    // → Réservation → TERMINE (pas annulée, historique propre)
+    // → Panneaux libérés immédiatement
+    // → Différent de cancel() : trace que la campagne s'est bien déroulée
+    // ══════════════════════════════════════════════════════════════
+    public function terminate(Campaign $campaign, string $reason = ''): void
+    {
+        if ($campaign->status->isTerminal()) {
+            return; // idempotent
+        }
+
+        DB::transaction(function () use ($campaign, $reason) {
+
+            $campaignPanelIds    = $campaign->panels()->pluck('panels.id')->toArray();
+            $reservationPanelIds = [];
+            $reservation         = null;
+
+            if ($campaign->reservation_id) {
+                $reservation = $campaign->reservation()->first();
+            }
+            if ($reservation) {
+                $reservationPanelIds = $reservation->panels()->pluck('panels.id')->toArray();
+            }
+
+            $allPanelIds = array_unique(array_merge($campaignPanelIds, $reservationPanelIds));
+
+            // Terminer la réservation sans déclencher l'Observer
+            if ($reservation && !$reservation->status->isTerminal()) {
+                $reservation->updateWithoutObservers([
+                    'status' => ReservationStatus::TERMINE->value,
+                    'notes'  => trim(
+                        ($reservation->notes ?? '') .
+                        "\n[Auto] Terminée — campagne #{$campaign->id} terminée le " . now()->format('d/m/Y')
+                    ),
+                ]);
+
+                Log::info('reservation.terminated_by_campaign', [
+                    'reservation_id' => $reservation->id,
+                    'campaign_id'    => $campaign->id,
+                ]);
+            }
+
+            // Terminer la campagne
+            $campaign->update([
+                'status'     => CampaignStatus::TERMINE->value,
+                'notes'      => trim(($campaign->notes ?? '') . ($reason ? "\n[Fin] " . $reason : '')),
+                'updated_by' => auth()->id() ?? null,
+            ]);
+
+            // Libérer les panneaux immédiatement
+            // TERMINE est hors BLOCKING_STATUSES → syncPanelStatuses → libre
+            if (!empty($allPanelIds)) {
+                $this->availability->syncPanelStatuses($allPanelIds);
+            }
+
+            Log::info('campaign.terminated', [
+                'campaign_id'    => $campaign->id,
+                'reason'         => $reason,
+                'reservation_id' => $reservation?->id,
+                'panels_freed'   => count($allPanelIds),
+                'user_id'        => auth()->id(),
             ]);
         });
     }
 
     // ══════════════════════════════════════════════════════════════
     // SUPPRIMER UNE CAMPAGNE (soft delete)
-    // La campagne doit être annulée au préalable.
     // ══════════════════════════════════════════════════════════════
     public function delete(Campaign $campaign): array
     {
-        // Si pas encore annulée, on l'annule d'abord automatiquement
         if (!$campaign->status->isTerminal()) {
             $this->cancel($campaign, 'Annulation automatique avant suppression.');
-            $campaign->refresh(); // recharger après cancel()
+            $campaign->refresh();
         }
 
         $panelIds = $campaign->panels()->pluck('panels.id')->toArray();
@@ -221,27 +267,24 @@ class CampaignService
                 $reservation = $campaign->reservation()->first();
 
                 if ($reservation && $reservation->is_technical) {
-                    // Réservation technique auto-créée → supprimer proprement
                     $resPanelIds = $reservation->panels()->pluck('panels.id')->toArray();
                     $reservation->panels()->detach();
                     $reservation->forceDelete();
+
+                    if (!empty($resPanelIds)) {
+                        $this->availability->syncPanelStatuses($resPanelIds);
+                    }
 
                     Log::info('reservation.hard_deleted_with_campaign', [
                         'reservation_id' => $reservation->id,
                         'campaign_id'    => $campaign->id,
                     ]);
-
-                    // Re-sync au cas où (is_technical supprimée = panneaux forcément libres)
-                    if (!empty($resPanelIds)) {
-                        $this->availability->syncPanelStatuses($resPanelIds);
-                    }
                 }
-                // Réservation normale → on la conserve dans l'historique
+                // Réservation normale → conservée dans l'historique
             }
 
-            $campaign->delete(); // SoftDelete
+            $campaign->delete();
 
-            // Sync final
             if (!empty($panelIds)) {
                 $this->availability->syncPanelStatuses($panelIds);
             }

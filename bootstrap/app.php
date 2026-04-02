@@ -14,6 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckRole::class,
             'audit' => \App\Http\Middleware\AuditLogger::class,
+            'client.auth' => \App\Http\Middleware\EnsureClientIsAuthenticated::class,
+            'client.must-change-pw' => \App\Http\Middleware\ForceClientPasswordChange::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

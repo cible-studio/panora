@@ -18,6 +18,9 @@ use Illuminate\Http\JsonResponse;
 
 use App\Services\AvailabilityService;
 use App\Services\ReservationService;
+use App\Services\PropositionService;
+
+
 use App\Enums\CampaignStatus;
 use App\Models\Campaign;
 use App\Models\ExternalPanel;
@@ -37,7 +40,8 @@ class ReservationController extends Controller
 {
     public function __construct(
         protected AvailabilityService $availability,
-        protected ReservationService  $reservationService
+        protected ReservationService  $reservationService,
+        protected PropositionService   $propositionService
     ) {}
 
     // ══════════════════════════════════════════════════════════════
@@ -1398,4 +1402,54 @@ class ReservationController extends Controller
             'Cache-Control'       => 'no-cache',
         ]);
     }
+
+
+
+    // Injecter PropositionService dans le constructeur existant :
+    // public function __construct(
+    //     protected AvailabilityService  $availability,
+    //     protected ReservationService   $reservationService,
+    //     protected \App\Services\PropositionService $propositionService  ← AJOUTER
+    // ) {}
+    
+    /**
+     * Envoyer une proposition au client.
+     * POST /admin/reservations/{reservation}/proposition/envoyer
+     */
+    public function envoyerProposition(Reservation $reservation)
+    {
+        try {
+            $this->propositionService->envoyer($reservation);
+    
+            return back()->with('success',
+                '📧 Proposition envoyée à ' . ($reservation->client?->email ?? $reservation->client?->name) .
+                ' · Expire dans 72h.'
+            );
+    
+        } catch (\RuntimeException $e) {
+            $code    = explode(':', $e->getMessage())[0];
+            $message = substr($e->getMessage(), strlen($code) + 1);
+    
+            return match($code) {
+                'NO_EMAIL'       => back()->with('error', '❌ ' . $message . ' — Mettez à jour la fiche client.'),
+                'INVALID_STATUS' => back()->with('error', '⚠️ ' . $message),
+                'CLIENT_DELETED' => back()->with('error', '❌ ' . $message),
+                'MAIL_FAILED'    => back()->with('error', '📧 Erreur d\'envoi email. Vérifiez la config SMTP. Détail : ' . $message),
+                default          => back()->with('error', 'Erreur : ' . $e->getMessage()),
+            };
+        }
+    }
+    
+    /**
+     * Réinitialiser la proposition (admin retire le token).
+     * POST /admin/reservations/{reservation}/proposition/reinitialiser
+     */
+    public function reinitialiserProposition(Reservation $reservation)
+    {
+        $this->propositionService->reinitialiser($reservation);
+        return back()->with('success', 'Proposition réinitialisée. Vous pouvez renvoyer.');
+    }
+    
+
+
 }

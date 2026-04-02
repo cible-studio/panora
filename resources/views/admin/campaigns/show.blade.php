@@ -405,8 +405,8 @@
             <div class="p-6 text-center">
                 <div class="text-6xl mb-4">🗑</div>
                 <div class="font-bold text-lg mb-2 text-white">Supprimer <span id="delete-name" class="text-accent"></span> ?</div>
-                <div class="text-sm text-gray-400 mb-5">Tous les panneaux liés seront détachés et libérés si aucune reservation en cours, sinon annulez la reservation associée.</div>
-                <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-sm text-red-400">⚠️ Uniquement possible si la campagne est annulée.</div>
+                <div class="text-sm text-gray-400 mb-5">Tous les panneaux liés seront détachés et libérés.</div>
+                <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-sm text-red-400">⚠️ Cette action est irréversible.</div>
             </div>
             <div class="px-6 py-5 border-t border-[#334155] flex justify-end gap-3">
                 <button onclick="closeModal()" class="px-5 py-2 rounded-xl border border-[#334155] text-gray-400 hover:bg-[#1e293b] transition-all">Annuler</button>

@@ -20,3 +20,5 @@ Schedule::command('reservations:expire-options')->dailyAt('01:15');
 //    Tous les jours à 01h30
 Schedule::command('campaigns:sync-expired')->dailyAt('01:30');
 
+Schedule::command('propositions:expire')->everyFifteenMinutes();
+

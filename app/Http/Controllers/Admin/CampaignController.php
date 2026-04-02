@@ -334,6 +334,7 @@ class CampaignController extends Controller
     // ══════════════════════════════════════════════════════════════
     // UPDATE STATUS — cascade si annulation
     // ══════════════════════════════════════════════════════════════
+
     public function updateStatus(Request $request, Campaign $campaign)
     {
         $this->authorize('updateStatus', $campaign);
@@ -349,9 +350,17 @@ class CampaignController extends Controller
                 "Transition interdite : {$campaign->status->label()} → {$newStatus->label()}.");
         }
 
+        // ── Routage selon le nouveau statut ──────────────────────────
+        // ANNULE  → cancel()    : libère panneaux + annule réservation
+        // TERMINE → terminate() : libère panneaux + marque réservation terminée
+        // Autres  → update()    : simple changement de statut (ex: actif → pose)
+
         if ($newStatus === CampaignStatus::ANNULE) {
-            $this->campaignService->cancel($campaign, 'Annulation manuelle');
+            $this->campaignService->cancel($campaign, 'Annulation manuelle par ' . auth()->user()?->name);
+        } elseif ($newStatus === CampaignStatus::TERMINE) {
+            $this->campaignService->terminate($campaign, 'Clôture manuelle par ' . auth()->user()?->name);
         } else {
+            // Transition simple : pose, actif, etc.
             $campaign->update([
                 'status'     => $newStatus->value,
                 'updated_by' => auth()->id(),

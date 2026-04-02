@@ -8,6 +8,10 @@ use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use App\Notifications\ClientAccountCreated;
+
 class ClientController extends Controller
 {
 
@@ -61,11 +65,50 @@ class ClientController extends Controller
         return view('admin.clients.index', compact('clients', 'stats', 'sectors'));
     }
 
-    public function create()
+    // ── CRÉER UN COMPTE CLIENT ────────────────────────────────────
+    /**
+     * POST /admin/clients/{client}/account
+     * Crée le compte espace client (mot de passe initial généré).
+     */
+    public function createAccount(Client $client)
     {
-        $sectors = Client::SECTORS;
-        return view('admin.clients.create', compact('sectors'));
+        if ($client->hasAccount()) {
+            if (request()->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Ce client a déjà un compte actif.']);
+            }
+            return back()->with('error', 'Ce client a déjà un compte actif.');
+        }
+
+        if (empty($client->email)) {
+            if (request()->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Ce client n\'a pas d\'email. Ajoutez-en un d\'abord.']);
+            }
+            return back()->with('error', 'Ce client n\'a pas d\'email. Ajoutez-en un d\'abord.');
+        }
+
+        $motDePasseInitial = $this->generateReadablePassword();
+
+        $client->update([
+            'password'             => Hash::make($motDePasseInitial),
+            'must_change_password' => true,
+            'password_changed_at'  => null,
+        ]);
+
+        try {
+            \Mail::to($client->email)->send(new \App\Mail\ClientAccountMail($client, $motDePasseInitial));
+            $msg = "✅ Compte créé. Identifiants envoyés à {$client->email}.";
+        } catch (\Exception $e) {
+            $msg = "✅ Compte créé. Impossible d'envoyer l'email. Mot de passe initial : {$motDePasseInitial}";
+        }
+
+        \Log::info('client.account_created', ['client_id' => $client->id, 'user_id' => auth()->id()]);
+
+        if (request()->ajax()) {
+            return response()->json(['success' => true, 'message' => $msg]);
+        }
+        return back()->with('success', $msg);
     }
+
 
     public function store(StoreClientRequest $request)
     {
@@ -140,4 +183,81 @@ class ClientController extends Controller
             ->route('admin.clients.index')
             ->with('success', "Client {$name} supprimé.");
     }
+
+    // ── RÉINITIALISER MOT DE PASSE ────────────────────────────────
+    /**
+     * POST /admin/clients/{client}/account/reset
+     * Génère un nouveau mot de passe et l'envoie au client.
+     */
+    public function resetPassword(Client $client)
+    {
+        if (!$client->hasAccount()) {
+            if (request()->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Ce client n\'a pas encore de compte.']);
+            }
+            return back()->with('error', 'Ce client n\'a pas encore de compte.');
+        }
+
+        if (empty($client->email)) {
+            if (request()->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Ce client n\'a pas d\'email.']);
+            }
+            return back()->with('error', 'Ce client n\'a pas d\'email.');
+        }
+
+        $nouveauMotDePasse = $this->generateReadablePassword();
+
+        $client->update([
+            'password'             => Hash::make($nouveauMotDePasse),
+            'must_change_password' => true,
+            'password_changed_at'  => null,
+        ]);
+
+        try {
+            \Mail::to($client->email)->send(new \App\Mail\ClientAccountMail($client, $nouveauMotDePasse, true));
+            $msg = "🔑 Mot de passe réinitialisé. Envoyé à {$client->email}.";
+        } catch (\Exception $e) {
+            $msg = "🔑 Mot de passe réinitialisé. Erreur email. MDP : {$nouveauMotDePasse}";
+        }
+
+        \Log::info('client.password_reset', ['client_id' => $client->id, 'user_id' => auth()->id()]);
+
+        if (request()->ajax()) {
+            return response()->json(['success' => true, 'message' => $msg]);
+        }
+        return back()->with('success', $msg);
+    }
+
+    
+    // ── SUPPRIMER LE COMPTE ───────────────────────────────────────
+    /**
+     * DELETE /admin/clients/{client}/account
+     * Désactive l'accès espace client (ne supprime pas le client).
+     */
+    public function revokeAccount(Client $client)
+    {
+        $client->update([
+            'password'      => null,
+            'remember_token'=> null,
+        ]);
+
+        \Log::info('client.account_revoked', ['client_id' => $client->id, 'user_id' => auth()->id()]);
+
+        if (request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Accès espace client révoqué.']);
+        }
+        return back()->with('success', 'Accès espace client révoqué.');
+    }
+    
+    // ── HELPER PRIVÉ ─────────────────────────────────────────────
+    private function generateReadablePassword(): string
+    {
+        // Format lisible : 3 mots + chiffres ex: "Bleu-Soleil-42"
+        $adj    = ['Bleu', 'Rouge', 'Vert', 'Grand', 'Vif', 'Fort', 'Clair', 'Beau'];
+        $nom    = ['Soleil', 'Lion', 'Fleuve', 'Arbre', 'Aigle', 'Mont', 'Pont', 'Phare'];
+        $chiffr = rand(10, 99);
+    
+        return $adj[array_rand($adj)] . '-' . $nom[array_rand($nom)] . '-' . $chiffr;
+    }
+ 
 }

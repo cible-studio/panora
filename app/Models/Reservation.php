@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use InvalidArgumentException;
 
+
+use Illuminate\Support\Facades\DB;
+
 class Reservation extends Model
 {
     use HasFactory, SoftDeletes;
@@ -18,7 +21,8 @@ class Reservation extends Model
         'start_date', 'end_date',
         'status', 'type',
         'total_amount', 'notes', 'confirmed_at',
-        'is_technical',
+        'is_technical', 'proposition_token', 'proposition_sent_at', 
+        'proposition_viewed_at', 'proposition_expires_at',
     ];
 
     protected $casts = [
@@ -28,6 +32,9 @@ class Reservation extends Model
         'total_amount' => 'decimal:2',
         'status'       => ReservationStatus::class,
         'is_technical' => 'boolean',
+        'proposition_sent_at'    => 'datetime',
+        'proposition_viewed_at'  => 'datetime',
+        'proposition_expires_at' => 'datetime',
     ];
 
     // ── Matrice des transitions autorisées ─────────────────
@@ -70,7 +77,18 @@ class Reservation extends Model
             }
         });
     }
- 
+
+    /**
+     * Mettre à jour la réservation sans déclencher les observateurs
+     * Utilise DB::update() pour bypasser les événements Eloquent
+     */
+    public function updateWithoutObservers(array $attributes): bool
+    {
+        return DB::table($this->getTable())
+            ->where('id', $this->id)
+            ->update($attributes) === 1;
+    }
+    
 
     // ── Relations ──────────────────────────────────────────
     public function client()
@@ -170,6 +188,28 @@ class Reservation extends Model
     {
         return $query->where('status', 'en_attente')->where('type', 'option');
     }
+
+
+    // Helper à ajouter dans le modèle Reservation :
+    public function propositionEnAttente(): bool
+    {
+        return $this->proposition_token !== null
+            && $this->proposition_sent_at !== null
+            && ($this->proposition_expires_at === null || $this->proposition_expires_at->isFuture())
+            && $this->status->value === 'en_attente';
+    }
+    
+    public function propositionVue(): bool
+    {
+        return $this->proposition_viewed_at !== null;
+    }
+    
+    public function getLienPropositionAttribute(): ?string
+    {
+        if (!$this->proposition_token) return null;
+        return route('proposition.show', $this->proposition_token);
+    }
+    
 
     
 }

@@ -141,6 +141,8 @@
     </div>
 </div>
 
+@include('admin.reservations.partials.proposition-actions', ['reservation' => $reservation])
+
 {{-- ══════════════════════════════════════════════════════
      ACTIONS STATUT
 ══════════════════════════════════════════════════════ --}}
@@ -212,14 +214,15 @@
 
     {{-- Message explicatif si annulé/refusé --}}
     @if(in_array($reservation->status->value, ['annule', 'refuse']))
-    <div class="px-4 py-3 mx-4 mt-3 rounded-lg text-sm"
+    <div class="px-4 py-3 mx-4 mt-3 rounded-lg text-sm mb-5"
          style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2)">
-        ℹ️ Ces panneaux figurent ici à titre d'<strong>historique</strong>.
-        Ils ont été libérés lors de l'{{ $reservation->status->value === 'annule' ? 'annulation' : 'refus' }}
-        et sont à nouveau disponibles pour de nouvelles réservations.
+        ℹ️ Aucun panneau réservé pour cette réservation ou tous les panneaux ont été libérés.
     </div>
-    @endif
-
+    @else
+    <div class="px-4 py-3 mx-4 mt-3 rounded-lg text-sm mb-5"
+         style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2)">
+        {{ $reservation->panels->count() }} panneau(x) réservé(s) pour la période du {{ $reservation->start_date->format('d/m/Y') }} au {{ $reservation->end_date->format('d/m/Y') }}.  
+    </div>
     <div class="overflow-x-auto mt-3">
         <table>
             <thead>
@@ -287,6 +290,7 @@
             </tfoot>
         </table>
     </div>
+    @endif
 </div>
 
 {{-- ══════════════════════════════════════════════════════

@@ -7,7 +7,7 @@ enum ReservationStatus: string
     case CONFIRME   = 'confirme';
     case REFUSE     = 'refuse';
     case ANNULE     = 'annule';
-    case TERMINE     = 'termine';
+    case TERMINE    = 'termine';
 
     public function label(): string
     {
@@ -29,6 +29,12 @@ enum ReservationStatus: string
             self::ANNULE     => 'gray',
             self::TERMINE    => 'blue',
         };
+    }
+
+    // ✅ AJOUTER — manquait, appelée par CampaignService::cancel()
+    public function isTerminal(): bool
+    {
+        return in_array($this->value, ['refuse', 'annule', 'termine']);
     }
 
     public function uiConfig(): array
