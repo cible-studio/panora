@@ -198,7 +198,74 @@
                     <textarea name="zone_description">{{ old('zone_description', $panel->zone_description) }}</textarea>
                 </div>
 
-                <div style="display:flex; gap:10px; margin-top:16px;">
+                {{-- ═══════════════════════════════════════════════════════════════
+                     GESTION DES IMAGES
+                ═══════════════════════════════════════════════════════════════ --}}
+                <div class="section-label">📸 Images du panneau</div>
+
+                {{-- Upload nouvelle image --}}
+                <div class="mfg">
+                    <label>Ajouter une image</label>
+                    <input type="file" name="new_images[]" accept="image/*" multiple>
+                    <div style="font-size:12px; color:var(--text3); margin-top:4px;">
+                        Formats acceptés : JPG, PNG, GIF (max 5MB par image)
+                    </div>
+                </div>
+
+                {{-- Liste des images existantes --}}
+                @if($panel->photos->count() > 0)
+                <div style="margin-top:16px;">
+                    <label style="font-weight:600; margin-bottom:12px; display:block;">Images existantes :</label>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:12px;">
+                        @foreach($panel->photos->sortBy('ordre') as $photo)
+                        <div style="position:relative; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:var(--surface2);">
+                            {{-- Aperçu image --}}
+                            <img src="{{ asset('storage/' . $photo->path) }}"
+                                 alt="Image panneau"
+                                 style="width:100%; height:100px; object-fit:cover;">
+
+                            {{-- Ordre --}}
+                            <div style="padding:6px 8px; font-size:11px; background:var(--surface); border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
+                                <span style="color:var(--text2);">Ordre: {{ $photo->ordre }}</span>
+
+                                {{-- Actions --}}
+                                <div style="display:flex; gap:4px;">
+                                    {{-- Modifier ordre --}}
+                                    <select name="ordre[{{ $photo->id }}]"
+                                            style="width:45px; font-size:10px; padding:2px; border-radius:4px;">
+                                        @for($i = 0; $i < $panel->photos->count(); $i++)
+                                        <option value="{{ $i }}" {{ $photo->ordre == $i ? 'selected' : '' }}>
+                                            {{ $i }}
+                                        </option>
+                                        @endfor
+                                    </select>
+
+                                    {{-- Supprimer --}}
+                                    <label style="display:flex; align-items:center; cursor:pointer;">
+                                        <input type="checkbox"
+                                               name="delete_photos[]"
+                                               value="{{ $photo->id }}"
+                                               style="margin:0; width:16px; height:16px;">
+                                        <span style="font-size:11px; margin-left:3px; color:var(--red);">🗑️</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                    <div style="font-size:12px; color:var(--text3); margin-top:8px;">
+                        💡 Astuce : Cochez la poubelle pour supprimer une image. Modifiez l'ordre pour organiser l'affichage.
+                    </div>
+                </div>
+                @else
+                <div style="padding:24px; text-align:center; background:var(--surface2); border-radius:8px; margin-top:8px;">
+                    <div style="font-size:32px; margin-bottom:8px;">📷</div>
+                    <div style="font-size:13px; color:var(--text2);">Aucune image pour ce panneau</div>
+                    <div style="font-size:12px; color:var(--text3); margin-top:4px;">Ajoutez des photos en utilisant le champ ci-dessus</div>
+                </div>
+                @endif
+
+                <div style="display:flex; gap:10px; margin-top:24px;">
                     <button type="submit" class="btn btn-primary">
                         💾 Enregistrer
                     </button>

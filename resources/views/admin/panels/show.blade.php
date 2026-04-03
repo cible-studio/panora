@@ -173,31 +173,143 @@
             </div>
             <div class="card-body">
                 @if($panel->photos->count() > 0)
-                <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px;">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
                     @foreach($panel->photos as $photo)
-                    <img src="{{ asset('storage/'.$photo->path) }}"
-                         style="width:100%; height:120px; object-fit:cover;
-                                border-radius:8px; border:1px solid var(--border);">
+                    <div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--border);"
+                         onmouseover="this.querySelector('.photo-actions').style.opacity='1';this.querySelector('.photo-actions').style.background='rgba(0,0,0,0.55)'"
+                         onmouseout="this.querySelector('.photo-actions').style.opacity='0';this.querySelector('.photo-actions').style.background='rgba(0,0,0,0)'">
+                        <img src="{{ asset('storage/'.$photo->path) }}"
+                             style="width:100%;height:120px;object-fit:cover;display:block;">
+                        <div class="photo-actions"
+                             style="position:absolute;inset:0;opacity:0;transition:all .2s;
+                                    display:flex;align-items:center;justify-content:center;gap:6px;">
+                            {{-- Remplacer --}}
+                            <form method="POST" action="{{ route('admin.panels.photos', $panel) }}"
+                                  enctype="multipart/form-data" id="rep-{{ $photo->id }}">
+                                @csrf
+                                <input type="file" name="photo" accept="image/*"
+                                       id="rep-inp-{{ $photo->id }}" style="display:none;"
+                                       onchange="document.getElementById('rep-{{ $photo->id }}').submit()">
+                                <label for="rep-inp-{{ $photo->id }}"
+                                       style="cursor:pointer;padding:5px 10px;border-radius:6px;
+                                              font-size:11px;font-weight:600;background:var(--surface);
+                                              color:var(--text);border:1px solid var(--border2);">
+                                    ✏️ Changer
+                                </label>
+                            </form>
+                            {{-- Supprimer --}}
+                            <form method="POST"
+                                  action="{{ route('admin.panels.photos.delete', [$panel, $photo]) }}"
+                                  onsubmit="return confirm('Supprimer cette photo ?')">
+                                @csrf @method('DELETE')
+                                <button type="submit"
+                                        style="padding:5px 10px;border-radius:6px;font-size:11px;
+                                               font-weight:600;background:rgba(239,68,68,0.9);
+                                               color:white;border:none;cursor:pointer;">
+                                    🗑️
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                     @endforeach
                 </div>
                 @endif
 
                 <form method="POST" action="{{ route('admin.panels.photos', $panel) }}"
                       enctype="multipart/form-data"
-                      style="display:flex; gap:10px; align-items:center;">
+                      style="display:flex;gap:10px;align-items:center;">
                     @csrf
                     <input type="file" name="photo" accept="image/*"
-                           style="color:var(--text2); flex:1;">
-                    <button type="submit" class="btn btn-ghost btn-sm">
-                        ➕ Ajouter
-                    </button>
+                           style="color:var(--text2);flex:1;">
+                    <button type="submit" class="btn btn-ghost btn-sm">➕ Ajouter</button>
                 </form>
             </div>
         </div>
 
-    </div>
+        {{-- OCCUPANTS ACTUELS --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">👤 Occupants actuels</div>
+            </div>
+            @if($occupants->isEmpty())
+            <div class="card-body" style="text-align:center;padding:28px;color:var(--text3);font-size:13px;">
+                @if($panel->status->value === 'libre')
+                    ✅ Ce panneau est libre — aucun client associé.
+                @elseif($panel->status->value === 'maintenance')
+                    🔧 Panneau en maintenance.
+                @else
+                    Aucun occupant actif trouvé.
+                @endif
+            </div>
+            @else
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Client</th>
+                            <th>Source</th>
+                            <th>Période</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($occupants as $occ)
+                        @php
+                            $sc = match($occ['status']) {
+                                'actif','confirme' => ['bg'=>'rgba(34,197,94,0.1)',  'color'=>'#22c55e', 'border'=>'rgba(34,197,94,0.3)'],
+                                'en_attente','option' => ['bg'=>'rgba(232,160,32,0.1)','color'=>'#e8a020','border'=>'rgba(232,160,32,0.3)'],
+                                'pose'             => ['bg'=>'rgba(59,130,246,0.1)', 'color'=>'#3b82f6', 'border'=>'rgba(59,130,246,0.3)'],
+                                default            => ['bg'=>'rgba(107,114,128,0.1)','color'=>'#6b7280','border'=>'rgba(107,114,128,0.3)'],
+                            };
+                        @endphp
+                        <tr onmouseover="this.style.background='var(--surface2)'"
+                            onmouseout="this.style.background=''">
+                            <td>
+                                @if($occ['client'])
+                                <a href="{{ route('admin.clients.show', $occ['client']) }}"
+                                   style="font-weight:700;color:var(--text);text-decoration:none;
+                                          display:flex;align-items:center;gap:6px;">
+                                    <span style="font-size:18px;">👤</span>
+                                    {{ $occ['client']->name }}
+                                </a>
+                                @else
+                                <span style="color:var(--text3);">—</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($occ['type'] === 'campaign')
+                                <a href="{{ route('admin.campaigns.show', $occ['source_id']) }}"
+                                   style="font-size:12px;color:#3b82f6;text-decoration:none;font-weight:600;">
+                                    📢 {{ $occ['reference'] }}
+                                </a>
+                                @else
+                                <a href="{{ route('admin.reservations.show', $occ['source_id']) }}"
+                                   style="font-size:12px;color:var(--accent);text-decoration:none;font-weight:600;">
+                                    📋 {{ $occ['reference'] }}
+                                </a>
+                                @endif
+                            </td>
+                            <td style="font-size:11px;color:var(--text3);white-space:nowrap;">
+                                {{ \Carbon\Carbon::parse($occ['start_date'])->format('d/m/Y') }}
+                                → {{ \Carbon\Carbon::parse($occ['end_date'])->format('d/m/Y') }}
+                            </td>
+                            <td>
+                                <span style="padding:3px 10px;border-radius:20px;font-size:11px;
+                                             font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+                                             background:{{ $sc['bg'] }};color:{{ $sc['color'] }};
+                                             border:1px solid {{ $sc['border'] }};">
+                                    {{ $occ['status_label'] }}
+                                </span>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @endif
+        </div>
 
-    {{-- COLONNE DROITE --}}
+    </div>
     <div>
 
         {{-- CHANGER STATUT --}}

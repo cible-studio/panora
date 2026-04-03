@@ -143,7 +143,7 @@
                         <span class="icon">📋</span> Logs d'audit
                     </a>
 
-                    <a href="{{ route('admin.settings.communes.index') }}"
+                    <a href="{{ route('admin.settings.index') }}"
                         class="nav-item {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
                         <span class="icon">⚙️</span> Paramètres
                     </a>

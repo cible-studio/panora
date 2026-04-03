@@ -7,7 +7,7 @@
     </a>
 </x-slot>
 
-<div class="mt-4">
+<div class="">
 <div style="display:flex; gap:20px; align-items:flex-start;">
 
     {{-- COLONNE GAUCHE --}}
@@ -167,7 +167,7 @@
         <div class="card">
             <div class="card-header">
                 <div class="card-title">🔔 Alertes</div>
-                <button class="btn btn-ghost btn-sm">Voir tout</button>
+                <a href="{{ route('admin.alerts.index') }}" class="btn btn-ghost btn-sm">Voir tout</a>
             </div>
             <div class="card-body">
                 <div style="display:flex; flex-direction:column; gap:8px;">
