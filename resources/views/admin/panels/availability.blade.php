@@ -238,7 +238,6 @@
                         <th>Commune</th>
                         <th>Format</th>
                         <th>Faces</th>
-                        <th>Orientation</th>
                         <th>Adresse / Quartier</th>
                         <th>Tarif/mois</th>
                         <th>Statut</th>
@@ -287,15 +286,6 @@
                             <span style="font-weight:700; color:var(--text2);">
                                 {{ $panel->nombre_faces ?? 1 }}
                             </span>
-                        </td>
-                        <td>
-                            @if($panel->orientation)
-                                <span class="badge badge-gray">
-                                    {{ ucfirst($panel->orientation) }}
-                                </span>
-                            @else
-                                <span style="color:var(--text3);">—</span>
-                            @endif
                         </td>
                         <td>
                             @if($panel->quartier)

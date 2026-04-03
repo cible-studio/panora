@@ -88,12 +88,6 @@
                             <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">TYPE SUPPORT</div>
                             <div style="font-weight:600;">{{ $panel->type_support ?? '—' }}</div>
                         </div>
-                        <div>
-                            <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">ORIENTATION</div>
-                            <div style="font-weight:600;">
-                                {{ $panel->orientation ? ucfirst($panel->orientation) : '—' }}
-                            </div>
-                        </div>
                         @if($panel->format->width && $panel->format->height)
                         <div>
                             <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">DIMENSIONS</div>

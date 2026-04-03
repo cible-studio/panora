@@ -108,6 +108,12 @@ Route::prefix('admin')
 
         // ── Clients ───────────────────────────────────────────────
         Route::resource('clients', ClientController::class);
+        Route::post('clients/{client}/account', [ClientController::class, 'createAccount'])
+            ->name('clients.account.create');
+        Route::post('clients/{client}/account/reset', [ClientController::class, 'resetPassword'])
+            ->name('clients.account.reset');
+        Route::delete('clients/{client}/account', [ClientController::class, 'revokeAccount'])
+            ->name('clients.account.revoke');
 
         // ── Régies externes ───────────────────────────────────────
         Route::resource('external-agencies', ExternalAgencyController::class)

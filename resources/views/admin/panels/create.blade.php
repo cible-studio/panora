@@ -153,12 +153,60 @@
                     </div>
 
                     <div class="mfg">
-                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                            <input type="checkbox" name="is_lit" value="1"
-                                   {{ old('is_lit') ? 'checked' : '' }}
-                                   style="width:16px; height:16px;">
-                            💡 Panneau éclairé (rétroéclairé)
-                        </label>
+                        <input type="checkbox" name="is_lit" value="1"
+                               id="is_lit_toggle"
+                               {{ old('is_lit') ? 'checked' : '' }}
+                               style="display:none;">
+
+                        <div style="display:flex; align-items:center; gap:12px; cursor:pointer;" onclick="toggleLit()">
+                            <div id="toggle-track"
+                                 style="
+                                    position:relative; width:52px; height:28px;
+                                    border-radius:14px;
+                                    background: {{ old('is_lit') ? '#e8a020' : '#d1d5db' }};
+                                    transition: background .3s ease;
+                                    flex-shrink:0;
+                                 ">
+                                <div id="toggle-thumb"
+                                     style="
+                                        position:absolute; top:3px;
+                                        left: {{ old('is_lit') ? '25px' : '3px' }};
+                                        width:22px; height:22px;
+                                        border-radius:50%; background:white;
+                                        box-shadow:0 1px 4px rgba(0,0,0,.25);
+                                        transition: left .3s ease;
+                                     ">
+                                </div>
+                            </div>
+                            <div>
+                                <div id="toggle-label"
+                                     style="font-size:14px; font-weight:600; color:{{ old('is_lit') ? '#e8a020' : 'var(--text2)' }};">
+                                    {{ old('is_lit') ? '💡 Éclairé (rétroéclairé)' : '🌑 Non éclairé' }}
+                                </div>
+                                <div style="font-size:11px; color:var(--text3); margin-top:2px;">Cliquez pour basculer</div>
+                            </div>
+                        </div>
+
+                        <script>
+                        function toggleLit() {
+                            const cb    = document.getElementById('is_lit_toggle');
+                            const track = document.getElementById('toggle-track');
+                            const thumb = document.getElementById('toggle-thumb');
+                            const label = document.getElementById('toggle-label');
+                            cb.checked = !cb.checked;
+                            if (cb.checked) {
+                                track.style.background = '#e8a020';
+                                thumb.style.left = '25px';
+                                label.textContent = '💡 Éclairé (rétroéclairé)';
+                                label.style.color = '#e8a020';
+                            } else {
+                                track.style.background = '#d1d5db';
+                                thumb.style.left = '3px';
+                                label.textContent = '🌑 Non éclairé';
+                                label.style.color = 'var(--text2)';
+                            }
+                        }
+                        </script>
                     </div>
 
                     {{-- LOCALISATION --}}

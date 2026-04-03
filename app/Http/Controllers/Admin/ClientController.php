@@ -65,6 +65,12 @@ class ClientController extends Controller
         return view('admin.clients.index', compact('clients', 'stats', 'sectors'));
     }
 
+    public function create()
+{
+    $sectors = Client::SECTORS;
+    return view('admin.clients.create', compact('sectors'));
+}
+
     // ── CRÉER UN COMPTE CLIENT ────────────────────────────────────
     /**
      * POST /admin/clients/{client}/account
@@ -228,13 +234,7 @@ class ClientController extends Controller
             ->route('admin.clients.index')
             ->with('success', "Client {$name} supprimé.");
     }
-<<<<<<< HEAD
-
-    // ── RÉINITIALISER MOT DE PASSE ────────────────────────────────
-    /**
-     * POST /admin/clients/{client}/account/reset
-     * Génère un nouveau mot de passe et l'envoie au client.
-     */
+// ── RÉINITIALISER MOT DE PASSE ────────────────────────────────
     public function resetPassword(Client $client)
     {
         if (!$client->hasAccount()) {
@@ -274,17 +274,11 @@ class ClientController extends Controller
         return back()->with('success', $msg);
     }
 
-    
-    // ── SUPPRIMER LE COMPTE ───────────────────────────────────────
-    /**
-     * DELETE /admin/clients/{client}/account
-     * Désactive l'accès espace client (ne supprime pas le client).
-     */
     public function revokeAccount(Client $client)
     {
         $client->update([
-            'password'      => null,
-            'remember_token'=> null,
+            'password'       => null,
+            'remember_token' => null,
         ]);
 
         \Log::info('client.account_revoked', ['client_id' => $client->id, 'user_id' => auth()->id()]);
@@ -294,19 +288,12 @@ class ClientController extends Controller
         }
         return back()->with('success', 'Accès espace client révoqué.');
     }
-    
-    // ── HELPER PRIVÉ ─────────────────────────────────────────────
+
     private function generateReadablePassword(): string
     {
-        // Format lisible : 3 mots + chiffres ex: "Bleu-Soleil-42"
         $adj    = ['Bleu', 'Rouge', 'Vert', 'Grand', 'Vif', 'Fort', 'Clair', 'Beau'];
         $nom    = ['Soleil', 'Lion', 'Fleuve', 'Arbre', 'Aigle', 'Mont', 'Pont', 'Phare'];
         $chiffr = rand(10, 99);
-    
         return $adj[array_rand($adj)] . '-' . $nom[array_rand($nom)] . '-' . $chiffr;
     }
- 
 }
-=======
-}
->>>>>>> develop

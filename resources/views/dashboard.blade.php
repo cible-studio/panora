@@ -2,6 +2,18 @@
 <x-slot name="title">Tableau de bord</x-slot>
 
 <x-slot name="topbarActions">
+    {{-- Barre de recherche --}}
+    <div style="position:relative;">
+        <input type="text" id="search-input"
+               placeholder="🔍 Rechercher campagne, client..."
+               oninput="filterTable(this.value)"
+               style="
+                  width:260px; height:36px; padding:0 12px 0 12px;
+                  border:1px solid var(--border2); border-radius:8px;
+                  background:var(--surface2); color:var(--text1);
+                  font-size:13px; outline:none;
+               ">
+    </div>
     <a href="{{ route('admin.panels.create') }}" class="btn btn-primary btn-sm">
         ＋ Nouveau panneau
     </a>
@@ -13,26 +25,52 @@
     {{-- COLONNE GAUCHE --}}
     <div style="flex:1; min-width:0;">
 
-        {{-- STAT CARDS --}}
+        {{-- STAT CARDS CLIQUABLES --}}
         <div class="stats-grid" style="grid-template-columns: repeat(3,1fr);">
 
-            <div class="stat-card">
+            {{-- Card 1 : Total panneaux --}}
+            <a href="{{ route('admin.panels.index') }}"
+               id="card-all"
+               onclick="filterByStatus('all', this)"
+               style="text-decoration:none;"
+               class="stat-card stat-card-clickable">
                 <div class="stat-label">Panneaux Actifs</div>
                 <div class="stat-value">{{ $totalPanneaux }}</div>
-                <div class="stat-delta up">↑ +12 ce trimestre</div>
-            </div>
+                <div class="stat-delta up">↑ Voir tous les panneaux →</div>
+            </a>
 
-            <div class="stat-card">
+            {{-- Card 2 : Disponibles --}}
+            <a href="{{ route('admin.panels.index', ['status' => 'libre']) }}"
+               id="card-libre"
+               style="text-decoration:none;"
+               class="stat-card stat-card-clickable">
                 <div class="stat-label">Disponibles</div>
                 <div class="stat-value" style="color:var(--green);">{{ $panneauxLibres }}</div>
-                <div class="stat-delta" style="color:var(--text2);">Libres à la réservation</div>
-            </div>
+                <div class="stat-delta" style="color:var(--text2);">Libres à la réservation →</div>
+            </a>
 
-            <div class="stat-card">
+            {{-- Card 3 : CA Mensuel --}}
+            <a href="{{ route('admin.panels.index', ['status' => 'occupe']) }}"
+               id="card-occupe"
+               style="text-decoration:none;"
+               class="stat-card stat-card-clickable">
                 <div class="stat-label">CA Mensuel (FCFA)</div>
-                <div class="stat-value">48.2M</div>
-                <div class="stat-delta up">↑ +8.4% vs N-1</div>
-            </div>
+                <div class="stat-value">
+                    @php
+                        $ca = $caMensuel ?? 0;
+                        echo $ca >= 1000000
+                            ? number_format($ca/1000000, 1, '.', '').'M'
+                            : number_format($ca, 0, ',', ' ');
+                    @endphp
+                </div>
+                <div class="stat-delta up">
+                    @if(isset($variationCA) && $variationCA !== null)
+                        {{ $variationCA >= 0 ? '↑' : '↓' }} {{ abs($variationCA) }}% vs mois précédent →
+                    @else
+                        ↑ Voir panneaux occupés →
+                    @endif
+                </div>
+            </a>
 
         </div>
 
@@ -41,7 +79,7 @@
             <div class="card-header">
                 <div class="card-title">Campagnes actives</div>
                 <div style="display:flex; gap:8px;">
-                    <button class="btn btn-ghost btn-sm">📊 Excel</button>
+                    <span id="search-count" style="font-size:12px;color:var(--text3);align-self:center;"></span>
                     <a href="{{ route('admin.campaigns.index') }}" class="btn btn-ghost btn-sm">Voir tout</a>
                 </div>
             </div>
@@ -57,11 +95,13 @@
                             <th>Statut</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="campaigns-tbody">
                         @forelse($campagnesRecentes as $campagne)
-                        <tr>
+                        <tr class="campaign-row"
+                            data-client="{{ strtolower($campagne->client->name) }}"
+                            data-status="{{ $campagne->status->value ?? $campagne->status }}">
                             <td><strong>{{ $campagne->client->name }}</strong></td>
-                            <td>{{ $campagne->total_panels }}</td>
+                            <td>{{ $campagne->total_panels ?? $campagne->panels->count() }}</td>
                             <td>{{ $campagne->end_date->format('d/m/y') }}</td>
                             <td>{{ $campagne->start_date->diffInDays($campagne->end_date) }}j</td>
                             <td style="width:100px;">
@@ -70,11 +110,12 @@
                                 </div>
                             </td>
                             <td>
-                                @if($campagne->status->value === 'actif')
+                                @php $s = $campagne->status->value ?? $campagne->status; @endphp
+                                @if($s === 'actif')
                                     <span class="badge badge-green">Actif</span>
-                                @elseif($campagne->status->value === 'pose')
+                                @elseif($s === 'pose')
                                     <span class="badge badge-blue">En pose</span>
-                                @elseif($campagne->status->value === 'termine')
+                                @elseif($s === 'termine')
                                     <span class="badge badge-gray">Terminé</span>
                                 @else
                                     <span class="badge badge-red">Annulé</span>
@@ -82,7 +123,7 @@
                             </td>
                         </tr>
                         @empty
-                        <tr>
+                        <tr id="empty-row">
                             <td colspan="6" style="text-align:center; color:var(--text3); padding:24px;">
                                 Aucune campagne active
                             </td>
@@ -90,6 +131,11 @@
                         @endforelse
                     </tbody>
                 </table>
+                {{-- Message aucun résultat --}}
+                <div id="no-results"
+                     style="display:none; text-align:center; color:var(--text3); padding:24px; font-size:13px;">
+                    🔍 Aucun résultat pour cette recherche
+                </div>
             </div>
         </div>
 
@@ -234,5 +280,49 @@
 
 </div>
 </div>
+
+<style>
+.stat-card-clickable {
+    cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    border: 2px solid transparent;
+    display: block;
+}
+.stat-card-clickable:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    border-color: var(--accent);
+}
+.stat-card-clickable:active {
+    transform: translateY(0);
+}
+</style>
+
+<script>
+function filterTable(query) {
+    const rows     = document.querySelectorAll('.campaign-row');
+    const noRes    = document.getElementById('no-results');
+    const counter  = document.getElementById('search-count');
+    const q        = query.trim().toLowerCase();
+    let visible    = 0;
+
+    rows.forEach(row => {
+        const client = row.dataset.client || '';
+        const match  = !q || client.includes(q);
+        row.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+
+    // Message aucun résultat
+    noRes.style.display = (visible === 0 && q) ? 'block' : 'none';
+
+    // Compteur
+    if (q) {
+        counter.textContent = visible + ' résultat' + (visible > 1 ? 's' : '');
+    } else {
+        counter.textContent = '';
+    }
+}
+</script>
 
 </x-admin-layout>
