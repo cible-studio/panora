@@ -7,14 +7,12 @@ use App\Http\Requests\Client\UpdateClientRequest;
 use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use App\Notifications\ClientAccountCreated;
 
 class ClientController extends Controller
 {
-
     public function index(Request $request)
     {
         $query = Client::withCount(['campaigns', 'reservations'])
@@ -22,7 +20,6 @@ class ClientController extends Controller
                 $q->whereIn('status', ['actif', 'pose']);
             }]);
 
-        // Filtres
         if ($request->search) {
             $query->where(function($q) use ($request) {
                 $q->where('name', 'like', "%{$request->search}%")
@@ -36,11 +33,9 @@ class ClientController extends Controller
             $query->where('sector', $request->sector);
         }
 
-        // Tri
         $sort = $request->sort ?? 'name';
         $query->orderBy($sort, $sort === 'name' ? 'asc' : 'desc');
 
-        // Statistiques
         $stats = [
             'total' => Client::count(),
             'actifs' => Client::whereHas('campaigns', function($q) {
@@ -65,11 +60,12 @@ class ClientController extends Controller
         return view('admin.clients.index', compact('clients', 'stats', 'sectors'));
     }
 
-    // ── CRÉER UN COMPTE CLIENT ────────────────────────────────────
-    /**
-     * POST /admin/clients/{client}/account
-     * Crée le compte espace client (mot de passe initial généré).
-     */
+    public function create()
+    {
+        $sectors = Client::SECTORS;
+        return view('admin.clients.create', compact('sectors'));
+    }
+
     public function createAccount(Client $client)
     {
         if ($client->hasAccount()) {
@@ -109,7 +105,6 @@ class ClientController extends Controller
         return back()->with('success', $msg);
     }
 
-
     public function store(StoreClientRequest $request)
     {
         $client = Client::create($request->validated());
@@ -133,30 +128,25 @@ class ClientController extends Controller
             'invoices'     => fn($q) => $q->latest()->limit(5),
         ]);
 
-        // Montant total facturé — requête directe sans N+1
         $totalFacture = $client->invoices()->sum('amount_ttc');
-
         $sectors = Client::SECTORS;
 
-        // ── Inventaire panneaux du client ──────────────────────────
-        // Panneaux via réservations
         $panneauxReservations = \App\Models\ReservationPanel::with([
                 'panel.commune', 'panel.format', 'reservation'
             ])
             ->whereHas('reservation', fn($q) => $q->where('client_id', $client->id))
             ->get()
             ->map(fn($rp) => [
-                'panel'      => $rp->panel,
-                'source'     => 'reservation',
+                'panel'            => $rp->panel,
+                'source'           => 'reservation',
                 'reference_source' => $rp->reservation->reference ?? '—',
-                'source_id'  => $rp->reservation->id,
-                'start_date' => $rp->reservation->start_date,
-                'end_date'   => $rp->reservation->end_date,
-                'status'     => $rp->reservation->status->value ?? 'inconnu',
-                'status_label' => $rp->reservation->status->label() ?? '—',
+                'source_id'        => $rp->reservation->id,
+                'start_date'       => $rp->reservation->start_date,
+                'end_date'         => $rp->reservation->end_date,
+                'status'           => $rp->reservation->status->value ?? 'inconnu',
+                'status_label'     => $rp->reservation->status->label() ?? '—',
             ]);
 
-        // Panneaux via campagnes
         $panneauxCampagnes = \App\Models\CampaignPanel::with([
                 'panel.commune', 'panel.format', 'campaign'
             ])
@@ -164,17 +154,16 @@ class ClientController extends Controller
             ->whereHas('campaign', fn($q) => $q->where('client_id', $client->id))
             ->get()
             ->map(fn($cp) => [
-                'panel'      => $cp->panel,
-                'source'     => 'campaign',
+                'panel'            => $cp->panel,
+                'source'           => 'campaign',
                 'reference_source' => $cp->campaign->name ?? '—',
-                'source_id'  => $cp->campaign->id,
-                'start_date' => $cp->campaign->start_date,
-                'end_date'   => $cp->campaign->end_date,
-                'status'     => $cp->campaign->status->value ?? 'inconnu',
-                'status_label' => $cp->campaign->status->label() ?? '—',
+                'source_id'        => $cp->campaign->id,
+                'start_date'       => $cp->campaign->start_date,
+                'end_date'         => $cp->campaign->end_date,
+                'status'           => $cp->campaign->status->value ?? 'inconnu',
+                'status_label'     => $cp->campaign->status->label() ?? '—',
             ]);
 
-        // Fusionner + dédoublonner par panel_id (priorité campagne > reservation)
         $panneauxClient = $panneauxCampagnes->concat($panneauxReservations)
             ->unique(fn($item) => $item['panel']?->id . '-' . $item['source_id'])
             ->filter(fn($item) => $item['panel'] !== null)
@@ -208,7 +197,6 @@ class ClientController extends Controller
 
     public function destroy(Client $client)
     {
-        // Bloquer suppression si campagnes actives
         if ($client->hasActiveCampaigns()) {
             return back()->with('error',
                 'Impossible de supprimer ce client : il a des campagnes actives en cours.'
@@ -228,13 +216,7 @@ class ClientController extends Controller
             ->route('admin.clients.index')
             ->with('success', "Client {$name} supprimé.");
     }
-<<<<<<< HEAD
 
-    // ── RÉINITIALISER MOT DE PASSE ────────────────────────────────
-    /**
-     * POST /admin/clients/{client}/account/reset
-     * Génère un nouveau mot de passe et l'envoie au client.
-     */
     public function resetPassword(Client $client)
     {
         if (!$client->hasAccount()) {
@@ -274,17 +256,11 @@ class ClientController extends Controller
         return back()->with('success', $msg);
     }
 
-    
-    // ── SUPPRIMER LE COMPTE ───────────────────────────────────────
-    /**
-     * DELETE /admin/clients/{client}/account
-     * Désactive l'accès espace client (ne supprime pas le client).
-     */
     public function revokeAccount(Client $client)
     {
         $client->update([
-            'password'      => null,
-            'remember_token'=> null,
+            'password'       => null,
+            'remember_token' => null,
         ]);
 
         \Log::info('client.account_revoked', ['client_id' => $client->id, 'user_id' => auth()->id()]);
@@ -294,19 +270,12 @@ class ClientController extends Controller
         }
         return back()->with('success', 'Accès espace client révoqué.');
     }
-    
-    // ── HELPER PRIVÉ ─────────────────────────────────────────────
+
     private function generateReadablePassword(): string
     {
-        // Format lisible : 3 mots + chiffres ex: "Bleu-Soleil-42"
         $adj    = ['Bleu', 'Rouge', 'Vert', 'Grand', 'Vif', 'Fort', 'Clair', 'Beau'];
         $nom    = ['Soleil', 'Lion', 'Fleuve', 'Arbre', 'Aigle', 'Mont', 'Pont', 'Phare'];
         $chiffr = rand(10, 99);
-    
         return $adj[array_rand($adj)] . '-' . $nom[array_rand($nom)] . '-' . $chiffr;
     }
- 
 }
-=======
-}
->>>>>>> develop
