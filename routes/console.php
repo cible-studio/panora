@@ -22,3 +22,10 @@ Schedule::command('campaigns:sync-expired')->dailyAt('01:30');
 
 Schedule::command('propositions:expire')->everyFifteenMinutes();
 
+//commande de test pour vérifier le fonctionnement du scheduler
+/** 
+ * php artisan reservations:sync-expired
+**php artisan reservations:expire-options
+**php artisan campaigns:sync-expired
+**php artisan propositions:expire
+ */
