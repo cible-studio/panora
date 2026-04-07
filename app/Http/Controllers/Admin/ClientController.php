@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -6,49 +7,46 @@ use App\Http\Requests\Client\StoreClientRequest;
 use App\Http\Requests\Client\UpdateClientRequest;
 use App\Models\Client;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-use App\Notifications\ClientAccountCreated;
+use Illuminate\Support\Facades\Log;
 
 class ClientController extends Controller
 {
+    // ══════════════════════════════════════════════════════════════
+    // INDEX
+    // ══════════════════════════════════════════════════════════════
 
     public function index(Request $request)
     {
         $query = Client::withCount(['campaigns', 'reservations'])
-            ->with(['campaigns' => function($q) {
+            ->withCount(['campaigns as active_campaigns_count' => function ($q) {
+                $q->whereIn('status', ['actif', 'pose']);
+            }])
+            ->with(['campaigns' => function ($q) {
                 $q->whereIn('status', ['actif', 'pose']);
             }]);
 
-        // Filtres
         if ($request->search) {
-            $query->where(function($q) use ($request) {
-                $q->where('name', 'like', "%{$request->search}%")
-                ->orWhere('ncc', 'like', "%{$request->search}%")
-                ->orWhere('email', 'like', "%{$request->search}%")
-                ->orWhere('contact_name', 'like', "%{$request->search}%")
-                ->orWhere('phone', 'like', "%{$request->search}%");
+            $query->where(function ($q) use ($request) {
+                $q->where('name',         'like', "%{$request->search}%")
+                  ->orWhere('ncc',         'like', "%{$request->search}%")
+                  ->orWhere('email',       'like', "%{$request->search}%")
+                  ->orWhere('contact_name','like', "%{$request->search}%")
+                  ->orWhere('phone',       'like', "%{$request->search}%");
             });
         }
+
         if ($request->sector) {
             $query->where('sector', $request->sector);
         }
 
-        // Tri
         $sort = $request->sort ?? 'name';
         $query->orderBy($sort, $sort === 'name' ? 'asc' : 'desc');
 
-        // Statistiques
         $stats = [
-            'total' => Client::count(),
-            'actifs' => Client::whereHas('campaigns', function($q) {
-                $q->whereIn('status', ['actif', 'pose']);
-            })->count(),
-            'ca_total' => Client::with('campaigns')->get()->sum(function($client) {
-                return $client->campaigns->sum('total_amount');
-            }),
+            'total'    => Client::count(),
+            'actifs'   => Client::whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'pose']))->count(),
+            'ca_total' => \App\Models\Campaign::sum('total_amount'),
         ];
 
         $clients = $query->paginate(20)->withQueryString();
@@ -56,59 +54,18 @@ class ClientController extends Controller
 
         if ($request->ajax()) {
             return response()->json([
-                'html' => view('admin.clients.partials.table-rows', compact('clients'))->render(),
+                'html'       => view('admin.clients.partials.table-rows', compact('clients'))->render(),
                 'pagination' => $clients->links()->render(),
-                'total' => $clients->total(),
+                'total'      => $clients->total(),
             ]);
         }
 
         return view('admin.clients.index', compact('clients', 'stats', 'sectors'));
     }
 
-    // ── CRÉER UN COMPTE CLIENT ────────────────────────────────────
-    /**
-     * POST /admin/clients/{client}/account
-     * Crée le compte espace client (mot de passe initial généré).
-     */
-    public function createAccount(Client $client)
-    {
-        if ($client->hasAccount()) {
-            if (request()->ajax()) {
-                return response()->json(['success' => false, 'message' => 'Ce client a déjà un compte actif.']);
-            }
-            return back()->with('error', 'Ce client a déjà un compte actif.');
-        }
-
-        if (empty($client->email)) {
-            if (request()->ajax()) {
-                return response()->json(['success' => false, 'message' => 'Ce client n\'a pas d\'email. Ajoutez-en un d\'abord.']);
-            }
-            return back()->with('error', 'Ce client n\'a pas d\'email. Ajoutez-en un d\'abord.');
-        }
-
-        $motDePasseInitial = $this->generateReadablePassword();
-
-        $client->update([
-            'password'             => Hash::make($motDePasseInitial),
-            'must_change_password' => true,
-            'password_changed_at'  => null,
-        ]);
-
-        try {
-            \Mail::to($client->email)->send(new \App\Mail\ClientAccountMail($client, $motDePasseInitial));
-            $msg = "✅ Compte créé. Identifiants envoyés à {$client->email}.";
-        } catch (\Exception $e) {
-            $msg = "✅ Compte créé. Impossible d'envoyer l'email. Mot de passe initial : {$motDePasseInitial}";
-        }
-
-        \Log::info('client.account_created', ['client_id' => $client->id, 'user_id' => auth()->id()]);
-
-        if (request()->ajax()) {
-            return response()->json(['success' => true, 'message' => $msg]);
-        }
-        return back()->with('success', $msg);
-    }
-
+    // ══════════════════════════════════════════════════════════════
+    // STORE
+    // ══════════════════════════════════════════════════════════════
 
     public function store(StoreClientRequest $request)
     {
@@ -125,56 +82,55 @@ class ClientController extends Controller
             ->with('success', "Client {$client->name} créé avec succès. NCC : {$client->ncc}");
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // SHOW
+    // ══════════════════════════════════════════════════════════════
+
     public function show(Client $client)
     {
         $client->load([
-            'reservations' => fn($q) => $q->latest()->limit(5),
+            'reservations' => fn($q) => $q->withCount('panels')->latest()->limit(5),
             'campaigns'    => fn($q) => $q->latest()->limit(8),
             'invoices'     => fn($q) => $q->latest()->limit(5),
         ]);
 
-        // Montant total facturé — requête directe sans N+1
         $totalFacture = $client->invoices()->sum('amount_ttc');
+        $sectors      = Client::SECTORS;
 
-        $sectors = Client::SECTORS;
-
-        // ── Inventaire panneaux du client ──────────────────────────
-        // Panneaux via réservations
+        // ── Inventaire panneaux du client (Dev A) ─────────────────
         $panneauxReservations = \App\Models\ReservationPanel::with([
-                'panel.commune', 'panel.format', 'reservation'
+                'panel.commune', 'panel.format', 'reservation',
             ])
             ->whereHas('reservation', fn($q) => $q->where('client_id', $client->id))
             ->get()
             ->map(fn($rp) => [
-                'panel'      => $rp->panel,
-                'source'     => 'reservation',
+                'panel'            => $rp->panel,
+                'source'           => 'reservation',
                 'reference_source' => $rp->reservation->reference ?? '—',
-                'source_id'  => $rp->reservation->id,
-                'start_date' => $rp->reservation->start_date,
-                'end_date'   => $rp->reservation->end_date,
-                'status'     => $rp->reservation->status->value ?? 'inconnu',
-                'status_label' => $rp->reservation->status->label() ?? '—',
+                'source_id'        => $rp->reservation->id,
+                'start_date'       => $rp->reservation->start_date,
+                'end_date'         => $rp->reservation->end_date,
+                'status'           => $rp->reservation->status->value ?? 'inconnu',
+                'status_label'     => $rp->reservation->status->label() ?? '—',
             ]);
 
-        // Panneaux via campagnes
         $panneauxCampagnes = \App\Models\CampaignPanel::with([
-                'panel.commune', 'panel.format', 'campaign'
+                'panel.commune', 'panel.format', 'campaign',
             ])
             ->where('type', 'interne')
             ->whereHas('campaign', fn($q) => $q->where('client_id', $client->id))
             ->get()
             ->map(fn($cp) => [
-                'panel'      => $cp->panel,
-                'source'     => 'campaign',
+                'panel'            => $cp->panel,
+                'source'           => 'campaign',
                 'reference_source' => $cp->campaign->name ?? '—',
-                'source_id'  => $cp->campaign->id,
-                'start_date' => $cp->campaign->start_date,
-                'end_date'   => $cp->campaign->end_date,
-                'status'     => $cp->campaign->status->value ?? 'inconnu',
-                'status_label' => $cp->campaign->status->label() ?? '—',
+                'source_id'        => $cp->campaign->id,
+                'start_date'       => $cp->campaign->start_date,
+                'end_date'         => $cp->campaign->end_date,
+                'status'           => $cp->campaign->status->value ?? 'inconnu',
+                'status_label'     => $cp->campaign->status->label() ?? '—',
             ]);
 
-        // Fusionner + dédoublonner par panel_id (priorité campagne > reservation)
         $panneauxClient = $panneauxCampagnes->concat($panneauxReservations)
             ->unique(fn($item) => $item['panel']?->id . '-' . $item['source_id'])
             ->filter(fn($item) => $item['panel'] !== null)
@@ -185,6 +141,10 @@ class ClientController extends Controller
             'client', 'totalFacture', 'sectors', 'panneauxClient'
         ));
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // EDIT / UPDATE
+    // ══════════════════════════════════════════════════════════════
 
     public function edit(Client $client)
     {
@@ -206,13 +166,15 @@ class ClientController extends Controller
             ->with('success', 'Client mis à jour avec succès.');
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // DESTROY
+    // ══════════════════════════════════════════════════════════════
+
     public function destroy(Client $client)
     {
-        // Bloquer suppression si campagnes actives
         if ($client->hasActiveCampaigns()) {
             return back()->with('error',
-                'Impossible de supprimer ce client : il a des campagnes actives en cours.'
-            );
+                'Impossible de supprimer ce client : il a des campagnes actives en cours.');
         }
 
         $name = $client->name;
@@ -228,85 +190,134 @@ class ClientController extends Controller
             ->route('admin.clients.index')
             ->with('success', "Client {$name} supprimé.");
     }
-<<<<<<< HEAD
 
-    // ── RÉINITIALISER MOT DE PASSE ────────────────────────────────
-    /**
-     * POST /admin/clients/{client}/account/reset
-     * Génère un nouveau mot de passe et l'envoie au client.
-     */
-    public function resetPassword(Client $client)
+    // ══════════════════════════════════════════════════════════════
+    // COMPTE CLIENT — CRÉER
+    // ══════════════════════════════════════════════════════════════
+
+    public function createAccount(Client $client)
     {
-        if (!$client->hasAccount()) {
-            if (request()->ajax()) {
-                return response()->json(['success' => false, 'message' => 'Ce client n\'a pas encore de compte.']);
-            }
-            return back()->with('error', 'Ce client n\'a pas encore de compte.');
+        if ($client->hasAccount()) {
+            return $this->accountResponse(false, 'Ce client a déjà un compte actif.');
         }
 
         if (empty($client->email)) {
-            if (request()->ajax()) {
-                return response()->json(['success' => false, 'message' => 'Ce client n\'a pas d\'email.']);
-            }
-            return back()->with('error', 'Ce client n\'a pas d\'email.');
+            return $this->accountResponse(false, "Ce client n'a pas d'email. Ajoutez-en un d'abord.");
         }
 
-        $nouveauMotDePasse = $this->generateReadablePassword();
+        $motDePasse = $this->generateReadablePassword();
 
         $client->update([
-            'password'             => Hash::make($nouveauMotDePasse),
+            'password'             => Hash::make($motDePasse),
             'must_change_password' => true,
             'password_changed_at'  => null,
         ]);
 
         try {
-            \Mail::to($client->email)->send(new \App\Mail\ClientAccountMail($client, $nouveauMotDePasse, true));
-            $msg = "🔑 Mot de passe réinitialisé. Envoyé à {$client->email}.";
+            \Mail::to($client->email)->send(new \App\Mail\ClientAccountMail($client, $motDePasse));
+            $msg = "✅ Compte créé. Identifiants envoyés à {$client->email}.";
         } catch (\Exception $e) {
-            $msg = "🔑 Mot de passe réinitialisé. Erreur email. MDP : {$nouveauMotDePasse}";
+            $msg = "✅ Compte créé. Erreur email. Mot de passe initial : {$motDePasse}";
         }
 
-        \Log::info('client.password_reset', ['client_id' => $client->id, 'user_id' => auth()->id()]);
+        Log::info('client.account_created', ['client_id' => $client->id, 'user_id' => auth()->id()]);
 
-        if (request()->ajax()) {
-            return response()->json(['success' => true, 'message' => $msg]);
-        }
-        return back()->with('success', $msg);
+        return $this->accountResponse(true, $msg);
     }
 
-    
-    // ── SUPPRIMER LE COMPTE ───────────────────────────────────────
-    /**
-     * DELETE /admin/clients/{client}/account
-     * Désactive l'accès espace client (ne supprime pas le client).
-     */
+    // ══════════════════════════════════════════════════════════════
+    // COMPTE CLIENT — RESET MOT DE PASSE
+    // ══════════════════════════════════════════════════════════════
+
+    public function resetPassword(Client $client)
+    {
+        if (!$client->hasAccount()) {
+            return $this->accountResponse(false, "Ce client n'a pas encore de compte.");
+        }
+
+        if (empty($client->email)) {
+            return $this->accountResponse(false, "Ce client n'a pas d'email.");
+        }
+
+        $motDePasse = $this->generateReadablePassword();
+
+        $client->update([
+            'password'             => Hash::make($motDePasse),
+            'must_change_password' => true,
+            'password_changed_at'  => null,
+        ]);
+
+        try {
+            \Mail::to($client->email)->send(
+                new \App\Mail\ClientAccountMail($client, $motDePasse, true)
+            );
+            $msg = "🔑 Mot de passe réinitialisé. Envoyé à {$client->email}.";
+        } catch (\Exception $e) {
+            $msg = "🔑 Mot de passe réinitialisé. Erreur email. MDP : {$motDePasse}";
+        }
+
+        Log::info('client.password_reset', ['client_id' => $client->id, 'user_id' => auth()->id()]);
+
+        return $this->accountResponse(true, $msg);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // COMPTE CLIENT — RÉVOQUER
+    // ══════════════════════════════════════════════════════════════
+
     public function revokeAccount(Client $client)
     {
         $client->update([
-            'password'      => null,
-            'remember_token'=> null,
+            'password'       => null,
+            'remember_token' => null,
         ]);
 
-        \Log::info('client.account_revoked', ['client_id' => $client->id, 'user_id' => auth()->id()]);
+        Log::info('client.account_revoked', ['client_id' => $client->id, 'user_id' => auth()->id()]);
 
-        if (request()->ajax()) {
-            return response()->json(['success' => true, 'message' => 'Accès espace client révoqué.']);
-        }
-        return back()->with('success', 'Accès espace client révoqué.');
+        return $this->accountResponse(true, 'Accès espace client révoqué.');
     }
-    
-    // ── HELPER PRIVÉ ─────────────────────────────────────────────
+
+    // ══════════════════════════════════════════════════════════════
+    // DONNÉES CLIENT (AJAX — autocomplete)
+    // ══════════════════════════════════════════════════════════════
+
+    public function getClientData(Client $client)
+    {
+        return response()->json([
+            'id'           => $client->id,
+            'name'         => $client->name,
+            'email'        => $client->email,
+            'phone'        => $client->phone,
+            'contact_name' => $client->contact_name,
+            'has_account'  => $client->hasAccount(),
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // HELPERS PRIVÉS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Réponse unifiée AJAX / web pour les actions de compte.
+     */
+    private function accountResponse(bool $success, string $message)
+    {
+        if (request()->ajax() || request()->wantsJson()) {
+            return response()->json(['success' => $success, 'message' => $message]);
+        }
+
+        return back()->with($success ? 'success' : 'error', $message);
+    }
+
+    /**
+     * Génère un mot de passe lisible de type "Bleu-Soleil-42".
+     */
     private function generateReadablePassword(): string
     {
-        // Format lisible : 3 mots + chiffres ex: "Bleu-Soleil-42"
-        $adj    = ['Bleu', 'Rouge', 'Vert', 'Grand', 'Vif', 'Fort', 'Clair', 'Beau'];
-        $nom    = ['Soleil', 'Lion', 'Fleuve', 'Arbre', 'Aigle', 'Mont', 'Pont', 'Phare'];
+        $adj    = ['Bleu', 'Rouge', 'Vert', 'Grand', 'Vif', 'Fort', 'Clair', 'Beau', 'Doré', 'Vaste'];
+        $nom    = ['Soleil', 'Lion', 'Fleuve', 'Arbre', 'Aigle', 'Mont', 'Pont', 'Phare', 'Lac', 'Ciel'];
         $chiffr = rand(10, 99);
-    
+
         return $adj[array_rand($adj)] . '-' . $nom[array_rand($nom)] . '-' . $chiffr;
     }
- 
 }
-=======
-}
->>>>>>> develop
