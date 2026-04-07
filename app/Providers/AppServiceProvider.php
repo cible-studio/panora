@@ -9,7 +9,6 @@ use App\Policies\ReservationPolicy;
 use App\Models\Campaign;
 use App\Observers\ReservationObserver;
 
-
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
@@ -24,8 +23,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Campaign::class, \App\Policies\CampaignPolicy::class);
         Reservation::observe(ReservationObserver::class);
 
-
-        // Force UTF8 pour WAMP
-        \DB::statement('SET NAMES utf8');
+        // Force UTF8 uniquement sur MySQL (pas SQLite)
+        if (config('database.default') === 'mysql') {
+            \DB::statement('SET NAMES utf8');
+        }
     }
 }

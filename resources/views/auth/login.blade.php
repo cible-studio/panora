@@ -248,7 +248,7 @@
         <div class="login-title">Espace Client</div>
         <div class="login-sub">Accédez à vos campagnes, piges et propositions</div>
 
-        <form method="POST" action="{{ route('login') }}">
+        <form method="POST" action="{{ route('client.login.post') }}">
             @csrf
 
             <div class="fg">

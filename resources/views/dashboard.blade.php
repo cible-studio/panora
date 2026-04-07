@@ -189,18 +189,29 @@
         <div class="card">
             <div class="card-header">
                 <div class="card-title">⏳ Confirmations</div>
-                <span class="badge badge-orange">{{ $reservationsEnAttente }} en attente</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="badge badge-orange">{{ $reservationsEnAttente }} en attente</span>
+                    <a href="{{ route('admin.reservations.index') }}" class="btn btn-ghost btn-sm">Voir tout</a>
+                </div>
             </div>
             <div class="card-body">
                 @forelse($dernieresReservations as $reservation)
-                <div style="padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid var(--border);">
-                    <div style="font-weight:600; font-size:13px;">
+                <a href="{{ route('admin.reservations.show', $reservation) }}"
+                   style="text-decoration:none;display:block;padding-bottom:12px;margin-bottom:12px;
+                          border-bottom:1px solid var(--border);border-radius:8px;padding:10px;
+                          transition:background .15s;"
+                   onmouseover="this.style.background='var(--surface2)'"
+                   onmouseout="this.style.background=''">
+                    <div style="font-weight:600;font-size:13px;color:var(--text);">
                         {{ $reservation->client->name }}
                     </div>
-                    <div style="color:var(--text3); font-size:11px; margin-top:3px;">
+                    <div style="color:var(--text3);font-size:11px;margin-top:3px;">
                         {{ $reservation->panels->count() }} panneaux — En attente confirmation
                     </div>
-                </div>
+                    <div style="font-size:10px;color:var(--accent);margin-top:4px;">
+                        {{ $reservation->reference }} →
+                    </div>
+                </a>
                 @empty
                 <div style="color:var(--text3); font-size:13px; text-align:center; padding:8px 0;">
                     Aucune confirmation en attente
@@ -248,17 +259,23 @@
         <div class="card">
             <div class="card-header">
                 <div class="card-title">🔧 Maintenance</div>
+                <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm">Voir tout</a>
             </div>
             <div class="card-body">
                 @forelse($dernieresMaintenances as $maintenance)
-                <div style="padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid var(--border);">
-                    <div style="font-weight:600; font-size:13px;">
+                <a href="{{ route('admin.maintenances.show', $maintenance) }}"
+                   style="text-decoration:none;display:block;padding:10px;border-radius:8px;
+                          margin-bottom:8px;border-bottom:1px solid var(--border);
+                          transition:background .15s;"
+                   onmouseover="this.style.background='var(--surface2)'"
+                   onmouseout="this.style.background=''">
+                    <div style="font-weight:600;font-size:13px;color:var(--accent);">
                         {{ $maintenance->panel->reference }}
                     </div>
-                    <div style="color:var(--text3); font-size:11px; margin-top:2px;">
+                    <div style="color:var(--text3);font-size:11px;margin-top:2px;">
                         {{ $maintenance->type_panne }}
                     </div>
-                    <div style="margin-top:5px;">
+                    <div style="margin-top:5px;display:flex;align-items:center;justify-content:space-between;">
                         @if($maintenance->priorite === 'urgente')
                             <span class="badge badge-red">Urgente</span>
                         @elseif($maintenance->priorite === 'haute')
@@ -266,8 +283,9 @@
                         @else
                             <span class="badge badge-gray">{{ ucfirst($maintenance->priorite) }}</span>
                         @endif
+                        <span style="font-size:10px;color:var(--text3);">Voir →</span>
                     </div>
-                </div>
+                </a>
                 @empty
                 <div style="color:var(--text3); font-size:13px; text-align:center; padding:8px 0;">
                     Aucune maintenance urgente

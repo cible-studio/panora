@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" id="html-root">
 
 <head>
     <meta charset="utf-8">
@@ -177,7 +177,15 @@
             <div class="topbar" style="position:fixed; top:0; left:235px; right:0; z-index:30;">
                 <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
                 <div style="display:flex;align-items:center;gap:10px;">
-                    <input type="text" class="topbar-search" placeholder="🔍 Rechercher...">
+                   
+                    {{-- Toggle Dark/Light Mode --}}
+                    <button onclick="toggleTheme()" id="theme-toggle-btn"
+                            class="btn btn-ghost btn-sm"
+                            title="Basculer dark/light mode"
+                            style="font-size:16px; padding:6px 10px; border-radius:8px;">
+                        🌙
+                    </button>
+
                     <button class="btn btn-ghost btn-sm">🔔
                         <span class="nav-badge red" style="position:relative">
                             {{ App\Models\Alert::where('is_read', false)->count() }}
@@ -379,6 +387,30 @@
             warning: (m, d) => showToast('warning', m, d),
             info: (m, d) => showToast('info', m, d),
         };
+    </script>
+
+
+    <script>
+    // ── DARK / LIGHT MODE ──────────────────────────────────────────
+    (function() {
+        const saved = localStorage.getItem('theme') || 'dark';
+        document.getElementById('html-root').setAttribute('data-theme', saved);
+        updateBtn(saved);
+    })();
+
+    function toggleTheme() {
+        const html = document.getElementById('html-root');
+        const current = html.getAttribute('data-theme') || 'dark';
+        const next = current === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        updateBtn(next);
+    }
+
+    function updateBtn(theme) {
+        const btn = document.getElementById('theme-toggle-btn');
+        if (btn) btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+    }
     </script>
 
     @stack('scripts')

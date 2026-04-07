@@ -40,6 +40,70 @@
 }
 
 /* ═══════════════════════════════════════════════
+   LIGHT MODE — activé via [data-theme="light"] sur <html>
+   ═══════════════════════════════════════════════ */
+[data-theme="light"] {
+  --bg:       #f0f2f5;
+  --surface:  #ffffff;
+  --surface2: #f5f7fa;
+  --surface3: #e8ebf0;
+
+  --border:  #e2e6ed;
+  --border2: #d0d5de;
+
+  --accent:     #e8a020;
+  --accent2:    #c07010;
+  --accent-dim: rgba(232,160,32,0.10);
+
+  --text:  #111827;
+  --text2: #4b5563;
+  --text3: #9ca3af;
+
+  --green:  #16a34a;
+  --red:    #dc2626;
+  --blue:   #2563eb;
+  --purple: #9333ea;
+  --orange: #ea580c;
+  --teal:   #0d9488;
+}
+
+/* Ajustements spécifiques light mode */
+[data-theme="light"] .sidebar {
+  background: #ffffff;
+  border-right-color: #e2e6ed;
+}
+
+[data-theme="light"] .topbar {
+  background: rgba(255,255,255,0.95);
+  border-bottom-color: #e2e6ed;
+}
+
+[data-theme="light"] .nav-item:hover {
+  background: rgba(232,160,32,0.08);
+}
+
+[data-theme="light"] .nav-item.active {
+  background: rgba(232,160,32,0.12);
+}
+
+[data-theme="light"] .card {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+[data-theme="light"] table thead th {
+  background: #f5f7fa;
+}
+
+[data-theme="light"] .stat-card {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+/* Transition douce */
+body, .sidebar, .topbar, .card, .stat-card, table, input, select, textarea {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* ═══════════════════════════════════════════════
    BASE
    ═══════════════════════════════════════════════ */
 * { margin: 0; padding: 0; box-sizing: border-box; }

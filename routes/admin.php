@@ -53,6 +53,10 @@ Route::prefix('admin')
             ->name('panels.export.list');
         Route::get('panels/export/network', [PanelController::class, 'exportNetwork'])
             ->name('panels.export.network');
+        Route::get('panels/export/excel', [PanelController::class, 'exportExcel'])
+            ->name('panels.export.excel');
+        Route::get('panels/export/network-excel', [PanelController::class, 'exportNetworkExcel'])
+            ->name('panels.export.network-excel');
 
         // ── Carte / Heatmap ───────────────────────────────────────
         Route::get('map', [PanelController::class, 'map'])
@@ -85,13 +89,12 @@ Route::prefix('admin')
             ->prefix('settings')
             ->name('settings.')
             ->group(function () {
-            Route::get('/', [SettingsController::class, 'index'])
-                ->name('index');
-            Route::resource('zones', ZoneController::class);
-            Route::resource('communes', CommuneController::class);
-            Route::resource('formats', PanelFormatController::class);
-            Route::resource('categories', PanelCategoryController::class);
-        });
+                Route::get('/', [SettingsController::class, 'index'])->name('index');
+                Route::resource('zones', ZoneController::class);
+                Route::resource('communes', CommuneController::class);
+                Route::resource('formats', PanelFormatController::class);
+                Route::resource('categories', PanelCategoryController::class);
+            });
 
         // ── Utilisateurs (admin uniquement) ───────────────────────
         Route::middleware('role:admin')->group(function () {
@@ -118,148 +121,77 @@ Route::prefix('admin')
         // ── Régies externes ───────────────────────────────────────
         Route::resource('external-agencies', ExternalAgencyController::class)
             ->except(['create', 'edit']);
-        Route::post(
-            'external-agencies/{externalAgency}/panels',
-            [ExternalAgencyController::class, 'storePanel']
-        )
+        Route::post('external-agencies/{externalAgency}/panels', [ExternalAgencyController::class, 'storePanel'])
             ->name('external-agencies.panels.store');
-        Route::put(
-            'external-agencies/{externalAgency}/panels/{panel}',
-            [ExternalAgencyController::class, 'updatePanel']
-        )
+        Route::put('external-agencies/{externalAgency}/panels/{panel}', [ExternalAgencyController::class, 'updatePanel'])
             ->name('external-agencies.panels.update');
-        Route::delete(
-            'external-agencies/{externalAgency}/panels/{panel}',
-            [ExternalAgencyController::class, 'destroyPanel']
-        )
+        Route::delete('external-agencies/{externalAgency}/panels/{panel}', [ExternalAgencyController::class, 'destroyPanel'])
             ->name('external-agencies.panels.destroy');
 
         // ── Disponibilités ⚠️ AVANT resource reservations ─────────
-        Route::get(
-            'disponibilites',
-            [ReservationController::class, 'disponibilites']
-        )
+        Route::get('disponibilites', [ReservationController::class, 'disponibilites'])
             ->name('reservations.disponibilites');
-        Route::get(
-            'disponibilites/panneaux',
-            [ReservationController::class, 'panneauxAjax']
-        )->name('reservations.disponibilites.panneaux');
-        Route::post(
-            'disponibilites/confirmer',
-            [ReservationController::class, 'confirmerSelection']
-        )
+        Route::get('disponibilites/panneaux', [ReservationController::class, 'panneauxAjax'])
+            ->name('reservations.disponibilites.panneaux');
+        Route::post('disponibilites/confirmer', [ReservationController::class, 'confirmerSelection'])
             ->name('reservations.confirmer-selection');
-        Route::post(
-            'disponibilites/pdf-images',
-            [ReservationController::class, 'pdfImages']
-        )->name('reservations.disponibilites.pdf-images');
-        Route::post(
-            'disponibilites/pdf-liste',
-            [ReservationController::class, 'pdfListe']
-        )->name('reservations.disponibilites.pdf-liste');
+        Route::post('disponibilites/pdf-images', [ReservationController::class, 'pdfImages'])
+            ->name('reservations.disponibilites.pdf-images');
+        Route::post('disponibilites/pdf-liste', [ReservationController::class, 'pdfListe'])
+            ->name('reservations.disponibilites.pdf-liste');
 
         // ── Réservations API AJAX ⚠️ AVANT resource ───────────────
-        Route::get(
-            'reservations/available-panels',
-            [ReservationController::class, 'availablePanels']
-        )
+        Route::get('reservations/available-panels', [ReservationController::class, 'availablePanels'])
             ->name('reservations.available-panels')
             ->middleware('throttle:60,1');
-        Route::post(
-            'reservations/mark-seen',
-            [ReservationController::class, 'markSeen']
-        )
+        Route::post('reservations/mark-seen', [ReservationController::class, 'markSeen'])
             ->name('reservations.mark-seen');
 
         // ── Réservations CRUD ─────────────────────────────────────
         Route::resource('reservations', ReservationController::class)
             ->except(['create', 'store']);
-        Route::patch(
-            'reservations/{reservation}/status',
-            [ReservationController::class, 'updateStatus']
-        )
+        Route::patch('reservations/{reservation}/status', [ReservationController::class, 'updateStatus'])
             ->name('reservations.update-status');
-        Route::patch(
-            'reservations/{reservation}/annuler',
-            [ReservationController::class, 'annuler']
-        )
+        Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])
             ->name('reservations.annuler');
 
         // ── Campagnes ─────────────────────────────────────────────
         Route::resource('campaigns', CampaignController::class);
-        Route::patch(
-            'campaigns/{campaign}/status',
-            [CampaignController::class, 'updateStatus']
-        )
+        Route::patch('campaigns/{campaign}/status', [CampaignController::class, 'updateStatus'])
             ->name('campaigns.update-status');
-        Route::patch(
-            'campaigns/{campaign}/prolonger',
-            [CampaignController::class, 'prolonger']
-        )
+        Route::patch('campaigns/{campaign}/prolonger', [CampaignController::class, 'prolonger'])
             ->name('campaigns.prolonger');
-        Route::post(
-            'campaigns/{campaign}/panels',
-            [CampaignController::class, 'addPanel']
-        )
+        Route::post('campaigns/{campaign}/panels', [CampaignController::class, 'addPanel'])
             ->name('campaigns.panels.add');
-        Route::delete(
-            'campaigns/{campaign}/panels/{panel}',
-            [CampaignController::class, 'removePanel']
-        )
+        Route::delete('campaigns/{campaign}/panels/{panel}', [CampaignController::class, 'removePanel'])
             ->name('campaigns.panels.remove');
-        Route::delete(
-            'campaigns/{campaign}/external-panels/{externalPanel}',
-            [CampaignController::class, 'removeExternalPanel']
-        )
+        Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])
             ->name('campaigns.external-panels.remove');
 
-        // ── Propositions ──────────────────────────────── Dev A ───
-
+        // ── Propositions ──────────────────────────────────────────
         Route::resource('propositions', PropositionController::class);
-        Route::patch(
-            'propositions/{proposition}/status',
-            [PropositionController::class, 'updateStatus']
-        )
+        Route::patch('propositions/{proposition}/status', [PropositionController::class, 'updateStatus'])
             ->name('propositions.update-status');
-        Route::get(
-            'propositions/{proposition}/pdf',
-            [PropositionController::class, 'exportPdf']
-        )
+        Route::get('propositions/{proposition}/pdf', [PropositionController::class, 'exportPdf'])
             ->name('propositions.pdf');
 
-        // ── Piges Photos ──────────────────────────────── Dev A ───
+        // ── Piges Photos ──────────────────────────────────────────
+        Route::get('piges', [PigeController::class, 'index'])->name('piges.index');
+        Route::post('piges/upload', [PigeController::class, 'upload'])->name('piges.upload');
+        Route::get('piges/{pige}', [PigeController::class, 'show'])->name('piges.show');
+        Route::post('piges/{pige}/verify', [PigeController::class, 'verify'])->name('piges.verify');
+        Route::delete('piges/{pige}', [PigeController::class, 'destroy'])->name('piges.destroy');
+        Route::get('piges/export/pdf', [PigeController::class, 'exportPdf'])->name('piges.export.pdf');
 
-        Route::get('piges', [PigeController::class, 'index'])
-            ->name('piges.index');
-        Route::post('piges/upload', [PigeController::class, 'upload'])
-            ->name('piges.upload');
-        Route::get('piges/{pige}', [PigeController::class, 'show'])
-            ->name('piges.show');
-        Route::post('piges/{pige}/verify', [PigeController::class, 'verify'])
-            ->name('piges.verify');
-        Route::delete('piges/{pige}', [PigeController::class, 'destroy'])
-            ->name('piges.destroy');
-        Route::get('piges/export/pdf', [PigeController::class, 'exportPdf'])
-            ->name('piges.export.pdf');
-
-        // ── Taxes Communes ────────────────────────────── Dev A ───
-
-
+        // ── Taxes Communes ────────────────────────────────────────
         Route::resource('taxes', TaxController::class);
-        Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])
-            ->name('taxes.pay');
-        Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])
-            ->name('taxes.export.pdf');
+        Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
+        Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
 
-
-        // ── Facturation ───────────────────────────────── Dev A ───
-
+        // ── Facturation ───────────────────────────────────────────
         Route::resource('invoices', InvoiceController::class);
-        Route::patch('invoices/{invoice}/send', [InvoiceController::class, 'markSent'])
-            ->name('invoices.send');
-        Route::patch('invoices/{invoice}/pay', [InvoiceController::class, 'markPaid'])
-            ->name('invoices.pay');
-        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])
-            ->name('invoices.pdf');
+        Route::patch('invoices/{invoice}/send', [InvoiceController::class, 'markSent'])->name('invoices.send');
+        Route::patch('invoices/{invoice}/pay', [InvoiceController::class, 'markPaid'])->name('invoices.pay');
+        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
 
     });

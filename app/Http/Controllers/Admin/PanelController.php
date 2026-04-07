@@ -30,6 +30,20 @@ class PanelController extends Controller
         if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
         }
+        if ($request->filled('zone_id')) {
+            $query->where('zone_id', $request->zone_id);
+        }
+        if ($request->filled('client_id')) {
+            $query->where(function($q) use ($request) {
+                $q->whereHas('reservations', fn($r) =>
+                    $r->where('client_id', $request->client_id)
+                      ->whereNotIn('status', ['annule', 'refuse'])
+                )->orWhereHas('campaigns', fn($c) =>
+                    $c->where('client_id', $request->client_id)
+                      ->whereNotIn('status', ['annule'])
+                );
+            });
+        }
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
                 $q->where('reference', 'like', '%' . $request->search . '%')
@@ -39,7 +53,9 @@ class PanelController extends Controller
 
         $panels = $query->latest()->paginate(15)->withQueryString();
         $communes = Commune::orderBy('name')->get();
+        $zones = Zone::orderBy('name')->get();
         $categories = PanelCategory::orderBy('name')->get();
+        $clients = \App\Models\Client::orderBy('name')->get(['id', 'name']);
 
         // Stats
         $totalPanneaux = Panel::count();
@@ -55,7 +71,9 @@ class PanelController extends Controller
         return view('admin.panels.index', compact(
             'panels',
             'communes',
+            'zones',
             'categories',
+            'clients',
             'totalPanneaux',
             'panneauxLibres',
             'panneauxOccupes',

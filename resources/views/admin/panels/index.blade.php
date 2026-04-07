@@ -91,6 +91,30 @@
                 </select>
             </div>
             <div class="filter-group">
+                <label class="filter-label">Zone</label>
+                <select name="zone_id" class="filter-select" onchange="this.form.submit()">
+                    <option value="">Toutes les zones</option>
+                    @foreach($zones as $zone)
+                    <option value="{{ $zone->id }}"
+                        {{ request('zone_id') == $zone->id ? 'selected' : '' }}>
+                        {{ $zone->name }}
+                    </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">Client</label>
+                <select name="client_id" class="filter-select" onchange="this.form.submit()">
+                    <option value="">Tous les clients</option>
+                    @foreach($clients as $client)
+                    <option value="{{ $client->id }}"
+                        {{ request('client_id') == $client->id ? 'selected' : '' }}>
+                        {{ $client->name }}
+                    </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="filter-group">
                 <label class="filter-label">Statut</label>
                 <select name="status" class="filter-select" onchange="this.form.submit()">
                     <option value="">Tous</option>
@@ -113,7 +137,7 @@
                     @endforeach
                 </select>
             </div>
-            @if(request()->hasAny(['search','commune_id','status','category_id']))
+            @if(request()->hasAny(['search','commune_id','zone_id','client_id','status','category_id']))
             <div class="filter-group" style="justify-content:flex-end;">
                 <label class="filter-label">&nbsp;</label>
                 <a href="{{ route('admin.panels.index', ['source' => $source ?? 'all']) }}"
@@ -248,7 +272,7 @@
                 @endif
 
                 {{-- ══ PANNEAUX EXTERNES ══ --}}
-                @if(($source ?? 'all') !== 'cible' && $externalPanels->isNotEmpty())
+                @if(($source ?? 'all') !== 'cible' && $externalPanels->isNotEmpty() && !request('client_id'))
 
                 @if(($source ?? 'all') === 'all' && $panels->isNotEmpty())
                 <tr>
