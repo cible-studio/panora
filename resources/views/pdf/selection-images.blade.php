@@ -2,9 +2,9 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CIBLE CI - Fiche Panneau</title>
     <style>
+        /* ========== RESET & CONFIGURATION GLOBALE ========== */
         * {
             margin: 0;
             padding: 0;
@@ -12,328 +12,277 @@
         }
 
         body {
-            font-family: 'Helvetica Neue', 'Segoe UI', Arial, sans-serif;
-            background: #0a0c15;
-            padding: 20px;
+            font-family: 'DejaVu Sans', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f8fafc;
+            padding: 16px;
+            color: #1e293b;
+            font-size: 10px;
         }
 
-        /* Page container */
+        /* ========== PAGE : UN PANNEAU PAR PAGE ========== */
         .panel-page {
             max-width: 1100px;
-            margin: 0 auto 30px auto;
+            margin: 0 auto 24px auto;
             background: #ffffff;
-            border-radius: 24px;
+            border-radius: 20px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
             overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            page-break-after: always;
+            page-break-after: always;   /* Force chaque fiche sur une nouvelle page en PDF */
             break-inside: avoid;
-            transition: transform 0.2s;
-        }
-
-        /* Premium Header */
-        .premium-header {
-            background: linear-gradient(135deg, #0a0c15 0%, #1a1a2e 100%);
-            padding: 28px 32px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .premium-header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -20%;
-            width: 300px;
-            height: 300px;
-            background: radial-gradient(circle, rgba(232,160,32,0.08) 0%, transparent 70%);
-            border-radius: 50%;
-        }
-
-        .premium-header::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #e8a020, #fbbf24, #e8a020);
-        }
-
-        .logo-section h1 {
-            font-size: 28px;
-            font-weight: 800;
-            background: linear-gradient(135deg, #e8a020, #fbbf24);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            letter-spacing: -0.5px;
-        }
-
-        .logo-section p {
-            font-size: 10px;
-            color: #6b7280;
-            margin-top: 4px;
-            letter-spacing: 1px;
-        }
-
-        .badge-tech {
-            background: rgba(232,160,32,0.12);
-            border: 1px solid rgba(232,160,32,0.3);
-            padding: 6px 16px;
-            border-radius: 40px;
-            font-size: 11px;
-            font-weight: 600;
-            color: #e8a020;
-        }
-
-        /* Hero Section avec image */
-        .hero-section {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 32px;
-            padding: 32px;
-            background: #ffffff;
-        }
-
-        .image-container {
-            flex: 1.2;
-            min-width: 280px;
-        }
-
-        .image-frame {
-            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-            border-radius: 20px;
-            padding: 12px;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
-        }
-
-        .panel-image {
-            width: 100%;
-            height: auto;
-            max-height: 320px;
-            object-fit: contain;
-            border-radius: 12px;
-            display: block;
-        }
-
-        .no-image {
-            width: 100%;
-            height: 280px;
-            background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 64px;
-            opacity: 0.6;
-        }
-
-        /* Info Container */
-        .info-container {
-            flex: 1.8;
-            min-width: 320px;
-        }
-
-        /* Status Ribbon */
-        .status-ribbon {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 14px;
-            border-radius: 30px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 16px;
-        }
-
-        .status-libre { background: #10b981; color: white; box-shadow: 0 2px 8px rgba(16,185,129,0.3); }
-        .status-occupe { background: #ef4444; color: white; box-shadow: 0 2px 8px rgba(239,68,68,0.3); }
-        .status-option { background: #f59e0b; color: white; box-shadow: 0 2px 8px rgba(245,158,11,0.3); }
-        .status-maintenance { background: #6b7280; color: white; box-shadow: 0 2px 8px rgba(107,114,128,0.3); }
-        .status-confirme { background: #8b5cf6; color: white; box-shadow: 0 2px 8px rgba(139,92,246,0.3); }
-
-        .reference-badge {
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            font-weight: 700;
-            color: #e8a020;
-            background: rgba(232,160,32,0.08);
-            padding: 4px 12px;
-            border-radius: 20px;
-            border: 1px solid rgba(232,160,32,0.2);
-            display: inline-block;
-            margin-left: 12px;
-        }
-
-        .panel-title {
-            font-size: 22px;
-            font-weight: 800;
-            color: #0a0c15;
-            line-height: 1.3;
-            margin: 16px 0 20px 0;
-            padding-bottom: 12px;
-            border-bottom: 2px solid #f1f5f9;
-        }
-
-        /* Info Grid Premium */
-        .info-grid-premium {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-            background: #f8fafc;
-            border-radius: 20px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-
-        .info-card {
-            background: white;
-            border-radius: 14px;
-            padding: 12px 16px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-            border: 1px solid #e2e8f0;
             transition: all 0.2s;
         }
 
-        .info-label {
-            font-size: 9px;
-            font-weight: 700;
+        /* ========== EN-TÊTE CHARTE ENTREPRISE ========== */
+        .brand-header {
+            background: linear-gradient(135deg, #0b2b26 0%, #0f3a33 100%);
+            padding: 20px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            border-bottom: 4px solid #e3a51e;
+        }
+        .brand-header h1 {
+            font-size: 24px;
+            font-weight: 800;
+            color: #e3a51e;
+            letter-spacing: -0.3px;
+            margin: 0;
             text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: #94a3b8;
-            margin-bottom: 6px;
+            font-family: inherit;
+        }
+        .brand-header h1 small {
+            font-size: 11px;
+            font-weight: 400;
+            color: #cbd5e1;
+            display: block;
+            margin-top: 4px;
+            letter-spacing: normal;
+        }
+        .badge-status-global {
+            background: rgba(255,255,240,0.12);
+            backdrop-filter: blur(2px);
+            padding: 6px 14px;
+            border-radius: 40px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #facc15;
+            border: 1px solid rgba(227,165,30,0.3);
         }
 
+        /* ========== GRILLE PRINCIPALE : PHOTO + INFOS ========== */
+        .panel-master {
+            display: flex;
+            flex-wrap: wrap;
+            padding: 28px 28px 20px 28px;
+            gap: 28px;
+            background: #ffffff;
+        }
+
+        /* ZONE IMAGE - ratio préservé, pas d'étirement */
+        .visual-zone {
+            flex: 1.4;
+            min-width: 260px;
+            background: #f8fafc;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid #e9edf2;
+        }
+        .image-wrapper {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #f1f5f9;
+            min-height: 280px;
+            padding: 12px;
+        }
+        .panel-img {
+            max-width: 100%;
+            max-height: 340px;
+            width: auto;
+            height: auto;
+            object-fit: contain;   /* Évite tout étirement, respecte les proportions */
+            display: block;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .no-image-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px 20px;
+            background: #eef2f6;
+            border-radius: 16px;
+            width: 100%;
+        }
+        .no-image-placeholder span:first-child {
+            font-size: 48px;
+            opacity: 0.5;
+            margin-bottom: 12px;
+        }
+        .no-image-placeholder p {
+            font-size: 13px;
+            color: #4b5563;
+            font-weight: 500;
+            background: white;
+            padding: 4px 12px;
+            border-radius: 30px;
+            display: inline-block;
+        }
+
+        /* ZONE INFORMATIONS DÉTAILLÉES */
+        .info-zone {
+            flex: 1.6;
+            min-width: 280px;
+        }
+        .ref-badge {
+            display: inline-block;
+            background: #f1f5f9;
+            padding: 5px 14px;
+            border-radius: 30px;
+            font-family: monospace;
+            font-weight: 700;
+            font-size: 14px;
+            color: #0f3a33;
+            border-left: 3px solid #e3a51e;
+            margin-bottom: 14px;
+        }
+        .designation-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #0b2b26;
+            margin: 6px 0 12px 0;
+            line-height: 1.3;
+            border-bottom: 2px dashed #e2e8f0;
+            padding-bottom: 10px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px 20px;
+            margin: 20px 0 20px;
+            background: #fefcf5;
+            padding: 16px 18px;
+            border-radius: 20px;
+        }
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .info-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+            color: #5b6e8c;
+        }
         .info-value {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 600;
             color: #1e293b;
-        }
-
-        .info-value.large {
-            font-size: 18px;
-            color: #e8a020;
-        }
-
-        /* Price Card */
-        .price-card {
-            background: linear-gradient(135deg, #0a0c15, #1a1a2e);
-            border-radius: 20px;
-            padding: 20px 24px;
-            margin: 20px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .price-card::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -20%;
-            width: 200px;
-            height: 200px;
-            background: radial-gradient(circle, rgba(232,160,32,0.15) 0%, transparent 70%);
-            border-radius: 50%;
-        }
-
-        .price-label {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: #9ca3af;
-        }
-
-        .price-amount {
-            font-size: 32px;
-            font-weight: 800;
-            color: #e8a020;
-            line-height: 1;
-        }
-
-        .price-sub {
-            font-size: 11px;
-            color: #6b7280;
             margin-top: 4px;
+            word-break: break-word;
         }
-
-        .daily-rate {
-            text-align: right;
+        .info-value.dim {
+            font-family: monospace;
+            font-size: 13px;
         }
-
-        .daily-rate .value {
-            font-size: 18px;
-            font-weight: 700;
-            color: #fbbf24;
-        }
-
-        /* Features */
-        .features {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin: 16px 0;
-        }
-
-        .feature-tag {
-            background: #f1f5f9;
-            padding: 6px 14px;
-            border-radius: 30px;
-            font-size: 11px;
-            font-weight: 600;
-            color: #475569;
+        .status-badge {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            background: #f1f5f9;
+            padding: 10px 18px;
+            border-radius: 50px;
+            margin-top: 12px;
+            width: fit-content;
+        }
+        .status-circle {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .badge-libre { background: #10b981; box-shadow: 0 0 0 2px #d1fae5; }
+        .badge-occupe { background: #ef4444; box-shadow: 0 0 0 2px #fee2e2; }
+        .badge-option { background: #f59e0b; box-shadow: 0 0 0 2px #fed7aa; }
+        .badge-maint { background: #64748b; box-shadow: 0 0 0 2px #e2e8f0; }
+        .badge-confirme { background: #8b5cf6; box-shadow: 0 0 0 2px #ede9fe; }
+        .status-text {
+            font-weight: 700;
+            font-size: 14px;
         }
 
-        /* Location Description */
-        .location-desc {
-            background: linear-gradient(135deg, #fefce8, #fef9c3);
-            border-left: 4px solid #e8a020;
-            padding: 14px 18px;
-            border-radius: 14px;
+        .price-block {
+            margin-top: 20px;
+            background: #0b2b26;
+            color: white;
+            padding: 12px 18px;
+            border-radius: 28px;
+            display: inline-block;
+            width: auto;
+        }
+        .price-label {
+            font-size: 11px;
+            font-weight: 500;
+            opacity: 0.8;
+        }
+        .price-value {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: #facc15;
+            line-height: 1;
+        }
+        .meta-supp {
             margin-top: 16px;
-        }
-
-        .location-desc p {
-            font-size: 12px;
-            color: #854d0e;
-            line-height: 1.5;
-        }
-
-        /* Footer */
-        .premium-footer {
-            background: #f8fafc;
-            padding: 16px 32px;
-            border-top: 1px solid #e2e8f0;
+            font-size: 10px;
+            color: #5b6e8c;
+            border-top: 1px solid #eef2f6;
+            padding-top: 14px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
             flex-wrap: wrap;
             gap: 12px;
-            font-size: 8px;
-            color: #94a3b8;
         }
 
-        .footer-left {
+        /* LIBÉRATION INFO (release) */
+        .release-warning {
+            margin-top: 12px;
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 500;
+            color: #92400e;
+        }
+
+        /* ========== PIED DE PAGE CHARTE ========== */
+        .footer-note {
+            background: #fafcff;
+            padding: 14px 28px;
+            border-top: 1px solid #e9edf2;
             display: flex;
-            gap: 20px;
+            justify-content: space-between;
+            font-size: 9px;
+            color: #617388;
+            font-weight: 500;
         }
-
-        .footer-right {
+        .footer-note .date {
             font-family: monospace;
         }
+        .footer-note .confidential {
+            letter-spacing: 0.6px;
+        }
 
-        /* Print Optimization */
+        /* RESPONSIVE POUR LECTURE ÉCRAN (mais surtout valide pour PDF) */
         @media print {
             body {
                 background: white;
@@ -346,205 +295,306 @@
                 border-radius: 0;
                 page-break-after: always;
             }
-            .premium-header {
+            .brand-header {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
-            .status-ribbon, .price-card {
+            .status-badge, .price-block, .badge-status-global {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
-        }
-
-        /* Animation */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .panel-page {
-            animation: fadeInUp 0.4s ease-out;
         }
     </style>
 </head>
 <body>
 
-@foreach($panels as $index => $panel)
+<!-- 
+    MODÈLE PDF "UN PANNEAU PAR PAGE"
+    Ce template récupère les VRAIES données depuis le contrôleur Laravel :
+    - La variable $panels est une collection de modèles Panel (avec relations chargées : commune, format, zone, category, photos)
+    - Les données supplémentaires (display_status, release_info, is_selectable, etc.) sont déjà formatées
+      par la méthode formatInternalPanel du contrôleur (via panneauxAjax). 
+    - Pour la génération PDF via pdfImages(), on reçoit $panels (Panel models).
+    - On adapte dynamiquement les statuts et libérations selon la période transmise (startDate/endDate).
+    
+    AMÉLIORATIONS :
+    - Images non étirées (object-fit: contain, max-height)
+    - Design premium respectant charte (#0b2b26, #e3a51e)
+    - Affichage clair des dimensions, tarifs, disponibilités et infos techniques
+    - Chaque page = un panneau, comme demandé.
+-->
+
 @php
-    $photo = $panel->photos->sortBy('ordre')->first();
+    // Helper pour formater les dimensions à partir du format (width/height)
+    if (!function_exists('formatDimensions')) {
+        function formatDimensions($format) {
+            if (!$format || !$format->width || !$format->height) {
+                return null;
+            }
+            $w = rtrim(rtrim(number_format($format->width, 2, '.', ''), '0'), '.');
+            $h = rtrim(rtrim(number_format($format->height, 2, '.', ''), '0'), '.');
+            return "{$w}×{$h}m";
+        }
+    }
+
+    // Helper pour déterminer le statut d'affichage et les infos de libération en fonction de la période passée (startDate, endDate)
+    // Utilisé si les données ne contiennent pas déjà 'display_status' et 'release_info' (cas du pdfImages)
+    if (!function_exists('computeDisplayStatus')) {
+        function computeDisplayStatus($panel, $startDate, $endDate, $occupiedIds = null, $optionIds = null, $releaseDates = null) {
+            // Si le panneau est en maintenance
+            if ($panel->status->value === 'maintenance') {
+                return ['status' => 'maintenance', 'release_info' => null];
+            }
+            
+            // Si pas de période définie, on se base sur le statut DB
+            if (!$startDate || !$endDate) {
+                $dbStatus = $panel->status->value;
+                $display = ($dbStatus === 'libre') ? 'libre' : (($dbStatus === 'maintenance') ? 'maintenance' : 'occupe');
+                return ['status' => $display, 'release_info' => null];
+            }
+            
+            // Simulation de conflits si on a des IDs (généralement fournis via le contrôleur)
+            // En PDF direct, on pourrait appeler un service, mais ici on suppose que le contrôleur a passé
+            // les infos ou qu'on utilise la logique simplifiée: on regarde via la relation reservations.
+            // Pour la fiabilité, on utilise le système de réservations en base.
+            $conflictingReservations = $panel->reservations()
+                ->where(function($q) use ($startDate, $endDate) {
+                    $q->where('start_date', '<', $endDate)
+                      ->where('end_date', '>', $startDate);
+                })
+                ->whereIn('status', ['confirme', 'en_attente']) // EN_ATTENTE = option
+                ->get();
+                
+            $isOccupied = $conflictingReservations->where('status', 'confirme')->isNotEmpty();
+            $isOption   = $conflictingReservations->where('status', 'en_attente')->isNotEmpty();
+            
+            $releaseInfo = null;
+            if ($isOccupied || $isOption) {
+                $maxEndDate = $conflictingReservations->max('end_date');
+                if ($maxEndDate) {
+                    $rd = \Carbon\Carbon::parse($maxEndDate)->startOfDay();
+                    $now = \Carbon\Carbon::now()->startOfDay();
+                    $daysLeft = (int)$now->diffInDays($rd, false);
+                    $releaseInfo = [
+                        'date' => $rd->format('d/m/Y'),
+                        'days_left' => $daysLeft,
+                        'label' => $daysLeft <= 0 ? 'Libre aujourd\'hui' 
+                                : ($daysLeft === 1 ? 'Libre demain' 
+                                : "Libre le {$rd->format('d/m/Y')} ({$daysLeft}j)"),
+                        'color' => $daysLeft <= 0 ? 'green' : ($daysLeft <= 7 ? 'orange' : 'default'),
+                    ];
+                }
+            }
+            
+            if ($isOccupied) {
+                return ['status' => 'occupe', 'release_info' => $releaseInfo];
+            } elseif ($isOption) {
+                return ['status' => 'option_periode', 'release_info' => $releaseInfo];
+            } else {
+                return ['status' => 'libre', 'release_info' => null];
+            }
+        }
+    }
     
-    // Status configuration
-    $statusClass = match($panel->status->value) {
-        'libre'       => 'status-libre',
-        'option'      => 'status-option',
-        'confirme'    => 'status-confirme',
-        'occupe'      => 'status-occupe',
-        'maintenance' => 'status-maintenance',
-        default       => 'status-libre',
-    };
+    // Générer la date d'édition
+    $generated = now()->format('d/m/Y à H:i');
     
-    $statusLabel = match($panel->status->value) {
-        'libre'       => '✓ DISPONIBLE',
-        'option'      => '⏳ EN OPTION',
-        'confirme'    => '🔒 CONFIRMÉ',
-        'occupe'      => '🔴 OCCUPÉ',
-        'maintenance' => '🔧 MAINTENANCE',
-        default       => strtoupper($panel->status->value),
-    };
+    // Déterminer si on a des infos pré-formatées (depuis panneauxAjax) ou des modèles bruts (depuis pdfImages)
+    $hasFormattedData = isset($panels[0]['reference']) || (isset($panels[0]->reference) && isset($panels[0]->display_status));
     
-    // Format dimensions
-    $width = $panel->format?->width ? rtrim(rtrim(number_format($panel->format->width, 2, '.', ''), '0'), '.') : null;
-    $height = $panel->format?->height ? rtrim(rtrim(number_format($panel->format->height, 2, '.', ''), '0'), '.') : null;
-    $dimensions = ($width && $height) ? "{$width}m × {$height}m" : '—';
-    $surface = ($width && $height) ? round($width * $height, 2) . ' m²' : '—';
-    
-    // Monthly rate
-    $monthlyRate = number_format($panel->monthly_rate ?? 0, 0, ',', ' ');
-    $dailyRate = $panel->monthly_rate ? number_format(($panel->monthly_rate / 30), 0, ',', ' ') : '0';
-    
-    // Traffic
-    $traffic = ($panel->daily_traffic ?? 0) > 0 ? number_format($panel->daily_traffic, 0, ',', ' ') . ' véhicules/jour' : 'Non renseigné';
 @endphp
 
+@foreach($panels as $panel)
+@php
+    // Récupération des vraies données : soit tableau formaté (avec display_status) soit modèle Panel
+    if (is_array($panel)) {
+        // Cas où les données viennent du JSON de panneauxAjax (déjà formatées)
+        $reference      = $panel['reference'] ?? '—';
+        $name           = $panel['name'] ?? '—';
+        $commune        = $panel['commune'] ?? '—';
+        $zone           = $panel['zone'] ?? '—';
+        $dimensions     = $panel['dimensions'] ?? null;
+        $category       = $panel['category'] ?? '—';
+        $isLit          = $panel['is_lit'] ?? false;
+        $monthlyRate    = $panel['monthly_rate'] ?? 0;
+        $dailyTraffic   = $panel['daily_traffic'] ?? 0;
+        $displayStatus  = $panel['display_status'] ?? 'libre';
+        $releaseInfo    = $panel['release_info'] ?? null;
+        $photoUrl       = $panel['photo_url'] ?? null;
+        $zoneDesc       = $panel['zone_description'] ?? '';
+        $statusDb       = $panel['status_db'] ?? 'libre';
+        
+        // Construction dimension texte si non fournie
+        if (!$dimensions && isset($panel['format']) && $panel['format'] !== '—') {
+            $dimensions = $panel['format'];
+        }
+    } else {
+        // Cas modèle Panel (pdfImages) - on utilise les relations et on calcule le statut en fonction de la période
+        $reference      = $panel->reference ?? '—';
+        $name           = $panel->name ?? '—';
+        $commune        = $panel->commune?->name ?? '—';
+        $zone           = $panel->zone?->name ?? '—';
+        $dimensions     = formatDimensions($panel->format);
+        $category       = $panel->category?->name ?? '—';
+        $isLit          = (bool)($panel->is_lit ?? false);
+        $monthlyRate    = (float)($panel->monthly_rate ?? 0);
+        $dailyTraffic   = (int)($panel->daily_traffic ?? 0);
+        $zoneDesc       = $panel->zone_description ?? '';
+        $statusDb       = $panel->status->value ?? 'libre';
+        
+        // Récupération de la première photo (ordre normal)
+        $firstPhoto = $panel->photos->sortBy('ordre')->first();
+        $photoUrl = $firstPhoto ? asset('storage/' . ltrim($firstPhoto->path, '/')) : null;
+        
+        // Calcul du statut et release_info selon période (startDate/endDate venant du contrôleur)
+        $computed = computeDisplayStatus($panel, $startDate ?? null, $endDate ?? null);
+        $displayStatus = $computed['status'];
+        $releaseInfo = $computed['release_info'];
+    }
+    
+    // Définition des badges CSS selon le statut d'affichage
+    $badgeClass = match($displayStatus) {
+        'libre'          => 'badge-libre',
+        'occupe'         => 'badge-occupe',
+        'option_periode' => 'badge-option',
+        'maintenance'    => 'badge-maint',
+        'confirme'       => 'badge-confirme',
+        default          => 'badge-libre',
+    };
+    $statusLabel = match($displayStatus) {
+        'libre'          => 'LIBRE - Disponible',
+        'occupe'         => 'OCCUPÉ',
+        'option_periode' => 'EN OPTION',
+        'maintenance'    => 'MAINTENANCE',
+        'confirme'       => 'CONFIRMÉ (Réservé)',
+        default          => ucfirst($displayStatus),
+    };
+    
+    // Formater le tarif
+    $formattedRate = number_format($monthlyRate, 0, ',', ' ') . ' FCFA';
+    
+    // Récupération des métadonnées additionnelles
+    $dimensionsDisplay = $dimensions ?? '—';
+    $trafficDisplay = $dailyTraffic > 0 ? number_format($dailyTraffic, 0, ',', ' ') . ' véh./jour' : 'Non renseigné';
+    
+@endphp
 <div class="panel-page">
-    {{-- Premium Header --}}
-    <div class="premium-header">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div class="logo-section">
-                <h1>CIBLE CI</h1>
-                <p>RÉGIE PUBLICITAIRE & OUT-OF-HOME</p>
-            </div>
-            <div class="badge-tech">
-                FICHE TECHNIQUE
-            </div>
+    <!-- EN-TÊTE CHARTE -->
+    <div class="brand-header">
+        <div>
+            <h1>CIBLE CI <small>Régie Publicitaire & Out-of-Home</small></h1>
+        </div>
+        <div class="badge-status-global">
+            FICHE TECHNIQUE PANO
         </div>
     </div>
 
-    {{-- Hero Section --}}
-    <div class="hero-section">
-        {{-- Image Container --}}
-        <div class="image-container">
-            <div class="image-frame">
-                @if($photo && file_exists(storage_path('app/public/' . ltrim($photo->path, '/'))))
-                    <img src="data:image/{{ pathinfo($photo->path, PATHINFO_EXTENSION) }};base64,{{ base64_encode(file_get_contents(storage_path('app/public/' . ltrim($photo->path, '/')))) }}" 
-                         alt="{{ $panel->reference }}"
-                         class="panel-image">
+    <!-- CORPS : IMAGE + INFOS -->
+    <div class="panel-master">
+        <!-- SECTION VISUAL : IMAGE NON ÉTIRÉE -->
+        <div class="visual-zone">
+            <div class="image-wrapper">
+                @if($photoUrl && filter_var($photoUrl, FILTER_VALIDATE_URL) && @getimagesize($photoUrl))
+                    <img class="panel-img" src="{{ $photoUrl }}" alt="Visuel panneau {{ $reference }}" loading="lazy">
+                @elseif($photoUrl && file_exists(public_path(str_replace(asset(''), '', $photoUrl))))
+                    <img class="panel-img" src="{{ $photoUrl }}" alt="Visuel panneau {{ $reference }}">
                 @else
-                    <div class="no-image">
-                        🪧
+                    <div class="no-image-placeholder">
+                        <span>📸</span>
+                        <p>Visuel non disponible</p>
+                        <small style="font-size:10px; margin-top:6px;">{{ $reference }}</small>
                     </div>
                 @endif
             </div>
         </div>
 
-        {{-- Info Container --}}
-        <div class="info-container">
-            {{-- Status & Reference --}}
-            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-                <div class="status-ribbon {{ $statusClass }}">
-                    {{ $statusLabel }}
+        <!-- ZONE INFORMATIONS DÉTAILLÉES -->
+        <div class="info-zone">
+            <div class="ref-badge">REF: {{ $reference }}</div>
+            <div class="designation-title">{{ \Illuminate\Support\Str::limit($name, 70) }}</div>
+
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Commune / Zone</div>
+                    <div class="info-value">{{ $commune }} @if($zone && $zone !== '—') · {{ $zone }} @endif</div>
                 </div>
-                <div class="reference-badge">
-                    {{ $panel->reference }}
+                <div class="info-item">
+                    <div class="info-label">Dimensions / Format</div>
+                    <div class="info-value dim">{{ $dimensionsDisplay }}</div>
                 </div>
+                <div class="info-item">
+                    <div class="info-label">Catégorie / Type</div>
+                    <div class="info-value">{{ $category }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Éclairage</div>
+                    <div class="info-value">{{ $isLit ? '✅ Éclairé (LED)' : '⚡ Non éclairé' }}</div>
+                </div>
+                @if($dailyTraffic > 0)
+                <div class="info-item">
+                    <div class="info-label">Trafic moyen</div>
+                    <div class="info-value">{{ $trafficDisplay }}</div>
+                </div>
+                @endif
+                @if($zoneDesc)
+                <div class="info-item">
+                    <div class="info-label">Description zone</div>
+                    <div class="info-value" style="font-size:12px;">{{ \Illuminate\Support\Str::limit($zoneDesc, 60) }}</div>
+                </div>
+                @endif
             </div>
 
-            {{-- Title --}}
-            <h2 class="panel-title">{{ $panel->name }}</h2>
-
-            {{-- Premium Info Grid --}}
-            <div class="info-grid-premium">
-                <div class="info-card">
-                    <div class="info-label">📍 COMMUNE</div>
-                    <div class="info-value">{{ $panel->commune?->name ?? '—' }}</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-label">🗺️ ZONE</div>
-                    <div class="info-value">{{ $panel->zone?->name ?? '—' }}</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-label">📐 DIMENSIONS</div>
-                    <div class="info-value">{{ $dimensions }}</div>
-                    <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">{{ $surface }}</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-label">📏 FORMAT</div>
-                    <div class="info-value">{{ $panel->format?->name ?? '—' }}</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-label">💡 ÉCLAIRAGE</div>
-                    <div class="info-value">{{ $panel->is_lit ? '✅ LED Éclairé' : '🌙 Non éclairé' }}</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-label">🚗 TRAFIC</div>
-                    <div class="info-value">{{ $traffic }}</div>
-                </div>
+            <!-- BADGE STATUT DYNAMIQUE -->
+            <div class="status-badge">
+                <span class="status-circle {{ $badgeClass }}"></span>
+                <span class="status-text">{{ $statusLabel }}</span>
             </div>
 
-            {{-- Features Tags --}}
-            <div class="features">
-                @if($panel->category)
-                <span class="feature-tag">🏷️ {{ $panel->category->name }}</span>
+            <!-- INFOS DE LIBÉRATION SI PRÉSENTES -->
+            @if($releaseInfo && isset($releaseInfo['label']))
+            <div class="release-warning">
+                📅 {{ $releaseInfo['label'] }}
+            </div>
+            @endif
+
+            <!-- TARIF MENSUEL CHARTE -->
+            <div class="price-block">
+                <div class="price-label">Tarif mensuel net (hors taxes)</div>
+                <div class="price-value">{{ $formattedRate }} <span style="font-size:12px;">/ mois</span></div>
+                <div style="font-size: 9px; opacity:0.8; margin-top:4px;">*Offre commerciale selon durée</div>
+            </div>
+
+            <!-- MÉTADONNÉES SUPPLÉMENTAIRES -->
+            <div class="meta-supp">
+                <span>📌 Référence unique: {{ $reference }}</span>
+                @if($dimensionsDisplay !== '—')
+                <span>📐 Surface estimée: {{ $dimensionsDisplay }}</span>
                 @endif
-                @if($panel->format?->name)
-                <span class="feature-tag">📦 {{ $panel->format->name }}</span>
-                @endif
-                @if($panel->is_lit)
-                <span class="feature-tag">⚡ Éclairé 24/7</span>
-                @endif
-                @if($panel->daily_traffic > 5000)
-                <span class="feature-tag">🔥 Forte affluence</span>
+                @if($displayStatus === 'libre')
+                <span>🔥 Disponible immédiatement</span>
                 @endif
             </div>
         </div>
     </div>
 
-    {{-- Price Section --}}
-    <div style="padding: 0 32px 20px 32px;">
-        <div class="price-card">
-            <div>
-                <div class="price-label">TARIF MENSUEL HT</div>
-                <div class="price-amount">{{ $monthlyRate }} <span style="font-size: 14px;">FCFA</span></div>
-                <div class="price-sub">Hors taxes et frais techniques</div>
-            </div>
-            <div class="daily-rate">
-                <div class="price-label">SOIT</div>
-                <div class="value">{{ $dailyRate }} FCFA</div>
-                <div class="price-sub">par jour</div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Location Description --}}
-    @if($panel->zone_description || $panel->quartier || $panel->adresse)
-    <div style="padding: 0 32px 24px 32px;">
-        <div class="location-desc">
-            <p>
-                <strong style="display: inline-block; margin-right: 8px;">📍 EMPLACEMENT STRATÉGIQUE</strong><br>
-                {{ $panel->zone_description ?? $panel->quartier ?? $panel->adresse ?? 'Emplacement premium en zone à forte visibilité' }}
-            </p>
-        </div>
-    </div>
-    @endif
-
-    {{-- Premium Footer --}}
-    <div class="premium-footer">
-        <div class="footer-left">
-            <span>🔒 Document confidentiel</span>
-            <span>© CIBLE CI - Tous droits réservés</span>
-        </div>
-        <div class="footer-right">
-            Généré le {{ now()->format('d/m/Y à H:i') }}
-        </div>
+    <!-- PIED DE PAGE PROFESSIONNEL -->
+    <div class="footer-note">
+        <div class="confidential">🔒 Document confidentiel - CIBLE CI Régie</div>
+        <div class="date">Généré le {{ $generated }} · Panneau unique</div>
+        <div>Service commercial: +225 27 22 51 00 11</div>
     </div>
 </div>
 @endforeach
 
+<!-- 
+    NOTES TECHNIQUES D'INTÉGRATION LARAVEL / DOMPDF :
+    - Ce template est conçu pour être utilisé avec la méthode pdfImages() du ReservationController.
+    - Dans le contrôleur, il suffit d'appeler : 
+        $pdf = Pdf::loadView('pdf.panneau-unique', compact('panels', 'startDate', 'endDate'));
+    - Les variables $startDate et $endDate sont optionnelles mais améliorent le calcul de disponibilité.
+    - Les modèles Panel doivent charger les relations : 'commune', 'format', 'zone', 'category', 'photos'.
+    - Le design respecte la charte (#0b2b26, #e3a51e) et garantit images non étirées via object-fit: contain.
+    - Chaque panneau = une page distincte (page-break-after:always).
+-->
 </body>
 </html>
