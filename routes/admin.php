@@ -9,10 +9,13 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\AlertController;
 use App\Http\Controllers\Admin\PoseController;
 use App\Http\Controllers\Admin\MaintenanceController;
+
 use App\Http\Controllers\Settings\ZoneController;
 use App\Http\Controllers\Settings\CommuneController;
 use App\Http\Controllers\Settings\PanelFormatController;
 use App\Http\Controllers\Settings\PanelCategoryController;
+use App\Http\Controllers\Settings\SettingsController;
+
 use App\Http\Controllers\Admin\PropositionController;
 use App\Http\Controllers\Admin\PigeController;
 use App\Http\Controllers\Admin\TaxController;
@@ -184,6 +187,14 @@ Route::prefix('admin')
         // ════════════════════════════════════════════════
         // DEV B
         // ════════════════════════════════════════════════
+        // Clients
+        Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
+        Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');
+        Route::get('clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');
+        Route::post('clients', [ClientController::class, 'store'])->name('clients.store');
+        Route::put('clients/{client}', [ClientController::class, 'update'])->name('clients.update');
+        Route::delete('clients/{client}', [ClientController::class, 'destroy'])->name('clients.destroy');
+        Route::get('clients/{client}', [ClientController::class, 'show'])->name('clients.show');
 
         Route::get('clients/{client}/data', [ClientController::class, 'getClientData'])
             ->name('admin.clients.data')

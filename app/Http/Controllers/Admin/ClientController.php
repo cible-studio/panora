@@ -63,6 +63,12 @@ class ClientController extends Controller
         return view('admin.clients.index', compact('clients', 'stats', 'sectors'));
     }
 
+    public function create()
+    {
+        $sectors = Client::SECTORS;
+        return view('admin.clients.create', compact('sectors'));
+    }
+
     // ══════════════════════════════════════════════════════════════
     // STORE
     // ══════════════════════════════════════════════════════════════
