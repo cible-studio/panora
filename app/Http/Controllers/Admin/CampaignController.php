@@ -38,7 +38,20 @@ class CampaignController extends Controller
             ->when($request->date_from,   fn($q, $d)  => $q->where('start_date', '>=', $d))
             ->when($request->date_to,     fn($q, $d)  => $q->where('end_date', '<=', $d))
             ->when($request->non_facturee,fn($q)       => $q->nonFacturees())
+            ->when($request->commune_id,  function($q) use ($request) {
+                $q->whereHas('panels', function($p) use ($request) {
+                    $p->where('commune_id', $request->commune_id);
+                });
+            })
+            ->when($request->zone_id,     function($q) use ($request) {
+                $q->whereHas('panels', function($p) use ($request) {
+                    $p->where('zone_id', $request->zone_id);
+                });
+            })
             ->orderByDesc('created_at');
+
+        $communes = \App\Models\Commune::orderBy('name')->get(['id', 'name']);
+        $zones    = \App\Models\Zone::orderBy('name')->get(['id', 'name']);
 
         $campaigns = $query->paginate(20)->withQueryString();
 
@@ -46,9 +59,9 @@ class CampaignController extends Controller
             ->groupBy('status')->pluck('total', 'status');
         $counts = [
             'actif'   => $rawCounts['actif']   ?? 0,
-            'pose'    => $rawCounts['pose']     ?? 0,
-            'termine' => $rawCounts['termine']  ?? 0,
-            'annule'  => $rawCounts['annule']   ?? 0,
+            'pose'    => $rawCounts['pose']    ?? 0,
+            'termine' => $rawCounts['termine'] ?? 0,
+            'annule'  => $rawCounts['annule']  ?? 0,
         ];
 
         $nonFactureesCount = Campaign::nonFacturees()->count();
@@ -60,15 +73,18 @@ class CampaignController extends Controller
         $clients = Client::orderBy('name')->get();
 
         if ($request->ajax()) {
+            // Recharger les campagnes avec les filtres appliqués
+            $campaigns = $query->paginate(20)->withQueryString();
+            
             return response()->json([
                 'html'       => view('admin.campaigns.partials.table-rows', compact('campaigns'))->render(),
-                'pagination' => $campaigns->links()->render(),
+                'pagination' => $campaigns->links('pagination::bootstrap-4')->render(),
                 'stats'      => ['total' => $campaigns->total()],
             ]);
         }
 
         return view('admin.campaigns.index', compact(
-            'campaigns', 'counts', 'nonFactureesCount', 'endingSoonCount', 'clients'
+            'campaigns', 'counts', 'nonFactureesCount', 'endingSoonCount', 'clients', 'communes', 'zones'
         ));
     }
 

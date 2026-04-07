@@ -293,6 +293,257 @@
     @endif
 </div>
 
+{{-- Section panneaux de la réservation — avec modification prix --}}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">🪧 Panneaux réservés</span>
+        <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-400">
+                {{ $reservation->panels->count() }} panneau(x)
+            </span>
+            @if($can['update'])
+            <span class="text-xs text-[#e8a020] bg-[#e8a020]/10 px-2 py-1 rounded-lg">
+                ✏️ Prix modifiables
+            </span>
+            @endif
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full border-collapse">
+            <thead>
+                <tr class="border-b border-[#2a2a35]">
+                    <th class="text-left p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Référence</th>
+                    <th class="text-left p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Emplacement</th>
+                    <th class="text-left p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Commune</th>
+                    <th class="text-left p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Format</th>
+                    <th class="text-right p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Tarif catalogue
+                    </th>
+                    <th class="text-right p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Prix négocié
+                    </th>
+                    <th class="text-right p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Total période
+                    </th>
+                    @if($can['update'])
+                    <th class="p-3 w-24"></th>
+                    @endif
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($reservation->panels as $panel)
+                @php
+                    $unitPrice    = (float)($panel->pivot->unit_price  ?? $panel->monthly_rate);
+                    $totalPrice   = (float)($panel->pivot->total_price ?? 0);
+                    $catalogue    = (float)($panel->monthly_rate ?? 0);
+                    $isPriceModif = abs($unitPrice - $catalogue) > 0.01;
+                @endphp
+                <tr class="border-b border-[#1e1e2e] hover:bg-[#252530]/50 transition-colors"
+                    id="panel-row-{{ $panel->id }}">
+
+                    <td class="p-3">
+                        <span class="font-mono text-xs font-bold px-2 py-1 rounded-lg bg-[#e8a020]/10 text-[#e8a020]">
+                            {{ $panel->reference }}
+                        </span>
+                    </td>
+
+                    <td class="p-3">
+                        <div class="text-sm font-medium text-gray-200">{{ $panel->name }}</div>
+                        @if($panel->zone_description)
+                        <div class="text-xs text-gray-500 mt-0.5 truncate max-w-[180px]">
+                            📍 {{ $panel->zone_description }}
+                        </div>
+                        @endif
+                    </td>
+
+                    <td class="p-3 text-sm text-gray-400">
+                        {{ $panel->commune?->name ?? '—' }}
+                    </td>
+
+                    <td class="p-3 text-sm text-gray-400">
+                        {{ $panel->format?->name ?? '—' }}
+                        @if($panel->format?->width && $panel->format?->height)
+                        <div class="text-xs text-gray-600">
+                            {{ $panel->format->width }}×{{ $panel->format->height }}m
+                        </div>
+                        @endif
+                    </td>
+
+                    {{-- Tarif catalogue --}}
+                    <td class="p-3 text-right">
+                        <span class="text-sm text-gray-500">
+                            {{ number_format($catalogue, 0, ',', ' ') }} FCFA
+                        </span>
+                    </td>
+
+                    {{-- Prix négocié — affichage ou édition --}}
+                    <td class="p-3 text-right">
+                        {{-- Affichage normal --}}
+                        <div id="price-display-{{ $panel->id }}"
+                             class="flex items-center justify-end gap-2">
+                            <span class="font-bold {{ $isPriceModif ? 'text-green-400' : 'text-[#e8a020]' }} text-sm">
+                                {{ number_format($unitPrice, 0, ',', ' ') }} FCFA
+                            </span>
+                            @if($isPriceModif)
+                            <span class="text-xs bg-green-500/10 text-green-400 border border-green-500/20 px-1.5 py-0.5 rounded-md"
+                                  title="Prix modifié du tarif catalogue">
+                                ✓ négocié
+                            </span>
+                            @endif
+                            @if($can['update'])
+                            <button type="button"
+                                    onclick="showPriceEdit({{ $panel->id }}, {{ $unitPrice }}, {{ $catalogue }})"
+                                    class="ml-1 p-1 rounded-lg text-gray-600 hover:text-[#e8a020] hover:bg-[#e8a020]/10 transition-all"
+                                    title="Modifier le prix">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
+                            @endif
+                        </div>
+
+                        {{-- Formulaire d'édition (caché par défaut) --}}
+                        @if($can['update'])
+                        <div id="price-edit-{{ $panel->id }}" class="hidden">
+                            <form method="POST"
+                                  action="{{ route('admin.reservations.panels.price', [$reservation, $panel]) }}"
+                                  onsubmit="return validatePriceForm({{ $panel->id }})">
+                                @csrf @method('PATCH')
+                                <div class="flex items-center gap-2 justify-end">
+                                    <div class="relative">
+                                        <input type="number"
+                                               id="price-input-{{ $panel->id }}"
+                                               name="unit_price"
+                                               value="{{ $unitPrice }}"
+                                               min="0"
+                                               step="1000"
+                                               required
+                                               class="w-32 pr-10 pl-3 py-1.5 bg-[#1a1a2a] border border-[#e8a020]/40 rounded-lg text-sm text-[#e8a020] font-bold text-right focus:border-[#e8a020] focus:outline-none focus:ring-1 focus:ring-[#e8a020]/30"
+                                               onfocus="this.select()"
+                                               onkeydown="if(event.key==='Escape') hidePriceEdit({{ $panel->id }})">
+                                        <span class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 text-xs pointer-events-none">
+                                            F
+                                        </span>
+                                    </div>
+                                    <button type="submit"
+                                            class="p-1.5 bg-green-500/15 border border-green-500/30 rounded-lg text-green-400 hover:bg-green-500/25 transition-all"
+                                            title="Valider">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                                        </svg>
+                                    </button>
+                                    <button type="button"
+                                            onclick="hidePriceEdit({{ $panel->id }})"
+                                            class="p-1.5 bg-[#252530] border border-[#3a3a48] rounded-lg text-gray-500 hover:text-red-400 hover:border-red-400/30 transition-all"
+                                            title="Annuler">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                {{-- Reset au catalogue --}}
+                                @if($isPriceModif)
+                                <div class="mt-1.5 text-right">
+                                    <form method="POST"
+                                          action="{{ route('admin.reservations.panels.price.reset', [$reservation, $panel]) }}"
+                                          class="inline">
+                                        @csrf
+                                        <button type="submit"
+                                                class="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                                                onclick="return confirm('Remettre au tarif catalogue\u00a0?')">
+                                            ↺ Revenir au tarif catalogue
+                                            ({{ number_format($catalogue, 0, ',', ' ') }} FCFA)
+                                        </button>
+                                    </form>
+                                </div>
+                                @endif
+                            </form>
+                        </div>
+                        @endif
+                    </td>
+
+                    {{-- Total période --}}
+                    <td class="p-3 text-right">
+                        <span class="text-sm font-bold text-white">
+                            {{ number_format($totalPrice, 0, ',', ' ') }}
+                            <span class="text-xs font-normal text-gray-500">FCFA</span>
+                        </span>
+                    </td>
+
+                    @if($can['update'])
+                    <td class="p-3"></td>
+                    @endif
+                </tr>
+                @endforeach
+            </tbody>
+
+            {{-- Ligne total --}}
+            <tfoot>
+                <tr class="bg-[#0f0f1a]">
+                    <td colspan="{{ $can['update'] ? 6 : 5 }}"
+                        class="p-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        TOTAL RÉSERVATION
+                    </td>
+                    <td class="p-3 text-right">
+                        <span class="text-lg font-black text-[#e8a020]">
+                            {{ number_format($reservation->total_amount, 0, ',', ' ') }}
+                            <span class="text-xs font-normal text-gray-500">FCFA</span>
+                        </span>
+                    </td>
+                    @if($can['update'])
+                    <td class="p-3"></td>
+                    @endif
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+{{-- Script gestion de l'édition des prix --}}
+@push('scripts')
+<script>
+function showPriceEdit(panelId, currentPrice, cataloguePrice) {
+    document.getElementById(`price-display-${panelId}`).classList.add('hidden');
+    document.getElementById(`price-edit-${panelId}`).classList.remove('hidden');
+    const input = document.getElementById(`price-input-${panelId}`);
+    if (input) {
+        input.value = currentPrice;
+        setTimeout(() => { input.focus(); input.select(); }, 50);
+    }
+}
+
+function hidePriceEdit(panelId) {
+    document.getElementById(`price-display-${panelId}`).classList.remove('hidden');
+    document.getElementById(`price-edit-${panelId}`).classList.add('hidden');
+}
+
+function validatePriceForm(panelId) {
+    const input = document.getElementById(`price-input-${panelId}`);
+    const val   = parseFloat(input.value);
+    if (isNaN(val) || val < 0) {
+        input.style.borderColor = '#ef4444';
+        input.focus();
+        return false;
+    }
+    return true;
+}
+
+// Fermer l'édition avec Escape global
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('[id^="price-edit-"]').forEach(el => {
+            if (!el.classList.contains('hidden')) {
+                const id = el.id.replace('price-edit-', '');
+                hidePriceEdit(id);
+            }
+        });
+    }
+});
+</script>
+@endpush
+
 {{-- ══════════════════════════════════════════════════════
      MODAL — CHANGEMENT DE STATUT (avec avertissement)
 ══════════════════════════════════════════════════════ --}}

@@ -188,6 +188,8 @@ Route::prefix('admin')
         // DEV B
         // ════════════════════════════════════════════════
         // Clients
+        Route::post('clients/quick-store', [ClientController::class, 'storeQuick'])
+        ->name('clients.quick-store');
         Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
         Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');
         Route::get('clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');
@@ -216,6 +218,15 @@ Route::prefix('admin')
         // ══════════════════════════════════════════════════════════
         // ⚠️ RÈGLE IMPORTANTE : routes GET spécifiques AVANT resource
         // ══════════════════════════════════════════════════════════
+
+        // Prix panneaux dans une réservation
+        Route::patch('reservations/{reservation}/panels/{panel}/price',
+        [ReservationController::class, 'updatePanelPrice'])
+        ->name('reservations.panels.price');
+
+        Route::post('reservations/{reservation}/panels/{panel}/price/reset',
+        [ReservationController::class, 'resetPanelPrice'])
+        ->name('reservations.panels.price.reset');
 
         // Disponibilités
         Route::get('disponibilites', [ReservationController::class, 'disponibilites'])->name('reservations.disponibilites');

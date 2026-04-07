@@ -19,9 +19,7 @@
         <h2 style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px;">
             Nouveau client
         </h2>
-        <p style="font-size:12px;color:var(--text3);margin-bottom:24px;">
-            Le NCC sera généré automatiquement.
-        </p>
+        
 
         @if($errors->any())
         <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);
@@ -135,15 +133,15 @@
                     <label style="font-size:11px;font-weight:700;color:var(--text3);
                                   letter-spacing:.5px;display:block;margin-bottom:6px;">
                         NCC
-                        <span style="font-weight:400;color:var(--text3);"> (auto-généré)</span>
+                        <span style="font-weight:400;color:var(--text3);"> (Numéro de Compte Client officiel)</span>
                     </label>
                     <input type="text" name="ncc" value="{{ old('ncc') }}"
-                           placeholder="CLT-2026-0001"
+                           placeholder="CLT-2026-0001" required maxlength="50"
                            style="width:100%;background:var(--surface2);
                                   border:1px solid {{ $errors->has('ncc') ? 'var(--red)' : 'var(--border2)' }};
                                   border-radius:8px;padding:10px 14px;color:var(--text);
                                   font-size:13px;outline:none;box-sizing:border-box;
-                                  font-family:monospace;">
+                                  font-family:monospace; ">
                     @error('ncc')
                     <p style="font-size:11px;color:var(--red);margin-top:4px;">{{ $message }}</p>
                     @enderror

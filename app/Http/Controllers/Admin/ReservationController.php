@@ -380,6 +380,8 @@ class ReservationController extends Controller
     // ══════════════════════════════════════════════════════════════
     // PDF — images
     // ══════════════════════════════════════════════════════════════
+    // Dans ReservationController.php
+    // Version finale optimisée et fonctionnelle
     public function pdfImages(Request $request)
     {
         $request->validate([
@@ -387,14 +389,25 @@ class ReservationController extends Controller
             'panel_ids.*' => 'integer|exists:panels,id',
         ]);
 
-        $panels    = Panel::with(['commune', 'format', 'category', 'photos'])
-            ->whereIn('id', $request->panel_ids)->orderBy('reference')->get();
+        $panels = Panel::with(['commune:id,name', 'zone:id,name', 'format:id,name,width,height', 'photos'])
+            ->whereIn('id', $request->panel_ids)
+            ->orderBy('reference')
+            ->get();
+            
         $startDate = $request->start_date;
         $endDate   = $request->end_date;
-
+        
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.selection-images', compact('panels', 'startDate', 'endDate'));
         $pdf->setPaper('A4', 'portrait');
-        return $pdf->download('selection-panneaux-images-' . now()->format('Ymd') . '.pdf');
+        $pdf->setOptions([
+            'defaultFont' => 'sans-serif',
+            'isRemoteEnabled' => false,
+            'isHtml5ParserEnabled' => true,
+            'isPhpEnabled' => false,
+            'dpi' => 96,
+        ]);
+        
+        return $pdf->download('panneaux-' . now()->format('Ymd_His') . '.pdf');
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -800,4 +813,55 @@ class ReservationController extends Controller
         $remain = $s->copy()->addMonths($months)->diffInDays($e);
         return max((float)($remain > 0 ? $months + 1 : $months), 1.0);
     }
+
+
+
+    // Nouvelle méthode — modifier le prix d'un panneau dans une réservation
+    public function updatePanelPrice(Request $request, Reservation $reservation, Panel $panel)
+    {
+        $request->validate([
+            'unit_price' => 'required|numeric|min:0',
+        ]);
+
+        if (!$reservation->isEditable()) {
+            abort(403, 'Réservation non modifiable.');
+        }
+
+        $months = $this->monthsBetween(
+            $reservation->start_date->format('Y-m-d'),
+            $reservation->end_date->format('Y-m-d')
+        );
+
+        $reservation->panels()->updateExistingPivot($panel->id, [
+            'unit_price'  => $request->unit_price,
+            'total_price' => $request->unit_price * $months,
+        ]);
+
+        // Recalculer le total de la réservation
+        $newTotal = $reservation->panels()->sum(DB::raw('reservation_panels.total_price'));
+        $reservation->update(['total_amount' => $newTotal]);
+
+        return back()->with('success', 'Prix mis à jour.');
+    }
+
+    // Pour réinitialiser au prix catalogue :
+    public function resetPanelPrice(Reservation $reservation, Panel $panel)
+    {
+        $months = $this->monthsBetween(
+            $reservation->start_date->format('Y-m-d'),
+            $reservation->end_date->format('Y-m-d')
+        );
+
+        $reservation->panels()->updateExistingPivot($panel->id, [
+            'unit_price'  => $panel->monthly_rate,
+            'total_price' => $panel->monthly_rate * $months,
+        ]);
+
+        $newTotal = $reservation->panels()->get()
+            ->sum(fn($p) => (float)($p->pivot->total_price ?? 0));
+        $reservation->update(['total_amount' => $newTotal]);
+
+        return back()->with('success', 'Prix remis au tarif catalogue.');
+    }
+
 }

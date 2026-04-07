@@ -27,5 +27,6 @@ class AppServiceProvider extends ServiceProvider
         if (config('database.default') === 'mysql') {
             \DB::statement('SET NAMES utf8');
         }
+        
     }
 }

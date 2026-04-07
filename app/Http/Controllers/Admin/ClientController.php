@@ -326,4 +326,34 @@ class ClientController extends Controller
 
         return $adj[array_rand($adj)] . '-' . $nom[array_rand($nom)] . '-' . $chiffr;
     }
+
+
+
+    // ══════════════════════════════════════════════════════════════
+     // STORE RAPIDE (AJAX) ; CREER CLIENT DEPUIS SELECT2 (ex: lors de la création d'une reservation)
+     // ══════════════════════════════════════════════════════════════
+
+
+     public function storeQuick(Request $request)
+    {
+        $data = $request->validate([
+            'name'         => 'required|string|max:150',
+            'email'        => 'nullable|email|unique:clients,email',
+            'phone'        => 'nullable|string|max:20',
+            'contact_name' => 'nullable|string|max:150',
+            'ncc'          => 'nullable|string|max:50|unique:clients,ncc',
+            
+        ]);
+
+        $client = Client::create($data);
+
+        return response()->json([
+            'id'   => $client->id,
+            'name' => $client->name,
+            'text' => $client->name,
+            'ncc' => $client->ncc,
+
+        ]);
+    }
+
 }

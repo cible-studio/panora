@@ -51,9 +51,9 @@
             <div class="filter-group">
                 <label class="filter-label">🔍 Recherche</label>
                 <input type="text" id="filter-search" class="filter-input" 
-                       placeholder="Nom de campagne…"
-                       value="{{ request('search') }}"
-                       data-filter="search">
+                    placeholder="Nom de campagne…"
+                    value="{{ request('search') }}"
+                    data-filter="search">
             </div>
 
             <div class="filter-group">
@@ -83,20 +83,36 @@
             <div class="filter-group">
                 <label class="filter-label">📅 Du</label>
                 <input type="date" id="filter-date-from" class="filter-input" 
-                       value="{{ request('date_from') }}" data-filter="date_from">
+                    value="{{ request('date_from') }}" data-filter="date_from">
             </div>
 
             <div class="filter-group">
                 <label class="filter-label">📅 Au</label>
                 <input type="date" id="filter-date-to" class="filter-input" 
-                       value="{{ request('date_to') }}" data-filter="date_to">
+                    value="{{ request('date_to') }}" data-filter="date_to">
             </div>
 
             <div class="filter-group">
-                <label class="filter-label">💰 Facturation</label>
-                <select id="filter-facture" class="filter-select" data-filter="non_facturee">
-                    <option value="">Toutes</option>
-                    <option value="1" {{ request('non_facturee') ? 'selected' : '' }}>Non facturées</option>
+                <label class="filter-label">📍 Commune</label>
+                <select id="filter-commune" class="filter-select" data-filter="commune_id">
+                    <option value="">Toutes les communes</option>
+                    @foreach($communes as $commune)
+                    <option value="{{ $commune->id }}" {{ request('commune_id') == $commune->id ? 'selected' : '' }}>
+                        {{ $commune->name }}
+                    </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label">📍 Zone</label>
+                <select id="filter-zone" class="filter-select" data-filter="zone_id">
+                    <option value="">Toutes les zones</option>
+                    @foreach($zones as $zone)
+                    <option value="{{ $zone->id }}" {{ request('zone_id') == $zone->id ? 'selected' : '' }}>
+                        {{ $zone->name }}
+                    </option>
+                    @endforeach
                 </select>
             </div>
 
@@ -236,7 +252,7 @@
         }
         .filter-group { display: flex; flex-direction: column; gap: 6px; }
         .filter-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
-        .filter-input, .filter-select {
+        .filter-input, .filter-select, .ci-select {
             height: 40px;
             padding: 0 12px;
             background: var(--surface2);
@@ -429,179 +445,296 @@
     </style>
 
     @push('scripts')
-    <script>
-    // ══ MODAL SUPPRESSION ══
-    function openDeleteCampaign(id, name) {
-        document.getElementById('del-campaign-name').textContent = name;
-        document.getElementById('del-campaign-form').action = `/admin/campaigns/${id}`;
-        document.getElementById('modal-delete-campaign').style.display = 'flex';
-    }
-    function closeDeleteCampaign() {
-        document.getElementById('modal-delete-campaign').style.display = 'none';
-    }
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') closeDeleteCampaign();
-    });
+<script>
+// ══ MODAL SUPPRESSION ══
+function openDeleteCampaign(id, name) {
+    document.getElementById('del-campaign-name').textContent = name;
+    document.getElementById('del-campaign-form').action = `/admin/campaigns/${id}`;
+    document.getElementById('modal-delete-campaign').style.display = 'flex';
+}
+function closeDeleteCampaign() {
+    document.getElementById('modal-delete-campaign').style.display = 'none';
+}
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeDeleteCampaign();
+});
 
-    // ══ FILTRES DYNAMIQUES ══
-    (function() {
-        let currentFilters = {
-            search: '',
-            client_id: '',
-            status: '',
-            date_from: '',
-            date_to: '',
-            non_facturee: '',
-            page: 1
-        };
-        let isLoading = false;
-        let currentUrl = '{{ route("admin.campaigns.index") }}';
-        let debounceTimer = null;
+// ══ FILTRES DYNAMIQUES ══
+(function() {
+    let currentFilters = {
+        search: '',
+        client_id: '',
+        status: '',
+        date_from: '',
+        date_to: '',
+        non_facturee: '',
+        commune_id: '',
+        zone_id: '',
+        page: 1
+    };
+    let isLoading = false;
+    let currentUrl = '{{ route("admin.campaigns.index") }}';
+    let debounceTimer = null;
 
-        function init() {
-            const urlParams = new URLSearchParams(window.location.search);
-            currentFilters.search = urlParams.get('search') || '';
-            currentFilters.client_id = urlParams.get('client_id') || '';
-            currentFilters.status = urlParams.get('status') || '';
-            currentFilters.date_from = urlParams.get('date_from') || '';
-            currentFilters.date_to = urlParams.get('date_to') || '';
-            currentFilters.non_facturee = urlParams.get('non_facturee') || '';
+    function init() {
+        const urlParams = new URLSearchParams(window.location.search);
+        currentFilters.search = urlParams.get('search') || '';
+        currentFilters.client_id = urlParams.get('client_id') || '';
+        currentFilters.status = urlParams.get('status') || '';
+        currentFilters.date_from = urlParams.get('date_from') || '';
+        currentFilters.date_to = urlParams.get('date_to') || '';
+        currentFilters.non_facturee = urlParams.get('non_facturee') || '';
+        currentFilters.commune_id = urlParams.get('commune_id') || '';
+        currentFilters.zone_id = urlParams.get('zone_id') || '';
 
+        // Remplir les champs
+        document.getElementById('filter-search').value = currentFilters.search;
+        document.getElementById('filter-client').value = currentFilters.client_id;
+        document.getElementById('filter-status').value = currentFilters.status;
+        document.getElementById('filter-date-from').value = currentFilters.date_from;
+        document.getElementById('filter-date-to').value = currentFilters.date_to;
+        
+        const factureSelect = document.getElementById('filter-facture');
+        if (factureSelect) factureSelect.value = currentFilters.non_facturee;
+        
+        document.getElementById('filter-commune').value = currentFilters.commune_id;
+        document.getElementById('filter-zone').value = currentFilters.zone_id;
+
+        updateActiveStat();
+        updateResetButton();
+
+        // Événements
+        document.getElementById('filter-search').addEventListener('input', debounce(applyFilters, 400));
+        document.getElementById('filter-client').addEventListener('change', applyFilters);
+        document.getElementById('filter-status').addEventListener('change', applyFilters);
+        document.getElementById('filter-date-from').addEventListener('change', applyFilters);
+        document.getElementById('filter-date-to').addEventListener('change', applyFilters);
+        
+        const factureFilter = document.getElementById('filter-facture');
+        if (factureFilter) factureFilter.addEventListener('change', applyFilters);
+        
+        document.getElementById('filter-commune').addEventListener('change', applyFilters);
+        document.getElementById('filter-zone').addEventListener('change', applyFilters);
+        
+        // Cartes stats
+        document.querySelectorAll('.stat-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
+                const filterValue = card.dataset.value;
+                const statusSelect = document.getElementById('filter-status');
+                statusSelect.value = filterValue;
+                applyFilters();
+            });
+        });
+
+        const resetBtn = document.getElementById('btn-reset');
+        if (resetBtn) resetBtn.addEventListener('click', resetFilters);
+        
+        // Gestion historique navigateur
+        window.addEventListener('popstate', function() {
+            const params = new URLSearchParams(window.location.search);
+            currentFilters.search = params.get('search') || '';
+            currentFilters.client_id = params.get('client_id') || '';
+            currentFilters.status = params.get('status') || '';
+            currentFilters.date_from = params.get('date_from') || '';
+            currentFilters.date_to = params.get('date_to') || '';
+            currentFilters.commune_id = params.get('commune_id') || '';
+            currentFilters.zone_id = params.get('zone_id') || '';
+            
+            // Mettre à jour les champs
             document.getElementById('filter-search').value = currentFilters.search;
             document.getElementById('filter-client').value = currentFilters.client_id;
             document.getElementById('filter-status').value = currentFilters.status;
             document.getElementById('filter-date-from').value = currentFilters.date_from;
             document.getElementById('filter-date-to').value = currentFilters.date_to;
-            document.getElementById('filter-facture').value = currentFilters.non_facturee;
-
-            updateActiveStat();
-            updateResetButton();
-
-            document.getElementById('filter-search').addEventListener('input', debounce(applyFilters, 400));
-            document.getElementById('filter-client').addEventListener('change', applyFilters);
-            document.getElementById('filter-status').addEventListener('change', applyFilters);
-            document.getElementById('filter-date-from').addEventListener('change', applyFilters);
-            document.getElementById('filter-date-to').addEventListener('change', applyFilters);
-            document.getElementById('filter-facture').addEventListener('change', applyFilters);
+            document.getElementById('filter-commune').value = currentFilters.commune_id;
+            document.getElementById('filter-zone').value = currentFilters.zone_id;
             
-            document.querySelectorAll('.stat-card').forEach(card => {
-                card.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const filterValue = card.dataset.value;
-                    document.getElementById('filter-status').value = filterValue;
-                    applyFilters();
-                });
-            });
-
-            document.getElementById('btn-reset').addEventListener('click', resetFilters);
-        }
-
-        function applyFilters() {
-            currentFilters.search = document.getElementById('filter-search').value;
-            currentFilters.client_id = document.getElementById('filter-client').value;
-            currentFilters.status = document.getElementById('filter-status').value;
-            currentFilters.date_from = document.getElementById('filter-date-from').value;
-            currentFilters.date_to = document.getElementById('filter-date-to').value;
-            currentFilters.non_facturee = document.getElementById('filter-facture').value;
-
             updateResetButton();
             updateActiveStat();
             fetchData();
+        });
+    }
+
+    function applyFilters() {
+        currentFilters.search = document.getElementById('filter-search').value;
+        currentFilters.client_id = document.getElementById('filter-client').value;
+        currentFilters.status = document.getElementById('filter-status').value;
+        currentFilters.date_from = document.getElementById('filter-date-from').value;
+        currentFilters.date_to = document.getElementById('filter-date-to').value;
+        
+        const factureSelect = document.getElementById('filter-facture');
+        currentFilters.non_facturee = factureSelect ? factureSelect.value : '';
+        
+        currentFilters.commune_id = document.getElementById('filter-commune').value;
+        currentFilters.zone_id = document.getElementById('filter-zone').value;
+        currentFilters.page = 1;
+
+        updateResetButton();
+        updateActiveStat();
+        fetchData();
+    }
+
+    function resetFilters() {
+        currentFilters = {
+            search: '', client_id: '', status: '', 
+            date_from: '', date_to: '', non_facturee: '',
+            commune_id: '', zone_id: '', page: 1
+        };
+        
+        document.getElementById('filter-search').value = '';
+        document.getElementById('filter-client').value = '';
+        document.getElementById('filter-status').value = '';
+        document.getElementById('filter-date-from').value = '';
+        document.getElementById('filter-date-to').value = '';
+        
+        const factureSelect = document.getElementById('filter-facture');
+        if (factureSelect) factureSelect.value = '';
+        
+        document.getElementById('filter-commune').value = '';
+        document.getElementById('filter-zone').value = '';
+
+        updateResetButton();
+        updateActiveStat();
+        fetchData();
+    }
+
+    function updateActiveStat() {
+        const activeStatus = currentFilters.status;
+        document.querySelectorAll('.stat-card').forEach(card => {
+            const cardValue = card.dataset.value;
+            if ((!activeStatus && !cardValue) || (cardValue === activeStatus)) {
+                card.classList.add('active');
+            } else {
+                card.classList.remove('active');
+            }
+        });
+    }
+
+    function updateResetButton() {
+        const hasFilters = currentFilters.search || currentFilters.client_id || 
+                           currentFilters.status || currentFilters.date_from || 
+                           currentFilters.date_to || currentFilters.non_facturee ||
+                           currentFilters.commune_id || currentFilters.zone_id;
+        const resetWrapper = document.getElementById('reset-wrapper');
+        if (resetWrapper) {
+            resetWrapper.style.display = hasFilters ? 'flex' : 'none';
         }
+    }
 
-        function resetFilters() {
-            currentFilters = { search: '', client_id: '', status: '', date_from: '', date_to: '', non_facturee: '', page: 1 };
-            document.getElementById('filter-search').value = '';
-            document.getElementById('filter-client').value = '';
-            document.getElementById('filter-status').value = '';
-            document.getElementById('filter-date-from').value = '';
-            document.getElementById('filter-date-to').value = '';
-            document.getElementById('filter-facture').value = '';
+    async function fetchData() {
+        if (isLoading) return;
+        isLoading = true;
+        
+        // Afficher un indicateur de chargement
+        const tableBody = document.getElementById('table-body');
+        const originalHtml = tableBody.innerHTML;
+        tableBody.innerHTML = '<tr><td colspan="10" class="text-center"><div class="spinner"></div> Chargement...</td></tr>';
+        
+        const params = new URLSearchParams();
+        if (currentFilters.search) params.set('search', currentFilters.search);
+        if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
+        if (currentFilters.status) params.set('status', currentFilters.status);
+        if (currentFilters.date_from) params.set('date_from', currentFilters.date_from);
+        if (currentFilters.date_to) params.set('date_to', currentFilters.date_to);
+        if (currentFilters.non_facturee) params.set('non_facturee', currentFilters.non_facturee);
+        if (currentFilters.commune_id) params.set('commune_id', currentFilters.commune_id);
+        if (currentFilters.zone_id) params.set('zone_id', currentFilters.zone_id);
+        params.set('ajax', '1');
+        params.set('page', currentFilters.page);
 
-            updateResetButton();
-            updateActiveStat();
-            fetchData();
-        }
-
-        function updateActiveStat() {
-            const activeStatus = currentFilters.status;
-            document.querySelectorAll('.stat-card').forEach(card => {
-                const cardValue = card.dataset.value;
-                if ((activeStatus === '' && cardValue === '') || (cardValue === activeStatus)) {
-                    card.classList.add('active');
-                } else {
-                    card.classList.remove('active');
+        try {
+            const response = await fetch(`${currentUrl}?${params}`, {
+                headers: { 
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
                 }
             });
-        }
-
-        function updateResetButton() {
-            const hasFilters = currentFilters.search || currentFilters.client_id || 
-                               currentFilters.status || currentFilters.date_from || 
-                               currentFilters.date_to || currentFilters.non_facturee;
-            document.getElementById('reset-wrapper').style.display = hasFilters ? 'flex' : 'none';
-        }
-
-        async function fetchData() {
-            if (isLoading) return;
-            isLoading = true;
             
-            const params = new URLSearchParams();
-            if (currentFilters.search) params.set('search', currentFilters.search);
-            if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
-            if (currentFilters.status) params.set('status', currentFilters.status);
-            if (currentFilters.date_from) params.set('date_from', currentFilters.date_from);
-            if (currentFilters.date_to) params.set('date_to', currentFilters.date_to);
-            if (currentFilters.non_facturee) params.set('non_facturee', currentFilters.non_facturee);
-            params.set('ajax', '1');
-
-            try {
-                const response = await fetch(`${currentUrl}?${params}`, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                });
-                if (!response.ok) throw new Error('Erreur réseau');
-                
-                const data = await response.json();
-                document.getElementById('table-body').innerHTML = data.html;
-                document.getElementById('pagination-container').innerHTML = data.pagination;
-                
-                if (data.stats) updateStats(data.stats);
-                
-                const newUrl = buildUrl();
-                window.history.pushState({}, '', newUrl);
-                
-            } catch (error) {
-                console.error('Erreur:', error);
-            } finally {
-                isLoading = false;
+            if (!response.ok) throw new Error('Erreur réseau');
+            
+            const data = await response.json();
+            document.getElementById('table-body').innerHTML = data.html;
+            document.getElementById('pagination-container').innerHTML = data.pagination;
+            
+            if (data.stats && data.stats.total !== undefined) {
+                document.getElementById('total-count').textContent = data.stats.total + ' résultat(s)';
             }
+            
+            // Mettre à jour l'URL sans recharger
+            const newUrl = buildUrl();
+            window.history.pushState({}, '', newUrl);
+            
+            // Réattacher les événements aux nouveaux boutons
+            attachPaginationEvents();
+            
+        } catch (error) {
+            console.error('Erreur:', error);
+            tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-red">Erreur de chargement</td></tr>';
+        } finally {
+            isLoading = false;
         }
+    }
+    
+    function attachPaginationEvents() {
+        document.querySelectorAll('.pagination a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const url = new URL(this.href);
+                const page = url.searchParams.get('page');
+                if (page) {
+                    currentFilters.page = parseInt(page);
+                    fetchData();
+                }
+            });
+        });
+    }
 
-        function buildUrl() {
-            const params = new URLSearchParams();
-            if (currentFilters.search) params.set('search', currentFilters.search);
-            if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
-            if (currentFilters.status) params.set('status', currentFilters.status);
-            if (currentFilters.date_from) params.set('date_from', currentFilters.date_from);
-            if (currentFilters.date_to) params.set('date_to', currentFilters.date_to);
-            if (currentFilters.non_facturee) params.set('non_facturee', currentFilters.non_facturee);
-            const query = params.toString();
-            return query ? `${currentUrl}?${query}` : currentUrl;
-        }
+    function buildUrl() {
+        const params = new URLSearchParams();
+        if (currentFilters.search) params.set('search', currentFilters.search);
+        if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
+        if (currentFilters.status) params.set('status', currentFilters.status);
+        if (currentFilters.date_from) params.set('date_from', currentFilters.date_from);
+        if (currentFilters.date_to) params.set('date_to', currentFilters.date_to);
+        if (currentFilters.commune_id) params.set('commune_id', currentFilters.commune_id);
+        if (currentFilters.zone_id) params.set('zone_id', currentFilters.zone_id);
+        if (currentFilters.non_facturee) params.set('non_facturee', currentFilters.non_facturee);
+        if (currentFilters.page > 1) params.set('page', currentFilters.page);
+        
+        const query = params.toString();
+        return query ? `${currentUrl}?${query}` : currentUrl;
+    }
 
-        function updateStats(stats) {
-            document.getElementById('total-count').textContent = stats.total + ' résultat(s)';
-        }
+    function debounce(func, wait) {
+        return function(...args) {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => func(...args), wait);
+        };
+    }
 
-        function debounce(func, wait) {
-            return function(...args) {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(() => func(...args), wait);
-            };
-        }
+    // Démarrer
+    init();
+})();
+</script>
 
-        init();
-    })();
-    </script>
-    @endpush
+<style>
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.text-center { text-align: center; }
+.text-red { color: #ef4444; }
+</style>
+@endpush
 </x-admin-layout>

@@ -88,21 +88,21 @@ class Client extends Authenticatable  // ← était "extends Model"
 
     // ── Génération automatique NCC ────────────────────────────────
     // Format : CLT-2026-0001
-    public static function generateNcc(): string
-    {
-        $year    = now()->year;
-        $prefix  = "CLT-{$year}-";
-        $last    = static::withTrashed()
-            ->where('ncc', 'like', "{$prefix}%")
-            ->orderByDesc('ncc')
-            ->value('ncc');
+    // public static function generateNcc(): string
+    // {
+    //     $year    = now()->year;
+    //     $prefix  = "CLT-{$year}-";
+    //     $last    = static::withTrashed()
+    //         ->where('ncc', 'like', "{$prefix}%")
+    //         ->orderByDesc('ncc')
+    //         ->value('ncc');
 
-        $next = $last
-            ? (int)substr($last, strlen($prefix)) + 1
-            : 1;
+    //     $next = $last
+    //         ? (int)substr($last, strlen($prefix)) + 1
+    //         : 1;
 
-        return $prefix . str_pad($next, 4, '0', STR_PAD_LEFT);
-    }
+    //     return $prefix . str_pad($next, 4, '0', STR_PAD_LEFT);
+    // }
 
 
 

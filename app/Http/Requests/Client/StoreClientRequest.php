@@ -23,10 +23,10 @@ class StoreClientRequest extends FormRequest
                 Rule::unique('clients', 'name')->whereNull('deleted_at'),
             ],
             'ncc' => [
-                'nullable',
+                'required',
                 'string',
-                'max:20',
-                Rule::unique('clients', 'ncc')->whereNull('deleted_at'),
+                'max:50',
+                Rule::unique('clients', 'ncc'),
             ],
             'sector' => [
                 'nullable',
@@ -54,7 +54,9 @@ class StoreClientRequest extends FormRequest
         return [
             'name.required' => 'Le nom de l\'entreprise est obligatoire.',
             'name.unique'   => 'Un client avec ce nom existe déjà.',
-            'ncc.unique'    => 'Ce numéro de compte client est déjà utilisé.',
+            'ncc.unique'    => 'Ce NCC est déjà utilisé par un autre client.',
+            'ncc.required'  => 'Le NCC (Numéro de Compte Client) est obligatoire.',
+            'ncc.max'       => 'Le NCC ne doit pas dépasser 50 caractères.',
             'sector.in'     => 'Le secteur sélectionné n\'est pas valide.',
             'email.email'   => 'L\'adresse email n\'est pas valide.',
             'email.unique'  => 'Cette adresse email est déjà utilisée par un autre client.',
