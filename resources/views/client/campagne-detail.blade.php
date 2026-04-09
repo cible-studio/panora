@@ -1,155 +1,130 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ $campaign->name }} — CIBLE CI</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-@vite(['resources/css/app.css', 'resources/js/app.js'])
-<style>
-  :root {
-    --gold:#e8a020; --gold-bg:rgba(232,160,32,0.08); --gold-border:rgba(232,160,32,0.2);
-    --dark:#080b12; --surface:#111520; --surface2:#181e2e;
-    --text:#e2e8f0; --text2:#94a3b8; --text3:#64748b;
-    --green:#22c55e; --green-bg:rgba(34,197,94,0.08);
-    --blue:#3b82f6;
-    --nav-h:60px;
-  }
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{background:var(--dark);color:var(--text);font-family:'Inter',sans-serif}
+@extends('client.layout')
+@section('title', $campaign->name)
+@section('page-title', $campaign->name)
 
-  .navbar{position:sticky;top:0;background:rgba(8,11,18,0.95);backdrop-filter:blur(16px);border-bottom:1px solid rgba(232,160,32,0.08);height:var(--nav-h);display:flex;align-items:center;padding:0 20px;gap:16px}
-  .nav-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--gold)}
-  .nav-badge{background:var(--gold-bg);border:1px solid var(--gold-border);color:var(--gold);border-radius:20px;padding:2px 10px;font-size:10px}
-  .nav-links{display:flex;gap:4px;margin-left:8px}
-  .nav-link{color:var(--text3);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:8px}
-  .nav-link:hover,.nav-link.active{color:var(--text);background:rgba(255,255,255,0.06)}
-  .nav-link.active{color:var(--gold)}
-  .nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
-  .btn-logout{background:transparent;color:var(--text3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;cursor:pointer}
-  .mobile-menu-btn{display:none}
-  @media(max-width:640px){.nav-links{display:none}.mobile-menu-btn{display:block}}
-
-  .main{max-width:1000px;margin:0 auto;padding:28px 16px 60px}
-  .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;font-size:13px;margin-bottom:20px}
-  .back-link:hover{color:var(--gold)}
-
-  .page-header{margin-bottom:24px}
-  .page-header h1{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:#f1f5f9}
-  .page-header p{font-size:13px;color:var(--text2);margin-top:4px}
-
-  .info-card{background:var(--surface);border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid rgba(255,255,255,0.06)}
-  .info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-top:12px}
-  .info-item label{font-size:11px;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px}
-  .info-item value{font-size:14px;font-weight:600}
-
-  .status-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
-  .status-actif{background:var(--green-bg);color:#86efac}
-  .status-pose{background:rgba(59,130,246,0.15);color:#93c5fd}
-  .status-termine{background:rgba(100,116,139,0.15);color:#94a3b8}
-
-  .panel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:16px}
-  .panel-card{background:var(--surface);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden}
-  .panel-img{width:100%;height:140px;object-fit:cover;background:var(--surface2)}
-  .panel-info{padding:12px}
-  .panel-ref{font-family:monospace;font-size:11px;color:var(--gold);margin-bottom:4px}
-  .panel-name{font-weight:600;font-size:14px;margin-bottom:6px}
-  .panel-details{font-size:11px;color:var(--text2);margin-bottom:4px}
-
-  .invoice-section{margin-top:24px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.06)}
-  .invoice-card{background:var(--surface);border-radius:12px;padding:16px;margin-top:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
-  .invoice-ref{font-family:monospace;font-size:12px;color:var(--gold)}
-  .invoice-amount{font-weight:700;font-size:16px}
-  .invoice-status{padding:4px 12px;border-radius:20px;font-size:11px}
-  .invoice-paid{background:var(--green-bg);color:#86efac}
-  .invoice-pending{background:rgba(249,115,22,0.15);color:#fdba74}
-</style>
-</head>
-<body>
-
-<nav class="navbar">
-  <div class="nav-logo">CIBLE CI</div>
-  <span class="nav-badge">Espace Client</span>
-  <div class="nav-links" id="nav-links">
-    <a href="{{ route('client.dashboard') }}" class="nav-link">🏠 Accueil</a>
-    <a href="{{ route('client.propositions') }}" class="nav-link">📋 Propositions</a>
-    <a href="{{ route('client.campagnes') }}" class="nav-link active">📢 Campagnes</a>
-    <a href="{{ route('client.profil') }}" class="nav-link">👤 Profil</a>
-  </div>
-  <div class="nav-right">
-    <span style="font-size:12px;color:var(--text2)">{{ $client->name }}</span>
-    <form method="POST" action="{{ route('client.logout') }}">
-      @csrf
-      <button type="submit" class="btn-logout">Déconnexion</button>
-    </form>
-    <button class="mobile-menu-btn" onclick="toggleNav()">☰</button>
-  </div>
-</nav>
-
-<div class="main">
-  <a href="{{ route('client.campagnes') }}" class="back-link">← Retour aux campagnes</a>
-
-  <div class="page-header">
-    <h1>{{ $campaign->name }}</h1>
-    <p>Campagne #{{ $campaign->reference ?? $campaign->id }}</p>
-  </div>
-
-  <div class="info-card">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
-      <h3 style="font-size:14px">📋 Informations générales</h3>
-      <span class="status-badge status-{{ $campaign->status->value }}">{{ ucfirst($campaign->status->value) }}</span>
-    </div>
-    <div class="info-grid">
-      <div class="info-item"><label>Début</label><value>{{ $campaign->start_date->format('d/m/Y') }}</value></div>
-      <div class="info-item"><label>Fin</label><value>{{ $campaign->end_date->format('d/m/Y') }}</value></div>
-      <div class="info-item"><label>Durée</label><value>{{ $campaign->durationHuman() }}</value></div>
-      @if($campaign->total_amount)
-      <div class="info-item"><label>Montant total</label><value style="color:var(--gold);font-size:18px">{{ number_format($campaign->total_amount, 0, ',', ' ') }} FCFA</value></div>
-      @endif
-    </div>
-  </div>
-
-  <h3 style="font-size:14px;margin-bottom:16px">📍 Emplacements publicitaires ({{ $campaign->panels->count() }})</h3>
-  <div class="panel-grid">
-    @foreach($campaign->panels as $panel)
-    @php $photo = $panel->photos->sortBy('ordre')->first(); @endphp
-    <div class="panel-card">
-      @if($photo)
-        <img src="{{ asset('storage/' . ltrim($photo->path, '/')) }}" class="panel-img" alt="">
-      @else
-        <div class="panel-img" style="display:flex;align-items:center;justify-content:center;color:var(--text3)">📷</div>
-      @endif
-      <div class="panel-info">
-        <div class="panel-ref">{{ $panel->reference }}</div>
-        <div class="panel-name">{{ $panel->name }}</div>
-        <div class="panel-details">{{ $panel->commune?->name ?? '—' }}</div>
-        <div class="panel-details">{{ $panel->format?->name ?? '—' }} · {{ $panel->is_lit ? '💡 Éclairé' : '☀️ Non éclairé' }}</div>
-      </div>
-    </div>
-    @endforeach
-  </div>
-
-  @if($campaign->invoices->isNotEmpty())
-  <div class="invoice-section">
-    <h3 style="font-size:14px;margin-bottom:16px">💰 Factures associées</h3>
-    @foreach($campaign->invoices as $invoice)
-    <div class="invoice-card">
-      <div>
-        <div class="invoice-ref">{{ $invoice->reference }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px">Émise le {{ $invoice->created_at->format('d/m/Y') }}</div>
-      </div>
-      <div class="invoice-amount">{{ number_format($invoice->amount, 0, ',', ' ') }} FCFA</div>
-      <span class="invoice-status {{ $invoice->status === 'paid' ? 'invoice-paid' : 'invoice-pending' }}">
-        {{ $invoice->status === 'paid' ? '✓ Payée' : '⏳ En attente' }}
-      </span>
-    </div>
-    @endforeach
-  </div>
-  @endif
+@section('content')
+<!-- Breadcrumb -->
+<div class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+    <a href="{{ route('client.dashboard') }}" class="hover:text-[#e8a020] transition-colors">Accueil</a>
+    <span>›</span>
+    <a href="{{ route('client.campagnes') }}" class="hover:text-[#e8a020] transition-colors">Campagnes</a>
+    <span>›</span>
+    <span class="text-gray-400 truncate">{{ $campaign->name }}</span>
 </div>
 
-<script>
-function toggleNav() { document.getElementById('nav-links').classList.toggle('open'); }
-</script>
-</body>
-</html>
+<!-- Header -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-white mb-1">{{ $campaign->name }}</h1>
+        <p class="text-sm text-gray-500">Campagne #{{ $campaign->id }}</p>
+    </div>
+    @php 
+        $badgeClass = match($campaign->status->value) {
+            'actif' => 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+            'pose' => 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+            'termine' => 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+            'annule' => 'bg-red-500/20 text-red-400 border-red-500/30',
+            default => 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+        };
+    @endphp
+    <span class="inline-block px-4 py-2 rounded-full text-sm font-medium border {{ $badgeClass }} w-fit">
+        {{ ucfirst($campaign->status->value) }}
+    </span>
+</div>
+
+<!-- Stats Cards -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+    <div class="bg-[#11131f] rounded-xl border border-white/5 p-4">
+        <div class="text-2xl font-bold text-white">{{ $campaign->start_date->format('d/m/Y') }}</div>
+        <div class="text-xs text-gray-500 mt-1">Date de début</div>
+    </div>
+    <div class="bg-[#11131f] rounded-xl border border-white/5 p-4">
+        <div class="text-2xl font-bold text-white">{{ $campaign->end_date->format('d/m/Y') }}</div>
+        <div class="text-xs text-gray-500 mt-1">Date de fin</div>
+    </div>
+    <div class="bg-[#11131f] rounded-xl border border-white/5 p-4">
+        <div class="text-2xl font-bold text-white">{{ $campaign->panels->count() }}</div>
+        <div class="text-xs text-gray-500 mt-1">Panneaux</div>
+    </div>
+    @if($campaign->total_amount > 0)
+    <div class="bg-[#11131f] rounded-xl border border-[#e8a020]/30 p-4">
+        <div class="text-xl font-bold text-[#e8a020]">{{ number_format($campaign->total_amount, 0, ',', ' ') }} FCFA</div>
+        <div class="text-xs text-gray-500 mt-1">Montant total</div>
+    </div>
+    @endif
+</div>
+
+<!-- Panels Section -->
+<div class="mb-8">
+    <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <span>📍</span> Emplacements
+        <span class="text-sm text-gray-500 font-normal">({{ $campaign->panels->count() }})</span>
+    </h2>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        @foreach($campaign->panels as $panel)
+        @php $photo = $panel->photos->sortBy('ordre')->first(); @endphp
+        <div class="bg-[#11131f] rounded-xl border border-white/5 overflow-hidden hover:border-[#e8a020]/30 transition-all group">
+            @if($photo)
+                <img src="{{ asset('storage/' . ltrim($photo->path, '/')) }}" class="w-full h-40 object-cover" alt="{{ $panel->reference }}" loading="lazy">
+            @else
+                <div class="w-full h-40 bg-gradient-to-br from-[#1a1d2e] to-[#11131f] flex items-center justify-center text-4xl text-gray-600">
+                    🪧
+                </div>
+            @endif
+            <div class="p-4">
+                <div class="text-[#e8a020] font-mono text-xs mb-1">{{ $panel->reference }}</div>
+                <div class="text-white font-medium text-sm mb-2 truncate" title="{{ $panel->name }}">{{ $panel->name }}</div>
+                <div class="text-gray-500 text-xs space-y-0.5">
+                    <div>📍 {{ $panel->commune?->name ?? '—' }}</div>
+                    <div>📐 {{ $panel->format?->name ?? '—' }}</div>
+                    @if($panel->is_lit)
+                        <div>💡 Éclairé</div>
+                    @endif
+                </div>
+            </div>
+        </div>
+        @endforeach
+    </div>
+</div>
+
+<!-- Invoices Section -->
+@if($campaign->invoices->isNotEmpty())
+<div>
+    <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <span>💰</span> Factures
+    </h2>
+    
+    <div class="space-y-3">
+        @foreach($campaign->invoices as $inv)
+        <div class="bg-[#11131f] rounded-xl border border-white/5 p-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <div class="font-mono text-sm text-[#e8a020]">{{ $inv->reference ?? '#' . $inv->id }}</div>
+                    <div class="text-xs text-gray-500 mt-1">Émise le {{ $inv->created_at->format('d/m/Y') }}</div>
+                </div>
+                <div class="text-lg font-bold text-white">{{ number_format($inv->amount ?? 0, 0, ',', ' ') }} FCFA</div>
+                @if(!empty($inv->paid_at))
+                    <span class="inline-block px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        ✓ Payée
+                    </span>
+                @else
+                    <span class="inline-block px-3 py-1 rounded-full text-xs font-medium bg-[#e8a020]/20 text-[#e8a020] border border-[#e8a020]/30">
+                        ⏳ En attente
+                    </span>
+                @endif
+            </div>
+        </div>
+        @endforeach
+    </div>
+</div>
+@endif
+
+@if($campaign->panels->isEmpty())
+<div class="text-center py-12">
+    <div class="text-6xl mb-4">🪧</div>
+    <h3 class="text-xl font-semibold text-white mb-2">Aucun panneau associé</h3>
+    <p class="text-gray-500">Cette campagne n'a pas encore de panneaux assignés.</p>
+</div>
+@endif
+@endsection

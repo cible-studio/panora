@@ -258,10 +258,23 @@ Route::prefix('admin')
         Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])->name('reservations.annuler');
 
         // Propositions (admin)
-        Route::post('/reservations/{reservation}/proposition/envoyer', [ReservationController::class, 'envoyerProposition'])
+        Route::post('reservations/{reservation}/proposition/envoyer',
+            [PropositionController::class, 'envoyerProposition'])
             ->name('reservations.proposition.envoyer');
-        Route::post('/reservations/{reservation}/proposition/reinitialiser', [ReservationController::class, 'reinitialiserProposition'])
+        
+        Route::post('reservations/{reservation}/proposition/reinitialiser',
+            [PropositionController::class, 'reinitialiserProposition'])
             ->name('reservations.proposition.reinitialiser');
+
+        // ── CRUD Propositions admin ─────────────────────────────────────
+        Route::get('propositions', [PropositionController::class, 'index'])
+            ->name('propositions.index');
+        Route::get('propositions/{proposition}', [PropositionController::class, 'show'])
+            ->name('propositions.show');
+        Route::patch('propositions/{proposition}/status', [PropositionController::class, 'updateStatus'])
+            ->name('propositions.update-status');
+        Route::get('propositions/{proposition}/pdf', [PropositionController::class, 'exportPdf'])
+            ->name('propositions.pdf');
 
         // Campagnes
         Route::resource('campaigns', CampaignController::class);
@@ -273,13 +286,6 @@ Route::prefix('admin')
         // Gestion panneaux externes d'une campagne
         Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])
         ->name('campaigns.external-panels.remove');
-
-        // ── Propositions ──────────────────────────────────────────
-        Route::resource('propositions', PropositionController::class);
-        Route::patch('propositions/{proposition}/status', [PropositionController::class, 'updateStatus'])
-            ->name('propositions.update-status');
-        Route::get('propositions/{proposition}/pdf', [PropositionController::class, 'exportPdf'])
-            ->name('propositions.pdf');
 
         // ── Piges Photos ──────────────────────────────────────────
         Route::get('piges', [PigeController::class, 'index'])->name('piges.index');

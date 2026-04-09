@@ -1,77 +1,83 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Changer de mot de passe — CIBLE CI</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-@vite(['resources/css/app.css'])
-<style>
-  :root{--gold:#e8a020;--dark:#080b12;--surface:#111520;--surface2:#181e2e;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--dark);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;display:grid;place-items:center;padding:16px}
-  .wrap{width:100%;max-width:400px}
-  .logo{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--gold);text-align:center;margin-bottom:24px}
-  .card{background:var(--surface);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:32px}
-  .card-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:#f1f5f9;margin-bottom:6px}
-  .card-sub{font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.5}
-  .alert{padding:12px 14px;border-radius:8px;font-size:13px;margin-bottom:16px}
-  .alert-warning{background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);color:#fde68a}
-  .fg{margin-bottom:16px}
-  .fg label{display:block;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px}
-  .fg input{width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.08);color:var(--text);border-radius:8px;padding:11px 13px;font-size:14px;font-family:'Inter',sans-serif}
-  .fg input:focus{outline:none;border-color:rgba(232,160,32,0.4)}
-  .field-error{font-size:12px;color:#fca5a5;margin-top:4px}
-  .rules{font-size:11px;color:var(--text3);margin-bottom:20px;padding:10px 14px;background:rgba(255,255,255,0.02);border-radius:8px;line-height:1.8}
-  .btn{width:100%;background:var(--gold);color:#0a0d14;font-weight:700;font-size:14px;padding:12px;border-radius:8px;border:none;cursor:pointer;font-family:'Syne',sans-serif}
-  .btn:hover{opacity:0.9}
-</style>
-</head>
-<body>
-<div class="wrap">
-  <div class="logo">CIBLE CI</div>
-  <div class="card">
-    <div class="card-title">Définir votre mot de passe</div>
-    <div class="card-sub">
-      @if(auth('client')->user()?->must_change_password)
-        Bienvenue ! Pour sécuriser votre compte, choisissez un mot de passe personnel.
-      @else
-        Changez votre mot de passe actuel.
-      @endif
+@extends('client.layout')
+@section('title', 'Sécurité du compte')
+@section('page-title', '🔒 Sécurité')
+
+@section('content')
+<div class="max-w-md mx-auto">
+    <div class="bg-[#11131f] border border-white/5 rounded-2xl p-8 text-center">
+        <div class="text-6xl mb-4">
+            @if(auth('client')->user()?->must_change_password) 🔑 @else 🔒 @endif
+        </div>
+        <h1 class="text-2xl font-bold text-white mb-2">
+            @if(auth('client')->user()?->must_change_password)
+                Définir votre mot de passe
+            @else
+                Changer mon mot de passe
+            @endif
+        </h1>
+        <p class="text-sm text-gray-400 mb-6">
+            @if(auth('client')->user()?->must_change_password)
+                Bienvenue sur votre espace client ! Pour sécuriser votre compte, veuillez définir un mot de passe personnel.
+            @else
+                Pour votre sécurité, nous vous recommandons de choisir un mot de passe robuste et unique.
+            @endif
+        </p>
+
+        @if(session('warning'))
+            <div class="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-6 text-yellow-400 text-sm">⚠️ {{ session('warning') }}</div>
+        @endif
+
+        <form method="POST" action="{{ route('client.password.update') }}" class="text-left">
+            @csrf
+
+            @if(!auth('client')->user()?->must_change_password)
+            <div class="mb-4">
+                <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Mot de passe actuel</label>
+                <input type="password" name="current_password" class="w-full bg-[#1a1d2e] border border-white/5 rounded-lg px-4 py-2 text-white focus:border-[#e8a020] focus:outline-none">
+                @error('current_password') <div class="text-red-400 text-xs mt-1">{{ $message }}</div> @enderror
+            </div>
+            @endif
+
+            <div class="mb-4">
+                <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Nouveau mot de passe</label>
+                <input type="password" name="password" class="w-full bg-[#1a1d2e] border border-white/5 rounded-lg px-4 py-2 text-white focus:border-[#e8a020] focus:outline-none">
+                @error('password') <div class="text-red-400 text-xs mt-1">{{ $message }}</div> @enderror
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Confirmer le mot de passe</label>
+                <input type="password" name="password_confirmation" class="w-full bg-[#1a1d2e] border border-white/5 rounded-lg px-4 py-2 text-white focus:border-[#e8a020] focus:outline-none">
+            </div>
+
+            <div class="bg-[#1a1d2e] rounded-xl p-4 mb-6">
+                <div class="text-xs font-semibold text-[#e8a020] mb-2">✅ Règles de sécurité</div>
+                <div class="grid grid-cols-2 gap-2 text-xs text-gray-400">
+                    <div class="flex items-center gap-2"><span class="text-[#e8a020]">✓</span> Minimum 8 caractères</div>
+                    <div class="flex items-center gap-2"><span class="text-[#e8a020]">✓</span> 1 lettre majuscule</div>
+                    <div class="flex items-center gap-2"><span class="text-[#e8a020]">✓</span> 1 lettre minuscule</div>
+                    <div class="flex items-center gap-2"><span class="text-[#e8a020]">✓</span> 1 chiffre</div>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                @if(!auth('client')->user()?->must_change_password)
+                <a href="{{ route('client.profil') }}" class="flex-1 text-center px-4 py-2 bg-[#1a1d2e] border border-white/5 rounded-lg text-sm text-gray-300 hover:text-white transition-all">← Annuler</a>
+                @endif
+                <button type="submit" class="flex-1 px-4 py-2 bg-[#e8a020] text-[#0a0c15] font-semibold rounded-lg text-sm hover:bg-[#c47a00] transition-all">
+                    @if(auth('client')->user()?->must_change_password)
+                        ✅ Enregistrer et continuer
+                    @else
+                        🔒 Mettre à jour
+                    @endif
+                </button>
+            </div>
+        </form>
+
+        @if(!auth('client')->user()?->must_change_password)
+        <div class="mt-6 pt-6 border-t border-white/5">
+            <a href="{{ route('client.dashboard') }}" class="text-sm text-gray-500 hover:text-[#e8a020] transition-all">← Retour au tableau de bord</a>
+        </div>
+        @endif
     </div>
- 
-    @if(session('warning'))
-      <div class="alert alert-warning">⚠️ {{ session('warning') }}</div>
-    @endif
- 
-    <form method="POST" action="{{ route('client.password.update') }}">
-      @csrf
- 
-      @if(!auth('client')->user()?->must_change_password)
-      <div class="fg">
-        <label>Mot de passe actuel</label>
-        <input type="password" name="current_password" autocomplete="current-password">
-        @error('current_password') <div class="field-error">{{ $message }}</div> @enderror
-      </div>
-      @endif
- 
-      <div class="fg">
-        <label>Nouveau mot de passe</label>
-        <input type="password" name="password" autocomplete="new-password">
-        @error('password') <div class="field-error">{{ $message }}</div> @enderror
-      </div>
- 
-      <div class="fg">
-        <label>Confirmer le mot de passe</label>
-        <input type="password" name="password_confirmation" autocomplete="new-password">
-      </div>
- 
-      <div class="rules">
-        ✅ Minimum 8 caractères · Lettres et chiffres requis
-      </div>
- 
-      <button type="submit" class="btn">Enregistrer mon mot de passe →</button>
-    </form>
-  </div>
 </div>
-</body>
-</html>
+@endsection
