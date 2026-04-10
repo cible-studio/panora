@@ -420,49 +420,33 @@ class ReservationController extends Controller
     public function pdfImages(Request $request)
     {
         $request->validate([
-<<<<<<< HEAD
-            'panel_ids' => 'required|array|min:1',
-=======
-            'panel_ids'   => 'required|array|min:1|max:200',
->>>>>>> 4d6f8e79744ad97808ad5e041a0f8ed853dccd4d
+            'panel_ids' => 'required|array|min:1|max:200',
             'panel_ids.*' => 'integer|exists:panels,id',
         ]);
-    
-        // ── Charger les panneaux avec leurs relations ──────────────
+
         $panelModels = Panel::with([
-                'commune:id,name',
-                'zone:id,name',
-                'format:id,name,width,height',
-                'category:id,name',
-                'photos' => fn($q) => $q->orderBy('ordre'),
-            ])
+            'commune:id,name',
+            'zone:id,name',
+            'format:id,name,width,height',
+            'category:id,name',
+            'photos' => fn($q) => $q->orderBy('ordre'),
+        ])
             ->whereIn('id', $request->panel_ids)
-            ->orderByRaw('FIELD(id, ' . implode(',', array_map('intval', $request->panel_ids)) . ')')
+            ->orderByRaw('FIELD(id,' . implode(',', array_map('intval', $request->panel_ids)) . ')')
             ->get();
-<<<<<<< HEAD
 
-        $startDate = $request->start_date;
-        $endDate = $request->end_date;
-
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.selection-images', compact('panels', 'startDate', 'endDate'));
-        $pdf->setPaper('A4', 'portrait');
-        $pdf->setOptions([
-            'defaultFont' => 'sans-serif',
-            'isRemoteEnabled' => false,
-=======
-    
         $startDate = $request->start_date ?? null;
-        $endDate   = $request->end_date   ?? null;
-    
-        // ── Enrichir chaque panneau avec le chemin photo local ──────
+        $endDate = $request->end_date ?? null;
+
         $panels = $panelModels->map(function ($panel) {
+
             $photo = $panel->photos->first();
             $photoPath = null;
-            $photoUrl  = null;
-    
+            $photoUrl = null;
+
             if ($photo) {
                 $rel = ltrim($photo->path, '/');
-                // Essayer les chemins locaux (base64 = fiable avec DomPDF)
+
                 foreach ([
                     storage_path('app/public/' . $rel),
                     public_path('storage/' . $rel),
@@ -472,77 +456,60 @@ class ReservationController extends Controller
                         break;
                     }
                 }
-                // Fallback URL si chemin local non trouvé
+
                 if (!$photoPath) {
                     $photoUrl = asset('storage/' . $rel);
                 }
             }
-    
-            // Dimensions en string (ex: "3.92x2.92m")
+
             $dims = null;
             if ($panel->format?->width && $panel->format?->height) {
-                $w = rtrim(rtrim(number_format($panel->format->width,  2, '.', ''), '0'), '.');
+                $w = rtrim(rtrim(number_format($panel->format->width, 2, '.', ''), '0'), '.');
                 $h = rtrim(rtrim(number_format($panel->format->height, 2, '.', ''), '0'), '.');
                 $dims = "{$w}x{$h}m";
             }
-    
+
             return [
-                'id'               => $panel->id,
-                'reference'        => $panel->reference,
-                'name'             => $panel->name,
-                'commune'          => $panel->commune?->name  ?? '—',
-                'zone'             => $panel->zone?->name     ?? '—',
-                'format'           => $panel->format?->name   ?? '—',
-                'format_width'     => $panel->format?->width  ?? null,
-                'format_height'    => $panel->format?->height ?? null,
-                'dimensions'       => $dims,
-                'category'         => $panel->category?->name ?? '—',
-                'is_lit'           => (bool)$panel->is_lit,
-                'monthly_rate'     => (float)($panel->monthly_rate ?? 0),
-                'daily_traffic'    => (int)($panel->daily_traffic  ?? 0),
+                'id' => $panel->id,
+                'reference' => $panel->reference,
+                'name' => $panel->name,
+                'commune' => $panel->commune?->name ?? '—',
+                'zone' => $panel->zone?->name ?? '—',
+                'format' => $panel->format?->name ?? '—',
+                'dimensions' => $dims,
+                'category' => $panel->category?->name ?? '—',
+                'is_lit' => (bool) $panel->is_lit,
+                'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
+                'daily_traffic' => (int) ($panel->daily_traffic ?? 0),
                 'zone_description' => $panel->zone_description ?? '',
-                'display_status'   => $panel->status->value,
-                'source'           => 'internal',
-                'photo_path'       => $photoPath,
-                'photo_url'        => $photoUrl,
-                'release_info'     => null,
+                'display_status' => $panel->status->value,
+                'source' => 'internal',
+                'photo_path' => $photoPath,
+                'photo_url' => $photoUrl,
             ];
         });
-    
+
         $filename = 'panneaux-' . now()->format('Ymd_His');
-    
+
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView(
             'admin.reservations.pdf.disponibilites-images',
             [
-                'panels'    => $panels,
+                'panels' => $panels,
                 'startDate' => $startDate,
-                'endDate'   => $endDate,
+                'endDate' => $endDate,
                 'generated' => now()->format('d/m/Y'),
             ]
         )
-        ->setPaper('a4', 'portrait')
-        ->setOptions([
-            'isRemoteEnabled'      => false,   // DÉSACTIVÉ → sécurité + vitesse
->>>>>>> 4d6f8e79744ad97808ad5e041a0f8ed853dccd4d
-            'isHtml5ParserEnabled' => true,
-            'defaultFont'          => 'DejaVu Sans',
-            'dpi'                  => 96,      // 96 = léger + rapide
-            'defaultPaperSize'     => 'a4',
-        ]);
-<<<<<<< HEAD
+            ->setPaper('a4', 'portrait')
+            ->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled' => false,
+                'defaultFont' => 'DejaVu Sans',
+                'dpi' => 96,
+            ]);
 
-        return $pdf->download('panneaux-' . now()->format('Ymd_His') . '.pdf');
-=======
-    
-        // stream() = ouvre dans le navigateur
-        // Le form a target="_blank" → nouvel onglet + barre téléchargement native
-        return $pdf->stream("{$filename}.pdf");
->>>>>>> 4d6f8e79744ad97808ad5e041a0f8ed853dccd4d
+        return $pdf->download($filename . '.pdf');
     }
-
-    // ══════════════════════════════════════════════════════════════
-    // PDF — liste
-    // ══════════════════════════════════════════════════════════════
     public function pdfListe(Request $request)
     {
         $request->validate([

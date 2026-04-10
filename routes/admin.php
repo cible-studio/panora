@@ -38,11 +38,11 @@ use App\Http\Controllers\Client\ClientDashboardController;
 Route::prefix('proposition')->name('proposition.')->group(function () {
     Route::get('/{token}', [PropositionController::class, 'show'])->name('show');
     Route::post('/{token}/confirmer', [PropositionController::class, 'confirmer'])
-         ->name('confirmer')
-         ->middleware('throttle:5,1');
+        ->name('confirmer')
+        ->middleware('throttle:5,1');
     Route::post('/{token}/refuser', [PropositionController::class, 'refuser'])
-         ->name('refuser')
-         ->middleware('throttle:5,1');
+        ->name('refuser')
+        ->middleware('throttle:5,1');
 });
 
 // ── Routes espace client (sans auth) ──────────────────────────
@@ -50,8 +50,8 @@ Route::prefix('client')->name('client.')->group(function () {
     // Auth
     Route::get('/login', [ClientAuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [ClientAuthController::class, 'login'])
-         ->name('login.post')
-         ->middleware('throttle:5,1');
+        ->name('login.post')
+        ->middleware('throttle:5,1');
     Route::post('/logout', [ClientAuthController::class, 'logout'])->name('logout');
 
     // Routes protégées
@@ -61,26 +61,26 @@ Route::prefix('client')->name('client.')->group(function () {
     ])->group(function () {
         // Dashboard
         Route::get('/dashboard', [ClientDashboardController::class, 'index'])->name('dashboard');
-        
+
         // Propositions
         Route::get('/propositions', [ClientDashboardController::class, 'propositions'])->name('propositions');
         Route::get('/propositions/{token}', [ClientDashboardController::class, 'propositionDetail'])->name('proposition.detail');
-        
+
         // Campagnes
         Route::get('/campagnes', [ClientDashboardController::class, 'campagnes'])->name('campagnes');
         Route::get('/campagnes/{campaign}', [ClientDashboardController::class, 'campagneDetail'])->name('campagne.detail');
-        
+
         // Profil
         Route::get('/profil', [ClientDashboardController::class, 'profil'])->name('profil');
         Route::patch('/profil', [ClientDashboardController::class, 'updateProfil'])->name('profil.update');
-        
+
         // Changement mot de passe (sans middleware ForceClientPasswordChange)
         Route::get('/password/change', [ClientAuthController::class, 'showChangePassword'])
-             ->name('password.change')
-             ->withoutMiddleware(\App\Http\Middleware\ForceClientPasswordChange::class);
+            ->name('password.change')
+            ->withoutMiddleware(\App\Http\Middleware\ForceClientPasswordChange::class);
         Route::post('/password/change', [ClientAuthController::class, 'updatePassword'])
-             ->name('password.update')
-             ->withoutMiddleware(\App\Http\Middleware\ForceClientPasswordChange::class);
+            ->name('password.update')
+            ->withoutMiddleware(\App\Http\Middleware\ForceClientPasswordChange::class);
     });
 });
 
@@ -151,12 +151,12 @@ Route::prefix('admin')
             ->prefix('settings')
             ->name('settings.')
             ->group(function () {
-                Route::get('/', [SettingsController::class, 'index'])->name('index');
-                Route::resource('zones', ZoneController::class);
-                Route::resource('communes', CommuneController::class);
-                Route::resource('formats', PanelFormatController::class);
-                Route::resource('categories', PanelCategoryController::class);
-            });
+            Route::get('/', [SettingsController::class, 'index'])->name('index');
+            Route::resource('zones', ZoneController::class);
+            Route::resource('communes', CommuneController::class);
+            Route::resource('formats', PanelFormatController::class);
+            Route::resource('categories', PanelCategoryController::class);
+        });
 
         // Utilisateurs (admin uniquement)
         Route::middleware('role:admin')->group(function () {
@@ -165,21 +165,21 @@ Route::prefix('admin')
             Route::get('audit-logs', [UserController::class, 'auditLogs'])->name('audit.logs');
         });
 
-         // ── Piges Photos ──────────────────────────────────────────
+        // ── Piges Photos ──────────────────────────────────────────
         Route::prefix('piges')->name('piges.')->group(function () {
-            Route::get('/',                [PigeController::class, 'index'])      ->name('index');
-            Route::post('/upload',         [PigeController::class, 'upload'])     ->name('upload');
-            Route::get('/export-pdf',      [PigeController::class, 'exportPdf']) ->name('export-pdf');
+            Route::get('/', [PigeController::class, 'index'])->name('index');
+            Route::post('/upload', [PigeController::class, 'upload'])->name('upload');
+            Route::get('/export-pdf', [PigeController::class, 'exportPdf'])->name('export-pdf');
             // Spécifiques AVANT {pige}
             Route::get('/campagne/{campaign}', [PigeController::class, 'byCampaign'])->name('by-campaign');
-        
-            Route::get('/{pige}',          [PigeController::class, 'show'])      ->name('show');
-            Route::post('/{pige}/verify',  [PigeController::class, 'verify'])    ->name('verify');
-            Route::post('/{pige}/reject',  [PigeController::class, 'reject'])    ->name('reject');
-            Route::delete('/{pige}',       [PigeController::class, 'destroy'])   ->name('destroy');
+
+            Route::get('/{pige}', [PigeController::class, 'show'])->name('show');
+            Route::post('/{pige}/verify', [PigeController::class, 'verify'])->name('verify');
+            Route::post('/{pige}/reject', [PigeController::class, 'reject'])->name('reject');
+            Route::delete('/{pige}', [PigeController::class, 'destroy'])->name('destroy');
         });
 
-       // ── Taxes Communes ────────────────────────────────────────
+        // ── Taxes Communes ────────────────────────────────────────
         Route::resource('taxes', TaxController::class);
         Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
         Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
@@ -188,14 +188,14 @@ Route::prefix('admin')
         Route::resource('invoices', InvoiceController::class);
         Route::patch('invoices/{invoice}/send', [InvoiceController::class, 'markSent'])->name('invoices.send');
         Route::patch('invoices/{invoice}/pay', [InvoiceController::class, 'markPaid'])->name('invoices.pay');
-        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');    
+        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
 
         // ════════════════════════════════════════════════
         // DEV B
         // ════════════════════════════════════════════════
         // Clients
         Route::post('clients/quick-store', [ClientController::class, 'storeQuick'])
-        ->name('clients.quick-store');
+            ->name('clients.quick-store');
         Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
         Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');
         Route::get('clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');
@@ -226,18 +226,22 @@ Route::prefix('admin')
         // ══════════════════════════════════════════════════════════
 
         // Prix panneaux dans une réservation
-        Route::patch('reservations/{reservation}/panels/{panel}/price',
-        [ReservationController::class, 'updatePanelPrice'])
-        ->name('reservations.panels.price');
+        Route::patch(
+            'reservations/{reservation}/panels/{panel}/price',
+            [ReservationController::class, 'updatePanelPrice']
+        )
+            ->name('reservations.panels.price');
 
-        Route::post('reservations/{reservation}/panels/{panel}/price/reset',
-        [ReservationController::class, 'resetPanelPrice'])
-        ->name('reservations.panels.price.reset');
+        Route::post(
+            'reservations/{reservation}/panels/{panel}/price/reset',
+            [ReservationController::class, 'resetPanelPrice']
+        )
+            ->name('reservations.panels.price.reset');
 
         // Disponibilités
         Route::get('disponibilites', [ReservationController::class, 'disponibilites'])->name('reservations.disponibilites');
         Route::post('disponibilites/confirmer', [ReservationController::class, 'confirmerSelection'])->name('reservations.confirmer-selection');
-        
+
         // Route AJAX pour récupérer les panneaux disponibles d'une campagne (utilisée dans la modale de création de réservation)
         Route::get('disponibilites/panneaux', [ReservationController::class, 'panneauxAjax'])
             ->name('reservations.disponibilites.panneaux')
@@ -246,7 +250,7 @@ Route::prefix('admin')
 
         // Exports PDF disponibilités
         Route::get('disponibilites/export', [ReservationController::class, 'exportDisponibilites'])->name('disponibilites.export');
-         Route::post('disponibilites/pdf-images', [ReservationController::class, 'pdfImages'])
+        Route::post('disponibilites/pdf-images', [ReservationController::class, 'pdfImages'])
             ->name('reservations.disponibilites.pdf-images');
         Route::post('disponibilites/pdf-liste', [ReservationController::class, 'pdfListe'])
             ->name('reservations.disponibilites.pdf-liste');
@@ -257,19 +261,23 @@ Route::prefix('admin')
             ->name('reservations.available-panels')
             ->middleware('throttle:60,1');
         Route::post('reservations/mark-seen', [ReservationController::class, 'markSeen'])->name('reservations.mark-seen');
-        
+
         // CRUD Réservations (en dernier pour ne pas capturer les routes spécifiques)
         Route::resource('reservations', ReservationController::class)->except(['create', 'store']);
         Route::patch('reservations/{reservation}/status', [ReservationController::class, 'updateStatus'])->name('reservations.update-status');
         Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])->name('reservations.annuler');
 
         // Propositions (admin)
-        Route::post('reservations/{reservation}/proposition/envoyer',
-            [PropositionController::class, 'envoyerProposition'])
+        Route::post(
+            'reservations/{reservation}/proposition/envoyer',
+            [PropositionController::class, 'envoyerProposition']
+        )
             ->name('reservations.proposition.envoyer');
-        
-        Route::post('reservations/{reservation}/proposition/reinitialiser',
-            [PropositionController::class, 'reinitialiserProposition'])
+
+        Route::post(
+            'reservations/{reservation}/proposition/reinitialiser',
+            [PropositionController::class, 'reinitialiserProposition']
+        )
             ->name('reservations.proposition.reinitialiser');
 
         // ── CRUD Propositions admin ─────────────────────────────────────
@@ -291,7 +299,7 @@ Route::prefix('admin')
 
         // Gestion panneaux externes d'une campagne
         Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])
-        ->name('campaigns.external-panels.remove');
+            ->name('campaigns.external-panels.remove');
 
         // ── Piges Photos ──────────────────────────────────────────
         Route::get('piges', [PigeController::class, 'index'])->name('piges.index');
@@ -312,7 +320,10 @@ Route::prefix('admin')
         Route::patch('invoices/{invoice}/pay', [InvoiceController::class, 'markPaid'])->name('invoices.pay');
         Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
 
+        Route::get('/rapports', function () {
+            return view('admin.rapports.index');
+        })->name('rapports.index');
+
     });
 
 
-    
