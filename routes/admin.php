@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\RapportController;
 use Illuminate\Support\Facades\Route;
 
 // ── Dev A ─────────────────────────────────────────────
@@ -320,9 +321,8 @@ Route::prefix('admin')
         Route::patch('invoices/{invoice}/pay', [InvoiceController::class, 'markPaid'])->name('invoices.pay');
         Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
 
-        Route::get('/rapports', function () {
-            return view('admin.rapports.index');
-        })->name('rapports.index');
+        Route::get('/rapports', [RapportController::class, 'index'])->name('rapports.index');
+        Route::get('/rapports/ajax', [RapportController::class, 'ajax'])->name('rapports.ajax');
 
     });
 
