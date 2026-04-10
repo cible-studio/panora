@@ -213,21 +213,32 @@ Route::prefix('admin')
     Route::patch('reservations/{reservation}/status',  [ReservationController::class, 'updateStatus'])->name('reservations.update-status');
     Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])     ->name('reservations.annuler');
 
-    // Propositions admin (envoi email)
-    Route::post('reservations/{reservation}/proposition/envoyer',      [ReservationController::class, 'envoyerProposition'])    ->name('reservations.proposition.envoyer');
-    Route::post('reservations/{reservation}/proposition/reinitialiser', [ReservationController::class, 'reinitialiserProposition'])->name('reservations.proposition.reinitialiser');
+        // Propositions (admin)
+        Route::post('/reservations/{reservation}/proposition/envoyer', [ReservationController::class, 'envoyerProposition'])
+            ->name('reservations.proposition.envoyer');
+        Route::post('/reservations/{reservation}/proposition/reinitialiser', [ReservationController::class, 'reinitialiserProposition'])
+            ->name('reservations.proposition.reinitialiser');
 
-    // ── Campagnes ─────────────────────────────────────────────────
-    Route::resource('campaigns', CampaignController::class);
-    Route::patch('campaigns/{campaign}/status',                         [CampaignController::class, 'updateStatus'])      ->name('campaigns.update-status');
-    Route::patch('campaigns/{campaign}/prolonger',                      [CampaignController::class, 'prolonger'])         ->name('campaigns.prolonger');
-    Route::post('campaigns/{campaign}/panels',                          [CampaignController::class, 'addPanel'])          ->name('campaigns.panels.add');
-    Route::delete('campaigns/{campaign}/panels/{panel}',               [CampaignController::class, 'removePanel'])       ->name('campaigns.panels.remove');
-    Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])->name('campaigns.external-panels.remove');
+        // Campagnes
+        Route::resource('campaigns', CampaignController::class);
+        Route::patch('campaigns/{campaign}/status', [CampaignController::class, 'updateStatus'])->name('campaigns.update-status');
+        Route::patch('campaigns/{campaign}/prolonger', [CampaignController::class, 'prolonger'])->name('campaigns.prolonger');
+        Route::post('campaigns/{campaign}/panels', [CampaignController::class, 'addPanel'])->name('campaigns.panels.add');
+        Route::delete('campaigns/{campaign}/panels/{panel}', [CampaignController::class, 'removePanel'])->name('campaigns.panels.remove');
 
-    // ── Propositions (admin) ──────────────────────────────────────
-    Route::resource('propositions', PropositionController::class);
-    Route::patch('propositions/{proposition}/status', [PropositionController::class, 'updateStatus'])->name('propositions.update-status');
-    Route::get('propositions/{proposition}/pdf',      [PropositionController::class, 'exportPdf'])   ->name('propositions.pdf');
+        // Gestion panneaux externes d'une campagne
+        Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])
+        ->name('campaigns.external-panels.remove');
 
-}); // ← FIN du groupe admin
+        // ── Propositions ──────────────────────────────────────────
+        Route::resource('propositions', PropositionController::class);
+        Route::patch('propositions/{proposition}/status', [PropositionController::class, 'updateStatus'])
+            ->name('propositions.update-status');
+        Route::get('propositions/{proposition}/pdf', [PropositionController::class, 'exportPdf'])
+            ->name('propositions.pdf');
+
+        
+
+    });
+
+

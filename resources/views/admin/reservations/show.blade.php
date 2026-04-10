@@ -186,7 +186,7 @@
 {{-- ══════════════════════════════════════════════════════
      PANNEAUX RÉSERVÉS
 ══════════════════════════════════════════════════════ --}}
-<div class="card mb-4">
+<!-- <div class="card mb-4">
     <div class="card-header">
         <div class="card-title">🪧 Panneaux réservés</div>
         <span class="text-xs" style="color:var(--text2)">
@@ -291,7 +291,7 @@
         </table>
     </div>
     @endif
-</div>
+</div> -->
 
 {{-- Section panneaux de la réservation — avec modification prix --}}
 <div class="card">

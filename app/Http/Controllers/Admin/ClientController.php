@@ -118,21 +118,19 @@ class ClientController extends Controller
 
         // ── Inventaire panneaux du client (Dev A) ─────────────────
         $panneauxReservations = \App\Models\ReservationPanel::with([
-            'panel.commune',
-            'panel.format',
-            'reservation',
-        ])
+                'panel.commune', 'panel.format', 'reservation',
+            ])
             ->whereHas('reservation', fn($q) => $q->where('client_id', $client->id))
             ->get()
             ->map(fn($rp) => [
-                'panel' => $rp->panel,
-                'source' => 'reservation',
+                'panel'            => $rp->panel,
+                'source'           => 'reservation',
                 'reference_source' => $rp->reservation->reference ?? '—',
-                'source_id' => $rp->reservation->id,
-                'start_date' => $rp->reservation->start_date,
-                'end_date' => $rp->reservation->end_date,
-                'status' => $rp->reservation->status->value ?? 'inconnu',
-                'status_label' => $rp->reservation->status->label() ?? '—',
+                'source_id'        => $rp->reservation->id,
+                'start_date'       => $rp->reservation->start_date,
+                'end_date'         => $rp->reservation->end_date,
+                'status'           => $rp->reservation->status->value ?? 'inconnu',
+                'status_label'     => $rp->reservation->status->label() ?? '—',
             ]);
 
         $panneauxCampagnes = \App\Models\CampaignPanel::with([
@@ -154,7 +152,7 @@ class ClientController extends Controller
                 'status_label' => $cp->campaign->status->label() ?? '—',
             ]);
 
-        $panneauxClient = $panneauxCampagnes->concat($panneauxReservations)
+        $panneauxClient = $panneauxCampagnes
             ->unique(fn($item) => $item['panel']?->id . '-' . $item['source_id'])
             ->filter(fn($item) => $item['panel'] !== null)
             ->sortBy('panel.reference')

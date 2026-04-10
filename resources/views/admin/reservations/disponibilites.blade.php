@@ -156,10 +156,10 @@ window.__DISPO__ = {
         <button id="btn-view-list" onclick="DISPO.setView('list')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-400 hover:text-gray-200">☰ Liste</button>
     </div>
     <div class="flex gap-2 flex-wrap">
-        <button onclick="DISPO.exportPdf('images')" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#1a1a2a] border border-[#2a2a35] rounded-xl text-red-400 hover:border-red-400 hover:bg-red-400/5 transition-all">
+        <button onclick="DISPO.exportPdf('images')" target="_blank" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#1a1a2a] border border-[#2a2a35] rounded-xl text-red-400 hover:border-red-400 hover:bg-red-400/5 transition-all">
             📋 PDF images
         </button>
-        <button onclick="DISPO.exportPdf('liste')" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#1a1a2a] border border-[#2a2a35] rounded-xl text-orange-400 hover:border-orange-400 hover:bg-orange-400/5 transition-all">
+        <button onclick="DISPO.exportPdf('liste')" target="_blank" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#1a1a2a] border border-[#2a2a35] rounded-xl text-orange-400 hover:border-orange-400 hover:bg-orange-400/5 transition-all">
             📄 PDF liste
         </button>
     </div>
@@ -224,13 +224,13 @@ window.__DISPO__ = {
 </div>
 
 {{-- Formulaires PDF cachés --}}
-<form id="form-pdf-images" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-images') }}" style="display:none">
+<form id="form-pdf-images" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-images') }}" target="_blank" style="display:none">
     @csrf
     <div id="pdf-images-inputs"></div>
     <input type="hidden" name="start_date" id="pdf-start">
     <input type="hidden" name="end_date"   id="pdf-end">
 </form>
-<form id="form-pdf-liste" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}" style="display:none">
+<form id="form-pdf-liste" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}" target="_blank" style="display:none">
     @csrf
     <div id="pdf-liste-inputs"></div>
     <input type="hidden" name="start_date" id="pdf-liste-start">

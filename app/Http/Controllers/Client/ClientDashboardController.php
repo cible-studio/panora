@@ -17,49 +17,76 @@ class ClientDashboardController extends Controller
     // DASHBOARD PRINCIPAL
     // ══════════════════════════════════════════════════════════════
 
-    public function index()
+   public function index()
     {
         $client = Auth::guard('client')->user();
-
-        // Propositions en attente (réservations en_attente avec token)
+        
+        // Propositions avec pagination pour gérer de grandes quantités
         $propositions = $client->reservations()
             ->where('status', 'en_attente')
             ->whereNotNull('proposition_token')
-            ->where('end_date', '>=', now()->toDateString())
-            ->with(['panels.photos', 'panels.commune', 'panels.format'])
+            ->where('end_date', '>=', now())
+            ->with(['panels' => function($q) {
+                $q->limit(10); // Limiter les relations
+            }])
             ->orderByDesc('proposition_sent_at')
-            ->get();
-
-        // Campagnes actives
+            ->paginate(10);
+        
         $campagnesActives = $client->campaigns()
             ->whereIn('status', ['actif', 'pose'])
-            ->with(['panels'])
+            ->withCount('panels')
             ->orderByDesc('start_date')
             ->limit(5)
             ->get();
-
-        // Campagnes récentes (toutes)
-        $campagnesRecentes = $client->campaigns()
-            ->with(['panels'])
-            ->orderByDesc('created_at')
-            ->paginate(10);
-
-        // Stats rapides
+        
+        // Stats optimisées avec count() au lieu de get()
         $stats = [
-            'propositions_en_attente' => $propositions->count(),
-            'campagnes_actives'       => $client->campaigns()->whereIn('status', ['actif', 'pose'])->count(),
-            'campagnes_total'         => $client->campaigns()->count(),
-            'panneaux_actifs'         => $client->campaigns()
+            'propositions_en_attente' => $client->reservations()
+                ->where('status', 'en_attente')
+                ->whereNotNull('proposition_token')
+                ->where('end_date', '>=', now())
+                ->count(),
+            'campagnes_actives' => $client->campaigns()
+                ->whereIn('status', ['actif', 'pose'])
+                ->count(),
+            'campagnes_total' => $client->campaigns()->count(),
+            'panneaux_actifs' => $client->campaigns()
                 ->whereIn('status', ['actif', 'pose'])
                 ->withCount('panels')
                 ->get()
                 ->sum('panels_count'),
         ];
-
+        
         return view('client.dashboard', compact(
-            'client', 'propositions', 'campagnesActives', 'campagnesRecentes', 'stats'
+            'client', 'propositions', 'campagnesActives', 'stats'
         ));
     }
+    
+    public function campagnes(Request $request)
+    {
+        $client = Auth::guard('client')->user();
+        
+        $query = $client->campaigns()
+            ->with(['panels' => function($q) {
+                $q->limit(20); // Éviter le chargement de milliers de panneaux
+            }])
+            ->withCount('panels');
+        
+        if ($request->search) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+        
+        if ($request->status) {
+            $query->where('status', $request->status);
+        }
+        
+        $campagnes = $query->orderByDesc('created_at')
+            ->paginate(20)
+            ->withQueryString();
+        
+        return view('client.campagnes', compact('client', 'campagnes'));
+    }
+
 
     // ══════════════════════════════════════════════════════════════
     // PROPOSITIONS — liste
@@ -103,6 +130,9 @@ class ClientDashboardController extends Controller
             // Proposition expirée/traitée → afficher le statut
         }
 
+        // Charger les relations nécessaires pour la vue (optimisé)
+        $reservation->load(['panels.photos', 'panels.commune', 'panels.format', 'panels.zone', 'panels.category']);
+   
         $this->propositionService->marquerVue($reservation);
 
         $months = $this->monthsBetween($reservation->start_date, $reservation->end_date);
@@ -134,34 +164,19 @@ class ClientDashboardController extends Controller
         ));
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // CAMPAGNES
-    // ══════════════════════════════════════════════════════════════
-
-    public function campagnes()
-    {
-        $client = Auth::guard('client')->user();
-
-        $campagnes = $client->campaigns()
-            ->with(['panels.commune', 'panels.format'])
-            ->orderByDesc('start_date')
-            ->paginate(10);
-
-        return view('client.campagnes', compact('client', 'campagnes'));
-    }
 
     public function campagneDetail(\App\Models\Campaign $campaign)
     {
-        $client = Auth::guard('client')->user();
+        $cl = Auth::guard('client')->user();
 
         // Sécurité : vérifier que la campagne appartient au client connecté
-        if ($campaign->client_id !== $client->id) {
+        if ($campaign->client_id !== $cl->id) {
             abort(403, 'Accès non autorisé.');
         }
 
         $campaign->load(['panels.photos', 'panels.commune', 'panels.format', 'invoices']);
 
-        return view('client.campagne-detail', compact('client', 'campaign'));
+        return view('client.campagne-detail', compact('cl', 'campaign'));
     }
 
     // ══════════════════════════════════════════════════════════════

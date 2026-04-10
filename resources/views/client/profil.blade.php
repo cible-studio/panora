@@ -1,150 +1,144 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mon profil — CIBLE CI</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-@vite(['resources/css/app.css', 'resources/js/app.js'])
-<style>
-  :root {
-    --gold:#e8a020; --gold-bg:rgba(232,160,32,0.08); --gold-border:rgba(232,160,32,0.2);
-    --dark:#080b12; --surface:#111520; --surface2:#181e2e;
-    --text:#e2e8f0; --text2:#94a3b8; --text3:#64748b;
-    --green:#22c55e; --green-bg:rgba(34,197,94,0.08);
-    --red:#ef4444; --red-bg:rgba(239,68,68,0.08);
-    --nav-h:60px;
-  }
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{background:var(--dark);color:var(--text);font-family:'Inter',sans-serif}
+@extends('client.layout')
+@section('title', 'Mon profil')
+@section('page-title', '👤 Mon profil')
 
-  .navbar{position:sticky;top:0;background:rgba(8,11,18,0.95);backdrop-filter:blur(16px);border-bottom:1px solid rgba(232,160,32,0.08);height:var(--nav-h);display:flex;align-items:center;padding:0 20px;gap:16px}
-  .nav-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--gold)}
-  .nav-badge{background:var(--gold-bg);border:1px solid var(--gold-border);color:var(--gold);border-radius:20px;padding:2px 10px;font-size:10px}
-  .nav-links{display:flex;gap:4px;margin-left:8px}
-  .nav-link{color:var(--text3);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:8px}
-  .nav-link:hover,.nav-link.active{color:var(--text);background:rgba(255,255,255,0.06)}
-  .nav-link.active{color:var(--gold)}
-  .nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
-  .btn-logout{background:transparent;color:var(--text3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;cursor:pointer}
-  .mobile-menu-btn{display:none}
-  @media(max-width:640px){.nav-links{display:none}.mobile-menu-btn{display:block}}
+@section('content')
+@php $client = auth('client')->user(); @endphp
 
-  .main{max-width:800px;margin:0 auto;padding:28px 16px 60px}
-  .page-header{margin-bottom:28px}
-  .page-header h1{font-family:'Syne',sans-serif;font-size:clamp(20px,4vw,28px);font-weight:800;color:#f1f5f9}
-  .page-header p{font-size:13px;color:var(--text2);margin-top:4px}
-
-  .profile-card{background:var(--surface);border-radius:16px;border:1px solid rgba(255,255,255,0.06);overflow:hidden}
-  .profile-header{padding:20px;background:rgba(0,0,0,0.2);border-bottom:1px solid rgba(255,255,255,0.05)}
-  .profile-company{font-size:20px;font-weight:700;color:var(--gold)}
-  .profile-ncc{font-family:monospace;font-size:12px;color:var(--text2);margin-top:4px}
-
-  .profile-form{padding:20px}
-  .form-group{margin-bottom:20px}
-  .form-label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px}
-  .form-input{width:100%;background:var(--surface2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px}
-  .form-input:focus{outline:none;border-color:var(--gold)}
-  .form-input:disabled{opacity:0.5;cursor:not-allowed}
-  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-
-  .btn-submit{background:var(--gold);color:#0a0d14;font-weight:700;padding:12px 24px;border-radius:10px;border:none;cursor:pointer;font-family:'Syne',sans-serif;margin-top:8px}
-  .btn-submit:hover{opacity:0.9}
-
-  .info-note{background:var(--gold-bg);border:1px solid var(--gold-border);border-radius:10px;padding:12px;margin-top:20px;font-size:12px;color:var(--text2);text-align:center}
-</style>
-</head>
-<body>
-
-<nav class="navbar">
-  <div class="nav-logo">CIBLE CI</div>
-  <span class="nav-badge">Espace Client</span>
-  <div class="nav-links" id="nav-links">
-    <a href="{{ route('client.dashboard') }}" class="nav-link">🏠 Accueil</a>
-    <a href="{{ route('client.propositions') }}" class="nav-link">📋 Propositions</a>
-    <a href="{{ route('client.campagnes') }}" class="nav-link">📢 Campagnes</a>
-    <a href="{{ route('client.profil') }}" class="nav-link active">👤 Profil</a>
-  </div>
-  <div class="nav-right">
-    <span style="font-size:12px;color:var(--text2)">{{ $client->name }}</span>
-    <form method="POST" action="{{ route('client.logout') }}">
-      @csrf
-      <button type="submit" class="btn-logout">Déconnexion</button>
-    </form>
-    <button class="mobile-menu-btn" onclick="toggleNav()">☰</button>
-  </div>
-</nav>
-
-<div class="main">
-  <div class="page-header">
-    <h1>👤 Mon profil</h1>
-    <p>Gérez vos informations personnelles et de contact</p>
-  </div>
-
-  @if(session('success'))
-    <div style="background:var(--green-bg);border:1px solid rgba(34,197,94,0.2);color:#86efac;border-radius:10px;padding:12px 16px;margin-bottom:20px">
-      ✅ {{ session('success') }}
-    </div>
-  @endif
-
-  <div class="profile-card">
-    <div class="profile-header">
-      <div class="profile-company">{{ $client->company ?? 'Client' }}</div>
-      <div class="profile-ncc">NCC : {{ $client->ncc ?? '—' }}</div>
-    </div>
-
-    <form method="POST" action="{{ route('client.profil.update') }}" class="profile-form">
-      @csrf
-      @method('PATCH')
-
-      <div class="form-group">
-        <label class="form-label">Nom complet</label>
-        <input type="text" class="form-input" value="{{ $client->name }}" disabled>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px">Contactez l'administrateur pour modifier cette information</div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Email</label>
-        <input type="email" class="form-input" value="{{ $client->email }}" disabled>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Téléphone</label>
-          <input type="text" name="phone" class="form-input" value="{{ old('phone', $client->phone) }}" placeholder="+225 XX XX XX XX">
-          @error('phone')<div style="color:#fca5a5;font-size:11px;margin-top:4px">{{ $message }}</div>@enderror
+<div class="bg-[#11131f] border border-white/5 rounded-2xl p-6 mb-6">
+    <div class="flex flex-wrap items-center gap-6">
+        <div class="flex flex-col items-center gap-3">
+            <div class="w-20 h-20 rounded-full bg-gradient-to-r from-[#e8a020] to-[#fbbf24] flex items-center justify-center text-3xl font-bold text-[#0a0c15]">
+                {{ strtoupper(mb_substr($client->name, 0, 1)) }}
+            </div>
+            <div class="bg-[#e8a020]/10 border border-[#e8a020]/20 rounded-full px-3 py-1 text-xs text-[#e8a020]">⭐ Client Premium</div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Personne de contact</label>
-          <input type="text" name="contact_name" class="form-input" value="{{ old('contact_name', $client->contact_name) }}" placeholder="Nom du référent">
-          @error('contact_name')<div style="color:#fca5a5;font-size:11px;margin-top:4px">{{ $message }}</div>@enderror
+        <div class="flex-1">
+            <h1 class="text-2xl font-bold text-white mb-1">{{ $client->name }}</h1>
+            @if($client->ncc)<div class="font-mono text-sm text-gray-500 mb-2">NCC : {{ $client->ncc }}</div>@endif
+            <div class="flex flex-wrap gap-4 text-sm text-gray-400">
+                <span>📧 {{ $client->email }}</span>
+                @if($client->phone)<span>📞 {{ $client->phone }}</span>@endif
+            </div>
         </div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Adresse</label>
-        <input type="text" name="address" class="form-input" value="{{ old('address', $client->address) }}" placeholder="Adresse complète">
-        @error('address')<div style="color:#fca5a5;font-size:11px;margin-top:4px">{{ $message }}</div>@enderror
-      </div>
-
-      <!-- <div class="form-group">
-        <label class="form-label">Ville</label>
-        <input type="text" name="city" class="form-input" value="{{ old('city', $client->city) }}" placeholder="Abidjan, Bouaké...">
-        @error('city')<div style="color:#fca5a5;font-size:11px;margin-top:4px">{{ $message }}</div>@enderror
-      </div> -->
-
-      <button type="submit" class="btn-submit">💾 Mettre à jour mon profil</button>
-    </form>
-
-    <div class="info-note">
-      🔐 Besoin de changer votre mot de passe ? 
-      <a href="{{ route('client.password.change') }}" style="color:var(--gold);text-decoration:none;font-weight:600">Cliquez ici →</a>
+        <div>
+            <a href="{{ route('client.password.change') }}" class="px-5 py-2 bg-[#1a1d2e] border border-white/5 rounded-lg text-sm text-gray-300 hover:text-white transition-all">🔑 Changer le mot de passe</a>
+        </div>
     </div>
-  </div>
 </div>
 
-<script>
-function toggleNav() { document.getElementById('nav-links').classList.toggle('open'); }
-</script>
-</body>
-</html>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div class="bg-[#11131f] border border-white/5 rounded-xl p-4 text-center">
+        <div class="text-2xl mb-2">📅</div>
+        <div class="text-xl font-bold text-[#e8a020]">{{ $client->created_at->format('d/m/Y') }}</div>
+        <div class="text-xs text-gray-500 mt-1">Membre depuis</div>
+    </div>
+    <div class="bg-[#11131f] border border-white/5 rounded-xl p-4 text-center">
+        <div class="text-2xl mb-2">🔐</div>
+        <div class="text-sm font-semibold {{ $client->password_changed_at ? 'text-green-400' : 'text-yellow-400' }}">
+            {{ $client->password_changed_at ? '✅ Mot de passe sécurisé' : '⚠️ À sécuriser' }}
+        </div>
+        <div class="text-xs text-gray-500 mt-1">Sécurité</div>
+    </div>
+    <div class="bg-[#11131f] border border-white/5 rounded-xl p-4 text-center">
+        <div class="text-2xl mb-2">📊</div>
+        <div class="text-sm text-gray-300">{{ $client->last_login_at ? 'Dernière connexion ' . $client->last_login_at->diffForHumans() : 'Première connexion' }}</div>
+        <div class="text-xs text-gray-500 mt-1">Activité</div>
+    </div>
+</div>
+
+<div class="space-y-6">
+    <div class="bg-[#11131f] border border-white/5 rounded-xl overflow-hidden">
+        <div class="px-6 py-4 bg-white/5 border-b border-white/5">
+            <h2 class="font-semibold text-white">ℹ️ Informations générales</h2>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <div class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Nom / Raison sociale</div>
+                <div class="text-white">{{ $client->name }}</div>
+                <div class="text-xs text-gray-500 mt-1">Contactez votre commercial pour modifier</div>
+            </div>
+            <div>
+                <div class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Email professionnel</div>
+                <div class="text-white">{{ $client->email }}</div>
+                <div class="text-xs text-gray-500 mt-1">Non modifiable en ligne</div>
+            </div>
+            @if($client->ncc)
+            <div>
+                <div class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">NCC (Numéro Client)</div>
+                <div class="text-white font-mono">{{ $client->ncc }}</div>
+            </div>
+            @endif
+        </div>
+    </div>
+
+    <div class="bg-[#11131f] border border-white/5 rounded-xl overflow-hidden">
+        <div class="px-6 py-4 bg-white/5 border-b border-white/5">
+            <h2 class="font-semibold text-white">📍 Coordonnées</h2>
+        </div>
+        <div class="p-6">
+            <form method="POST" action="{{ route('client.profil.update') }}">
+                @csrf @method('PATCH')
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Téléphone</label>
+                        <input type="tel" name="phone" class="w-full bg-[#1a1d2e] border border-white/5 rounded-lg px-4 py-2 text-white focus:border-[#e8a020] focus:outline-none" value="{{ old('phone', $client->phone) }}" placeholder="+225 XX XX XX XX">
+                        @error('phone')<div class="text-red-400 text-xs mt-1">{{ $message }}</div>@enderror
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Personne de contact</label>
+                        <input type="text" name="contact_name" class="w-full bg-[#1a1d2e] border border-white/5 rounded-lg px-4 py-2 text-white focus:border-[#e8a020] focus:outline-none" value="{{ old('contact_name', $client->contact_name) }}" placeholder="Nom du référent">
+                        @error('contact_name')<div class="text-red-400 text-xs mt-1">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Adresse</label>
+                        <input type="text" name="address" class="w-full bg-[#1a1d2e] border border-white/5 rounded-lg px-4 py-2 text-white focus:border-[#e8a020] focus:outline-none" value="{{ old('address', $client->address) }}" placeholder="Adresse complète">
+                        @error('address')<div class="text-red-400 text-xs mt-1">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 mt-6">
+                    <button type="submit" class="px-5 py-2 bg-[#e8a020] text-[#0a0c15] font-semibold rounded-lg text-sm hover:bg-[#c47a00] transition-all">💾 Enregistrer</button>
+                    <span class="text-xs text-gray-500">Seuls les champs de contact sont modifiables</span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="bg-[#11131f] border border-white/5 rounded-xl overflow-hidden">
+        <div class="px-6 py-4 bg-white/5 border-b border-white/5">
+            <h2 class="font-semibold text-white">🔒 Sécurité du compte</h2>
+        </div>
+        <div class="divide-y divide-white/5">
+            <div class="flex flex-wrap justify-between items-center p-5 gap-3">
+                <div>
+                    <div class="font-semibold text-white">Mot de passe</div>
+                    @if($client->password_changed_at)
+                        <div class="text-sm text-green-400 mt-1">✅ Modifié le {{ $client->password_changed_at->format('d/m/Y') }}</div>
+                    @else
+                        <div class="text-sm text-yellow-400 mt-1">⚠️ Jamais modifié — action recommandée</div>
+                    @endif
+                </div>
+                <a href="{{ route('client.password.change') }}" class="px-4 py-2 bg-[#1a1d2e] border border-white/5 rounded-lg text-sm text-gray-300 hover:text-white transition-all">Modifier →</a>
+            </div>
+            @if($client->last_login_at)
+            <div class="p-5">
+                <div class="font-semibold text-white mb-1">Dernière activité</div>
+                <div class="text-sm text-gray-400">
+                    Connexion le {{ $client->last_login_at->format('d/m/Y à H:i') }}
+                    @if($client->last_login_ip) · depuis {{ $client->last_login_ip }} @endif
+                </div>
+            </div>
+            @endif
+            <div class="p-5 bg-[#e8a020]/5">
+                <div class="flex gap-3">
+                    <span class="text-xl">💡</span>
+                    <div class="text-sm text-gray-400">
+                        <strong class="text-[#e8a020]">Conseil de sécurité</strong><br>
+                        Utilisez un mot de passe unique pour votre espace client et ne le partagez jamais.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection

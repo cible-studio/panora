@@ -299,17 +299,17 @@
                         {{ $item['panel']->format?->name ?? '—' }}
                     </td>
                     <td>
-                        @if($item['source'] === 'campaign')
+                        <!-- @if($item['source'] === 'campaign') -->
                             <a href="{{ route('admin.campaigns.show', $item['source_id']) }}"
                                style="font-size:11px;color:#3b82f6;text-decoration:none;font-weight:600;">
                                 📢 {{ $item['reference_source'] }}
                             </a>
-                        @else
+                        <!-- @else
                             <a href="{{ route('admin.reservations.show', $item['source_id']) }}"
                                style="font-size:11px;color:var(--text2);text-decoration:none;font-weight:600;">
                                 📋 {{ $item['reference_source'] }}
                             </a>
-                        @endif
+                        @endif -->
                     </td>
                     <td style="font-size:11px;color:var(--text3);white-space:nowrap;">
                         {{ \Carbon\Carbon::parse($item['start_date'])->format('d/m/Y') }}

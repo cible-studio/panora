@@ -92,49 +92,42 @@ class ClientAuthController extends Controller
 
     public function showChangePassword()
     {
-        return view('client.auth.change-password');
+        $client = Auth::guard('client')->user();
+         return view('client.auth.change-password', compact('client'));
     }
-
+    
     public function updatePassword(Request $request)
     {
         $client = Auth::guard('client')->user();
-
+        
         $rules = [
-            'password' => [
-                'required',
-                'confirmed',
-                Password::min(8)->letters()->numbers(),
-            ],
+            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()],
         ];
-
-        // Si c'est un changement volontaire (pas première connexion) → demander l'ancien
+        
         if (!$client->must_change_password) {
-            $rules['current_password'] = 'required|string';
+            $rules['current_password'] = ['required', function ($attribute, $value, $fail) use ($client) {
+                if (!Hash::check($value, $client->password)) {
+                    $fail('Le mot de passe actuel est incorrect.');
+                }
+            }];
         }
-
-        $request->validate($rules, [
-            'password.required'         => 'Le nouveau mot de passe est obligatoire.',
-            'password.confirmed'        => 'Les mots de passe ne correspondent pas.',
-            'password.min'              => 'Le mot de passe doit faire au moins 8 caractères.',
-            'current_password.required' => 'Votre mot de passe actuel est requis.',
-        ]);
-
-        // Vérifier l'ancien mot de passe si changement volontaire
-        if (!$client->must_change_password) {
-            if (!Hash::check($request->current_password, $client->password)) {
-                return back()->withErrors([
-                    'current_password' => 'Mot de passe actuel incorrect.',
-                ]);
-            }
-        }
-
+        
+        $request->validate($rules);
+        
         $client->update([
-            'password'             => Hash::make($request->password),
+            'password' => Hash::make($request->password),
             'must_change_password' => false,
-            'password_changed_at'  => now(),
+            'password_changed_at' => now(),
         ]);
-
-        return redirect()->route('client.dashboard')
-            ->with('success', 'Mot de passe mis à jour avec succès.');
+        
+        // Redirection intelligente : retour à la page précédente ou dashboard
+        $previousUrl = url()->previous();
+        $currentUrl = url()->current();
+        
+        if ($previousUrl && $previousUrl !== $currentUrl && !str_contains($previousUrl, 'password')) {
+            return redirect($previousUrl)->with('success', 'Mot de passe mis à jour avec succès.');
+        }
+        
+        return redirect()->route('client.dashboard')->with('success', 'Mot de passe mis à jour avec succès.');
     }
 }
