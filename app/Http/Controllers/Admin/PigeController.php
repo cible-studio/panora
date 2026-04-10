@@ -24,43 +24,47 @@ class PigeController extends Controller
             $query->where('is_verified', $request->is_verified);
         }
 
-        $piges     = $query->latest()->paginate(20)->withQueryString();
+        $piges = $query->latest()->paginate(20)->withQueryString();
         $campaigns = Campaign::orderBy('name')->get();
-        $panels    = Panel::orderBy('reference')->get();
+        $panels = Panel::orderBy('reference')->get();
 
-        $totalPiges      = Pige::count();
-        $totalVerifiees  = Pige::where('is_verified', true)->count();
-        $totalEnAttente  = Pige::where('is_verified', false)->count();
+        $totalPiges = Pige::count();
+        $totalVerifiees = Pige::where('is_verified', true)->count();
+        $totalEnAttente = Pige::where('is_verified', false)->count();
 
         return view('admin.piges.index', compact(
-            'piges', 'campaigns', 'panels',
-            'totalPiges', 'totalVerifiees', 'totalEnAttente'
+            'piges',
+            'campaigns',
+            'panels',
+            'totalPiges',
+            'totalVerifiees',
+            'totalEnAttente'
         ));
     }
 
     public function upload(Request $request)
     {
         $request->validate([
-            'panel_id'    => 'required|exists:panels,id',
+            'panel_id' => 'required|exists:panels,id',
             'campaign_id' => 'nullable|exists:campaigns,id',
-            'photo'       => 'required|image|max:5120',
-            'date_prise'  => 'required|date',
-            'gps_lat'     => 'nullable|numeric',
-            'gps_lng'     => 'nullable|numeric',
-            'notes'       => 'nullable|string',
+            'photo' => 'required|image|mimes:jpeg,jpg,png,webp|max:8192',
+            'taken_at' => 'required|date|before_or_equal:now',
+            'gps_lat' => 'nullable|numeric|between:-90,90',   // ← ajouter
+            'gps_lng' => 'nullable|numeric|between:-180,180', // ← ajouter
+            'notes' => 'nullable|string|max:1000',
         ]);
 
         $path = $request->file('photo')->store('piges', 'public');
 
         Pige::create([
-            'panel_id'    => $request->panel_id,
+            'panel_id' => $request->panel_id,
             'campaign_id' => $request->campaign_id,
-            'user_id'     => auth()->id(),
-            'photo_path'  => $path,
-            'taken_at'    => $request->date_prise,
-            'gps_lat'     => $request->gps_lat,
-            'gps_lng'     => $request->gps_lng,
-            'notes'       => $request->notes,
+            'user_id' => auth()->id(),
+            'photo_path' => $path,
+            'taken_at' => $request->date_prise,
+            'gps_lat' => $request->gps_lat,
+            'gps_lng' => $request->gps_lng,
+            'notes' => $request->notes,
             'is_verified' => false,
         ]);
 
@@ -103,7 +107,7 @@ class PigeController extends Controller
             $query->where('campaign_id', $request->campaign_id);
         }
 
-        $piges    = $query->latest()->get();
+        $piges = $query->latest()->get();
         $campaign = $request->filled('campaign_id')
             ? Campaign::find($request->campaign_id)
             : null;

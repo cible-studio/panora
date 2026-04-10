@@ -26,10 +26,6 @@ Schedule::command('propositions:expire')->everyFifteenMinutes();
 //    Tous les jours à 07h00
 Schedule::command('alerts:generate')->dailyAt('07:00');
 
-//commande de test pour vérifier le fonctionnement du scheduler
-/** 
- * php artisan reservations:sync-expired
-**php artisan reservations:expire-options
-**php artisan campaigns:sync-expired
-**php artisan propositions:expire
- */
+// 5. Synchronisation statut panneaux externes
+//    Tous les jours à 02h00
+Schedule::command('external-panels:sync-status')->dailyAt('02:00');

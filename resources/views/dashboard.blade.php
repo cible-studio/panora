@@ -83,7 +83,7 @@
                     <a href="{{ route('admin.campaigns.index') }}" class="btn btn-ghost btn-sm">Voir tout</a>
                 </div>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap ">
                 <table>
                     <thead>
                         <tr>

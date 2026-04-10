@@ -10,39 +10,50 @@
     </a>
 </x-slot>
 
-{{-- STATS --}}
+{{-- STATS CLIQUABLES --}}
 <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
-    <div class="stat-card">
+    <a href="{{ route('admin.taxes.index', array_merge(request()->except('status'), ['status' => 'en_attente'])) }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;transition:all .15s;
+              {{ request('status') === 'en_attente' ? 'border-color:var(--accent);' : 'border:2px solid transparent;' }}">
         <div class="stat-label">En attente</div>
         <div class="stat-value" style="color:var(--accent);">{{ $totalEnAttente }}</div>
-    </div>
-    <div class="stat-card">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
+    </a>
+    <a href="{{ route('admin.taxes.index', array_merge(request()->except('status'), ['status' => 'payee'])) }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;transition:all .15s;
+              {{ request('status') === 'payee' ? 'border-color:var(--green);' : 'border:2px solid transparent;' }}">
         <div class="stat-label">Payées</div>
         <div class="stat-value" style="color:var(--green);">{{ $totalPayees }}</div>
-    </div>
-    <div class="stat-card">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
+    </a>
+    <a href="{{ route('admin.taxes.index', array_merge(request()->except('status'), ['status' => 'en_retard'])) }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;transition:all .15s;
+              {{ request('status') === 'en_retard' ? 'border-color:var(--red);' : 'border:2px solid transparent;' }}">
         <div class="stat-label">En retard</div>
         <div class="stat-value" style="color:var(--red);">{{ $totalEnRetard }}</div>
-    </div>
-    <div class="stat-card">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
+    </a>
+    <a href="{{ route('admin.taxes.index') }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;transition:all .15s;
+              {{ !request('status') ? 'border-color:var(--accent);' : 'border:2px solid transparent;' }}">
         <div class="stat-label">Montant dû</div>
         <div class="stat-value" style="font-size:18px; color:var(--accent);">
             {{ number_format($montantTotal, 0, ',', ' ') }}
         </div>
-    </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Voir tout →</div>
+    </a>
 </div>
 
-{{-- FILTRES --}}
+{{-- FILTRES AUTO --}}
 <div class="card" style="margin-bottom:16px;">
-    <form method="GET" action="{{ route('admin.taxes.index') }}">
+    <form id="filter-form" method="GET" action="{{ route('admin.taxes.index') }}">
         <div class="filter-bar">
             <div class="filter-group">
                 <label class="filter-label">Commune</label>
-                <select name="commune_id" class="filter-select">
+                <select name="commune_id" class="filter-select" onchange="this.form.submit()">
                     <option value="">Toutes</option>
                     @foreach($communes as $commune)
-                    <option value="{{ $commune->id }}"
-                        {{ request('commune_id') == $commune->id ? 'selected' : '' }}>
+                    <option value="{{ $commune->id }}" {{ request('commune_id') == $commune->id ? 'selected' : '' }}>
                         {{ $commune->name }}
                     </option>
                     @endforeach
@@ -50,7 +61,7 @@
             </div>
             <div class="filter-group">
                 <label class="filter-label">Type</label>
-                <select name="type" class="filter-select">
+                <select name="type" class="filter-select" onchange="this.form.submit()">
                     <option value="">Tous</option>
                     <option value="odp" {{ request('type') === 'odp' ? 'selected' : '' }}>ODP</option>
                     <option value="tm"  {{ request('type') === 'tm'  ? 'selected' : '' }}>TM</option>
@@ -58,31 +69,28 @@
             </div>
             <div class="filter-group">
                 <label class="filter-label">Année</label>
-                <select name="year" class="filter-select">
+                <select name="year" class="filter-select" onchange="this.form.submit()">
                     <option value="">Toutes</option>
                     @for($y = date('Y'); $y >= 2020; $y--)
-                    <option value="{{ $y }}" {{ request('year') == $y ? 'selected' : '' }}>
-                        {{ $y }}
-                    </option>
+                    <option value="{{ $y }}" {{ request('year') == $y ? 'selected' : '' }}>{{ $y }}</option>
                     @endfor
                 </select>
             </div>
             <div class="filter-group">
                 <label class="filter-label">Statut</label>
-                <select name="status" class="filter-select">
+                <select name="status" class="filter-select" onchange="this.form.submit()">
                     <option value="">Tous</option>
                     <option value="en_attente" {{ request('status') === 'en_attente' ? 'selected' : '' }}>En attente</option>
                     <option value="payee"      {{ request('status') === 'payee'      ? 'selected' : '' }}>Payée</option>
                     <option value="en_retard"  {{ request('status') === 'en_retard'  ? 'selected' : '' }}>En retard</option>
                 </select>
             </div>
+            @if(request()->hasAny(['commune_id', 'type', 'year', 'status']))
             <div class="filter-group" style="justify-content:flex-end;">
                 <label class="filter-label">&nbsp;</label>
-                <div style="display:flex; gap:6px;">
-                    <button type="submit" class="btn btn-primary btn-sm">🔍 Filtrer</button>
-                    <a href="{{ route('admin.taxes.index') }}" class="btn btn-ghost btn-sm">✕ Reset</a>
-                </div>
+                <a href="{{ route('admin.taxes.index') }}" class="btn btn-ghost btn-sm">✕ Reset</a>
             </div>
+            @endif
         </div>
     </form>
 </div>
@@ -139,22 +147,14 @@
                     <td>
                         <div style="display:flex; gap:6px;">
                             @if($tax->status !== 'payee')
-                            <form method="POST"
-                                  action="{{ route('admin.taxes.pay', $tax) }}">
-                                @csrf
-                                @method('PATCH')
-                                <button class="btn btn-success btn-sm" title="Marquer payée">
-                                    ✓ Payée
-                                </button>
+                            <form method="POST" action="{{ route('admin.taxes.pay', $tax) }}">
+                                @csrf @method('PATCH')
+                                <button class="btn btn-success btn-sm" title="Marquer payée">✓ Payée</button>
                             </form>
                             @endif
-                            <a href="{{ route('admin.taxes.edit', $tax) }}"
-                               class="btn btn-ghost btn-sm">✏️</a>
-                            <form method="POST"
-                                  action="{{ route('admin.taxes.destroy', $tax) }}"
-                                  onsubmit="return confirm('Supprimer ?')">
-                                @csrf
-                                @method('DELETE')
+                            <a href="{{ route('admin.taxes.edit', $tax) }}" class="btn btn-ghost btn-sm">✏️</a>
+                            <form method="POST" action="{{ route('admin.taxes.destroy', $tax) }}" onsubmit="return confirm('Supprimer ?')">
+                                @csrf @method('DELETE')
                                 <button class="btn btn-danger btn-sm">🗑️</button>
                             </form>
                         </div>
@@ -162,17 +162,13 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" style="text-align:center; color:var(--text3); padding:32px;">
-                        Aucune taxe
-                    </td>
+                    <td colspan="8" style="text-align:center; color:var(--text3); padding:32px;">Aucune taxe</td>
                 </tr>
                 @endforelse
             </tbody>
         </table>
     </div>
-    <div style="padding:16px;">
-        {{ $taxes->links() }}
-    </div>
+    <div style="padding:16px;">{{ $taxes->links() }}</div>
 </div>
 
 </x-admin-layout>

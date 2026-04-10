@@ -9,6 +9,7 @@ use App\Http\Requests\ExternalAgency\UpdateExternalPanelRequest;
 use App\Models\PanelCategory;
 use App\Models\Commune;
 use App\Models\ExternalAgency;
+use App\Models\Client;
 use App\Models\ExternalPanel;
 use App\Models\PanelFormat;
 use App\Models\Zone;
@@ -21,6 +22,7 @@ class ExternalAgencyController extends Controller
     {
         $agencies = ExternalAgency::query()
             ->withCount('externalPanels')
+            ->with(['externalPanels.campaigns.client', 'externalPanels.campaigns'])
             ->when($request->search, fn($q, $s) =>
                 $q->where('name', 'like', "%$s%")
                   ->orWhere('email', 'like', "%$s%")
@@ -36,11 +38,18 @@ class ExternalAgencyController extends Controller
     // ── Fiche régie + ses panneaux ────────────────────────────
     public function show(ExternalAgency $externalAgency)
     {
-        $externalAgency->load(['externalPanels.commune', 'externalPanels.format', 'externalPanels.category']);
+        $externalAgency->load([
+            'externalPanels.commune',
+            'externalPanels.format',
+            'externalPanels.category',
+            'externalPanels.client',
+            'externalPanels.campaign',
+        ]);
         $communes   = Commune::orderBy('name')->get();
         $zones      = Zone::orderBy('name')->get();
         $formats    = PanelFormat::orderBy('name')->get();
         $categories = PanelCategory::orderBy('name')->get();
+        $clients    = Client::with('campaigns')->orderBy('name')->get();
 
         return view('admin.external-agencies.show', [
             'agency'     => $externalAgency,
@@ -48,6 +57,7 @@ class ExternalAgencyController extends Controller
             'zones'      => $zones,
             'formats'    => $formats,
             'categories' => $categories,
+            'clients'    => $clients,
         ]);
     }
 
@@ -88,11 +98,16 @@ class ExternalAgencyController extends Controller
     // ── Ajouter un panneau à une régie ────────────────────────
     public function storePanel(StoreExternalPanelRequest $request, ExternalAgency $externalAgency)
     {
-        $externalAgency->externalPanels()->create($request->validated());
+        $data = array_merge($request->validated(), [
+            'client_id'   => $request->client_id ?: null,
+            'campaign_id' => $request->campaign_id ?: null,
+        ]);
+
+        $externalAgency->externalPanels()->create($data);
 
         return redirect()
             ->route('admin.external-agencies.show', $externalAgency)
-            ->with('success', 'Panneau ajouté.');
+            ->with('success', 'Panneau ajouté avec succès.');
     }
 
     // ── Modifier un panneau ───────────────────────────────────

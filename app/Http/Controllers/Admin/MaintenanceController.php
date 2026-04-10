@@ -6,6 +6,7 @@ use App\Models\Maintenance;
 use App\Models\Panel;
 use App\Models\User;
 use Illuminate\Http\Request;
+use App\Services\AlertService;
 
 class MaintenanceController extends Controller
 {
@@ -77,6 +78,13 @@ class MaintenanceController extends Controller
         Panel::find($request->panel_id)
             ->update(['status' => 'maintenance']);
 
+        AlertService::create(
+            'maintenance',
+            'danger',
+            '🔧 Panne signalée — ' . $maintenance->panel->reference,
+            auth()->user()->name . ' a signalé une panne sur ' . $maintenance->panel->reference . ' : ' . $maintenance->type_panne . ' (priorité: ' . $maintenance->priorite . ').',
+            $maintenance
+        );
         return redirect()->route('admin.maintenances.index')
             ->with('success', 'Maintenance signalée avec succès !');
     }
@@ -139,6 +147,13 @@ class MaintenanceController extends Controller
         // Remettre panneau en libre
         $maintenance->panel->update(['status' => 'libre']);
 
+        AlertService::create(
+            'maintenance',
+            'info',
+            '✅ Panne résolue — ' . $maintenance->panel->reference,
+            auth()->user()->name . ' a résolu la panne sur ' . $maintenance->panel->reference . '.',
+            $maintenance
+        );
         return back()->with('success', 'Maintenance résolue ! Panneau remis en service. ✅');
     }
 }

@@ -71,6 +71,8 @@
           <th>Commune</th>
           <th>Faces</th>
           <th>Tarif/mois</th>
+          <th>Client</th>
+          <th>Campagne</th>
           <th>Éclairé</th>
           <th>Actions</th>
         </tr>
@@ -108,6 +110,28 @@
                 <span style="color:var(--text3);">—</span>
               @endif
             </td>
+            <td>
+              @if($panel->client)
+                <span style="font-size:12px;padding:2px 8px;border-radius:20px;
+                             background:rgba(63,127,192,0.12);color:#3f7fc0;
+                             border:1px solid rgba(63,127,192,0.3);font-weight:600;">
+                  {{ $panel->client->name }}
+                </span>
+              @else
+                <span style="color:var(--text3);">—</span>
+              @endif
+            </td>
+            <td>
+              @if($panel->campaign)
+                <span style="font-size:12px;padding:2px 8px;border-radius:20px;
+                             background:rgba(129,53,138,0.12);color:#81358a;
+                             border:1px solid rgba(129,53,138,0.3);font-weight:600;">
+                  {{ Str::limit($panel->campaign->name, 20) }}
+                </span>
+              @else
+                <span style="color:var(--text3);">—</span>
+              @endif
+            </td>
             <td style="text-align:center;">
               {{ $panel->is_lit ? '💡' : '—' }}
             </td>
@@ -131,7 +155,7 @@
           </tr>
         @empty
           <tr>
-            <td colspan="8"
+            <td colspan="10"
                 style="text-align:center;padding:40px;color:var(--text3);">
               Aucun panneau pour cette régie.
             </td>
@@ -253,32 +277,54 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
         {{-- CARACTÉRISTIQUES TECHNIQUES --}}
         <div class="section-label">Caractéristiques techniques</div>
 
-        <div class="form-3col">
+        <div class="form-2col">
           <div class="mfg">
             <label>Nombre de faces</label>
             <input type="number" name="nombre_faces"
                    value="{{ old('nombre_faces', 1) }}" min="1" max="6"/>
           </div>
           <div class="mfg">
-            <label>Orientation</label>
-            <select name="orientation">
-              <option value="">— Aucune —</option>
-              @foreach($orientations as $o)
-                <option value="{{ $o }}" {{ old('orientation') === $o ? 'selected' : '' }}>
-                  {{ ucfirst($o) }}
-                </option>
-              @endforeach
-            </select>
-          </div>
-          <div class="mfg">
-            <label style="display:flex;align-items:center;gap:6px;margin-top:18px;cursor:pointer;">
-              <input type="checkbox" name="is_lit" value="1"
-                     {{ old('is_lit') ? 'checked' : '' }}
-                     style="width:15px;height:15px;accent-color:var(--accent);">
-              💡 Éclairé
-            </label>
+            <input type="checkbox" name="is_lit" value="1"
+                   id="is_lit_toggle_create"
+                   {{ old('is_lit') ? 'checked' : '' }}
+                   style="display:none;">
+            <div style="display:flex;align-items:center;gap:12px;cursor:pointer;margin-top:18px;" onclick="toggleLitCreate()">
+              <div id="toggle-track-create"
+                   style="position:relative;width:52px;height:28px;border-radius:14px;
+                          background:{{ old('is_lit') ? '#e8a020' : '#d1d5db' }};
+                          transition:background .3s ease;flex-shrink:0;">
+                <div id="toggle-thumb-create"
+                     style="position:absolute;top:3px;left:{{ old('is_lit') ? '25px' : '3px' }};
+                            width:22px;height:22px;border-radius:50%;background:white;
+                            box-shadow:0 1px 4px rgba(0,0,0,.25);transition:left .3s ease;">
+                </div>
+              </div>
+              <div>
+                <div id="toggle-label-create"
+                     style="font-size:14px;font-weight:600;color:{{ old('is_lit') ? '#e8a020' : 'var(--text2)' }};">
+                  {{ old('is_lit') ? '💡 Éclairé (rétroéclairé)' : '🌑 Non éclairé' }}
+                </div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px;">Cliquez pour basculer</div>
+              </div>
+            </div>
           </div>
         </div>
+        <script>
+        function toggleLitCreate() {
+            const cb = document.getElementById('is_lit_toggle_create');
+            const track = document.getElementById('toggle-track-create');
+            const thumb = document.getElementById('toggle-thumb-create');
+            const label = document.getElementById('toggle-label-create');
+            cb.checked = !cb.checked;
+            if (cb.checked) {
+                track.style.background = '#e8a020'; thumb.style.left = '25px';
+                label.textContent = '💡 Éclairé (rétroéclairé)'; label.style.color = '#e8a020';
+            } else {
+                track.style.background = '#d1d5db'; thumb.style.left = '3px';
+                label.textContent = '🌑 Non éclairé'; label.style.color = 'var(--text2)';
+            }
+        }
+        </script>
 
         {{-- TARIFICATION --}}
         <div class="section-label">Tarification</div>
@@ -314,12 +360,6 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
         </div>
 
         <div class="mfg">
-          <label>Axe routier</label>
-          <input type="text" name="axe_routier" value="{{ old('axe_routier') }}"
-                 placeholder="Ex : Boulevard Latrille, Autoroute du Nord…"/>
-        </div>
-
-        <div class="mfg">
           <label>Description emplacement</label>
           <textarea name="zone_description"
                     placeholder="Ex : Face au carrefour, côté droit en venant du Plateau…">{{ old('zone_description') }}</textarea>
@@ -340,6 +380,33 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
             <input type="number" name="longitude"
                    value="{{ old('longitude') }}"
                    step="0.0000001" placeholder="Ex : -4.0083"/>
+          </div>
+        </div>
+
+        {{-- LIAISON COMMERCIALE --}}
+        <div class="section-label" style="color:var(--accent);">🔗 Liaison commerciale (optionnel)</div>
+        <div style="background:rgba(226,6,19,0.05);border:1px solid rgba(226,6,19,0.2);border-radius:10px;padding:14px;margin-bottom:16px;">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">
+            Associez ce panneau à un client et une campagne existante.
+          </div>
+
+          <div class="form-2col">
+            <div class="mfg">
+              <label>Client concerné</label>
+              <select name="client_id" id="ext-client-select"
+                      onchange="window.updateExtCampaigns(this.value)">
+                <option value="">— Aucun client —</option>
+                @foreach($clients as $client)
+                  <option value="{{ $client->id }}">{{ $client->name }}</option>
+                @endforeach
+              </select>
+            </div>
+            <div class="mfg">
+              <label>Campagne liée</label>
+              <select name="campaign_id" id="ext-campaign-select">
+                <option value="">— Choisir un client d'abord —</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -450,32 +517,56 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
 
         <div class="section-label">Caractéristiques techniques</div>
 
-        <div class="form-3col">
+        <div class="form-2col">
           <div class="mfg">
             <label>Nombre de faces</label>
             <input type="number" name="nombre_faces"
                    :value="panel.nombre_faces ?? 1" min="1" max="6"/>
           </div>
           <div class="mfg">
-            <label>Orientation</label>
-            <select name="orientation">
-              <option value="">— Aucune —</option>
-              @foreach($orientations as $o)
-                <option value="{{ $o }}" :selected="panel.orientation === '{{ $o }}'">
-                  {{ ucfirst($o) }}
-                </option>
-              @endforeach
-            </select>
-          </div>
-          <div class="mfg">
-            <label style="display:flex;align-items:center;gap:6px;margin-top:18px;cursor:pointer;">
-              <input type="checkbox" name="is_lit" value="1"
-                     :checked="panel.is_lit"
-                     style="width:15px;height:15px;accent-color:var(--accent);">
-              💡 Éclairé
-            </label>
+            <input type="checkbox" name="is_lit" value="1"
+                   id="is_lit_toggle_edit"
+                   :checked="panel.is_lit"
+                   style="display:none;">
+            <div style="display:flex;align-items:center;gap:12px;cursor:pointer;margin-top:18px;" onclick="toggleLitEdit()">
+              <div id="toggle-track-edit"
+                   style="position:relative;width:52px;height:28px;border-radius:14px;
+                          background:#d1d5db;transition:background .3s ease;flex-shrink:0;"
+                   x-init="$el.style.background = panel.is_lit ? '#e8a020' : '#d1d5db'">
+                <div id="toggle-thumb-edit"
+                     style="position:absolute;top:3px;left:3px;width:22px;height:22px;
+                            border-radius:50%;background:white;box-shadow:0 1px 4px rgba(0,0,0,.25);
+                            transition:left .3s ease;"
+                     x-init="$el.style.left = panel.is_lit ? '25px' : '3px'">
+                </div>
+              </div>
+              <div>
+                <div id="toggle-label-edit"
+                     style="font-size:14px;font-weight:600;color:var(--text2);"
+                     x-init="$el.textContent = panel.is_lit ? '💡 Éclairé (rétroéclairé)' : '🌑 Non éclairé'; $el.style.color = panel.is_lit ? '#e8a020' : 'var(--text2)'">
+                  🌑 Non éclairé
+                </div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px;">Cliquez pour basculer</div>
+              </div>
+            </div>
           </div>
         </div>
+        <script>
+        function toggleLitEdit() {
+            const cb = document.getElementById('is_lit_toggle_edit');
+            const track = document.getElementById('toggle-track-edit');
+            const thumb = document.getElementById('toggle-thumb-edit');
+            const label = document.getElementById('toggle-label-edit');
+            cb.checked = !cb.checked;
+            if (cb.checked) {
+                track.style.background = '#e8a020'; thumb.style.left = '25px';
+                label.textContent = '💡 Éclairé (rétroéclairé)'; label.style.color = '#e8a020';
+            } else {
+                track.style.background = '#d1d5db'; thumb.style.left = '3px';
+                label.textContent = '🌑 Non éclairé'; label.style.color = 'var(--text2)';
+            }
+        }
+        </script>
 
         <div class="section-label">Tarification</div>
 
@@ -621,4 +712,31 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
   </div>
 </div>
 
+
+{{-- Script global liaison commerciale --}}
+<script>
+window.CLIENTS_CAMPAIGNS = {!! json_encode($clients->map(function($c) {
+    return [
+        'id'        => $c->id,
+        'campaigns' => $c->campaigns->map(fn($camp) => [
+            'id'   => $camp->id,
+            'name' => $camp->name,
+        ])->values(),
+    ];
+})->keyBy('id')) !!};
+
+window.updateExtCampaigns = function(clientId) {
+    const campSel = document.getElementById('ext-campaign-select');
+    if (!campSel) return;
+
+    if (!clientId || !window.CLIENTS_CAMPAIGNS[clientId]) {
+        campSel.innerHTML = '<option value="">— Choisir un client d\'abord —</option>';
+        return;
+    }
+
+    const campaigns = window.CLIENTS_CAMPAIGNS[clientId].campaigns;
+    campSel.innerHTML = '<option value="">— Aucune campagne —</option>' +
+        campaigns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+};
+</script>
 </x-admin-layout>

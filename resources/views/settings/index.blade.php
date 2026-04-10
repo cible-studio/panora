@@ -8,7 +8,7 @@
     {{-- ══ COMMUNES ══ --}}
     <div class="card">
         <div class="card-header">
-            <div class="card-title">🏙️ Communes ({{ $communes->count() }})</div>
+            <div class="card-title">🏙️ Communes ({{ $communes->total() }})</div>
             <a href="{{ route('admin.settings.communes.create') }}" class="btn btn-primary btn-sm">＋ Ajouter</a>
         </div>
         <div class="table-wrap">
@@ -52,12 +52,9 @@
                 </tbody>
             </table>
         </div>
-        @if($communes->count() > 8)
-        <div style="padding:10px 16px;">
-            <a href="{{ route('admin.settings.communes.index') }}"
-               style="font-size:12px;color:var(--accent);">
-                Voir toutes les communes →
-            </a>
+        @if($communes->hasPages())
+        <div style="padding:10px 16px;border-top:1px solid var(--border);">
+            {{ $communes->appends(request()->except('communes_page'))->links('vendor.pagination.simple-bootstrap-4') }}
         </div>
         @endif
     </div>
@@ -65,7 +62,7 @@
     {{-- ══ ZONES ══ --}}
     <div class="card">
         <div class="card-header">
-            <div class="card-title">📍 Zones ({{ $zones->count() }})</div>
+            <div class="card-title">📍 Zones ({{ $zones->total() }})</div>
             <a href="{{ route('admin.settings.zones.create') }}" class="btn btn-primary btn-sm">＋ Ajouter</a>
         </div>
         <div class="table-wrap">
@@ -109,12 +106,9 @@
                 </tbody>
             </table>
         </div>
-        @if($zones->count() > 8)
-        <div style="padding:10px 16px;">
-            <a href="{{ route('admin.settings.zones.index') }}"
-               style="font-size:12px;color:var(--accent);">
-                Voir toutes les zones →
-            </a>
+        @if($zones->hasPages())
+        <div style="padding:10px 16px;border-top:1px solid var(--border);">
+            {{ $zones->appends(request()->except('zones_page'))->links('vendor.pagination.simple-bootstrap-4') }}
         </div>
         @endif
     </div>
@@ -122,7 +116,7 @@
     {{-- ══ FORMATS ══ --}}
     <div class="card">
         <div class="card-header">
-            <div class="card-title">📐 Formats ({{ $formats->count() }})</div>
+            <div class="card-title">📐 Formats ({{ $formats->total() }})</div>
             <a href="{{ route('admin.settings.formats.create') }}" class="btn btn-primary btn-sm">＋ Ajouter</a>
         </div>
         <div class="table-wrap">
@@ -172,12 +166,9 @@
                 </tbody>
             </table>
         </div>
-        @if($formats->count() > 8)
-        <div style="padding:10px 16px;">
-            <a href="{{ route('admin.settings.formats.index') }}"
-               style="font-size:12px;color:var(--accent);">
-                Voir tous les formats →
-            </a>
+        @if($formats->hasPages())
+        <div style="padding:10px 16px;border-top:1px solid var(--border);">
+            {{ $formats->appends(request()->except('formats_page'))->links('vendor.pagination.simple-bootstrap-4') }}
         </div>
         @endif
     </div>
@@ -185,7 +176,7 @@
     {{-- ══ CATÉGORIES ══ --}}
     <div class="card">
         <div class="card-header">
-            <div class="card-title">🏷️ Catégories ({{ $categories->count() }})</div>
+            <div class="card-title">🏷️ Catégories ({{ $categories->total() }})</div>
             <a href="{{ route('admin.settings.categories.create') }}" class="btn btn-primary btn-sm">＋ Ajouter</a>
         </div>
         <div class="table-wrap">
@@ -227,12 +218,9 @@
                 </tbody>
             </table>
         </div>
-        @if($categories->count() > 8)
-        <div style="padding:10px 16px;">
-            <a href="{{ route('admin.settings.categories.index') }}"
-               style="font-size:12px;color:var(--accent);">
-                Voir toutes les catégories →
-            </a>
+        @if($categories->hasPages())
+        <div style="padding:10px 16px;border-top:1px solid var(--border);">
+            {{ $categories->appends(request()->except('categories_page'))->links('vendor.pagination.simple-bootstrap-4') }}
         </div>
         @endif
     </div>

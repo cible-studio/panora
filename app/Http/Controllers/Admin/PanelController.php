@@ -12,6 +12,7 @@ use App\Enums\PanelStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Services\PdfExportService;
+use App\Services\AlertService;
 
 class PanelController extends Controller
 {
@@ -34,14 +35,18 @@ class PanelController extends Controller
             $query->where('zone_id', $request->zone_id);
         }
         if ($request->filled('client_id')) {
-            $query->where(function($q) use ($request) {
-                $q->whereHas('reservations', fn($r) =>
+            $query->where(function ($q) use ($request) {
+                $q->whereHas(
+                    'reservations',
+                    fn($r) =>
                     $r->where('client_id', $request->client_id)
-                      ->whereNotIn('status', ['annule', 'refuse'])
-                )->orWhereHas('campaigns', fn($c) =>
-                    $c->where('client_id', $request->client_id)
-                      ->whereNotIn('status', ['annule'])
-                );
+                        ->whereNotIn('status', ['annule', 'refuse'])
+                )->orWhereHas(
+                        'campaigns',
+                        fn($c) =>
+                        $c->where('client_id', $request->client_id)
+                            ->whereNotIn('status', ['annule'])
+                    );
             });
         }
         if ($request->filled('search')) {
@@ -139,6 +144,13 @@ class PanelController extends Controller
                 ]);
             }
         }
+        AlertService::create(
+            'panneau',
+            'info',
+            '🪧 Nouveau panneau créé — ' . $panel->reference,
+            auth()->user()->name . ' a créé le panneau ' . $panel->reference . ' (' . $panel->name . ').',
+            $panel
+        );
 
         return redirect()->route('admin.panels.show', $panel)
             ->with('success', 'Panneau créé avec succès !');
@@ -148,8 +160,14 @@ class PanelController extends Controller
     public function show(Panel $panel)
     {
         $panel->load(
-            'commune', 'zone', 'format', 'category',
-            'photos', 'createdBy', 'maintenances', 'piges'
+            'commune',
+            'zone',
+            'format',
+            'category',
+            'photos',
+            'createdBy',
+            'maintenances',
+            'piges'
         );
 
         // Qui occupe ce panneau ? (réservations + campagnes actives)
@@ -158,23 +176,25 @@ class PanelController extends Controller
         // Via réservations
         $reservationPanels = \App\Models\ReservationPanel::with(['reservation.client'])
             ->where('panel_id', $panel->id)
-            ->whereHas('reservation', fn($q) =>
+            ->whereHas(
+                'reservation',
+                fn($q) =>
                 $q->whereNotIn('status', ['annule', 'termine'])
-                  ->where('end_date', '>=', now()->toDateString())
+                    ->where('end_date', '>=', now()->toDateString())
             )
             ->get();
 
         foreach ($reservationPanels as $rp) {
             $r = $rp->reservation;
             $occupants->push([
-                'type'         => 'reservation',
+                'type' => 'reservation',
                 'source_label' => 'Réservation',
-                'reference'    => $r->reference ?? '—',
-                'source_id'    => $r->id,
-                'client'       => $r->client,
-                'start_date'   => $r->start_date,
-                'end_date'     => $r->end_date,
-                'status'       => $r->status->value,
+                'reference' => $r->reference ?? '—',
+                'source_id' => $r->id,
+                'client' => $r->client,
+                'start_date' => $r->start_date,
+                'end_date' => $r->end_date,
+                'status' => $r->status->value,
                 'status_label' => $r->status->label(),
             ]);
         }
@@ -183,23 +203,25 @@ class PanelController extends Controller
         $campaignPanels = \App\Models\CampaignPanel::with(['campaign.client'])
             ->where('panel_id', $panel->id)
             ->where('type', 'interne')
-            ->whereHas('campaign', fn($q) =>
+            ->whereHas(
+                'campaign',
+                fn($q) =>
                 $q->whereNotIn('status', ['annule', 'termine'])
-                  ->where('end_date', '>=', now()->toDateString())
+                    ->where('end_date', '>=', now()->toDateString())
             )
             ->get();
 
         foreach ($campaignPanels as $cp) {
             $c = $cp->campaign;
             $occupants->push([
-                'type'         => 'campaign',
+                'type' => 'campaign',
                 'source_label' => 'Campagne',
-                'reference'    => $c->name ?? '—',
-                'source_id'    => $c->id,
-                'client'       => $c->client,
-                'start_date'   => $c->start_date,
-                'end_date'     => $c->end_date,
-                'status'       => $c->status->value,
+                'reference' => $c->name ?? '—',
+                'source_id' => $c->id,
+                'client' => $c->client,
+                'start_date' => $c->start_date,
+                'end_date' => $c->end_date,
+                'status' => $c->status->value,
                 'status_label' => $c->status->label(),
             ]);
         }
@@ -245,6 +267,14 @@ class PanelController extends Controller
             'is_lit' => $request->boolean('is_lit'),
         ]);
 
+        AlertService::create(
+            'panneau',
+            'info',
+            '✏️ Panneau modifié — ' . $panel->reference,
+            auth()->user()->name . ' a modifié le panneau ' . $panel->reference . '.',
+            $panel
+        );
+
         return redirect()->route('admin.panels.show', $panel)
             ->with('success', 'Panneau modifié avec succès !');
     }
@@ -265,6 +295,13 @@ class PanelController extends Controller
         ]);
 
         $panel->update(['status' => $request->status]);
+        AlertService::create(
+            'panneau',
+            'info',
+            '🔄 Statut panneau mis à jour — ' . $panel->reference,
+            auth()->user()->name . ' a changé le statut du panneau ' . $panel->reference . ' en "' . $request->status . '".',
+            $panel
+        );
 
         return back()->with('success', 'Statut mis à jour !');
     }

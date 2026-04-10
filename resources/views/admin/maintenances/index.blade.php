@@ -7,39 +7,48 @@
     </a>
 </x-slot>
 
-{{-- STATS --}}
+{{-- STATS CLIQUABLES --}}
 <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
-    <div class="stat-card">
+    <a href="{{ route('admin.maintenances.index') }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;
+              {{ !request('statut') && !request('priorite') ? 'border-color:var(--accent);' : '' }}">
         <div class="stat-label">Signalées</div>
         <div class="stat-value" style="color:var(--accent);">{{ $totalSignales }}</div>
-    </div>
-    <div class="stat-card">
+    </a>
+    <a href="{{ route('admin.maintenances.index', ['statut' => 'en_cours']) }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;
+              {{ request('statut') === 'en_cours' ? 'border-color:var(--blue);' : '' }}">
         <div class="stat-label">En cours</div>
         <div class="stat-value" style="color:var(--blue);">{{ $totalEnCours }}</div>
-    </div>
-    <div class="stat-card">
+    </a>
+    <a href="{{ route('admin.maintenances.index', ['priorite' => 'urgente']) }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;
+              {{ request('priorite') === 'urgente' ? 'border-color:var(--red);' : '' }}">
         <div class="stat-label">Urgentes</div>
         <div class="stat-value" style="color:var(--red);">{{ $totalUrgentes }}</div>
-    </div>
-    <div class="stat-card">
+    </a>
+    <a href="{{ route('admin.maintenances.index', ['statut' => 'resolu']) }}"
+       class="stat-card" style="text-decoration:none;cursor:pointer;
+              {{ request('statut') === 'resolu' ? 'border-color:var(--green);' : '' }}">
         <div class="stat-label">Résolues</div>
         <div class="stat-value" style="color:var(--green);">{{ $totalResolus }}</div>
-    </div>
+    </a>
 </div>
 
-{{-- FILTRES --}}
+{{-- FILTRES AUTO --}}
 <div class="card" style="margin-bottom:16px;">
-    <form method="GET" action="{{ route('admin.maintenances.index') }}">
+    <form id="filter-form" method="GET" action="{{ route('admin.maintenances.index') }}">
         <div class="filter-bar">
             <div class="filter-group">
                 <label class="filter-label">Recherche panneau</label>
                 <input type="text" name="search" class="filter-input"
                        value="{{ request('search') }}"
-                       placeholder="Référence, nom...">
+                       placeholder="Référence, nom..."
+                       oninput="debounceSubmit()">
             </div>
             <div class="filter-group">
                 <label class="filter-label">Statut</label>
-                <select name="statut" class="filter-select">
+                <select name="statut" class="filter-select" onchange="this.form.submit()">
                     <option value="">Tous</option>
                     <option value="signale"  {{ request('statut') === 'signale'  ? 'selected' : '' }}>Signalé</option>
                     <option value="en_cours" {{ request('statut') === 'en_cours' ? 'selected' : '' }}>En cours</option>
@@ -49,7 +58,7 @@
             </div>
             <div class="filter-group">
                 <label class="filter-label">Priorité</label>
-                <select name="priorite" class="filter-select">
+                <select name="priorite" class="filter-select" onchange="this.form.submit()">
                     <option value="">Toutes</option>
                     <option value="urgente" {{ request('priorite') === 'urgente' ? 'selected' : '' }}>🔴 Urgente</option>
                     <option value="haute"   {{ request('priorite') === 'haute'   ? 'selected' : '' }}>🟠 Haute</option>
@@ -57,13 +66,12 @@
                     <option value="faible"  {{ request('priorite') === 'faible'  ? 'selected' : '' }}>⚪ Faible</option>
                 </select>
             </div>
+            @if(request()->hasAny(['search', 'statut', 'priorite']))
             <div class="filter-group" style="justify-content:flex-end;">
                 <label class="filter-label">&nbsp;</label>
-                <div style="display:flex; gap:6px;">
-                    <button type="submit" class="btn btn-primary btn-sm">🔍 Filtrer</button>
-                    <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm">✕ Reset</a>
-                </div>
+                <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm">✕ Reset</a>
             </div>
+            @endif
         </div>
     </form>
 </div>
@@ -120,9 +128,7 @@
                             <span class="badge badge-gray">Annulé</span>
                         @endif
                     </td>
-                    <td>
-                        {{ $maintenance->technicien?->name ?? '—' }}
-                    </td>
+                    <td>{{ $maintenance->technicien?->name ?? '—' }}</td>
                     <td style="font-size:12px; color:var(--text3);">
                         {{ $maintenance->date_signalement->format('d/m/Y') }}
                     </td>
@@ -136,8 +142,7 @@
                             <form method="POST"
                                   action="{{ route('admin.maintenances.destroy', $maintenance) }}"
                                   onsubmit="return confirm('Supprimer ?')">
-                                @csrf
-                                @method('DELETE')
+                                @csrf @method('DELETE')
                                 <button class="btn btn-danger btn-sm">🗑️</button>
                             </form>
                             @endif
@@ -158,5 +163,17 @@
         {{ $maintenances->links() }}
     </div>
 </div>
+
+@push('scripts')
+<script>
+let debounceTimer = null;
+function debounceSubmit() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        document.getElementById('filter-form').submit();
+    }, 500);
+}
+</script>
+@endpush
 
 </x-admin-layout>

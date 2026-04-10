@@ -9,6 +9,8 @@ use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use App\Services\AlertService;
+
 
 class ClientController extends Controller
 {
@@ -19,20 +21,24 @@ class ClientController extends Controller
     public function index(Request $request)
     {
         $query = Client::withCount(['campaigns', 'reservations'])
-            ->withCount(['campaigns as active_campaigns_count' => function ($q) {
-                $q->whereIn('status', ['actif', 'pose']);
-            }])
-            ->with(['campaigns' => function ($q) {
-                $q->whereIn('status', ['actif', 'pose']);
-            }]);
+            ->withCount([
+                'campaigns as active_campaigns_count' => function ($q) {
+                    $q->whereIn('status', ['actif', 'pose']);
+                }
+            ])
+            ->with([
+                'campaigns' => function ($q) {
+                    $q->whereIn('status', ['actif', 'pose']);
+                }
+            ]);
 
         if ($request->search) {
             $query->where(function ($q) use ($request) {
-                $q->where('name',         'like', "%{$request->search}%")
-                  ->orWhere('ncc',         'like', "%{$request->search}%")
-                  ->orWhere('email',       'like', "%{$request->search}%")
-                  ->orWhere('contact_name','like', "%{$request->search}%")
-                  ->orWhere('phone',       'like', "%{$request->search}%");
+                $q->where('name', 'like', "%{$request->search}%")
+                    ->orWhere('ncc', 'like', "%{$request->search}%")
+                    ->orWhere('email', 'like', "%{$request->search}%")
+                    ->orWhere('contact_name', 'like', "%{$request->search}%")
+                    ->orWhere('phone', 'like', "%{$request->search}%");
             });
         }
 
@@ -44,8 +50,8 @@ class ClientController extends Controller
         $query->orderBy($sort, $sort === 'name' ? 'asc' : 'desc');
 
         $stats = [
-            'total'    => Client::count(),
-            'actifs'   => Client::whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'pose']))->count(),
+            'total' => Client::count(),
+            'actifs' => Client::whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'pose']))->count(),
             'ca_total' => \App\Models\Campaign::sum('total_amount'),
         ];
 
@@ -54,9 +60,9 @@ class ClientController extends Controller
 
         if ($request->ajax()) {
             return response()->json([
-                'html'       => view('admin.clients.partials.table-rows', compact('clients'))->render(),
+                'html' => view('admin.clients.partials.table-rows', compact('clients'))->render(),
                 'pagination' => $clients->links()->render(),
-                'total'      => $clients->total(),
+                'total' => $clients->total(),
             ]);
         }
 
@@ -79,10 +85,17 @@ class ClientController extends Controller
 
         Log::info('client.created', [
             'client_id' => $client->id,
-            'ncc'       => $client->ncc,
-            'user_id'   => auth()->id(),
+            'ncc' => $client->ncc,
+            'user_id' => auth()->id(),
         ]);
 
+        AlertService::create(
+            'client',
+            'info',
+            '👥 Nouveau client — ' . $client->name,
+            auth()->user()->name . ' a créé le client ' . $client->name . ' (NCC : ' . $client->ncc . ').',
+            $client
+        );
         return redirect()
             ->route('admin.clients.show', $client)
             ->with('success', "Client {$client->name} créé avec succès. NCC : {$client->ncc}");
@@ -96,45 +109,49 @@ class ClientController extends Controller
     {
         $client->load([
             'reservations' => fn($q) => $q->withCount('panels')->latest()->limit(5),
-            'campaigns'    => fn($q) => $q->latest()->limit(8),
-            'invoices'     => fn($q) => $q->latest()->limit(5),
+            'campaigns' => fn($q) => $q->latest()->limit(8),
+            'invoices' => fn($q) => $q->latest()->limit(5),
         ]);
 
         $totalFacture = $client->invoices()->sum('amount_ttc');
-        $sectors      = Client::SECTORS;
+        $sectors = Client::SECTORS;
 
         // ── Inventaire panneaux du client (Dev A) ─────────────────
         $panneauxReservations = \App\Models\ReservationPanel::with([
-                'panel.commune', 'panel.format', 'reservation',
-            ])
+            'panel.commune',
+            'panel.format',
+            'reservation',
+        ])
             ->whereHas('reservation', fn($q) => $q->where('client_id', $client->id))
             ->get()
             ->map(fn($rp) => [
-                'panel'            => $rp->panel,
-                'source'           => 'reservation',
+                'panel' => $rp->panel,
+                'source' => 'reservation',
                 'reference_source' => $rp->reservation->reference ?? '—',
-                'source_id'        => $rp->reservation->id,
-                'start_date'       => $rp->reservation->start_date,
-                'end_date'         => $rp->reservation->end_date,
-                'status'           => $rp->reservation->status->value ?? 'inconnu',
-                'status_label'     => $rp->reservation->status->label() ?? '—',
+                'source_id' => $rp->reservation->id,
+                'start_date' => $rp->reservation->start_date,
+                'end_date' => $rp->reservation->end_date,
+                'status' => $rp->reservation->status->value ?? 'inconnu',
+                'status_label' => $rp->reservation->status->label() ?? '—',
             ]);
 
         $panneauxCampagnes = \App\Models\CampaignPanel::with([
-                'panel.commune', 'panel.format', 'campaign',
-            ])
+            'panel.commune',
+            'panel.format',
+            'campaign',
+        ])
             ->where('type', 'interne')
             ->whereHas('campaign', fn($q) => $q->where('client_id', $client->id))
             ->get()
             ->map(fn($cp) => [
-                'panel'            => $cp->panel,
-                'source'           => 'campaign',
+                'panel' => $cp->panel,
+                'source' => 'campaign',
                 'reference_source' => $cp->campaign->name ?? '—',
-                'source_id'        => $cp->campaign->id,
-                'start_date'       => $cp->campaign->start_date,
-                'end_date'         => $cp->campaign->end_date,
-                'status'           => $cp->campaign->status->value ?? 'inconnu',
-                'status_label'     => $cp->campaign->status->label() ?? '—',
+                'source_id' => $cp->campaign->id,
+                'start_date' => $cp->campaign->start_date,
+                'end_date' => $cp->campaign->end_date,
+                'status' => $cp->campaign->status->value ?? 'inconnu',
+                'status_label' => $cp->campaign->status->label() ?? '—',
             ]);
 
         $panneauxClient = $panneauxCampagnes->concat($panneauxReservations)
@@ -144,7 +161,10 @@ class ClientController extends Controller
             ->values();
 
         return view('admin.clients.show', compact(
-            'client', 'totalFacture', 'sectors', 'panneauxClient'
+            'client',
+            'totalFacture',
+            'sectors',
+            'panneauxClient'
         ));
     }
 
@@ -164,7 +184,7 @@ class ClientController extends Controller
 
         Log::info('client.updated', [
             'client_id' => $client->id,
-            'user_id'   => auth()->id(),
+            'user_id' => auth()->id(),
         ]);
 
         return redirect()
@@ -179,17 +199,19 @@ class ClientController extends Controller
     public function destroy(Client $client)
     {
         if ($client->hasActiveCampaigns()) {
-            return back()->with('error',
-                'Impossible de supprimer ce client : il a des campagnes actives en cours.');
+            return back()->with(
+                'error',
+                'Impossible de supprimer ce client : il a des campagnes actives en cours.'
+            );
         }
 
         $name = $client->name;
         $client->delete();
 
         Log::info('client.deleted', [
-            'client_id'   => $client->id,
+            'client_id' => $client->id,
             'client_name' => $name,
-            'user_id'     => auth()->id(),
+            'user_id' => auth()->id(),
         ]);
 
         return redirect()
@@ -214,9 +236,9 @@ class ClientController extends Controller
         $motDePasse = $this->generateReadablePassword();
 
         $client->update([
-            'password'             => Hash::make($motDePasse),
+            'password' => Hash::make($motDePasse),
             'must_change_password' => true,
-            'password_changed_at'  => null,
+            'password_changed_at' => null,
         ]);
 
         try {
@@ -248,9 +270,9 @@ class ClientController extends Controller
         $motDePasse = $this->generateReadablePassword();
 
         $client->update([
-            'password'             => Hash::make($motDePasse),
+            'password' => Hash::make($motDePasse),
             'must_change_password' => true,
-            'password_changed_at'  => null,
+            'password_changed_at' => null,
         ]);
 
         try {
@@ -274,7 +296,7 @@ class ClientController extends Controller
     public function revokeAccount(Client $client)
     {
         $client->update([
-            'password'       => null,
+            'password' => null,
             'remember_token' => null,
         ]);
 
@@ -290,12 +312,12 @@ class ClientController extends Controller
     public function getClientData(Client $client)
     {
         return response()->json([
-            'id'           => $client->id,
-            'name'         => $client->name,
-            'email'        => $client->email,
-            'phone'        => $client->phone,
+            'id' => $client->id,
+            'name' => $client->name,
+            'email' => $client->email,
+            'phone' => $client->phone,
             'contact_name' => $client->contact_name,
-            'has_account'  => $client->hasAccount(),
+            'has_account' => $client->hasAccount(),
         ]);
     }
 
@@ -320,8 +342,8 @@ class ClientController extends Controller
      */
     private function generateReadablePassword(): string
     {
-        $adj    = ['Bleu', 'Rouge', 'Vert', 'Grand', 'Vif', 'Fort', 'Clair', 'Beau', 'Doré', 'Vaste'];
-        $nom    = ['Soleil', 'Lion', 'Fleuve', 'Arbre', 'Aigle', 'Mont', 'Pont', 'Phare', 'Lac', 'Ciel'];
+        $adj = ['Bleu', 'Rouge', 'Vert', 'Grand', 'Vif', 'Fort', 'Clair', 'Beau', 'Doré', 'Vaste'];
+        $nom = ['Soleil', 'Lion', 'Fleuve', 'Arbre', 'Aigle', 'Mont', 'Pont', 'Phare', 'Lac', 'Ciel'];
         $chiffr = rand(10, 99);
 
         return $adj[array_rand($adj)] . '-' . $nom[array_rand($nom)] . '-' . $chiffr;
@@ -330,25 +352,25 @@ class ClientController extends Controller
 
 
     // ══════════════════════════════════════════════════════════════
-     // STORE RAPIDE (AJAX) ; CREER CLIENT DEPUIS SELECT2 (ex: lors de la création d'une reservation)
-     // ══════════════════════════════════════════════════════════════
+    // STORE RAPIDE (AJAX) ; CREER CLIENT DEPUIS SELECT2 (ex: lors de la création d'une reservation)
+    // ══════════════════════════════════════════════════════════════
 
 
-     public function storeQuick(Request $request)
+    public function storeQuick(Request $request)
     {
         $data = $request->validate([
-            'name'         => 'required|string|max:150',
-            'email'        => 'nullable|email|unique:clients,email',
-            'phone'        => 'nullable|string|max:20',
+            'name' => 'required|string|max:150',
+            'email' => 'nullable|email|unique:clients,email',
+            'phone' => 'nullable|string|max:20',
             'contact_name' => 'nullable|string|max:150',
-            'ncc'          => 'nullable|string|max:50|unique:clients,ncc',
-            
+            'ncc' => 'nullable|string|max:50|unique:clients,ncc',
+
         ]);
 
         $client = Client::create($data);
 
         return response()->json([
-            'id'   => $client->id,
+            'id' => $client->id,
             'name' => $client->name,
             'text' => $client->name,
             'ncc' => $client->ncc,

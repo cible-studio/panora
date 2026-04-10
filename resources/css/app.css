@@ -17,9 +17,10 @@
   --border2: #2a303f;
 
   /* Accent (or) — changer ici pour la charte */
-  --accent:     #e8a020;
-  --accent2:    #f0c060;
+  --accent:     #fab80b;
+  --accent2:    #fab80b;
   --accent-dim: rgba(232,160,32,0.12);
+
 
   /* Textes */
   --text:  #eaedf5;
@@ -620,3 +621,44 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+/* Barre couleurs PROGICIA */
+
+.brand-bar{
+    position:fixed;
+    left:235px;
+    top:20px;
+    height:calc(100vh - 40px);
+    width:4px;                 /* plus mince */
+    display:flex;
+    flex-direction:column;
+    gap:6px;                   /* espace entre couleurs */
+    z-index:40;
+}
+
+.brand{
+    flex:1;
+    border-radius:6px;         /* coins arrondis */
+}
+
+/* Couleurs */
+
+.brand.red{
+    background:#e20613;
+}
+
+.brand.yellow{
+    background:#fab80b;
+}
+
+.brand.green{
+    background:#3aa835;
+}
+
+.brand.purple{
+    background:#81358a;
+}
+
+.brand.blue{
+    background:#3f7fc0;
+}

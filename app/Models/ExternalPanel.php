@@ -16,7 +16,8 @@ class ExternalPanel extends Model
     use HasFactory;
 
     protected $fillable = [
-        'agency_id', 'commune_id', 'zone_id', 'format_id', 'category_id',
+        'agency_id', 'client_id', 'campaign_id',
+        'commune_id', 'zone_id', 'format_id', 'category_id',
         'code_panneau', 'designation', 'type',
         'quartier', 'adresse', 'axe_routier', 'zone_description',
         'nombre_faces', 'type_support', 'orientation', 'is_lit',
@@ -32,6 +33,8 @@ class ExternalPanel extends Model
     ];
 
     public function agency()    { return $this->belongsTo(ExternalAgency::class, 'agency_id'); }
+    public function client()    { return $this->belongsTo(\App\Models\Client::class); }
+    public function campaign()  { return $this->belongsTo(\App\Models\Campaign::class); }
     public function commune()   { return $this->belongsTo(Commune::class); }
     public function zone()      { return $this->belongsTo(Zone::class); }
     public function format()    { return $this->belongsTo(PanelFormat::class, 'format_id'); }

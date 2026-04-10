@@ -73,6 +73,29 @@
               </span>
             </td>
             <td>
+              @php
+                $allCampaigns = $agency->externalPanels->flatMap(fn($p) => $p->campaigns)->unique('id');
+                $allClients   = $allCampaigns->pluck('client')->filter()->unique('id');
+              @endphp
+              @if($allClients->isEmpty())
+                <span style="color:var(--text3);font-size:12px;">—</span>
+              @else
+                <div style="display:flex;flex-direction:column;gap:4px;">
+                  @foreach($allClients->take(2) as $client)
+                    <span style="font-size:11px;padding:2px 8px;border-radius:20px;
+                                 background:rgba(63,127,192,0.12);color:#3f7fc0;
+                                 border:1px solid rgba(63,127,192,0.3);font-weight:600;
+                                 white-space:nowrap;display:inline-block;">
+                      👥 {{ $client->name }}
+                    </span>
+                  @endforeach
+                  @if($allClients->count() > 2)
+                    <span style="font-size:11px;color:var(--text3);">+{{ $allClients->count() - 2 }} autre(s)</span>
+                  @endif
+                </div>
+              @endif
+            </td>
+            <td>
               <div style="display:flex;gap:5px;">
                 <a href="{{ route('admin.external-agencies.show', $agency) }}"
                    class="btn btn-ghost btn-sm">Voir</a>
@@ -91,7 +114,7 @@
           </tr>
         @empty
           <tr>
-            <td colspan="5"
+            <td colspan="6"
                 style="text-align:center;padding:40px;color:var(--text3);">
               Aucune régie trouvée.
             </td>
