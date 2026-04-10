@@ -166,12 +166,18 @@ Route::prefix('admin')
         });
 
          // ── Piges Photos ──────────────────────────────────────────
-        Route::get('piges', [PigeController::class, 'index'])->name('piges.index');
-        Route::post('piges/upload', [PigeController::class, 'upload'])->name('piges.upload');
-        Route::get('piges/{pige}', [PigeController::class, 'show'])->name('piges.show');
-        Route::post('piges/{pige}/verify', [PigeController::class, 'verify'])->name('piges.verify');
-        Route::delete('piges/{pige}', [PigeController::class, 'destroy'])->name('piges.destroy');
-        Route::get('piges/export/pdf', [PigeController::class, 'exportPdf'])->name('piges.export.pdf');
+        Route::prefix('piges')->name('piges.')->group(function () {
+            Route::get('/',                [PigeController::class, 'index'])      ->name('index');
+            Route::post('/upload',         [PigeController::class, 'upload'])     ->name('upload');
+            Route::get('/export-pdf',      [PigeController::class, 'exportPdf']) ->name('export-pdf');
+            // Spécifiques AVANT {pige}
+            Route::get('/campagne/{campaign}', [PigeController::class, 'byCampaign'])->name('by-campaign');
+        
+            Route::get('/{pige}',          [PigeController::class, 'show'])      ->name('show');
+            Route::post('/{pige}/verify',  [PigeController::class, 'verify'])    ->name('verify');
+            Route::post('/{pige}/reject',  [PigeController::class, 'reject'])    ->name('reject');
+            Route::delete('/{pige}',       [PigeController::class, 'destroy'])   ->name('destroy');
+        });
 
        // ── Taxes Communes ────────────────────────────────────────
         Route::resource('taxes', TaxController::class);

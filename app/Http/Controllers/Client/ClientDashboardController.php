@@ -17,7 +17,7 @@ class ClientDashboardController extends Controller
     // DASHBOARD PRINCIPAL
     // ══════════════════════════════════════════════════════════════
 
-   public function index()
+    public function index()
     {
         $client = Auth::guard('client')->user();
         
@@ -226,4 +226,39 @@ class ClientDashboardController extends Controller
         $h = rtrim(rtrim(number_format($format->height, 2, '.', ''), '0'), '.');
         return "{$w}×{$h}m";
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // PIGES — liste + filtre (réutilise PigeService pour la logique métier)
+    // ══════════════════════════════════════════════════════════════
+
+    public function piges(Request $request)
+    {
+        $client = auth()->user()->client;
+        if (!$client) abort(403);
+    
+        $query = Pige::with([
+                'panel:id,reference,name',
+                'campaign:id,name',
+            ])
+            ->forClient($client->id)      // scope Pige::scopeForClient()
+            ->verified()                  // le client ne voit que les vérifiées
+            ->latest('taken_at');
+    
+        if ($request->filled('campaign_id')) {
+            $query->where('campaign_id', (int)$request->campaign_id);
+        }
+    
+        $piges = $query->paginate(20);
+    
+        // Campagnes du client pour le filtre
+        $campaigns = \App\Models\Campaign::where('client_id', $client->id)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    
+        // Stats
+        $totalPiges = Pige::forClient($client->id)->verified()->count();
+    
+        return view('client.piges', compact('piges', 'campaigns', 'totalPiges', 'client'));
+    }
+
 }
