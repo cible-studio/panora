@@ -6,10 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>PROGICIA — {{ $title ?? 'Dashboard' }}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+    <link rel="icon" href="{{ asset('images/faviconl.png') }}" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="{{ asset('images/favicond.png') }}" media="(prefers-color-scheme: dark)">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap"
+        rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
-    .nav-icon { width:18px; height:18px; flex-shrink:0; }
+        .nav-icon {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
     </style>
 </head>
 
@@ -20,8 +28,9 @@
         <aside class="sidebar">
             <div class="sidebar-logo">
                 <div class="sidebar-logo-mark">
-                    <img id="logo-dark"  class="w-40" src="{{ asset('images/logob.png') }}" alt="Logo PROGICIA">
-                    <img id="logo-light" class="w-40" src="{{ asset('images/logol.png') }}" alt="Logo PROGICIA" style="display:none;">
+                    <img id="logo-dark" class="w-40" src="{{ asset('images/logob.png') }}" alt="Logo PROGICIA">
+                    <img id="logo-light" class="w-40" src="{{ asset('images/logol.png') }}" alt="Logo PROGICIA"
+                        style="display:none;">
                 </div>
             </div>
 
@@ -30,75 +39,178 @@
             <nav style="flex:1; padding: 8px 0;">
                 <div class="nav-section">
                     <div class="nav-label">Principal</div>
-                    <a href="{{ route('dashboard') }}" class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span> Tableau de bord
+                    <a href="{{ route('dashboard') }}"
+                        class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613"
+                                stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7" rx="1" />
+                                <rect x="14" y="3" width="7" height="7" rx="1" />
+                                <rect x="3" y="14" width="7" height="7" rx="1" />
+                                <rect x="14" y="14" width="7" height="7" rx="1" />
+                            </svg></span> Tableau de bord
                     </a>
-                    <a href="{{ route('admin.reservations.disponibilites') }}" class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span> Disponibilités
+                    <a href="{{ route('admin.reservations.disponibilites') }}"
+                        class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b"
+                                stroke-width="2">
+                                <rect x="3" y="4" width="18" height="18" rx="2" />
+                                <path d="M16 2v4M8 2v4M3 10h18" />
+                                <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
+                            </svg></span> Disponibilités
                         <span class="nav-badge">{{ App\Models\Panel::where('status', 'libre')->count() }}</span>
                     </a>
-                    <a href="{{ route('admin.panels.index') }}" class="nav-item {{ request()->routeIs('admin.panels.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span> Inventaire
+                    <a href="{{ route('admin.panels.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.panels.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0"
+                                stroke-width="2">
+                                <rect x="2" y="3" width="20" height="14" rx="2" />
+                                <path d="M8 21h8M12 17v4" />
+                            </svg></span> Inventaire
                     </a>
-                    <a href="{{ route('admin.campaigns.index') }}" class="nav-item {{ request()->routeIs('admin.campaigns.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span> Campagnes
-                        <span class="nav-badge blue">{{ App\Models\Campaign::where('status', 'actif')->count() }}</span>
+                    <a href="{{ route('admin.campaigns.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.campaigns.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a"
+                                stroke-width="2">
+                                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                            </svg></span> Campagnes
+                        <span
+                            class="nav-badge blue">{{ App\Models\Campaign::where('status', 'actif')->count() }}</span>
                     </a>
-                    <a href="{{ route('admin.clients.index') }}" class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Clients
+                    <a href="{{ route('admin.clients.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835"
+                                stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                <circle cx="9" cy="7" r="4" />
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                            </svg></span> Clients
                     </a>
-                    <a href="{{ route('admin.external-agencies.index') }}" class="nav-item {{ request()->routeIs('admin.external-agencies.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span> Régies externes
+                    <a href="{{ route('admin.external-agencies.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.external-agencies.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b"
+                                stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                                <polyline points="9 22 9 12 15 12 15 22" />
+                            </svg></span> Régies externes
                     </a>
                 </div>
 
                 <div class="nav-section">
                     <div class="nav-label">Opérations</div>
-                    <a href="{{ route('admin.reservations.index') }}" class="nav-item {{ request()->routeIs('admin.reservations.*') && !request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span> Confirmations
-                        <span class="nav-badge red">{{ App\Models\Reservation::where('status', 'en_attente')->count() }}</span>
+                    <a href="{{ route('admin.reservations.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.reservations.*') && !request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#3aa835" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg></span> Confirmations
+                        <span
+                            class="nav-badge red">{{ App\Models\Reservation::where('status', 'en_attente')->count() }}</span>
                     </a>
-                    <a href="{{ route('admin.pose-tasks.index') }}" class="nav-item {{ request()->routeIs('admin.pose-tasks.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></span> Gestion Pose OOH
+                    <a href="{{ route('admin.pose-tasks.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.pose-tasks.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#e20613" stroke-width="2">
+                                <rect x="2" y="7" width="20" height="14" rx="2" />
+                                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                                <line x1="12" y1="12" x2="12" y2="16" />
+                                <line x1="10" y1="14" x2="14" y2="14" />
+                            </svg></span> Gestion Pose OOH
                     </a>
-                    <a href="{{ route('admin.piges.index') }}" class="nav-item {{ request()->routeIs('admin.piges.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span> Piges Photos
+                    <a href="{{ route('admin.piges.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.piges.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#3f7fc0" stroke-width="2">
+                                <path
+                                    d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                <circle cx="12" cy="13" r="4" />
+                            </svg></span> Piges Photos
                     </a>
-                    <a href="{{ route('admin.taxes.index') }}" class="nav-item {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Taxes Communes
+                    <a href="{{ route('admin.taxes.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#81358a" stroke-width="2">
+                                <line x1="12" y1="1" x2="12" y2="23" />
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                            </svg></span> Taxes Communes
                     </a>
-                    <a href="{{ route('admin.invoices.index') }}" class="nav-item {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span> Facturation
+                    <a href="{{ route('admin.invoices.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#3aa835" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                                <line x1="16" y1="13" x2="8" y2="13" />
+                                <line x1="16" y1="17" x2="8" y2="17" />
+                                <polyline points="10 9 9 9 8 9" />
+                            </svg></span> Facturation
                     </a>
-                    <a href="{{ route('admin.alerts.index') }}" class="nav-item {{ request()->routeIs('admin.alerts.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span> Alertes
+                    <a href="{{ route('admin.alerts.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.alerts.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#e20613" stroke-width="2">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                            </svg></span> Alertes
                         <span class="nav-badge red">{{ App\Models\Alert::where('is_read', false)->count() }}</span>
                     </a>
                 </div>
 
                 <div class="nav-section">
                     <div class="nav-label">Analyse</div>
-                    <a href="{{ route('admin.map') }}" class="nav-item {{ request()->routeIs('admin.map*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></span> Carte & Heatmap
+                    <a href="{{ route('admin.map') }}"
+                        class="nav-item {{ request()->routeIs('admin.map*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#3f7fc0" stroke-width="2">
+                                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                                <line x1="8" y1="2" x2="8" y2="18" />
+                                <line x1="16" y1="6" x2="16" y2="22" />
+                            </svg></span> Carte & Heatmap
                     </a>
                     <a href="{{ route('admin.rapports.index') }}" class="nav-item">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span> Rapports
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#81358a" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                                <line x1="16" y1="13" x2="8" y2="13" />
+                                <line x1="16" y1="17" x2="8" y2="17" />
+                            </svg></span> Rapports
                     </a>
                 </div>
 
                 <div class="nav-section">
                     <div class="nav-label">Administration</div>
-                    <a href="{{ route('admin.users.index') }}" class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Utilisateurs
+                    <a href="{{ route('admin.users.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#3f7fc0" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg></span> Utilisateurs
                     </a>
-                    <a href="{{ route('admin.maintenances.index') }}" class="nav-item {{ request()->routeIs('admin.maintenances.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Maintenance
+                    <a href="{{ route('admin.maintenances.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.maintenances.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#e20613" stroke-width="2">
+                                <path
+                                    d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                            </svg></span> Maintenance
                     </a>
-                    <a href="{{ route('admin.audit.logs') }}" class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span> Logs d'audit
+                    <a href="{{ route('admin.audit.logs') }}"
+                        class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#fab80b" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg></span> Logs d'audit
                     </a>
-                    <a href="{{ route('admin.settings.index') }}" class="nav-item {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Paramètres
+                    <a href="{{ route('admin.settings.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
+                                stroke="#3aa835" stroke-width="2">
+                                <circle cx="12" cy="12" r="3" />
+                                <path
+                                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                            </svg></span> Paramètres
                     </a>
                 </div>
             </nav>
@@ -112,7 +224,10 @@
                     </div>
                     <form method="POST" action="{{ route('logout') }}" style="margin-left:auto">
                         @csrf
-                        <button type="submit" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;" title="Déconnexion" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">⏻</button>
+                        <button type="submit"
+                            style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;"
+                            title="Déconnexion" onmouseover="this.style.color='var(--red)'"
+                            onmouseout="this.style.color='var(--text3)'">⏻</button>
                     </form>
                 </div>
             </div>
@@ -132,10 +247,14 @@
             <div class="topbar" style="position:fixed; top:0; left:235px; right:0; z-index:30;">
                 <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
                 <div style="display:flex;align-items:center;gap:10px;">
-                    <button onclick="toggleTheme()" id="theme-toggle-btn" class="btn btn-ghost btn-sm" title="Basculer dark/light mode" style="font-size:16px; padding:6px 10px; border-radius:8px;">🌙</button>
-                    <a href="{{ route('admin.alerts.index') }}" class="btn btn-ghost btn-sm" style="position:relative;" title="Alertes non lues">
+                    <button onclick="toggleTheme()" id="theme-toggle-btn" class="btn btn-ghost btn-sm"
+                        title="Basculer dark/light mode"
+                        style="font-size:16px; padding:6px 10px; border-radius:8px;">🌙</button>
+                    <a href="{{ route('admin.alerts.index') }}" class="btn btn-ghost btn-sm"
+                        style="position:relative;" title="Alertes non lues">
                         🔔
-                        <span id="alert-badge" class="nav-badge red" style="position:relative;{{ App\Models\Alert::where('is_read', false)->count() === 0 ? 'display:none;' : '' }}">
+                        <span id="alert-badge" class="nav-badge red"
+                            style="position:relative;{{ App\Models\Alert::where('is_read', false)->count() === 0 ? 'display:none;' : '' }}">
                             {{ App\Models\Alert::where('is_read', false)->count() }}
                         </span>
                     </a>
@@ -159,44 +278,180 @@
     </div>
 
     {{-- TOAST --}}
-    <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:380px;"></div>
+    <div id="toast-container"
+        style="position:fixed;top:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:380px;">
+    </div>
 
     @if (session('success'))
-        <script>document.addEventListener('DOMContentLoaded', () => showToast('success', @json(session('success'))));</script>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => showToast('success', @json(session('success'))));
+        </script>
     @endif
     @if (session('error'))
-        <script>document.addEventListener('DOMContentLoaded', () => showToast('error', @json(session('error'))));</script>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => showToast('error', @json(session('error'))));
+        </script>
     @endif
     @if (session('warning'))
-        <script>document.addEventListener('DOMContentLoaded', () => showToast('warning', @json(session('warning'))));</script>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => showToast('warning', @json(session('warning'))));
+        </script>
     @endif
     @if (session('info'))
-        <script>document.addEventListener('DOMContentLoaded', () => showToast('info', @json(session('info'))));</script>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => showToast('info', @json(session('info'))));
+        </script>
     @endif
 
     <style>
-        .toast { min-width:300px; max-width:380px; padding:14px 16px; border-radius:12px; font-size:13px; font-weight:500; display:flex; align-items:flex-start; gap:12px; pointer-events:all; cursor:pointer; box-shadow:0 8px 32px rgba(0,0,0,.5); animation:toastIn .3s cubic-bezier(0.34,1.56,0.64,1); line-height:1.5; border:1px solid transparent; backdrop-filter:blur(8px); }
-        .toast.success { background:rgba(5,46,22,0.95); border-color:#166534; color:#4ade80; }
-        .toast.error   { background:rgba(28,10,10,0.95); border-color:#7f1d1d; color:#f87171; }
-        .toast.warning { background:rgba(28,18,0,0.95); border-color:#78350f; color:#fbbf24; }
-        .toast.info    { background:rgba(12,26,46,0.95); border-color:#1e3a5f; color:#60a5fa; }
-        .toast-icon-wrap { width:32px; height:32px; border-radius:8px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; }
-        .toast.success .toast-icon-wrap { background:rgba(74,222,128,0.15); }
-        .toast.error   .toast-icon-wrap { background:rgba(248,113,113,0.15); }
-        .toast.warning .toast-icon-wrap { background:rgba(251,191,36,0.15); }
-        .toast.info    .toast-icon-wrap { background:rgba(96,165,250,0.15); }
-        .toast-body { flex:1; min-width:0; }
-        .toast-label { font-size:10px; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:2px; }
-        .toast-msg-text { font-size:12px; opacity:0.8; line-height:1.4; }
-        .toast-close { margin-left:4px; font-size:14px; opacity:.4; cursor:pointer; background:none; border:none; color:inherit; padding:0; flex-shrink:0; align-self:flex-start; margin-top:2px; }
-        .toast-close:hover { opacity:1; }
-        @keyframes toastIn  { from { opacity:0; transform:translateX(24px) scale(.95); } to { opacity:1; transform:translateX(0) scale(1); } }
-        @keyframes toastOut { from { opacity:1; transform:translateX(0); max-height:120px; } to { opacity:0; transform:translateX(24px); max-height:0; padding:0; } }
+        .toast {
+            min-width: 300px;
+            max-width: 380px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            pointer-events: all;
+            cursor: pointer;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, .5);
+            animation: toastIn .3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            line-height: 1.5;
+            border: 1px solid transparent;
+            backdrop-filter: blur(8px);
+        }
+
+        .toast.success {
+            background: rgba(5, 46, 22, 0.95);
+            border-color: #166534;
+            color: #4ade80;
+        }
+
+        .toast.error {
+            background: rgba(28, 10, 10, 0.95);
+            border-color: #7f1d1d;
+            color: #f87171;
+        }
+
+        .toast.warning {
+            background: rgba(28, 18, 0, 0.95);
+            border-color: #78350f;
+            color: #fbbf24;
+        }
+
+        .toast.info {
+            background: rgba(12, 26, 46, 0.95);
+            border-color: #1e3a5f;
+            color: #60a5fa;
+        }
+
+        .toast-icon-wrap {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .toast.success .toast-icon-wrap {
+            background: rgba(74, 222, 128, 0.15);
+        }
+
+        .toast.error .toast-icon-wrap {
+            background: rgba(248, 113, 113, 0.15);
+        }
+
+        .toast.warning .toast-icon-wrap {
+            background: rgba(251, 191, 36, 0.15);
+        }
+
+        .toast.info .toast-icon-wrap {
+            background: rgba(96, 165, 250, 0.15);
+        }
+
+        .toast-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .toast-label {
+            font-size: 10px;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 2px;
+        }
+
+        .toast-msg-text {
+            font-size: 12px;
+            opacity: 0.8;
+            line-height: 1.4;
+        }
+
+        .toast-close {
+            margin-left: 4px;
+            font-size: 14px;
+            opacity: .4;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: inherit;
+            padding: 0;
+            flex-shrink: 0;
+            align-self: flex-start;
+            margin-top: 2px;
+        }
+
+        .toast-close:hover {
+            opacity: 1;
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateX(24px) scale(.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0) scale(1);
+            }
+        }
+
+        @keyframes toastOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+                max-height: 120px;
+            }
+
+            to {
+                opacity: 0;
+                transform: translateX(24px);
+                max-height: 0;
+                padding: 0;
+            }
+        }
     </style>
 
     <script>
-        const TOAST_ICONS  = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
-        const TOAST_LABELS = { success:'Succès', error:'Erreur', warning:'Avertissement', info:'Information' };
+        const TOAST_ICONS = {
+            success: '✅',
+            error: '❌',
+            warning: '⚠️',
+            info: 'ℹ️'
+        };
+        const TOAST_LABELS = {
+            success: 'Succès',
+            error: 'Erreur',
+            warning: 'Avertissement',
+            info: 'Information'
+        };
 
         function showToast(type, message, duration, title) {
             duration = duration || (type === 'error' ? 7000 : 5000);
@@ -205,7 +460,7 @@
             const toast = document.createElement('div');
             toast.className = 'toast ' + type;
             const label = title || TOAST_LABELS[type] || 'Notification';
-            const icon  = TOAST_ICONS[type] || 'ℹ️';
+            const icon = TOAST_ICONS[type] || 'ℹ️';
             toast.innerHTML =
                 `<div class="toast-icon-wrap">${icon}</div>` +
                 `<div class="toast-body"><div class="toast-label">${label}</div><div class="toast-msg-text">${message}</div></div>` +
@@ -225,14 +480,16 @@
 
         window.Toast = {
             success: (m, d) => showToast('success', m, d),
-            error:   (m, d) => showToast('error', m, d),
+            error: (m, d) => showToast('error', m, d),
             warning: (m, d) => showToast('warning', m, d),
-            info:    (m, d) => showToast('info', m, d),
+            info: (m, d) => showToast('info', m, d),
         };
     </script>
 
     <script>
-        (function() { applyTheme(localStorage.getItem('theme') || 'dark'); })();
+        (function() {
+            applyTheme(localStorage.getItem('theme') || 'dark');
+        })();
 
         function toggleTheme() {
             const next = (localStorage.getItem('theme') || 'dark') === 'dark' ? 'light' : 'dark';
@@ -246,7 +503,7 @@
             if (btn) btn.textContent = theme === 'dark' ? '🌙' : '☀️';
             const dl = document.getElementById('logo-dark');
             const ll = document.getElementById('logo-light');
-            if (dl) dl.style.display = theme === 'dark'  ? 'block' : 'none';
+            if (dl) dl.style.display = theme === 'dark' ? 'block' : 'none';
             if (ll) ll.style.display = theme === 'light' ? 'block' : 'none';
         }
 
@@ -263,7 +520,10 @@
         async function checkAlerts() {
             try {
                 const res = await fetch('/api/alerts/latest', {
-                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
                 });
                 if (!res.ok) return;
                 const alerts = await res.json();
@@ -283,8 +543,15 @@
                     // Sauvegarder dans localStorage → persiste après rechargement
                     localStorage.setItem('shownAlertIds', JSON.stringify([..._shownAlertIds]));
 
-                    const typeLabels = { maintenance:'Maintenance', reservation:'Réservation', campagne:'Campagne', panneau:'Panneau', client:'Client' };
-                    const level = alert.niveau === 'danger' ? 'error' : alert.niveau === 'warning' ? 'warning' : 'info';
+                    const typeLabels = {
+                        maintenance: 'Maintenance',
+                        reservation: 'Réservation',
+                        campagne: 'Campagne',
+                        panneau: 'Panneau',
+                        client: 'Client'
+                    };
+                    const level = alert.niveau === 'danger' ? 'error' : alert.niveau === 'warning' ? 'warning' :
+                        'info';
 
                     showToast(
                         level,
@@ -293,7 +560,7 @@
                         typeLabels[alert.type] || 'Alerte'
                     );
                 });
-            } catch(e) {}
+            } catch (e) {}
         }
 
         // Au chargement (2s de délai) + toutes les 30s
@@ -303,4 +570,5 @@
 
     @stack('scripts')
 </body>
+
 </html>

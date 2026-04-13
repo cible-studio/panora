@@ -1,408 +1,364 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" id="html-root" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Mon espace') — CIBLE CI</title>
-    
+    <link rel="icon" href="{{ asset('images/faviconl.png') }}" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="{{ asset('images/favicond.png') }}" media="(prefers-color-scheme: dark)">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
-    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background: #0a0c15;
-            min-height: 100vh;
-        }
-        
-        /* Custom colors */
-        :root {
-            --primary: #e8a020;
-            --primary-dark: #c47a00;
-            --primary-light: #fbbf24;
-        }
-        
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #1a1d2e;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: var(--primary);
-            border-radius: 4px;
-        }
-        
-        /* Sidebar transition */
-        .sidebar-transition {
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        /* Animation fade in */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        .animate-fade-in {
-            animation: fadeInUp 0.4s ease-out;
-        }
-        
-        /* Toast animation */
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(100px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-        .animate-slide-in {
-            animation: slideIn 0.3s ease-out;
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Inter',sans-serif; min-height:100vh; }
+
+        /* ── DARK MODE (défaut) ── */
+        :root, [data-theme="dark"] {
+            --bg:           #080a12;
+            --sidebar-bg:   #0d0f1a;
+            --sidebar-border: rgba(255,255,255,0.06);
+            --topbar-bg:    rgba(8,10,18,0.95);
+            --surface:      #0d0f1a;
+            --surface2:     #13162a;
+            --border:       rgba(255,255,255,0.06);
+            --border2:      rgba(255,255,255,0.1);
+            --text:         #e2e8f0;
+            --text2:        #94a3b8;
+            --text3:        #4b5563;
+            --footer-bg:    #080a12;
+            --nav-hover-bg: rgba(226,6,19,0.07);
+            --nav-active-bg:rgba(226,6,19,0.1);
+            --nav-color:    #6b7280;
+            --logo:         url('{{ asset("images/logob.png") }}');
         }
 
-        /* Main wrapper for sticky footer */
-        .main-wrapper {
-            display: flex;
-            min-height: 100vh;
+        /* ── LIGHT MODE ── */
+        [data-theme="light"] {
+            --bg:           #f4f5f7;
+            --sidebar-bg:   #ffffff;
+            --sidebar-border: rgba(0,0,0,0.08);
+            --topbar-bg:    rgba(255,255,255,0.95);
+            --surface:      #ffffff;
+            --surface2:     #f4f5f7;
+            --border:       rgba(0,0,0,0.07);
+            --border2:      rgba(0,0,0,0.12);
+            --text:         #0f172a;
+            --text2:        #475569;
+            --text3:        #94a3b8;
+            --footer-bg:    #eef0f4;
+            --nav-hover-bg: rgba(226,6,19,0.05);
+            --nav-active-bg:rgba(226,6,19,0.08);
+            --nav-color:    #64748b;
+            --logo:         url('{{ asset("images/logol.png") }}');
         }
 
-        /* Main content wrapper */
-        .main-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
+        body { background:var(--bg); color:var(--text); }
 
-        /* Content that grows */
-        .content-wrapper {
-            flex: 1;
-        }
+        ::-webkit-scrollbar { width:5px; height:5px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:#e20613; border-radius:4px; }
 
-        /* Sidebar wrapper */
-        .sidebar-wrapper {
-            position: sticky;
-            top: 0;
-            height: 100vh;
-            z-index: 50;
-        }
+        .sidebar-transition { transition:transform 0.3s cubic-bezier(0.4,0,0.2,1); }
 
-        /* Fix menu categories */
-        .nav-category {
-            font-size: 0.65rem;
-            letter-spacing: 0.05em;
-            color: #6b7280;
-            font-weight: 600;
-        }
+        @keyframes fadeInUp { from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);} }
+        .animate-fade-in { animation:fadeInUp 0.35s ease-out; }
 
-        /* Active nav item */
-        .nav-item-active {
-            background-color: rgba(232, 160, 32, 0.1);
-            color: #e8a020;
-            border-right: 2px solid #e8a020;
-        }
+        @keyframes slideIn { from{opacity:0;transform:translateX(80px);}to{opacity:1;transform:translateX(0);} }
+        .animate-slide-in { animation:slideIn 0.3s ease-out; }
 
-        /* Hover effects */
-        .nav-item-hover:hover {
-            background-color: rgba(232, 160, 32, 0.1);
-            color: #e8a020;
+        .main-wrapper { display:flex; min-height:100vh; }
+        .main-content { flex:1; display:flex; flex-direction:column; min-height:100vh; overflow-x:hidden; }
+        .content-wrapper { flex:1; }
+        .sidebar-wrapper { position:sticky; top:0; height:100vh; z-index:50; flex-shrink:0; }
+
+        /* Nav */
+        .nav-category { font-size:9px; letter-spacing:.12em; color:var(--text3); font-weight:700; text-transform:uppercase; padding:0 12px; margin-bottom:4px; margin-top:8px; }
+
+        .nav-item {
+            display:flex; align-items:center; gap:10px;
+            padding:9px 12px; border-radius:10px;
+            font-size:13px; font-weight:500; color:var(--nav-color);
+            transition:all .15s; cursor:pointer; text-decoration:none;
+            position:relative; width:100%; border:none; background:none;
         }
+        .nav-item:hover { background:var(--nav-hover-bg); color:var(--text); }
+        .nav-item.active { background:var(--nav-active-bg); color:var(--text); }
+        .nav-item.active::before {
+            content:''; position:absolute; left:0; top:20%; bottom:20%;
+            width:3px; border-radius:0 3px 3px 0; background:#e20613;
+        }
+        .nav-item .nav-icon { width:16px; height:16px; flex-shrink:0; opacity:.6; }
+        .nav-item.active .nav-icon, .nav-item:hover .nav-icon { opacity:1; }
+        .nav-badge { margin-left:auto; background:#e20613; color:#fff; font-size:9px; font-weight:700; padding:1px 6px; border-radius:20px; min-width:18px; text-align:center; }
+
+        .avatar { width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg,#e20613,#fab80b); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; color:#fff; flex-shrink:0; }
+
+        /* Theme toggle btn */
+        .theme-btn { padding:6px 8px; border-radius:8px; border:1px solid var(--border2); background:var(--surface2); color:var(--text2); cursor:pointer; font-size:14px; transition:all .15s; }
+        .theme-btn:hover { border-color:#e20613; color:var(--text); }
+
+        /* Topbar */
+        .topbar { position:sticky; top:0; z-index:40; background:var(--topbar-bg); backdrop-filter:blur(16px); border-bottom:1px solid var(--border); padding:12px 24px; }
+
+        /* Sidebar */
+        .sidebar { background:var(--sidebar-bg); border-right:1px solid var(--sidebar-border); height:100%; display:flex; flex-direction:column; }
+        .sidebar-header { padding:20px 20px 16px; border-bottom:1px solid var(--sidebar-border); }
+        .sidebar-footer-section { padding:12px; border-top:1px solid var(--sidebar-border); }
     </style>
     @stack('styles')
 </head>
 
 <body>
-
 @php $client = auth('client')->user(); @endphp
 
+{{-- Appliquer le thème sauvegardé AVANT le rendu --}}
+<script>
+    (function(){
+        const t = localStorage.getItem('client-theme') || 'dark';
+        document.getElementById('html-root').setAttribute('data-theme', t);
+    })();
+</script>
+
 <div class="main-wrapper">
-    <!-- Sidebar -->
-    <div class="sidebar-wrapper hidden lg:block w-72">
-        <aside class="h-full bg-gradient-to-b from-[#11131f] to-[#0a0c15] border-r border-white/5 overflow-y-auto flex flex-col">
-            <!-- Logo Section -->
-            <div class="p-6 border-b border-white/5">
-                <div class="text-2xl font-extrabold bg-gradient-to-r from-[#e8a020] to-[#fbbf24] bg-clip-text text-transparent">CIBLE CI</div>
-                <div class="text-[10px] text-gray-500 mt-1 tracking-wider">ESPACE CLIENT PREMIUM</div>
+
+    {{-- ══ SIDEBAR DESKTOP ══ --}}
+    <div class="sidebar-wrapper hidden lg:block w-64">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <img id="logo-img" src="{{ asset('images/logob.png') }}" alt="CIBLE CI" class="w-40">
+                <div style="font-size:9px;letter-spacing:.12em;color:var(--text3);font-weight:700;margin-top:14px;">ESPACE CLIENT</div>
             </div>
 
-            <!-- Navigation Menu - Clean Structure -->
-            <nav class="flex-1 p-4 space-y-1">
-                <!-- Main Navigation -->
-                <div>
-                    <div class="nav-category px-4 py-2">MENU PRINCIPAL</div>
-                    <div class="space-y-1">
-                        <a href="{{ route('client.dashboard') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all {{ request()->routeIs('client.dashboard') ? 'nav-item-active' : 'nav-item-hover' }}">
-                            <span class="text-xl">📊</span>
-                            <span class="text-sm font-medium">Tableau de bord</span>
-                        </a>
-                        
-                        <a href="{{ route('client.propositions') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all {{ request()->routeIs('client.propositions*') ? 'nav-item-active' : 'nav-item-hover' }}">
-                            <span class="text-xl">📋</span>
-                            <span class="text-sm font-medium">Propositions</span>
-                            @php $pendingCount = $client->reservations()->where('status','en_attente')->whereNotNull('proposition_token')->where('end_date','>=',now())->count(); @endphp
-                            @if($pendingCount > 0)
-                                <span class="ml-auto bg-[#e8a020] text-[#0a0c15] text-[10px] font-bold px-2 py-0.5 rounded-full">{{ $pendingCount > 9 ? '9+' : $pendingCount }}</span>
-                            @endif
-                        </a>
-                        
-                        <a href="{{ route('client.campagnes') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all {{ request()->routeIs('client.campagnes*') ? 'nav-item-active' : 'nav-item-hover' }}">
-                            <span class="text-xl">📢</span>
-                            <span class="text-sm font-medium">Campagnes</span>
-                        </a>
-                    </div>
-                </div>
+            <nav class="flex-1 px-3 py-4 overflow-y-auto" style="display:flex;flex-direction:column;gap:2px;">
+                <div class="nav-category">Principal</div>
 
-                <!-- Separator -->
-                <div class="h-px bg-white/5 my-4"></div>
+                <a href="{{ route('client.dashboard') }}" class="nav-item {{ request()->routeIs('client.dashboard') ? 'active' : '' }}">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    Tableau de bord
+                </a>
 
-                <!-- Account Section -->
-                <div>
-                    <div class="nav-category px-4 py-2">MON COMPTE</div>
-                    <div class="space-y-1">
-                        <a href="{{ route('client.profil') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all {{ request()->routeIs('client.profil*') ? 'nav-item-active' : 'nav-item-hover' }}">
-                            <span class="text-xl">👤</span>
-                            <span class="text-sm font-medium">Mon profil</span>
-                        </a>
-                        
-                        <a href="{{ route('client.password.change') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all {{ request()->routeIs('client.password*') ? 'nav-item-active' : 'nav-item-hover' }}">
-                            <span class="text-xl">🔒</span>
-                            <span class="text-sm font-medium">Sécurité</span>
-                        </a>
-                    </div>
-                </div>
+                <a href="{{ route('client.propositions') }}" class="nav-item {{ request()->routeIs('client.propositions*') ? 'active' : '' }}">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Propositions
+                    @php $pendingCount = $client->reservations()->where('status','en_attente')->whereNotNull('proposition_token')->where('end_date','>=',now())->count(); @endphp
+                    @if($pendingCount > 0)
+                        <span class="nav-badge">{{ $pendingCount > 9 ? '9+' : $pendingCount }}</span>
+                    @endif
+                </a>
 
-                <!-- Additional Features -->
-                <div class="h-px bg-white/5 my-4"></div>
-                
-                <div>
-                    <div class="nav-category px-4 py-2">RESSOURCES</div>
-                    <div class="space-y-1">
-                        <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all nav-item-hover">
-                            <span class="text-xl">🔍</span>
-                            <span class="text-sm font-medium">Recherche</span>
-                        </a>
-                        
-                        <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all nav-item-hover">
-                            <span class="text-xl">📚</span>
-                            <span class="text-sm font-medium">Références</span>
-                        </a>
-                    </div>
-                </div>
+                <a href="{{ route('client.campagnes') }}" class="nav-item {{ request()->routeIs('client.campagnes*') ? 'active' : '' }}">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    Campagnes
+                </a>
+
+                <div class="nav-category" style="margin-top:12px;">Mon compte</div>
+
+                <a href="{{ route('client.profil') }}" class="nav-item {{ request()->routeIs('client.profil*') ? 'active' : '' }}">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    Mon profil
+                </a>
+
+                <a href="{{ route('client.password.change') }}" class="nav-item {{ request()->routeIs('client.password*') ? 'active' : '' }}">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Sécurité
+                </a>
             </nav>
 
-            <!-- Sidebar Footer - Logout (Fixed at bottom) -->
-            <div class="mt-auto p-4 border-t border-white/5">
+            <div class="sidebar-footer-section">
+                <div style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:8px;">
+                    <div class="avatar">{{ strtoupper(mb_substr($client->name, 0, 1)) }}</div>
+                    <div style="min-width:0;flex:1;">
+                        <div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $client->name }}</div>
+                        <div style="font-size:10px;color:var(--text3);">{{ $client->ncc ?? 'Client' }}</div>
+                    </div>
+                </div>
                 <form method="POST" action="{{ route('client.logout') }}">
                     @csrf
-                    <button type="submit" class="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-all">
-                        <span class="text-xl">🚪</span>
-                        <span class="text-sm font-medium">Déconnexion</span>
+                    <button type="submit" class="nav-item" style="color:#ef4444;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.15);">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                        Déconnexion
                     </button>
                 </form>
             </div>
-        </aside>
+        </div>
     </div>
 
-    <!-- Mobile Sidebar -->
-    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden" onclick="closeSidebar()"></div>
-    <aside id="mobile-sidebar" class="fixed top-0 left-0 z-50 w-72 h-full bg-gradient-to-b from-[#11131f] to-[#0a0c15] border-r border-white/5 overflow-y-auto sidebar-transition -translate-x-full flex flex-col">
-        <div class="p-6 border-b border-white/5">
-            <div class="text-2xl font-extrabold bg-gradient-to-r from-[#e8a020] to-[#fbbf24] bg-clip-text text-transparent">CIBLE CI</div>
-            <div class="text-[10px] text-gray-500 mt-1 tracking-wider">ESPACE CLIENT PREMIUM</div>
+    {{-- ══ SIDEBAR MOBILE ══ --}}
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 z-40 hidden backdrop-blur-sm" onclick="closeSidebar()"></div>
+    <aside id="mobile-sidebar" class="fixed top-0 left-0 z-50 w-64 h-full sidebar-transition -translate-x-full sidebar">
+        <div class="sidebar-header">
+            <img src="{{ asset('images/logob.png') }}" alt="CIBLE CI" class="h-8 w-auto" id="mobile-logo">
+            <div style="font-size:9px;letter-spacing:.12em;color:var(--text3);font-weight:700;margin-top:14px;">ESPACE CLIENT</div>
         </div>
-
-        <nav class="flex-1 p-4 space-y-1">
-            <div>
-                <div class="nav-category px-4 py-2">MENU PRINCIPAL</div>
-                <div class="space-y-1">
-                    <a href="{{ route('client.dashboard') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all {{ request()->routeIs('client.dashboard') ? 'nav-item-active' : 'nav-item-hover' }}">
-                        <span class="text-xl">📊</span>
-                        <span class="text-sm font-medium">Tableau de bord</span>
-                    </a>
-                    <a href="{{ route('client.propositions') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all {{ request()->routeIs('client.propositions*') ? 'nav-item-active' : 'nav-item-hover' }}">
-                        <span class="text-xl">📋</span>
-                        <span class="text-sm font-medium">Propositions</span>
-                    </a>
-                    <a href="{{ route('client.campagnes') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all {{ request()->routeIs('client.campagnes*') ? 'nav-item-active' : 'nav-item-hover' }}">
-                        <span class="text-xl">📢</span>
-                        <span class="text-sm font-medium">Campagnes</span>
-                    </a>
-                </div>
-            </div>
-
-            <div class="h-px bg-white/5 my-4"></div>
-
-            <div>
-                <div class="nav-category px-4 py-2">MON COMPTE</div>
-                <div class="space-y-1">
-                    <a href="{{ route('client.profil') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all {{ request()->routeIs('client.profil*') ? 'nav-item-active' : 'nav-item-hover' }}">
-                        <span class="text-xl">👤</span>
-                        <span class="text-sm font-medium">Mon profil</span>
-                    </a>
-                    <a href="{{ route('client.password.change') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all {{ request()->routeIs('client.password*') ? 'nav-item-active' : 'nav-item-hover' }}">
-                        <span class="text-xl">🔒</span>
-                        <span class="text-sm font-medium">Sécurité</span>
-                    </a>
-                </div>
-            </div>
-
-            <div class="h-px bg-white/5 my-4"></div>
-
-            <div>
-                <div class="nav-category px-4 py-2">RESSOURCES</div>
-                <div class="space-y-1">
-                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all nav-item-hover">
-                        <span class="text-xl">🔍</span>
-                        <span class="text-sm font-medium">Recherche</span>
-                    </a>
-                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 transition-all nav-item-hover">
-                        <span class="text-xl">📚</span>
-                        <span class="text-sm font-medium">Références</span>
-                    </a>
-                </div>
-            </div>
+        <nav class="flex-1 px-3 py-4 overflow-y-auto" style="display:flex;flex-direction:column;gap:2px;">
+            <div class="nav-category">Principal</div>
+            <a href="{{ route('client.dashboard') }}" class="nav-item {{ request()->routeIs('client.dashboard') ? 'active' : '' }}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Tableau de bord
+            </a>
+            <a href="{{ route('client.propositions') }}" class="nav-item {{ request()->routeIs('client.propositions*') ? 'active' : '' }}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                Propositions
+            </a>
+            <a href="{{ route('client.campagnes') }}" class="nav-item {{ request()->routeIs('client.campagnes*') ? 'active' : '' }}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Campagnes
+            </a>
+            <div class="nav-category" style="margin-top:12px;">Mon compte</div>
+            <a href="{{ route('client.profil') }}" class="nav-item {{ request()->routeIs('client.profil*') ? 'active' : '' }}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                Mon profil
+            </a>
+            <a href="{{ route('client.password.change') }}" class="nav-item {{ request()->routeIs('client.password*') ? 'active' : '' }}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Sécurité
+            </a>
         </nav>
-
-        <div class="mt-auto p-4 border-t border-white/5">
+        <div class="sidebar-footer-section">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:8px;">
+                <div class="avatar">{{ strtoupper(mb_substr($client->name, 0, 1)) }}</div>
+                <div style="min-width:0;flex:1;">
+                    <div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $client->name }}</div>
+                    <div style="font-size:10px;color:var(--text3);">{{ $client->ncc ?? 'Client' }}</div>
+                </div>
+            </div>
             <form method="POST" action="{{ route('client.logout') }}">
                 @csrf
-                <button type="submit" class="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-all">
-                    <span class="text-xl">🚪</span>
-                    <span class="text-sm font-medium">Déconnexion</span>
+                <button type="submit" class="nav-item" style="color:#ef4444;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.15);">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Déconnexion
                 </button>
             </form>
         </div>
     </aside>
 
-    <!-- Main Content -->
+
+    
+    {{-- ══ CONTENU ══ --}}
     <div class="main-content">
-        <!-- Top Bar -->
-        <div class="sticky top-0 z-40 bg-[#0a0c15]/95 backdrop-blur-xl border-b border-white/5 px-4 lg:px-8 py-4">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <button class="lg:hidden text-gray-400 hover:text-[#e8a020] transition-colors" onclick="toggleSidebar()">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+
+        <div class="topbar">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <button class="lg:hidden theme-btn" onclick="toggleSidebar()">
+                        <svg style="width:18px;height:18px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                         </svg>
                     </button>
-                    <h1 class="text-lg font-semibold text-white">@yield('page-title', 'Tableau de bord')</h1>
+                    <h1 style="font-size:14px;font-weight:600;color:var(--text);">@yield('page-title', 'Tableau de bord')</h1>
                 </div>
-                <div class="flex items-center gap-4">
-                    <div class="hidden sm:block text-right">
-                        <div class="text-sm font-semibold text-white">{{ $client->name }}</div>
-                        <div class="text-[10px] text-gray-500">{{ $client->ncc ?? 'Client' }}</div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                    {{-- Toggle dark/light --}}
+                    <button id="theme-toggle-btn" class="theme-btn" onclick="toggleClientTheme()" title="Basculer dark/light">🌙</button>
+
+                    <div class="hidden sm:block" style="text-align:right;">
+                        <div style="font-size:13px;font-weight:600;color:var(--text);">{{ $client->name }}</div>
+                        <div style="font-size:10px;color:var(--text3);">{{ $client->ncc ?? 'Client' }}</div>
                     </div>
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-r from-[#e8a020] to-[#fbbf24] flex items-center justify-center text-[#0a0c15] font-bold text-base">
-                        {{ strtoupper(mb_substr($client->name, 0, 1)) }}
-                    </div>
+                    <div class="avatar">{{ strtoupper(mb_substr($client->name, 0, 1)) }}</div>
                 </div>
             </div>
         </div>
 
-        <!-- Content Wrapper (grows to push footer down) -->
         <div class="content-wrapper">
-            <div class="p-4 lg:p-8">
+            <div class="p-4 lg:p-6 animate-fade-in">
                 @yield('content')
             </div>
         </div>
 
-        <!-- Footer (fixed at bottom) -->
-        <footer class="border-t border-white/5 bg-[#0a0c15]">
-            <div class="py-6 px-4 lg:px-8">
-                <div class="flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-gray-500">
-                    <div>© {{ date('Y') }} CIBLE CI — Tous droits réservés</div>
-                    <div class="flex gap-6">
-                        <a href="#" class="hover:text-[#e8a020] transition-colors">Mentions légales</a>
-                        <a href="#" class="hover:text-[#e8a020] transition-colors">Confidentialité</a>
-                        <a href="#" class="hover:text-[#e8a020] transition-colors">Contact</a>
+        <footer style="border-top:1px solid var(--border);background:var(--footer-bg);">
+            <div style="padding:20px 24px;">
+                <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;font-size:11px;color:var(--text3);">
+                    <div>© {{ date('Y') }} CIBLE CI — Régie OOH Côte d'Ivoire</div>
+                    <div style="display:flex;gap:20px;">
+                        <a href="#" style="color:var(--text3);text-decoration:none;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'">Mentions légales</a>
+                        <a href="#" style="color:var(--text3);text-decoration:none;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'">Confidentialité</a>
+                        <a href="#" style="color:var(--text3);text-decoration:none;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'">Contact</a>
                     </div>
-                    <!-- <div class="flex gap-4">
-                        <a href="#" class="hover:text-[#e8a020] transition-colors">📘 Facebook</a>
-                        <a href="#" class="hover:text-[#e8a020] transition-colors">📸 Instagram</a>
-                        <a href="#" class="hover:text-[#e8a020] transition-colors">💼 LinkedIn</a>
-                    </div> -->
                 </div>
             </div>
         </footer>
     </div>
 </div>
 
-<!-- Floating mobile menu button -->
-<button class="fixed bottom-5 left-5 z-50 lg:hidden w-12 h-12 rounded-full bg-[#e8a020] shadow-lg flex items-center justify-center hover:bg-[#c47a00] transition-all" onclick="toggleSidebar()">
-    <svg class="w-6 h-6 text-[#0a0c15]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+{{-- FAB Mobile --}}
+<button class="fixed bottom-5 left-5 z-50 lg:hidden w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
+        style="background:#e20613;" onclick="toggleSidebar()">
+    <svg style="width:18px;height:18px;color:#fff;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
     </svg>
 </button>
 
-<!-- Toast container -->
-<div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+{{-- Toast --}}
+<div id="toast-container" style="position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:360px;"></div>
 
 <script>
-    function toggleSidebar() {
-        const sidebar = document.getElementById('mobile-sidebar');
-        const overlay = document.getElementById('sidebar-overlay');
-        sidebar.classList.toggle('-translate-x-full');
-        if (overlay) overlay.classList.toggle('hidden');
-        document.body.style.overflow = sidebar.classList.contains('-translate-x-full') ? '' : 'hidden';
-    }
+// ── THEME ──────────────────────────────────────────
+(function(){
+    const t = localStorage.getItem('client-theme') || 'dark';
+    applyClientTheme(t);
+})();
 
-    function closeSidebar() {
-        const sidebar = document.getElementById('mobile-sidebar');
-        const overlay = document.getElementById('sidebar-overlay');
-        sidebar.classList.add('-translate-x-full');
-        if (overlay) overlay.classList.add('hidden');
-        document.body.style.overflow = '';
-    }
+function toggleClientTheme() {
+    const current = localStorage.getItem('client-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('client-theme', next);
+    applyClientTheme(next);
+}
 
-    function showToast(message, type = 'success') {
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        const bgColor = type === 'success' ? 'border-l-[#10b981]' : type === 'error' ? 'border-l-[#ef4444]' : 'border-l-[#e8a020]';
-        toast.className = `bg-[#11131f] border border-white/5 rounded-xl p-3 text-sm text-white shadow-xl animate-slide-in ${bgColor} border-l-4`;
-        toast.innerHTML = message;
-        container.appendChild(toast);
-        setTimeout(() => toast.remove(), 4000);
-    }
+function applyClientTheme(theme) {
+    document.getElementById('html-root').setAttribute('data-theme', theme);
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) btn.textContent = theme === 'dark' ? '🌙' : '☀️';
 
-    document.addEventListener('DOMContentLoaded', function() {
-        @if(session('success'))
-            showToast('{{ session('success') }}');
-        @endif
-        @if(session('error'))
-            showToast('{{ session('error') }}', 'error');
-        @endif
-        @if(session('warning'))
-            showToast('{{ session('warning') }}', 'warning');
-        @endif
+    // Logo
+    const logos = ['logo-img', 'mobile-logo'];
+    logos.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.src = theme === 'dark'
+            ? '{{ asset("images/logob.png") }}'
+            : '{{ asset("images/logol.png") }}';
     });
+}
 
-    // Fermer la sidebar au clic sur un lien sur mobile
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', () => {
-            if (window.innerWidth < 1024) {
-                setTimeout(() => closeSidebar(), 100);
-            }
-        });
+// ── SIDEBAR ────────────────────────────────────────
+function toggleSidebar() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('-translate-x-full');
+    overlay.classList.toggle('hidden');
+    document.body.style.overflow = sidebar.classList.contains('-translate-x-full') ? '' : 'hidden';
+}
+function closeSidebar() {
+    document.getElementById('mobile-sidebar').classList.add('-translate-x-full');
+    document.getElementById('sidebar-overlay').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+// ── TOAST ──────────────────────────────────────────
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const color = type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : '#fab80b';
+    const toast = document.createElement('div');
+    toast.className = 'animate-slide-in';
+    toast.style.cssText = `background:var(--surface);border:1px solid var(--border2);border-left:3px solid ${color};border-radius:10px;padding:12px 16px;font-size:13px;color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.25);`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity .3s'; setTimeout(()=>toast.remove(),300); }, 4000);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    @if(session('success')) showToast('{{ session('success') }}'); @endif
+    @if(session('error'))   showToast('{{ session('error') }}', 'error'); @endif
+    @if(session('warning')) showToast('{{ session('warning') }}', 'warning'); @endif
+
+    document.querySelectorAll('.nav-item').forEach(link => {
+        link.addEventListener('click', () => { if(window.innerWidth < 1024) setTimeout(()=>closeSidebar(), 100); });
     });
+});
 </script>
-
 @stack('scripts')
 </body>
 </html>

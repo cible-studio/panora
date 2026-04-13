@@ -662,3 +662,176 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
 .brand.blue{
     background:#3f7fc0;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   DISPONIBILITES — Override dark/light + charte CIBLE CI
+   Colle ce bloc DANS la balise <style> de ta vue
+   (remplace tout le contenu actuel du <style>)
+═══════════════════════════════════════════════════════════ */
+
+/* Select2 */
+#modal-client-select { display: block !important; }
+.select2-container { z-index: 10000 !important; }
+#modal-confirm ~ .select2-container .select2-dropdown { z-index: 10001 !important; }
+
+/* Labels et selects filtres */
+.filter-label {
+    font-size:11px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.5px; color:var(--text3);
+}
+.filter-select {
+    height:40px; padding:0 12px;
+    background:var(--surface2); border:1px solid var(--border2);
+    border-radius:10px; font-size:13px; color:var(--text);
+    cursor:pointer; transition:border-color .2s; width:100%;
+}
+.filter-select:hover, .filter-select:focus {
+    border-color:var(--accent); outline:none;
+}
+
+/* Stat pills */
+.stat-pill {
+    display:inline-flex; align-items:center; gap:4px;
+    padding:3px 10px; background:var(--surface2);
+    border:1px solid var(--border2); border-radius:9999px;
+    font-size:12px; color:var(--text2);
+}
+
+/* Modal inputs */
+.modal-input {
+    background:var(--surface2); border:1px solid var(--border2);
+    border-radius:10px; padding:9px 12px; font-size:13px;
+    color:var(--text); transition:border-color .2s; width:100%;
+}
+.modal-input:focus {
+    border-color:var(--accent); outline:none;
+    box-shadow:0 0 0 2px var(--accent-dim);
+}
+
+/* Tags format/dims */
+.tag {
+    background:var(--surface3); color:var(--text2);
+    font-size:10px; padding:2px 6px; border-radius:4px;
+}
+
+/* Multiselect badge */
+.ms-badge {
+    background:var(--accent); color:#fff;
+    border-radius:9999px; padding:1px 8px;
+    font-size:10px; font-weight:700;
+}
+
+/* Multiselect bouton trigger */
+.ms-wrapper { position:relative; }
+.ms-btn {
+    width:100%; min-height:40px; padding:6px 30px 6px 12px;
+    background:var(--surface2); border:1px solid var(--border2);
+    border-radius:10px; font-size:13px; color:var(--text);
+    cursor:pointer; text-align:left; display:flex;
+    align-items:center; flex-wrap:wrap; gap:4px;
+    position:relative; transition:border-color .2s;
+}
+.ms-btn:hover, .ms-btn.open { border-color:var(--accent); }
+.ms-btn::after {
+    content:"▾"; position:absolute; right:10px; top:50%;
+    transform:translateY(-50%); color:var(--text3);
+    font-size:11px; pointer-events:none;
+}
+.ms-btn.open::after { content:"▴"; }
+.ms-placeholder { color:var(--text3); font-size:12px; }
+
+/* Chips multiselect */
+.ms-chip {
+    background:var(--accent-dim); color:var(--accent);
+    border-radius:6px; padding:2px 6px; font-size:11px;
+    display:inline-flex; align-items:center; gap:3px;
+}
+.ms-chip button {
+    background:none; border:none; color:var(--accent);
+    cursor:pointer; opacity:.6; font-size:11px; padding:0;
+}
+.ms-chip button:hover { opacity:1; }
+
+/* Dropdown multiselect */
+.ms-drop {
+    position:absolute; top:calc(100% + 4px); left:0; right:0;
+    z-index:500; background:var(--surface2);
+    border:1px solid var(--border2); border-radius:12px;
+    box-shadow:0 8px 24px rgba(0,0,0,.2);
+    max-height:280px; display:flex; flex-direction:column; overflow:hidden;
+}
+.ms-search { padding:8px; border-bottom:1px solid var(--border); }
+.ms-search input {
+    width:100%; height:32px; padding:0 10px;
+    background:var(--surface); border:1px solid var(--border2);
+    border-radius:8px; font-size:12px; color:var(--text); outline:none;
+}
+.ms-search input:focus { border-color:var(--accent); }
+.ms-list { overflow-y:auto; flex:1; }
+.ms-opt {
+    padding:9px 12px; font-size:13px; cursor:pointer;
+    display:flex; align-items:center; gap:8px;
+    color:var(--text2); border-bottom:1px solid var(--border);
+    transition:all .15s;
+}
+.ms-opt:last-child { border-bottom:none; }
+.ms-opt:hover { background:var(--surface3); color:var(--text); }
+.ms-opt.selected { background:var(--accent-dim); color:var(--accent); }
+.ms-opt input { accent-color:var(--accent); width:15px; height:15px; cursor:pointer; flex-shrink:0; }
+.ms-foot {
+    padding:6px 12px; border-top:1px solid var(--border);
+    background:var(--surface3); display:flex;
+    justify-content:space-between; font-size:11px; color:var(--text3);
+}
+.ms-foot button { background:none; border:none; color:var(--accent); cursor:pointer; font-size:11px; }
+
+/* Cards panneaux */
+.panel-card {
+    background:var(--surface2); border-radius:14px; overflow:hidden;
+    border:2px solid var(--border); transition:transform .15s, box-shadow .15s, border-color .15s;
+    position:relative; display:flex; flex-direction:column;
+}
+.panel-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,.15); }
+.panel-card.selected { border-color:var(--accent) !important; box-shadow:0 0 0 3px var(--accent-dim) !important; }
+.panel-card.selectable { cursor:pointer; }
+
+/* Tableau liste */
+.list-th {
+    padding:10px 8px; text-align:left; font-size:10px;
+    font-weight:700; text-transform:uppercase;
+    letter-spacing:.5px; color:var(--text3); white-space:nowrap;
+}
+.list-row { border-bottom:1px solid var(--border); transition:background .1s; }
+.list-row:hover { background:var(--surface2); }
+.list-row.selected { background:var(--accent-dim); }
+.list-row td { padding:10px 8px; vertical-align:middle; }
+
+/* Blocs filtres background */
+#dispo-app > div:first-child {
+    background:var(--surface) !important;
+    border-color:var(--border) !important;
+}
+
+/* Barre outils */
+#dispo-app > div:nth-child(2) > div:first-child {
+    background:var(--surface) !important;
+    border-color:var(--border) !important;
+}
+
+/* Modals */
+#modal-confirm > div,
+#modal-quick-client > div,
+#modal-fiche > div,
+#modal-error > div {
+    background:var(--surface) !important;
+    border-color:var(--border2) !important;
+}
+
+/* Animations */
+@keyframes spin { to { transform:rotate(360deg); } }
+.animate-spin { animation:spin 1s linear infinite; }
+@keyframes slideInToast { from{opacity:0;transform:translateX(20px);}to{opacity:1;transform:translateX(0);} }
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);} }
+.animate-fade-in { animation:fadeIn 0.3s ease-out; }
+
+@media(max-width:768px){ #sel-bar { left:0; } }

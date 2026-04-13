@@ -3,136 +3,119 @@
 @section('page-title', 'Mes campagnes')
 
 @section('content')
-<div class="mb-6">
-    <form method="GET" action="{{ route('client.campagnes') }}" class="flex flex-col sm:flex-row gap-3">
-        <div class="flex-1">
-            <input type="text" name="search" placeholder="Rechercher une campagne..." value="{{ request('search') }}" 
-                   class="w-full bg-[#11131f] border border-white/5 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-[#e8a020] transition-colors">
+
+{{-- ══ FILTRES ══ --}}
+<div style="margin-bottom:20px;">
+    <form method="GET" action="{{ route('client.campagnes') }}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+        <div style="flex:1;min-width:180px;">
+            <input type="text" name="search" placeholder="Rechercher une campagne..."
+                   value="{{ request('search') }}"
+                   style="width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:9px;padding:9px 14px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
+                   onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'">
         </div>
-        <div class="w-full sm:w-48">
-            <select name="status" class="w-full bg-[#11131f] border border-white/5 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-[#e8a020] transition-colors">
+        <div>
+            <select name="status"
+                    style="background:var(--surface);border:1px solid var(--border2);border-radius:9px;padding:9px 14px;font-size:13px;color:var(--text);outline:none;cursor:pointer;transition:border-color .15s;"
+                    onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'">
                 <option value="">Tous les statuts</option>
-                <option value="actif" {{ request('status') == 'actif' ? 'selected' : '' }}>Actif</option>
-                <option value="pose" {{ request('status') == 'pose' ? 'selected' : '' }}>En pose</option>
+                <option value="actif"   {{ request('status') == 'actif'   ? 'selected' : '' }}>Actif</option>
+                <option value="pose"    {{ request('status') == 'pose'    ? 'selected' : '' }}>En pose</option>
                 <option value="termine" {{ request('status') == 'termine' ? 'selected' : '' }}>Terminé</option>
             </select>
         </div>
-        <button type="submit" class="bg-[#e8a020] text-[#0a0c15] font-semibold rounded-xl px-6 py-2.5 hover:bg-[#c47a00] transition-colors cursor-pointer">
+        <button type="submit"
+                style="padding:9px 20px;background:#e20613;color:#fff;font-weight:600;border-radius:9px;font-size:13px;border:none;cursor:pointer;transition:opacity .15s;"
+                onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
             Filtrer
         </button>
         @if(request('search') || request('status'))
-            <a href="{{ route('client.campagnes') }}" class="bg-[#1a1d2e] text-gray-400 font-semibold rounded-xl px-6 py-2.5 hover:bg-[#252a3f] transition-colors text-center">
-                Réinitialiser
-            </a>
+        <a href="{{ route('client.campagnes') }}"
+           style="padding:9px 16px;background:var(--surface);border:1px solid var(--border2);border-radius:9px;font-size:13px;color:var(--text2);text-decoration:none;transition:all .15s;"
+           onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
+            ↺ Reset
+        </a>
         @endif
     </form>
 </div>
 
-<div class="overflow-x-auto">
-    <table class="w-full">
-        <thead>
-            <tr class="border-b border-white/10">
-                <th class="text-left py-4 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Nom</th>
-                <th class="text-left py-4 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Période</th>
-                <th class="text-left py-4 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Panneaux</th>
-                <th class="text-left py-4 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Montant</th>
-                <th class="text-left py-4 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Statut</th>
-                <th class="text-left py-4 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($campagnes as $camp)
-            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
-                <td class="py-4 px-3">
-                    <strong class="text-white font-semibold">{{ $camp->name }}</strong>
-                </td>
-                <td class="py-4 px-3 text-gray-400 text-sm">
-                    {{ $camp->start_date->format('d/m/Y') }} → {{ $camp->end_date->format('d/m/Y') }}
-                </td>
-                <td class="py-4 px-3 text-gray-400 text-sm">
-                    {{ $camp->panels->count() }}
-                </td>
-                <td class="py-4 px-3 text-[#e8a020] font-semibold text-sm">
-                    {{ number_format($camp->total_amount ?? 0, 0, ',', ' ') }} FCFA
-                </td>
-                <td class="py-4 px-3">
-                    @php
-                        $badgeClass = match($camp->status->value) {
-                            'actif' => 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-                            'pose' => 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-                            'termine' => 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-                            default => 'bg-gray-500/20 text-gray-400 border-gray-500/30',
-                        };
-                    @endphp
-                    <span class="inline-block px-2.5 py-1 rounded-full text-xs font-medium border {{ $badgeClass }}">
-                        {{ ucfirst($camp->status->value) }}
-                    </span>
-                </td>
-                <td class="py-4 px-3">
-                    <a href="{{ route('client.campagne.detail', $camp) }}" class="text-[#e8a020] hover:text-[#fbbf24] transition-colors text-sm font-medium">
-                        Voir détails →
-                    </a>
-                </td>
-            </tr>
-            @empty
-            <tr>
-                <td colspan="6" class="text-center py-12 text-gray-500">
-                    <div class="flex flex-col items-center gap-2">
-                        <span class="text-4xl">📭</span>
-                        <p>Aucune campagne trouvée</p>
-                    </div>
-                </td>
-            </tr>
-            @endforelse
-        </tbody>
-    </table>
+{{-- ══ TABLEAU ══ --}}
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+    <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--border2);">
+                    <th style="text-align:left;padding:12px 16px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;">Nom</th>
+                    <th style="text-align:left;padding:12px 16px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;">Période</th>
+                    <th style="text-align:left;padding:12px 16px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;">Panneaux</th>
+                    <th style="text-align:left;padding:12px 16px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;">Montant</th>
+                    <th style="text-align:left;padding:12px 16px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;">Statut</th>
+                    <th style="padding:12px 16px;width:80px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($campagnes as $camp)
+                @php
+                    $s = $camp->status->value;
+                    $badge = match($s) {
+                        'actif'   => ['bg'=>'rgba(34,197,94,.1)',  'color'=>'#22c55e',  'label'=>'Actif'],
+                        'pose'    => ['bg'=>'rgba(59,130,246,.1)', 'color'=>'#60a5fa',  'label'=>'En pose'],
+                        'termine' => ['bg'=>'rgba(250,184,11,.1)', 'color'=>'#fab80b',  'label'=>'Terminé'],
+                        default   => ['bg'=>'rgba(148,163,184,.1)','color'=>'#94a3b8',  'label'=>ucfirst($s)],
+                    };
+                @endphp
+                <tr style="border-bottom:1px solid var(--border);transition:background .1s;"
+                    onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+                    <td style="padding:14px 16px;">
+                        <span style="font-weight:600;font-size:14px;color:var(--text);">{{ $camp->name }}</span>
+                    </td>
+                    <td style="padding:14px 16px;font-size:12px;color:var(--text2);white-space:nowrap;">
+                        {{ $camp->start_date->format('d/m/Y') }} → {{ $camp->end_date->format('d/m/Y') }}
+                    </td>
+                    <td style="padding:14px 16px;font-size:13px;color:var(--text2);">
+                        {{ $camp->panels->count() }}
+                    </td>
+                    <td style="padding:14px 16px;font-size:13px;font-weight:700;color:#e20613;white-space:nowrap;">
+                        {{ number_format($camp->total_amount ?? 0, 0, ',', ' ') }} FCFA
+                    </td>
+                    <td style="padding:14px 16px;">
+                        <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:{{ $badge['bg'] }};color:{{ $badge['color'] }};">
+                            {{ $badge['label'] }}
+                        </span>
+                    </td>
+                    <td style="padding:14px 16px;">
+                        <a href="{{ route('client.campagne.detail', $camp) }}"
+                           style="font-size:12px;font-weight:600;color:#e20613;text-decoration:none;white-space:nowrap;transition:opacity .15s;"
+                           onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">
+                            Voir →
+                        </a>
+                    </td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="6" style="padding:60px;text-align:center;color:var(--text3);">
+                        <div style="font-size:40px;margin-bottom:10px;opacity:.4;">📭</div>
+                        <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px;">Aucune campagne trouvée</div>
+                        <div style="font-size:12px;">Modifiez vos filtres pour afficher plus de résultats</div>
+                    </td>
+                </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
 </div>
 
 @if($campagnes->hasPages())
-<div class="mt-6">
+<div style="margin-top:20px;">
     {{ $campagnes->appends(request()->query())->links() }}
 </div>
 @endif
 
 <style>
-    /* Pagination styles */
-    .pagination {
-        display: flex;
-        justify-content: center;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-    }
-    .pagination .page-item {
-        display: inline-block;
-    }
-    .pagination .page-link {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 2.5rem;
-        height: 2.5rem;
-        padding: 0 0.75rem;
-        background: #11131f;
-        border: 1px solid rgba(255,255,255,0.05);
-        border-radius: 0.75rem;
-        color: #9ca3af;
-        font-size: 0.875rem;
-        transition: all 0.2s;
-    }
-    .pagination .page-link:hover {
-        background: rgba(232, 160, 32, 0.1);
-        border-color: rgba(232, 160, 32, 0.3);
-        color: #e8a020;
-    }
-    .pagination .active .page-link {
-        background: #e8a020;
-        border-color: #e8a020;
-        color: #0a0c15;
-        font-weight: 600;
-    }
-    .pagination .disabled .page-link {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
+.pagination { display:flex;justify-content:center;gap:6px;flex-wrap:wrap; }
+.pagination .page-link { display:flex;align-items:center;justify-content:center;min-width:36px;height:36px;padding:0 10px;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-size:13px;transition:all .15s;text-decoration:none; }
+.pagination .page-link:hover { background:rgba(226,6,19,.08);border-color:rgba(226,6,19,.25);color:#e20613; }
+.pagination .active .page-link { background:#e20613;border-color:#e20613;color:#fff;font-weight:600; }
+.pagination .disabled .page-link { opacity:.4;cursor:not-allowed; }
 </style>
+
 @endsection

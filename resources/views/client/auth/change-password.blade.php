@@ -1,81 +1,100 @@
 @extends('client.layout')
 @section('title', 'Sécurité du compte')
-@section('page-title', '🔒 Sécurité')
+@section('page-title', 'Sécurité')
 
 @section('content')
-<div class="max-w-md mx-auto">
-    <div class="bg-[#11131f] border border-white/5 rounded-2xl p-8 text-center">
-        <div class="text-6xl mb-4">
-            @if(auth('client')->user()?->must_change_password) 🔑 @else 🔒 @endif
+<div style="max-width:440px;margin:0 auto;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px;text-align:center;">
+
+        <div style="width:64px;height:64px;border-radius:16px;background:rgba(226,6,19,.1);border:1px solid rgba(226,6,19,.2);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
         </div>
-        <h1 class="text-2xl font-bold text-white mb-2">
-            @if(auth('client')->user()?->must_change_password)
-                Définir votre mot de passe
-            @else
-                Changer mon mot de passe
-            @endif
+
+        <h1 style="font-size:20px;font-weight:700;color:var(--text);margin-bottom:6px;">
+            @if(auth('client')->user()?->must_change_password) Définir votre mot de passe
+            @else Changer mon mot de passe @endif
         </h1>
-        <p class="text-sm text-gray-400 mb-6">
+        <p style="font-size:13px;color:var(--text3);margin-bottom:24px;line-height:1.6;">
             @if(auth('client')->user()?->must_change_password)
-                Bienvenue sur votre espace client ! Pour sécuriser votre compte, veuillez définir un mot de passe personnel.
+                Bienvenue ! Pour sécuriser votre compte, définissez un mot de passe personnel.
             @else
-                Pour votre sécurité, nous vous recommandons de choisir un mot de passe robuste et unique.
+                Choisissez un mot de passe robuste et unique pour sécuriser votre compte.
             @endif
         </p>
 
         @if(session('warning'))
-            <div class="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-6 text-yellow-400 text-sm">⚠️ {{ session('warning') }}</div>
+        <div style="background:rgba(250,184,11,.08);border:1px solid rgba(250,184,11,.2);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#fab80b;text-align:left;">
+            {{ session('warning') }}
+        </div>
         @endif
 
-        <form method="POST" action="{{ route('client.password.update') }}" class="text-left">
+        <form method="POST" action="{{ route('client.password.update') }}" style="text-align:left;">
             @csrf
 
             @if(!auth('client')->user()?->must_change_password)
-            <div class="mb-4">
-                <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Mot de passe actuel</label>
-                <input type="password" name="current_password" class="w-full bg-[#1a1d2e] border border-white/5 rounded-lg px-4 py-2 text-white focus:border-[#e8a020] focus:outline-none">
-                @error('current_password') <div class="text-red-400 text-xs mt-1">{{ $message }}</div> @enderror
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;">Mot de passe actuel</label>
+                <input type="password" name="current_password"
+                       style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
+                       onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'">
+                @error('current_password')<div style="color:#ef4444;font-size:11px;margin-top:3px;">{{ $message }}</div>@enderror
             </div>
             @endif
 
-            <div class="mb-4">
-                <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Nouveau mot de passe</label>
-                <input type="password" name="password" class="w-full bg-[#1a1d2e] border border-white/5 rounded-lg px-4 py-2 text-white focus:border-[#e8a020] focus:outline-none">
-                @error('password') <div class="text-red-400 text-xs mt-1">{{ $message }}</div> @enderror
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;">Nouveau mot de passe</label>
+                <input type="password" name="password"
+                       style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
+                       onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'">
+                @error('password')<div style="color:#ef4444;font-size:11px;margin-top:3px;">{{ $message }}</div>@enderror
             </div>
 
-            <div class="mb-6">
-                <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Confirmer le mot de passe</label>
-                <input type="password" name="password_confirmation" class="w-full bg-[#1a1d2e] border border-white/5 rounded-lg px-4 py-2 text-white focus:border-[#e8a020] focus:outline-none">
+            <div style="margin-bottom:20px;">
+                <label style="display:block;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;">Confirmer le mot de passe</label>
+                <input type="password" name="password_confirmation"
+                       style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
+                       onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'">
             </div>
 
-            <div class="bg-[#1a1d2e] rounded-xl p-4 mb-6">
-                <div class="text-xs font-semibold text-[#e8a020] mb-2">✅ Règles de sécurité</div>
-                <div class="grid grid-cols-2 gap-2 text-xs text-gray-400">
-                    <div class="flex items-center gap-2"><span class="text-[#e8a020]">✓</span> Minimum 8 caractères</div>
-                    <div class="flex items-center gap-2"><span class="text-[#e8a020]">✓</span> 1 lettre majuscule</div>
-                    <div class="flex items-center gap-2"><span class="text-[#e8a020]">✓</span> 1 lettre minuscule</div>
-                    <div class="flex items-center gap-2"><span class="text-[#e8a020]">✓</span> 1 chiffre</div>
+            {{-- Règles --}}
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:20px;">
+                <div style="font-size:10px;font-weight:700;color:#e20613;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">Règles de sécurité</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                    @foreach(['Minimum 8 caractères','1 lettre majuscule','1 lettre minuscule','1 chiffre'] as $rule)
+                    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                        {{ $rule }}
+                    </div>
+                    @endforeach
                 </div>
             </div>
 
-            <div class="flex gap-3">
+            <div style="display:flex;gap:10px;">
                 @if(!auth('client')->user()?->must_change_password)
-                <a href="{{ route('client.profil') }}" class="flex-1 text-center px-4 py-2 bg-[#1a1d2e] border border-white/5 rounded-lg text-sm text-gray-300 hover:text-white transition-all">← Annuler</a>
+                <a href="{{ route('client.profil') }}"
+                   style="flex:1;text-align:center;padding:10px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:13px;color:var(--text2);text-decoration:none;transition:all .15s;"
+                   onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
+                    Annuler
+                </a>
                 @endif
-                <button type="submit" class="flex-1 px-4 py-2 bg-[#e8a020] text-[#0a0c15] font-semibold rounded-lg text-sm hover:bg-[#c47a00] transition-all">
-                    @if(auth('client')->user()?->must_change_password)
-                        ✅ Enregistrer et continuer
-                    @else
-                        🔒 Mettre à jour
-                    @endif
+                <button type="submit"
+                        style="flex:1;padding:10px;background:#e20613;color:#fff;font-weight:600;border-radius:9px;font-size:13px;border:none;cursor:pointer;transition:opacity .15s;"
+                        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                    @if(auth('client')->user()?->must_change_password) Enregistrer et continuer
+                    @else Mettre à jour @endif
                 </button>
             </div>
         </form>
 
         @if(!auth('client')->user()?->must_change_password)
-        <div class="mt-6 pt-6 border-t border-white/5">
-            <a href="{{ route('client.dashboard') }}" class="text-sm text-gray-500 hover:text-[#e8a020] transition-all">← Retour au tableau de bord</a>
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">
+            <a href="{{ route('client.dashboard') }}"
+               style="font-size:12px;color:var(--text3);text-decoration:none;transition:color .15s;"
+               onmouseover="this.style.color='#e20613'" onmouseout="this.style.color='var(--text3)'">
+                ← Retour au tableau de bord
+            </a>
         </div>
         @endif
     </div>

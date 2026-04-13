@@ -1,116 +1,164 @@
 @extends('client.layout')
 @section('title', 'Mes propositions')
-@section('page-title', '📋 Propositions commerciales')
+@section('page-title', 'Propositions commerciales')
 
 @section('content')
+
+{{-- ══ STATS ══ --}}
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <div class="bg-[#11131f] border border-white/5 rounded-xl p-4">
-        <div class="text-2xl mb-2">📬</div>
-        <div class="text-2xl font-bold text-[#e8a020]">{{ $propositions->total() }}</div>
-        <div class="text-xs text-gray-500">Total propositions</div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2" style="margin-bottom:10px;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.58 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.56a16 16 0 0 0 5.55 5.55l1.63-1.84a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 14.92z"/></svg>
+        <div style="font-size:24px;font-weight:800;color:#e20613;line-height:1;">{{ $propositions->total() }}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:5px;">Total propositions</div>
     </div>
-    <div class="bg-[#11131f] border border-white/5 rounded-xl p-4">
-        <div class="text-2xl mb-2">🆕</div>
-        <div class="text-2xl font-bold text-[#e8a020]">{{ $propositions->where('proposition_viewed_at', null)->where('end_date', '>=', now())->count() }}</div>
-        <div class="text-xs text-gray-500">Nouvelles</div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2" style="margin-bottom:10px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <div style="font-size:24px;font-weight:800;color:#fab80b;line-height:1;">{{ $propositions->where('proposition_viewed_at', null)->where('end_date', '>=', now())->count() }}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:5px;">Nouvelles</div>
     </div>
-    <div class="bg-[#11131f] border border-white/5 rounded-xl p-4">
-        <div class="text-2xl mb-2">✅</div>
-        <div class="text-2xl font-bold text-[#e8a020]">{{ $propositions->where('status', 'confirme')->count() }}</div>
-        <div class="text-xs text-gray-500">Acceptées</div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" style="margin-bottom:10px;"><polyline points="20 6 9 17 4 12"/></svg>
+        <div style="font-size:24px;font-weight:800;color:#22c55e;line-height:1;">{{ $propositions->where('status', 'confirme')->count() }}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:5px;">Acceptées</div>
     </div>
-    <div class="bg-[#11131f] border border-white/5 rounded-xl p-4">
-        <div class="text-2xl mb-2">⏰</div>
-        <div class="text-2xl font-bold text-[#e8a020]">{{ $propositions->where('end_date', '<', now())->count() }}</div>
-        <div class="text-xs text-gray-500">Expirées</div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="margin-bottom:10px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div style="font-size:24px;font-weight:800;color:var(--text2);line-height:1;">{{ $propositions->where('end_date', '<', now())->count() }}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:5px;">Expirées</div>
     </div>
+
 </div>
 
-<div class="flex flex-wrap gap-3 mb-6">
-    <form method="GET" action="{{ route('client.propositions') }}" class="flex flex-wrap gap-3 items-end">
+{{-- ══ FILTRES ══ --}}
+<div style="margin-bottom:20px;">
+    <form method="GET" action="{{ route('client.propositions') }}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
         <div>
-            <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Recherche</label>
-            <input type="text" name="search" class="bg-[#1a1d2e] border border-white/5 rounded-lg px-4 py-2 text-sm text-white w-64 focus:border-[#e8a020] focus:outline-none" placeholder="Référence..." value="{{ request('search') }}">
+            <label style="display:block;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;">Recherche</label>
+            <input type="text" name="search"
+                   style="background:var(--surface);border:1px solid var(--border2);border-radius:9px;padding:8px 14px;font-size:13px;color:var(--text);width:220px;outline:none;transition:border-color .15s;"
+                   onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'"
+                   placeholder="Référence..." value="{{ request('search') }}">
         </div>
         <div>
-            <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Statut</label>
-            <select name="status" class="bg-[#1a1d2e] border border-white/5 rounded-lg px-4 py-2 text-sm text-white cursor-pointer focus:border-[#e8a020] focus:outline-none">
+            <label style="display:block;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;">Statut</label>
+            <select name="status"
+                    style="background:var(--surface);border:1px solid var(--border2);border-radius:9px;padding:8px 14px;font-size:13px;color:var(--text);outline:none;cursor:pointer;transition:border-color .15s;"
+                    onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'">
                 <option value="">Tous</option>
                 <option value="en_attente" {{ request('status') == 'en_attente' ? 'selected' : '' }}>En attente</option>
-                <option value="confirme" {{ request('status') == 'confirme' ? 'selected' : '' }}>Confirmée</option>
-                <option value="refuse" {{ request('status') == 'refuse' ? 'selected' : '' }}>Refusée</option>
+                <option value="confirme"   {{ request('status') == 'confirme'   ? 'selected' : '' }}>Confirmée</option>
+                <option value="refuse"     {{ request('status') == 'refuse'     ? 'selected' : '' }}>Refusée</option>
             </select>
         </div>
-        <button type="submit" class="px-5 py-2 bg-[#e8a020] text-[#0a0c15] font-semibold rounded-lg text-sm hover:bg-[#c47a00] transition-all">🔍 Filtrer</button>
+        <button type="submit"
+                style="padding:8px 18px;background:#e20613;color:#fff;font-weight:600;border-radius:9px;font-size:13px;border:none;cursor:pointer;transition:opacity .15s;"
+                onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+            Filtrer
+        </button>
         @if(request('search') || request('status'))
-        <a href="{{ route('client.propositions') }}" class="px-5 py-2 bg-[#1a1d2e] border border-white/5 rounded-lg text-sm text-gray-400 hover:text-white transition-all">↺ Réinitialiser</a>
+        <a href="{{ route('client.propositions') }}"
+           style="padding:8px 16px;background:var(--surface);border:1px solid var(--border2);border-radius:9px;font-size:13px;color:var(--text2);text-decoration:none;transition:all .15s;"
+           onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
+            ↺ Reset
+        </a>
         @endif
     </form>
 </div>
 
+{{-- ══ LISTE PROPOSITIONS ══ --}}
 @forelse($propositions as $res)
 @php
-    $total = $res->panels->sum(fn($p) => (float)($p->monthly_rate ?? 0));
-    $expired = $res->end_date < now();
-    $viewed = !is_null($res->proposition_viewed_at);
-    $status = $res->status->value;
+    $total    = $res->panels->sum(fn($p) => (float)($p->monthly_rate ?? 0));
+    $expired  = $res->end_date < now();
+    $viewed   = !is_null($res->proposition_viewed_at);
+    $status   = $res->status->value;
     $daysLeft = now()->startOfDay()->diffInDays($res->end_date->startOfDay(), false);
+    $isNew    = !$viewed && !$expired && $status === 'en_attente';
 @endphp
 
-<div class="bg-[#11131f] border border-white/5 rounded-xl mb-4 overflow-hidden transition-all hover:border-[#e8a020]/30 {{ !$viewed && !$expired && $status === 'en_attente' ? 'border-l-4 border-l-[#e8a020]' : '' }} {{ $expired ? 'opacity-60' : '' }}">
-    <div class="p-5">
-        <div class="flex flex-wrap justify-between items-start gap-4">
-            <div class="flex-1">
-                <div class="flex items-center gap-3 flex-wrap mb-2">
-                    <span class="font-mono text-sm font-bold text-[#e8a020] bg-[#e8a020]/10 px-3 py-1 rounded-lg">{{ $res->reference }}</span>
-                    @if(!$viewed && !$expired && $status === 'en_attente')
-                        <span class="text-[10px] font-bold bg-yellow-500/10 text-yellow-400 px-2 py-0.5 rounded-full">🆕 Nouvelle</span>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;transition:border-color .2s;opacity:{{ $expired ? '.6' : '1' }};{{ $isNew ? 'border-left:3px solid #e20613;' : '' }}"
+     onmouseover="this.style.borderColor='rgba(226,6,19,.25)'" onmouseout="this.style.borderColor='var(--border)'">
+    <div style="padding:16px 20px;">
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:12px;">
+
+            <div style="flex:1;min-width:0;">
+                {{-- Référence + badge --}}
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+                    <span style="font-family:monospace;font-size:12px;font-weight:700;color:#e20613;background:rgba(226,6,19,.08);padding:3px 10px;border-radius:6px;">{{ $res->reference }}</span>
+
+                    @if($isNew)
+                        <span style="font-size:10px;font-weight:700;background:rgba(250,184,11,.1);color:#fab80b;padding:2px 8px;border-radius:20px;">Nouvelle</span>
                     @elseif($expired)
-                        <span class="text-[10px] font-bold bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full">⏰ Expirée</span>
+                        <span style="font-size:10px;font-weight:700;background:rgba(148,163,184,.1);color:#94a3b8;padding:2px 8px;border-radius:20px;">Expirée</span>
                     @elseif($status === 'confirme')
-                        <span class="text-[10px] font-bold bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full">✓ Confirmée</span>
+                        <span style="font-size:10px;font-weight:700;background:rgba(34,197,94,.1);color:#22c55e;padding:2px 8px;border-radius:20px;">Confirmée</span>
                     @elseif(in_array($status, ['annule','refuse']))
-                        <span class="text-[10px] font-bold bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full">✗ Refusée</span>
+                        <span style="font-size:10px;font-weight:700;background:rgba(239,68,68,.1);color:#ef4444;padding:2px 8px;border-radius:20px;">Refusée</span>
                     @elseif($viewed)
-                        <span class="text-[10px] font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full">👁️ Consultée</span>
+                        <span style="font-size:10px;font-weight:700;background:rgba(59,130,246,.1);color:#60a5fa;padding:2px 8px;border-radius:20px;">Consultée</span>
                     @endif
                 </div>
-                <div class="flex items-center gap-4 flex-wrap text-sm mb-2">
-                    <span class="text-gray-300">📅 {{ $res->start_date->format('d/m/Y') }} → {{ $res->end_date->format('d/m/Y') }}</span>
+
+                {{-- Dates --}}
+                <div style="font-size:13px;color:var(--text2);margin-bottom:6px;">
+                    📅 {{ $res->start_date->format('d/m/Y') }} → {{ $res->end_date->format('d/m/Y') }}
                     @if(!$expired && $status === 'en_attente')
-                        <span class="text-xs {{ $daysLeft <= 3 ? 'text-red-400' : 'text-yellow-400' }}">⏳ {{ $daysLeft }} jour(s) restant(s)</span>
+                        <span style="font-size:11px;color:{{ $daysLeft <= 3 ? '#ef4444' : '#fab80b' }};margin-left:10px;">
+                            ⏳ {{ $daysLeft }}j restant(s)
+                        </span>
                     @endif
                 </div>
-                <div class="flex gap-4 text-xs text-gray-500">
-                    <span>📦 {{ $res->panels->count() }} panneau(x)</span>
+
+                {{-- Infos --}}
+                <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text3);">
+                    <span>{{ $res->panels->count() }} panneau(x)</span>
                     @if($total > 0)
-                        <span>💰 {{ number_format($total, 0, ',', ' ') }} FCFA/mois</span>
+                        <span>{{ number_format($total, 0, ',', ' ') }} FCFA/mois</span>
                     @endif
                     @if($res->proposition_sent_at)
-                        <span>📨 Reçue {{ $res->proposition_sent_at->diffForHumans() }}</span>
+                        <span>Reçue {{ $res->proposition_sent_at->diffForHumans() }}</span>
                     @endif
                 </div>
             </div>
-            <div class="flex gap-2">
+
+            {{-- Actions --}}
+            <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
                 @if(!$expired && $status === 'en_attente')
-                    <a href="{{ route('client.proposition.detail', $res->proposition_token) }}" class="px-4 py-2 bg-[#e8a020] text-[#0a0c15] font-semibold rounded-lg text-sm hover:bg-[#c47a00] transition-all">✅ Voir et répondre</a>
+                    <a href="{{ route('client.proposition.detail', $res->proposition_token) }}"
+                       style="padding:8px 16px;background:#e20613;color:#fff;font-weight:600;border-radius:9px;font-size:12px;text-decoration:none;transition:opacity .15s;"
+                       onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                        Voir et répondre
+                    </a>
                 @else
-                    <a href="{{ route('client.proposition.detail', $res->proposition_token) }}" class="px-4 py-2 bg-[#1a1d2e] border border-white/5 rounded-lg text-sm text-gray-300 hover:text-white transition-all">👁️ Consulter</a>
+                    <a href="{{ route('client.proposition.detail', $res->proposition_token) }}"
+                       style="padding:8px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:12px;color:var(--text2);text-decoration:none;transition:all .15s;"
+                       onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
+                        Consulter
+                    </a>
                 @endif
-                <a href="{{ route('proposition.show', $res->proposition_token) }}" target="_blank" class="px-4 py-2 bg-[#1a1d2e] border border-white/5 rounded-lg text-sm text-gray-400 hover:text-white transition-all">🔗 Lien public</a>
+                <a href="{{ route('proposition.show', $res->proposition_token) }}" target="_blank"
+                   style="padding:8px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:12px;color:var(--text2);text-decoration:none;transition:all .15s;"
+                   onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
+                    Lien public
+                </a>
             </div>
         </div>
     </div>
 </div>
 @empty
-<div class="bg-[#11131f] border border-white/5 rounded-xl p-12 text-center">
-    <div class="text-6xl mb-4 opacity-50">📭</div>
-    <div class="text-lg font-semibold text-white mb-2">Aucune proposition reçue</div>
-    <div class="text-sm text-gray-500">Vos propositions commerciales apparaîtront ici dès qu'elles vous seront envoyées.</div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:60px;text-align:center;">
+    <div style="font-size:48px;margin-bottom:12px;opacity:.4;">📭</div>
+    <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px;">Aucune proposition reçue</div>
+    <div style="font-size:13px;color:var(--text3);">Vos propositions commerciales apparaîtront ici dès qu'elles vous seront envoyées.</div>
 </div>
 @endforelse
 
-<div class="mt-6">
+<div style="margin-top:20px;">
     {{ $propositions->appends(request()->query())->links() }}
 </div>
+
 @endsection
