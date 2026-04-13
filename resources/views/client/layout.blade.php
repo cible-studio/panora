@@ -121,7 +121,14 @@
 </script>
 
 <div class="main-wrapper">
-
+{{-- Barre couleurs CIBLE CI --}}
+<div style="width:4px;display:flex;flex-direction:column;flex-shrink:0;">
+    <div style="flex:1;background:#e20613;"></div>
+    <div style="flex:1;background:#fab80b;"></div>
+    <div style="flex:1;background:#22c55e;"></div>
+    <div style="flex:1;background:#81358a;"></div>
+    <div style="flex:1;background:#3f7fc0;"></div>
+</div>
     {{-- ══ SIDEBAR DESKTOP ══ --}}
     <div class="sidebar-wrapper hidden lg:block w-64">
         <div class="sidebar">
@@ -234,9 +241,10 @@
     </aside>
 
 
-    
+
     {{-- ══ CONTENU ══ --}}
     <div class="main-content">
+
 
         <div class="topbar">
             <div style="display:flex;align-items:center;justify-content:space-between;">
