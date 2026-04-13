@@ -1,291 +1,249 @@
 @extends('client.layout')
 @section('title', 'Proposition ' . $reservation->reference)
-@section('page-title', '📄 Détail de la proposition')
+@section('page-title', 'Détail de la proposition')
 
 @section('content')
 
-<!-- Breadcrumb -->
-<div class="flex items-center gap-2 text-sm text-gray-500 mb-6">
-    <a href="{{ route('client.dashboard') }}" class="hover:text-[#e8a020] transition-colors">Accueil</a>
+{{-- ══ BREADCRUMB ══ --}}
+<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3);margin-bottom:20px;">
+    <a href="{{ route('client.dashboard') }}" style="color:var(--text3);text-decoration:none;transition:color .15s;" onmouseover="this.style.color='#e20613'" onmouseout="this.style.color='var(--text3)'">Accueil</a>
     <span>›</span>
-    <a href="{{ route('client.propositions') }}" class="hover:text-[#e8a020] transition-colors">Propositions</a>
+    <a href="{{ route('client.propositions') }}" style="color:var(--text3);text-decoration:none;transition:color .15s;" onmouseover="this.style.color='#e20613'" onmouseout="this.style.color='var(--text3)'">Propositions</a>
     <span>›</span>
-    <span class="text-gray-400">{{ $reservation->reference }}</span>
+    <span style="color:var(--text2);">{{ $reservation->reference }}</span>
 </div>
 
-<!-- Header -->
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+{{-- ══ HEADER ══ --}}
+@php
+    $sc = match($reservation->status->value) {
+        'en_attente' => ['bg'=>'rgba(250,184,11,.1)', 'color'=>'#fab80b', 'label'=>'En attente de réponse'],
+        'confirme'   => ['bg'=>'rgba(34,197,94,.1)',  'color'=>'#22c55e', 'label'=>'Proposition acceptée'],
+        'refuse'     => ['bg'=>'rgba(239,68,68,.1)',  'color'=>'#ef4444', 'label'=>'Proposition refusée'],
+        'annule'     => ['bg'=>'rgba(239,68,68,.1)',  'color'=>'#ef4444', 'label'=>'Annulée'],
+        default      => ['bg'=>'rgba(148,163,184,.1)','color'=>'#94a3b8', 'label'=>ucfirst($reservation->status->value)],
+    };
+@endphp
+
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 24px;margin-bottom:16px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;">
     <div>
-        <h1 class="text-2xl font-bold text-white mb-1">Proposition {{ $reservation->reference }}</h1>
-        <p class="text-sm text-gray-500">Envoyée le {{ $reservation->proposition_sent_at?->format('d/m/Y à H:i') ?? '—' }}</p>
+        <h1 style="font-size:20px;font-weight:700;color:var(--text);margin-bottom:4px;">Proposition {{ $reservation->reference }}</h1>
+        <div style="font-size:12px;color:var(--text3);">Envoyée le {{ $reservation->proposition_sent_at?->format('d/m/Y à H:i') ?? '—' }}</div>
     </div>
-    @php
-        $statusConfig = match($reservation->status->value) {
-            'en_attente' => ['class' => 'bg-amber-500/20 text-amber-400 border-amber-500/30', 'icon' => '⏳', 'text' => 'En attente de réponse'],
-            'confirme' => ['class' => 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', 'icon' => '✅', 'text' => 'Proposition acceptée'],
-            'refuse' => ['class' => 'bg-red-500/20 text-red-400 border-red-500/30', 'icon' => '❌', 'text' => 'Proposition refusée'],
-            default => ['class' => 'bg-gray-500/20 text-gray-400 border-gray-500/30', 'icon' => 'ℹ️', 'text' => ucfirst($reservation->status->value)],
-        };
-    @endphp
-    <span class="inline-block px-4 py-2 rounded-full text-sm font-medium border {{ $statusConfig['class'] }} w-fit">
-        {{ $statusConfig['icon'] }} {{ $statusConfig['text'] }}
+    <span style="font-size:12px;font-weight:600;padding:6px 16px;border-radius:20px;background:{{ $sc['bg'] }};color:{{ $sc['color'] }};">
+        {{ $sc['label'] }}
     </span>
 </div>
 
-{{-- Alertes --}}
-@if($joursRestants < 0)
-    <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-        ⏰ Cette proposition est expirée — vous ne pouvez plus y répondre.
-    </div>
+{{-- ══ ALERTES ══ --}}
+@if($reservation->status->value === 'confirme')
+<div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#22c55e;display:flex;align-items:center;gap:8px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+    Vous avez confirmé cette proposition. Merci pour votre confiance !
+</div>
+@elseif(in_array($reservation->status->value, ['annule','refuse']))
+<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#60a5fa;display:flex;align-items:center;gap:8px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Cette proposition a été refusée ou annulée.
+</div>
+@elseif($joursRestants < 0)
+<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#ef4444;display:flex;align-items:center;gap:8px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    Cette proposition est expirée — vous ne pouvez plus y répondre.
+</div>
 @elseif($joursRestants <= 3)
-    <div class="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
-        ⚠️ Action urgente — plus que {{ max(0, $joursRestants) }} jour(s) pour répondre.
-    </div>
+<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#ef4444;display:flex;align-items:center;gap:8px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    Action urgente — plus que {{ max(0, $joursRestants) }} jour(s) pour répondre.
+</div>
 @elseif($joursRestants <= 7)
-    <div class="mb-6 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm">
-        ℹ️ Plus que {{ $joursRestants }} jour(s) pour répondre.
-    </div>
+<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#60a5fa;display:flex;align-items:center;gap:8px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Plus que {{ $joursRestants }} jour(s) pour répondre.
+</div>
 @endif
 
-{{-- Période --}}
-<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-    <div class="bg-[#11131f] rounded-xl border border-white/5 p-4 text-center">
-        <div class="text-3xl mb-2">📅</div>
-        <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Date de début</div>
-        <div class="text-base font-semibold text-white">{{ $reservation->start_date->format('d/m/Y') }}</div>
+{{-- ══ STATS ══ --}}
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2" style="margin:0 auto 8px;display:block;"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Début</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);">{{ $reservation->start_date->format('d/m/Y') }}</div>
     </div>
-    <div class="bg-[#11131f] rounded-xl border border-white/5 p-4 text-center">
-        <div class="text-3xl mb-2">📅</div>
-        <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Date de fin</div>
-        <div class="text-base font-semibold text-white">{{ $reservation->end_date->format('d/m/Y') }}</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="margin:0 auto 8px;display:block;"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Fin</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);">{{ $reservation->end_date->format('d/m/Y') }}</div>
     </div>
-    <div class="bg-[#11131f] rounded-xl border border-white/5 p-4 text-center">
-        <div class="text-3xl mb-2">⏱️</div>
-        <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Durée</div>
-        <div class="text-base font-semibold text-white">{{ round($months) }} mois</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2" style="margin:0 auto 8px;display:block;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Durée</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);">{{ round($months) }} mois</div>
     </div>
-    <div class="bg-[#11131f] rounded-xl border border-white/5 p-4 text-center">
-        <div class="text-3xl mb-2">🪧</div>
-        <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Panneaux</div>
-        <div class="text-base font-semibold text-white">{{ count($panels) }} emplacement(s)</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2" style="margin:0 auto 8px;display:block;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Panneaux</div>
+        <div style="font-size:18px;font-weight:700;color:#e20613;">{{ count($panels) }}</div>
     </div>
 </div>
 
-{{-- Emplacements --}}
-<h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-    <span>📍</span> Emplacements sélectionnés
-    <span class="text-sm text-gray-500 font-normal">({{ count($panels) }})</span>
-</h2>
+{{-- ══ EMPLACEMENTS ══ --}}
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    <h2 style="font-size:15px;font-weight:700;color:var(--text);">Emplacements sélectionnés</h2>
+    <span style="font-size:11px;color:var(--text3);">({{ count($panels) }})</span>
+</div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
     @foreach($panels as $index => $panel)
-    <div class="bg-[#11131f] rounded-xl border border-white/5 overflow-hidden hover:border-[#e8a020]/30 transition-all group relative">
-        <div class="absolute top-3 left-3 bg-[#e8a020] text-[#0a0c15] w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-lg">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .2s;position:relative;"
+         onmouseover="this.style.borderColor='rgba(226,6,19,.25)'" onmouseout="this.style.borderColor='var(--border)'">
+
+        {{-- Numéro --}}
+        <div style="position:absolute;top:10px;left:10px;z-index:10;width:26px;height:26px;border-radius:50%;background:#e20613;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);">
             {{ $index + 1 }}
         </div>
-        
-        <!-- Image avec bouton zoom -->
-        <div class="relative cursor-pointer group/image" onclick="openPanelModal({{ $index }})">
+
+        {{-- Photo --}}
+        <div style="cursor:pointer;position:relative;overflow:hidden;" onclick="openPanelModal({{ $index }})">
             @if($panel['photo_url'])
-                <img src="{{ $panel['photo_url'] }}" class="w-full h-44 object-cover transition-transform group-hover/image:scale-105" alt="{{ $panel['reference'] }}" loading="lazy">
-                <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/image:opacity-100 transition-opacity flex items-center justify-center">
-                    <span class="bg-[#e8a020] text-[#0a0c15] px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1">
-                        🔍 Voir en détail
-                    </span>
+                <img src="{{ $panel['photo_url'] }}" style="width:100%;height:160px;object-fit:cover;display:block;transition:transform .3s;" alt="{{ $panel['reference'] }}" loading="lazy"
+                     onmouseover="this.style.transform='scale(1.04)'" onmouseout="this.style.transform='scale(1)'">
+                <div style="position:absolute;inset:0;background:rgba(0,0,0,.5);opacity:0;transition:opacity .2s;display:flex;align-items:center;justify-content:center;"
+                     onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'">
+                    <span style="background:#e20613;color:#fff;padding:6px 14px;border-radius:20px;font-size:11px;font-weight:600;">Voir en détail</span>
                 </div>
             @else
-                <div class="w-full h-44 bg-gradient-to-br from-[#1a1d2e] to-[#11131f] flex items-center justify-center text-5xl text-gray-600">
-                    🪧
+                <div style="width:100%;height:160px;background:var(--surface2);display:flex;align-items:center;justify-content:center;">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
                 </div>
             @endif
         </div>
-        
-        <div class="p-4">
-            <div class="inline-block font-mono text-xs font-bold text-[#e8a020] bg-[#e8a020]/10 px-2 py-1 rounded mb-2">
-                {{ $panel['reference'] }}
-            </div>
-            <div class="text-white font-semibold text-sm mb-3">{{ $panel['name'] }}</div>
-            <div class="border-t border-white/10 pt-3 space-y-2">
-                <div class="flex justify-between items-center text-xs">
-                    <span class="text-gray-500">📍 Commune</span>
-                    <span class="text-gray-300 font-medium">{{ $panel['commune'] }}</span>
-                </div>
-                @if(!empty($panel['zone']) && $panel['zone'] !== '—')
-                <div class="flex justify-between items-center text-xs">
-                    <span class="text-gray-500">🗺️ Zone</span>
-                    <span class="text-gray-300 font-medium">{{ $panel['zone'] }}</span>
-                </div>
-                @endif
-                @if(!empty($panel['format']))
-                <div class="flex justify-between items-center text-xs">
-                    <span class="text-gray-500">📐 Format</span>
-                    <span class="text-gray-300 font-medium">{{ $panel['format'] }}</span>
+
+        {{-- Infos --}}
+        <div style="padding:14px;">
+            <div style="font-family:monospace;font-size:11px;font-weight:700;color:#e20613;background:rgba(226,6,19,.08);padding:2px 8px;border-radius:5px;display:inline-block;margin-bottom:6px;">{{ $panel['reference'] }}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $panel['name'] }}</div>
+
+            <div style="border-top:1px solid var(--border);padding-top:10px;display:flex;flex-direction:column;gap:6px;">
+                @foreach([
+                    ['label'=>'Commune', 'val'=>$panel['commune']],
+                    ['label'=>'Zone', 'val'=>($panel['zone'] ?? '') !== '—' ? ($panel['zone'] ?? '') : ''],
+                    ['label'=>'Format', 'val'=>$panel['format'] ?? ''],
+                    ['label'=>'Dimensions', 'val'=>$panel['dimensions'] ?? ''],
+                ] as $row)
+                @if(!empty($row['val']))
+                <div style="display:flex;justify-content:space-between;font-size:11px;">
+                    <span style="color:var(--text3);">{{ $row['label'] }}</span>
+                    <span style="color:var(--text2);font-weight:500;">{{ $row['val'] }}</span>
                 </div>
                 @endif
-                @if(!empty($panel['dimensions']))
-                <div class="flex justify-between items-center text-xs">
-                    <span class="text-gray-500">📏 Dimensions</span>
-                    <span class="text-gray-300 font-medium">{{ $panel['dimensions'] }}</span>
+                @endforeach
+                <div style="display:flex;justify-content:space-between;font-size:11px;">
+                    <span style="color:var(--text3);">Éclairage</span>
+                    <span style="color:{{ $panel['is_lit'] ? '#fab80b' : 'var(--text2)' }};font-weight:500;">{{ $panel['is_lit'] ? 'Éclairé' : 'Non éclairé' }}</span>
                 </div>
-                @endif
-                <div class="flex justify-between items-center text-xs">
-                    <span class="text-gray-500">💡 Éclairage</span>
-                    <span class="text-gray-300 font-medium">{{ $panel['is_lit'] ? 'LED Éclairé' : 'Non éclairé' }}</span>
-                </div>
-                <div class="flex justify-between items-center text-sm pt-2 border-t border-dashed border-white/10 mt-2">
-                    <span class="text-gray-400 font-medium">💰 Tarif mensuel</span>
-                    <span class="text-[#e8a020] font-bold">{{ number_format($panel['monthly_rate'], 0, ',', ' ') }} FCFA</span>
+                <div style="display:flex;justify-content:space-between;font-size:13px;border-top:1px dashed var(--border);padding-top:8px;margin-top:2px;">
+                    <span style="color:var(--text2);font-weight:500;">Tarif mensuel</span>
+                    <span style="color:#e20613;font-weight:700;">{{ number_format($panel['monthly_rate'], 0, ',', ' ') }} FCFA</span>
                 </div>
             </div>
-            
-            <!-- Bouton voir détails -->
-            <button onclick="openPanelModal({{ $index }})" class="mt-3 w-full text-center text-xs text-gray-500 hover:text-[#e8a020] transition-colors py-1 border-t border-white/5 pt-2">
-                🔍 Voir tous les détails
+
+            <button onclick="openPanelModal({{ $index }})"
+                    style="width:100%;margin-top:10px;padding:6px;font-size:11px;color:var(--text3);border:none;background:none;cursor:pointer;border-top:1px solid var(--border);padding-top:8px;transition:color .15s;"
+                    onmouseover="this.style.color='#e20613'" onmouseout="this.style.color='var(--text3)'">
+                Voir tous les détails →
             </button>
         </div>
     </div>
     @endforeach
 </div>
 
-{{-- Total --}}
+{{-- ══ TOTAL ══ --}}
 @php $total = collect($panels)->sum('total'); @endphp
 @if($total > 0)
-<div class="bg-gradient-to-r from-[#e8a020]/10 to-transparent border border-[#e8a020]/30 rounded-2xl p-6 mb-6">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+<div style="background:linear-gradient(135deg,rgba(226,6,19,.08),transparent);border:1px solid rgba(226,6,19,.2);border-radius:14px;padding:24px;margin-bottom:20px;">
+    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;margin-bottom:12px;">
         <div>
-            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Montant total estimé (HT)</div>
-            <div class="text-3xl font-extrabold text-[#e8a020]">{{ number_format($total, 0, ',', ' ') }} <span class="text-sm font-normal text-gray-500">FCFA</span></div>
-            <div class="text-xs text-gray-500 mt-1">Pour {{ round($months) }} mois de campagne</div>
-        </div>
-        <div class="bg-[#11131f] px-4 py-2 rounded-full text-sm font-semibold text-gray-300 border border-white/10">
-            📊 {{ count($panels) }} emplacement(s)
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Montant total estimé (HT)</div>
+            <div style="font-size:28px;font-weight:800;color:#e20613;line-height:1;">
+                {{ number_format($total, 0, ',', ' ') }}
+                <span style="font-size:14px;font-weight:400;color:var(--text3);"> FCFA</span>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px;">Pour {{ round($months) }} mois · {{ count($panels) }} emplacement(s)</div>
         </div>
     </div>
-    <div class="text-xs text-gray-500 pt-4 border-t border-[#e8a020]/20">
-        💡 Devis définitif établi lors de la confirmation. Les tarifs sont nets hors taxes et frais techniques.
+    <div style="font-size:11px;color:var(--text3);padding-top:12px;border-top:1px solid rgba(226,6,19,.15);">
+        Devis définitif établi lors de la confirmation. Tarifs nets hors taxes et frais techniques.
     </div>
 </div>
 @endif
 
-{{-- Actions --}}
+{{-- ══ ACTIONS ══ --}}
 @if($joursRestants >= 0 && $reservation->status->value === 'en_attente')
-<div class="bg-[#11131f] border border-white/10 rounded-2xl p-8 text-center">
-    <h3 class="text-xl font-bold text-white mb-3">Quelle est votre décision ?</h3>
-    <p class="text-sm text-gray-400 max-w-lg mx-auto mb-6 leading-relaxed">
-        En confirmant cette proposition, les panneaux vous seront attribués immédiatement 
-        et une campagne sera créée automatiquement dans votre espace.
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:32px;text-align:center;">
+    <h3 style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px;">Quelle est votre décision ?</h3>
+    <p style="font-size:13px;color:var(--text2);max-width:500px;margin:0 auto 24px;line-height:1.7;">
+        En confirmant, les panneaux vous seront attribués immédiatement et une campagne sera créée dans votre espace.
     </p>
-    <div class="flex flex-col sm:flex-row gap-4 justify-center mb-5">
-        <button type="button" class="bg-[#e8a020] text-[#0a0c15] font-semibold rounded-xl px-8 py-3 hover:bg-[#c47a00] transition-all cursor-pointer" onclick="openConfirmModal()">
-            ✅ Accepter la proposition
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:16px;">
+        <button onclick="openConfirmModal()"
+                style="padding:12px 28px;background:#e20613;color:#fff;font-weight:700;border-radius:10px;font-size:14px;border:none;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;gap:8px;"
+                onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Accepter la proposition
         </button>
-        <button type="button" class="bg-red-500/20 text-red-400 font-semibold rounded-xl px-8 py-3 border border-red-500/30 hover:bg-red-500/30 transition-all cursor-pointer" onclick="openRefuseModal()">
-            ✗ Refuser
+        <button onclick="openRefuseModal()"
+                style="padding:12px 24px;background:rgba(239,68,68,.08);color:#ef4444;font-weight:600;border-radius:10px;font-size:14px;border:1px solid rgba(239,68,68,.25);cursor:pointer;transition:all .15s;"
+                onmouseover="this.style.background='rgba(239,68,68,.15)'" onmouseout="this.style.background='rgba(239,68,68,.08)'">
+            Refuser
         </button>
     </div>
-    <div class="text-xs text-gray-600">
-        🔒 Réponse sécurisée · CIBLE CI · Abidjan
-    </div>
+    <div style="font-size:11px;color:var(--text3);">Réponse sécurisée · CIBLE CI · Abidjan</div>
 </div>
 @endif
 
-{{-- MODAL DE VISUALISATION DÉTAILLÉE DU PANNEAU --}}
-<div id="modal-panel" class="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 hidden" onclick="if(event.target===this) closePanelModal()">
-    <div class="bg-[#11131f] border border-white/10 rounded-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="sticky top-0 bg-[#11131f] border-b border-white/10 px-6 py-4 flex justify-between items-center">
-            <h3 class="text-xl font-bold text-white" id="modal-panel-title">Détail du panneau</h3>
-            <button class="text-gray-500 hover:text-gray-300 transition-colors text-2xl" onclick="closePanelModal()">✕</button>
+{{-- ══ MODAL PANNEAU ══ --}}
+<div id="modal-panel" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden"
+     style="display:none;align-items:center;justify-content:center;padding:16px;"
+     onclick="if(event.target===this)closePanelModal()">
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;max-width:800px;width:100%;max-height:90vh;overflow-y:auto;"
+         onclick="event.stopPropagation()">
+        <div style="position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;z-index:1;">
+            <div id="modal-panel-title" style="font-size:15px;font-weight:700;color:var(--text);"></div>
+            <button onclick="closePanelModal()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:20px;line-height:1;transition:color .15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'">✕</button>
         </div>
-        
-        <div class="p-6">
+        <div style="padding:24px;">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Colonne gauche : Images -->
                 <div>
-                    <!-- Image principale -->
-                    <div class="rounded-xl overflow-hidden border border-white/10 mb-4">
-                        <img id="modal-main-image" src="" alt="Panneau" class="w-full object-cover max-h-80">
+                    <div style="border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:10px;">
+                        <img id="modal-main-image" src="" alt="" style="width:100%;max-height:280px;object-fit:cover;display:block;">
                     </div>
-                    
-                    <!-- Miniatures (si plusieurs photos) -->
-                    <div id="modal-thumbnails" class="flex gap-2 overflow-x-auto pb-2">
-                        <!-- Les miniatures seront ajoutées dynamiquement -->
-                    </div>
-                    
-                    <!-- Indicateur de chargement -->
-                    <div id="modal-no-image" class="hidden text-center py-8 bg-[#1a1d2e] rounded-xl">
-                        <div class="text-6xl mb-2">🪧</div>
-                        <p class="text-gray-500 text-sm">Aucune photo disponible pour ce panneau</p>
+                    <div id="modal-thumbnails" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;"></div>
+                    <div id="modal-no-image" style="display:none;text-align:center;padding:40px;background:var(--surface2);border-radius:10px;">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5" style="margin:0 auto 10px;display:block;opacity:.4;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                        <div style="font-size:13px;color:var(--text3);">Aucune photo disponible</div>
                     </div>
                 </div>
-                
-                <!-- Colonne droite : Informations détaillées -->
-                <div>
-                    <div class="mb-4">
-                        <div class="inline-block font-mono text-xs font-bold text-[#e8a020] bg-[#e8a020]/10 px-2 py-1 rounded mb-2" id="modal-ref"></div>
-                        <h4 class="text-white font-bold text-lg mb-2" id="modal-name"></h4>
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                    <div>
+                        <div id="modal-ref" style="font-family:monospace;font-size:11px;font-weight:700;color:#e20613;background:rgba(226,6,19,.08);padding:3px 10px;border-radius:6px;display:inline-block;margin-bottom:6px;"></div>
+                        <div id="modal-name" style="font-size:16px;font-weight:700;color:var(--text);"></div>
                     </div>
-                    
-                    <div class="space-y-3">
-                        <div class="bg-[#1a1d2e] rounded-xl p-3">
-                            <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">📍 Localisation</div>
-                            <div class="space-y-2">
-                                <div class="flex justify-between text-sm">
-                                    <span class="text-gray-400">Commune</span>
-                                    <span class="text-white font-medium" id="modal-commune">—</span>
-                                </div>
-                                <div class="flex justify-between text-sm" id="modal-zone-row">
-                                    <span class="text-gray-400">Zone</span>
-                                    <span class="text-white font-medium" id="modal-zone">—</span>
-                                </div>
-                            </div>
+                    <div style="background:var(--surface2);border-radius:10px;padding:14px;">
+                        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;">Localisation</div>
+                        <div style="display:flex;flex-direction:column;gap:6px;" id="modal-location"></div>
+                    </div>
+                    <div style="background:var(--surface2);border-radius:10px;padding:14px;">
+                        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;">Caractéristiques</div>
+                        <div style="display:flex;flex-direction:column;gap:6px;" id="modal-specs"></div>
+                    </div>
+                    <div style="background:rgba(226,6,19,.06);border:1px solid rgba(226,6,19,.2);border-radius:10px;padding:14px;">
+                        <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;">Tarification</div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:13px;color:var(--text2);">Tarif mensuel</span>
+                            <span id="modal-price" style="font-size:22px;font-weight:800;color:#e20613;"></span>
                         </div>
-                        
-                        <div class="bg-[#1a1d2e] rounded-xl p-3">
-                            <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">📐 Caractéristiques</div>
-                            <div class="space-y-2">
-                                <div class="flex justify-between text-sm" id="modal-format-row">
-                                    <span class="text-gray-400">Format</span>
-                                    <span class="text-white font-medium" id="modal-format">—</span>
-                                </div>
-                                <div class="flex justify-between text-sm" id="modal-dimensions-row">
-                                    <span class="text-gray-400">Dimensions</span>
-                                    <span class="text-white font-medium" id="modal-dimensions">—</span>
-                                </div>
-                                <div class="flex justify-between text-sm">
-                                    <span class="text-gray-400">Éclairage</span>
-                                    <span class="text-white font-medium" id="modal-lit">—</span>
-                                </div>
-                                <div class="flex justify-between text-sm" id="modal-orientation-row">
-                                    <span class="text-gray-400">Orientation</span>
-                                    <span class="text-white font-medium" id="modal-orientation">—</span>
-                                </div>
-                                <div class="flex justify-between text-sm" id="modal-height-row">
-                                    <span class="text-gray-400">Hauteur</span>
-                                    <span class="text-white font-medium" id="modal-height">—</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="bg-[#1a1d2e] rounded-xl p-3">
-                            <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">📊 Trafic</div>
-                            <div class="space-y-2">
-                                <div class="flex justify-between text-sm" id="modal-traffic-row">
-                                    <span class="text-gray-400">Trafic journalier</span>
-                                    <span class="text-white font-medium" id="modal-traffic">—</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="bg-gradient-to-r from-[#e8a020]/10 to-transparent rounded-xl p-4 border border-[#e8a020]/30">
-                            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">💰 Tarification</div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-gray-400">Tarif mensuel</span>
-                                <span class="text-2xl font-bold text-[#e8a020]" id="modal-price">0 FCFA</span>
-                            </div>
-                            <div class="text-xs text-gray-500 mt-2">
-                                * Tarif net hors taxes
-                            </div>
-                        </div>
+                        <div style="font-size:10px;color:var(--text3);margin-top:6px;">Tarif net hors taxes</div>
                     </div>
                 </div>
             </div>
@@ -293,250 +251,144 @@
     </div>
 </div>
 
-{{-- Modal Confirmation --}}
-<div id="modal-confirm" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 hidden" onclick="if(event.target===this) closeConfirmModal()">
-    <div class="bg-[#11131f] border border-white/10 rounded-2xl max-w-md w-full mx-4 relative">
-        <button class="absolute top-4 right-4 text-gray-500 hover:text-gray-300 transition-colors text-xl" onclick="closeConfirmModal()">✕</button>
-        <div class="p-6 text-center">
-            <div class="text-6xl mb-4">✅</div>
-            <h3 class="text-xl font-bold text-white mb-2">Confirmer la proposition</h3>
-            <p class="text-sm text-gray-400 mb-4">
-                Souhaitez-vous confirmer cette proposition ?<br>
-                Les panneaux vous seront attribués et une campagne sera créée.
-            </p>
-            <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-6">
-                <p class="text-xs text-amber-400">🔒 Cette action est définitive — elle déclenche la création de votre campagne.</p>
-            </div>
-            <form method="POST" action="{{ route('proposition.confirmer', $token) }}" id="form-confirm">
-                @csrf
-                <div class="flex gap-3 justify-center">
-                    <button type="button" class="px-6 py-2 rounded-xl bg-[#1a1d2e] text-gray-400 hover:bg-[#252a3f] transition-colors" onclick="closeConfirmModal()">Annuler</button>
-                    <button type="submit" class="px-6 py-2 rounded-xl bg-[#e8a020] text-[#0a0c15] font-semibold hover:bg-[#c47a00] transition-colors" onclick="this.disabled=true;this.textContent='En cours…';this.closest('form').submit()">
-                        Confirmer
-                    </button>
-                </div>
-            </form>
+{{-- ══ MODAL CONFIRMATION ══ --}}
+<div id="modal-confirm" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(4px);z-index:9999;align-items:center;justify-content:center;padding:16px;"
+     onclick="if(event.target===this)closeConfirmModal()">
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;max-width:420px;width:100%;padding:32px;text-align:center;position:relative;"
+         onclick="event.stopPropagation()">
+        <button onclick="closeConfirmModal()" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'">✕</button>
+        <div style="width:56px;height:56px;border-radius:14px;background:rgba(34,197,94,.1);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
+        <h3 style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px;">Confirmer la proposition</h3>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;">Souhaitez-vous confirmer cette proposition ? Les panneaux vous seront attribués et une campagne sera créée.</p>
+        <div style="background:rgba(250,184,11,.08);border:1px solid rgba(250,184,11,.2);border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:#fab80b;">
+            Cette action est définitive — elle déclenche la création de votre campagne.
+        </div>
+        <form method="POST" action="{{ route('proposition.confirmer', $token) }}">
+            @csrf
+            <div style="display:flex;gap:10px;justify-content:center;">
+                <button type="button" onclick="closeConfirmModal()"
+                        style="padding:10px 20px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:13px;color:var(--text2);cursor:pointer;transition:all .15s;"
+                        onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">Annuler</button>
+                <button type="submit"
+                        style="padding:10px 24px;background:#22c55e;color:#fff;font-weight:700;border-radius:9px;font-size:13px;border:none;cursor:pointer;transition:opacity .15s;"
+                        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"
+                        onclick="this.disabled=true;this.textContent='En cours…';this.closest('form').submit()">
+                    Confirmer
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
-{{-- Modal Refus --}}
-<div id="modal-refus" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 hidden" onclick="if(event.target===this) closeRefuseModal()">
-    <div class="bg-[#11131f] border border-white/10 rounded-2xl max-w-md w-full mx-4 relative">
-        <button class="absolute top-4 right-4 text-gray-500 hover:text-gray-300 transition-colors text-xl" onclick="closeRefuseModal()">✕</button>
-        <div class="p-6">
-            <div class="text-center mb-4">
-                <div class="text-6xl mb-4">👋</div>
-                <h3 class="text-xl font-bold text-white mb-2">Refuser la proposition</h3>
-                <p class="text-sm text-gray-400">
-                    Un motif aide notre équipe à mieux vous proposer des emplacements adaptés à vos besoins.
-                </p>
+{{-- ══ MODAL REFUS ══ --}}
+<div id="modal-refus" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(4px);z-index:9999;align-items:center;justify-content:center;padding:16px;"
+     onclick="if(event.target===this)closeRefuseModal()">
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;max-width:420px;width:100%;padding:32px;position:relative;"
+         onclick="event.stopPropagation()">
+        <button onclick="closeRefuseModal()" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'">✕</button>
+        <div style="text-align:center;margin-bottom:20px;">
+            <div style="width:56px;height:56px;border-radius:14px;background:rgba(239,68,68,.1);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </div>
-            <form method="POST" action="{{ route('proposition.refuser', $token) }}">
-                @csrf
-                <textarea name="motif" rows="3" class="w-full bg-[#1a1d2e] border border-white/10 rounded-xl p-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#e8a020] transition-colors resize-vertical mb-5" placeholder="Motif optionnel — ex: budget, zones non souhaitées, période inadaptée..."></textarea>
-                <div class="flex gap-3 justify-center">
-                    <button type="button" class="px-6 py-2 rounded-xl bg-[#1a1d2e] text-gray-400 hover:bg-[#252a3f] transition-colors" onclick="closeRefuseModal()">Annuler</button>
-                    <button type="submit" class="px-6 py-2 rounded-xl bg-red-500/20 text-red-400 font-semibold border border-red-500/30 hover:bg-red-500/30 transition-colors">
-                        Confirmer le refus
-                    </button>
-                </div>
-            </form>
+            <h3 style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;">Refuser la proposition</h3>
+            <p style="font-size:13px;color:var(--text2);line-height:1.6;">Un motif aide notre équipe à mieux adapter les futures propositions.</p>
         </div>
+        <form method="POST" action="{{ route('proposition.refuser', $token) }}">
+            @csrf
+            <textarea name="motif" rows="3"
+                      style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--text);resize:vertical;outline:none;transition:border-color .15s;margin-bottom:16px;font-family:inherit;"
+                      onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'"
+                      placeholder="Motif optionnel — ex: budget, zones, période..."></textarea>
+            <div style="display:flex;gap:10px;justify-content:center;">
+                <button type="button" onclick="closeRefuseModal()"
+                        style="padding:10px 20px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:13px;color:var(--text2);cursor:pointer;transition:all .15s;"
+                        onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">Annuler</button>
+                <button type="submit"
+                        style="padding:10px 24px;background:rgba(239,68,68,.1);color:#ef4444;font-weight:600;border-radius:9px;font-size:13px;border:1px solid rgba(239,68,68,.25);cursor:pointer;transition:all .15s;"
+                        onmouseover="this.style.background='rgba(239,68,68,.2)'" onmouseout="this.style.background='rgba(239,68,68,.1)'">
+                    Confirmer le refus
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
 <script>
-// Données des panneaux passées depuis le contrôleur
 const panelsData = @json($panels);
-
-// Variables pour le carrousel
-let currentPanelIndex = 0;
 let currentPhotoIndex = 0;
 let currentPhotos = [];
 
+function row(label, val, color) {
+    if (!val || val === '—') return '';
+    return `<div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text3);">${label}</span><span style="color:${color||'var(--text2)'};font-weight:500;">${val}</span></div>`;
+}
+
 function openPanelModal(index) {
-    currentPanelIndex = index;
-    const panel = panelsData[currentPanelIndex];
-    
+    const panel = panelsData[index];
     if (!panel) return;
-    
-    // Récupérer les photos (si disponibles)
     currentPhotos = panel.photos || [];
     currentPhotoIndex = 0;
-    
-    // Mettre à jour le titre
-    document.getElementById('modal-panel-title').innerHTML = `📋 ${panel.reference}`;
-    
-    // Informations de base
-    document.getElementById('modal-ref').innerHTML = panel.reference;
-    document.getElementById('modal-name').innerHTML = panel.name;
-    document.getElementById('modal-commune').innerHTML = panel.commune || '—';
-    
-    // Zone
-    const zoneRow = document.getElementById('modal-zone-row');
-    const zoneEl = document.getElementById('modal-zone');
-    if (panel.zone && panel.zone !== '—') {
-        zoneRow.style.display = 'flex';
-        zoneEl.innerHTML = panel.zone;
-    } else {
-        zoneRow.style.display = 'none';
-    }
-    
-    // Format
-    const formatRow = document.getElementById('modal-format-row');
-    const formatEl = document.getElementById('modal-format');
-    if (panel.format && panel.format !== '—') {
-        formatRow.style.display = 'flex';
-        formatEl.innerHTML = panel.format;
-    } else {
-        formatRow.style.display = 'none';
-    }
-    
-    // Dimensions
-    const dimensionsRow = document.getElementById('modal-dimensions-row');
-    const dimensionsEl = document.getElementById('modal-dimensions');
-    if (panel.dimensions && panel.dimensions !== '—') {
-        dimensionsRow.style.display = 'flex';
-        dimensionsEl.innerHTML = panel.dimensions;
-    } else {
-        dimensionsRow.style.display = 'none';
-    }
-    
-    // Orientation
-    const orientationRow = document.getElementById('modal-orientation-row');
-    const orientationEl = document.getElementById('modal-orientation');
-    if (panel.orientation && panel.orientation !== '—') {
-        orientationRow.style.display = 'flex';
-        orientationEl.innerHTML = panel.orientation;
-    } else {
-        orientationRow.style.display = 'none';
-    }
-    
-    // Hauteur
-    const heightRow = document.getElementById('modal-height-row');
-    const heightEl = document.getElementById('modal-height');
-    if (panel.height && panel.height !== '—') {
-        heightRow.style.display = 'flex';
-        heightEl.innerHTML = panel.height;
-    } else {
-        heightRow.style.display = 'none';
-    }
-    
-    // Trafic
-    const trafficRow = document.getElementById('modal-traffic-row');
-    const trafficEl = document.getElementById('modal-traffic');
-    if (panel.daily_traffic) {
-        trafficRow.style.display = 'flex';
-        trafficEl.innerHTML = panel.daily_traffic.toLocaleString() + ' véhicules/jour';
-    } else {
-        trafficRow.style.display = 'none';
-    }
-    
-    // Éclairage
-    document.getElementById('modal-lit').innerHTML = panel.is_lit ? '💡 LED Éclairé' : '🌙 Non éclairé';
-    
-    // Prix
-    document.getElementById('modal-price').innerHTML = new Intl.NumberFormat('fr-FR').format(panel.monthly_rate) + ' FCFA';
-    
-    // Gérer les images
+
+    document.getElementById('modal-panel-title').textContent = panel.reference;
+    document.getElementById('modal-ref').textContent = panel.reference;
+    document.getElementById('modal-name').textContent = panel.name;
+    document.getElementById('modal-price').textContent = new Intl.NumberFormat('fr-FR').format(panel.monthly_rate) + ' FCFA';
+
+    document.getElementById('modal-location').innerHTML =
+        row('Commune', panel.commune) +
+        row('Zone', panel.zone !== '—' ? panel.zone : '');
+
+    document.getElementById('modal-specs').innerHTML =
+        row('Format', panel.format) +
+        row('Dimensions', panel.dimensions) +
+        row('Éclairage', panel.is_lit ? 'Éclairé' : 'Non éclairé', panel.is_lit ? '#fab80b' : null) +
+        row('Orientation', panel.orientation) +
+        row('Hauteur', panel.height) +
+        (panel.daily_traffic ? row('Trafic/jour', new Intl.NumberFormat('fr-FR').format(panel.daily_traffic) + ' véhicules') : '');
+
     updateModalImage();
-    
-    // Afficher le modal
-    document.getElementById('modal-panel').classList.remove('hidden');
+    const m = document.getElementById('modal-panel');
+    m.style.display = 'flex';
     document.body.style.overflow = 'hidden';
 }
 
 function updateModalImage() {
-    const mainImage = document.getElementById('modal-main-image');
-    const thumbnailsContainer = document.getElementById('modal-thumbnails');
-    const noImageDiv = document.getElementById('modal-no-image');
-    
-    if (currentPhotos.length > 0 && currentPhotos[currentPhotoIndex]) {
-        // Afficher l'image principale
-        mainImage.src = currentPhotos[currentPhotoIndex].url;
-        mainImage.classList.remove('hidden');
-        noImageDiv.classList.add('hidden');
-        
-        // Générer les miniatures
-        thumbnailsContainer.innerHTML = '';
-        currentPhotos.forEach((photo, idx) => {
-            const thumb = document.createElement('button');
-            thumb.className = `w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${idx === currentPhotoIndex ? 'border-[#e8a020]' : 'border-white/20 hover:border-white/50'}`;
-            thumb.onclick = (e) => {
-                e.stopPropagation();
-                currentPhotoIndex = idx;
-                updateModalImage();
-            };
-            thumb.innerHTML = `<img src="${photo.url}" class="w-full h-full object-cover" alt="Miniature">`;
-            thumbnailsContainer.appendChild(thumb);
-        });
+    const img = document.getElementById('modal-main-image');
+    const thumbs = document.getElementById('modal-thumbnails');
+    const noImg = document.getElementById('modal-no-image');
+    if (currentPhotos.length > 0) {
+        img.src = currentPhotos[currentPhotoIndex].url;
+        img.style.display = 'block';
+        noImg.style.display = 'none';
+        thumbs.innerHTML = currentPhotos.map((p, i) => `
+            <button onclick="currentPhotoIndex=${i};updateModalImage()" style="width:56px;height:56px;border-radius:8px;overflow:hidden;border:2px solid ${i===currentPhotoIndex?'#e20613':'var(--border2)'};cursor:pointer;flex-shrink:0;padding:0;background:none;">
+                <img src="${p.url}" style="width:100%;height:100%;object-fit:cover;">
+            </button>`).join('');
     } else {
-        // Pas d'image
-        mainImage.classList.add('hidden');
-        noImageDiv.classList.remove('hidden');
-        thumbnailsContainer.innerHTML = '';
+        img.style.display = 'none';
+        noImg.style.display = 'block';
+        thumbs.innerHTML = '';
     }
 }
 
 function closePanelModal() {
-    document.getElementById('modal-panel').classList.add('hidden');
+    document.getElementById('modal-panel').style.display = 'none';
     document.body.style.overflow = '';
 }
+function openConfirmModal()  { document.getElementById('modal-confirm').style.display='flex'; document.body.style.overflow='hidden'; }
+function closeConfirmModal() { document.getElementById('modal-confirm').style.display='none'; document.body.style.overflow=''; }
+function openRefuseModal()   { document.getElementById('modal-refus').style.display='flex';  document.body.style.overflow='hidden'; }
+function closeRefuseModal()  { document.getElementById('modal-refus').style.display='none';  document.body.style.overflow=''; }
 
-function openConfirmModal() {
-    document.getElementById('modal-confirm').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-}
-
-function closeConfirmModal() {
-    document.getElementById('modal-confirm').classList.add('hidden');
-    document.body.style.overflow = '';
-}
-
-function openRefuseModal() {
-    document.getElementById('modal-refus').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-}
-
-function closeRefuseModal() {
-    document.getElementById('modal-refus').classList.add('hidden');
-    document.body.style.overflow = '';
-}
-
-// Navigation au clavier
-document.addEventListener('keydown', function(e) {
-    if (document.getElementById('modal-panel').classList.contains('hidden')) {
-        if (e.key === 'Escape') {
-            closeConfirmModal();
-            closeRefuseModal();
-        }
-    } else {
-        if (e.key === 'Escape') {
-            closePanelModal();
-        } else if (e.key === 'ArrowLeft') {
-            if (currentPhotos.length > 0) {
-                currentPhotoIndex = (currentPhotoIndex - 1 + currentPhotos.length) % currentPhotos.length;
-                updateModalImage();
-            }
-        } else if (e.key === 'ArrowRight') {
-            if (currentPhotos.length > 0) {
-                currentPhotoIndex = (currentPhotoIndex + 1) % currentPhotos.length;
-                updateModalImage();
-            }
-        }
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closePanelModal(); closeConfirmModal(); closeRefuseModal(); }
+    if (document.getElementById('modal-panel').style.display !== 'none') {
+        if (e.key === 'ArrowLeft'  && currentPhotos.length) { currentPhotoIndex=(currentPhotoIndex-1+currentPhotos.length)%currentPhotos.length; updateModalImage(); }
+        if (e.key === 'ArrowRight' && currentPhotos.length) { currentPhotoIndex=(currentPhotoIndex+1)%currentPhotos.length; updateModalImage(); }
     }
 });
 </script>
-
-@if($reservation->status->value === 'confirme')
-    <div class="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm">
-        ✅ Vous avez confirmé cette proposition. Merci pour votre confiance !
-    </div>
-@elseif(in_array($reservation->status->value, ['annule', 'refuse']))
-    <div class="mb-6 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm">
-        ℹ️ Cette proposition a été refusée ou annulée.
-    </div>
-@endif
 
 @endsection
