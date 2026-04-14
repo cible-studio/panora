@@ -298,7 +298,7 @@ class PanelController extends Controller
         AlertService::create(
             'panneau',
             'info',
-            '🔄 Statut panneau mis à jour — ' . $panel->reference,
+            'Statut panneau mis à jour — ' . $panel->reference,
             auth()->user()->name . ' a changé le statut du panneau ' . $panel->reference . ' en "' . $request->status . '".',
             $panel
         );

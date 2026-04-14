@@ -127,10 +127,27 @@ Route::prefix('admin')
         Route::get('map/data', [PanelController::class, 'mapData'])
             ->name('map.data');
 
-        // ── Pose OOH ──────────────────────────────────────────────
-        Route::resource('pose-tasks', PoseController::class);
-        Route::post('pose-tasks/{task}/complete', [PoseController::class, 'markComplete'])
-            ->name('pose.complete');
+        // ── Pose OOH ──────────────────────────────────────────────────
+        // ⚠️ Routes AJAX spécifiques AVANT resource pour éviter conflits
+        Route::prefix('pose-tasks')->name('pose-tasks.')->group(function () {
+            // ── AJAX endpoints (avant les routes paramétriques) ──────
+            Route::get('search-campaigns', [PoseController::class, 'searchCampaigns'])->name('search-campaigns');
+            Route::get('campaign-panels',  [PoseController::class, 'campaignPanels']) ->name('campaign-panels');
+            Route::get('search-panels',    [PoseController::class, 'searchPanels'])   ->name('search-panels');
+
+            // ── CRUD standard ─────────────────────────────────────────
+            Route::get('/',         [PoseController::class, 'index'])  ->name('index');
+            Route::get('/create',   [PoseController::class, 'create']) ->name('create');
+            Route::post('/',        [PoseController::class, 'store'])  ->name('store');
+            Route::get('/{poseTask}',      [PoseController::class, 'show'])->name('show');
+            Route::get('/{poseTask}/edit', [PoseController::class, 'edit'])->name('edit');
+            Route::put('/{poseTask}',      [PoseController::class, 'update'])->name('update');
+            Route::delete('/{poseTask}',   [PoseController::class, 'destroy'])->name('destroy');
+        });
+        
+        // ── Alias pour markComplete (rétrocompatibilité) ──────────────
+        Route::post('pose-tasks/{poseTask}/complete', [PoseController::class, 'markComplete'])
+            ->name('pose.complete');        
 
         // Maintenance
         Route::resource('maintenances', MaintenanceController::class);
@@ -167,16 +184,17 @@ Route::prefix('admin')
 
         // ── Piges Photos ──────────────────────────────────────────
         Route::prefix('piges')->name('piges.')->group(function () {
-            Route::get('/', [PigeController::class, 'index'])->name('index');
-            Route::post('/upload', [PigeController::class, 'upload'])->name('upload');
-            Route::get('/export-pdf', [PigeController::class, 'exportPdf'])->name('export-pdf');
-            // Spécifiques AVANT {pige}
-            Route::get('/campagne/{campaign}', [PigeController::class, 'byCampaign'])->name('by-campaign');
-
-            Route::get('/{pige}', [PigeController::class, 'show'])->name('show');
-            Route::post('/{pige}/verify', [PigeController::class, 'verify'])->name('verify');
-            Route::post('/{pige}/reject', [PigeController::class, 'reject'])->name('reject');
-            Route::delete('/{pige}', [PigeController::class, 'destroy'])->name('destroy');
+            Route::get('/',                        [PigeController::class, 'index'])           ->name('index');
+            Route::post('/upload',                 [PigeController::class, 'upload'])          ->name('upload');
+            Route::get('/export-pdf',              [PigeController::class, 'exportPdf'])       ->name('export-pdf');
+            Route::get('/context',                 [PigeController::class, 'context'])         ->name('context');
+            Route::get('/panels-by-campaign',      [PigeController::class, 'panelsByCampaign'])->name('panels-by-campaign'); // ← NOUVEAU
+            Route::get('/campagne/{campaign}',     [PigeController::class, 'byCampaign'])      ->name('by-campaign');
+            // Routes avec {pige} EN DERNIER
+            Route::get('/{pige}',                  [PigeController::class, 'show'])            ->name('show');
+            Route::post('/{pige}/verify',          [PigeController::class, 'verify'])          ->name('verify');
+            Route::post('/{pige}/reject',          [PigeController::class, 'reject'])          ->name('reject');
+            Route::delete('/{pige}',              [PigeController::class, 'destroy'])          ->name('destroy');
         });
 
         // ── Taxes Communes ────────────────────────────────────────
