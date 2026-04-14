@@ -28,7 +28,8 @@ class AppServiceProvider extends ServiceProvider
         ExternalPanel::observe(ExternalPanelObserver::class);
 
 
-        // Force UTF8 pour WAMP
-        \DB::statement('SET NAMES utf8');
+        if (config('database.default') === 'mysql') {
+            \DB::statement('SET NAMES utf8mb4');
+        }
     }
 }

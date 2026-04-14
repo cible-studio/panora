@@ -166,7 +166,8 @@
                                 <line x1="16" y1="6" x2="16" y2="22" />
                             </svg></span> Carte & Heatmap
                     </a>
-                    <a href="{{ route('admin.rapports.index') }}" class="nav-item">
+                    <a href="{{ route('admin.rapports.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.rapports.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none"
                                 stroke="#81358a" stroke-width="2">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -247,9 +248,10 @@
             <div class="topbar" style="position:fixed; top:0; left:235px; right:0; z-index:30;">
                 <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
                 <div style="display:flex;align-items:center;gap:10px;">
-                    <button onclick="toggleTheme()" id="theme-toggle-btn" class="btn btn-ghost btn-sm"
-                        title="Basculer dark/light mode"
-                        style="font-size:16px; padding:6px 10px; border-radius:8px;">🌙</button>
+                    <label class="theme-switch">
+                        <input type="checkbox" id="theme-toggle" onchange="toggleThemeSwitch()">
+                        <span class="slider"></span>
+                    </label>
                     <a href="{{ route('admin.alerts.index') }}" class="btn btn-ghost btn-sm"
                         style="position:relative;" title="Alertes non lues">
                         🔔
@@ -277,32 +279,12 @@
         </div>
     </div>
 
-    {{-- TOAST --}}
+    {{-- TOAST container --}}
     <div id="toast-container"
         style="position:fixed;top:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:380px;">
     </div>
 
-    @if (session('success'))
-        <script>
-            document.addEventListener('DOMContentLoaded', () => showToast('success', @json(session('success'))));
-        </script>
-    @endif
-    @if (session('error'))
-        <script>
-            document.addEventListener('DOMContentLoaded', () => showToast('error', @json(session('error'))));
-        </script>
-    @endif
-    @if (session('warning'))
-        <script>
-            document.addEventListener('DOMContentLoaded', () => showToast('warning', @json(session('warning'))));
-        </script>
-    @endif
-    @if (session('info'))
-        <script>
-            document.addEventListener('DOMContentLoaded', () => showToast('info', @json(session('info'))));
-        </script>
-    @endif
-
+    {{-- Toast styles --}}
     <style>
         .toast {
             min-width: 300px;
@@ -439,6 +421,7 @@
         }
     </style>
 
+    {{-- Toast JS — DOIT être défini AVANT les appels session --}}
     <script>
         const TOAST_ICONS = {
             success: '✅',
@@ -486,15 +469,42 @@
         };
     </script>
 
+    {{-- Appels session — APRÈS la définition de showToast --}}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            @if (session('success'))
+                showToast('success', @json(session('success')));
+            @endif
+            @if (session('error'))
+                showToast('error', @json(session('error')));
+            @endif
+            @if (session('warning'))
+                showToast('warning', @json(session('warning')));
+            @endif
+            @if (session('info'))
+                showToast('info', @json(session('info')));
+            @endif
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+        const toggle = document.getElementById('theme-toggle');
+
+        if (toggle) {
+            toggle.checked = savedTheme === 'light';
+        }
+        });
+    </script>
+
+    {{-- Thème + Alertes --}}
     <script>
         (function() {
             applyTheme(localStorage.getItem('theme') || 'dark');
         })();
 
-        function toggleTheme() {
-            const next = (localStorage.getItem('theme') || 'dark') === 'dark' ? 'light' : 'dark';
-            localStorage.setItem('theme', next);
-            applyTheme(next);
+        function toggleThemeSwitch() {
+            const isChecked = document.getElementById('theme-toggle').checked;
+            const theme = isChecked ? 'light' : 'dark';
+
+            localStorage.setItem('theme', theme);
+            applyTheme(theme);
         }
 
         function applyTheme(theme) {
@@ -507,10 +517,8 @@
             if (ll) ll.style.display = theme === 'light' ? 'block' : 'none';
         }
 
-        // ── ALERTES — persistance localStorage ────────────────────
+        // ── ALERTES persistance localStorage ──────────────────────
         let _shownAlertIds = new Set(JSON.parse(localStorage.getItem('shownAlertIds') || '[]'));
-
-        // Nettoyer les anciens IDs (garder max 200) pour éviter que localStorage grossisse
         if (_shownAlertIds.size > 200) {
             const arr = [..._shownAlertIds].slice(-100);
             _shownAlertIds = new Set(arr);
@@ -528,19 +536,15 @@
                 if (!res.ok) return;
                 const alerts = await res.json();
 
-                // Mettre à jour badge
                 const badge = document.getElementById('alert-badge');
                 if (badge) {
                     badge.textContent = alerts.length;
                     badge.style.display = alerts.length > 0 ? 'inline-block' : 'none';
                 }
 
-                // Afficher notif seulement pour les alertes jamais vues
                 alerts.forEach(alert => {
                     if (_shownAlertIds.has(String(alert.id))) return;
-
                     _shownAlertIds.add(String(alert.id));
-                    // Sauvegarder dans localStorage → persiste après rechargement
                     localStorage.setItem('shownAlertIds', JSON.stringify([..._shownAlertIds]));
 
                     const typeLabels = {
@@ -563,7 +567,6 @@
             } catch (e) {}
         }
 
-        // Au chargement (2s de délai) + toutes les 30s
         document.addEventListener('DOMContentLoaded', () => setTimeout(checkAlerts, 2000));
         setInterval(checkAlerts, 30000);
     </script>
