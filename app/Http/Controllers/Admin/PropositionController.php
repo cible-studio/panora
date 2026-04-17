@@ -303,7 +303,7 @@ class PropositionController extends Controller
                 ->with('error', 'Erreur lors de la confirmation. Contactez votre commercial.');
         }
 
-        return view('proposition.confirmed', [
+        return view('client.proposition.confirmed', [
             'reservation' => $reservation->fresh(['client', 'panels']),
             'client'      => $reservation->client,
             'campaign'    => $campaign,
