@@ -260,12 +260,48 @@ class PanelController extends Controller
             'daily_traffic' => 'nullable|integer|min:0',
             'is_lit' => 'boolean',
             'zone_description' => 'nullable|string',
+            'new_images.*' => 'nullable|image|max:5120',
+            'delete_photos' => 'nullable|array',
+            'delete_photos.*' => 'exists:panel_photos,id',
         ]);
 
         $panel->update([
-            ...$request->except('_token', '_method'),
+            ...$request->except('_token', '_method', 'new_images', 'delete_photos', 'ordre'),
             'is_lit' => $request->boolean('is_lit'),
         ]);
+
+        // ── Supprimer les photos cochées ──
+        if ($request->filled('delete_photos')) {
+            $photos = PanelPhoto::whereIn('id', $request->delete_photos)
+                ->where('panel_id', $panel->id)
+                ->get();
+            foreach ($photos as $photo) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($photo->path);
+                $photo->delete();
+            }
+        }
+
+        // ── Mettre à jour l'ordre ──
+        if ($request->filled('ordre')) {
+            foreach ($request->ordre as $photoId => $ordre) {
+                PanelPhoto::where('id', $photoId)
+                    ->where('panel_id', $panel->id)
+                    ->update(['ordre' => (int) $ordre]);
+            }
+        }
+
+        // ── Ajouter les nouvelles images ──
+        if ($request->hasFile('new_images')) {
+            $nextOrdre = $panel->photos()->max('ordre') + 1;
+            foreach ($request->file('new_images') as $image) {
+                $path = $image->store('panels', 'public');
+                PanelPhoto::create([
+                    'panel_id' => $panel->id,
+                    'path' => $path,
+                    'ordre' => $nextOrdre++,
+                ]);
+            }
+        }
 
         AlertService::create(
             'panneau',
