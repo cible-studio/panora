@@ -26,7 +26,8 @@ window.__POSE__ = {
 };
 </script>
 
-<div style="max-width:780px">
+<!-- afficher sur tout la page -->
+<div style="max-width:900px;margin:0 auto 40px;padding:0 14px">
 
     @if($errors->any())
     <div class="err-box">

@@ -71,6 +71,10 @@ Route::prefix('client')->name('client.')->group(function () {
         Route::get('/campagnes', [ClientDashboardController::class, 'campagnes'])->name('campagnes');
         Route::get('/campagnes/{campaign}', [ClientDashboardController::class, 'campagneDetail'])->name('campagne.detail');
 
+        //Poses & Piges
+        Route::get('/poses',  [ClientDashboardController::class, 'poses']) ->name('poses');
+        Route::get('/piges',  [ClientDashboardController::class, 'piges']) ->name('piges');
+
         // Profil
         Route::get('/profil', [ClientDashboardController::class, 'profil'])->name('profil');
         Route::patch('/profil', [ClientDashboardController::class, 'updateProfil'])->name('profil.update');
@@ -184,18 +188,42 @@ Route::prefix('admin')
         });
 
         // ── Piges Photos ──────────────────────────────────────────
+        // Route::prefix('piges')->name('piges.')->group(function () {
+        //     Route::get('/',                        [PigeController::class, 'index'])           ->name('index');
+        //     Route::post('/upload',                 [PigeController::class, 'upload'])          ->name('upload');
+        //     Route::get('/export-pdf',              [PigeController::class, 'exportPdf'])       ->name('export-pdf');
+        //     Route::get('/context',                 [PigeController::class, 'context'])         ->name('context');
+        //     Route::get('/panels-by-campaign',      [PigeController::class, 'panelsByCampaign'])->name('panels-by-campaign'); // ← NOUVEAU
+        //     Route::get('/campagne/{campaign}',     [PigeController::class, 'byCampaign'])      ->name('by-campaign');
+        //     // Routes avec {pige} EN DERNIER
+        //     Route::get('/{pige}',                  [PigeController::class, 'show'])            ->name('show');
+        //     Route::post('/{pige}/verify',          [PigeController::class, 'verify'])          ->name('verify');
+        //     Route::post('/{pige}/reject',          [PigeController::class, 'reject'])          ->name('reject');
+        //     Route::delete('/{pige}',              [PigeController::class, 'destroy'])          ->name('destroy');
+        // });
+
+        // ══════════════════════════════════════════════════════════════
+        // ROUTES PIGES — CRUD + actions spécifiques
+        // ══════════════════════════════════════════════════════════════
+        
         Route::prefix('piges')->name('piges.')->group(function () {
-            Route::get('/',                        [PigeController::class, 'index'])           ->name('index');
-            Route::post('/upload',                 [PigeController::class, 'upload'])          ->name('upload');
-            Route::get('/export-pdf',              [PigeController::class, 'exportPdf'])       ->name('export-pdf');
-            Route::get('/context',                 [PigeController::class, 'context'])         ->name('context');
-            Route::get('/panels-by-campaign',      [PigeController::class, 'panelsByCampaign'])->name('panels-by-campaign'); // ← NOUVEAU
-            Route::get('/campagne/{campaign}',     [PigeController::class, 'byCampaign'])      ->name('by-campaign');
-            // Routes avec {pige} EN DERNIER
-            Route::get('/{pige}',                  [PigeController::class, 'show'])            ->name('show');
-            Route::post('/{pige}/verify',          [PigeController::class, 'verify'])          ->name('verify');
-            Route::post('/{pige}/reject',          [PigeController::class, 'reject'])          ->name('reject');
-            Route::delete('/{pige}',              [PigeController::class, 'destroy'])          ->name('destroy');
+        
+            // ── AJAX (avant les routes paramétriques) ──────────────────
+            Route::get('campaign-panels', [PigeController::class, 'campaignPanels'])->name('campaign-panels');
+            Route::post('verify-batch',   [PigeController::class, 'verifyBatch'])   ->name('verify-batch');
+        
+            // ── Actions sur une pige ───────────────────────────────────
+            Route::post('{pige}/verify', [PigeController::class, 'verify']) ->name('verify');
+            Route::post('{pige}/reject', [PigeController::class, 'reject']) ->name('reject');
+        
+            // ── CRUD standard ──────────────────────────────────────────
+            Route::get('/',           [PigeController::class, 'index'])  ->name('index');
+            Route::get('/create',     [PigeController::class, 'create']) ->name('create');
+            Route::post('/',          [PigeController::class, 'store'])  ->name('store');
+            Route::get('/{pige}',     [PigeController::class, 'show'])   ->name('show');
+            Route::get('/{pige}/edit',  [PigeController::class, 'edit'])   ->name('edit');
+            Route::put('/{pige}',       [PigeController::class, 'update']) ->name('update');
+            Route::delete('/{pige}',  [PigeController::class, 'destroy'])->name('destroy');
         });
 
         // ── Taxes Communes ────────────────────────────────────────
@@ -319,14 +347,6 @@ Route::prefix('admin')
         // Gestion panneaux externes d'une campagne
         Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])
             ->name('campaigns.external-panels.remove');
-
-        // ── Piges Photos ──────────────────────────────────────────
-        Route::get('piges', [PigeController::class, 'index'])->name('piges.index');
-        Route::post('piges/upload', [PigeController::class, 'upload'])->name('piges.upload');
-        Route::get('piges/{pige}', [PigeController::class, 'show'])->name('piges.show');
-        Route::post('piges/{pige}/verify', [PigeController::class, 'verify'])->name('piges.verify');
-        Route::delete('piges/{pige}', [PigeController::class, 'destroy'])->name('piges.destroy');
-        Route::get('piges/export/pdf', [PigeController::class, 'exportPdf'])->name('piges.export.pdf');
 
         // ── Taxes Communes ────────────────────────────────────────
         Route::resource('taxes', TaxController::class);

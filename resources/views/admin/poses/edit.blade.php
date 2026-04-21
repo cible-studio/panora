@@ -33,7 +33,7 @@ window.__EDIT__ = {
 };
 </script>
 
-<div style="max-width:780px">
+<div style="max-width:900px;margin:0 auto 40px;padding:0 14px">
 
     {{-- Bannière tâche --}}
     <div style="background:rgba(232,160,32,.06);border:1px solid rgba(232,160,32,.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">

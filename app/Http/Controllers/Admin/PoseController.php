@@ -295,16 +295,28 @@ class PoseController extends Controller
     public function searchCampaigns(Request $request): JsonResponse
     {
         $q         = $request->input('q', '');
-        $statusArr = array_filter(explode(',', $request->input('status', 'actif,pose')));
-
+        $statusStr = $request->input('status', 'actif,pose');
+ 
+        // Si status est une chaîne vide → renvoyer TOUTES les campagnes (pour les piges)
+        if ($statusStr === '') {
+            $statusArr = [];
+        } else {
+            $statusArr = array_filter(array_map('trim', explode(',', $statusStr)));
+        }
+ 
         $campaigns = Campaign::query()
             ->when($q, fn($qr) => $qr->where('name', 'like', "%{$q}%"))
             ->when(!empty($statusArr), fn($qr) => $qr->whereIn('status', $statusArr))
-            ->orderByRaw("CASE WHEN status = 'actif' THEN 0 WHEN status = 'pose' THEN 1 ELSE 2 END")
+            ->orderByRaw("CASE
+                WHEN status = 'actif' THEN 0
+                WHEN status = 'pose'  THEN 1
+                WHEN status = 'termine' THEN 4
+                WHEN status = 'annule'  THEN 5
+                ELSE 2 END")
             ->orderBy('name')
-            ->limit(30)
+            ->limit(40)
             ->get(['id', 'name', 'status', 'start_date', 'end_date', 'total_panels']);
-
+ 
         return response()->json($campaigns->map(fn($c) => [
             'id'           => $c->id,
             'name'         => $c->name,
@@ -317,7 +329,6 @@ class PoseController extends Controller
             'total_panels' => $c->total_panels ?? 0,
         ]));
     }
-
     // ══════════════════════════════════════════════════════════════
     // AJAX : Panneaux d'une campagne avec statuts pose + pige
     // GET /admin/pose-tasks/campaign-panels?campaign_id=X
