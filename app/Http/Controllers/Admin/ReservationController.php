@@ -510,6 +510,8 @@ class ReservationController extends Controller
 
         return $pdf->download($filename . '.pdf');
     }
+
+
     public function pdfListe(Request $request)
     {
         $request->validate([
@@ -518,7 +520,10 @@ class ReservationController extends Controller
         ]);
 
         $panels = Panel::with(['commune', 'format', 'category'])
-            ->whereIn('id', $request->panel_ids)->orderBy('reference')->get();
+            ->whereIn('id', $request->panel_ids)
+            ->orderBy('reference')
+            ->get();
+        
         $startDate = $request->start_date;
         $endDate = $request->end_date;
         $dureeEnMois = ($startDate && $endDate)
@@ -526,16 +531,28 @@ class ReservationController extends Controller
             : 1;
         $totalMensuel = $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0));
         $totalPeriode = $totalMensuel * $dureeEnMois;
+        
+        // ✅ Ajouter la variable manquante
+        $generated = now()->format('d/m/Y à H:i');
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.selection-liste', compact(
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.reservations.pdf.disponibilites-list', compact(
             'panels',
             'startDate',
             'endDate',
             'dureeEnMois',
             'totalMensuel',
-            'totalPeriode'
+            'totalPeriode',
+            'generated'  // ✅ Ajouter ici
         ));
+        
         $pdf->setPaper('A4', 'landscape');
+        $pdf->setOptions([
+            'isHtml5ParserEnabled' => true,
+            'isRemoteEnabled' => false,
+            'defaultFont' => 'DejaVu Sans',
+            'dpi' => 96,
+        ]);
+        
         return $pdf->download('selection-panneaux-liste-' . now()->format('Ymd') . '.pdf');
     }
 

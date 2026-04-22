@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   CIBLE CI — Fiche Disponibilité PDF
+   Version optimisée DomPDF : tables, pas de flex, pas d'emoji
+   ═══════════════════════════════════════════════════════════════ */
+@page { margin: 12mm; }
+
+body {
+    font-family: 'DejaVu Sans', Arial, sans-serif;
+    font-size: 10px;
+    color: #1a1a2e;
+    background: #fff;
+}
+
+/* ── PAGE ── */
+.page {
+    page-break-after: always;
+}
+.page:last-child {
+    page-break-after: avoid;
+}
+
+/* ── HEADER AVEC LOGO ── */
+.header {
+    border-bottom: 2px solid #e20613;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+.header-table {
+    width: 100%;
+}
+.header-logo {
+    width: 60%;
+}
+.header-logo-cell {
+    vertical-align: middle;
+}
+.logo-img {
+    height: 40px;
+    width: auto;
+    max-width: 150px;
+}
+.logo-text {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 10px;
+}
+.logo-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #e20613;
+}
+.logo-sub {
+    font-size: 8px;
+    color: #64748b;
+}
+.header-right {
+    text-align: right;
+    vertical-align: middle;
+}
+.doc-title {
+    font-size: 11px;
+    font-weight: bold;
+    color: #e20613;
+}
+.doc-date {
+    font-size: 8px;
+    color: #64748b;
+    margin-top: 3px;
+}
+
+/* ── RÉFÉRENCE ── */
+.ref-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #e20613;
+    font-family: monospace;
+    margin-bottom: 3px;
+}
+.ref-name {
+    font-size: 11px;
+    color: #475569;
+    margin-bottom: 8px;
+}
+
+/* ── IMAGE GRANDE ── */
+.photo-container {
+    text-align: center;
+    margin: 12px 0;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 8px;
+}
+.photo-img {
+    width: 100%;
+    max-height: 110mm;
+    height: auto;
+}
+.photo-placeholder {
+    padding: 40px;
+    background: #f1f5f9;
+    text-align: center;
+}
+.photo-placeholder-icon {
+    font-size: 28px;
+    color: #94a3b8;
+}
+.photo-placeholder-text {
+    font-size: 9px;
+    color: #64748b;
+    margin-top: 5px;
+}
+
+/* ── TABLE INFORMATIONS ── */
+.info-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+}
+.info-table td {
+    padding: 8px 6px;
+    border: 1px solid #e2e8f0;
+    vertical-align: top;
+}
+.label-cell {
+    width: 30%;
+    font-weight: bold;
+    background: #f8fafc;
+}
+.value-cell {
+    width: 70%;
+}
+
+/* ── BADGE STATUT ── */
+.badge {
+    display: inline-block;
+    padding: 4px 12px;
+    font-size: 9px;
+    font-weight: bold;
+    border-radius: 4px;
+}
+.badge-libre       { background: #22c55e; color: #fff; }
+.badge-occupe      { background: #ef4444; color: #fff; }
+.badge-option      { background: #fab80b; color: #1a1a2e; }
+.badge-maintenance { background: #64748b; color: #fff; }
+
+/* ── CARTES INFO ── */
+.period-card {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    padding: 8px;
+    margin: 10px 0;
+}
+.period-label {
+    font-size: 7px;
+    font-weight: bold;
+    color: #0369a1;
+    text-transform: uppercase;
+}
+.period-dates {
+    font-size: 10px;
+    font-weight: bold;
+    color: #0c4a6e;
+    margin-top: 3px;
+}
+.period-duration {
+    font-size: 9px;
+    color: #64748b;
+    text-align: right;
+}
+
+.release-card {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    padding: 8px;
+    margin: 10px 0;
+    font-size: 9px;
+    font-weight: 600;
+    color: #dc2626;
+}
+
+.traffic-card {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    padding: 6px 10px;
+    margin: 5px 0;
+    display: inline-block;
+}
+.traffic-value {
+    font-size: 14px;
+    font-weight: bold;
+    color: #16a34a;
+}
+.traffic-label {
+    font-size: 7px;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+.desc-card {
+    background: #faf5ff;
+    border-left: 3px solid #9333ea;
+    padding: 8px;
+    margin: 10px 0;
+    font-size: 8px;
+    color: #6b21a5;
+}
+
+/* ── FOOTER ── */
+.footer {
+    margin-top: 15px;
+    padding-top: 8px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 7px;
+    text-align: center;
+    color: #64748b;
+}
+</style>
+</head>
+<body>
+
+@php
+use Carbon\Carbon;
+
+$fmtDate = fn($d) => $d ? Carbon::parse($d)->format('d/m/Y') : '—';
+$totalCount = $panels->count();
+
+$statusMap = fn($s) => match($s) {
+    'libre'             => ['label' => 'Disponible', 'class' => 'badge-libre'],
+    'occupe'            => ['label' => 'Occupe',     'class' => 'badge-occupe'],
+    'option_periode',
+    'option'            => ['label' => 'En option',  'class' => 'badge-option'],
+    'maintenance'       => ['label' => 'Maintenance','class' => 'badge-maintenance'],
+    default             => ['label' => 'Inconnu',    'class' => 'badge-occupe'],
+};
+
+$periodStr = null;
+if (!empty($startDate) && !empty($endDate)) {
+    $s = Carbon::parse($startDate);
+    $e = Carbon::parse($endDate);
+    $days = $s->diffInDays($e);
+    $periodStr = $days >= 30 ? intdiv($days, 30) . ' mois' : $days . ' jours';
+}
+@endphp
+
+@forelse($panels as $idx => $p)
+@php
+    $pageNum = $idx + 1;
+    $status = $statusMap($p['display_status'] ?? 'occupe');
+    $traffic = (int)($p['daily_traffic'] ?? 0);
+    $releaseInfo = $p['release_info'] ?? null;
+    $zoneDesc = $p['zone_description'] ?? '';
+
+    $imgSrc = null;
+    if (!empty($p['photo_path']) && file_exists($p['photo_path'])) {
+        $ext = strtolower(pathinfo($p['photo_path'], PATHINFO_EXTENSION));
+        $mime = match($ext) {
+            'png'  => 'image/png',
+            'webp' => 'image/webp',
+            'gif'  => 'image/gif',
+            default => 'image/jpeg',
+        };
+        $imgSrc = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p['photo_path']));
+    } elseif (!empty($p['photo_url'])) {
+        $imgSrc = $p['photo_url'];
+    }
+
+    $commune = $p['commune'] ?? '—';
+    $zone = $p['zone'] ?? '—';
+    $format = $p['format'] ?? '—';
+    $dims = $p['dimensions'] ?? null;
+    $category = $p['category'] ?? '—';
+    $isLit = (bool)($p['is_lit'] ?? false);
+@endphp
+
+<div class="page">
+
+    {{-- HEADER AVEC LOGO --}}
+    <div class="header">
+        <table class="header-table">
+            <tr>
+                <td class="header-logo">
+                    <table style="display: inline-table;">
+                        <tr>
+                            <td class="header-logo-cell">
+                                <img src="{{ public_path('images/logol.png') }}" class="logo-img" alt="CIBLE CI">
+                            </td>
+                            <td class="header-logo-cell">
+                                <div class="logo-text">
+                                    <div class="logo-title">CIBLE CI</div>
+                                    <div class="logo-sub">REGIE PUBLICITAIRE OOH</div>
+                                </div>
+                             </td>
+                        </tr>
+                    </table>
+                </td>
+                <td class="header-right">
+                    <div class="doc-title">FICHE DISPONIBILITE</div>
+                    <div class="doc-date">{{ $generated }} | {{ $pageNum }}/{{ $totalCount }}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    {{-- REFERENCE --}}
+    <div class="ref-title">{{ $p['reference'] ?? '—' }}</div>
+    <div class="ref-name">{{ $p['name'] ?? '' }}</div>
+
+    {{-- IMAGE GRANDE --}}
+    <div class="photo-container">
+        @if($imgSrc)
+            <img src="{{ $imgSrc }}" class="photo-img" alt="{{ $p['reference'] }}">
+        @else
+            <div class="photo-placeholder">
+                <div class="photo-placeholder-icon">[PANEL]</div>
+                <div class="photo-placeholder-text">Aucune photo disponible</div>
+            </div>
+        @endif
+    </div>
+
+    {{-- STATUT --}}
+    <div style="text-align: right; margin-bottom: 8px;">
+        <span class="badge {{ $status['class'] }}">{{ $status['label'] }}</span>
+    </div>
+
+    {{-- PERIODE (si disponible) --}}
+    @if(!empty($startDate) && !empty($endDate))
+    <div class="period-card">
+        <table width="100%">
+            <tr>
+                <td style="width:70%">
+                    <div class="period-label">PERIODE DE CAMPAGNE</div>
+                    <div class="period-dates">{{ $fmtDate($startDate) }} → {{ $fmtDate($endDate) }}</div>
+                </td>
+                @if($periodStr)
+                <td style="width:30%; text-align:right;">
+                    <div class="period-duration">{{ $periodStr }}</div>
+                </td>
+                @endif
+            </tr>
+        </table>
+    </div>
+    @endif
+
+    {{-- LIBERATION (si panneau occupe) --}}
+    @if($releaseInfo && isset($releaseInfo['label']))
+    <div class="release-card">
+        {{ $releaseInfo['label'] }}
+        @if(isset($releaseInfo['date'])) — Libre a partir du {{ $releaseInfo['date'] }} @endif
+    </div>
+    @endif
+
+    {{-- TABLE INFORMATIONS --}}
+    <table class="info-table">
+        <tr>
+            <td class="label-cell">Localisation</td>
+            <td class="value-cell">{{ $commune }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">Zone</td>
+            <td class="value-cell">{{ $zone }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">Format</td>
+            <td class="value-cell">{{ $format }}@if($dims) ({{ $dims }})@endif</td>
+        </tr>
+        <tr>
+            <td class="label-cell">Categorie</td>
+            <td class="value-cell">{{ $category }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">Eclairage</td>
+            <td class="value-cell">{{ $isLit ? 'Eclaire LED' : 'Non eclaire' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">Statut</td>
+            <td class="value-cell">{{ $status['label'] }}</td>
+        </tr>
+        @if($traffic > 0)
+        <tr>
+            <td class="label-cell">Trafic</td>
+            <td class="value-cell">{{ number_format($traffic, 0, ',', ' ') }} vehicules/jour</td>
+        </tr>
+        @endif
+    </table>
+
+    {{-- DESCRIPTION ZONE (si disponible) --}}
+    @if($zoneDesc)
+    <div class="desc-card">
+        {{ \Illuminate\Support\Str::limit($zoneDesc, 120) }}
+    </div>
+    @endif
+
+    {{-- FOOTER --}}
+    <div class="footer">
+        CIBLE CI · Regie Publicitaire · Abidjan, Cote d'Ivoire<br>
+        Document confidentiel — Usage commercial uniquement
+    </div>
+
+</div>
+
+@empty
+<div style="padding:30mm; text-align:center; color:#64748b;">
+    Aucun panneau a afficher.
+</div>
+@endforelse
+
+</body>
+</html>

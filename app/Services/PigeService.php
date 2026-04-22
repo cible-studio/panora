@@ -1,9 +1,8 @@
 <?php
 // app/Services/PigeService.php
+
 namespace App\Services;
 
-use App\Enums\CampaignStatus;
-use App\Enums\PigeStatus;
 use App\Models\Campaign;
 use App\Models\Panel;
 use App\Models\Pige;
@@ -16,281 +15,198 @@ use Illuminate\Support\Str;
 
 class PigeService
 {
-    public const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
-    public const ALLOWED_MIMES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-
-    private const CAMPAIGN_STATUSES_ALLOW_UPLOAD = [
-        CampaignStatus::ACTIF->value,
-        CampaignStatus::POSE->value,
-    ];
-
+    // ══════════════════════════════════════════════════════════════
+    // UPLOAD — 1 ou plusieurs photos pour un panneau
+    // ══════════════════════════════════════════════════════════════
     /**
-     * Upload d'une pige avec toutes les validations métier
+     * @param  UploadedFile[]  $photos     Tableau de fichiers uploadés
+     * @param  int             $panelId
+     * @param  int|null        $campaignId
+     * @param  User            $uploader
+     * @param  array           $meta       [taken_at, gps_lat, gps_lng, notes]
+     * @return array           ['ok', 'count', 'pige_ids', 'error']
      */
-    public function upload(array $data, UploadedFile $file, User $uploader): array
-    {
-        // Validation panneau
-        $panel = Panel::withTrashed()->find($data['panel_id']);
-        if (!$panel) {
-            return $this->error('Panneau introuvable.');
-        }
+    public function upload(
+        array   $photos,
+        int     $panelId,
+        ?int    $campaignId,
+        User    $uploader,
+        array   $meta = []
+    ): array {
+        $panel = Panel::find($panelId);
+        if (!$panel) return $this->error('Panneau introuvable.');
 
-        if ($panel->trashed()) {
-            return $this->error('Ce panneau a été supprimé du système.');
-        }
-
-        // Validation campagne
-        $campaign = null;
-        if (!empty($data['campaign_id'])) {
-            $campaign = Campaign::with('client')->find($data['campaign_id']);
-            if (!$campaign) {
-                return $this->error('Campagne introuvable.');
-            }
-
+        if ($campaignId) {
+            $campaign = Campaign::find($campaignId);
+            if (!$campaign) return $this->error('Campagne introuvable.');
             if ($campaign->status->isTerminal()) {
-                return $this->error(
-                    "Impossible d'ajouter une pige : la campagne est « {$campaign->status->label()} »."
-                );
-            }
-
-            if (!in_array($campaign->status->value, self::CAMPAIGN_STATUSES_ALLOW_UPLOAD)) {
-                return $this->error(
-                    "Statut de campagne « {$campaign->status->label()} » non compatible avec l'ajout de piges."
-                );
-            }
-
-            $panelInCampaign = $campaign->panels()->where('panels.id', $panel->id)->exists();
-            if (!$panelInCampaign) {
-                return $this->error(
-                    "Le panneau {$panel->reference} ne fait pas partie de la campagne « {$campaign->name} »."
-                );
+                return $this->error("Campagne {$campaign->status->label()} — impossible d'ajouter des piges.");
             }
         }
 
-        // Validation fichier
-        if (!$this->validateFile($file)) {
-            return $this->error('Fichier invalide ou trop volumineux.');
-        }
+        return DB::transaction(function () use ($photos, $panelId, $campaignId, $uploader, $meta) {
+            $pigeIds = [];
 
-        // Nettoyage GPS
-        $gpsLat = $this->sanitizeGps($data['gps_lat'] ?? null, -90, 90);
-        $gpsLng = $this->sanitizeGps($data['gps_lng'] ?? null, -180, 180);
+            foreach ($photos as $photo) {
+                $path = $this->_storePhoto($photo, $panelId, $campaignId);
 
-        // Upload et création
-        return DB::transaction(function () use ($file, $panel, $campaign, $uploader, $data, $gpsLat, $gpsLng) {
-            $path = $file->store('piges/' . now()->format('Y/m'), 'public');
-            if (!$path) {
-                throw new \RuntimeException('Erreur de stockage du fichier.');
+                $pige = Pige::create([
+                    'panel_id'    => $panelId,
+                    'campaign_id' => $campaignId,
+                    'user_id'     => $uploader->id,
+                    'photo_path'  => $path,
+                    'taken_at'    => $meta['taken_at'] ?? now(),
+                    'gps_lat'     => $meta['gps_lat'] ?? null,
+                    'gps_lng'     => $meta['gps_lng'] ?? null,
+                    'notes'       => $meta['notes'] ?? null,
+                    'status'      => 'en_attente',
+                ]);
+
+                $pigeIds[] = $pige->id;
+
+                Log::info('pige.uploaded', [
+                    'pige_id'     => $pige->id,
+                    'panel_id'    => $panelId,
+                    'campaign_id' => $campaignId,
+                    'by'          => $uploader->id,
+                ]);
             }
 
-            $pige = Pige::create([
-                'panel_id'    => $panel->id,
-                'campaign_id' => $campaign?->id,
-                'user_id'     => $uploader->id,
-                'photo_path'  => $path,
-                'taken_at'    => $data['taken_at'],
-                'gps_lat'     => $gpsLat,
-                'gps_lng'     => $gpsLng,
-                'notes'       => $data['notes'] ?? null,
-                'status'      => PigeStatus::PENDING->value,
-            ]);
-
-            Log::info('pige.uploaded', [
-                'pige_id'     => $pige->id,
-                'panel_id'    => $panel->id,
-                'campaign_id' => $campaign?->id,
-                'user_id'     => $uploader->id,
-                'has_gps'     => $gpsLat !== null,
-            ]);
-
-            return $this->success('Pige enregistrée avec succès.', ['pige' => $pige]);
+            return ['ok' => true, 'count' => count($pigeIds), 'pige_ids' => $pigeIds];
         });
     }
 
-    /**
-     * Validation de la pige
-     */
-    public function verify(Pige $pige, User $verifier): array
+    // ══════════════════════════════════════════════════════════════
+    // VÉRIFIER une pige
+    // ══════════════════════════════════════════════════════════════
+    public function verify(Pige $pige, User $supervisor): array
     {
-        if ($pige->status !== PigeStatus::PENDING->value) {
-            $msg = $pige->status === PigeStatus::VERIFIED->value 
-                ? 'Cette pige est déjà validée.' 
-                : 'Cette pige a été rejetée et ne peut pas être validée.';
-            return $this->success($msg, ['already' => true]);
+        if ($pige->isVerifiee()) {
+            return $this->error('Cette pige est déjà vérifiée.');
         }
 
+        // Lock optimiste
         $updated = Pige::where('id', $pige->id)
-            ->where('status', PigeStatus::PENDING->value)
+            ->whereNotIn('status', ['verifie'])
             ->update([
-                'status'      => PigeStatus::VERIFIED->value,
-                'verified_by' => $verifier->id,
+                'status'      => 'verifie',
+                'verified_by' => $supervisor->id,
                 'verified_at' => now(),
             ]);
 
-        if (!$updated) {
-            return $this->success('Pige déjà traitée.', ['already' => true]);
-        }
+        if (!$updated) return $this->error('Cette pige a déjà été traitée.');
 
-        Log::info('pige.verified', [
-            'pige_id'     => $pige->id,
-            'verified_by' => $verifier->id,
-        ]);
-
-        return $this->success('Pige validée avec succès. ✅');
+        Log::info('pige.verified', ['pige_id' => $pige->id, 'by' => $supervisor->id]);
+        return ['ok' => true];
     }
 
-    /**
-     * Rejet de la pige
-     */
-    public function reject(Pige $pige, User $rejector, string $reason): array
+    // ══════════════════════════════════════════════════════════════
+    // REJETER une pige
+    // ══════════════════════════════════════════════════════════════
+    public function reject(Pige $pige, User $supervisor, string $reason): array
     {
-        if ($pige->status !== PigeStatus::PENDING->value) {
-            return $this->error('Cette pige ne peut plus être rejetée.');
+        if ($pige->isVerifiee()) {
+            return $this->error('Impossible de rejeter une pige déjà vérifiée.');
+        }
+        if (trim($reason) === '') {
+            return $this->error('Le motif de rejet est obligatoire.');
         }
 
         $updated = Pige::where('id', $pige->id)
-            ->where('status', PigeStatus::PENDING->value)
+            ->whereNotIn('status', ['verifie'])
             ->update([
-                'status'           => PigeStatus::REJECTED->value,
-                'verified_by'      => $rejector->id,
+                'status'           => 'rejete',
+                'rejection_reason' => $reason,
+                'verified_by'      => $supervisor->id,
                 'verified_at'      => now(),
-                'rejection_reason' => trim($reason),
             ]);
 
-        if (!$updated) {
-            return $this->error('Impossible de rejeter cette pige.');
-        }
+        if (!$updated) return $this->error('Cette pige a déjà été traitée.');
 
-        Log::info('pige.rejected', [
-            'pige_id'     => $pige->id,
-            'rejected_by' => $rejector->id,
-            'reason'      => $reason,
-        ]);
-
-        return $this->success('Pige rejetée. Le technicien doit soumettre une nouvelle photo.');
+        Log::info('pige.rejected', ['pige_id' => $pige->id, 'reason' => $reason, 'by' => $supervisor->id]);
+        return ['ok' => true];
     }
 
-    /**
-     * Suppression d'une pige
-     */
-    public function destroy(Pige $pige, User $actor, bool $force = false): array
+    // ══════════════════════════════════════════════════════════════
+    // SUPPRIMER une pige (+ fichier)
+    // ══════════════════════════════════════════════════════════════
+    public function delete(Pige $pige): array
     {
-        if ($pige->status === PigeStatus::VERIFIED->value && !$force) {
-            return $this->error('Les piges validées ne peuvent pas être supprimées sans autorisation spéciale.');
+        if ($pige->isVerifiee()) {
+            return $this->error('Impossible de supprimer une pige déjà vérifiée.');
         }
 
-        $photoPath = $pige->photo_path;
-
-        DB::transaction(function () use ($pige) {
-            $pige->delete();
-        });
-
-        if ($photoPath && Storage::disk('public')->exists($photoPath)) {
-            Storage::disk('public')->delete($photoPath);
+        // Supprimer le fichier du storage
+        if (Storage::exists($pige->photo_path)) {
+            Storage::delete($pige->photo_path);
+        }
+        if ($pige->photo_thumb && Storage::exists($pige->photo_thumb)) {
+            Storage::delete($pige->photo_thumb);
         }
 
-        Log::info('pige.deleted', [
-            'pige_id'    => $pige->id,
-            'deleted_by' => $actor->id,
-            'forced'     => $force,
-        ]);
+        $pige->delete();
 
-        return $this->success('Pige supprimée.');
+        Log::info('pige.deleted', ['pige_id' => $pige->id]);
+        return ['ok' => true];
     }
 
-    /**
-     * Statistiques globales
-     */
-    public function globalStats(): object
+    // ══════════════════════════════════════════════════════════════
+    // STATS globales pour le dashboard
+    // ══════════════════════════════════════════════════════════════
+    public function getStats(): array
     {
-        $stats = Pige::selectRaw("
+        $raw = Pige::selectRaw("
             COUNT(*) as total,
             SUM(CASE WHEN status = 'en_attente' THEN 1 ELSE 0 END) as en_attente,
             SUM(CASE WHEN status = 'verifie'    THEN 1 ELSE 0 END) as verifie,
             SUM(CASE WHEN status = 'rejete'     THEN 1 ELSE 0 END) as rejete
         ")->first();
 
-        return (object) [
-            'total'      => (int) ($stats->total ?? 0),
-            'en_attente' => (int) ($stats->en_attente ?? 0),
-            'verifie'    => (int) ($stats->verifie ?? 0),
-            'rejete'     => (int) ($stats->rejete ?? 0),
+        return [
+            'total'      => (int) ($raw->total      ?? 0),
+            'en_attente' => (int) ($raw->en_attente ?? 0),
+            'verifie'    => (int) ($raw->verifie    ?? 0),
+            'rejete'     => (int) ($raw->rejete     ?? 0),
         ];
     }
 
-    /**
-     * Contexte pour l'UI (campagne et panneau)
-     */
-    public function resolveContext(?int $campaignId, ?int $panelId): array
+    // ══════════════════════════════════════════════════════════════
+    // STATS pour une campagne
+    // ══════════════════════════════════════════════════════════════
+    public function getStatsForCampaign(int $campaignId): array
     {
-        $ctx = [
-            'can_upload'     => true,
-            'upload_blocked' => false,
-            'block_message'  => null,
-            'warning'        => null,
+        $raw = Pige::where('campaign_id', $campaignId)
+            ->selectRaw("
+                COUNT(DISTINCT panel_id) as panneaux_piges,
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'en_attente' THEN 1 ELSE 0 END) as en_attente,
+                SUM(CASE WHEN status = 'verifie'    THEN 1 ELSE 0 END) as verifie,
+                SUM(CASE WHEN status = 'rejete'     THEN 1 ELSE 0 END) as rejete
+            ")->first();
+
+        return [
+            'panneaux_piges' => (int) ($raw->panneaux_piges ?? 0),
+            'total'          => (int) ($raw->total          ?? 0),
+            'en_attente'     => (int) ($raw->en_attente     ?? 0),
+            'verifie'        => (int) ($raw->verifie        ?? 0),
+            'rejete'         => (int) ($raw->rejete         ?? 0),
         ];
-
-        if ($campaignId) {
-            $campaign = Campaign::find($campaignId);
-            if ($campaign && $campaign->status->isTerminal()) {
-                $ctx['can_upload'] = false;
-                $ctx['upload_blocked'] = true;
-                $ctx['block_message'] = "Campagne « {$campaign->status->label()} » — ajout de piges impossible.";
-            }
-        }
-
-        if ($panelId) {
-            $panel = Panel::withTrashed()->find($panelId);
-            if ($panel && $panel->trashed()) {
-                $ctx['can_upload'] = false;
-                $ctx['upload_blocked'] = true;
-                $ctx['block_message'] = 'Ce panneau a été supprimé.';
-            }
-        }
-
-        return $ctx;
     }
 
-    private function validateFile(UploadedFile $file): bool
+    // ══════════════════════════════════════════════════════════════
+    // HELPER privé — stockage photo
+    // ══════════════════════════════════════════════════════════════
+    private function _storePhoto(UploadedFile $file, int $panelId, ?int $campaignId): string
     {
-        if ($file->getSize() > self::MAX_FILE_SIZE_BYTES) {
-            return false;
-        }
+        $ext      = $file->getClientOriginalExtension() ?: 'jpg';
+        $filename = Str::uuid() . '.' . $ext;
+        $folder   = 'piges/' . ($campaignId ? "campaigns/{$campaignId}" : 'libre') . "/panel_{$panelId}";
 
-        if (!in_array($file->getMimeType(), self::ALLOWED_MIMES)) {
-            return false;
-        }
-
-        $imageInfo = @getimagesize($file->getRealPath());
-        return $imageInfo !== false;
+        return $file->storeAs($folder, $filename, 'public');
     }
 
-    private function sanitizeGps(mixed $value, float $min, float $max): ?float
+    private function error(string $msg): array
     {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        $clean = str_replace(',', '.', (string) $value);
-        if (!is_numeric($clean)) {
-            return null;
-        }
-
-        $float = (float) $clean;
-        if ($float < $min || $float > $max) {
-            return null;
-        }
-
-        return round($float, 7);
-    }
-
-    private function success(string $message, array $extra = []): array
-    {
-        return array_merge(['ok' => true, 'message' => $message], $extra);
-    }
-
-    private function error(string $message, array $extra = []): array
-    {
-        return array_merge(['ok' => false, 'error' => $message], $extra);
+        return ['ok' => false, 'error' => $msg];
     }
 }

@@ -4,47 +4,29 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 
 class Pige extends Model
 {
-    use HasFactory;
-
-    // ── Statuts possibles (pas d'Enum PHP pour rester compatible Laravel 10/11)
-    public const STATUS_PENDING  = 'en_attente';
-    public const STATUS_VERIFIED = 'verifie';
-    public const STATUS_REJECTED = 'rejete';
-
-    public const STATUSES = [
-        self::STATUS_PENDING  => 'En attente',
-        self::STATUS_VERIFIED => 'Vérifié',
-        self::STATUS_REJECTED => 'Rejeté',
-    ];
-
     protected $fillable = [
-        'panel_id',
-        'campaign_id',
-        'user_id',       // technicien qui a pris la photo
-        'photo_path',
-        'taken_at',
-        'gps_lat',
-        'gps_lng',
-        'status',        // en_attente | verifie | rejete
-        'verified_by',
-        'verified_at',
-        'notes',
-        'rejection_reason',
+        'panel_id', 'campaign_id', 'user_id', 'verified_by',
+        'photo_path', 'photo_thumb',
+        'gps_lat', 'gps_lng',
+        'taken_at', 'verified_at',
+        'status', 'rejection_reason', 'notes',
     ];
 
     protected $casts = [
         'taken_at'    => 'datetime',
         'verified_at' => 'datetime',
-        'gps_lat'     => 'decimal:7',
-        'gps_lng'     => 'decimal:7',
+        'gps_lat'     => 'float',
+        'gps_lng'     => 'float',
     ];
 
-    // ── RELATIONS ──────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    // RELATIONS
+    // ══════════════════════════════════════════════════════════════
 
     public function panel(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
@@ -56,33 +38,33 @@ class Pige extends Model
         return $this->belongsTo(Campaign::class);
     }
 
-    // Technicien = user qui a uploadé
-    public function takenBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function technicien(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    // Validateur = user qui a vérifié/rejeté
-    public function verifiedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function verificateur(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'verified_by');
     }
 
-    // ── SCOPES ─────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    // SCOPES
+    // ══════════════════════════════════════════════════════════════
 
-    public function scopePending(Builder $q): Builder
+    public function scopeEnAttente(Builder $q): Builder
     {
-        return $q->where('status', self::STATUS_PENDING);
+        return $q->where('status', 'en_attente');
     }
 
-    public function scopeVerified(Builder $q): Builder
+    public function scopeVerifiees(Builder $q): Builder
     {
-        return $q->where('status', self::STATUS_VERIFIED);
+        return $q->where('status', 'verifie');
     }
 
-    public function scopeRejected(Builder $q): Builder
+    public function scopeRejetees(Builder $q): Builder
     {
-        return $q->where('status', self::STATUS_REJECTED);
+        return $q->where('status', 'rejete');
     }
 
     public function scopeForCampaign(Builder $q, int $campaignId): Builder
@@ -95,67 +77,46 @@ class Pige extends Model
         return $q->where('panel_id', $panelId);
     }
 
-    public function scopeForClient(Builder $q, int $clientId): Builder
-    {
-        return $q->whereHas('campaign', fn($c) => $c->where('client_id', $clientId));
-    }
+    // ══════════════════════════════════════════════════════════════
+    // HELPERS
+    // ══════════════════════════════════════════════════════════════
 
-    // Filtre période (date de prise de vue)
-    public function scopeInPeriod(Builder $q, string $from, string $to): Builder
-    {
-        return $q->whereBetween('taken_at', [$from, $to . ' 23:59:59']);
-    }
-
-    // ── ACCESSEURS ─────────────────────────────────────────────────
-
-    // URL publique de la photo
-    public function getPhotoUrlAttribute(): string
-    {
-        return asset('storage/' . $this->photo_path);
-    }
-
-    // Label lisible du statut
-    public function getStatusLabelAttribute(): string
-    {
-        return self::STATUSES[$this->status] ?? ucfirst($this->status);
-    }
-
-    // Classe CSS Tailwind / variable CSS selon statut
-    public function getStatusColorAttribute(): string
-    {
-        return match($this->status) {
-            self::STATUS_VERIFIED => 'green',
-            self::STATUS_REJECTED => 'red',
-            default               => 'orange',
-        };
-    }
-
-    // ── HELPERS ────────────────────────────────────────────────────
+    public function isEnAttente(): bool { return $this->status === 'en_attente'; }
+    public function isVerifiee(): bool  { return $this->status === 'verifie'; }
+    public function isRejetee(): bool   { return $this->status === 'rejete'; }
+    public function isTerminal(): bool  { return in_array($this->status, ['verifie', 'rejete']); }
 
     public function hasGps(): bool
     {
-        return $this->gps_lat !== null && $this->gps_lng !== null;
+        return !is_null($this->gps_lat) && !is_null($this->gps_lng);
     }
 
-    public function isPending(): bool
+    public function getPhotoUrl(): string
     {
-        return $this->status === self::STATUS_PENDING;
+        return Storage::url($this->photo_path);
     }
 
-    public function isVerified(): bool
+    public function getThumbUrl(): string
     {
-        return $this->status === self::STATUS_VERIFIED;
+        if ($this->photo_thumb && Storage::exists($this->photo_thumb)) {
+            return Storage::url($this->photo_thumb);
+        }
+        return $this->getPhotoUrl();
     }
 
-    public function isRejected(): bool
-    {
-        return $this->status === self::STATUS_REJECTED;
-    }
-
-    // Lien Google Maps si GPS disponible
-    public function getMapsUrlAttribute(): ?string
+    public function getGoogleMapsUrl(): ?string
     {
         if (!$this->hasGps()) return null;
         return "https://maps.google.com/?q={$this->gps_lat},{$this->gps_lng}";
+    }
+
+    public function getStatusConfig(): array
+    {
+        return match($this->status) {
+            'en_attente' => ['label'=>'En attente', 'color'=>'#f97316', 'bg'=>'rgba(249,115,22,.1)', 'bd'=>'rgba(249,115,22,.3)'],
+            'verifie'    => ['label'=>'Vérifiée',   'color'=>'#22c55e', 'bg'=>'rgba(34,197,94,.1)',  'bd'=>'rgba(34,197,94,.3)'],
+            'rejete'     => ['label'=>'Rejetée',    'color'=>'#ef4444', 'bg'=>'rgba(239,68,68,.1)',  'bd'=>'rgba(239,68,68,.3)'],
+            default      => ['label'=>$this->status, 'color'=>'#6b7280','bg'=>'rgba(107,114,128,.1)','bd'=>'rgba(107,114,128,.3)'],
+        };
     }
 }
