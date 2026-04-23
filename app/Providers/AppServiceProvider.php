@@ -1,16 +1,13 @@
 <?php
 namespace App\Providers;
 
-use App\Models\ExternalPanel;
-use App\Observers\ExternalPanelObserver;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Gate;
 use App\Models\Reservation;
 use App\Policies\ReservationPolicy;
 use App\Models\Campaign;
-use App\Observers\ReservationObserver;
-
+use App\Models\ExternalPanel;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -22,14 +19,24 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
+
         Gate::policy(Reservation::class, ReservationPolicy::class);
         Gate::policy(Campaign::class, \App\Policies\CampaignPolicy::class);
-        Reservation::observe(ReservationObserver::class);
-        ExternalPanel::observe(ExternalPanelObserver::class);
 
+        Reservation::observe(\App\Observers\ReservationObserver::class);
 
-        if (config('database.default') === 'mysql') {
-            \DB::statement('SET NAMES utf8mb4');
+        if (class_exists(\App\Observers\ExternalPanelObserver::class)) {
+            ExternalPanel::observe(\App\Observers\ExternalPanelObserver::class);
+        }
+
+        if (app()->runningInConsole() === false || app()->environment('production')) {
+            try {
+                if (config('database.default') === 'mysql') {
+                    \DB::statement('SET NAMES utf8mb4');
+                }
+            } catch (\Exception $e) {
+                // Silencieux pendant le build Docker
+            }
         }
     }
 }
