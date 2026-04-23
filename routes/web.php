@@ -19,32 +19,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-// Auth client (sans middleware)
-Route::prefix('client')->name('client.')->group(function () {
-    Route::get('/login', [ClientAuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [ClientAuthController::class, 'login'])->name('login.post');
-    Route::post('/logout', [ClientAuthController::class, 'logout'])->name('logout');
-
-    // Changer mot de passe (après première connexion)
-    Route::get('/change-password', [ClientAuthController::class, 'showChangePassword'])->name('password.change');
-    Route::post('/change-password', [ClientAuthController::class, 'changePassword'])->name('password.update');
-
-    // Dashboard (avec auth client)
-    Route::middleware('auth:client')->group(function () {
-        Route::get('/dashboard', [ClientDashboardController::class, 'index'])->name('dashboard');
-        Route::get('/propositions', [ClientDashboardController::class, 'propositions'])->name('propositions');
-        Route::get('/propositions/{token}', [ClientDashboardController::class, 'propositionDetail'])->name('proposition.detail');
-        Route::post('/propositions/{token}/confirm', [ClientDashboardController::class, 'confirmProposition'])->name('proposition.confirm');
-        Route::post('/propositions/{token}/reject', [ClientDashboardController::class, 'rejectProposition'])->name('proposition.reject');
-        Route::get('/campagnes', [ClientDashboardController::class, 'campagnes'])->name('campagnes');
-        Route::get('/campagnes/{campaign}', [ClientDashboardController::class, 'campagneDetail'])->name('campagne.detail');
-        Route::get('/profil', [ClientDashboardController::class, 'profil'])->name('profil');
-        Route::post('/profil', [ClientDashboardController::class, 'updateProfil'])->name('profil.update');
-    });
-
-    Route::get('/change-password', [ClientAuthController::class, 'showChangePassword'])->name('password.change');
-    Route::post('/change-password', [ClientAuthController::class, 'updatePassword'])->name('password.update');
-});
 
 // ── API interne : alertes (polling) ───────────────────────────
 Route::middleware('auth')->get('/api/alerts/count', function () {
