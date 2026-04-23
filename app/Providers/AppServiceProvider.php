@@ -14,11 +14,6 @@ use App\Observers\ReservationObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void
-    {
-        //
-    }
-
     public function boot(): void
     {
         Schema::defaultStringLength(191);
@@ -27,9 +22,12 @@ class AppServiceProvider extends ServiceProvider
         Reservation::observe(ReservationObserver::class);
         ExternalPanel::observe(ExternalPanelObserver::class);
 
-
         if (config('database.default') === 'mysql') {
-            \DB::statement('SET NAMES utf8mb4');
+            try {
+                \DB::statement('SET NAMES utf8mb4');
+            } catch (\Exception $e) {
+                // Silencieux pendant le build Docker
+            }
         }
     }
 }
