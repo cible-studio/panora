@@ -12,6 +12,7 @@ use App\Models\Reservation;
 
 class AlertService
 {
+    // ok
     // ══════════════════════════════════════════════════════════════
     // GÉNÉRATION GLOBALE — appelée par artisan alerts:generate
     // ══════════════════════════════════════════════════════════════
