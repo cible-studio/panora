@@ -340,11 +340,7 @@ class ClientController extends Controller
      */
     private function generateReadablePassword(): string
     {
-        $adj = ['Bleu', 'Rouge', 'Vert', 'Grand', 'Vif', 'Fort', 'Clair', 'Beau', 'Doré', 'Vaste'];
-        $nom = ['Soleil', 'Lion', 'Fleuve', 'Arbre', 'Aigle', 'Mont', 'Pont', 'Phare', 'Lac', 'Ciel'];
-        $chiffr = rand(10, 99);
-
-        return $adj[array_rand($adj)] . '-' . $nom[array_rand($nom)] . '-' . $chiffr;
+        return 'password';
     }
 
 
