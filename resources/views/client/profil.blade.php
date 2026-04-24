@@ -13,7 +13,7 @@
                 {{ strtoupper(mb_substr($client->name, 0, 1)) }}
             </div>
             <span style="font-size:10px;font-weight:700;background:rgba(226,6,19,.1);color:#e20613;padding:3px 10px;border-radius:20px;border:1px solid rgba(226,6,19,.2);">
-                Client Premium
+                Client QUENUMMM
             </span>
         </div>
         <div style="flex:1;min-width:0;">
