@@ -2,15 +2,22 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+
 use App\Models\Panel;
 use App\Models\Commune;
 use App\Models\Zone;
 use App\Models\PanelFormat;
 use App\Models\PanelCategory;
 use App\Models\PanelPhoto;
+
 use App\Enums\PanelStatus;
+
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+
 use App\Services\PdfExportService;
 use App\Services\AlertService;
 
@@ -136,11 +143,24 @@ class PanelController extends Controller
 
         // Upload photos
         if ($request->hasFile('photos')) {
+            $manager = new ImageManager(new Driver());
+
             foreach ($request->file('photos') as $index => $photo) {
-                $path = $photo->store('panels', 'public');
+
+                $image = $manager->read($photo->getRealPath());
+
+                $image->scaleDown(width: 1200);
+
+                $filename = 'panels/' . Str::uuid() . '.jpg';
+
+                \Storage::disk('public')->put(
+                    $filename,
+                    $image->toJpeg(80)->toString()
+                );
+
                 PanelPhoto::create([
                     'panel_id' => $panel->id,
-                    'path' => $path,
+                    'path' => $filename, // ✅ FIX
                     'ordre' => $index,
                 ]);
             }
@@ -295,12 +315,24 @@ class PanelController extends Controller
 
         // ── Ajouter les nouvelles images ──
         if ($request->hasFile('new_images')) {
+            $manager = new ImageManager(new Driver());
             $nextOrdre = $panel->photos()->max('ordre') + 1;
-            foreach ($request->file('new_images') as $image) {
-                $path = $image->store('panels', 'public');
+
+            foreach ($request->file('new_images') as $file) {
+
+                $image = $manager->read($file->getRealPath());
+                $image->scaleDown(width: 1200);
+
+                $filename = 'panels/' . Str::uuid() . '.jpg';
+
+                \Storage::disk('public')->put(
+                    $filename,
+                    $image->toJpeg(80)->toString()
+                );
+
                 PanelPhoto::create([
                     'panel_id' => $panel->id,
-                    'path' => $path,
+                    'path' => $filename,
                     'ordre' => $nextOrdre++,
                 ]);
             }
