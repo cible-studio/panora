@@ -14,4 +14,4 @@ cmds = [
 ]
 
 [start]
-cmd = "php artisan migrate --force && php artisan storage:link && php -S 0.0.0.0:$PORT -t public -c /app/php.ini"
+cmd = "PHP_INI_SCAN_DIR=/app php -S 0.0.0.0:$PORT -t public"
