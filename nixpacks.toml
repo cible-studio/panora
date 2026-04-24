@@ -2,9 +2,6 @@
 PHP_VERSION = "8.3"
 NODE_VERSION = "20"
 
-[phases.setup]
-nixPkgs = ["php83Extensions.redis"]
-
 [phases.build]
 cmds = [
     "composer install --optimize-autoloader --no-dev --no-interaction",
@@ -15,4 +12,4 @@ cmds = [
 ]
 
 [start]
-cmd = "php artisan migrate --force && php artisan storage:link && php -d upload_max_filesize=35M -d post_max_size=350M -d memory_limit=512M -d max_execution_time=300 -S 0.0.0.0:$PORT -t public"
+cmd = "php artisan migrate --force && php artisan storage:link && php -d upload_max_filesize=35M -d post_max_size=350M -d memory_limit=512M artisan serve --host=0.0.0.0 --port=$PORT"
