@@ -110,6 +110,7 @@ class PanelController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:150',
+            'photos.*' => 'nullable|image|max:35840',// 35MB max
             'commune_id' => 'required|exists:communes,id',
             'zone_id' => 'nullable|exists:zones,id',
             'format_id' => 'required|exists:panel_formats,id',
@@ -260,10 +261,12 @@ class PanelController extends Controller
             'daily_traffic' => 'nullable|integer|min:0',
             'is_lit' => 'boolean',
             'zone_description' => 'nullable|string',
-            'new_images.*' => 'nullable|image|max:5120',
+            'new_images.*' => 'nullable|image|max:35840',// 35MB max
             'delete_photos' => 'nullable|array',
             'delete_photos.*' => 'exists:panel_photos,id',
         ]);
+
+
 
         $panel->update([
             ...$request->except('_token', '_method', 'new_images', 'delete_photos', 'ordre'),
