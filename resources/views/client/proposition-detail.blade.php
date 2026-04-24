@@ -215,14 +215,18 @@
         <div style="padding:24px;">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
+                    @if($panel['photo_url'])
                     <div style="border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:10px;">
-                        <img id="modal-main-image" src="" alt="" style="width:100%;max-height:280px;object-fit:cover;display:block;">
+                    <img src="{{ $panel['photo_url'] }}" style="width:100%;height:160px;object-fit:cover;display:block;transition:transform .3s;" alt="{{ $panel['reference'] }}" loading="lazy"
+                     onmouseover="this.style.transform='scale(1.04)'" onmouseout="this.style.transform='scale(1)'">
                     </div>
+                    @else
                     <div id="modal-thumbnails" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;"></div>
                     <div id="modal-no-image" style="display:none;text-align:center;padding:40px;background:var(--surface2);border-radius:10px;">
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5" style="margin:0 auto 10px;display:block;opacity:.4;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
                         <div style="font-size:13px;color:var(--text3);">Aucune photo disponible</div>
                     </div>
+                    @endif
                 </div>
                 <div style="display:flex;flex-direction:column;gap:12px;">
                     <div>
