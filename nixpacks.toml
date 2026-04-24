@@ -4,6 +4,8 @@ NODE_VERSION = "20"
 
 [phases.build]
 cmds = [
+    "echo 'upload_max_filesize=35M' >> /nix/store/$(ls /nix/store | grep 'php-with-extensions')/lib/php.ini || true",
+    "echo 'post_max_size=350M' >> /nix/store/$(ls /nix/store | grep 'php-with-extensions')/lib/php.ini || true",
     "composer install --optimize-autoloader --no-dev --no-interaction",
     "npm ci && npm run build",
     "php artisan config:cache",
