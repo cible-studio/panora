@@ -14,4 +14,4 @@ cmds = [
 ]
 
 [start]
-cmd = "PHP_INI_SCAN_DIR=/app php -S 0.0.0.0:$PORT -t public"
+cmd = "PHP_INI_SCAN_DIR=/app/php/conf.d php -S 0.0.0.0:$PORT -t public"
