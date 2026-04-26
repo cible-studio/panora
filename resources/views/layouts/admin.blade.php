@@ -5,12 +5,20 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>PROGICIA — {{ $title ?? 'Dashboard' }}</title>
+    <title>Panora — {{ $title ?? 'Dashboard' }}</title>{{-- TÂCHE 1 : Renommé PROGICIA → Panora --}}
     <link rel="icon" href="{{ asset('images/faviconl.png') }}" media="(prefers-color-scheme: light)">
     <link rel="icon" href="{{ asset('images/favicond.png') }}" media="(prefers-color-scheme: dark)">
     <link
         href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap"
         rel="stylesheet">
+
+    <script>
+        (function () {
+            var theme = localStorage.getItem('theme') || 'light';
+            document.getElementById('html-root').setAttribute('data-theme', theme);
+        })();
+    </script>
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         .nav-icon {
@@ -28,8 +36,8 @@
         <aside class="sidebar">
             <div class="sidebar-logo">
                 <div class="sidebar-logo-mark">
-                    <img id="logo-dark" class="w-40" src="{{ asset('images/logob.png') }}" alt="Logo PROGICIA">
-                    <img id="logo-light" class="w-40" src="{{ asset('images/logol.png') }}" alt="Logo PROGICIA"
+                    <img id="logo-dark" class="w-40" src="{{ asset('images/logob.png') }}" alt="Logo Panora">
+                    <img id="logo-light" class="w-40" src="{{ asset('images/logol.png') }}" alt="Logo Panora"
                         style="display:none;">
                 </div>
             </div>
@@ -234,7 +242,7 @@
             </div>
         </aside>
 
-        <!-- Barre couleurs PROGICIA -->
+        <!-- Barre couleurs Panora -->
         <div class="brand-bar">
             <div class="brand red"></div>
             <div class="brand yellow"></div>
@@ -284,7 +292,6 @@
         style="position:fixed;top:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:380px;">
     </div>
 
-    {{-- Toast styles --}}
     <style>
         .toast {
             min-width: 300px;
@@ -304,137 +311,28 @@
             border: 1px solid transparent;
             backdrop-filter: blur(8px);
         }
-
-        .toast.success {
-            background: rgba(5, 46, 22, 0.95);
-            border-color: #166534;
-            color: #4ade80;
-        }
-
-        .toast.error {
-            background: rgba(28, 10, 10, 0.95);
-            border-color: #7f1d1d;
-            color: #f87171;
-        }
-
-        .toast.warning {
-            background: rgba(28, 18, 0, 0.95);
-            border-color: #78350f;
-            color: #fbbf24;
-        }
-
-        .toast.info {
-            background: rgba(12, 26, 46, 0.95);
-            border-color: #1e3a5f;
-            color: #60a5fa;
-        }
-
-        .toast-icon-wrap {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-        }
-
-        .toast.success .toast-icon-wrap {
-            background: rgba(74, 222, 128, 0.15);
-        }
-
-        .toast.error .toast-icon-wrap {
-            background: rgba(248, 113, 113, 0.15);
-        }
-
-        .toast.warning .toast-icon-wrap {
-            background: rgba(251, 191, 36, 0.15);
-        }
-
-        .toast.info .toast-icon-wrap {
-            background: rgba(96, 165, 250, 0.15);
-        }
-
-        .toast-body {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .toast-label {
-            font-size: 10px;
-            opacity: 0.6;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 2px;
-        }
-
-        .toast-msg-text {
-            font-size: 12px;
-            opacity: 0.8;
-            line-height: 1.4;
-        }
-
-        .toast-close {
-            margin-left: 4px;
-            font-size: 14px;
-            opacity: .4;
-            cursor: pointer;
-            background: none;
-            border: none;
-            color: inherit;
-            padding: 0;
-            flex-shrink: 0;
-            align-self: flex-start;
-            margin-top: 2px;
-        }
-
-        .toast-close:hover {
-            opacity: 1;
-        }
-
-        @keyframes toastIn {
-            from {
-                opacity: 0;
-                transform: translateX(24px) scale(.95);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateX(0) scale(1);
-            }
-        }
-
-        @keyframes toastOut {
-            from {
-                opacity: 1;
-                transform: translateX(0);
-                max-height: 120px;
-            }
-
-            to {
-                opacity: 0;
-                transform: translateX(24px);
-                max-height: 0;
-                padding: 0;
-            }
-        }
+        .toast.success { background: rgba(5, 46, 22, 0.95); border-color: #166534; color: #4ade80; }
+        .toast.error   { background: rgba(28, 10, 10, 0.95); border-color: #7f1d1d; color: #f87171; }
+        .toast.warning { background: rgba(28, 18, 0, 0.95); border-color: #78350f; color: #fbbf24; }
+        .toast.info    { background: rgba(12, 26, 46, 0.95); border-color: #1e3a5f; color: #60a5fa; }
+        .toast-icon-wrap { width:32px;height:32px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px; }
+        .toast.success .toast-icon-wrap { background: rgba(74, 222, 128, 0.15); }
+        .toast.error   .toast-icon-wrap { background: rgba(248, 113, 113, 0.15); }
+        .toast.warning .toast-icon-wrap { background: rgba(251, 191, 36, 0.15); }
+        .toast.info    .toast-icon-wrap { background: rgba(96, 165, 250, 0.15); }
+        .toast-body    { flex:1;min-width:0; }
+        .toast-label   { font-size:10px;opacity:.6;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px; }
+        .toast-msg-text { font-size:12px;opacity:.8;line-height:1.4; }
+        .toast-close   { margin-left:4px;font-size:14px;opacity:.4;cursor:pointer;background:none;border:none;color:inherit;padding:0;flex-shrink:0;align-self:flex-start;margin-top:2px; }
+        .toast-close:hover { opacity:1; }
+        @keyframes toastIn  { from{opacity:0;transform:translateX(24px) scale(.95)} to{opacity:1;transform:translateX(0) scale(1)} }
+        @keyframes toastOut { from{opacity:1;transform:translateX(0);max-height:120px} to{opacity:0;transform:translateX(24px);max-height:0;padding:0} }
     </style>
 
-    {{-- Toast JS — DOIT être défini AVANT les appels session --}}
+    {{-- Toast JS — défini avant les appels session --}}
     <script>
-        const TOAST_ICONS = {
-            success: '✅',
-            error: '❌',
-            warning: '⚠️',
-            info: 'ℹ️'
-        };
-        const TOAST_LABELS = {
-            success: 'Succès',
-            error: 'Erreur',
-            warning: 'Avertissement',
-            info: 'Information'
-        };
+        const TOAST_ICONS  = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
+        const TOAST_LABELS = { success:'Succès', error:'Erreur', warning:'Avertissement', info:'Information' };
 
         function showToast(type, message, duration, title) {
             duration = duration || (type === 'error' ? 7000 : 5000);
@@ -443,15 +341,14 @@
             const toast = document.createElement('div');
             toast.className = 'toast ' + type;
             const label = title || TOAST_LABELS[type] || 'Notification';
-            const icon = TOAST_ICONS[type] || 'ℹ️';
+            const icon  = TOAST_ICONS[type] || 'ℹ️';
             toast.innerHTML =
                 `<div class="toast-icon-wrap">${icon}</div>` +
                 `<div class="toast-body"><div class="toast-label">${label}</div><div class="toast-msg-text">${message}</div></div>` +
                 `<button class="toast-close" onclick="dismissToast(this.parentElement);event.stopPropagation()">✕</button>`;
             toast.onclick = () => dismissToast(toast);
             container.appendChild(toast);
-            const t = setTimeout(() => dismissToast(toast), duration);
-            toast._timeout = t;
+            toast._timeout = setTimeout(() => dismissToast(toast), duration);
         }
 
         function dismissToast(toast) {
@@ -463,61 +360,48 @@
 
         window.Toast = {
             success: (m, d) => showToast('success', m, d),
-            error: (m, d) => showToast('error', m, d),
+            error:   (m, d) => showToast('error',   m, d),
             warning: (m, d) => showToast('warning', m, d),
-            info: (m, d) => showToast('info', m, d),
+            info:    (m, d) => showToast('info',    m, d),
         };
     </script>
 
-    {{-- Appels session — APRÈS la définition de showToast --}}
+    {{-- Toasts session --}}
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            @if (session('success'))
-                showToast('success', @json(session('success')));
-            @endif
-            @if (session('error'))
-                showToast('error', @json(session('error')));
-            @endif
-            @if (session('warning'))
-                showToast('warning', @json(session('warning')));
-            @endif
-            @if (session('info'))
-                showToast('info', @json(session('info')));
-            @endif
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-        const toggle = document.getElementById('theme-toggle');
+        document.addEventListener('DOMContentLoaded', function () {
+            @if (session('success')) showToast('success', @json(session('success'))); @endif
+            @if (session('error'))   showToast('error',   @json(session('error')));   @endif
+            @if (session('warning')) showToast('warning', @json(session('warning'))); @endif
+            @if (session('info'))    showToast('info',    @json(session('info')));    @endif
 
-        if (toggle) {
-            toggle.checked = savedTheme === 'light';
-        }
+            {{-- Synchroniser le toggle avec le thème actif (déjà appliqué en <head>) --}}
+            const currentTheme = document.getElementById('html-root').getAttribute('data-theme') || 'light';
+            const toggle = document.getElementById('theme-toggle');
+            if (toggle) toggle.checked = currentTheme === 'light';
+
+            {{-- Synchroniser les logos --}}
+            applyLogoForTheme(currentTheme);
         });
     </script>
 
     {{-- Thème + Alertes --}}
     <script>
-        (function() {
-            applyTheme(localStorage.getItem('theme') || 'dark');
-        })();
-
         function toggleThemeSwitch() {
             const isChecked = document.getElementById('theme-toggle').checked;
             const theme = isChecked ? 'light' : 'dark';
-
             localStorage.setItem('theme', theme);
-            applyTheme(theme);
+            document.getElementById('html-root').setAttribute('data-theme', theme);
+            applyLogoForTheme(theme);
         }
 
-        function applyTheme(theme) {
-            document.getElementById('html-root').setAttribute('data-theme', theme);
-            const btn = document.getElementById('theme-toggle-btn');
-            if (btn) btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+        function applyLogoForTheme(theme) {
             const dl = document.getElementById('logo-dark');
             const ll = document.getElementById('logo-light');
-            if (dl) dl.style.display = theme === 'dark' ? 'block' : 'none';
+            if (dl) dl.style.display = theme === 'dark'  ? 'block' : 'none';
             if (ll) ll.style.display = theme === 'light' ? 'block' : 'none';
         }
 
-        // ── ALERTES persistance localStorage ──────────────────────
+        // ── ALERTES temps réel ──────────────────────────────────────
         let _shownAlertIds = new Set(JSON.parse(localStorage.getItem('shownAlertIds') || '[]'));
         if (_shownAlertIds.size > 200) {
             const arr = [..._shownAlertIds].slice(-100);
@@ -528,18 +412,15 @@
         async function checkAlerts() {
             try {
                 const res = await fetch('/api/alerts/latest', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
                 });
                 if (!res.ok) return;
                 const alerts = await res.json();
 
                 const badge = document.getElementById('alert-badge');
                 if (badge) {
-                    badge.textContent = alerts.length;
-                    badge.style.display = alerts.length > 0 ? 'inline-block' : 'none';
+                    badge.textContent    = alerts.length;
+                    badge.style.display  = alerts.length > 0 ? 'inline-block' : 'none';
                 }
 
                 alerts.forEach(alert => {
@@ -548,18 +429,16 @@
                     localStorage.setItem('shownAlertIds', JSON.stringify([..._shownAlertIds]));
 
                     const typeLabels = {
-                        maintenance: 'Maintenance',
-                        reservation: 'Réservation',
-                        campagne: 'Campagne',
-                        panneau: 'Panneau',
-                        client: 'Client'
+                        maintenance: 'Maintenance', reservation: 'Réservation',
+                        campagne: 'Campagne', panneau: 'Panneau', client: 'Client'
                     };
-                    const level = alert.niveau === 'danger' ? 'error' : alert.niveau === 'warning' ? 'warning' :
-                        'info';
+                    const level = alert.niveau === 'danger'  ? 'error'   :
+                                  alert.niveau === 'warning' ? 'warning' : 'info';
 
                     showToast(
                         level,
-                        `${alert.title}<br><span style="font-size:11px;opacity:0.7;">${alert.message}</span><br><a href="/admin/alerts" style="font-size:11px;opacity:0.8;text-decoration:underline;">Voir toutes les alertes →</a>`,
+                        `${alert.title}<br><span style="font-size:11px;opacity:0.7;">${alert.message}</span><br>` +
+                        `<a href="/admin/alerts" style="font-size:11px;opacity:0.8;text-decoration:underline;">Voir toutes les alertes →</a>`,
                         8000,
                         typeLabels[alert.type] || 'Alerte'
                     );
