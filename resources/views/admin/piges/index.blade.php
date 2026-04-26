@@ -231,10 +231,18 @@ $kpis = [
                 <div style="font-size:10px;color:var(--text3)">📍 {{ $pige->panel->commune->name }}</div>
                 @endif
             </div>
-            <a href="{{ route('admin.piges.show', $pige) }}"
-               style="flex-shrink:0;padding:4px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;font-size:10px;color:var(--text3);text-decoration:none">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </a>
+            <div style="display:flex;gap:4px;flex-shrink:0">
+                <a href="{{ route('admin.piges.show', $pige) }}"
+                style="padding:4px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;font-size:10px;color:var(--text3);text-decoration:none"
+                title="Voir">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </a>
+                <a href="{{ route('admin.piges.edit', $pige) }}"
+                style="padding:4px 7px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.2);border-radius:7px;font-size:10px;color:var(--accent);text-decoration:none"
+                title="Modifier">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+                </a>
+            </div>
         </div>
 
         @if($pige->campaign)

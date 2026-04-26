@@ -289,8 +289,23 @@ class PanelController extends Controller
 
 
         $panel->update([
-            ...$request->except('_token', '_method', 'new_images', 'delete_photos', 'ordre'),
-            'is_lit' => $request->boolean('is_lit'),
+            'name'             => $request->name,
+            'commune_id'       => $request->commune_id,
+            'zone_id'          => $request->zone_id,
+            'format_id'        => $request->format_id,
+            'category_id'      => $request->category_id,
+            'latitude'         => $request->latitude,
+            'longitude'        => $request->longitude,
+            'monthly_rate'     => $request->monthly_rate,
+            'daily_traffic'    => $request->daily_traffic,
+            'is_lit'           => $request->boolean('is_lit'),
+            'nombre_faces'     => $request->nombre_faces,
+            'type_support'     => $request->type_support,
+            'orientation'      => $request->orientation,
+            'zone_description' => $request->zone_description,
+            'adresse'          => $request->adresse,
+            'quartier'         => $request->quartier,
+            'axe_routier'      => $request->axe_routier,
         ]);
 
         // ── Supprimer les photos cochées ──

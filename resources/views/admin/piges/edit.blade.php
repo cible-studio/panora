@@ -1,11 +1,83 @@
-{{-- resources/views/admin/piges/edit.blade.php --}}
 <x-admin-layout title="Modifier pige — {{ $pige->panel?->reference }}">
 
 <x-slot:topbarActions>
-    <a href="{{ route('admin.piges.show', $pige) }}" class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    {{-- Retour --}}
+    <a href="{{ route('admin.piges.show', $pige) }}" 
+       class="btn btn-ghost btn-sm" 
+       style="display:flex;align-items:center;gap:5px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
         Retour
     </a>
+
+    {{-- Voir panneau --}}
+    @if($pige->panel)
+    <a href="{{ route('admin.panels.show', $pige->panel) }}" 
+       class="btn btn-ghost btn-sm"
+       style="display:flex;align-items:center;gap:5px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8M12 17v4"/>
+        </svg>
+        Panneau
+    </a>
+    @endif
+
+    {{-- Voir campagne --}}
+    @if($pige->campaign)
+    <a href="{{ route('admin.campaigns.show', $pige->campaign) }}" 
+       class="btn btn-ghost btn-sm"
+       style="display:flex;align-items:center;gap:5px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 11l19-9-9 19-2-8-8-2z"/>
+        </svg>
+        Campagne
+    </a>
+    @endif
+
+    {{-- Toutes les piges du panneau --}}
+    <a href="{{ route('admin.piges.index', array_filter(['campaign_id'=>$pige->campaign_id,'panel_id'=>$pige->panel_id])) }}" 
+       class="btn btn-ghost btn-sm"
+       style="display:flex;align-items:center;gap:5px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+        </svg>
+        Piges
+    </a>
+
+    {{-- Navigation pige précédente / suivante --}}
+    @php
+        $prevPige = \App\Models\Pige::where('id', '<', $pige->id)
+            ->when($pige->campaign_id, fn($q) => $q->where('campaign_id', $pige->campaign_id))
+            ->latest('id')->first();
+        $nextPige = \App\Models\Pige::where('id', '>', $pige->id)
+            ->when($pige->campaign_id, fn($q) => $q->where('campaign_id', $pige->campaign_id))
+            ->oldest('id')->first();
+    @endphp
+
+    @if($prevPige)
+    <a href="{{ route('admin.piges.edit', $prevPige) }}" 
+       class="btn btn-ghost btn-sm" title="Pige précédente"
+       style="display:flex;align-items:center;gap:5px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Préc.
+    </a>
+    @endif
+
+    @if($nextPige)
+    <a href="{{ route('admin.piges.edit', $nextPige) }}" 
+       class="btn btn-ghost btn-sm" title="Pige suivante"
+       style="display:flex;align-items:center;gap:5px">
+        Suiv.
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"/>
+        </svg>
+    </a>
+    @endif
 </x-slot:topbarActions>
 
 <div style="max-width:760px;margin:0 auto 40px;padding:0 14px">

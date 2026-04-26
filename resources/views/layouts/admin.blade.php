@@ -34,7 +34,7 @@
                 </div>
             </div>
 
-            <div class="role-pill">⚡ {{ Auth::user()->role->value }}</div>
+            <div class="role-pill">⚡ {{ Auth::user()?->role?->value ?? 'admin' }}</div>
 
             <nav style="flex:1; padding: 8px 0;">
                 <div class="nav-section">
@@ -218,10 +218,10 @@
 
             <div class="sidebar-footer">
                 <div class="user-card">
-                    <div class="user-avatar">{{ strtoupper(substr(Auth::user()->name, 0, 1)) }}</div>
+                    <div class="user-avatar">{{ strtoupper(substr(Auth::user()?->name ?? 'A', 0, 1)) }}</div>
                     <div>
-                        <div class="user-name">{{ Auth::user()->name }}</div>
-                        <div class="user-role">{{ Auth::user()->role->value }}</div>
+                        <div class="user-name">{{ Auth::user()?->name ?? 'Admin' }}</div>
+                        <div class="user-role">{{ Auth::user()?->role?->value ?? 'admin' }}</div>
                     </div>
                     <form method="POST" action="{{ route('logout') }}" style="margin-left:auto">
                         @csrf
