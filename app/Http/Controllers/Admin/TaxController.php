@@ -9,6 +9,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class TaxController extends Controller
 {
+    // Dans TaxController.php - méthode index()
     public function index(Request $request)
     {
         $query = Tax::with('commune');
@@ -16,31 +17,38 @@ class TaxController extends Controller
         if ($request->filled('commune_id')) {
             $query->where('commune_id', $request->commune_id);
         }
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
         }
         if ($request->filled('year')) {
             $query->where('year', $request->year);
         }
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
         }
 
-        $taxes   = $query->latest()->paginate(15)->withQueryString();
+        $taxes = $query->orderBy('year', 'desc')->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
+        
         $communes = Commune::orderBy('name')->get();
-
+        
+        // Stats
         $totalEnAttente = Tax::where('status', 'en_attente')->count();
-        $totalPayees    = Tax::where('status', 'payee')->count();
-        $totalEnRetard  = Tax::where('status', 'en_retard')->count();
-        $montantTotal   = Tax::where('status', 'en_attente')
-                             ->orWhere('status', 'en_retard')
-                             ->sum('amount');
-
-        return view('admin.taxes.index', compact(
-            'taxes', 'communes',
-            'totalEnAttente', 'totalPayees',
-            'totalEnRetard', 'montantTotal'
-        ));
+        $totalPayees = Tax::where('status', 'payee')->count();
+        $totalEnRetard = Tax::where('status', 'en_retard')->count();
+        $montantTotal = Tax::where('status', '!=', 'payee')->sum('amount');
+        
+        // ✅ AJAX response
+        if ($request->ajax() || $request->input('ajax')) {
+            $html = view('admin.taxes.partials.table-rows', compact('taxes'))->render();
+            $paginationHtml = $taxes->hasPages() ? $taxes->links()->render() : '';
+            return response()->json([
+                'html' => $html,
+                'pagination' => $paginationHtml,
+                'total' => $taxes->total(),
+            ]);
+        }
+        
+        return view('admin.taxes.index', compact('taxes', 'communes', 'totalEnAttente', 'totalPayees', 'totalEnRetard', 'montantTotal'));
     }
 
     public function create()

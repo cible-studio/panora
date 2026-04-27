@@ -28,6 +28,17 @@ class InvoiceController extends Controller
         $totalEnvoyees   = Invoice::where('status', 'envoyee')->count();
         $totalPayees     = Invoice::where('status', 'payee')->count();
         $montantTotal    = Invoice::where('status', 'payee')->sum('amount_ttc');
+        
+        // ✅ AJAX response
+        if ($request->ajax() || $request->input('ajax')) {
+            $html = view('admin.invoices.partials.table-rows', compact('invoices'))->render();
+            $paginationHtml = $invoices->hasPages() ? $invoices->links()->render() : '';
+            return response()->json([
+                'html' => $html,
+                'pagination' => $paginationHtml,
+                'total' => $invoices->total(),
+            ]);
+        }
 
         return view('admin.invoices.index', compact(
             'invoices', 'clients',
