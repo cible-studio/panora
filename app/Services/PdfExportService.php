@@ -24,13 +24,13 @@ class PdfExportService
         $enriched = $this->enrichPanel($panel);
 
         $pdf = Pdf::loadView('admin.reservations.pdf.disponibilites-images', [
-            'panels'    => collect([$enriched]),
+            'panels' => collect([$enriched]),
             'startDate' => null,
-            'endDate'   => null,
+            'endDate' => null,
             'generated' => now()->format('d/m/Y'),
         ])
-        ->setPaper('a4', 'portrait')
-        ->setOptions($this->dompdfOptions());
+            ->setPaper('a4', 'portrait')
+            ->setOptions($this->dompdfOptions());
 
         return $pdf->stream("panneau-{$panel->reference}.pdf");
     }
@@ -44,30 +44,30 @@ class PdfExportService
         $query = Panel::with('commune', 'zone', 'format', 'category', 'photos');
 
         if (!empty($filters['commune_id'])) {
-            $query->where('commune_id', (int)$filters['commune_id']);
+            $query->where('commune_id', (int) $filters['commune_id']);
         }
         if (!empty($filters['status'])) {
             $query->where('status', $filters['status']);
         }
         if (!empty($filters['zone_id'])) {
-            $query->where('zone_id', (int)$filters['zone_id']);
+            $query->where('zone_id', (int) $filters['zone_id']);
         }
 
         $panelModels = $query->orderBy('reference')->get();
-        $panels      = $panelModels->map(fn($p) => $this->enrichPanel($p));
+        $panels = $panelModels->map(fn($p) => $this->enrichPanel($p));
 
         $commune = !empty($filters['commune_id'])
             ? Commune::find($filters['commune_id'])
             : null;
 
         $pdf = Pdf::loadView('admin.reservations.pdf.disponibilites-images', [
-            'panels'    => $panels,
+            'panels' => $panels,
             'startDate' => $filters['start_date'] ?? null,
-            'endDate'   => $filters['end_date']   ?? null,
+            'endDate' => $filters['end_date'] ?? null,
             'generated' => now()->format('d/m/Y'),
         ])
-        ->setPaper('a4', 'portrait')
-        ->setOptions($this->dompdfOptions());
+            ->setPaper('a4', 'portrait')
+            ->setOptions($this->dompdfOptions());
 
         $filename = 'liste-panneaux' . ($commune ? '-' . \Str::slug($commune->name) : '');
         return $pdf->stream("{$filename}.pdf");
@@ -79,21 +79,26 @@ class PdfExportService
 
     public function exportNetworkReport(): mixed
     {
-        $communes = Commune::with(['panels' => function ($q) {
-            $q->with('format', 'category')->orderBy('reference');
-        }])->get();
+        $communes = Commune::with([
+            'panels' => function ($q) {
+                $q->with('format', 'category')->orderBy('reference');
+            }
+        ])->get();
 
-        $totalPanneaux  = Panel::count();
+        $totalPanneaux = Panel::count();
         $panneauxLibres = Panel::where('status', 'libre')->count();
         $tauxOccupation = $totalPanneaux > 0
             ? round((($totalPanneaux - $panneauxLibres) / $totalPanneaux) * 100, 1)
             : 0;
 
         $pdf = Pdf::loadView('pdf.network-report', compact(
-            'communes', 'totalPanneaux', 'panneauxLibres', 'tauxOccupation'
+            'communes',
+            'totalPanneaux',
+            'panneauxLibres',
+            'tauxOccupation'
         ))
-        ->setPaper('a4', 'portrait')
-        ->setOptions($this->dompdfOptions());
+            ->setPaper('a4', 'portrait')
+            ->setOptions($this->dompdfOptions());
 
         return $pdf->stream('reseau-panneaux-cible-ci.pdf');
     }
@@ -104,9 +109,9 @@ class PdfExportService
 
     public function enrichPanel(Panel $panel): array
     {
-        $photo     = $panel->photos->sortBy('ordre')->first();
+        $photo = $panel->photos->sortBy('ordre')->first();
         $photoPath = null;
-        $photoUrl  = null;
+        $photoUrl = null;
 
         if ($photo) {
             $rel = ltrim($photo->path, '/');
@@ -126,31 +131,33 @@ class PdfExportService
 
         $dims = null;
         if ($panel->format?->width && $panel->format?->height) {
-            $w = rtrim(rtrim(number_format($panel->format->width,  2, '.', ''), '0'), '.');
+            $w = rtrim(rtrim(number_format($panel->format->width, 2, '.', ''), '0'), '.');
             $h = rtrim(rtrim(number_format($panel->format->height, 2, '.', ''), '0'), '.');
             $dims = "{$w}x{$h}m";
         }
 
         return [
-            'id'               => $panel->id,
-            'reference'        => $panel->reference,
-            'name'             => $panel->name,
-            'commune'          => $panel->commune?->name  ?? '—',
-            'zone'             => $panel->zone?->name     ?? '—',
-            'format'           => $panel->format?->name   ?? '—',
-            'format_width'     => $panel->format?->width  ?? null,
-            'format_height'    => $panel->format?->height ?? null,
-            'dimensions'       => $dims,
-            'category'         => $panel->category?->name ?? '—',
-            'is_lit'           => (bool)$panel->is_lit,
-            'monthly_rate'     => (float)($panel->monthly_rate  ?? 0),
-            'daily_traffic'    => (int)($panel->daily_traffic   ?? 0),
+            'id' => $panel->id,
+            'reference' => $panel->reference,
+            'name' => $panel->name,
+            'commune' => $panel->commune?->name ?? '—',
+            'zone' => $panel->zone?->name ?? '—',
+            'format' => $panel->format?->name ?? '—',
+            'format_width' => $panel->format?->width ?? null,
+            'format_height' => $panel->format?->height ?? null,
+            'dimensions' => $dims,
+            'category' => $panel->category?->name ?? '—',
+            'is_lit' => (bool) $panel->is_lit,
+            'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
+            'daily_traffic' => (int) ($panel->daily_traffic ?? 0),
             'zone_description' => $panel->zone_description ?? '',
-            'display_status'   => $panel->status->value,
-            'source'           => 'internal',
-            'photo_path'       => $photoPath,
-            'photo_url'        => $photoUrl,
-            'release_info'     => null,
+            'latitude' => $panel->latitude ?? null,
+            'longitude' => $panel->longitude ?? null,
+            'display_status' => $panel->status->value,
+            'source' => 'internal',
+            'photo_path' => $photoPath,
+            'photo_url' => $photoUrl,
+            'release_info' => null,
         ];
     }
 
@@ -161,11 +168,11 @@ class PdfExportService
     private function dompdfOptions(): array
     {
         return [
-            'isRemoteEnabled'      => false,
+            'isRemoteEnabled' => false,
             'isHtml5ParserEnabled' => true,
-            'defaultFont'          => 'DejaVu Sans',
-            'dpi'                  => 96,
-            'defaultPaperSize'     => 'a4',
+            'defaultFont' => 'DejaVu Sans',
+            'dpi' => 96,
+            'defaultPaperSize' => 'a4',
         ];
     }
 }

@@ -141,7 +141,7 @@
             <div class="filter-group" style="justify-content:flex-end;">
                 <label class="filter-label">&nbsp;</label>
                 <a href="{{ route('admin.panels.index', ['source' => $source ?? 'all']) }}"
-                   class="btn btn-ghost btn-sm">✕ Reset</a>
+                   class="btn btn-ghost btn-sm">✕ Effacer</a>
             </div>
             @endif
         </div>
