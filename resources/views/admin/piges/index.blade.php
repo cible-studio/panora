@@ -296,17 +296,10 @@ $kpis = [
                 Re-vérifier
             </button>
             <button type="button"
-                    onclick="Confirm.show('Supprimer cette pige de <strong>{{ $pige->panel?->reference }}</strong> ? Action irréversible.','danger',function(){ document.getElementById(\'del-{{ $pige->id }}\').submit(); })"
+                    onclick="PigeActions.destroy({{ $pige->id }}, '{{ $pige->panel?->reference }}')"
                     style="padding:7px 10px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.15);color:#ef4444;border-radius:8px;font-size:11px;cursor:pointer">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
             </button>
-            <form id="del-{{ $pige->id }}" method="POST" action="{{ route('admin.piges.destroy', $pige) }}" style="display:none">@csrf @method('DELETE')</form>
-        </div>
-        @else
-        {{-- Vérifiée : seulement supprimer si non vérifiée (service refusera) - afficher info --}}
-        <div style="font-size:11px;color:#22c55e;display:flex;align-items:center;gap:5px">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-            Pige validée — archivée
         </div>
         @endif
     </div>
@@ -468,28 +461,102 @@ window.PigeActions = {
     },
 
     async submitReject() {
-        const reason = document.getElementById('reject-reason-input').value.trim();
-        if (!reason) {
-            document.getElementById('reject-error').style.display = 'block';
-            return;
-        }
-        document.getElementById('reject-error').style.display = 'none';
+    const reason = document.getElementById('reject-reason-input').value.trim();
+    if (!reason) {
+        document.getElementById('reject-error').style.display = 'block';
+        return;
+    }
+    document.getElementById('reject-error').style.display = 'none';
 
-        try {
-            const res = await fetch(`/admin/piges/${this._rejectId}/reject`, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rejection_reason: reason }),
-            });
-            const data = await res.json();
-            if (data.success) {
-                this._updateCard(this._rejectId, 'rejete', reason);
-                this.closeRejectModal();
-                this._showToast(data.message || 'Pige rejetée.', 'warning');
-            } else {
-                this._showToast(data.message, 'error');
+    try {
+        const res = await fetch(`/admin/piges/${this._rejectId}/reject`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rejection_reason: reason }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            // Mise à jour avec les données retournées
+            this._updateCard(this._rejectId, 'rejete', { rejection_reason: reason });
+            this.closeRejectModal();
+            this._showToast(data.message || 'Pige rejetée.', 'warning');
+            
+            // Mettre à jour les compteurs KPI
+            this._updateStats();
+        } else {
+            this._showToast(data.message, 'error');
             }
         } catch { this._showToast('Erreur de connexion.', 'error'); }
+    },
+
+    // Mettre à jour les statistiques KPI
+    _updateStats() {
+        // Compter les cartes visibles par statut
+        const cards = document.querySelectorAll('.pige-card:not(.hidden)');
+        const stats = {
+            total: cards.length,
+            en_attente: 0,
+            verifie: 0,
+            rejete: 0
+        };
+        
+        cards.forEach(card => {
+            const status = card.dataset.status;
+            if (status === 'en_attente') stats.en_attente++;
+            else if (status === 'verifie') stats.verifie++;
+            else if (status === 'rejete') stats.rejete++;
+        });
+        
+        // Mettre à jour l'affichage des KPI
+        const kpiElements = document.querySelectorAll('[style*="display:grid;grid-template-columns:repeat(4,1fr)"] a');
+        if (kpiElements.length >= 4) {
+            const totals = [stats.total, stats.en_attente, stats.verifie, stats.rejete];
+            kpiElements.forEach((el, idx) => {
+                const div = el.querySelector('div[style*="font-size:26px"]');
+                if (div) div.textContent = totals[idx].toLocaleString();
+            });
+        }
+        
+        // Mettre à jour le compteur total en bas
+        const resultSpan = document.querySelector('.result-badge strong, [style*="margin-left:auto"] strong');
+        if (resultSpan) resultSpan.textContent = stats.total.toLocaleString();
+    },
+
+    // supprimer une pige (optionnel, seulement si non vérifiée - service refusera sinon)
+    async destroy(pigeId, ref) {
+        Confirm.show(
+            `Supprimer définitivement la pige du panneau <strong>${ref}</strong> ? Cette action est irréversible.`,
+            'danger',
+            async () => {
+                try {
+                    const res = await fetch(`/admin/piges/${pigeId}`, {
+                        method: 'DELETE',
+                        headers: { 
+                            'X-CSRF-TOKEN': CSRF, 
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        },
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        // Retirer la carte du DOM
+                        const card = document.querySelector(`.pige-card[data-id="${pigeId}"]`);
+                        if (card) {
+                            card.style.animation = 'alertFade 0.3s ease forwards';
+                            setTimeout(() => card.remove(), 300);
+                        }
+                        this._showToast(data.message || 'Pige supprimée.', 'success');
+                        
+                        // Mettre à jour les compteurs KPI
+                        setTimeout(() => window.location.reload(), 800);
+                    } else {
+                        this._showToast(data.message || 'Erreur lors de la suppression.', 'error');
+                    }
+                } catch { 
+                    this._showToast('Erreur de connexion.', 'error'); 
+                }
+            }
+        );
     },
 
     // ── Tout vérifier (batch serveur) ─────────────────────
@@ -556,20 +623,22 @@ window.PigeActions = {
         );
     },
 
-    // ── Mettre à jour la carte sans reload ────────────────
-    _updateCard(pigeId, newStatus, reason = '') {
+    // ── Mettre à jour la carte sans reload (VERSION AMÉLIORÉE) ────────────────
+    _updateCard(pigeId, newStatus, data = {}) {
         const card = document.querySelector(`.pige-card[data-id="${pigeId}"]`);
         if (!card) return;
+        
+        const oldStatus = card.dataset.status;
         card.dataset.status = newStatus;
 
         const cfgMap = {
-            verifie:    {label:'Vérifiée',    color:'#22c55e', bg:'rgba(34,197,94,.1)',  bd:'rgba(34,197,94,.3)'},
-            rejete:     {label:'Rejetée',      color:'#ef4444', bg:'rgba(239,68,68,.1)',  bd:'rgba(239,68,68,.3)'},
-            en_attente: {label:'En attente',   color:'#f97316', bg:'rgba(249,115,22,.1)', bd:'rgba(249,115,22,.3)'},
+            verifie:    {label:'Vérifiée',    color:'#22c55e', bg:'rgba(34,197,94,.1)',  bd:'rgba(34,197,94,.3)', icon:'✓'},
+            rejete:     {label:'Rejetée',     color:'#ef4444', bg:'rgba(239,68,68,.1)',  bd:'rgba(239,68,68,.3)', icon:'✗'},
+            en_attente: {label:'En attente',  color:'#f97316', bg:'rgba(249,115,22,.1)', bd:'rgba(249,115,22,.3)', icon:'⏳'},
         };
         const cfg = cfgMap[newStatus] || cfgMap.en_attente;
 
-        // Mettre à jour le badge
+        // 1. Mettre à jour le badge
         const badge = card.querySelector('[style*="position:absolute;top:8px;right:8px"]');
         if (badge) {
             badge.textContent = cfg.label;
@@ -578,17 +647,38 @@ window.PigeActions = {
             badge.style.borderColor = cfg.bd;
         }
 
-        // Remplacer les boutons d'action
+        // 2. Ajouter le motif de rejet si présent
+        const existingReasonDiv = card.querySelector('[style*="background:rgba(239,68,68,.06)"]');
+        if (newStatus === 'rejete' && data.rejection_reason) {
+            if (!existingReasonDiv) {
+                const infoDiv = card.querySelector('.pige-card > div:last-child');
+                const reasonHtml = `
+                    <div style="padding:6px 8px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:7px;font-size:10px;color:#ef4444;margin-bottom:8px">
+                        <span style="font-weight:700">Rejet :</span> ${data.rejection_reason.substring(0, 60)}${data.rejection_reason.length > 60 ? '…' : ''}
+                    </div>
+                `;
+                const dateDiv = card.querySelector('[style*="display:flex;justify-content:space-between"]');
+                if (dateDiv && dateDiv.parentNode) {
+                    dateDiv.insertAdjacentHTML('afterend', reasonHtml);
+                }
+            }
+        } else if (existingReasonDiv && newStatus !== 'rejete') {
+            existingReasonDiv.remove();
+        }
+
+        // 3. Remplacer les boutons d'action
         const actionsDiv = card.querySelector('[style*="display:flex;gap:6px"]');
         if (actionsDiv) {
             if (newStatus === 'verifie') {
                 actionsDiv.innerHTML = '<div style="font-size:11px;color:#22c55e;display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Pige validée — archivée</div>';
+            } else if (newStatus === 'rejete') {
+                actionsDiv.innerHTML = '<div style="font-size:11px;color:#ef4444;display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Pige rejetée — archivée</div>';
             }
         }
 
-        // Retirer la checkbox batch
-        const chk = card.querySelector('.pige-chk');
-        if (chk) chk.closest('div').remove();
+        // 4. Retirer la checkbox batch
+        const chkContainer = card.querySelector('[style*="position:absolute;top:8px;left:8px"]');
+        if (chkContainer) chkContainer.remove();
     },
 
     // ── Toast notification ────────────────────────────────
