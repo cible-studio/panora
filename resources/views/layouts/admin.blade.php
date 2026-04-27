@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Panora — {{ $title ?? 'Dashboard' }}</title>{{-- TÂCHE 1 : Renommé PROGICIA → Panora --}}
+    <title>Panora — {{ $title ?? 'Dashboard' }}</title>
     <link rel="icon" href="{{ asset('images/faviconl.png') }}" media="(prefers-color-scheme: light)">
     <link rel="icon" href="{{ asset('images/favicond.png') }}" media="(prefers-color-scheme: dark)">
     <link
