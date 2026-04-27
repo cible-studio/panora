@@ -14,6 +14,7 @@ use App\Enums\PanelStatus;
 
 use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
+use Illuminate\Support\Facades\Storage;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -27,7 +28,7 @@ class PanelController extends Controller
     public function index(Request $request)
     {
         $source = $request->input('source', 'all');
-        
+
         // ═══════════════════════════════════════════════════════════════
         // PANNEAUX INTERNES (CIBLE CI)
         // ═══════════════════════════════════════════════════════════════
@@ -39,12 +40,12 @@ class PanelController extends Controller
             $enMaintenance = 0;
         } else {
             $query = Panel::with('commune', 'zone', 'format', 'category', 'photos');
-            
+
             if ($request->filled('search')) {
                 $search = $request->search;
-                $query->where(function($q) use ($search) {
+                $query->where(function ($q) use ($search) {
                     $q->where('reference', 'like', "%{$search}%")
-                    ->orWhere('name', 'like', "%{$search}%");
+                        ->orWhere('name', 'like', "%{$search}%");
                 });
             }
             if ($request->filled('commune_id')) {
@@ -63,28 +64,28 @@ class PanelController extends Controller
                 $query->where(function ($q) use ($request) {
                     $q->whereHas('reservations', fn($r) => $r->where('client_id', $request->client_id)
                         ->whereNotIn('status', ['annule', 'refuse']))
-                    ->orWhereHas('campaigns', fn($c) => $c->where('client_id', $request->client_id)
-                        ->whereNotIn('status', ['annule']));
+                        ->orWhereHas('campaigns', fn($c) => $c->where('client_id', $request->client_id)
+                            ->whereNotIn('status', ['annule']));
                 });
             }
-            
+
             $panels = $query->latest()->paginate(15)->withQueryString();
             $totalPanneaux = Panel::count();
             $panneauxLibres = Panel::where('status', 'libre')->count();
             $panneauxOccupes = Panel::whereIn('status', ['occupe', 'option', 'confirme'])->count();
             $enMaintenance = Panel::where('status', 'maintenance')->count();
         }
-        
+
         // ═══════════════════════════════════════════════════════════════
         // PANNEAUX EXTERNES
         // ═══════════════════════════════════════════════════════════════
         $externalQuery = \App\Models\ExternalPanel::with(['agency', 'commune', 'format', 'category']);
-        
+
         if ($request->filled('search')) {
             $search = $request->search;
-            $externalQuery->where(function($q) use ($search) {
+            $externalQuery->where(function ($q) use ($search) {
                 $q->where('code_panneau', 'like', "%{$search}%")
-                ->orWhere('designation', 'like', "%{$search}%");
+                    ->orWhere('designation', 'like', "%{$search}%");
             });
         }
         if ($request->filled('commune_id')) {
@@ -93,17 +94,17 @@ class PanelController extends Controller
         if ($request->filled('zone_id')) {
             $externalQuery->where('zone_id', $request->zone_id);
         }
-        
+
         $externalPanels = $externalQuery->get();
         $totalExternes = \App\Models\ExternalPanel::count();
-        
+
         // ═══════════════════════════════════════════════════════════════
         // RÉPONSE AJAX
         // ═══════════════════════════════════════════════════════════════
         if ($request->ajax() || $request->input('ajax')) {
             $html = view('admin.panels.partials.table-rows', compact('panels', 'source', 'externalPanels', 'request'))->render();
             $paginationHtml = ($source !== 'externe' && $panels->hasPages()) ? $panels->links()->render() : '';
-            
+
             return response()->json([
                 'html' => $html,
                 'pagination' => $paginationHtml,
@@ -111,16 +112,25 @@ class PanelController extends Controller
                 'stats_html' => $this->getStatsHtml($source, $panels, $externalPanels),
             ]);
         }
-        
+
         $communes = Commune::orderBy('name')->get();
         $zones = Zone::orderBy('name')->get();
         $categories = PanelCategory::orderBy('name')->get();
         $clients = \App\Models\Client::orderBy('name')->get(['id', 'name']);
-        
+
         return view('admin.panels.index', compact(
-            'panels', 'communes', 'zones', 'categories', 'clients',
-            'totalPanneaux', 'panneauxLibres', 'panneauxOccupes', 'enMaintenance',
-            'externalPanels', 'totalExternes', 'source'
+            'panels',
+            'communes',
+            'zones',
+            'categories',
+            'clients',
+            'totalPanneaux',
+            'panneauxLibres',
+            'panneauxOccupes',
+            'enMaintenance',
+            'externalPanels',
+            'totalExternes',
+            'source'
         ));
     }
 
@@ -179,24 +189,25 @@ class PanelController extends Controller
 
         // Upload photos
         if ($request->hasFile('photos')) {
+
             $manager = new ImageManager(new Driver());
 
             foreach ($request->file('photos') as $index => $photo) {
 
-                $image = $manager->read($photo->getRealPath());
+                $image = $manager->read($photo->getPathname());
 
-                $image->scaleDown(width: 1200);
+                $image->resize(1200, null);
 
                 $filename = 'panels/' . Str::uuid() . '.jpg';
 
-                \Storage::disk('public')->put(
+                Storage::disk('public')->put(
                     $filename,
-                    $image->toJpeg(80)->toString()
+                    $image->toJpeg(80)
                 );
 
                 PanelPhoto::create([
                     'panel_id' => $panel->id,
-                    'path' => $filename, // ✅ FIX
+                    'path' => $filename,
                     'ordre' => $index,
                 ]);
             }
@@ -325,23 +336,23 @@ class PanelController extends Controller
 
 
         $panel->update([
-            'name'             => $request->name,
-            'commune_id'       => $request->commune_id,
-            'zone_id'          => $request->zone_id,
-            'format_id'        => $request->format_id,
-            'category_id'      => $request->category_id,
-            'latitude'         => $request->latitude,
-            'longitude'        => $request->longitude,
-            'monthly_rate'     => $request->monthly_rate,
-            'daily_traffic'    => $request->daily_traffic,
-            'is_lit'           => $request->boolean('is_lit'),
-            'nombre_faces'     => $request->nombre_faces,
-            'type_support'     => $request->type_support,
-            'orientation'      => $request->orientation,
+            'name' => $request->name,
+            'commune_id' => $request->commune_id,
+            'zone_id' => $request->zone_id,
+            'format_id' => $request->format_id,
+            'category_id' => $request->category_id,
+            'latitude' => $request->latitude,
+            'longitude' => $request->longitude,
+            'monthly_rate' => $request->monthly_rate,
+            'daily_traffic' => $request->daily_traffic,
+            'is_lit' => $request->boolean('is_lit'),
+            'nombre_faces' => $request->nombre_faces,
+            'type_support' => $request->type_support,
+            'orientation' => $request->orientation,
             'zone_description' => $request->zone_description,
-            'adresse'          => $request->adresse,
-            'quartier'         => $request->quartier,
-            'axe_routier'      => $request->axe_routier,
+            'adresse' => $request->adresse,
+            'quartier' => $request->quartier,
+            'axe_routier' => $request->axe_routier,
         ]);
 
         // ── Supprimer les photos cochées ──
@@ -366,19 +377,22 @@ class PanelController extends Controller
 
         // ── Ajouter les nouvelles images ──
         if ($request->hasFile('new_images')) {
+
             $manager = new ImageManager(new Driver());
-            $nextOrdre = $panel->photos()->max('ordre') + 1;
+
+            $nextOrdre = ($panel->photos()->max('ordre') ?? -1) + 1;
 
             foreach ($request->file('new_images') as $file) {
 
-                $image = $manager->read($file->getRealPath());
-                $image->scaleDown(width: 1200);
+                $image = $manager->read($file->getPathname());
+
+                $image->resize(1200, null);
 
                 $filename = 'panels/' . Str::uuid() . '.jpg';
 
-                \Storage::disk('public')->put(
+                Storage::disk('public')->put(
                     $filename,
-                    $image->toJpeg(80)->toString()
+                    $image->toJpeg(80)
                 );
 
                 PanelPhoto::create([
