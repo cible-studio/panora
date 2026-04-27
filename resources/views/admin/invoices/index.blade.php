@@ -67,7 +67,7 @@
             @if(request()->hasAny(['client_id', 'status']))
             <div class="filter-group" style="justify-content:flex-end;">
                 <label class="filter-label">&nbsp;</label>
-                <a href="{{ route('admin.invoices.index') }}" class="btn btn-ghost btn-sm">✕ Reset</a>
+                <a href="{{ route('admin.invoices.index') }}" class="btn btn-ghost btn-sm">↺ Effacer</a>
             </div>
             @endif
         </div>

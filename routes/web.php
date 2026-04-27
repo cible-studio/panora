@@ -1,4 +1,5 @@
 <?php
+use App\Http\Controllers\Admin\AlertController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\DashboardController;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +35,9 @@ Route::middleware('auth')->get('/api/alerts/latest', function () {
         ->get(['id', 'type', 'niveau', 'title', 'message', 'created_at']);
     return response()->json($alerts);
 })->name('api.alerts.latest');
+
+Route::post('alerts/delete-seen', [AlertController::class, 'deleteSeen'])
+    ->name('admin.alerts.delete-seen');
 
 
 

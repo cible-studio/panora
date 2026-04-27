@@ -143,7 +143,7 @@ $kpis = [
 
         <div style="align-self:flex-end;display:flex;gap:6px">
             @if(request()->hasAny(['q','status','technicien_id','campaign_id','date_from','date_to']))
-            <a href="{{ route('admin.pose-tasks.index') }}" class="btn-reset" title="Réinitialiser">↺</a>
+            <a href="{{ route('admin.pose-tasks.index') }}" class="btn-reset" title="Réinitialiser">↺ Effacer</a>
             @endif
         </div>
 
@@ -405,13 +405,13 @@ window.Confirm = {
             warning: { icon:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>', ibg:'rgba(249,115,22,.12)', btnBg:'#f97316', btnTxt:'Confirmer', title:'Confirmer l\'action' },
         };
         const c = cfg[type] || cfg.confirm;
-        
+
         // Récupérer les éléments avec les bons IDs
         const iconEl = document.getElementById('modal-confirm-icon');
         const titleEl = document.getElementById('modal-confirm-title');
         const bodyEl = document.getElementById('modal-confirm-body');
         const btnEl = document.getElementById('modal-confirm-btn');
-        
+
         if (iconEl) {
             iconEl.innerHTML = c.icon;
             iconEl.style.background = c.ibg;
@@ -424,7 +424,7 @@ window.Confirm = {
             btnEl.style.color = '#fff';
             btnEl.onclick = () => { this.cancel(); if (callback) callback(); };
         }
-        
+
         const modal = document.getElementById('modal-confirm');
         if (modal) {
             modal.style.display = 'flex';
@@ -526,7 +526,7 @@ document.querySelectorAll('.action-btn-success').forEach(btn => {
         e.stopPropagation();
         const form = this.closest('td').querySelector('form');
         if (!form) return;
-        
+
         Confirm.show(
             'Cette action marquera la tâche comme réalisée. Êtes-vous sûr ?',
             'confirm',
