@@ -88,7 +88,7 @@
             @if(request()->hasAny(['commune_id', 'type', 'year', 'status']))
             <div class="filter-group" style="justify-content:flex-end;">
                 <label class="filter-label">&nbsp;</label>
-                <a href="{{ route('admin.taxes.index') }}" class="btn btn-ghost btn-sm">✕ Reset</a>
+                <a href="{{ route('admin.taxes.index') }}" class="btn btn-ghost btn-sm">↺ Effacer</a>
             </div>
             @endif
         </div>

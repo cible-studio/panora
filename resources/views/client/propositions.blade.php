@@ -63,7 +63,7 @@
         <a href="{{ route('client.propositions') }}"
            style="padding:8px 16px;background:var(--surface);border:1px solid var(--border2);border-radius:9px;font-size:13px;color:var(--text2);text-decoration:none;transition:all .15s;"
            onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
-            ↺ Reset
+            ↺ Effacer
         </a>
         @endif
     </form>

@@ -484,19 +484,19 @@
             @if (session('info'))
                 showToast('info', @json(session('info')));
             @endif
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-        const toggle = document.getElementById('theme-toggle');
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            const toggle = document.getElementById('theme-toggle');
 
-        if (toggle) {
-            toggle.checked = savedTheme === 'light';
-        }
+            if (toggle) {
+                toggle.checked = savedTheme === 'light';
+            }
         });
     </script>
 
     {{-- Thème + Alertes --}}
     <script>
         (function() {
-            applyTheme(localStorage.getItem('theme') || 'dark');
+            applyTheme(localStorage.getItem('theme') || 'light');
         })();
 
         function toggleThemeSwitch() {
@@ -536,10 +536,16 @@
                 if (!res.ok) return;
                 const alerts = await res.json();
 
+                // Dans checkAlerts(), après la mise à jour du badge
                 const badge = document.getElementById('alert-badge');
                 if (badge) {
-                    badge.textContent = alerts.length;
-                    badge.style.display = alerts.length > 0 ? 'inline-block' : 'none';
+                    // Si on est sur la page alertes, cacher le badge
+                    if (window.location.pathname.includes('/alerts')) {
+                        badge.style.display = 'none';
+                    } else {
+                        badge.textContent = alerts.length;
+                        badge.style.display = alerts.length > 0 ? 'inline-block' : 'none';
+                    }
                 }
 
                 alerts.forEach(alert => {
