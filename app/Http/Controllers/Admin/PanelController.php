@@ -2,15 +2,22 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+
 use App\Models\Panel;
 use App\Models\Commune;
 use App\Models\Zone;
 use App\Models\PanelFormat;
 use App\Models\PanelCategory;
 use App\Models\PanelPhoto;
+
 use App\Enums\PanelStatus;
+
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+
 use App\Services\PdfExportService;
 use App\Services\AlertService;
 
@@ -110,6 +117,7 @@ class PanelController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:150',
+            'photos.*' => 'nullable|image|max:35840',// 35MB max
             'commune_id' => 'required|exists:communes,id',
             'zone_id' => 'nullable|exists:zones,id',
             'format_id' => 'required|exists:panel_formats,id',
@@ -135,11 +143,24 @@ class PanelController extends Controller
 
         // Upload photos
         if ($request->hasFile('photos')) {
+            $manager = new ImageManager(new Driver());
+
             foreach ($request->file('photos') as $index => $photo) {
-                $path = $photo->store('panels', 'public');
+
+                $image = $manager->read($photo->getRealPath());
+
+                $image->scaleDown(width: 1200);
+
+                $filename = 'panels/' . Str::uuid() . '.jpg';
+
+                \Storage::disk('public')->put(
+                    $filename,
+                    $image->toJpeg(80)->toString()
+                );
+
                 PanelPhoto::create([
                     'panel_id' => $panel->id,
-                    'path' => $path,
+                    'path' => $filename, // ✅ FIX
                     'ordre' => $index,
                 ]);
             }
@@ -260,14 +281,31 @@ class PanelController extends Controller
             'daily_traffic' => 'nullable|integer|min:0',
             'is_lit' => 'boolean',
             'zone_description' => 'nullable|string',
-            'new_images.*' => 'nullable|image|max:5120',
+            'new_images.*' => 'nullable|image|max:35840',// 35MB max
             'delete_photos' => 'nullable|array',
             'delete_photos.*' => 'exists:panel_photos,id',
         ]);
 
+
+
         $panel->update([
-            ...$request->except('_token', '_method', 'new_images', 'delete_photos', 'ordre'),
-            'is_lit' => $request->boolean('is_lit'),
+            'name'             => $request->name,
+            'commune_id'       => $request->commune_id,
+            'zone_id'          => $request->zone_id,
+            'format_id'        => $request->format_id,
+            'category_id'      => $request->category_id,
+            'latitude'         => $request->latitude,
+            'longitude'        => $request->longitude,
+            'monthly_rate'     => $request->monthly_rate,
+            'daily_traffic'    => $request->daily_traffic,
+            'is_lit'           => $request->boolean('is_lit'),
+            'nombre_faces'     => $request->nombre_faces,
+            'type_support'     => $request->type_support,
+            'orientation'      => $request->orientation,
+            'zone_description' => $request->zone_description,
+            'adresse'          => $request->adresse,
+            'quartier'         => $request->quartier,
+            'axe_routier'      => $request->axe_routier,
         ]);
 
         // ── Supprimer les photos cochées ──
@@ -292,12 +330,24 @@ class PanelController extends Controller
 
         // ── Ajouter les nouvelles images ──
         if ($request->hasFile('new_images')) {
+            $manager = new ImageManager(new Driver());
             $nextOrdre = $panel->photos()->max('ordre') + 1;
-            foreach ($request->file('new_images') as $image) {
-                $path = $image->store('panels', 'public');
+
+            foreach ($request->file('new_images') as $file) {
+
+                $image = $manager->read($file->getRealPath());
+                $image->scaleDown(width: 1200);
+
+                $filename = 'panels/' . Str::uuid() . '.jpg';
+
+                \Storage::disk('public')->put(
+                    $filename,
+                    $image->toJpeg(80)->toString()
+                );
+
                 PanelPhoto::create([
                     'panel_id' => $panel->id,
-                    'path' => $path,
+                    'path' => $filename,
                     'ordre' => $nextOrdre++,
                 ]);
             }

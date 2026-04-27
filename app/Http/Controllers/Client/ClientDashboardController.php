@@ -185,7 +185,11 @@ class ClientDashboardController extends Controller
                 'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
                 'total'        => (float) ($panel->monthly_rate ?? 0) * $months,
                 'photo_url'    => $photo ? asset('storage/' . ltrim($photo->path, '/')) : null,
-            ];
+                // ← Ajout : toutes les photos pour le modal JS
+                'photos'       => $panel->photos->sortBy('ordre')->map(fn($p) => [
+                    'url' => asset('storage/' . ltrim($p->path, '/'))
+                ])->values()->toArray(),
+                    ];
         });
 
         $joursRestants = now()->startOfDay()->diffInDays($reservation->end_date->startOfDay(), false);

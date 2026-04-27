@@ -175,9 +175,8 @@
                 <div class="mfg">
                     <label>Ajouter des images</label>
                     <input type="file" name="new_images[]" accept="image/*" multiple>
-                    <div style="font-size:12px;color:var(--text3);margin-top:4px;">Formats acceptés : JPG, PNG, GIF (max 5MB par image)</div>
-                </div>
-
+                        <div style="font-size:12px;color:var(--text3);margin-top:4px;">Formats acceptés : JPG, PNG, GIF (max 35MB par image)</div>                
+                    </div>
                 {{-- Images existantes --}}
                 @if($panel->photos->count() > 0)
                 <div style="margin-top:16px;">

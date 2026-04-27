@@ -179,8 +179,16 @@ class PigeController extends Controller
     {
         $pige->load(['panel.commune', 'campaign', 'technicien', 'verificateur']);
         $techniciens = User::orderBy('name')->get(['id', 'name']);
- 
-        return view('admin.piges.edit', compact('pige', 'techniciens'));
+
+        $prevPige = Pige::where('id', '<', $pige->id)
+            ->when($pige->campaign_id, fn($q) => $q->where('campaign_id', $pige->campaign_id))
+            ->latest('id')->first();
+
+        $nextPige = Pige::where('id', '>', $pige->id)
+            ->when($pige->campaign_id, fn($q) => $q->where('campaign_id', $pige->campaign_id))
+            ->oldest('id')->first();
+
+        return view('admin.piges.edit', compact('pige', 'techniciens', 'prevPige', 'nextPige'));
     }
 
     public function update(Request $request, Pige $pige)
@@ -219,13 +227,13 @@ class PigeController extends Controller
  
         $validated = $request->validate($rules, $messages);
  
-        $data = array_filter([
-            'taken_at'  => $validated['taken_at']  ?? null,
-            'gps_lat'   => $validated['gps_lat']   ?? null,
-            'gps_lng'   => $validated['gps_lng']   ?? null,
-            'notes'     => $validated['notes']     ?? null,
-            'user_id'   => $validated['user_id']   ?? null,
-        ], fn($v) => $v !== null);
+        $data = [];
+
+        if (array_key_exists('taken_at', $validated)) $data['taken_at'] = $validated['taken_at'];
+        if (array_key_exists('gps_lat',  $validated)) $data['gps_lat']  = $validated['gps_lat'];
+        if (array_key_exists('gps_lng',  $validated)) $data['gps_lng']  = $validated['gps_lng'];
+        if (array_key_exists('notes',    $validated)) $data['notes']    = $validated['notes'];
+        if (array_key_exists('user_id',  $validated)) $data['user_id']  = $validated['user_id'];
  
         // Statut et motif (si non vérifiée)
         if (!$isVerified) {

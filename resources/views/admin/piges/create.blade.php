@@ -145,7 +145,7 @@ window.__PIGE__ = {
     @endif
 
     {{-- Info métier --}}
-    <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px">
+    <div style="background:rgba(26, 31, 40, 0.06);border:1px solid rgba(59,130,246,.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px">
         <svg width="14" height="14" style="flex-shrink:0;margin-top:1px" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         <div style="font-size:12px;color:#3b82f6;line-height:1.5">
             <strong>Pige = preuve photo d'affichage.</strong>
@@ -387,18 +387,19 @@ window.__PIGE__ = {
         </div>
 
         {{-- ══ ACTIONS ══ --}}
-        <div style="display:flex;gap:10px;align-items:center;padding-top:2px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <button type="submit" id="btn-submit" class="btn btn-primary"
-                    style="min-width:200px;display:flex;align-items:center;justify-content:center;gap:8px">
+                    style="min-width:180px;display:flex;align-items:center;justify-content:center;gap:7px">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v14a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
                 </svg>
                 <span id="btn-label">Uploader les piges</span>
             </button>
             <a href="{{ route('admin.piges.index') }}" class="btn btn-ghost">Annuler</a>
-            <div id="submit-summary" style="display:none;font-size:12px;color:var(--text3)"></div>
+            <span id="submit-summary" style="display:none;font-size:12px;color:var(--text3)"></span>
         </div>
+
     </form>
 </div>
 

@@ -23,6 +23,17 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 
+# IDE
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
 node_modules
 vendor
+# Variables d'environnement (CRITIQUE)
 .env
+.env.backup
+.env.local
+.env.production
