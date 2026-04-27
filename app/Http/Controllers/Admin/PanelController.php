@@ -26,74 +26,110 @@ class PanelController extends Controller
     // ── LISTE ──
     public function index(Request $request)
     {
-        $query = Panel::with('commune', 'zone', 'format', 'category', 'photos');
-
-        // Filtres
+        $source = $request->input('source', 'all');
+        
+        // ═══════════════════════════════════════════════════════════════
+        // PANNEAUX INTERNES (CIBLE CI)
+        // ═══════════════════════════════════════════════════════════════
+        if ($source === 'externe') {
+            $panels = collect();
+            $totalPanneaux = 0;
+            $panneauxLibres = 0;
+            $panneauxOccupes = 0;
+            $enMaintenance = 0;
+        } else {
+            $query = Panel::with('commune', 'zone', 'format', 'category', 'photos');
+            
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('reference', 'like', "%{$search}%")
+                    ->orWhere('name', 'like', "%{$search}%");
+                });
+            }
+            if ($request->filled('commune_id')) {
+                $query->where('commune_id', $request->commune_id);
+            }
+            if ($request->filled('zone_id')) {
+                $query->where('zone_id', $request->zone_id);
+            }
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+            if ($request->filled('category_id')) {
+                $query->where('category_id', $request->category_id);
+            }
+            if ($request->filled('client_id')) {
+                $query->where(function ($q) use ($request) {
+                    $q->whereHas('reservations', fn($r) => $r->where('client_id', $request->client_id)
+                        ->whereNotIn('status', ['annule', 'refuse']))
+                    ->orWhereHas('campaigns', fn($c) => $c->where('client_id', $request->client_id)
+                        ->whereNotIn('status', ['annule']));
+                });
+            }
+            
+            $panels = $query->latest()->paginate(15)->withQueryString();
+            $totalPanneaux = Panel::count();
+            $panneauxLibres = Panel::where('status', 'libre')->count();
+            $panneauxOccupes = Panel::whereIn('status', ['occupe', 'option', 'confirme'])->count();
+            $enMaintenance = Panel::where('status', 'maintenance')->count();
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // PANNEAUX EXTERNES
+        // ═══════════════════════════════════════════════════════════════
+        $externalQuery = \App\Models\ExternalPanel::with(['agency', 'commune', 'format', 'category']);
+        
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $externalQuery->where(function($q) use ($search) {
+                $q->where('code_panneau', 'like', "%{$search}%")
+                ->orWhere('designation', 'like', "%{$search}%");
+            });
+        }
         if ($request->filled('commune_id')) {
-            $query->where('commune_id', $request->commune_id);
-        }
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
+            $externalQuery->where('commune_id', $request->commune_id);
         }
         if ($request->filled('zone_id')) {
-            $query->where('zone_id', $request->zone_id);
+            $externalQuery->where('zone_id', $request->zone_id);
         }
-        if ($request->filled('client_id')) {
-            $query->where(function ($q) use ($request) {
-                $q->whereHas(
-                    'reservations',
-                    fn($r) =>
-                    $r->where('client_id', $request->client_id)
-                        ->whereNotIn('status', ['annule', 'refuse'])
-                )->orWhereHas(
-                        'campaigns',
-                        fn($c) =>
-                        $c->where('client_id', $request->client_id)
-                            ->whereNotIn('status', ['annule'])
-                    );
-            });
+        
+        $externalPanels = $externalQuery->get();
+        $totalExternes = \App\Models\ExternalPanel::count();
+        
+        // ═══════════════════════════════════════════════════════════════
+        // RÉPONSE AJAX
+        // ═══════════════════════════════════════════════════════════════
+        if ($request->ajax() || $request->input('ajax')) {
+            $html = view('admin.panels.partials.table-rows', compact('panels', 'source', 'externalPanels', 'request'))->render();
+            $paginationHtml = ($source !== 'externe' && $panels->hasPages()) ? $panels->links()->render() : '';
+            
+            return response()->json([
+                'html' => $html,
+                'pagination' => $paginationHtml,
+                'total' => ($source === 'externe') ? $externalPanels->count() : $panels->total(),
+                'stats_html' => $this->getStatsHtml($source, $panels, $externalPanels),
+            ]);
         }
-        if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('reference', 'like', '%' . $request->search . '%')
-                    ->orWhere('name', 'like', '%' . $request->search . '%');
-            });
-        }
-
-        $panels = $query->latest()->paginate(15)->withQueryString();
+        
         $communes = Commune::orderBy('name')->get();
         $zones = Zone::orderBy('name')->get();
         $categories = PanelCategory::orderBy('name')->get();
         $clients = \App\Models\Client::orderBy('name')->get(['id', 'name']);
-
-        // Stats
-        $totalPanneaux = Panel::count();
-        $panneauxLibres = Panel::where('status', 'libre')->count();
-        $panneauxOccupes = Panel::whereIn('status', ['occupe', 'option', 'confirme'])->count();
-        $enMaintenance = Panel::where('status', 'maintenance')->count();
-
-        // Panneaux externes
-        $externalPanels = \App\Models\ExternalPanel::with(['agency', 'commune', 'format', 'category'])->get();
-        $totalExternes = $externalPanels->count();
-        $source = $request->input('source', 'all');
-
+        
         return view('admin.panels.index', compact(
-            'panels',
-            'communes',
-            'zones',
-            'categories',
-            'clients',
-            'totalPanneaux',
-            'panneauxLibres',
-            'panneauxOccupes',
-            'enMaintenance',
-            'externalPanels',
-            'totalExternes',
-            'source'
+            'panels', 'communes', 'zones', 'categories', 'clients',
+            'totalPanneaux', 'panneauxLibres', 'panneauxOccupes', 'enMaintenance',
+            'externalPanels', 'totalExternes', 'source'
         ));
+    }
+
+    private function getStatsHtml($source, $panels, $externalPanels)
+    {
+        if ($source === 'externe') {
+            return '🏢 Panneaux Régies externes (' . $externalPanels->count() . ')';
+        }
+        return '🪧 Panneaux CIBLE CI (' . $panels->total() . ')';
     }
 
     // ── CRÉATION ──
