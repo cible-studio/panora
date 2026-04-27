@@ -30,33 +30,32 @@ class AlertController extends Controller
 
         // Stats globales
         $raw = Alert::selectRaw("
-        COUNT(*) as total,
-        SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) as non_lues,
-        SUM(CASE WHEN niveau = 'danger'  AND is_read = 0 THEN 1 ELSE 0 END) as danger,
-        SUM(CASE WHEN niveau = 'warning' AND is_read = 0 THEN 1 ELSE 0 END) as warning,
-        SUM(CASE WHEN niveau = 'info'    AND is_read = 0 THEN 1 ELSE 0 END) as info
-    ")->first();
+            COUNT(*) as total,
+            SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) as non_lues,
+            SUM(CASE WHEN niveau = 'danger'  AND is_read = 0 THEN 1 ELSE 0 END) as danger,
+            SUM(CASE WHEN niveau = 'warning' AND is_read = 0 THEN 1 ELSE 0 END) as warning,
+            SUM(CASE WHEN niveau = 'info'    AND is_read = 0 THEN 1 ELSE 0 END) as info
+        ")->first();
 
-        // Réinitialiser le badge côté session
         session(['alerts_last_seen' => now()]);
 
         $totalNonLues = (int) ($raw->non_lues ?? 0);
         $totalDanger = (int) ($raw->danger ?? 0);
         $totalWarning = (int) ($raw->warning ?? 0);
         $totalInfo = (int) ($raw->info ?? 0);
-
         $types = Alert::distinct()->pluck('type')->sort()->values();
 
+        // ✅ AJAX response
+        if ($request->ajax() || $request->input('ajax')) {
+            $html = view('admin.alertes.partials.alerts-list', compact('alertes', 'totalNonLues'))->render();
+            return response()->json([
+                'html' => $html,
+                'total' => $alertes->total(),
+                'non_lues' => $totalNonLues,
+            ]);
+        }
 
-
-        return view('admin.alertes.index', compact(
-            'alertes',
-            'totalNonLues',
-            'totalDanger',
-            'totalWarning',
-            'totalInfo',
-            'types'
-        ));
+        return view('admin.alertes.index', compact('alertes', 'totalNonLues', 'totalDanger', 'totalWarning', 'totalInfo', 'types'));
     }
 
     public function deleteSeen(Request $request)

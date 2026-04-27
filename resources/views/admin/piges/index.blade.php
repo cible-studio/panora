@@ -127,7 +127,7 @@ $kpis = [
         <div style="align-self:flex-end;display:flex;gap:6px">
             <!-- <button type="submit" style="height:38px;padding:0 14px;background:var(--accent);color:#000;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">Filtrer</button> -->
             @if(request()->hasAny(['q','status','campaign_id','technicien_id','date_from','date_to','panel_id']))
-            <a href="{{ route('admin.piges.index') }}" class="btn-reset" title="Réinitialiser">↺ Effacer</a>
+            <a href="{{ route('admin.piges.index') }}" class="btn-reset" title="Réinitialiser">↺</a>
             @endif
         </div>
 

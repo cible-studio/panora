@@ -41,13 +41,19 @@ class PoseController extends Controller
             'panel.commune:id,name',
             'campaign:id,name,status',
             'technicien:id,name',
-        ])
-        // Charger le nombre de piges par tâche (1 requête supplémentaire via withCount)
-        ->withCount([
+        ])->withCount([
             'piges as pige_count',
             'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
         ]);
 
+        if ($request->filled('q')) {
+            $q = $request->q;
+            $query->where(fn($sq) => 
+                $sq->whereHas('panel', fn($p) => $p->where('reference', 'like', "%{$q}%")->orWhere('name', 'like', "%{$q}%"))
+                ->orWhereHas('campaign', fn($c) => $c->where('name', 'like', "%{$q}%"))
+                ->orWhereHas('technicien', fn($u) => $u->where('name', 'like', "%{$q}%"))
+            );
+        }
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
@@ -64,23 +70,25 @@ class PoseController extends Controller
             $query->whereDate('scheduled_at', '<=', $request->date_to);
         }
 
-        $poseTasks    = $query->latest('scheduled_at')->paginate(20)->withQueryString();
-        $techniciens  = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
-        $campaigns    = Campaign::whereIn('status', [CampaignStatus::ACTIF->value, CampaignStatus::POSE->value])
-                            ->orderBy('name')->get(['id', 'name', 'status']);
-        $stats        = $this->poseService->getStats();
+        $poseTasks = $query->latest('scheduled_at')->paginate(20)->withQueryString();
+        $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
+        $campaigns = Campaign::whereIn('status', [CampaignStatus::ACTIF->value, CampaignStatus::POSE->value])->orderBy('name')->get(['id', 'name', 'status']);
+        $stats = $this->poseService->getStats();
         $overdueTasks = $this->poseService->getOverdueTasks();
+        $posesSansPige = PoseTask::where('status', PoseTaskStatus::COMPLETED->value)->whereNotNull('campaign_id')->whereDoesntHave('piges', fn($q) => $q->where('status', '!=', 'rejete'))->count();
 
-        // Poses réalisées sans pige (pour l'alerte activité du module)
-        $posesSansPige = PoseTask::where('status', PoseTaskStatus::COMPLETED->value)
-            ->whereNotNull('campaign_id')
-            ->whereDoesntHave('piges', fn($q) => $q->where('status', '!=', 'rejete'))
-            ->count();
+        // ✅ AJAX response
+        if ($request->ajax() || $request->input('ajax')) {
+            $html = view('admin.poses.partials.table-rows', compact('poseTasks'))->render();
+            $paginationHtml = $poseTasks->hasPages() ? $poseTasks->links()->render() : '';
+            return response()->json([
+                'html' => $html,
+                'pagination' => $paginationHtml,
+                'total' => number_format($poseTasks->total()),
+            ]);
+        }
 
-        return view('admin.poses.index', compact(
-            'poseTasks', 'techniciens', 'campaigns',
-            'stats', 'overdueTasks', 'posesSansPige'
-        ));
+        return view('admin.poses.index', compact('poseTasks', 'techniciens', 'campaigns', 'stats', 'overdueTasks', 'posesSansPige'));
     }
 
     // ══════════════════════════════════════════════════════════════
