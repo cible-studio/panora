@@ -2,47 +2,30 @@
 <x-slot name="title">Inventaire Panneaux</x-slot>
 
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.panels.export.list') }}" class="btn btn-ghost btn-sm">
-        📄 Export PDF
-    </a>
-    <a href="{{ route('admin.panels.export.network') }}" class="btn btn-ghost btn-sm">
-        📊 Rapport réseau
-    </a>
-    <a href="{{ route('admin.panels.create') }}" class="btn btn-primary btn-sm">
-        ＋ Nouveau panneau
-    </a>
+    <a href="{{ route('admin.panels.export.list') }}" class="btn btn-ghost btn-sm">📄 Export PDF</a>
+    <a href="{{ route('admin.panels.export.network') }}" class="btn btn-ghost btn-sm">📊 Rapport réseau</a>
+    <a href="{{ route('admin.panels.create') }}" class="btn btn-primary btn-sm">＋ Nouveau panneau</a>
 </x-slot>
 
 {{-- STATS --}}
 <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
-    <a href="{{ route('admin.panels.index', ['source' => 'all']) }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;
-              {{ ($source ?? 'all') === 'all' && !request('status') ? 'border-color:var(--accent);' : '' }}">
+    <a href="#" data-source="all" class="stat-card filter-stat">
         <div class="stat-label">Total CIBLE CI</div>
         <div class="stat-value">{{ $totalPanneaux }}</div>
     </a>
-    <a href="{{ route('admin.panels.index', ['source' => 'cible', 'status' => 'libre']) }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;
-              {{ request('status') === 'libre' ? 'border-color:var(--green);' : '' }}">
+    <a href="#" data-status="libre" class="stat-card filter-stat">
         <div class="stat-label">Libres</div>
         <div class="stat-value" style="color:var(--green);">{{ $panneauxLibres }}</div>
     </a>
-    <a href="{{ route('admin.panels.index', ['source' => 'cible', 'status' => 'occupe']) }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;
-              {{ request('status') === 'occupe' ? 'border-color:var(--accent);' : '' }}">
+    <a href="#" data-status="occupe" class="stat-card filter-stat">
         <div class="stat-label">Occupés</div>
         <div class="stat-value" style="color:var(--accent);">{{ $panneauxOccupes }}</div>
     </a>
-    <a href="{{ route('admin.panels.index', ['source' => 'cible', 'status' => 'maintenance']) }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;
-              {{ request('status') === 'maintenance' ? 'border-color:var(--red);' : '' }}">
+    <a href="#" data-status="maintenance" class="stat-card filter-stat">
         <div class="stat-label">Maintenance</div>
         <div class="stat-value" style="color:var(--red);">{{ $enMaintenance }}</div>
     </a>
-    <a href="{{ route('admin.panels.index', ['source' => 'externe']) }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;
-              border-color:{{ ($source ?? '') === 'externe' ? 'var(--purple)' : 'rgba(168,85,247,0.3)' }};
-              background:rgba(168,85,247,0.05);">
+    <a href="#" data-source="externe" class="stat-card filter-stat">
         <div class="stat-label" style="color:var(--purple);">Régies externes</div>
         <div class="stat-value" style="color:var(--purple);">{{ $totalExternes }}</div>
     </a>
@@ -50,119 +33,89 @@
 
 {{-- FILTRE SOURCE --}}
 <div style="display:flex;gap:8px;margin-bottom:16px;">
-    <a href="{{ route('admin.panels.index', array_merge(request()->except('source'), ['source' => 'all'])) }}"
-       class="btn {{ ($source ?? 'all') === 'all' ? 'btn-primary' : 'btn-ghost' }} btn-sm">
-        🪧 Tous ({{ $totalPanneaux + $totalExternes }})
-    </a>
-    <a href="{{ route('admin.panels.index', array_merge(request()->except('source'), ['source' => 'cible'])) }}"
-       class="btn {{ ($source ?? '') === 'cible' ? 'btn-primary' : 'btn-ghost' }} btn-sm">
-        ✅ CIBLE CI ({{ $totalPanneaux }})
-    </a>
-    <a href="{{ route('admin.panels.index', array_merge(request()->except('source'), ['source' => 'externe'])) }}"
-       class="btn {{ ($source ?? '') === 'externe' ? 'btn-primary' : 'btn-ghost' }} btn-sm"
-       style="{{ ($source ?? '') === 'externe' ? '' : 'color:var(--purple);border-color:rgba(168,85,247,0.3);' }}">
-        🏢 Régies externes ({{ $totalExternes }})
-    </a>
+    <button type="button" data-source="all" class="filter-source-btn btn btn-primary btn-sm">🪧 Tous ({{ $totalPanneaux + $totalExternes }})</button>
+    <button type="button" data-source="cible" class="filter-source-btn btn btn-ghost btn-sm">✅ CIBLE CI ({{ $totalPanneaux }})</button>
+    <button type="button" data-source="externe" class="filter-source-btn btn btn-ghost btn-sm" style="color:var(--purple);border-color:rgba(168,85,247,0.3);">🏢 Régies externes ({{ $totalExternes }})</button>
 </div>
 
-{{-- FILTRES AUTO — masqués si vue externe --}}
-@if(($source ?? 'all') !== 'externe')
+{{-- FILTRES --}}
 <div class="card" style="margin-bottom:16px;">
-    <form id="filter-form" method="GET" action="{{ route('admin.panels.index') }}">
-        <input type="hidden" name="source" value="{{ $source ?? 'all' }}">
-        <div class="filter-bar">
-            <div class="filter-group">
-                <label class="filter-label">Recherche</label>
-                <input type="text" name="search" class="filter-input"
-                       value="{{ request('search') }}"
-                       placeholder="Référence, nom..."
-                       oninput="debounceSubmit()">
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">Commune</label>
-                <select name="commune_id" class="filter-select" onchange="this.form.submit()">
-                    <option value="">Toutes</option>
-                    @foreach($communes as $commune)
-                    <option value="{{ $commune->id }}"
-                        {{ request('commune_id') == $commune->id ? 'selected' : '' }}>
-                        {{ $commune->name }}
-                    </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">Zone</label>
-                <select name="zone_id" class="filter-select" onchange="this.form.submit()">
-                    <option value="">Toutes les zones</option>
-                    @foreach($zones as $zone)
-                    <option value="{{ $zone->id }}"
-                        {{ request('zone_id') == $zone->id ? 'selected' : '' }}>
-                        {{ $zone->name }}
-                    </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">Client</label>
-                <select name="client_id" class="filter-select" onchange="this.form.submit()">
-                    <option value="">Tous les clients</option>
-                    @foreach($clients as $client)
-                    <option value="{{ $client->id }}"
-                        {{ request('client_id') == $client->id ? 'selected' : '' }}>
-                        {{ $client->name }}
-                    </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">Statut</label>
-                <select name="status" class="filter-select" onchange="this.form.submit()">
-                    <option value="">Tous</option>
-                    <option value="libre"       {{ request('status') === 'libre'       ? 'selected' : '' }}>Libre</option>
-                    <option value="occupe"      {{ request('status') === 'occupe'      ? 'selected' : '' }}>Occupé</option>
-                    <option value="option"      {{ request('status') === 'option'      ? 'selected' : '' }}>Option</option>
-                    <option value="confirme"    {{ request('status') === 'confirme'    ? 'selected' : '' }}>Confirmé</option>
-                    <option value="maintenance" {{ request('status') === 'maintenance' ? 'selected' : '' }}>Maintenance</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">Catégorie</label>
-                <select name="category_id" class="filter-select" onchange="this.form.submit()">
-                    <option value="">Toutes</option>
-                    @foreach($categories as $cat)
-                    <option value="{{ $cat->id }}"
-                        {{ request('category_id') == $cat->id ? 'selected' : '' }}>
-                        {{ $cat->name }}
-                    </option>
-                    @endforeach
-                </select>
-            </div>
-            @if(request()->hasAny(['search','commune_id','zone_id','client_id','status','category_id']))
-            <div class="filter-group" style="justify-content:flex-end;">
-                <label class="filter-label">&nbsp;</label>
-                <a href="{{ route('admin.panels.index', ['source' => $source ?? 'all']) }}"
-                   class="btn btn-ghost btn-sm">✕ Effacer</a>
-            </div>
-            @endif
+    <div class="filter-bar" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:16px;">
+        <div class="filter-group">
+            <label class="filter-label">Recherche</label>
+            <input type="text" id="filter-search" class="filter-input" placeholder="Référence, nom..." style="width:180px;">
         </div>
-    </form>
+        <div class="filter-group">
+            <label class="filter-label">Commune</label>
+            <select id="filter-commune" class="filter-select" style="width:140px;">
+                <option value="">Toutes</option>
+                @foreach($communes as $commune)
+                <option value="{{ $commune->id }}">{{ $commune->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">Zone</label>
+            <select id="filter-zone" class="filter-select" style="width:140px;">
+                <option value="">Toutes les zones</option>
+                @foreach($zones as $zone)
+                <option value="{{ $zone->id }}">{{ $zone->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">Statut</label>
+            <select id="filter-status" class="filter-select" style="width:130px;">
+                <option value="">Tous</option>
+                <option value="libre">Libre</option>
+                <option value="occupe">Occupé</option>
+                <option value="option">Option</option>
+                <option value="confirme">Confirmé</option>
+                <option value="maintenance">Maintenance</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">Catégorie</label>
+            <select id="filter-category" class="filter-select" style="width:140px;">
+                <option value="">Toutes</option>
+                @foreach($categories as $cat)
+                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">Client</label>
+            <select id="filter-client" class="filter-select" style="width:160px;">
+                <option value="">Tous les clients</option>
+                @foreach($clients as $client)
+                <option value="{{ $client->id }}">{{ $client->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        
+        <div class="filter-group" id="reset-wrapper" style="display:none;">
+            <label class="filter-label" style="visibility:hidden;">Actions</label>
+            <button id="btn-reset" class="reset-btn">
+                ↺ Réinitialiser
+            </button>
+        </div>
+    </div>
 </div>
-@endif
 
 {{-- TABLEAU --}}
 <div class="card">
     <div class="card-header">
-        <div class="card-title">
+        <div class="card-title" id="result-count">
             @if(($source ?? 'all') === 'externe')
                 🏢 Panneaux Régies externes ({{ $externalPanels->count() }})
             @else
-                🪧 Panneaux ({{ $panels->total() }})
+                🪧 Panneaux CIBLE CI ({{ $panels->total() }})
             @endif
         </div>
         <a href="{{ route('admin.map') }}" class="btn btn-ghost btn-sm">🗺️ Voir carte</a>
     </div>
     <div class="table-wrap">
-        <table>
+        <table id="panels-table">
             <thead>
                 <tr>
                     <th>Photo</th>
@@ -177,214 +130,264 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
-
-                {{-- ══ PANNEAUX CIBLE CI ══ --}}
-                @if(($source ?? 'all') !== 'externe')
-                @forelse($panels as $panel)
-                <tr>
-                    <td>
-                        @if($panel->photos->first())
-                            <img src="{{ asset('storage/'.$panel->photos->first()->path) }}"
-                                 style="width:60px;height:45px;object-fit:cover;
-                                        border-radius:6px;border:1px solid var(--border);">
-                        @else
-                            <div style="width:60px;height:45px;border-radius:6px;
-                                        border:1px solid var(--border);background:var(--surface2);
-                                        display:flex;align-items:center;justify-content:center;
-                                        color:var(--text3);font-size:18px;">🪧</div>
-                        @endif
-                    </td>
-                    <td>
-                        <span style="font-family:monospace;color:var(--accent);font-weight:700;">
-                            {{ $panel->reference }}
-                        </span>
-                    </td>
-                    <td>
-                        <div style="font-weight:500;">{{ $panel->name }}</div>
-                        <div style="font-size:11px;color:var(--text3);">
-                            {{ $panel->category?->name ?? '—' }}
-                            @if($panel->is_lit) · 💡 @endif
-                        </div>
-                    </td>
-                    <td>{{ $panel->commune->name }}</td>
-                    <td>
-                        <div>{{ $panel->format->name }}</div>
-                        @if($panel->format->surface)
-                        <div style="font-size:11px;color:var(--text3);">{{ $panel->format->surface }}m²</div>
-                        @endif
-                    </td>
-                    <td style="text-align:center;">
-                        <span style="font-weight:700;color:var(--text2);">{{ $panel->nombre_faces ?? 1 }}</span>
-                    </td>
-                    <td>
-                        @if($panel->quartier)
-                            <div style="font-weight:500;font-size:12px;">{{ $panel->quartier }}</div>
-                        @endif
-                        @if($panel->adresse)
-                            <div style="font-size:11px;color:var(--text3);">{{ $panel->adresse }}</div>
-                        @endif
-                        @if(!$panel->quartier && !$panel->adresse)
-                            <span style="color:var(--text3);">—</span>
-                        @endif
-                    </td>
-                    <td style="color:var(--accent);font-weight:600;">
-                        {{ number_format($panel->monthly_rate, 0, ',', ' ') }} FCFA
-                    </td>
-                    <td>
-                        @if($panel->status->value === 'libre')
-                            <span class="badge badge-green">Libre</span>
-                        @elseif($panel->status->value === 'option')
-                            <span class="badge badge-orange">Option</span>
-                        @elseif($panel->status->value === 'confirme')
-                            <span class="badge badge-blue">Confirmé</span>
-                        @elseif($panel->status->value === 'occupe')
-                            <span class="badge badge-purple">Occupé</span>
-                        @else
-                            <span class="badge badge-red">Maintenance</span>
-                        @endif
-                    </td>
-                    <td>
-                        <div style="display:flex;gap:6px;">
-                            <a href="{{ route('admin.panels.show', $panel) }}"
-                               class="btn btn-ghost btn-sm" title="Voir">👁️</a>
-                            <a href="{{ route('admin.panels.edit', $panel) }}"
-                               class="btn btn-ghost btn-sm" title="Modifier">✏️</a>
-                            <a href="{{ route('admin.panels.pdf', $panel) }}"
-                               class="btn btn-ghost btn-sm" title="PDF">📄</a>
-                            <form method="POST" action="{{ route('admin.panels.destroy', $panel) }}"
-                                  onsubmit="return confirm('Supprimer ce panneau ?')">
-                                @csrf @method('DELETE')
-                                <button class="btn btn-danger btn-sm" title="Supprimer">🗑️</button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                @empty
-                @if(($source ?? 'all') === 'cible' || $externalPanels->isEmpty())
-                <tr>
-                    <td colspan="11" style="text-align:center;color:var(--text3);padding:32px;">
-                        Aucun panneau trouvé
-                    </td>
-                </tr>
-                @endif
-                @endforelse
-                @endif
-
-                {{-- ══ PANNEAUX EXTERNES ══ --}}
-                @if(($source ?? 'all') !== 'cible' && $externalPanels->isNotEmpty() && !request('client_id'))
-
-                @if(($source ?? 'all') === 'all' && $panels->isNotEmpty())
-                <tr>
-                    <td colspan="11" style="padding:8px 12px;background:rgba(168,85,247,0.06);
-                        border-top:2px solid rgba(168,85,247,0.3);border-bottom:1px solid rgba(168,85,247,0.2);">
-                        <span style="font-size:11px;font-weight:700;color:var(--purple);
-                            text-transform:uppercase;letter-spacing:1px;">
-                            🏢 Panneaux — Régies externes ({{ $externalPanels->count() }})
-                        </span>
-                    </td>
-                </tr>
-                @endif
-
-                @foreach($externalPanels as $ext)
-                <tr style="background:rgba(168,85,247,0.02);">
-                    <td>
-                        <div style="width:60px;height:45px;border-radius:6px;
-                                    border:1px solid rgba(168,85,247,0.2);background:rgba(168,85,247,0.08);
-                                    display:flex;align-items:center;justify-content:center;
-                                    color:var(--purple);font-size:16px;">🏢</div>
-                    </td>
-                    <td>
-                        <span style="font-family:monospace;color:var(--purple);font-weight:700;">
-                            {{ $ext->code_panneau }}
-                        </span>
-                        <div style="margin-top:2px;">
-                            <span style="font-size:10px;padding:1px 6px;border-radius:4px;
-                                background:rgba(168,85,247,0.12);color:var(--purple);font-weight:600;">
-                                {{ $ext->agency->name }}
-                            </span>
-                        </div>
-                    </td>
-                    <td>
-                        <div style="font-weight:500;">{{ $ext->designation }}</div>
-                        <div style="font-size:11px;color:var(--text3);">
-                            {{ $ext->category?->name ?? '—' }}
-                            @if($ext->is_lit) · 💡 @endif
-                        </div>
-                    </td>
-                    <td>{{ $ext->commune?->name ?? '—' }}</td>
-                    <td>
-                        <div>{{ $ext->format?->name ?? '—' }}</div>
-                        @if($ext->format?->surface)
-                        <div style="font-size:11px;color:var(--text3);">{{ $ext->format->surface }}m²</div>
-                        @endif
-                    </td>
-                    <td style="text-align:center;">
-                        <span style="font-weight:700;color:var(--text2);">{{ $ext->nombre_faces ?? 1 }}</span>
-                    </td>
-                    <td>
-                        @if($ext->orientation)
-                            <span class="badge badge-gray">{{ ucfirst($ext->orientation) }}</span>
-                        @else
-                            <span style="color:var(--text3);">—</span>
-                        @endif
-                    </td>
-                    <td>
-                        @if($ext->quartier)
-                            <div style="font-weight:500;font-size:12px;">{{ $ext->quartier }}</div>
-                        @endif
-                        @if($ext->adresse)
-                            <div style="font-size:11px;color:var(--text3);">{{ $ext->adresse }}</div>
-                        @endif
-                        @if(!$ext->quartier && !$ext->adresse)
-                            <span style="color:var(--text3);">—</span>
-                        @endif
-                    </td>
-                    <td style="color:var(--purple);font-weight:600;">
-                        @if($ext->monthly_rate > 0)
-                            {{ number_format($ext->monthly_rate, 0, ',', ' ') }} FCFA
-                        @else
-                            <span style="color:var(--text3);">—</span>
-                        @endif
-                    </td>
-                    <td>
-                        <span style="font-size:11px;padding:2px 8px;border-radius:20px;
-                            background:rgba(168,85,247,0.12);color:var(--purple);
-                            border:1px solid rgba(168,85,247,0.3);font-weight:600;">
-                            🏢 Externe
-                        </span>
-                    </td>
-                    <td>
-                        <div style="display:flex;gap:6px;">
-                            <a href="{{ route('admin.external-agencies.show', $ext->agency_id) }}"
-                               class="btn btn-ghost btn-sm" title="Voir la régie">👁️</a>
-                        </div>
-                    </td>
-                </tr>
-                @endforeach
-                @endif
-
+            <tbody id="table-body">
+                @include('admin.panels.partials.table-rows', ['panels' => $panels, 'source' => $source ?? 'all', 'externalPanels' => $externalPanels])
             </tbody>
         </table>
     </div>
-
-    @if(($source ?? 'all') !== 'externe')
-    <div style="padding:16px;">
-        {{ $panels->links() }}
+    <div id="pagination-links" style="padding:16px;">
+        @if(($source ?? 'all') !== 'externe')
+            {{ $panels->links() }}
+        @endif
     </div>
-    @endif
 </div>
 
 @push('scripts')
 <script>
-let debounceTimer = null;
-function debounceSubmit() {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-        document.getElementById('filter-form').submit();
-    }, 500);
-}
+(function() {
+    let currentFilters = {
+        source: '{{ $source ?? 'all' }}',
+        search: '',
+        commune_id: '',
+        zone_id: '',
+        status: '',
+        category_id: '',
+        client_id: ''
+    };
+    let debounceTimer = null;
+
+    const elements = {
+        search: document.getElementById('filter-search'),
+        commune: document.getElementById('filter-commune'),
+        zone: document.getElementById('filter-zone'),
+        status: document.getElementById('filter-status'),
+        category: document.getElementById('filter-category'),
+        client: document.getElementById('filter-client'),
+        resetBtn: document.getElementById('btn-reset'),
+        resetWrapper: document.getElementById('reset-wrapper'),
+        sourceBtns: document.querySelectorAll('.filter-source-btn'),
+        statLinks: document.querySelectorAll('.filter-stat')
+    };
+
+    function updateResetButton() {
+        const hasFilters = currentFilters.search ||
+                          currentFilters.commune_id ||
+                          currentFilters.zone_id ||
+                          currentFilters.status ||
+                          currentFilters.category_id ||
+                          currentFilters.client_id ||
+                          currentFilters.source !== 'all';
+        
+        if (elements.resetWrapper) {
+            elements.resetWrapper.style.display = hasFilters ? 'flex' : 'none';
+        }
+    }
+
+    async function applyFilters() {
+        const params = new URLSearchParams();
+        if (currentFilters.source !== 'all') params.set('source', currentFilters.source);
+        if (currentFilters.search) params.set('search', currentFilters.search);
+        if (currentFilters.commune_id) params.set('commune_id', currentFilters.commune_id);
+        if (currentFilters.zone_id) params.set('zone_id', currentFilters.zone_id);
+        if (currentFilters.status) params.set('status', currentFilters.status);
+        if (currentFilters.category_id) params.set('category_id', currentFilters.category_id);
+        if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
+        params.set('ajax', '1');
+
+        const tbody = document.getElementById('table-body');
+        const originalHtml = tbody.innerHTML;
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;"><div class="spinner"></div> Chargement...</td></tr>';
+
+        try {
+            const response = await fetch(`{{ route("admin.panels.index") }}?${params}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            });
+            const data = await response.json();
+
+            document.getElementById('table-body').innerHTML = data.html;
+            document.getElementById('result-count').innerHTML = data.stats_html;
+            
+            const pagContainer = document.getElementById('pagination-links');
+            if (pagContainer) pagContainer.innerHTML = data.pagination || '';
+
+            const url = new URL(window.location.href);
+            Object.keys(currentFilters).forEach(key => {
+                if (currentFilters[key] && key !== 'source') {
+                    url.searchParams.set(key, currentFilters[key]);
+                } else {
+                    url.searchParams.delete(key);
+                }
+            });
+            if (currentFilters.source !== 'all') {
+                url.searchParams.set('source', currentFilters.source);
+            } else {
+                url.searchParams.delete('source');
+            }
+            window.history.pushState({}, '', url);
+
+        } catch (error) {
+            console.error('Erreur:', error);
+            tbody.innerHTML = originalHtml;
+        }
+    }
+
+    function debounceApply() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => applyFilters(), 400);
+    }
+
+    // Événements
+    if (elements.search) {
+        elements.search.addEventListener('input', () => {
+            currentFilters.search = elements.search.value;
+            updateResetButton();
+            debounceApply();
+        });
+    }
+
+    [elements.commune, elements.zone, elements.status, elements.category, elements.client].forEach(el => {
+        if (el) {
+            el.addEventListener('change', () => {
+                currentFilters.commune_id = elements.commune?.value || '';
+                currentFilters.zone_id = elements.zone?.value || '';
+                currentFilters.status = elements.status?.value || '';
+                currentFilters.category_id = elements.category?.value || '';
+                currentFilters.client_id = elements.client?.value || '';
+                updateResetButton();
+                applyFilters();
+            });
+        }
+    });
+
+    // Boutons source
+    elements.sourceBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const source = btn.dataset.source;
+            currentFilters.source = source;
+            
+            elements.sourceBtns.forEach(b => {
+                if (b.dataset.source === source) {
+                    b.classList.remove('btn-ghost');
+                    b.classList.add('btn-primary');
+                } else {
+                    b.classList.remove('btn-primary');
+                    b.classList.add('btn-ghost');
+                    if (b.dataset.source === 'externe') {
+                        b.style.color = 'var(--purple)';
+                        b.style.borderColor = 'rgba(168,85,247,0.3)';
+                    }
+                }
+            });
+            updateResetButton();
+            applyFilters();
+        });
+    });
+
+    // Liens stats
+    elements.statLinks.forEach(stat => {
+        stat.addEventListener('click', (e) => {
+            e.preventDefault();
+            const source = stat.dataset.source;
+            const status = stat.dataset.status;
+            
+            if (source) {
+                currentFilters.source = source;
+                elements.sourceBtns.forEach(btn => {
+                    if (btn.dataset.source === source) {
+                        btn.classList.remove('btn-ghost');
+                        btn.classList.add('btn-primary');
+                    } else {
+                        btn.classList.remove('btn-primary');
+                        btn.classList.add('btn-ghost');
+                    }
+                });
+            }
+            if (status) {
+                currentFilters.status = status;
+                if (elements.status) elements.status.value = status;
+            }
+            updateResetButton();
+            applyFilters();
+        });
+    });
+
+    // Reset button
+    if (elements.resetBtn) {
+        elements.resetBtn.addEventListener('click', () => {
+            currentFilters = {
+                source: 'all',
+                search: '',
+                commune_id: '',
+                zone_id: '',
+                status: '',
+                category_id: '',
+                client_id: ''
+            };
+            
+            // Réinitialiser tous les champs
+            if (elements.search) elements.search.value = '';
+            if (elements.commune) elements.commune.value = '';
+            if (elements.zone) elements.zone.value = '';
+            if (elements.status) elements.status.value = '';
+            if (elements.category) elements.category.value = '';
+            if (elements.client) elements.client.value = '';
+            
+            // Réinitialiser l'apparence des boutons source
+            elements.sourceBtns.forEach(btn => {
+                if (btn.dataset.source === 'all') {
+                    btn.classList.remove('btn-ghost');
+                    btn.classList.add('btn-primary');
+                } else {
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-ghost');
+                    if (btn.dataset.source === 'externe') {
+                        btn.style.color = 'var(--purple)';
+                        btn.style.borderColor = 'rgba(168,85,247,0.3)';
+                    }
+                }
+            });
+            
+            updateResetButton();
+            applyFilters();
+        });
+    }
+    
+    // Initialisation
+    updateResetButton();
+})();
 </script>
+
+<style>
+
+.reset-btn {
+    height: 40px;
+    padding: 0 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+}
+.reset-btn:hover { background: var(--surface3); border-color: var(--danger); color: var(--danger); }
+
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.filter-stat { cursor: pointer; transition: all 0.2s; }
+.filter-stat:hover { transform: translateY(-2px); }
+</style>
 @endpush
 
 </x-admin-layout>
