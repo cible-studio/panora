@@ -196,13 +196,13 @@ class PanelController extends Controller
 
                 $image = $manager->read($photo->getPathname());
 
-                $image->resize(1200, null);
+                $image->scaleDown(width: 1920);
 
                 $filename = 'panels/' . Str::uuid() . '.jpg';
 
                 Storage::disk('public')->put(
                     $filename,
-                    $image->toJpeg(80)
+                    $image->toJpeg(90)
                 );
 
                 PanelPhoto::create([
@@ -386,13 +386,13 @@ class PanelController extends Controller
 
                 $image = $manager->read($file->getPathname());
 
-                $image->resize(1200, null);
+                $image->scaleDown(width: 1920);
 
                 $filename = 'panels/' . Str::uuid() . '.jpg';
 
                 Storage::disk('public')->put(
                     $filename,
-                    $image->toJpeg(80)
+                    $image->toJpeg(90)
                 );
 
                 PanelPhoto::create([
