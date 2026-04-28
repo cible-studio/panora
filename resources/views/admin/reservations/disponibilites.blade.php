@@ -722,7 +722,7 @@ window.DISPO = {
         if(!name){errBox.innerHTML='<div class="flex gap-2"><span>⚠️</span><span>Le nom est obligatoire.</span></div>';errBox.classList.remove('hidden');_el('qc-name').focus();return;}
         _el('qc-submit-icon').textContent='⟳';_el('qc-submit-txt').textContent='Création…';btn.disabled=true;
         try{
-            const res=await fetch('{{ route("admin.clients.quick-store") }}',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':D.csrf},body:JSON.stringify({name:_el('qc-name').value.trim(),ncc:_el('qc-ncc').value.trim()||null,email:_el('qc-email').value.trim()||null,phone:_el('qc-phone').value.trim()||null,contact_name:_el('qc-contact').value.trim()||null})});
+            const res = await fetch('{{ secure_url(route("admin.clients.quick-store", [], false)) }}', {method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':D.csrf},body:JSON.stringify({name:_el('qc-name').value.trim(),ncc:_el('qc-ncc').value.trim()||null,email:_el('qc-email').value.trim()||null,phone:_el('qc-phone').value.trim()||null,contact_name:_el('qc-contact').value.trim()||null})});
             const data=await res.json();
             if(!res.ok){const messages=data.errors?Object.values(data.errors).flat():[data.message||'Erreur.'];errBox.innerHTML=messages.map(m=>`<div class="flex gap-2"><span>⚠️</span><span>${m}</span></div>`).join('');errBox.classList.remove('hidden');return;}
             addClientToSelect2(data.id,data.name);this.closeQuickClientModal();
@@ -746,7 +746,8 @@ window.DISPO = {
         if(S.f.du)p.set('dispo_du',S.f.du);if(S.f.au)p.set('dispo_au',S.f.au);if(S.f.source!=='all')p.set('source',S.f.source);if(S.f.q)p.set('q',S.f.q);
         p.set('page',S.page);p.set('per_page',S.perPage);
         try{
-            const res=await fetch(`${D.ajaxUrl}?${p}`,{headers:{Accept:'application/json','X-CSRF-TOKEN':D.csrf}});
+            const safeUrl = D.ajaxUrl.replace(/^http:\/\//i, 'https://');
+            const res = await fetch(`${safeUrl}?${p}`, {headers:{Accept:'application/json','X-CSRF-TOKEN':D.csrf}});
             if(rid!==S.reqId)return;if(!res.ok)throw new Error(`HTTP ${res.status}`);
             const data=await res.json();S.loading=false;
             if(data.date_error){_showDateErr(data.date_error);_showEmpty(data.date_error,'');return;}
