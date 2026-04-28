@@ -139,7 +139,7 @@
             <table class="data-table" id="campaigns-table">
                 <thead>
                     <tr>
-                        <th>Campagne</th>
+                        <th>QUENUM</th>
                         <th>Client</th>
                         <th>Période</th>
                         <th>Durée</th>
