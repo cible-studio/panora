@@ -2,106 +2,100 @@
 <x-slot name="title">Taxes Communes</x-slot>
 
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.taxes.export.pdf') }}" class="btn btn-ghost btn-sm">
-        📄 Export PDF
-    </a>
-    <a href="{{ route('admin.taxes.create') }}" class="btn btn-primary btn-sm">
-        ＋ Nouvelle taxe
-    </a>
+    <a href="{{ route('admin.taxes.export.pdf') }}" class="btn btn-ghost btn-sm">📄 Export PDF</a>
+    <a href="{{ route('admin.taxes.create') }}" class="btn btn-primary btn-sm">＋ Nouvelle taxe</a>
 </x-slot>
 
-{{-- STATS CLIQUABLES --}}
+{{-- STATS CLIQUABLES (filtres AJAX) --}}
 <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
-    <a href="{{ route('admin.taxes.index', array_merge(request()->except('status'), ['status' => 'en_attente'])) }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;transition:all .15s;
-              {{ request('status') === 'en_attente' ? 'border-color:var(--accent);' : 'border:2px solid transparent;' }}">
+    <div data-status="en_attente" class="stat-card filter-stat {{ request('status') === 'en_attente' ? 'active' : '' }}"
+         style="text-decoration:none;cursor:pointer;transition:all .15s;">
         <div class="stat-label">En attente</div>
         <div class="stat-value" style="color:var(--accent);">{{ $totalEnAttente }}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </a>
-    <a href="{{ route('admin.taxes.index', array_merge(request()->except('status'), ['status' => 'payee'])) }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;transition:all .15s;
-              {{ request('status') === 'payee' ? 'border-color:var(--green);' : 'border:2px solid transparent;' }}">
+    </div>
+    <div data-status="payee" class="stat-card filter-stat {{ request('status') === 'payee' ? 'active' : '' }}"
+         style="text-decoration:none;cursor:pointer;transition:all .15s;">
         <div class="stat-label">Payées</div>
         <div class="stat-value" style="color:var(--green);">{{ $totalPayees }}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </a>
-    <a href="{{ route('admin.taxes.index', array_merge(request()->except('status'), ['status' => 'en_retard'])) }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;transition:all .15s;
-              {{ request('status') === 'en_retard' ? 'border-color:var(--red);' : 'border:2px solid transparent;' }}">
+    </div>
+    <div data-status="en_retard" class="stat-card filter-stat {{ request('status') === 'en_retard' ? 'active' : '' }}"
+         style="text-decoration:none;cursor:pointer;transition:all .15s;">
         <div class="stat-label">En retard</div>
         <div class="stat-value" style="color:var(--red);">{{ $totalEnRetard }}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </a>
-    <a href="{{ route('admin.taxes.index') }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;transition:all .15s;
-              {{ !request('status') ? 'border-color:var(--accent);' : 'border:2px solid transparent;' }}">
+    </div>
+    <div data-status="" class="stat-card filter-stat {{ !request('status') ? 'active' : '' }}"
+         style="text-decoration:none;cursor:pointer;transition:all .15s;">
         <div class="stat-label">Montant dû</div>
-        <div class="stat-value" style="font-size:18px; color:var(--accent);">
-            {{ number_format($montantTotal, 0, ',', ' ') }}
-        </div>
+        <div class="stat-value" style="font-size:18px; color:var(--accent);">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">Voir tout →</div>
-    </a>
+    </div>
 </div>
 
-{{-- FILTRES AUTO --}}
+{{-- FILTRES AJAX DYNAMIQUES --}}
 <div class="card" style="margin-bottom:16px;">
-    <form id="filter-form" method="GET" action="{{ route('admin.taxes.index') }}">
-        <div class="filter-bar">
-            <div class="filter-group">
-                <label class="filter-label">Commune</label>
-                <select name="commune_id" class="filter-select" onchange="this.form.submit()">
-                    <option value="">Toutes</option>
-                    @foreach($communes as $commune)
-                    <option value="{{ $commune->id }}" {{ request('commune_id') == $commune->id ? 'selected' : '' }}>
-                        {{ $commune->name }}
-                    </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">Type</label>
-                <select name="type" class="filter-select" onchange="this.form.submit()">
-                    <option value="">Tous</option>
-                    <option value="odp" {{ request('type') === 'odp' ? 'selected' : '' }}>ODP</option>
-                    <option value="tm"  {{ request('type') === 'tm'  ? 'selected' : '' }}>TM</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">Année</label>
-                <select name="year" class="filter-select" onchange="this.form.submit()">
-                    <option value="">Toutes</option>
-                    @for($y = date('Y'); $y >= 2020; $y--)
-                    <option value="{{ $y }}" {{ request('year') == $y ? 'selected' : '' }}>{{ $y }}</option>
-                    @endfor
-                </select>
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">Statut</label>
-                <select name="status" class="filter-select" onchange="this.form.submit()">
-                    <option value="">Tous</option>
-                    <option value="en_attente" {{ request('status') === 'en_attente' ? 'selected' : '' }}>En attente</option>
-                    <option value="payee"      {{ request('status') === 'payee'      ? 'selected' : '' }}>Payée</option>
-                    <option value="en_retard"  {{ request('status') === 'en_retard'  ? 'selected' : '' }}>En retard</option>
-                </select>
-            </div>
-            @if(request()->hasAny(['commune_id', 'type', 'year', 'status']))
-            <div class="filter-group" style="justify-content:flex-end;">
-                <label class="filter-label">&nbsp;</label>
-                <a href="{{ route('admin.taxes.index') }}" class="btn btn-ghost btn-sm">↺ Effacer</a>
-            </div>
-            @endif
+    <div class="filter-bar" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;padding:16px;">
+        <div class="filter-group">
+            <label class="filter-label">Commune</label>
+            <select id="filter-commune" class="filter-select" style="width:180px;">
+                <option value="">Toutes</option>
+                @foreach($communes as $commune)
+                <option value="{{ $commune->id }}" {{ request('commune_id') == $commune->id ? 'selected' : '' }}>{{ $commune->name }}</option>
+                @endforeach
+            </select>
         </div>
-    </form>
+        <div class="filter-group">
+            <label class="filter-label">Type</label>
+            <select id="filter-type" class="filter-select" style="width:120px;">
+                <option value="">Tous</option>
+                <option value="odp" {{ request('type') === 'odp' ? 'selected' : '' }}>ODP</option>
+                <option value="tm"  {{ request('type') === 'tm'  ? 'selected' : '' }}>TM</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">Année</label>
+            <select id="filter-year" class="filter-select" style="width:100px;">
+                <option value="">Toutes</option>
+                @for($y = date('Y'); $y >= 2020; $y--)
+                <option value="{{ $y }}" {{ request('year') == $y ? 'selected' : '' }}>{{ $y }}</option>
+                @endfor
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">Statut</label>
+            <select id="filter-status" class="filter-select" style="width:130px;">
+                <option value="">Tous</option>
+                <option value="en_attente" {{ request('status') === 'en_attente' ? 'selected' : '' }}>En attente</option>
+                <option value="payee"      {{ request('status') === 'payee'      ? 'selected' : '' }}>Payée</option>
+                <option value="en_retard"  {{ request('status') === 'en_retard'  ? 'selected' : '' }}>En retard</option>
+            </select>
+        </div>
+        
+        <div class="filter-group" id="reset-wrapper" style="display:none;">
+            <label class="filter-label" style="visibility:hidden;">Actions</label>
+            <button id="btn-reset" class="reset-btn" style="display:flex;align-items:center;gap:4px;">
+                ↺ Réinitialiser
+            </button>
+        </div>
+
+        <div class="filter-group" style="margin-left:auto;">
+            <label class="filter-label" style="visibility:hidden;">&nbsp;</label>
+            <div class="result-badge">
+                <strong id="result-count">{{ number_format($taxes->total()) }}</strong> taxe(s)
+            </div>
+        </div>
+    </div>
 </div>
 
 {{-- TABLEAU --}}
-<div class="card">
+<div id="table-container" class="card">
     <div class="card-header">
-        <div class="card-title">🏛️ Taxes ({{ $taxes->total() }})</div>
+        <div class="card-title">🏛️ Taxes <span id="title-count">({{ $taxes->total() }})</span></div>
     </div>
     <div class="table-wrap">
-        <table>
+        <table id="taxes-table">
             <thead>
                 <tr>
                     <th>Commune</th>
@@ -114,61 +108,209 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
-                @forelse($taxes as $tax)
-                <tr>
-                    <td><strong>{{ $tax->commune->name }}</strong></td>
-                    <td>
-                        @if($tax->type === 'odp')
-                            <span class="badge badge-blue">ODP</span>
-                        @else
-                            <span class="badge badge-purple">TM</span>
-                        @endif
-                    </td>
-                    <td>{{ $tax->year }}</td>
-                    <td style="color:var(--accent); font-weight:600;">
-                        {{ number_format($tax->amount, 0, ',', ' ') }} FCFA
-                    </td>
-                    <td style="font-size:12px;">
-                        {{ $tax->due_date ? $tax->due_date->format('d/m/Y') : '—' }}
-                    </td>
-                    <td style="font-size:12px; color:var(--text3);">
-                        {{ $tax->paid_at ? $tax->paid_at->format('d/m/Y') : '—' }}
-                    </td>
-                    <td>
-                        @if($tax->status === 'en_attente')
-                            <span class="badge badge-orange">En attente</span>
-                        @elseif($tax->status === 'payee')
-                            <span class="badge badge-green">Payée ✓</span>
-                        @else
-                            <span class="badge badge-red">En retard ⚠️</span>
-                        @endif
-                    </td>
-                    <td>
-                        <div style="display:flex; gap:6px;">
-                            @if($tax->status !== 'payee')
-                            <form method="POST" action="{{ route('admin.taxes.pay', $tax) }}">
-                                @csrf @method('PATCH')
-                                <button class="btn btn-success btn-sm" title="Marquer payée">✓ Payée</button>
-                            </form>
-                            @endif
-                            <a href="{{ route('admin.taxes.edit', $tax) }}" class="btn btn-ghost btn-sm">✏️</a>
-                            <form method="POST" action="{{ route('admin.taxes.destroy', $tax) }}" onsubmit="return confirm('Supprimer ?')">
-                                @csrf @method('DELETE')
-                                <button class="btn btn-danger btn-sm">🗑️</button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                @empty
-                <tr>
-                    <td colspan="8" style="text-align:center; color:var(--text3); padding:32px;">Aucune taxe</td>
-                </tr>
-                @endforelse
+            <tbody id="table-body">
+                @include('admin.taxes.partials.table-rows', ['taxes' => $taxes])
             </tbody>
         </table>
     </div>
-    <div style="padding:16px;">{{ $taxes->links() }}</div>
+    <div id="pagination-container" style="padding:16px;">
+        {{ $taxes->links() }}
+    </div>
 </div>
 
+<style>
+
+.reset-btn {
+    height: 40px;
+    padding: 0 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+}
+.reset-btn:hover { background: var(--surface3); border-color: var(--danger); color: var(--danger); }
+.filter-select, .filter-input { height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--text);outline:none; }
+.filter-select:focus, .filter-input:focus { border-color:var(--accent); }
+.filter-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:block;margin-bottom:4px; }
+.filter-group { display:flex;flex-direction:column; }
+.result-badge { height:38px;display:flex;align-items:center;font-size:12px;color:var(--text3);white-space:nowrap; }
+.stat-card { cursor:pointer; transition:all .15s; border:2px solid transparent; }
+.stat-card:hover { transform:translateY(-2px); }
+.stat-card.active { border-color:var(--accent) !important; }
+.spinner { display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:8px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+@push('scripts')
+<script>
+// ════════════════════════════════════════════════════════════
+// FILTRAGE AJAX DYNAMIQUE
+// ════════════════════════════════════════════════════════════
+(function() {
+    let currentFilters = {
+        commune_id: '',
+        type: '',
+        year: '',
+        status: ''
+    };
+    let debounceTimer = null;
+    let isUpdating = false;
+
+    const elements = {
+        commune: document.getElementById('filter-commune'),
+        type: document.getElementById('filter-type'),
+        year: document.getElementById('filter-year'),
+        status: document.getElementById('filter-status'),
+        resetBtn: document.getElementById('btn-reset'),
+        resetWrapper: document.getElementById('reset-wrapper'),
+        resultCount: document.getElementById('result-count'),
+        titleCount: document.getElementById('title-count'),
+        tableBody: document.getElementById('table-body'),
+        paginationContainer: document.getElementById('pagination-container')
+    };
+
+    function updateResetButton() {
+        const hasFilters = currentFilters.commune_id ||
+                          currentFilters.type ||
+                          currentFilters.year ||
+                          currentFilters.status;
+        if (elements.resetWrapper) {
+            elements.resetWrapper.style.display = hasFilters ? 'flex' : 'none';
+        }
+    }
+
+    async function applyFilters() {
+        if (isUpdating) return;
+        isUpdating = true;
+
+        const params = new URLSearchParams();
+        if (currentFilters.commune_id) params.set('commune_id', currentFilters.commune_id);
+        if (currentFilters.type) params.set('type', currentFilters.type);
+        if (currentFilters.year) params.set('year', currentFilters.year);
+        if (currentFilters.status) params.set('status', currentFilters.status);
+        params.set('ajax', '1');
+
+        if (elements.tableBody) {
+            elements.tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:60px;"><div class="spinner"></div> Chargement...</td></tr>';
+        }
+
+        try {
+            const response = await fetch(`{{ route("admin.taxes.index") }}?${params}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            });
+            const data = await response.json();
+
+            if (data.html && elements.tableBody) {
+                elements.tableBody.innerHTML = data.html;
+            }
+            
+            if (elements.resultCount && data.total) {
+                elements.resultCount.textContent = data.total;
+            }
+            if (elements.titleCount && data.total) {
+                elements.titleCount.textContent = `(${data.total})`;
+            }
+            
+            if (elements.paginationContainer && data.pagination) {
+                elements.paginationContainer.innerHTML = data.pagination;
+            }
+
+            const url = new URL(window.location.href);
+            Object.keys(currentFilters).forEach(key => {
+                if (currentFilters[key]) url.searchParams.set(key, currentFilters[key]);
+                else url.searchParams.delete(key);
+            });
+            window.history.pushState({}, '', url);
+
+        } catch (error) {
+            console.error('Erreur:', error);
+            if (elements.tableBody) {
+                elements.tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:60px;color:#ef4444;">Erreur de chargement</td></tr>';
+            }
+        } finally {
+            isUpdating = false;
+        }
+    }
+
+    // Écouteurs d'événements
+    const selectElements = [elements.commune, elements.type, elements.year, elements.status];
+    selectElements.forEach(el => {
+        if (el) {
+            el.addEventListener('change', () => {
+                currentFilters.commune_id = elements.commune?.value || '';
+                currentFilters.type = elements.type?.value || '';
+                currentFilters.year = elements.year?.value || '';
+                currentFilters.status = elements.status?.value || '';
+                updateResetButton();
+                applyFilters();
+                
+                // Mettre à jour l'apparence des cartes stats
+                document.querySelectorAll('.stat-card').forEach(card => {
+                    const status = card.dataset.status;
+                    if (status === currentFilters.status) {
+                        card.classList.add('active');
+                    } else {
+                        card.classList.remove('active');
+                    }
+                });
+            });
+        }
+    });
+
+    // Cartes stats
+    document.querySelectorAll('.stat-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            e.preventDefault();
+            const status = card.dataset.status;
+            if (elements.status) {
+                elements.status.value = status;
+                currentFilters.status = status;
+                updateResetButton();
+                applyFilters();
+                
+                document.querySelectorAll('.stat-card').forEach(c => {
+                    if (c.dataset.status === status) {
+                        c.classList.add('active');
+                    } else {
+                        c.classList.remove('active');
+                    }
+                });
+            }
+        });
+    });
+
+    // Reset button
+    if (elements.resetBtn) {
+        elements.resetBtn.addEventListener('click', () => {
+            currentFilters = { commune_id: '', type: '', year: '', status: '' };
+            if (elements.commune) elements.commune.value = '';
+            if (elements.type) elements.type.value = '';
+            if (elements.year) elements.year.value = '';
+            if (elements.status) elements.status.value = '';
+            
+            document.querySelectorAll('.stat-card').forEach(card => card.classList.remove('active'));
+            
+            updateResetButton();
+            applyFilters();
+        });
+    }
+
+    // Initialiser les valeurs depuis l'URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('commune_id')) currentFilters.commune_id = urlParams.get('commune_id');
+    if (urlParams.has('type')) currentFilters.type = urlParams.get('type');
+    if (urlParams.has('year')) currentFilters.year = urlParams.get('year');
+    if (urlParams.has('status')) currentFilters.status = urlParams.get('status');
+    
+    if (elements.commune && currentFilters.commune_id) elements.commune.value = currentFilters.commune_id;
+    if (elements.type && currentFilters.type) elements.type.value = currentFilters.type;
+    if (elements.year && currentFilters.year) elements.year.value = currentFilters.year;
+    if (elements.status && currentFilters.status) elements.status.value = currentFilters.status;
+    
+    updateResetButton();
+})();
+</script>
+@endpush
 </x-admin-layout>

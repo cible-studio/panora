@@ -8,12 +8,11 @@
     </a>
     @if($pige->isEnAttente())
     <button type="button"
-            onclick="Confirm.show('Marquer la pige du panneau <strong>{{ $pige->panel?->reference }}</strong> comme vérifiée ?','confirm',function(){ document.getElementById(\'form-verify\').submit(); })"
-            class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:5px">
+        onclick="PigeDetail.verify({{ $pige->id }}, '{{ $pige->panel?->reference }}')"
+        class="btn btn-primary btn-sm" style="display:flex;align-items:center;gap:5px">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
         Vérifier
     </button>
-    <form id="form-verify" method="POST" action="{{ route('admin.piges.verify', $pige) }}" style="display:none">@csrf</form>
     <button type="button"
             onclick="PigeDetail.showRejectModal()"
             class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px;color:#ef4444;border-color:rgba(239,68,68,.3)">
@@ -192,12 +191,11 @@ $sIcon = match($pige->status) {
                 @if(!$pige->isVerifiee())
                 <div style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px">
                     <button type="button"
-                            onclick="Confirm.show('Supprimer définitivement cette pige ? Cette action est irréversible.','danger',function(){ document.getElementById(\'form-destroy\').submit(); })"
+                            onclick="PigeDetail.destroy({{ $pige->id }}, '{{ $pige->panel?->reference }}')"
                             class="sb-link sb-link-danger" style="width:100%;text-align:left;cursor:pointer">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                         Supprimer la pige
                     </button>
-                    <form id="form-destroy" method="POST" action="{{ route('admin.piges.destroy', $pige) }}" style="display:none">@csrf @method('DELETE')</form>
                 </div>
                 @endif
             </div>
@@ -309,57 +307,99 @@ $sIcon = match($pige->status) {
 
 @push('scripts')
 <script>
+const CSRF = '{{ csrf_token() }}';
+const PIGE_ID = {{ $pige->id }};
+
 // ── Confirm modal ──────────────────────────────────────────
 window.Confirm = {
-    _cb:null,
-    show(body,type='confirm',cb){
-        this._cb=cb;
-        const cfg={
-            confirm:{icon:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>',ibg:'rgba(59,130,246,.12)',btnBg:'#3b82f6',btnTxt:'Confirmer',title:"Confirmer"},
-            danger:{icon:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',ibg:'rgba(239,68,68,.12)',btnBg:'#ef4444',btnTxt:'Supprimer',title:'Confirmer la suppression'},
+    _cb: null,
+    show(body, type = 'confirm', cb) {
+        this._cb = cb;
+        const cfg = {
+            confirm: { icon: '<svg width="20"...', btnBg: '#3b82f6', btnTxt: 'Confirmer', title: 'Confirmer' },
+            danger: { icon: '<svg width="20"...', btnBg: '#ef4444', btnTxt: 'Supprimer', title: 'Confirmer la suppression' }
         };
-        const c=cfg[type]||cfg.confirm;
-        const el=id=>document.getElementById('modal-confirm-'+id);
-        el('icon').innerHTML=c.icon;el('icon').style.background=c.ibg;
-        el('title').textContent=c.title;el('body').innerHTML=body;
-        el('btn').textContent=c.btnTxt;el('btn').style.background=c.btnBg;el('btn').style.color='#fff';
-        el('btn').onclick=()=>{this.cancel();cb?.();};
-        document.getElementById('modal-confirm').style.display='flex';
-        setTimeout(()=>el('btn').focus(),50);
+        const c = cfg[type] || cfg.confirm;
+        document.getElementById('modal-confirm-icon').innerHTML = c.icon;
+        document.getElementById('modal-confirm-title').textContent = c.title;
+        document.getElementById('modal-confirm-body').innerHTML = body;
+        const btn = document.getElementById('modal-confirm-btn');
+        btn.textContent = c.btnTxt;
+        btn.style.background = c.btnBg;
+        btn.onclick = () => { Confirm.cancel(); cb?.(); };
+        document.getElementById('modal-confirm').style.display = 'flex';
     },
-    cancel(){document.getElementById('modal-confirm').style.display='none';this._cb=null;},
+    cancel() { document.getElementById('modal-confirm').style.display = 'none'; this._cb = null; }
 };
-document.getElementById('modal-confirm').addEventListener('click',function(e){if(e.target===this)Confirm.cancel();});
 
-// ── Pige detail actions ────────────────────────────────────
-const CSRF='{{ csrf_token() }}';
+// ── PigeDetail actions ────────────────────────────────────
 window.PigeDetail = {
-    showRejectModal(){
-        document.getElementById('reject-input').value='';
-        document.getElementById('reject-err').style.display='none';
-        document.getElementById('modal-reject').style.display='flex';
-        setTimeout(()=>document.getElementById('reject-input').focus(),50);
+    async verify() {
+        Confirm.show('Marquer cette pige comme vérifiée ?', 'confirm', async () => {
+            try {
+                const res = await fetch(`/admin/piges/${PIGE_ID}/verify`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+                this._showToast(data.message, data.success ? 'success' : 'error');
+                if (data.success) setTimeout(() => window.location.reload(), 800);
+            } catch { this._showToast('Erreur de connexion.', 'error'); }
+        });
     },
-    closeReject(){ document.getElementById('modal-reject').style.display='none'; },
-    async submitReject(){
-        const reason=document.getElementById('reject-input').value.trim();
-        if(!reason){document.getElementById('reject-err').style.display='block';return;}
-        document.getElementById('reject-err').style.display='none';
+    
+    async destroy() {
+        Confirm.show('Supprimer définitivement cette pige ? Action irréversible.', 'danger', async () => {
+            try {
+                const res = await fetch(`/admin/piges/${PIGE_ID}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+                this._showToast(data.message, data.success ? 'success' : 'error');
+                if (data.success) setTimeout(() => window.location.href = '{{ route("admin.piges.index") }}', 800);
+            } catch { this._showToast('Erreur de connexion.', 'error'); }
+        });
+    },
+    
+    showRejectModal() {
+        document.getElementById('reject-input').value = '';
+        document.getElementById('reject-err').style.display = 'none';
+        document.getElementById('modal-reject').style.display = 'flex';
+    },
+    
+    closeReject() { document.getElementById('modal-reject').style.display = 'none'; },
+    
+    async submitReject() {
+        const reason = document.getElementById('reject-input').value.trim();
+        if (!reason) { document.getElementById('reject-err').style.display = 'block'; return; }
+        document.getElementById('reject-err').style.display = 'none';
         try {
-            const res=await fetch('{{ route("admin.piges.reject",$pige) }}',{
-                method:'POST',
-                headers:{'X-CSRF-TOKEN':CSRF,'Accept':'application/json','Content-Type':'application/json'},
-                body:JSON.stringify({rejection_reason:reason}),
+            const res = await fetch(`/admin/piges/${PIGE_ID}/reject`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rejection_reason: reason })
             });
-            const d=await res.json();
-            if(d.success){this.closeReject();window.location.reload();}
-            else alert(d.message||'Erreur.');
-        } catch{alert('Erreur de connexion.');}
+            const data = await res.json();
+            if (data.success) { this.closeReject(); window.location.reload(); }
+            else alert(data.message || 'Erreur.');
+        } catch { alert('Erreur de connexion.'); }
     },
+    
+    _showToast(msg, type) {
+        const colors = { success: '#22c55e', error: '#ef4444' };
+        const t = document.createElement('div');
+        t.textContent = msg;
+        t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:99999;padding:12px 18px;background:var(--surface);border-left:3px solid ${colors[type] || '#22c55e'};border-radius:10px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.25)`;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+    }
 };
 
-document.getElementById('modal-reject').addEventListener('click',function(e){if(e.target===this)PigeDetail.closeReject();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){Confirm.cancel();PigeDetail.closeReject();}});
+// Gestionnaires
+document.getElementById('modal-confirm')?.addEventListener('click', e => { if (e.target === e.currentTarget) Confirm.cancel(); });
+document.getElementById('modal-reject')?.addEventListener('click', e => { if (e.target === e.currentTarget) PigeDetail.closeReject(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { Confirm.cancel(); PigeDetail.closeReject(); } });
 </script>
 @endpush
 </x-admin-layout>

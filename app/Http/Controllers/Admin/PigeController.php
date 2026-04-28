@@ -306,7 +306,7 @@ class PigeController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
-    // VERIFY — marquer vérifiée
+    // VERIFY — vérifier avec réponse JSON et mise à jour carte
     // ══════════════════════════════════════════════════════════════
     public function verify(Request $request, Pige $pige)
     {
@@ -320,14 +320,47 @@ class PigeController extends Controller
         }
 
         if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Pige vérifiée avec succès.']);
+            $pige->refresh();
+            return response()->json([
+                'success' => true, 
+                'message' => 'Pige vérifiée avec succès.',
+                'data' => [
+                    'id' => $pige->id,
+                    'status' => $pige->status,
+                    'status_label' => $pige->getStatusConfig()['label'],
+                    'status_color' => '#22c55e',
+                    'status_bg' => 'rgba(34,197,94,.1)',
+                    'status_bd' => 'rgba(34,197,94,.3)'
+                ]
+            ]);
         }
 
         return back()->with('success', 'Pige marquée comme vérifiée.');
     }
 
     // ══════════════════════════════════════════════════════════════
-    // REJECT — rejeter avec motif
+    // DESTROY — supprimer avec réponse JSON
+    // ══════════════════════════════════════════════════════════════
+    public function destroy(Pige $pige)
+    {
+        $result = $this->pigeService->delete($pige);
+
+        if (!$result['ok']) {
+            if (request()->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $result['error']], 422);
+            }
+            return back()->with('error', $result['error']);
+        }
+
+        if (request()->wantsJson()) {
+            return response()->json(['success' => true, 'message' => 'Pige supprimée avec succès.']);
+        }
+
+        return back()->with('success', 'Pige supprimée.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // REJECT — rejeter avec réponse JSON et mise à jour carte
     // ══════════════════════════════════════════════════════════════
     public function reject(Request $request, Pige $pige)
     {
@@ -351,24 +384,24 @@ class PigeController extends Controller
         $this->alertService->notifyPigeRejected($pige->fresh()->load('panel'), $request->rejection_reason);
 
         if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Pige rejetée.']);
+            // Retourner les infos pour mise à jour
+            $pige->refresh();
+            return response()->json([
+                'success' => true, 
+                'message' => 'Pige rejetée.',
+                'data' => [
+                    'id' => $pige->id,
+                    'status' => $pige->status,
+                    'rejection_reason' => $pige->rejection_reason,
+                    'status_label' => $pige->getStatusConfig()['label'],
+                    'status_color' => '#ef4444',
+                    'status_bg' => 'rgba(239,68,68,.1)',
+                    'status_bd' => 'rgba(239,68,68,.3)'
+                ]
+            ]);
         }
 
         return back()->with('success', 'Pige rejetée — le technicien a été notifié.');
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    // DESTROY — supprimer
-    // ══════════════════════════════════════════════════════════════
-    public function destroy(Pige $pige)
-    {
-        $result = $this->pigeService->delete($pige);
-
-        if (!$result['ok']) {
-            return back()->with('error', $result['error']);
-        }
-
-        return back()->with('success', 'Pige supprimée.');
     }
 
     // ══════════════════════════════════════════════════════════════
