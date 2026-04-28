@@ -886,11 +886,3 @@ input:checked + .slider::before {
     content: "☀️";
 }
 
-[data-theme="light"] .bg-\[#0f172a\] { background: var(--surface) !important; }
-[data-theme="light"] .bg-\[#1e293b\]  { background: var(--surface2) !important; }
-[data-theme="light"] .border-\[#334155\] { border-color: var(--border) !important; }
-[data-theme="light"] .text-white { color: var(--text) !important; }
-[data-theme="light"] .text-gray-300 { color: var(--text2) !important; }
-[data-theme="light"] .text-gray-400 { color: var(--text3) !important; }
-[data-theme="light"] .from-\[#1e293b\] { --tw-gradient-from: var(--surface2) !important; }
-[data-theme="light"] .to-\[#0f172a\]   { --tw-gradient-to: var(--surface) !important; }
