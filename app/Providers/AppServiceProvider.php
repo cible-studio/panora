@@ -9,6 +9,8 @@ use App\Policies\ReservationPolicy;
 use App\Models\Campaign;
 use App\Models\ExternalPanel;
 
+use Illuminate\Support\Facades\URL;
+
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
@@ -29,11 +31,19 @@ class AppServiceProvider extends ServiceProvider
             ExternalPanel::observe(\App\Observers\ExternalPanelObserver::class);
         }
 
+
         if (app()->runningInConsole() === false || app()->environment('production')) {
+            
             try {
                 if (config('database.default') === 'mysql') {
                     \DB::statement('SET NAMES utf8mb4');
                 }
+
+                // ✅ Force HTTPS
+                if ($this->app->environment('production')) {
+                    URL::forceScheme('https');
+                }
+
             } catch (\Exception $e) {
                 // Silencieux pendant le build Docker
             }
