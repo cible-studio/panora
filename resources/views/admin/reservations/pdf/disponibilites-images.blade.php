@@ -282,9 +282,11 @@
                 @endif
             </div>
 
-            <div style="text-align: right;">
-                <span class="status-badge {{ $status['class'] }}">{{ $status['label'] }}</span>
-            </div>
+            @if (empty($hideStatus ?? false))
+                <div style="text-align: right;">
+                    <span class="status-badge {{ $status['class'] }}">{{ $status['label'] }}</span>
+                </div>
+            @endif
 
             <table class="info-table">
                 <tr>

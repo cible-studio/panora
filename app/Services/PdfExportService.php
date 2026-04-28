@@ -55,16 +55,20 @@ class PdfExportService
 
         $panelModels = $query->orderBy('reference')->get();
         $panels = $panelModels->map(fn($p) => $this->enrichPanel($p));
-
+        $hideStatus = !empty($filters['hide_status']);
+        
         $commune = !empty($filters['commune_id'])
             ? Commune::find($filters['commune_id'])
             : null;
+
+
 
         $pdf = Pdf::loadView('admin.reservations.pdf.disponibilites-images', [
             'panels' => $panels,
             'startDate' => $filters['start_date'] ?? null,
             'endDate' => $filters['end_date'] ?? null,
             'generated' => now()->format('d/m/Y'),
+            'hideStatus' => $hideStatus,  // ← ajouter
         ])
             ->setPaper('a4', 'portrait')
             ->setOptions($this->dompdfOptions());
