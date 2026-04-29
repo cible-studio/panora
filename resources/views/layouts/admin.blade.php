@@ -144,6 +144,10 @@
                         <span class="slider"></span>
                     </label>
                     <a href="{{ route('admin.alerts.index') }}" class="btn btn-ghost btn-sm" style="position:relative;" title="Alertes non lues">
+                        🔔
+                        <span id="alert-badge" class="nav-badge red" style="position:relative;{{ App\Models\Alert::where('is_read', false)->count() === 0 ? 'display:none;' : '' }}">
+                            {{ App\Models\Alert::where('is_read', false)->count() }}
+                        </span>
                     </a>
                     {{ $topbarActions ?? '' }}
                 </div>
