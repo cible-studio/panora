@@ -782,7 +782,7 @@ class ReservationController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function show(Reservation $reservation)
     {
-        $reservation->load(['client', 'user', 'panels.commune', 'panels.format', 'campaign']);
+        $reservation->load(['client', 'user', 'panels.commune', 'panels.format', 'panels.photos', 'campaign']);
         $user = auth()->user();
         $can = [
             'update' => $reservation->isEditable() && $user->can('update', $reservation),

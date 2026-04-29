@@ -143,6 +143,121 @@
 
 @include('admin.reservations.partials.proposition-actions', ['reservation' => $reservation])
 
+
+{{-- ══════════════════════════════════════════════════════
+     VISUEL PANNEAUX + PDF (réservation en option)
+══════════════════════════════════════════════════════ --}}
+@if($reservation->status->value === 'en_attente')
+<div class="card mb-4">
+    <div class="card-header">
+        <div class="card-title">📸 Visuels des panneaux</div>
+        <div class="flex items-center gap-3">
+            <span class="text-xs" style="color:var(--text3)">
+                {{ $reservation->panels->count() }} panneau(x)
+            </span>
+
+            {{-- Bouton PDF images --}}
+            <form method="POST"
+                  action="{{ route('admin.reservations.disponibilites.pdf-images') }}"
+                  target="_blank">
+                @csrf
+                @foreach($reservation->panels as $p)
+                    <input type="hidden" name="panel_ids[]" value="{{ $p->id }}">
+                @endforeach
+                <input type="hidden" name="start_date" value="{{ $reservation->start_date->format('Y-m-d') }}">
+                <input type="hidden" name="end_date"   value="{{ $reservation->end_date->format('Y-m-d') }}">
+                <button type="submit"
+                        class="btn btn-ghost btn-sm"
+                        style="color:var(--red);border-color:rgba(239,68,68,.3)">
+                    📋 Exporter PDF images
+                </button>
+            </form>
+
+            {{-- Bouton PDF liste --}}
+            <form method="POST"
+                  action="{{ route('admin.reservations.disponibilites.pdf-liste') }}"
+                  target="_blank">
+                @csrf
+                @foreach($reservation->panels as $p)
+                    <input type="hidden" name="panel_ids[]" value="{{ $p->id }}">
+                @endforeach
+                <input type="hidden" name="start_date" value="{{ $reservation->start_date->format('Y-m-d') }}">
+                <input type="hidden" name="end_date"   value="{{ $reservation->end_date->format('Y-m-d') }}">
+                <button type="submit"
+                        class="btn btn-ghost btn-sm"
+                        style="color:var(--blue);border-color:rgba(59,130,246,.3)">
+                    📄 Exporter PDF liste
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {{-- Grille photos --}}
+    <div class="p-4">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
+            @foreach($reservation->panels as $panel)
+            @php
+                $photo = $panel->photos->sortBy('ordre')->first();
+            @endphp
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+
+                {{-- Photo --}}
+                @if($photo)
+                    <img src="{{ asset('storage/' . $photo->path) }}"
+                         alt="{{ $panel->reference }}"
+                         style="width:100%;height:140px;object-fit:cover;display:block;"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                    <div style="display:none;width:100%;height:140px;background:var(--surface3);align-items:center;justify-content:center;">
+                        <span style="font-size:32px;opacity:.3">🪧</span>
+                    </div>
+                @else
+                    <div style="width:100%;height:140px;background:var(--surface3);display:flex;align-items:center;justify-content:center;">
+                        <span style="font-size:32px;opacity:.3">🪧</span>
+                    </div>
+                @endif
+
+                {{-- Infos --}}
+                <div style="padding:10px 12px;">
+                    <div style="font-family:monospace;font-size:11px;font-weight:700;color:var(--accent);margin-bottom:4px;">
+                        {{ $panel->reference }}
+                    </div>
+                    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        {{ $panel->name }}
+                    </div>
+                    <div style="font-size:11px;color:var(--text3);">
+                        📍 {{ $panel->commune?->name ?? '—' }}
+                        @if($panel->format?->name)
+                            · {{ $panel->format->name }}
+                        @endif
+                    </div>
+                    @php
+                        $unitPrice  = (float)($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0);
+                        $totalPrice = (float)($panel->pivot->total_price ?? 0);
+                    @endphp
+                    @if($unitPrice > 0)
+                    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-size:10px;color:var(--text3);">Tarif/mois</span>
+                        <span style="font-size:13px;font-weight:700;color:var(--accent);">
+                            {{ number_format($unitPrice, 0, ',', ' ') }} FCFA
+                        </span>
+                    </div>
+                    @if($totalPrice > 0)
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+                        <span style="font-size:10px;color:var(--text3);">Total période</span>
+                        <span style="font-size:12px;font-weight:600;color:var(--text2);">
+                            {{ number_format($totalPrice, 0, ',', ' ') }} FCFA
+                        </span>
+                    </div>
+                    @endif
+                    @endif
+                </div>
+            </div>
+            @endforeach
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- ══════════════════════════════════════════════════════
      ACTIONS STATUT
 ══════════════════════════════════════════════════════ --}}
