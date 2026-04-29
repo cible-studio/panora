@@ -140,14 +140,14 @@
                         </div>
                     </div>
 
-                    {{-- Date début --}}
+                   {{-- Date début --}}
                     <div class="form-group">
                         <label class="form-label">DATE DÉBUT *</label>
                         <input type="date" name="start_date"
-                               value="{{ old('start_date', $campaign->start_date->format('Y-m-d')) }}"
-                               class="form-input @error('start_date') is-invalid @enderror"
-                               {{ $campaign->status->value === 'actif' ? 'disabled' : '' }}
-                               {{ in_array($campaign->status->value, ['pose', 'termine', 'annule']) ? 'disabled' : '' }}>
+                            value="{{ old('start_date', $campaign->start_date->format('Y-m-d')) }}"
+                            class="form-input @error('start_date') is-invalid @enderror"
+                            {{ $campaign->status->value === 'actif' ? 'readonly' : '' }}
+                            {{ in_array($campaign->status->value, ['pose', 'termine', 'annule']) ? 'disabled' : '' }}>
                         @error('start_date')
                         <p class="form-error">{{ $message }}</p>
                         @enderror
