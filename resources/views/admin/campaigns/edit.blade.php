@@ -143,19 +143,38 @@
                    {{-- Date début --}}
                     <div class="form-group">
                         <label class="form-label">DATE DÉBUT *</label>
-                        <input type="date" name="start_date"
-                            value="{{ old('start_date', $campaign->start_date->format('Y-m-d')) }}"
-                            class="form-input @error('start_date') is-invalid @enderror"
-                            {{ $campaign->status->value === 'actif' ? 'readonly' : '' }}
-                            {{ in_array($campaign->status->value, ['pose', 'termine', 'annule']) ? 'disabled' : '' }}>
+                        
+                        @if($campaign->status->value === 'actif')
+                            {{-- Campagne active : affichage en lecture seule avec champ caché --}}
+                            <input type="text"
+                                value="{{ $campaign->start_date->format('d/m/Y') }}"
+                                class="form-input"
+                                readonly
+                                disabled
+                                style="background:var(--surface3); cursor:not-allowed; opacity:0.8;">
+                            {{-- Champ caché qui sera envoyé --}}
+                            <input type="hidden" name="start_date" 
+                                value="{{ $campaign->start_date->format('Y-m-d') }}">
+                            <p class="form-hint">
+                                🔒 Date de début non modifiable (campagne déjà lancée)
+                            </p>
+                        @elseif(in_array($campaign->status->value, ['pose', 'termine', 'annule']))
+                            {{-- Campagne terminée/annulée : complètement désactivé --}}
+                            <input type="date" name="start_date"
+                                value="{{ $campaign->start_date->format('Y-m-d') }}"
+                                class="form-input"
+                                disabled>
+                        @else
+                            {{-- Campagne planifiée : modifiable --}}
+                            <input type="date" name="start_date"
+                                value="{{ old('start_date', $campaign->start_date->format('Y-m-d')) }}"
+                                class="form-input @error('start_date') is-invalid @enderror"
+                                required>
+                        @endif
+                        
                         @error('start_date')
                         <p class="form-error">{{ $message }}</p>
                         @enderror
-                        @if($campaign->status->value === 'actif')
-                        <p class="form-hint">
-                            🔒 Date de début non modifiable (campagne déjà lancée)
-                        </p>
-                        @endif
                     </div>
 
                     {{-- Date fin --}}

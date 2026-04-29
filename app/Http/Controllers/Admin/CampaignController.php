@@ -253,8 +253,8 @@ class CampaignController extends Controller
     {
         $this->authorize('update', $campaign);
 
-        // 1. Récupération des données
-        $data = $request->validate([
+        // 1. Récupération des données avec gestion spéciale pour start_date
+        $rules = [
             'name' => [
                 'required', 'string', 'max:150',
                 Rule::unique('campaigns', 'name')
@@ -262,22 +262,40 @@ class CampaignController extends Controller
                     ->ignore($campaign->id),
             ],
             'client_id'  => 'required|exists:clients,id',
-            'start_date' => 'date',
             'end_date'   => 'required|date|after:start_date',
             'notes'      => 'nullable|string|max:2000',
-        ]);
+        ];
 
-        // 2. Règles de modification selon le statut actuel
+        // Pour les campagnes actives, start_date est optionnel (vient du champ caché)
+        // Pour les autres, il est requis
+        if ($campaign->status !== CampaignStatus::ACTIF) {
+            $rules['start_date'] = 'required|date';
+        } else {
+            $rules['start_date'] = 'nullable|date';
+        }
+
+        $data = $request->validate($rules);
+
+        // 2. Gestion de la start_date pour les campagnes actives
+        if ($campaign->status === CampaignStatus::ACTIF) {
+            // Utiliser la start_date existante si non fournie
+            if (empty($data['start_date'])) {
+                $data['start_date'] = $campaign->start_date->format('Y-m-d');
+            }
+        }
+
         $today = now()->startOfDay();
         $newStart = \Carbon\Carbon::parse($data['start_date']);
         $newEnd = \Carbon\Carbon::parse($data['end_date']);
 
-        // === RÈGLES MÉTIER ===
-        // Campagne ACTIF : start_date NON modifiable (déjà lancée)
-        //                : end_date modifiable (prolongation/réduction)
-        // Campagne PLANIFIE : tout modifiable
-        // Campagne POSE/TERMINE/ANNULE : NON modifiable (erreur)
+        // Vérifications supplémentaires
+        if ($newEnd->lte($newStart)) {
+            return back()->withInput()->with('error', 
+                '❌ La date de fin doit être postérieure à la date de début.'
+            );
+        }
 
+        // === RÈGLES MÉTIER ===
         if ($campaign->status === CampaignStatus::ACTIF) {
             // Vérifier que start_date n'a pas changé
             if (!$campaign->start_date->isSameDay($newStart)) {
@@ -289,17 +307,13 @@ class CampaignController extends Controller
 
             // Vérifier que la nouvelle end_date n'est pas avant aujourd'hui
             if ($newEnd->lt($today)) {
-                // Si la nouvelle date de fin est dans le passé, on va la terminer automatiquement
-                // Ce cas sera géré après la mise à jour
                 $data['status'] = CampaignStatus::TERMINE->value;
             } else {
-                // Conserver le statut actif si la date de fin est valide
                 $data['status'] = CampaignStatus::ACTIF->value;
             }
         } 
         elseif ($campaign->status === CampaignStatus::PLANIFIE) {
-            // Planifiée : tout modifiable, on recalcule le statut après
-            // Le statut sera recalculé automatiquement
+            // Planifiée : tout modifiable, le statut sera recalculé après
         } 
         elseif (in_array($campaign->status->value, ['pose', 'termine', 'annule'])) {
             return back()->withInput()->with('error', 
@@ -311,14 +325,14 @@ class CampaignController extends Controller
         // 3. Mise à jour des données
         $data['updated_by'] = auth()->id();
         
-        // Sauvegarde des anciennes dates pour log
+        // Sauvegarde des anciennes valeurs
         $oldStart = $campaign->start_date;
         $oldEnd = $campaign->end_date;
         $oldStatus = $campaign->status;
 
         $campaign->update($data);
 
-        // 4. Recalcul automatique du statut après modification (pour les campagnes planifiées uniquement)
+        // 4. Recalcul automatique du statut pour les campagnes planifiées
         if ($oldStatus === CampaignStatus::PLANIFIE) {
             $campaign->refresh();
             $newStatus = $this->calculateStatus($campaign);
@@ -357,7 +371,7 @@ class CampaignController extends Controller
             ]
         ]);
 
-        // 6. Message de succès personnalisé selon les changements
+        // 6. Message de succès personnalisé
         $message = "✅ Campagne « {$campaign->name} » mise à jour avec succès.";
         
         if ($oldStatus === CampaignStatus::PLANIFIE && $campaign->status === CampaignStatus::ACTIF) {
