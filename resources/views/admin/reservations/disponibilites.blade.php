@@ -578,13 +578,13 @@ const S = {
 const MS_DATA = { commune_ids:D.communes, zone_ids:D.zones, format_ids:D.formats, agency_ids:D.agencies };
 
 const STATUS_CFG = {
-    libre:          { l:'Disponible', c:'#22c55e', b:'rgba(34,197,94,.08)',   bd:'rgba(34,197,94,.3)' },
-    occupe:         { l:'Occupé',     c:'#e20613', b:'rgba(226,6,19,.08)',    bd:'rgba(226,6,19,.3)' },
-    option_periode: { l:'En option',  c:'#fab80b', b:'rgba(250,184,11,.08)', bd:'rgba(250,184,11,.3)' },
-    option:         { l:'Option',     c:'#fab80b', b:'rgba(250,184,11,.08)', bd:'rgba(250,184,11,.3)' },
-    confirme:       { l:'Confirmé',   c:'#81358a', b:'rgba(129,53,138,.08)', bd:'rgba(129,53,138,.3)' },
-    maintenance:    { l:'Maintenance',c:'#6b7280', b:'rgba(107,114,128,.08)',bd:'rgba(107,114,128,.3)' },
-    a_verifier:     { l:'À vérifier', c:'#94a3b8', b:'rgba(148,163,184,.08)',bd:'rgba(148,163,184,.3)' },
+    libre:          { l:'Disponible', c:'#22c55e', b:'rgba(34,197,94,.08)',    bd:'rgba(34,197,94,.3)' },
+    occupe:         { l:'Occupé',     c:'#e20613', b:'rgba(226,6,19,.08)',     bd:'rgba(226,6,19,.3)' },
+    option_periode: { l:'En option',  c:'#f97316', b:'rgba(249,115,22,.12)', bd:'rgba(249,115,22,.5)' },
+    option:         { l:'En option',  c:'#f97316', b:'rgba(249,115,22,.12)', bd:'rgba(249,115,22,.5)' },
+    confirme:       { l:'Confirmé',   c:'#81358a', b:'rgba(129,53,138,.08)',   bd:'rgba(129,53,138,.3)' },
+    maintenance:    { l:'Maintenance',c:'#6b7280', b:'rgba(107,114,128,.08)', bd:'rgba(107,114,128,.3)' },
+    a_verifier:     { l:'À vérifier', c:'#94a3b8', b:'rgba(148,163,184,.08)', bd:'rgba(148,163,184,.3)' },
 };
 
 window.DISPO = {
@@ -791,13 +791,13 @@ window.DISPO = {
         tbody.innerHTML='';tbody.appendChild(frag);
         S.sel.ids.forEach(id=>{const row=tbody.querySelector(`.list-row[data-id="${id}"]`);if(row){row.classList.add('selected');const chk=row.querySelector('.card-chk');if(chk)chk.checked=true;}});
     },
-    _renderStats(stats,hasPeriod){
+    _renderStats(stats, hasPeriod){
         const set=(id,html,show=true)=>{const el=_el(id);if(!el)return;el.style.display=show?'inline-flex':'none';if(show)el.innerHTML=html;};
-        set('stat-total',`📊 <strong>${stats.total}</strong> panneau(x)`);
-        set('stat-dispo',`✅ <strong>${stats.disponibles}</strong> dispos`,hasPeriod&&stats.disponibles>0);
-        set('stat-occupes',`🔒 <strong>${stats.occupes}</strong> occupés`,hasPeriod&&stats.occupes>0);
-        set('stat-options',`⏳ <strong>${stats.options}</strong> options`,hasPeriod&&(stats.options||0)>0);
-        set('stat-ext',`🤝 <strong>${stats.externes}</strong> externes`,stats.externes>0);
+        set('stat-total',  `📊 <strong>${stats.total}</strong> panneau(x)`);
+        set('stat-dispo',  `✅ <strong>${stats.disponibles}</strong> disponible(s)`, hasPeriod && stats.disponibles > 0);
+        set('stat-occupes',`🔒 <strong>${stats.occupes}</strong> occupé(s)`,         hasPeriod && stats.occupes > 0);
+        set('stat-options',`⏳ <strong>${stats.options || 0}</strong> en option`,     hasPeriod && (stats.options || 0) > 0);
+        set('stat-ext',    `🤝 <strong>${stats.externes}</strong> externe(s)`,        stats.externes > 0);
     },
     _renderPagination(stats){
         const bar=_el('pagination-bar'),info=_el('pag-info'),prev=_el('btn-prev'),next=_el('btn-next');

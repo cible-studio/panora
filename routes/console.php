@@ -29,3 +29,7 @@ Schedule::command('alerts:generate')->dailyAt('07:00');
 // 5. Synchronisation statut panneaux externes
 //    Tous les jours à 02h00
 Schedule::command('external-panels:sync-status')->dailyAt('02:00');
+
+// 6. Activation automatique des campagnes planifiées
+//    Tous les jours à 00h05
+Schedule::command('campaigns:activate-planned')->dailyAt('00:05');

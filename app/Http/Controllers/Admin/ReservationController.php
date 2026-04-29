@@ -190,7 +190,7 @@ class ReservationController extends Controller
                 if (!$dateError && $startDate && $endDate) {
                     $panels = match ($statut) {
                         'occupe' => $panels->filter(fn($p) => $occupiedIds->contains($p->id) || $optionIds->contains($p->id))->values(),
-                        'option' => $panels->filter(fn($p) => $optionIds->contains($p->id))->values(),
+                        'option' => $panels->filter(fn($p) => $optionIds->contains($p->id) && !$occupiedIds->contains($p->id))->values(),                        
                         'libre' => $panels->filter(fn($p) => !$occupiedIds->contains($p->id) && !$optionIds->contains($p->id) && $p->status->value !== 'maintenance')->values(),
                         default => $panels,
                     };
@@ -247,16 +247,17 @@ class ReservationController extends Controller
         return response()->json([
             'panels' => $paginated,
             'stats' => [
-                'total' => $total,
-                'displayed' => $paginated->count(),
-                'disponibles' => $allPanels->where('display_status', 'libre')->count(),
-                'occupes' => $allPanels->whereIn('display_status', ['occupe', 'option_periode'])->count(),
-                'maintenance' => $allPanels->where('display_status', 'maintenance')->count(),
-                'externes' => $externalResult->count(),
-                'internes' => $internalResult->count(),
-                'pages' => (int) ceil($total / $perPage),
-                'current_page' => $page,
-            ],
+            'total'        => $total,
+            'displayed'    => $paginated->count(),
+            'disponibles'  => $allPanels->where('display_status', 'libre')->count(),
+            'occupes'      => $allPanels->where('display_status', 'occupe')->count(),
+            'options'      => $allPanels->where('display_status', 'option_periode')->count(),
+            'maintenance'  => $allPanels->where('display_status', 'maintenance')->count(),
+            'externes'     => $externalResult->count(),
+            'internes'     => $internalResult->count(),
+            'pages'        => (int) ceil($total / $perPage),
+            'current_page' => $page,
+        ],
             'date_error' => $dateError,
             'has_period' => (bool) ($startDate && $endDate && !$dateError),
         ]);
@@ -651,18 +652,28 @@ class ReservationController extends Controller
                     if (Campaign::where('client_id', $request->client_id)->where('name', $request->campaign_name)->exists()) {
                         throw new \RuntimeException('CAMPAIGN_EXISTS:Une campagne avec ce nom existe déjà pour ce client.');
                     }
+
+                    // Statut correct selon la date de début
+                    $campStatus = now()->startOfDay()->lt(
+                        \Carbon\Carbon::parse($request->start_date)->startOfDay()
+                    )
+                        ? CampaignStatus::PLANIFIE->value  // commence dans le futur
+                        : CampaignStatus::ACTIF->value;    // commence aujourd'hui ou avant
+
                     $campaign = Campaign::create([
-                        'name' => $request->campaign_name,
-                        'client_id' => $request->client_id,
+                        'name'           => $request->campaign_name,
+                        'client_id'      => $request->client_id,
                         'reservation_id' => $reservation->id,
-                        'user_id' => auth()->id(),
-                        'start_date' => $request->start_date,
-                        'end_date' => $request->end_date,
-                        'status' => CampaignStatus::ACTIF->value,
-                        'total_panels' => count($internalIds),
-                        'total_amount' => $total,
-                        'notes' => $request->notes,
+                        'user_id'        => auth()->id(),
+                        'start_date'     => $request->start_date,
+                        'end_date'       => $request->end_date,
+                        'status'         => $campStatus,
+                        'total_panels'   => count($internalIds),
+                        'total_amount'   => $total,
+                        'notes'          => $request->notes,
                     ]);
+
+
                     $campaign->panels()->sync(array_keys($attach));
                     $createdCampaignId = $campaign->id;
                 }
@@ -689,10 +700,11 @@ class ReservationController extends Controller
                 ->with('success', 'Réservation ferme créée et campagne lancée. ✅');
         }
 
-        return redirect()->route('admin.reservations.disponibilites')
+        // Par — rediriger vers la réservation créée :
+        return redirect()->route('admin.reservations.show', $reservation)
             ->with('success', $request->type === 'ferme'
-                ? 'Réservation ferme créée. Panneaux confirmés.'
-                : 'Panneaux mis sous option.');
+                ? 'Réservation ferme créée. Panneaux confirmés. ✅'
+                : 'Panneaux mis sous option. ⏳');
     }
 
     // ══════════════════════════════════════════════════════════════
