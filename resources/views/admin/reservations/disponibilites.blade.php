@@ -161,10 +161,6 @@
                     class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-[var(--text3)] hover:text-[var(--text)]">☰
                     Liste</button>
             </div>
-            <button onclick="DISPO.exportPdf('images')"
-                class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-red-500 hover:border-red-500 hover:bg-red-500/5 transition-all">
-                📋 PDF images
-            </button>
 
             {{-- PDF liste avec option masquer statut --}}
             <div style="position:relative;display:inline-block;" id="dispo-export-wrap">
