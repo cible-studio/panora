@@ -349,7 +349,7 @@
                     </td>
 
                     <td class="p-3">
-                        <div class="text-sm font-medium text-gray-200">{{ $panel->name }}</div>
+                        <div class="text-sm font-medium text-sm text-gray-500">{{ $panel->name }}</div>
                         @if($panel->zone_description)
                         <div class="text-xs text-gray-500 mt-0.5 truncate max-w-[180px]">
                             📍 {{ $panel->zone_description }}
@@ -361,7 +361,7 @@
                         {{ $panel->commune?->name ?? '—' }}
                     </td>
 
-                    <td class="p-3 text-sm text-gray-400">
+                    <td class="p-3 text-sm text-gray-500">
                         {{ $panel->format?->name ?? '—' }}
                         @if($panel->format?->width && $panel->format?->height)
                         <div class="text-xs text-gray-600">
