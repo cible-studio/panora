@@ -119,7 +119,7 @@ class PropositionController extends Controller
                 new \App\Mail\PropositionMail($reservation, $token)
             );
 
-            Log::info('proposition.sent', [
+            Log::info('admin.propositions.sent', [
                 'reservation_id' => $reservation->id,
                 'reference'      => $reservation->reference,
                 'client_email'   => $reservation->client->email,
@@ -129,11 +129,11 @@ class PropositionController extends Controller
             return back()->with('success', "✅ Proposition envoyée à {$reservation->client->email}.");
 
         } catch (\Exception $e) {
-            Log::error('proposition.send_failed', [
+            Log::error('admin.propositions.send_failed', [
                 'reservation_id' => $reservation->id,
                 'error'          => $e->getMessage(),
             ]);
-            $link = route('proposition.show', [$reservation->reference, $slug]);
+            $link = route('admin.propositions.show', [$reservation->reference, $slug]);
             return back()->with('warning', "⚠️ Erreur email. Lien : {$link}");
         }
     }
@@ -209,12 +209,12 @@ class PropositionController extends Controller
             $token    = $reservation->proposition_token;
             $campaign = $this->propositionService->confirmer($reservation);
         } catch (\Exception $e) {
-            Log::error('proposition.confirmer_failed', ['error' => $e->getMessage()]);
-            return redirect()->route('proposition.show', [$reference, $slug])
+            Log::error('admin.propositions.error', ['error' => $e->getMessage()]);
+            return redirect()->route('admin.propositions.show', [$reference, $slug])
                 ->with('error', 'Erreur lors de la confirmation. Contactez votre commercial.');
         }
 
-        return view('client.proposition.confirmed', [
+        return view('admin.propositions.confirmed', [
             'reservation' => $reservation->fresh(['client', 'panels']),
             'client'      => $reservation->client,
             'campaign'    => $campaign,
@@ -232,7 +232,7 @@ class PropositionController extends Controller
 
         $this->propositionService->refuser($reservation, $request->input('motif'));
 
-        return view('proposition.refused', [
+        return view('admin.propositions.refused', [
             'reservation' => $reservation,
             'client'      => $reservation->client,
         ]);
@@ -255,7 +255,7 @@ class PropositionController extends Controller
 
         // Empêcher de retirer le dernier panneau
         if ($reservation->panels->count() <= 1)
-            return redirect()->route('proposition.show', [$reference, $slug])
+            return redirect()->route('admin.propositions.show', [$reference, $slug])
                 ->with('error', 'Impossible de retirer le dernier panneau.');
 
         // Retirer le panneau
@@ -269,12 +269,12 @@ class PropositionController extends Controller
 
         $reservation->update(['total_amount' => $newTotal]);
 
-        Log::info('proposition.panneau_retire', [
+        Log::info('admin.propositions.panneau_retire', [
             'reservation_id' => $reservation->id,
             'panel_id'       => $panelId,
         ]);
 
-        return redirect()->route('proposition.show', [$reference, $slug])
+        return redirect()->route('admin.propositions.show', [$reference, $slug])
             ->with('success', 'Panneau retiré de la proposition.');
     }
 
