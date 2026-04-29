@@ -318,11 +318,34 @@ class PropositionController extends Controller
 
     private function monthsBetween($start, $end): float
     {
-        $s      = Carbon::parse($start)->startOfDay();
-        $e      = Carbon::parse($end)->endOfDay();
-        $months = (int) $s->diffInMonths($e);
-        $remain = $s->copy()->addMonths($months)->diffInDays($e);
-        return max((float) ($remain > 0 ? $months + 1 : $months), 1.0);
+        $s = Carbon::parse($start)->startOfDay();
+        $e = Carbon::parse($end)->startOfDay();
+
+        // Nombre de jours réels
+        $totalDays = (int) $s->diffInDays($e);
+
+        if ($totalDays <= 0) return 0.5;
+
+        // Mois entiers
+        $fullMonths = (int) floor($totalDays / 30);
+
+        // Jours restants après les mois entiers
+        $remainDays = $totalDays % 30;
+
+        // Règle CIBLE CI :
+        // 1-15j restants  → + 0.5 mois
+        // 16-30j restants → + 1 mois
+        $fraction = 0;
+        if ($remainDays >= 1 && $remainDays <= 15) {
+            $fraction = 0.5;
+        } elseif ($remainDays > 15) {
+            $fraction = 1;
+        }
+
+        $result = $fullMonths + $fraction;
+
+        // Minimum : 0.5 mois (demi-mois)
+        return max($result, 0.5);
     }
 
     private function formatDims($format): ?string

@@ -454,7 +454,7 @@
                     $catalogue    = (float)($panel->monthly_rate ?? 0);
                     $isPriceModif = abs($unitPrice - $catalogue) > 0.01;
                 @endphp
-                <tr class="border-b border-[#1e1e2e] hover:bg-[#252530]/50 transition-colors"
+                <tr class="border-b border-[#1e1e2e]"
                     id="panel-row-{{ $panel->id }}">
 
                     <td class="p-3">
@@ -581,7 +581,7 @@
 
                     {{-- Total période --}}
                     <td class="p-3 text-right">
-                        <span class="text-sm font-bold text-white">
+                        <span class="text-sm font-bold text-gray-400">
                             {{ number_format($totalPrice, 0, ',', ' ') }}
                             <span class="text-xs font-normal text-gray-500">FCFA</span>
                         </span>
