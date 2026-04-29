@@ -2,7 +2,31 @@
 <x-slot name="title">Inventaire Panneaux</x-slot>
 
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.panels.export.list') }}" class="btn btn-ghost btn-sm">📄 Export PDF</a>
+    <div style="position:relative;display:inline-block;" id="export-wrap">
+    <button onclick="document.getElementById('export-dropdown').classList.toggle('hidden')"
+            class="btn btn-ghost btn-sm">
+        📄 Export PDF ▾
+    </button>
+    <div id="export-dropdown" class="hidden"
+         style="position:absolute;top:calc(100% + 6px);right:0;z-index:200;
+                background:var(--surface);border:1px solid var(--border2);
+                border-radius:10px;padding:14px;min-width:220px;
+                box-shadow:0 8px 24px rgba(0,0,0,.15);">
+        <form method="GET" action="{{ route('admin.panels.export.list') }}" target="_blank">
+            <input type="hidden" name="commune_id" value="{{ request('commune_id') }}">
+            <input type="hidden" name="status"     value="{{ request('status') }}">
+            <input type="hidden" name="zone_id"    value="{{ request('zone_id') }}">
+            <label for="hide-status" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;">
+                <input type="checkbox" id="hide-status" name="hide_status" value="1"
+                       style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;">
+                <span style="font-size:13px;color:var(--text2);">Masquer le statut</span>
+            </label>
+            <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
+                📄 Générer PDF liste
+            </button>
+        </form>
+    </div>
+</div>
     <a href="{{ route('admin.panels.export.network') }}" class="btn btn-ghost btn-sm">📊 Rapport réseau</a>
     <a href="{{ route('admin.panels.create') }}" class="btn btn-primary btn-sm">＋ Nouveau panneau</a>
 </x-slot>
@@ -92,7 +116,7 @@
                 @endforeach
             </select>
         </div>
-        
+
         <div class="filter-group" id="reset-wrapper" style="display:none;">
             <label class="filter-label" style="visibility:hidden;">Actions</label>
             <button id="btn-reset" class="reset-btn">
@@ -144,6 +168,12 @@
 
 @push('scripts')
 <script>
+    document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('export-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('export-dropdown').classList.add('hidden');
+    }
+});
 (function() {
     let currentFilters = {
         source: '{{ $source ?? 'all' }}',
@@ -177,7 +207,7 @@
                           currentFilters.category_id ||
                           currentFilters.client_id ||
                           currentFilters.source !== 'all';
-        
+
         if (elements.resetWrapper) {
             elements.resetWrapper.style.display = hasFilters ? 'flex' : 'none';
         }
@@ -206,7 +236,7 @@
 
             document.getElementById('table-body').innerHTML = data.html;
             document.getElementById('result-count').innerHTML = data.stats_html;
-            
+
             const pagContainer = document.getElementById('pagination-links');
             if (pagContainer) pagContainer.innerHTML = data.pagination || '';
 
@@ -264,7 +294,7 @@
         btn.addEventListener('click', () => {
             const source = btn.dataset.source;
             currentFilters.source = source;
-            
+
             elements.sourceBtns.forEach(b => {
                 if (b.dataset.source === source) {
                     b.classList.remove('btn-ghost');
@@ -289,7 +319,7 @@
             e.preventDefault();
             const source = stat.dataset.source;
             const status = stat.dataset.status;
-            
+
             if (source) {
                 currentFilters.source = source;
                 elements.sourceBtns.forEach(btn => {
@@ -323,7 +353,7 @@
                 category_id: '',
                 client_id: ''
             };
-            
+
             // Réinitialiser tous les champs
             if (elements.search) elements.search.value = '';
             if (elements.commune) elements.commune.value = '';
@@ -331,7 +361,7 @@
             if (elements.status) elements.status.value = '';
             if (elements.category) elements.category.value = '';
             if (elements.client) elements.client.value = '';
-            
+
             // Réinitialiser l'apparence des boutons source
             elements.sourceBtns.forEach(btn => {
                 if (btn.dataset.source === 'all') {
@@ -346,12 +376,12 @@
                     }
                 }
             });
-            
+
             updateResetButton();
             applyFilters();
         });
     }
-    
+
     // Initialisation
     updateResetButton();
 })();

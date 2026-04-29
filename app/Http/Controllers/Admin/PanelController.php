@@ -45,7 +45,10 @@ class PanelController extends Controller
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
                     $q->where('reference', 'like', "%{$search}%")
-                        ->orWhere('name', 'like', "%{$search}%");
+                        ->orWhere('name', 'like', "%{$search}%")
+                        ->orWhere('quartier', 'like', "%{$search}%")
+                        ->orWhere('adresse', 'like', "%{$search}%")
+                        ->orWhereHas('commune', fn($c) => $c->where('name', 'like', "%{$search}%"));
                 });
             }
             if ($request->filled('commune_id')) {
