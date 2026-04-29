@@ -424,7 +424,7 @@
         </div>
     </div>
 
-    <div class="">
+    <div class="overflow-x-auto">
         <table class="w-full border-collapse">
             <thead>
                 <tr class="border-b border-[#2a2a35]">
@@ -454,7 +454,7 @@
                     $catalogue    = (float)($panel->monthly_rate ?? 0);
                     $isPriceModif = abs($unitPrice - $catalogue) > 0.01;
                 @endphp
-                <tr class="border-b border-[#1e1e2e] hover:bg-[#252530]/50 transition-colors"
+                <tr class="border-b border-[#1e1e2e]"
                     id="panel-row-{{ $panel->id }}">
 
                     <td class="p-3">
