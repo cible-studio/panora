@@ -41,16 +41,27 @@ class PanelController extends Controller
         } else {
             $query = Panel::with('commune', 'zone', 'format', 'category', 'photos');
 
+            // 🔍 RECHERCHE EXACTE SUR MOT ENTIER
+            // Exemple : "ABG" trouve "ABG-002" mais pas "CABG-001"
             if ($request->filled('search')) {
                 $search = $request->search;
-                $query->where(function ($q) use ($search) {
-                    $q->where('reference', 'like', "%{$search}%")
-                        ->orWhere('name', 'like', "%{$search}%")
-                        ->orWhere('quartier', 'like', "%{$search}%")
-                        ->orWhere('adresse', 'like', "%{$search}%")
-                        ->orWhereHas('commune', fn($c) => $c->where('name', 'like', "%{$search}%"));
+                
+                // Échapper les caractères spéciaux regex
+                $escapedSearch = preg_quote($search, '/');
+                
+                $query->where(function ($q) use ($escapedSearch) {
+                    // Référence : recherche comme "ABG" au début du mot
+                    $q->where('reference', 'REGEXP', "(^|[[:space:]-]){$escapedSearch}")
+                    ->orWhere('reference', 'like', "{$escapedSearch}%")  // Commence par
+                    ->orWhere('name', 'REGEXP', "(^|[[:space:]]){$escapedSearch}")
+                    ->orWhere('quartier', 'REGEXP', "(^|[[:space:]]){$escapedSearch}")
+                    ->orWhere('adresse', 'REGEXP', "(^|[[:space:]]){$escapedSearch}")
+                    ->orWhereHas('commune', function($c) use ($escapedSearch) {
+                        $c->where('name', 'REGEXP', "(^|[[:space:]]){$escapedSearch}");
+                    });
                 });
             }
+            
             if ($request->filled('commune_id')) {
                 $query->where('commune_id', $request->commune_id);
             }
@@ -86,9 +97,12 @@ class PanelController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $externalQuery->where(function ($q) use ($search) {
-                $q->where('code_panneau', 'like', "%{$search}%")
-                    ->orWhere('designation', 'like', "%{$search}%");
+            $escapedSearch = preg_quote($search, '/');
+            
+            $externalQuery->where(function ($q) use ($escapedSearch) {
+                $q->where('code_panneau', 'REGEXP', "(^|[[:space:]-]){$escapedSearch}")
+                ->orWhere('code_panneau', 'like', "{$escapedSearch}%")
+                ->orWhere('designation', 'REGEXP', "(^|[[:space:]]){$escapedSearch}");
             });
         }
         if ($request->filled('commune_id')) {
