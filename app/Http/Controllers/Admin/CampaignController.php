@@ -262,7 +262,7 @@ class CampaignController extends Controller
                     ->ignore($campaign->id),
             ],
             'client_id'  => 'required|exists:clients,id',
-            'start_date' => 'required|date',
+            'start_date' => 'date',
             'end_date'   => 'required|date|after:start_date',
             'notes'      => 'nullable|string|max:2000',
         ]);
