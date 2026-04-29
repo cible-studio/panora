@@ -8,106 +8,106 @@
            Version optimisée DomPDF : footer fixe, sans prix
            ═══════════════════════════════════════════════════════════════ */
         * { margin:0; padding:0; box-sizing:border-box; }
-        
-        @page { 
-            margin: 12mm 10mm; 
+
+        @page {
+            margin: 12mm 10mm;
             size: A4 landscape;
         }
-        
-        body { 
-            font-family: 'DejaVu Sans', Arial, sans-serif; 
-            font-size: 9px; 
-            color: #1e293b; 
+
+        body {
+            font-family: 'DejaVu Sans', Arial, sans-serif;
+            font-size: 9px;
+            color: #1e293b;
             background: #fff;
             line-height: 1.4;
         }
-        
+
         /* ── PAGE ── */
         .page {
             position: relative;
             min-height: 190mm;
         }
-        
+
         /* ── HEADER ── */
-        .header { 
-            background: #0f172a; 
-            color: #fff; 
-            padding: 10px 14px; 
-            margin-bottom: 12px; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
+        .header {
+            background: #0f172a;
+            color: #fff;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .header h1 { 
-            font-size: 13px; 
-            font-weight: bold; 
-            color: #e8a020; 
+        .header h1 {
+            font-size: 13px;
+            font-weight: bold;
+            color: #e8a020;
         }
-        .header p { 
-            font-size: 7px; 
-            color: #94a3b8; 
-            margin-top: 2px; 
+        .header p {
+            font-size: 7px;
+            color: #94a3b8;
+            margin-top: 2px;
         }
         .header-right {
             text-align: right;
             font-size: 7px;
             color: #94a3b8;
         }
-        
+
         /* ── TABLEAU ── */
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
+        table {
+            width: 100%;
+            border-collapse: collapse;
         }
-        thead tr { 
-            background: #f1f5f9; 
+        thead tr {
+            background: #f1f5f9;
         }
-        th { 
-            padding: 5px 5px; 
-            text-align: left; 
-            font-size: 7px; 
-            font-weight: 700; 
-            text-transform: uppercase; 
-            color: #64748b; 
-            border-bottom: 2px solid #e2e8f0; 
+        th {
+            padding: 5px 5px;
+            text-align: left;
+            font-size: 7px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+            border-bottom: 2px solid #e2e8f0;
         }
-        td { 
-            padding: 5px 5px; 
-            border-bottom: 1px solid #f1f5f9; 
-            vertical-align: middle; 
+        td {
+            padding: 5px 5px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
         }
-        tr:nth-child(even) td { 
-            background: #f8fafc; 
+        tr:nth-child(even) td {
+            background: #f8fafc;
         }
-        
+
         /* ── STYLES ── */
-        .ref { 
-            font-family: monospace; 
-            font-weight: 700; 
-            font-size: 9px; 
+        .ref {
+            font-family: monospace;
+            font-weight: 700;
+            font-size: 9px;
             color: #e20613;
         }
-        .badge { 
-            display: inline-block; 
-            padding: 2px 6px; 
-            border-radius: 10px; 
-            font-size: 7px; 
-            font-weight: 600; 
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 7px;
+            font-weight: 600;
         }
         .badge-libre       { background: #dcfce7; color: #166534; }
         .badge-occupe      { background: #fee2e2; color: #991b1b; }
         .badge-option      { background: #fef3c7; color: #92400e; }
         .badge-maintenance { background: #f1f5f9; color: #475569; }
-        
-        .lit { 
-            color: #fab80b; 
-            font-size: 9px; 
+
+        .lit {
+            color: #fab80b;
+            font-size: 9px;
         }
-        .non-lit { 
-            color: #94a3b8; 
-            font-size: 9px; 
+        .non-lit {
+            color: #94a3b8;
+            font-size: 9px;
         }
-        
+
         /* ── TOTAUX ── */
         .totals {
             margin-top: 10px;
@@ -122,7 +122,7 @@
             color: #e20613;
             font-size: 10px;
         }
-        
+
         /* ── FOOTER FIXE EN BAS ── */
         .footer {
             position: absolute;
@@ -183,7 +183,7 @@
                 };
                 $traffic = (int)($p->daily_traffic ?? 0);
                 $isLit = (bool)($p->is_lit ?? false);
-                
+
                 $dims = null;
                 if ($p->format?->width && $p->format?->height) {
                     $w = rtrim(rtrim(number_format($p->format->width, 2, '.', ''), '0'), '.');
@@ -191,6 +191,12 @@
                     $dims = "{$w}x{$h}m";
                 }
             @endphp
+
+            @if (empty($hideStatus ?? false))
+                <div style="text-align: right;">
+                    <span class="status-badge {{ $status['class'] }}">{{ $status['label'] }}</span>
+                </div>
+            @endif
             <tr>
                 <td><span class="ref">{{ $p->reference }}</span></td>
                 <td>{{ $p->name }}</td>
