@@ -192,11 +192,7 @@
                 }
             @endphp
 
-            @if (empty($hideStatus ?? false))
-                <div style="text-align: right;">
-                    <span class="status-badge {{ $status['class'] }}">{{ $status['label'] }}</span>
-                </div>
-            @endif
+            
             <tr>
                 <td><span class="ref">{{ $p->reference }}</span></td>
                 <td>{{ $p->name }}</td>
