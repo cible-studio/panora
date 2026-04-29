@@ -1,3 +1,4 @@
+<!-- resources/views/client/propositions.blade.php -->
 @extends('client.layout')
 @section('title', 'Mes propositions')
 @section('page-title', 'Propositions commerciales')

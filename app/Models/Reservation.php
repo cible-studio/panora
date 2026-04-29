@@ -20,6 +20,7 @@ class Reservation extends Model
         'reference', 'client_id', 'user_id',
         'start_date', 'end_date',
         'status', 'type',
+        'proposition_slug', // Ajouté pour stocker le slug de la proposition
         'total_amount', 'notes', 'confirmed_at',
         'is_technical', 'proposition_token', 'proposition_sent_at', 
         'proposition_viewed_at', 'proposition_expires_at',

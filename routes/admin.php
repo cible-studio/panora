@@ -37,13 +37,36 @@ use App\Http\Controllers\Client\ClientDashboardController;
 
 // ── Routes propositions publiques ──────────────────────────────
 Route::prefix('proposition')->name('proposition.')->group(function () {
-    Route::get('/{token}', [PropositionController::class, 'show'])->name('show');
-    Route::post('/{token}/confirmer', [PropositionController::class, 'confirmer'])
+
+    // Ancienne URL (token 64 chars) — rétrocompatibilité
+    Route::get('/{token}', function ($token) {
+        $reservation = \App\Models\Reservation::where('proposition_token', $token)
+            ->whereNotNull('proposition_slug')
+            ->first();
+        if ($reservation) {
+            return redirect()->route('proposition.show', [
+                $reservation->reference,
+                $reservation->proposition_slug,
+            ], 301);
+        }
+        abort(404, 'Proposition introuvable.');
+    })->name('show.legacy');
+
+    // Nouvelle URL lisible + sécurisée
+    Route::get('/{reference}/{slug}', [PropositionController::class, 'showPublic'])
+        ->name('show');
+
+    Route::post('/{reference}/{slug}/confirmer', [PropositionController::class, 'confirmer'])
         ->name('confirmer')
         ->middleware('throttle:5,1');
-    Route::post('/{token}/refuser', [PropositionController::class, 'refuser'])
+
+    Route::post('/{reference}/{slug}/refuser', [PropositionController::class, 'refuser'])
         ->name('refuser')
         ->middleware('throttle:5,1');
+
+    Route::delete('/{reference}/{slug}/panneau/{panelId}', [PropositionController::class, 'retirerPanneau'])
+        ->name('retirer-panneau')
+        ->middleware('throttle:10,1');
 });
 
 // ── Routes espace client (sans auth) ──────────────────────────

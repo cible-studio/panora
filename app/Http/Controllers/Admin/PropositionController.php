@@ -1,14 +1,4 @@
 <?php
-// ══════════════════════════════════════════════════════════════════
-// app/Http/Controllers/Admin/PropositionController.php
-//
-// Contient TOUTES les méthodes liées aux propositions :
-//   - index, show, updateStatus, exportPdf  (admin CRUD)
-//   - envoyerProposition                    (depuis reservation/show)
-//   - reinitialiserProposition              (annuler l'envoi)
-//   - show (public), confirmer, refuser     (côté client public)
-// ══════════════════════════════════════════════════════════════════
-
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -26,73 +16,45 @@ class PropositionController extends Controller
     ) {}
 
     // ══════════════════════════════════════════════════════════════
-    // ADMIN — liste des propositions
+    // ADMIN — liste
     // ══════════════════════════════════════════════════════════════
-
     public function index(Request $request)
     {
         $query = Reservation::with(['client', 'user'])
             ->whereNotNull('proposition_token')
             ->withCount('panels');
 
-        if ($request->status) {
+        if ($request->status)
             $query->where('status', $request->status);
-        }
-        if ($request->search) {
+        if ($request->search)
             $query->where(fn($q) =>
                 $q->where('reference', 'like', "%{$request->search}%")
                   ->orWhereHas('client', fn($q) => $q->where('name', 'like', "%{$request->search}%"))
             );
-        }
 
         $propositions = $query->orderByDesc('proposition_sent_at')->paginate(20)->withQueryString();
-
         return view('admin.propositions.index', compact('propositions'));
     }
 
     // ══════════════════════════════════════════════════════════════
-    // ADMIN — détail d'une proposition
+    // ADMIN — détail
     // ══════════════════════════════════════════════════════════════
-
-    // Method App\Http\Controllers\Admin\PropositionController::pageErreur does not exist.
-    // corrige en remplace par une message flash et redirection vers tableau de bord ou liste des propositions
     public function show(string $token)
     {
         try {
             $reservation = $this->propositionService->validerToken($token);
         } catch (\RuntimeException $e) {
-           return redirect()->route('client.dashboard')->with('error', $e->getMessage());
+            return redirect()->route('admin.reservations.index')->with('error', $e->getMessage());
         }
 
         $this->propositionService->marquerVue($reservation);
-
-        $months = $this->monthsBetween($reservation->start_date, $reservation->end_date);
-        // Calcul du temps restant avant expiration de la proposition (en heures)
-        $expiresIn  = $reservation->proposition_expires_at
+        $months    = $this->monthsBetween($reservation->start_date, $reservation->end_date);
+        $expiresIn = $reservation->proposition_expires_at
             ? now()->diffInHours($reservation->proposition_expires_at, false)
             : null;
 
-        $panels = $reservation->panels->map(function ($panel) use ($months) {
-            $photo = $panel->photos->sortBy('ordre')->first();
-            return [
-                'id'           => $panel->id,
-                'reference'    => $panel->reference,
-                'name'         => $panel->name,
-                'commune'      => $panel->commune?->name ?? '—',
-                'zone'         => $panel->zone?->name ?? '—',
-                'format'       => $panel->format?->name ?? '—',
-                'dimensions'   => $this->formatDims($panel->format),
-                'category'     => $panel->category?->name ?? '—',
-                'is_lit'       => (bool) $panel->is_lit,
-                'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
-                'total'        => (float) ($panel->monthly_rate ?? 0) * $months,
-                'photo_url'    => $photo
-                    ? asset('storage/' . ltrim($photo->path, '/'))
-                    : null,
-            ];
-        });
+        $panels = $this->buildPanels($reservation, $months);
 
-        // Jours restants basé sur end_date (pas d'expires_at)
         $joursRestants = now()->startOfDay()->diffInDays(
             $reservation->end_date->startOfDay(), false
         );
@@ -103,9 +65,8 @@ class PropositionController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
-    // ADMIN — changer le statut d'une proposition
+    // ADMIN — statut / PDF
     // ══════════════════════════════════════════════════════════════
-
     public function updateStatus(Request $request, Reservation $proposition)
     {
         $request->validate(['status' => 'required|in:en_attente,confirme,annule,refuse']);
@@ -113,31 +74,11 @@ class PropositionController extends Controller
         return back()->with('success', 'Statut mis à jour.');
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // ADMIN — exporter une proposition en PDF
-    // ══════════════════════════════════════════════════════════════
-
     public function exportPdf(Reservation $proposition)
     {
         $proposition->load(['client', 'panels.photos', 'panels.commune', 'panels.format', 'panels.category']);
-
         $months = $this->monthsBetween($proposition->start_date, $proposition->end_date);
-        $panels = $proposition->panels->map(function ($panel) use ($months) {
-            $photo = $panel->photos->sortBy('ordre')->first();
-            return [
-                'reference'    => $panel->reference,
-                'name'         => $panel->name,
-                'commune'      => $panel->commune?->name ?? '—',
-                'zone'         => $panel->zone?->name ?? '—',
-                'format'       => $panel->format?->name ?? '—',
-                'dimensions'   => $this->formatDims($panel->format),
-                'category'     => $panel->category?->name ?? '—',
-                'is_lit'       => (bool) $panel->is_lit,
-                'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
-                'total'        => (float) ($panel->monthly_rate ?? 0) * $months,
-                'photo_url'    => $photo ? asset('storage/' . ltrim($photo->path, '/')) : null,
-            ];
-        });
+        $panels = $this->buildPanels($proposition, $months);
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.propositions.pdf', [
             'reservation' => $proposition,
@@ -149,36 +90,30 @@ class PropositionController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
-    // ADMIN — ENVOYER une proposition à un client
-    // POST /admin/reservations/{reservation}/proposition/envoyer
+    // ADMIN — envoyer proposition
     // ══════════════════════════════════════════════════════════════
-
     public function envoyerProposition(Request $request, Reservation $reservation)
     {
-        // Vérifications métier
-        if (!$reservation->client) {
-            return back()->with('error', 'Cette réservation n\'a pas de client associé.');
-        }
-        if ($reservation->client->trashed()) {
+        if (!$reservation->client)
+            return back()->with('error', 'Pas de client associé.');
+        if ($reservation->client->trashed())
             return back()->with('error', 'Client supprimé — envoi impossible.');
-        }
-        if (empty($reservation->client->email)) {
-            return back()->with('error', "Ce client n'a pas d'email. Ajoutez-en un d'abord.");
-        }
-        if (!in_array($reservation->status->value, ['en_attente', 'confirme'])) {
-            return back()->with('error', "Impossible d'envoyer une proposition pour une réservation {$reservation->status->value}.");
-        }
+        if (empty($reservation->client->email))
+            return back()->with('error', "Ce client n'a pas d'email.");
+        if (!in_array($reservation->status->value, ['en_attente', 'confirme']))
+            return back()->with('error', "Impossible d'envoyer pour une réservation {$reservation->status->value}.");
 
-        // Si déjà une proposition envoyée, on régénère le token
+        // Générer token long (sécurité BD) + slug court (URL lisible)
         $token = $reservation->proposition_token ?? Str::random(64);
+        $slug  = $reservation->proposition_slug  ?? Str::random(8);
 
         $reservation->update([
-            'proposition_token'   => $token,
-            'proposition_sent_at' => now(),
+            'proposition_token'      => $token,
+            'proposition_slug'       => $slug,
+            'proposition_sent_at'    => now(),
             'proposition_expires_at' => now()->addDays(30),
         ]);
 
-        // Envoi email
         try {
             \Mail::to($reservation->client->email)->send(
                 new \App\Mail\PropositionMail($reservation, $token)
@@ -187,7 +122,6 @@ class PropositionController extends Controller
             Log::info('proposition.sent', [
                 'reservation_id' => $reservation->id,
                 'reference'      => $reservation->reference,
-                'client_id'      => $reservation->client_id,
                 'client_email'   => $reservation->client->email,
                 'user_id'        => auth()->id(),
             ]);
@@ -199,107 +133,84 @@ class PropositionController extends Controller
                 'reservation_id' => $reservation->id,
                 'error'          => $e->getMessage(),
             ]);
-
-            // Token généré mais email échoué → on retourne le lien quand même
-            $link = route('proposition.show', $token);
-            return back()->with('warning', "⚠️ Erreur email. Lien de proposition : {$link}");
+            $link = route('proposition.show', [$reservation->reference, $slug]);
+            return back()->with('warning', "⚠️ Erreur email. Lien : {$link}");
         }
     }
 
     // ══════════════════════════════════════════════════════════════
-    // ADMIN — RÉINITIALISER une proposition (supprimer le token)
-    // POST /admin/reservations/{reservation}/proposition/reinitialiser
+    // ADMIN — réinitialiser
     // ══════════════════════════════════════════════════════════════
-
     public function reinitialiserProposition(Reservation $reservation)
     {
-        if (!$reservation->proposition_token) {
-            return back()->with('error', 'Aucune proposition active à réinitialiser.');
-        }
+        if (!$reservation->proposition_token)
+            return back()->with('error', 'Aucune proposition active.');
 
         $reservation->update([
             'proposition_token'      => null,
+            'proposition_slug'       => null,
             'proposition_sent_at'    => null,
             'proposition_expires_at' => null,
             'proposition_viewed_at'  => null,
-        ]);
-
-        Log::info('proposition.reset', [
-            'reservation_id' => $reservation->id,
-            'user_id'        => auth()->id(),
         ]);
 
         return back()->with('success', 'Proposition réinitialisée. Le lien précédent ne fonctionne plus.');
     }
 
     // ══════════════════════════════════════════════════════════════
-    // PUBLIC — afficher la proposition (côté client, lien email)
-    // GET /proposition/{token}
+    // PUBLIC — afficher proposition (nouvelle URL)
+    // GET /proposition/{reference}/{slug}
     // ══════════════════════════════════════════════════════════════
-
-    public function showPublic(string $token)
+    public function showPublic(string $reference, string $slug)
     {
-        try {
-            $reservation = $this->propositionService->validerToken($token);
-        } catch (\RuntimeException $e) {
-            // Proposition expirée ou traitée — on affiche quand même en lecture seule
-            $reservation = Reservation::where('proposition_token', $token)->firstOrFail();
+        // Double vérification : reference + slug doivent matcher
+        $reservation = Reservation::where('reference', $reference)
+            ->where('proposition_slug', $slug)
+            ->whereNotNull('proposition_token')
+            ->with(['client', 'panels.photos', 'panels.commune',
+                    'panels.zone', 'panels.format', 'panels.category'])
+            ->first();
+
+        if (!$reservation) {
+            abort(404, 'Proposition introuvable ou lien invalide.');
         }
 
         $this->propositionService->marquerVue($reservation);
 
         $months = $this->monthsBetween($reservation->start_date, $reservation->end_date);
+        $panels = $this->buildPanels($reservation, $months);
 
-        $panels = $reservation->panels->map(function ($panel) use ($months) {
-            $photo = $panel->photos->sortBy('ordre')->first();
-            return [
-                'reference'    => $panel->reference,
-                'name'         => $panel->name,
-                'commune'      => $panel->commune?->name ?? '—',
-                'zone'         => $panel->zone?->name    ?? '—',
-                'format'       => $panel->format?->name  ?? '—',
-                'dimensions'   => $this->formatDims($panel->format),
-                'category'     => $panel->category?->name ?? '—',
-                'is_lit'       => (bool) $panel->is_lit,
-                'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
-                'total'        => (float) ($panel->monthly_rate ?? 0) * $months,
-                'photo_url'    => $photo ? asset('storage/' . ltrim($photo->path, '/')) : null,
-            ];
-        });
-
-        // Calcul expiration
         $expiresIn = null;
         if ($reservation->proposition_expires_at) {
             $expiresIn = (int) now()->diffInHours($reservation->proposition_expires_at, false);
         }
 
-        return view('proposition.show', compact('reservation', 'panels', 'months', 'token', 'expiresIn'));
+        // La proposition est-elle encore active ?
+        $isExpired = $expiresIn !== null && $expiresIn <= 0;
+        $isActif   = !$isExpired
+            && in_array($reservation->status->value, ['en_attente']);
+
+        return view('proposition.show', compact(
+            'reservation', 'panels', 'months',
+            'reference', 'slug', 'expiresIn', 'isExpired', 'isActif'
+        ));
     }
 
     // ══════════════════════════════════════════════════════════════
-    // PUBLIC — confirmer la proposition
-    // POST /proposition/{token}/confirmer
+    // PUBLIC — confirmer
     // ══════════════════════════════════════════════════════════════
-
-    public function confirmer(string $token)
+    public function confirmer(string $reference, string $slug)
     {
-        try {
-            $reservation = $this->propositionService->validerToken($token);
-        } catch (\RuntimeException $e) {
-            return redirect()->route('proposition.show', $token)
-                ->with('error', $e->getMessage());
-        }
-
-        $campaign = null;
+        $reservation = $this->findBySlug($reference, $slug);
+        if (!$reservation)
+            abort(404);
 
         try {
+            $token    = $reservation->proposition_token;
             $campaign = $this->propositionService->confirmer($reservation);
         } catch (\Exception $e) {
-            Log::error('proposition.confirmer_failed', [
-                'token' => $token,
-                'error' => $e->getMessage(),
-            ]);
-            return redirect()->route('proposition.show', $token)
+            Log::error('proposition.confirmer_failed', ['error' => $e->getMessage()]);
+            return redirect()->route('proposition.show', [$reference, $slug])
                 ->with('error', 'Erreur lors de la confirmation. Contactez votre commercial.');
         }
 
@@ -311,18 +222,13 @@ class PropositionController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
-    // PUBLIC — refuser la proposition
-    // POST /proposition/{token}/refuser
+    // PUBLIC — refuser
     // ══════════════════════════════════════════════════════════════
-
-    public function refuser(Request $request, string $token)
+    public function refuser(Request $request, string $reference, string $slug)
     {
-        try {
-            $reservation = $this->propositionService->validerToken($token);
-        } catch (\RuntimeException $e) {
-            return redirect()->route('proposition.show', $token)
-                ->with('error', $e->getMessage());
-        }
+        $reservation = $this->findBySlug($reference, $slug);
+        if (!$reservation)
+            abort(404);
 
         $this->propositionService->refuser($reservation, $request->input('motif'));
 
@@ -333,8 +239,82 @@ class PropositionController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
-    // HELPERS PRIVÉS
+    // PUBLIC — retirer un panneau de la proposition
+    // DELETE /proposition/{reference}/{slug}/panneau/{panelId}
     // ══════════════════════════════════════════════════════════════
+    public function retirerPanneau(string $reference, string $slug, int $panelId)
+    {
+        $reservation = $this->findBySlug($reference, $slug);
+
+        if (!$reservation || $reservation->status->value !== 'en_attente')
+            abort(403, 'Impossible de modifier cette proposition.');
+
+        // Vérifier que le panneau appartient bien à cette réservation
+        if (!$reservation->panels->contains('id', $panelId))
+            abort(403, 'Panneau non trouvé dans cette proposition.');
+
+        // Empêcher de retirer le dernier panneau
+        if ($reservation->panels->count() <= 1)
+            return redirect()->route('proposition.show', [$reference, $slug])
+                ->with('error', 'Impossible de retirer le dernier panneau.');
+
+        // Retirer le panneau
+        $reservation->panels()->detach($panelId);
+
+        // Recalculer le total
+        $months   = $this->monthsBetween($reservation->start_date, $reservation->end_date);
+        $newTotal = $reservation->panels()
+            ->get()
+            ->sum(fn($p) => (float) ($p->pivot->total_price ?? ($p->monthly_rate * $months)));
+
+        $reservation->update(['total_amount' => $newTotal]);
+
+        Log::info('proposition.panneau_retire', [
+            'reservation_id' => $reservation->id,
+            'panel_id'       => $panelId,
+        ]);
+
+        return redirect()->route('proposition.show', [$reference, $slug])
+            ->with('success', 'Panneau retiré de la proposition.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // HELPERS
+    // ══════════════════════════════════════════════════════════════
+
+    private function findBySlug(string $reference, string $slug): ?Reservation
+    {
+        return Reservation::where('reference', $reference)
+            ->where('proposition_slug', $slug)
+            ->whereNotNull('proposition_token')
+            ->with(['client', 'panels.photos', 'panels.commune',
+                    'panels.zone', 'panels.format', 'panels.category'])
+            ->first();
+    }
+
+    private function buildPanels(Reservation $reservation, float $months): \Illuminate\Support\Collection
+    {
+        return $reservation->panels->map(function ($panel) use ($months) {
+            $photo = $panel->photos->sortBy('ordre')->first();
+            return [
+                'id'           => $panel->id,
+                'reference'    => $panel->reference,
+                'name'         => $panel->name,
+                'commune'      => $panel->commune?->name ?? '—',
+                'zone'         => $panel->zone?->name    ?? '—',
+                'format'       => $panel->format?->name  ?? '—',
+                'dimensions'   => $this->formatDims($panel->format),
+                'category'     => $panel->category?->name ?? '—',
+                'is_lit'       => (bool) $panel->is_lit,
+                // ← Utiliser le prix pivot (négocié) si disponible
+                'monthly_rate' => (float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0),
+                'total'        => (float) ($panel->pivot->total_price ?? ($panel->monthly_rate ?? 0) * $months),
+                'photo_url'    => $photo
+                    ? asset('storage/' . ltrim($photo->path, '/'))
+                    : null,
+            ];
+        });
+    }
 
     private function monthsBetween($start, $end): float
     {

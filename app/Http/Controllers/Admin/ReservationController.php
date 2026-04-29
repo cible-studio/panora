@@ -604,8 +604,10 @@ class ReservationController extends Controller
 
         $createdCampaignId = null;
 
+        $reservation = null;
+
         try {
-            DB::transaction(function () use ($request, $internalIds, $externalIds, &$createdCampaignId) {
+            DB::transaction(function () use ($request, $internalIds, $externalIds, &$createdCampaignId, &$reservation) {
                 Panel::whereIn('id', $internalIds)->lockForUpdate()->get();
 
                 $conflicts = $this->availability->getUnavailablePanelIds(

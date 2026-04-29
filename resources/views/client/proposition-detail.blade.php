@@ -1,3 +1,4 @@
+<!-- resources/views/client/proposition-detail.blade.php -->
 @extends('client.layout')
 @section('title', 'Proposition ' . $reservation->reference)
 @section('page-title', 'Détail de la proposition')

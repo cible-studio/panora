@@ -1,3 +1,4 @@
+<!-- admin/propositions/show.blade.php -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -211,6 +212,7 @@
       @endif
 
       <div class="panel-body">
+
         <div class="panel-ref">{{ $panel['reference'] }}</div>
         <div class="panel-name">{{ Str::limit($panel['name'], 45) }}</div>
         <div class="panel-meta">
@@ -232,6 +234,21 @@
           @endif
         </div>
       </div>
+      if($isActif)
+      <div style="padding:0 16px 14px;">
+          <form method="POST"
+                action="{{ route('proposition.retirer-panneau', [$reference, $slug, $panel['id']]) }}"
+                onsubmit="return confirm('Retirer ce panneau de la proposition ?')">
+              @csrf @method('DELETE')
+              <button type="submit"
+                      style="width:100%;padding:7px;font-size:11px;color:#ef4444;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:8px;cursor:pointer;transition:all .15s"
+                      onmouseover="this.style.background='rgba(239,68,68,0.12)'"
+                      onmouseout="this.style.background='rgba(239,68,68,0.06)'">
+                  ✕ Retirer ce panneau
+              </button>
+          </form>
+      </div>
+      @endif
     </div>
     @endforeach
   </div>
@@ -307,7 +324,7 @@
     <h3>✗ Refuser la proposition</h3>
     <p>Souhaitez-vous indiquer un motif ? Cela nous aidera à mieux vous proposer des emplacements adaptés.</p>
 
-    <form method="POST" action="{{ route('proposition.refuser', $token) }}" id="form-refuser">
+    <form method="POST" action="{{ route('proposition.refuser', [$reference, $slug]) }}" id="form-refuser">
       @csrf
       <textarea name="motif" placeholder="Motif (optionnel) — ex: budget insuffisant, zones non souhaitées..."></textarea>
       <div class="modal-btns">
@@ -319,7 +336,7 @@
 </div>
 
 {{-- Formulaire de confirmation caché --}}
-<form method="POST" action="{{ route('proposition.confirmer', $token) }}" id="form-confirmer" style="display:none;">
+<form method="POST" action="{{ route('proposition.confirmer', [$reference, $slug]) }}" id="form-confirmer" style="display:none;">
   @csrf
 </form>
 
