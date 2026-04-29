@@ -885,21 +885,24 @@ function _showLoader(){const l=_el('loader'),g=_el('panels-grid'),e=_el('empty-s
 function _showEmpty(title,sub){_hide('loader');const g=_el('panels-grid');if(g)g.innerHTML='';const tb=_el('panels-list-body');if(tb)tb.innerHTML='';const e=_el('empty-state');if(e)e.style.display='block';const t=_el('empty-title');if(t)t.textContent=title;const s=_el('empty-sub');if(s)s.textContent=sub;}
 function _showDateErr(msg){const el=_el('date-error');if(el){el.textContent='⚠️ '+msg;el.classList.remove('hidden');}}
 function _hideDateErr(){const el=_el('date-error');if(el)el.classList.add('hidden');}
-function _months(s,e){
+function _months(s, e) {
     const a = new Date(s + 'T00:00:00');
-    const b = new Date(e + 'T23:59:59');
+    const b = new Date(e + 'T00:00:00');
 
-    // Nombre de mois complets entre les deux dates
-    let months = (b.getFullYear() - a.getFullYear()) * 12
-               + (b.getMonth()    - a.getMonth());
+    const totalDays = Math.round((b - a) / (1000 * 60 * 60 * 24));
+    if (totalDays <= 0) return 0.5;
 
-    // Vérifier s'il reste des jours après les mois complets
-    const afterMonths = new Date(a.getFullYear(), a.getMonth() + months, a.getDate());
-    const remainDays  = Math.floor((b - afterMonths) / (1000 * 60 * 60 * 24));
+    const fullMonths = Math.floor(totalDays / 30);
+    const remainDays = totalDays % 30;
 
-    // Si des jours restent → arrondir au mois supérieur (même logique que PHP)
-    const result = remainDays > 0 ? months + 1 : months;
-    return Math.max(result, 1);
+    let fraction = 0;
+    if (remainDays >= 1 && remainDays <= 15) {
+        fraction = 0.5;
+    } else if (remainDays > 15) {
+        fraction = 1;
+    }
+
+    return Math.max(fullMonths + fraction, 0.5);
 }
 document.addEventListener('DOMContentLoaded',()=>{
     document.querySelectorAll('.ms-wrapper').forEach(buildMs);
