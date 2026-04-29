@@ -25,6 +25,7 @@ use App\Services\AlertService;
 class PanelController extends Controller
 {
     // ── LISTE ──
+    // ── LISTE ──
     public function index(Request $request)
     {
         $source = $request->input('source', 'all');
@@ -43,7 +44,8 @@ class PanelController extends Controller
 
             // 🔍 RECHERCHE EXACTE SUR MOT ENTIER
             // Exemple : "ABG" trouve "ABG-002" mais pas "CABG-001"
-           if ($request->filled('search')) {
+
+            if ($request->filled('search')) {
                 $search = strtolower(trim($request->search));
                 $escapedSearch = preg_quote($search, '/');
                 $pattern = '(^|[^a-zA-ZÀ-ÿ0-9])' . $escapedSearch . '([^a-zA-ZÀ-ÿ0-9]|$)';
@@ -56,9 +58,16 @@ class PanelController extends Controller
                     ->orWhereHas('commune', function($c) use ($pattern) {
                         $c->whereRaw('LOWER(name) REGEXP ?', [$pattern]);
                     });
+                        ->orWhereRaw('LOWER(name) REGEXP ?', [$pattern])
+                        ->orWhereRaw('LOWER(quartier) REGEXP ?', [$pattern])
+                        ->orWhereRaw('LOWER(adresse) REGEXP ?', [$pattern])
+                        ->orWhereHas('commune', function ($c) use ($pattern) {
+                            $c->whereRaw('LOWER(name) REGEXP ?', [$pattern]);
+                        });
+
                 });
             }
-            
+
             if ($request->filled('commune_id')) {
                 $query->where('commune_id', $request->commune_id);
             }
@@ -99,7 +108,8 @@ class PanelController extends Controller
 
             $externalQuery->where(function ($q) use ($pattern) {
                 $q->whereRaw('LOWER(code_panneau) REGEXP ?', [$pattern])
-                ->orWhereRaw('LOWER(designation) REGEXP ?', [$pattern]);
+                    ->orWhereRaw('LOWER(designation) REGEXP ?', [$pattern]);
+            });
             });
         }
         if ($request->filled('commune_id')) {
