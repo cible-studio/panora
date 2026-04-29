@@ -424,7 +424,7 @@
         </div>
     </div>
 
-    <div class="overflow-x-auto">
+    <div class="">
         <table class="w-full border-collapse">
             <thead>
                 <tr class="border-b border-[#2a2a35]">
@@ -581,7 +581,7 @@
 
                     {{-- Total période --}}
                     <td class="p-3 text-right">
-                        <span class="text-sm font-bold text-white">
+                        <span class="text-sm font-bold text-gray-400">
                             {{ number_format($totalPrice, 0, ',', ' ') }}
                             <span class="text-xs font-normal text-gray-500">FCFA</span>
                         </span>
