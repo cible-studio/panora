@@ -1,16 +1,4 @@
 {{--
-
-  USAGE dans show.blade.php — ajouter où tu veux les actions :
-  @include('admin.reservations.partials.proposition-actions', ['reservation' => $reservation])
-
-  Ce partial gère :
-  - Bouton "Envoyer proposition" (si en_attente + email client)
-  - Statut de la proposition (envoyée, vue, expirée)
-  - Bouton "Renvoyer" / "Réinitialiser"
-  - Lien de copie du lien client
---}}
-
-{{--
   COMPOSANT PROFESSIONNEL : Proposition commerciale
   Usage : @include('admin.reservations.partials.proposition-actions', ['reservation' => $reservation])
 --}}
@@ -136,11 +124,14 @@
     </div>
 </div>
 
-{{-- Styles du composant --}}
+{{-- Styles du composant - Compatible Light & Dark --}}
 <style>
+/* ============================================
+   BASE STYLES - Utilisation des variables CSS
+   ============================================ */
 .proposition-card {
-    background: rgba(232, 160, 32, 0.04);
-    border: 1px solid rgba(232, 160, 32, 0.15);
+    background: var(--proposition-bg, rgba(232, 160, 32, 0.04));
+    border: 1px solid var(--proposition-border, rgba(232, 160, 32, 0.15));
     border-radius: 16px;
     padding: 20px 24px;
     margin: 20px 0;
@@ -148,8 +139,8 @@
 }
 
 .proposition-card:hover {
-    border-color: rgba(232, 160, 32, 0.3);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: var(--proposition-border-hover, rgba(232, 160, 32, 0.3));
+    box-shadow: 0 4px 12px var(--shadow-color, rgba(0, 0, 0, 0.1));
 }
 
 .proposition-header {
@@ -169,7 +160,7 @@
 
 .proposition-icon {
     font-size: 24px;
-    background: rgba(232, 160, 32, 0.1);
+    background: var(--icon-bg, rgba(232, 160, 32, 0.1));
     width: 44px;
     height: 44px;
     display: flex;
@@ -181,18 +172,19 @@
 .proposition-title h3 {
     font-size: 15px;
     font-weight: 700;
-    color: #e8a020;
+    color: var(--accent, #e8a020);
     margin: 0;
 }
 
 .proposition-title p {
     font-size: 12px;
-    color: #64748b;
+    color: var(--text-muted, #64748b);
     margin: 2px 0 0;
 }
 
+/* Informations */
 .proposition-info {
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--info-bg, rgba(0, 0, 0, 0.15));
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 16px;
@@ -216,20 +208,20 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #64748b;
+    color: var(--text-muted, #64748b);
 }
 
 .info-value {
     font-size: 13px;
-    color: #e2e8f0;
+    color: var(--text-primary, #e2e8f0);
 }
 
 .info-value.viewed {
-    color: #86efac;
+    color: var(--success, #86efac);
 }
 
 .info-value.expiring-soon {
-    color: #fca5a5;
+    color: var(--danger-light, #fca5a5);
 }
 
 .info-sub {
@@ -238,8 +230,9 @@
     margin-left: 4px;
 }
 
+/* Lien client */
 .client-link-container {
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
     padding-top: 14px;
     margin-top: 4px;
 }
@@ -253,23 +246,24 @@
 
 .client-link-input {
     flex: 1;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--input-bg, rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--input-border, rgba(255, 255, 255, 0.08));
     border-radius: 8px;
     padding: 8px 12px;
     font-size: 11px;
     font-family: monospace;
-    color: #94a3b8;
+    color: var(--text-secondary, #94a3b8);
     min-width: 0;
     transition: all 0.2s;
 }
 
 .client-link-input:focus {
     outline: none;
-    border-color: #e8a020;
-    color: #e2e8f0;
+    border-color: var(--accent, #e8a020);
+    color: var(--text-primary, #e2e8f0);
 }
 
+/* Boutons */
 .btn-copy, .btn-view {
     padding: 8px 16px;
     border-radius: 8px;
@@ -282,30 +276,31 @@
 }
 
 .btn-copy {
-    background: rgba(232, 160, 32, 0.1);
-    border: 1px solid rgba(232, 160, 32, 0.2);
-    color: #e8a020;
+    background: var(--copy-bg, rgba(232, 160, 32, 0.1));
+    border: 1px solid var(--copy-border, rgba(232, 160, 32, 0.2));
+    color: var(--accent, #e8a020);
 }
 
 .btn-copy:hover {
-    background: rgba(232, 160, 32, 0.2);
-    border-color: #e8a020;
+    background: var(--copy-bg-hover, rgba(232, 160, 32, 0.2));
+    border-color: var(--accent, #e8a020);
 }
 
 .btn-view {
-    background: rgba(59, 130, 246, 0.1);
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    color: #93c5fd;
+    background: var(--view-bg, rgba(59, 130, 246, 0.1));
+    border: 1px solid var(--view-border, rgba(59, 130, 246, 0.2));
+    color: var(--info, #60a5fa);
 }
 
 .btn-view:hover {
-    background: rgba(59, 130, 246, 0.2);
-    border-color: #3b82f6;
+    background: var(--view-bg-hover, rgba(59, 130, 246, 0.2));
+    border-color: var(--info-dark, #3b82f6);
 }
 
+/* Alerte */
 .alert-warning {
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: var(--alert-bg, rgba(239, 68, 68, 0.08));
+    border: 1px solid var(--alert-border, rgba(239, 68, 68, 0.2));
     border-radius: 10px;
     padding: 12px 16px;
     margin-bottom: 16px;
@@ -315,22 +310,19 @@
     font-size: 12px;
 }
 
-.alert-warning span {
-    font-size: 18px;
-}
-
 .alert-warning p {
     margin: 0;
-    color: #fca5a5;
+    color: var(--danger-light, #fca5a5);
 }
 
 .alert-link {
-    color: #fca5a5;
+    color: var(--danger-light, #fca5a5);
     text-decoration: underline;
     margin-left: auto;
     white-space: nowrap;
 }
 
+/* Actions */
 .proposition-actions {
     display: flex;
     gap: 12px;
@@ -352,48 +344,120 @@
 }
 
 .btn-primary {
-    background: #e8a020;
-    color: #0b0e17;
+    background: var(--accent, #e8a020);
+    color: var(--btn-primary-text, #0b0e17);
 }
 
 .btn-primary:hover {
-    background: #f0b33a;
+    background: var(--accent-hover, #f0b33a);
     transform: translateY(-1px);
 }
 
-.btn-primary:active {
-    transform: translateY(0);
-}
-
 .btn-secondary {
-    background: transparent;
-    color: #94a3b8;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--btn-secondary-bg, transparent);
+    color: var(--text-secondary, #94a3b8);
+    border: 1px solid var(--btn-secondary-border, rgba(255, 255, 255, 0.1));
 }
 
 .btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #e2e8f0;
+    background: var(--btn-secondary-bg-hover, rgba(255, 255, 255, 0.05));
+    border-color: var(--btn-secondary-border-hover, rgba(255, 255, 255, 0.2));
+    color: var(--text-primary, #e2e8f0);
 }
 
 .client-email {
     font-size: 11px;
-    color: #64748b;
+    color: var(--text-muted, #64748b);
     margin-left: auto;
 }
 
-/* Animation */
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+/* ============================================
+   MODE LIGHT (par défaut)
+   ============================================ */
+:root,
+[data-theme="light"] {
+    --proposition-bg: rgba(232, 160, 32, 0.04);
+    --proposition-border: rgba(232, 160, 32, 0.2);
+    --proposition-border-hover: rgba(232, 160, 32, 0.4);
+    --shadow-color: rgba(0, 0, 0, 0.08);
+    --icon-bg: rgba(232, 160, 32, 0.08);
+    --accent: #d48a00;
+    --accent-hover: #e8a020;
+    --btn-primary-text: #0b0e17;
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --info-bg: #f1f5f9;
+    --success: #16a34a;
+    --danger-light: #dc2626;
+    --border-light: #e2e8f0;
+    --input-bg: #f8fafc;
+    --input-border: #e2e8f0;
+    --copy-bg: rgba(212, 138, 0, 0.08);
+    --copy-border: rgba(212, 138, 0, 0.2);
+    --copy-bg-hover: rgba(212, 138, 0, 0.15);
+    --view-bg: rgba(37, 99, 235, 0.08);
+    --view-border: rgba(37, 99, 235, 0.2);
+    --view-bg-hover: rgba(37, 99, 235, 0.15);
+    --info: #2563eb;
+    --info-dark: #1d4ed8;
+    --alert-bg: rgba(220, 38, 38, 0.06);
+    --alert-border: rgba(220, 38, 38, 0.15);
+    --btn-secondary-bg: #f1f5f9;
+    --btn-secondary-border: #e2e8f0;
+    --btn-secondary-bg-hover: #e2e8f0;
+    --btn-secondary-border-hover: #cbd5e1;
 }
 
+/* ============================================
+   MODE DARK
+   ============================================ */
+[data-theme="dark"] {
+    --proposition-bg: rgba(232, 160, 32, 0.06);
+    --proposition-border: rgba(232, 160, 32, 0.15);
+    --proposition-border-hover: rgba(232, 160, 32, 0.3);
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --icon-bg: rgba(232, 160, 32, 0.12);
+    --accent: #e8a020;
+    --accent-hover: #f0b33a;
+    --btn-primary-text: #0b0e17;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --info-bg: rgba(0, 0, 0, 0.25);
+    --success: #86efac;
+    --danger-light: #fca5a5;
+    --border-light: rgba(255, 255, 255, 0.08);
+    --input-bg: rgba(0, 0, 0, 0.3);
+    --input-border: rgba(255, 255, 255, 0.08);
+    --copy-bg: rgba(232, 160, 32, 0.12);
+    --copy-border: rgba(232, 160, 32, 0.2);
+    --copy-bg-hover: rgba(232, 160, 32, 0.2);
+    --view-bg: rgba(59, 130, 246, 0.12);
+    --view-border: rgba(59, 130, 246, 0.2);
+    --view-bg-hover: rgba(59, 130, 246, 0.2);
+    --info: #60a5fa;
+    --info-dark: #3b82f6;
+    --alert-bg: rgba(239, 68, 68, 0.08);
+    --alert-border: rgba(239, 68, 68, 0.2);
+    --btn-secondary-bg: transparent;
+    --btn-secondary-border: rgba(255, 255, 255, 0.08);
+    --btn-secondary-bg-hover: rgba(255, 255, 255, 0.05);
+    --btn-secondary-border-hover: rgba(255, 255, 255, 0.15);
+}
+
+/* États désactivés */
 .btn-primary:disabled,
 .btn-secondary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
+}
+
+.btn-copy.copied {
+    background: var(--success, #22c55e);
+    color: #fff;
+    border-color: var(--success, #22c55e);
 }
 </style>
 
@@ -404,7 +468,6 @@
 window.PropositionActions = {
     csrf: document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
     
-    // ── Confirmer l'envoi ─────────────────────────────────────
     confirmSend(reservationId) {
         this._showModal({
             title: '📧 Envoyer la proposition',
@@ -417,7 +480,6 @@ window.PropositionActions = {
         });
     },
 
-    // ── Confirmer le renvoi ───────────────────────────────────
     confirmResend(reservationId) {
         this._showModal({
             title: '🔄 Renvoyer la proposition',
@@ -430,7 +492,6 @@ window.PropositionActions = {
         });
     },
 
-    // ── Confirmer la réinitialisation ─────────────────────────
     confirmReset(reservationId) {
         this._showModal({
             title: '🔄 Réinitialiser le lien',
@@ -443,10 +504,8 @@ window.PropositionActions = {
         });
     },
 
-    // ── Envoi de la proposition ───────────────────────────────
     async _sendProposition(reservationId, action) {
         this._setLoading(true);
-        
         try {
             const response = await fetch(`/admin/reservations/${reservationId}/proposition/${action === 'send' ? 'envoyer' : 'renvoyer'}`, {
                 method: 'POST',
@@ -456,9 +515,7 @@ window.PropositionActions = {
                     'Content-Type': 'application/json'
                 }
             });
-
             const data = await response.json();
-
             if (data.success) {
                 this._showToast(data.message, 'success');
                 setTimeout(() => location.reload(), 1500);
@@ -466,17 +523,14 @@ window.PropositionActions = {
                 this._showToast(data.message || 'Une erreur est survenue.', 'error');
             }
         } catch (error) {
-            console.error('Erreur:', error);
             this._showToast('Erreur de connexion. Veuillez réessayer.', 'error');
         } finally {
             this._setLoading(false);
         }
     },
 
-    // ── Réinitialisation ──────────────────────────────────────
     async _resetProposition(reservationId) {
         this._setLoading(true);
-        
         try {
             const response = await fetch(`/admin/reservations/${reservationId}/proposition/reinitialiser`, {
                 method: 'POST',
@@ -486,9 +540,7 @@ window.PropositionActions = {
                     'Content-Type': 'application/json'
                 }
             });
-
             const data = await response.json();
-
             if (data.success) {
                 this._showToast(data.message, 'success');
                 setTimeout(() => location.reload(), 1500);
@@ -496,20 +548,16 @@ window.PropositionActions = {
                 this._showToast(data.message || 'Une erreur est survenue.', 'error');
             }
         } catch (error) {
-            console.error('Erreur:', error);
             this._showToast('Erreur de connexion. Veuillez réessayer.', 'error');
         } finally {
             this._setLoading(false);
         }
     },
 
-    // ── Copier le lien ────────────────────────────────────────
     copyLink(inputId, btn) {
         const input = document.getElementById(inputId);
         if (!input) return;
-
         const originalText = btn.innerHTML;
-        
         navigator.clipboard.writeText(input.value).then(() => {
             btn.innerHTML = '✅ Copié !';
             btn.classList.add('copied');
@@ -525,9 +573,7 @@ window.PropositionActions = {
         });
     },
 
-    // ── Affichage modal (système unifié) ──────────────────────
     _showModal(options) {
-        // Supprimer modal existante
         const existingModal = document.getElementById('proposition-modal');
         if (existingModal) existingModal.remove();
 
@@ -547,30 +593,22 @@ window.PropositionActions = {
                     ${options.details ? `<p class="proposition-modal-details">${options.details}</p>` : ''}
                 </div>
                 <div class="proposition-modal-footer">
-                    <button class="proposition-modal-btn proposition-modal-btn-cancel" onclick="PropositionActions._closeModal()">
-                        Annuler
-                    </button>
-                    <button class="proposition-modal-btn ${options.confirmClass}" id="proposition-modal-confirm">
-                        ${options.confirmText}
-                    </button>
+                    <button class="proposition-modal-btn proposition-modal-btn-cancel" onclick="PropositionActions._closeModal()">Annuler</button>
+                    <button class="proposition-modal-btn ${options.confirmClass}" id="proposition-modal-confirm">${options.confirmText}</button>
                 </div>
             </div>
         `;
 
         document.body.appendChild(modal);
         document.body.style.overflow = 'hidden';
-        
-        // Animation d'entrée
         setTimeout(() => modal.classList.add('active'), 10);
 
-        // Gestionnaire de confirmation
         const confirmBtn = document.getElementById('proposition-modal-confirm');
         confirmBtn.onclick = () => {
             this._closeModal();
             if (options.onConfirm) options.onConfirm();
         };
 
-        // Fermer avec Escape
         const handleEscape = (e) => {
             if (e.key === 'Escape') {
                 this._closeModal();
@@ -602,28 +640,14 @@ window.PropositionActions = {
 
     _setLoading(isLoading) {
         const buttons = document.querySelectorAll('.btn-primary, .btn-secondary');
-        buttons.forEach(btn => {
-            btn.disabled = isLoading;
-        });
+        buttons.forEach(btn => btn.disabled = isLoading);
     },
 
-    // ── Toast notification ────────────────────────────────────
     _showToast(message, type) {
-        const colors = { 
-            success: '#22c55e', 
-            error: '#ef4444', 
-            warning: '#f97316' 
-        };
-        
         const toast = document.createElement('div');
         toast.className = `proposition-toast ${type}`;
-        toast.innerHTML = `
-            <div class="toast-icon">${type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️'}</div>
-            <div class="toast-message">${message}</div>
-        `;
-        
+        toast.innerHTML = `<div class="toast-icon">${type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️'}</div><div class="toast-message">${message}</div>`;
         document.body.appendChild(toast);
-        
         setTimeout(() => toast.classList.add('show'), 10);
         setTimeout(() => {
             toast.classList.remove('show');
@@ -632,210 +656,79 @@ window.PropositionActions = {
     }
 };
 
-// Styles modals et toasts
+// Styles globaux
 (function addGlobalStyles() {
     if (document.getElementById('proposition-global-styles')) return;
-    
     const style = document.createElement('style');
     style.id = 'proposition-global-styles';
     style.textContent = `
-        /* Modal styles */
         .proposition-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 99999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            visibility: hidden;
-            opacity: 0;
-            transition: all 0.3s ease;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 99999;
+            display: flex; align-items: center; justify-content: center;
+            visibility: hidden; opacity: 0; transition: all 0.3s ease;
         }
-        
-        .proposition-modal.active {
-            visibility: visible;
-            opacity: 1;
-        }
-        
+        .proposition-modal.active { visibility: visible; opacity: 1; }
         .proposition-modal-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(4px);
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px);
         }
-        
         .proposition-modal-container {
-            position: relative;
-            background: var(--surface, #1e293b);
-            border-radius: 20px;
-            width: 90%;
-            max-width: 480px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            transform: scale(0.95);
-            transition: transform 0.3s ease;
+            position: relative; background: var(--surface, #1e293b); border-radius: 20px;
+            width: 90%; max-width: 480px; transform: scale(0.95); transition: transform 0.3s ease;
             border: 1px solid var(--border, #334155);
         }
-        
-        .proposition-modal.active .proposition-modal-container {
-            transform: scale(1);
-        }
-        
+        .proposition-modal.active .proposition-modal-container { transform: scale(1); }
         .proposition-modal-container.confirm { border-top: 3px solid #3b82f6; }
         .proposition-modal-container.warning { border-top: 3px solid #f97316; }
         .proposition-modal-container.danger { border-top: 3px solid #ef4444; }
-        
         .proposition-modal-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 20px 24px;
+            display: flex; align-items: center; gap: 12px; padding: 20px 24px;
             border-bottom: 1px solid var(--border, #334155);
         }
-        
-        .proposition-modal-icon {
-            font-size: 28px;
-        }
-        
+        .proposition-modal-icon { font-size: 28px; }
         .proposition-modal-title {
-            flex: 1;
-            font-size: 16px;
-            font-weight: 700;
-            margin: 0;
-            color: var(--text, #e2e8f0);
+            flex: 1; font-size: 16px; font-weight: 700; margin: 0; color: var(--text, #e2e8f0);
         }
-        
         .proposition-modal-close {
-            background: none;
-            border: none;
-            font-size: 20px;
-            cursor: pointer;
-            color: var(--text3, #64748b);
-            padding: 4px 8px;
-            border-radius: 6px;
-            transition: all 0.2s;
+            background: none; border: none; font-size: 20px; cursor: pointer;
+            color: var(--text3, #64748b); padding: 4px 8px; border-radius: 6px;
         }
-        
-        .proposition-modal-close:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text, #e2e8f0);
-        }
-        
-        .proposition-modal-body {
-            padding: 24px;
-        }
-        
-        .proposition-modal-message {
-            font-size: 14px;
-            margin: 0 0 8px;
-            color: var(--text, #e2e8f0);
-            line-height: 1.5;
-        }
-        
+        .proposition-modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text, #e2e8f0); }
+        .proposition-modal-body { padding: 24px; }
+        .proposition-modal-message { font-size: 14px; margin: 0 0 8px; color: var(--text, #e2e8f0); line-height: 1.5; }
         .proposition-modal-details {
-            font-size: 12px;
-            color: var(--text3, #64748b);
-            margin: 0;
-            background: rgba(0, 0, 0, 0.2);
-            padding: 10px 12px;
-            border-radius: 8px;
+            font-size: 12px; color: var(--text3, #64748b); margin: 0;
+            background: rgba(0,0,0,0.2); padding: 10px 12px; border-radius: 8px;
         }
-        
-        .proposition-modal-footer {
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-            padding: 16px 24px 24px;
-        }
-        
+        .proposition-modal-footer { display: flex; gap: 12px; justify-content: flex-end; padding: 16px 24px 24px; }
         .proposition-modal-btn {
-            padding: 10px 24px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
+            padding: 10px 24px; border-radius: 10px; font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s; border: none;
         }
-        
         .proposition-modal-btn-cancel {
-            background: var(--surface2, #0f172a);
-            color: var(--text2, #94a3b8);
+            background: var(--surface2, #0f172a); color: var(--text2, #94a3b8);
             border: 1px solid var(--border, #334155);
         }
-        
-        .proposition-modal-btn-cancel:hover {
-            background: var(--surface3, #1e293b);
-            color: var(--text, #e2e8f0);
-        }
-        
-        .btn-primary {
-            background: #e8a020;
-            color: #0b0e17;
-        }
-        
-        .btn-primary:hover {
-            background: #f0b33a;
-        }
-        
-        .btn-warning {
-            background: #f97316;
-            color: #fff;
-        }
-        
-        .btn-warning:hover {
-            background: #fb923c;
-        }
-        
-        .btn-danger {
-            background: #ef4444;
-            color: #fff;
-        }
-        
-        .btn-danger:hover {
-            background: #dc2626;
-        }
-        
-        /* Toast styles */
+        .proposition-modal-btn-cancel:hover { background: var(--surface3, #1e293b); color: var(--text, #e2e8f0); }
+        .btn-primary { background: #e8a020; color: #0b0e17; }
+        .btn-primary:hover { background: #f0b33a; }
+        .btn-warning { background: #f97316; color: #fff; }
+        .btn-warning:hover { background: #fb923c; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
         .proposition-toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            z-index: 100000;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 20px;
-            background: var(--surface, #1e293b);
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-            transform: translateX(400px);
-            transition: transform 0.3s ease;
-            border: 1px solid var(--border, #334155);
-            max-width: 380px;
+            position: fixed; bottom: 24px; right: 24px; z-index: 100000;
+            display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+            background: var(--surface, #1e293b); border-radius: 12px;
+            transform: translateX(400px); transition: transform 0.3s ease;
+            border: 1px solid var(--border, #334155); max-width: 380px;
         }
-        
-        .proposition-toast.show {
-            transform: translateX(0);
-        }
-        
+        .proposition-toast.show { transform: translateX(0); }
         .proposition-toast.success { border-left: 3px solid #22c55e; }
         .proposition-toast.error { border-left: 3px solid #ef4444; }
         .proposition-toast.warning { border-left: 3px solid #f97316; }
-        
         .toast-icon { font-size: 18px; }
         .toast-message { font-size: 13px; color: var(--text, #e2e8f0); line-height: 1.4; }
-        
-        .btn-copy.copied {
-            background: #22c55e;
-            color: #fff;
-            border-color: #22c55e;
-        }
     `;
     document.head.appendChild(style);
 })();

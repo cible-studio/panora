@@ -190,7 +190,7 @@ class PropositionController extends Controller
         $isActif   = !$isExpired
             && in_array($reservation->status->value, ['en_attente']);
 
-        return view('admin.proposition.show', compact(
+        return view('admin.propositions.show', compact(
             'reservation', 'panels', 'months',
             'reference', 'slug', 'expiresIn', 'isExpired', 'isActif'
         ));
