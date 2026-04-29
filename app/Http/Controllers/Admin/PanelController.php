@@ -45,8 +45,7 @@ class PanelController extends Controller
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
                     $q->where('reference', 'like', "%{$search}%")
-                        // nom doit être recherché a partir du début du mot pour éviter les faux positifs (ex: "Avenue des Champs" ne doit pas ressortir sur "avenue de la République")
-                        ->orWhere('name', 'like', "{$search}%")
+                        ->orWhere('name', 'like', "%{$search}%")
                         ->orWhere('quartier', 'like', "%{$search}%")
                         ->orWhere('adresse', 'like', "%{$search}%")
                         ->orWhereHas('commune', fn($c) => $c->where('name', 'like', "%{$search}%"));
