@@ -168,24 +168,34 @@
 
             {{-- PDF liste avec option masquer statut --}}
             <div style="position:relative;display:inline-block;" id="dispo-export-wrap">
-                <button onclick="document.getElementById('dispo-export-dropdown').classList.toggle('hidden')"
-                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--blue)] hover:border-[var(--blue)] hover:bg-blue-500/5 transition-all">
-                    📄 PDF liste ▾
-                </button>
-                <div id="dispo-export-dropdown" class="hidden"
-                    style="position:absolute;top:calc(100% + 6px);right:0;z-index:200;
-                background:var(--surface);border:1px solid var(--border2);
-                border-radius:10px;padding:14px;min-width:200px;
-                box-shadow:0 8px 24px rgba(0,0,0,.15);">
-                    <label for="dispo-hide-status"
-                        style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;">
-                        <input type="checkbox" id="dispo-hide-status"
-                            style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;">
-                        <span style="font-size:13px;color:var(--text2);">Masquer le statut</span>
-                    </label>
-                    <button onclick="DISPO.exportPdf('liste')" class="btn btn-primary btn-sm" style="width:100%;">
-                        📄 Générer PDF liste
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="DISPO.exportPdf('images')"
+                        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-red-500 hover:border-red-500 hover:bg-red-500/5 transition-all">
+                        📋 PDF images
                     </button>
+
+                    <div style="position:relative;display:inline-block;" id="dispo-export-wrap">
+                        <button onclick="document.getElementById('dispo-export-dropdown').classList.toggle('hidden')"
+                            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--blue)] hover:border-[var(--blue)] hover:bg-blue-500/5 transition-all">
+                            📄 PDF liste ▾
+                        </button>
+                        <div id="dispo-export-dropdown" class="hidden"
+                            style="position:absolute;top:calc(100% + 6px);right:0;z-index:200;
+                    background:var(--surface);border:1px solid var(--border2);
+                    border-radius:10px;padding:14px;min-width:200px;
+                    box-shadow:0 8px 24px rgba(0,0,0,.15);">
+                            <label for="dispo-hide-status"
+                                style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;">
+                                <input type="checkbox" id="dispo-hide-status"
+                                    style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;">
+                                <span style="font-size:13px;color:var(--text2);">Masquer le statut</span>
+                            </label>
+                            <button onclick="DISPO.exportPdf('liste')" class="btn btn-primary btn-sm"
+                                style="width:100%;">
+                                📄 Générer PDF liste
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
