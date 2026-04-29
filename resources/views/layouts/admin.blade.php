@@ -45,14 +45,12 @@
                     </a>
                     <a href="{{ route('admin.reservations.disponibilites') }}" class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span> Disponibilités
-                        <span class="nav-badge">{{ App\Models\Panel::where('status', 'libre')->count() }}</span>
                     </a>
                     <a href="{{ route('admin.panels.index') }}" class="nav-item {{ request()->routeIs('admin.panels.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span> Inventaire
                     </a>
                     <a href="{{ route('admin.campaigns.index') }}" class="nav-item {{ request()->routeIs('admin.campaigns.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span> Campagnes
-                        <span class="nav-badge blue">{{ App\Models\Campaign::where('status', 'actif')->count() }}</span>
                     </a>
                     <a href="{{ route('admin.clients.index') }}" class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Clients
@@ -66,7 +64,7 @@
                     <div class="nav-label">Opérations</div>
                     <a href="{{ route('admin.reservations.index') }}" class="nav-item {{ request()->routeIs('admin.reservations.*') && !request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span> Confirmations
-                        <span class="nav-badge red">{{ App\Models\Reservation::where('status', 'en_attente')->count() }}</span>
+                        
                     </a>
                     <a href="{{ route('admin.pose-tasks.index') }}" class="nav-item {{ request()->routeIs('admin.pose-tasks.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></span> Gestion Pose OOH
@@ -82,7 +80,6 @@
                     </a>
                     <a href="{{ route('admin.alerts.index') }}" class="nav-item {{ request()->routeIs('admin.alerts.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span> Alertes
-                        <span class="nav-badge red">{{ App\Models\Alert::where('is_read', false)->count() }}</span>
                     </a>
                 </div>
 
@@ -147,10 +144,6 @@
                         <span class="slider"></span>
                     </label>
                     <a href="{{ route('admin.alerts.index') }}" class="btn btn-ghost btn-sm" style="position:relative;" title="Alertes non lues">
-                        🔔
-                        <span id="alert-badge" class="nav-badge red" style="position:relative;{{ App\Models\Alert::where('is_read', false)->count() === 0 ? 'display:none;' : '' }}">
-                            {{ App\Models\Alert::where('is_read', false)->count() }}
-                        </span>
                     </a>
                     {{ $topbarActions ?? '' }}
                 </div>
