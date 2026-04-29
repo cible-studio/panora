@@ -157,12 +157,15 @@ $sIcon = match($pige->status) {
             <div style="padding:14px 16px;display:flex;flex-direction:column;gap:6px">
 
                 @if($pige->isEnAttente())
+                {{-- Bouton Vérifier (corrigé) --}}
                 <button type="button"
-                        onclick="Confirm.show('Vérifier la pige du panneau <strong>{{ $pige->panel?->reference }}</strong> ?','confirm',function(){ document.getElementById(\'form-verify\').submit(); })"
+                        onclick="PigeDetail.verify({{ $pige->id }}, '{{ $pige->panel?->reference }}')"
                         style="width:100%;padding:9px 12px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#22c55e;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                     Marquer comme vérifiée
                 </button>
+
+                {{-- Bouton Rejeter --}}
                 <button type="button" onclick="PigeDetail.showRejectModal()"
                         style="width:100%;padding:9px 12px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);color:#ef4444;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -170,6 +173,7 @@ $sIcon = match($pige->status) {
                 </button>
                 @endif
 
+                {{-- Liens panel / campagne --}}
                 @if($pige->panel)
                 <a href="{{ route('admin.panels.show', $pige->panel) }}" class="sb-link">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -188,6 +192,7 @@ $sIcon = match($pige->status) {
                 </a>
                 @endif
 
+                {{-- Suppression (uniquement si non vérifiée) --}}
                 @if(!$pige->isVerifiee())
                 <div style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px">
                     <button type="button"
