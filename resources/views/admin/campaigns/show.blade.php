@@ -247,8 +247,7 @@
                             <form method="POST" action="{{ route('admin.campaigns.prolonger', $campaign) }}">
                                 @csrf @method('PATCH')
                                 <label class="text-xs font-semibold block mb-2" style="color:var(--text3)">NOUVELLE DATE DE FIN</label>
-                                <input type="date" name="new_end_date"
-                                       min="{{ $campaign->end_date->addDay()->format('Y-m-d') }}"
+                                <input type="date" name="new_end_date" required min="{{ $campaign->end_date->addDay()->format('Y-m-d') }}"
                                        class="w-full rounded-lg px-4 py-2.5 text-sm mb-4 focus:outline-none"
                                        style="background:var(--surface2);border:1px solid var(--border);color:var(--text)">
                                 <button type="submit"
