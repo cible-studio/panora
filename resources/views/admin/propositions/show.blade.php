@@ -234,7 +234,7 @@
           @endif
         </div>
       </div>
-      if($isActif)
+      @if($isActif)
       <div style="padding:0 16px 14px;">
           <form method="POST"
                 action="{{ route('proposition.retirer-panneau', [$reference, $slug, $panel['id']]) }}"
