@@ -184,4 +184,45 @@ class Campaign extends Model
             && $days > 0
             && $days <= 14;
     }
+
+    /**
+     * Met à jour le statut de la campagne en fonction des dates
+     * Utile pour les cron jobs ou les recalculs massifs
+     * 
+     * @return bool True si le statut a changé
+     */
+    public function updateStatusBasedOnDates(): bool
+    {
+        $today = now()->startOfDay();
+        $start = $this->start_date->startOfDay();
+        $end   = $this->end_date->startOfDay();
+        
+        $newStatus = null;
+        
+        if ($start > $today) {
+            $newStatus = CampaignStatus::PLANIFIE;
+        } elseif ($start <= $today && $end > $today) {
+            $newStatus = CampaignStatus::ACTIF;
+        } elseif ($end <= $today) {
+            $newStatus = CampaignStatus::TERMINE;
+        }
+        
+        if ($newStatus && $this->status !== $newStatus) {
+            $this->status = $newStatus;
+            $this->save();
+            
+            Log::info('campaign.status.auto_updated', [
+                'campaign_id' => $this->id,
+                'old_status'  => $this->getOriginal('status'),
+                'new_status'  => $newStatus->value,
+                'reason'      => 'date_based_calculation',
+            ]);
+            
+            return true;
+        }
+        
+        return false;
+    }
+
+
 }
