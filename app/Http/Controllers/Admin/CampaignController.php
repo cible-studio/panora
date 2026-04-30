@@ -2,15 +2,21 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+
 use App\Services\CampaignService;
 use App\Services\AvailabilityService;
+
 use App\Models\Campaign;
 use App\Models\Client;
 use App\Models\Commune;
 use App\Models\Panel;
 use App\Models\PanelFormat;
 use App\Models\Reservation;
+
 use App\Enums\CampaignStatus;
+
+use App\Services\AlertService;
+
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
@@ -224,6 +230,15 @@ class CampaignController extends Controller
                     'with_reservation'=> $reservation !== null,
                 ]);
 
+                // Alerte création campagne
+                AlertService::create(
+                    'campagne',
+                    'info',
+                    '🚀 Campagne créée — ' . $campaign->name,
+                    auth()->user()->name . ' a créé la campagne "' . $campaign->name . '"' . ($campaign->reservation ? ' depuis la réservation ' . $campaign->reservation->reference : ''),
+                    $campaign
+                );
+
                 return $campaign;
             });
 
@@ -371,6 +386,15 @@ class CampaignController extends Controller
             ]
         ]);
 
+        // Alerte modification campagne
+        AlertService::create(
+            'campagne',
+            'info',
+            '✏️ Campagne modifiée — ' . $campaign->name,
+            auth()->user()->name . ' a modifié la campagne "' . $campaign->name . '" (dates ou informations)',
+            $campaign
+        );
+
         // 6. Message de succès personnalisé
         $message = "✅ Campagne « {$campaign->name} » mise à jour avec succès.";
         
@@ -438,6 +462,14 @@ class CampaignController extends Controller
 
         return back()->with('success',
             ($result['added'] ?? count($request->panel_ids)) . ' panneau(x) ajouté(s). Montant recalculé.');
+        // Alerte ajout panneau
+        AlertService::create(
+            'campagne',
+            'info',
+            '➕ Panneau ajouté — ' . $campaign->name,
+            auth()->user()->name . ' a ajouté ' . ($result['added'] ?? count($request->panel_ids)) . ' panneau(x) à la campagne "' . $campaign->name . '"',
+            $campaign
+        );
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -463,6 +495,14 @@ class CampaignController extends Controller
         }
 
         return back()->with('success', $msg . ' Montant recalculé.');
+        // Alerte retrait panneau
+        AlertService::create(
+            'campagne',
+            'warning',
+            '➖ Panneau retiré — ' . $campaign->name,
+            auth()->user()->name . ' a retiré le panneau ' . $panel->reference . ' de la campagne "' . $campaign->name . '"',
+            $campaign
+        );
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -477,6 +517,15 @@ class CampaignController extends Controller
         if (!$result['ok']) {
             return back()->with('error', $result['error']);
         }
+
+        // Alerte suppression campagne
+        AlertService::create(
+            'campagne',
+            'danger',
+            '🗑 Campagne supprimée — ' . $campaign->name,
+            auth()->user()->name . ' a supprimé la campagne "' . $campaign->name . '"',
+            null
+        );
 
         return redirect()
             ->route('admin.campaigns.index')
@@ -502,21 +551,42 @@ class CampaignController extends Controller
                 "Transition interdite : {$campaign->status->label()} → {$newStatus->label()}.");
         }
 
-        // ── Routage selon le nouveau statut ──────────────────────────
-        // ANNULE  → cancel()    : libère panneaux + annule réservation
-        // TERMINE → terminate() : libère panneaux + marque réservation terminée
-        // Autres  → update()    : simple changement de statut (ex: actif → pose)
-
         if ($newStatus === CampaignStatus::ANNULE) {
             $this->campaignService->cancel($campaign, 'Annulation manuelle par ' . auth()->user()?->name);
+            
+            // Alerte annulation campagne
+            AlertService::create(
+                'campagne',
+                'danger',
+                '🚫 Campagne annulée — ' . $campaign->name,
+                auth()->user()->name . ' a annulé la campagne "' . $campaign->name . '"',
+                $campaign
+            );
         } elseif ($newStatus === CampaignStatus::TERMINE) {
             $this->campaignService->terminate($campaign, 'Clôture manuelle par ' . auth()->user()?->name);
+            
+            // Alerte clôture campagne
+            AlertService::create(
+                'campagne',
+                'info',
+                '✅ Campagne terminée — ' . $campaign->name,
+                auth()->user()->name . ' a clôturé la campagne "' . $campaign->name . '"',
+                $campaign
+            );
         } else {
-            // Transition simple : pose, actif, etc.
             $campaign->update([
                 'status'     => $newStatus->value,
                 'updated_by' => auth()->id(),
             ]);
+            
+            // Alerte changement statut campagne
+            AlertService::create(
+                'campagne',
+                'info',
+                '🔄 Statut changé — ' . $campaign->name,
+                auth()->user()->name . ' a changé le statut de "' . $campaign->name . '" → ' . $newStatus->label(),
+                $campaign
+            );
         }
 
         return redirect()
@@ -582,6 +652,15 @@ class CampaignController extends Controller
             'new_end_date' => $newEnd,
             'user_id'      => auth()->id(),
         ]);
+
+        // Alerte prolongation campagne
+        AlertService::create(
+            'campagne',
+            'info',
+            '📅 Campagne prolongée — ' . $campaign->name,
+            auth()->user()->name . ' a prolongé la campagne "' . $campaign->name . '" jusqu\'au ' . $newEnd,
+            $campaign
+        );
 
         return back()->with('success',
             "Campagne prolongée jusqu'au {$newEnd}. Montant recalculé.");

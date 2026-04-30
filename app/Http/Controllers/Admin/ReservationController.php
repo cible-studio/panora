@@ -560,6 +560,8 @@ class ReservationController extends Controller
     // ══════════════════════════════════════════════════════════════
     // CONFIRMER SÉLECTION
     // ══════════════════════════════════════════════════════════════
+
+    // ajouter alerte création réservation
     public function confirmerSelection(Request $request)
     {
         $rawIds = (array) $request->input('panel_ids', []);
@@ -647,6 +649,8 @@ class ReservationController extends Controller
                     'confirmed_at' => $request->type === 'ferme' ? now() : null,
                 ]);
 
+
+
                 $reservation->panels()->attach($attach);
                 $this->availability->syncPanelStatuses($internalIds);
 
@@ -687,6 +691,15 @@ class ReservationController extends Controller
                     'ext' => count($externalIds),
                     'user_id' => auth()->id(),
                 ]);
+
+                // Alerte création réservation
+                AlertService::create(
+                    'reservation',
+                    $status === ReservationStatus::CONFIRME ? 'info' : 'warning',
+                    '📋 Nouvelle réservation — ' . ($reservation->client?->name ?? ''),
+                    auth()->user()->name . ' a créé la réservation ' . $reservation->reference . ' (' . count($internalIds) . ' panneau(x))',
+                    $reservation
+                );
             });
 
         } catch (\RuntimeException $e) {
@@ -866,6 +879,14 @@ class ReservationController extends Controller
             abort(403, 'Réservation non annulable.');
         $panelCount = $reservation->panels->count();
         $this->reservationService->cancel($reservation);
+        // Alerte annulation
+        AlertService::create(
+            'reservation',
+            'danger',
+            '🚫 Réservation annulée — ' . ($reservation->client?->name ?? ''),
+            auth()->user()->name . ' a annulé la réservation ' . $reservation->reference,
+            $reservation
+        );
         return redirect()->route('admin.reservations.index')->with('success', "Réservation annulée. {$panelCount} panneau(x) libéré(s).");
     }
 
@@ -877,6 +898,14 @@ class ReservationController extends Controller
         $hasCampaign = $reservation->campaign !== null;
         try {
             $this->reservationService->delete($reservation);
+            // Alerte suppression
+            AlertService::create(
+                'reservation',
+                'danger',
+                '🗑 Réservation supprimée — ' . ($reservation->client?->name ?? ''),
+                auth()->user()->name . ' a supprimé la réservation ' . $reservation->reference,
+                null
+            );
         } catch (\Exception $e) {
             Log::error('reservation.deletion_failed', ['id' => $reservation->id, 'error' => $e->getMessage()]);
             return back()->with('error', 'Erreur lors de la suppression : ' . $e->getMessage());
