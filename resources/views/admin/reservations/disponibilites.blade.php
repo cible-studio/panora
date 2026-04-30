@@ -273,16 +273,14 @@
             </div>
         </div>
 
-        <form id="form-pdf-images" method="POST"
-            action="{{ route('admin.reservations.disponibilites.pdf-images') }}" target="_blank"
-            style="display:none">
+        <form id="form-pdf-images" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-images') }}" style="display:none">
             @csrf
             <div id="pdf-images-inputs"></div>
             <input type="hidden" name="start_date" id="pdf-start">
             <input type="hidden" name="end_date" id="pdf-end">
         </form>
-        <form id="form-pdf-liste" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}"
-            target="_blank" style="display:none">
+
+        <form id="form-pdf-liste" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}" style="display:none">
             @csrf
             <div id="pdf-liste-inputs"></div>
             <input type="hidden" name="start_date" id="pdf-liste-start">
@@ -526,6 +524,28 @@
                 <button onclick="DISPO.closeFiche()" class="text-[var(--text3)] hover:text-[var(--text)]">✕</button>
             </div>
             <div id="fiche-body" class="p-5"></div>
+        </div>
+    </div>
+
+    {{-- ══ MODAL ERREUR ══ --}}
+    <div id="modal-error" class="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm items-center justify-center p-4"
+        style="display:none" onclick="if(event.target===this)DISPO.closeError()">
+        <div class="bg-[var(--surface)] border border-red-500/40 rounded-2xl w-full max-w-md shadow-2xl"
+            onclick="event.stopPropagation()">
+            <div
+                class="px-5 py-4 border-b border-red-500/30 flex justify-between items-center bg-red-500/5 rounded-t-2xl">
+                <div class="font-bold text-red-500 flex items-center gap-2"><span>⚠️</span> Erreur</div>
+                <button onclick="DISPO.closeError()" class="text-[var(--text3)] hover:text-[var(--text)]">✕</button>
+            </div>
+            <div class="p-5">
+                <div id="error-body" class="text-sm text-[var(--text2)] space-y-2"></div>
+            </div>
+            <div class="px-5 py-3 border-t border-[var(--border)] flex justify-end">
+                <button onclick="DISPO.closeError()"
+                    class="px-4 py-2 bg-[var(--surface2)] border border-[var(--border2)] rounded-xl text-sm text-[var(--text2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all">
+                    Fermer
+                </button>
+            </div>
         </div>
     </div>
 
@@ -1168,35 +1188,30 @@
                     },
 
                     // Exporter en Excel les panneaux affichés (avec les filtres et dates)
-                    exportExcel() {
-                        // Choisis une des deux lignes ci-dessous (décommente celle que tu veux)
-                        
-                        // Option 1: Exporter TOUS les panneaux (internes + externes)
+                   exportExcel() {
                         const ids = S._lastPanels.map(p => p.id);
-                        
-                        // Option 2: Exporter UNIQUEMENT les panneaux internes
-                        // const ids = S._lastPanels.filter(p => p.source === 'internal').map(p => p.id);
                         
                         if (ids.length === 0) {
                             alert('Aucun panneau à exporter.');
                             return;
                         }
                         
-                        // Créer un formulaire temporaire
+                        // Créer un iframe invisible pour le téléchargement
+                        const iframe = document.createElement('iframe');
+                        iframe.style.display = 'none';
+                        document.body.appendChild(iframe);
+                        
                         const form = document.createElement('form');
                         form.method = 'POST';
                         form.action = '{{ route("admin.reservations.disponibilites.export-excel") }}';
-                        form.target = '_blank';
-                        form.style.display = 'none';
+                        form.target = iframe.name || '_blank';
                         
-                        // Ajouter CSRF
                         const csrfInput = document.createElement('input');
                         csrfInput.type = 'hidden';
                         csrfInput.name = '_token';
                         csrfInput.value = D.csrf;
                         form.appendChild(csrfInput);
                         
-                        // Ajouter les IDs des panneaux
                         ids.forEach(id => {
                             const input = document.createElement('input');
                             input.type = 'hidden';
@@ -1205,7 +1220,6 @@
                             form.appendChild(input);
                         });
                         
-                        // Ajouter les dates
                         if (S.f.du) {
                             const startInput = document.createElement('input');
                             startInput.type = 'hidden';
@@ -1222,19 +1236,13 @@
                             form.appendChild(endInput);
                         }
                         
-                        // Option masquer statut
-                        const hideStatus = document.getElementById('dispo-hide-status')?.checked;
-                        if (hideStatus) {
-                            const hideInput = document.createElement('input');
-                            hideInput.type = 'hidden';
-                            hideInput.name = 'hide_status';
-                            hideInput.value = '1';
-                            form.appendChild(hideInput);
-                        }
-                        
                         document.body.appendChild(form);
                         form.submit();
-                        document.body.removeChild(form);
+                        
+                        setTimeout(() => {
+                            document.body.removeChild(form);
+                            document.body.removeChild(iframe);
+                        }, 1000);
                     },
 
                     // Pour l'export Excel de la sélection
@@ -1427,13 +1435,13 @@
                             return;
                         }
                         
-                        // ✅ CORRECTION : Utiliser S.sel.ids (S est accessible dans la closure)
+                        // ✅ CORRECTION : Utiliser S.sel.ids directement
                         const hiddenPanels = document.getElementById('hidden-panels');
                         hiddenPanels.innerHTML = S.sel.ids.map(id => 
                             `<input type="hidden" name="panel_ids[]" value="${id}">`
                         ).join('');
                         
-                        // ✅ Ajouter le montant personnalisé s'il existe
+                        // Ajouter le montant personnalisé s'il existe
                         if (this._customAmount !== null && this._customAmount > 0) {
                             const amountInput = document.createElement('input');
                             amountInput.type = 'hidden';
