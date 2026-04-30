@@ -902,1410 +902,918 @@
     </style>
 
     @push('scripts')
-        <script>
-            function initConfirmSelect2() {
-                const $sel = $('#modal-client-select');
-                if ($sel.data('select2')) return;
-                $sel.select2({
-                    dropdownParent: $('#modal-confirm'),
-                    placeholder: '— Rechercher un client —',
-                    allowClear: true,
-                    width: '100%',
-                    language: {
-                        noResults: () => 'Aucun client trouvé',
-                        searching: () => 'Recherche…'
-                    },
-                });
-                injectSelect2Styles();
+        {{-- ══════════════════════════════════════════════════════
+     SELECT2 INIT — à placer AVANT le script principal
+══════════════════════════════════════════════════════ --}}
+<script>
+    function initConfirmSelect2() {
+        const $sel = $('#modal-client-select');
+        if ($sel.data('select2')) return;
+        $sel.select2({
+            dropdownParent: $('#modal-confirm'),
+            placeholder: '— Rechercher un client —',
+            allowClear: true,
+            width: '100%',
+            language: {
+                noResults: () => 'Aucun client trouvé',
+                searching: () => 'Recherche…'
+            },
+        });
+        injectSelect2Styles();
+    }
+
+    function injectSelect2Styles() {
+        if (document.getElementById('select2-cible-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'select2-cible-styles';
+        style.textContent = `
+            .select2-container--default .select2-selection--single { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:10px !important;height:42px !important;display:flex !important;align-items:center !important; }
+            .select2-container--default.select2-container--open .select2-selection--single { border-color:var(--accent) !important;box-shadow:0 0 0 2px var(--accent-dim) !important; }
+            .select2-container--default .select2-selection--single .select2-selection__rendered { color:var(--text) !important;font-size:13px !important;padding-left:12px !important;line-height:42px !important; }
+            .select2-container--default .select2-selection--single .select2-selection__placeholder { color:var(--text3) !important; }
+            .select2-container--default .select2-selection--single .select2-selection__arrow { height:42px !important;right:8px !important; }
+            .select2-dropdown { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:12px !important;box-shadow:0 12px 40px rgba(0,0,0,.2) !important;z-index:99999 !important; }
+            .select2-container--default .select2-search--dropdown { padding:8px !important;border-bottom:1px solid var(--border) !important;background:var(--surface) !important; }
+            .select2-container--default .select2-search--dropdown .select2-search__field { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:8px !important;color:var(--text) !important;font-size:13px !important;padding:7px 10px !important;outline:none !important; }
+            .select2-results__option { color:var(--text2) !important;font-size:13px !important;padding:9px 14px !important;border-bottom:1px solid var(--border) !important; }
+            .select2-results__option--highlighted { background:var(--accent-dim) !important;color:var(--accent) !important; }
+            .select2-results__option[aria-selected="true"] { background:var(--accent-dim) !important;color:var(--accent) !important;font-weight:600 !important; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function addClientToSelect2(id, name) {
+        $('#modal-client-select').append(new Option(name, id, true, true)).trigger('change');
+    }
+</script>
+
+{{-- ══════════════════════════════════════════════════════
+     SCRIPT PRINCIPAL DISPO
+══════════════════════════════════════════════════════ --}}
+<script>
+(function () {
+    'use strict';
+
+    const D = window.__DISPO__;
+
+    // ══ ÉTAT GLOBAL ══════════════════════════════════════════
+    const S = {
+        f: {
+            commune_ids: [],
+            zone_ids: [],
+            format_ids: [],
+            agency_ids: [],
+            dimensions: '',
+            is_lit: '',
+            statut: 'tous',
+            du: '',
+            au: '',
+            source: 'all',
+            q: ''
+        },
+        sel: {
+            ids: [],
+            rates: {},
+            sources: {}
+        },
+        view: 'grid',
+        page: 1,
+        pages: 1,
+        total: 0,
+        perPage: 48,
+        loading: false,
+        reqId: 0,
+        debounce: null,
+        searchDebounce: null,
+        _lastPanels: [],
+    };
+
+    // ✅ FIX CRITIQUE — exposer S globalement pour submitForm()
+    window.S = S;
+
+    const MS_DATA = {
+        commune_ids: D.communes,
+        zone_ids:    D.zones,
+        format_ids:  D.formats,
+        agency_ids:  D.agencies,
+    };
+
+    const STATUS_CFG = {
+        libre:        { l: 'Disponible',  c: '#22c55e', b: 'rgba(34,197,94,.08)',   bd: 'rgba(34,197,94,.3)' },
+        occupe:       { l: 'Occupé',      c: '#e20613', b: 'rgba(226,6,19,.08)',    bd: 'rgba(226,6,19,.3)' },
+        option_periode:{ l: 'En option',  c: '#f97316', b: 'rgba(249,115,22,.12)',  bd: 'rgba(249,115,22,.5)' },
+        option:       { l: 'En option',   c: '#f97316', b: 'rgba(249,115,22,.12)',  bd: 'rgba(249,115,22,.5)' },
+        confirme:     { l: 'Confirmé',    c: '#81358a', b: 'rgba(129,53,138,.08)',  bd: 'rgba(129,53,138,.3)' },
+        maintenance:  { l: 'Maintenance', c: '#6b7280', b: 'rgba(107,114,128,.08)', bd: 'rgba(107,114,128,.3)' },
+        a_verifier:   { l: 'À vérifier',  c: '#94a3b8', b: 'rgba(148,163,184,.08)', bd: 'rgba(148,163,184,.3)' },
+    };
+
+    // ══ HELPERS UTILITAIRES ═══════════════════════════════════
+    const _el   = id => document.getElementById(id);
+    const _show = id => { const e = _el(id); if (e) e.style.display = 'flex'; };
+    const _hide = id => { const e = _el(id); if (e) e.style.display = 'none'; };
+
+    function _showLoader() {
+        const l = _el('loader'), g = _el('panels-grid'), e = _el('empty-state'), p = _el('pagination-bar');
+        if (l) l.style.display = 'block';
+        if (g) g.innerHTML = '';
+        const tb = _el('panels-list-body');
+        if (tb) tb.innerHTML = '';
+        if (e) e.style.display = 'none';
+        if (p) p.classList.add('hidden');
+    }
+
+    function _showEmpty(title, sub) {
+        _hide('loader');
+        const g = _el('panels-grid'); if (g) g.innerHTML = '';
+        const tb = _el('panels-list-body'); if (tb) tb.innerHTML = '';
+        const e = _el('empty-state'); if (e) e.style.display = 'block';
+        const t = _el('empty-title'); if (t) t.textContent = title;
+        const s = _el('empty-sub');   if (s) s.textContent = sub;
+    }
+
+    function _showDateErr(msg) {
+        const el = _el('date-error');
+        if (el) { el.textContent = '⚠️ ' + msg; el.classList.remove('hidden'); }
+    }
+
+    function _hideDateErr() {
+        const el = _el('date-error');
+        if (el) el.classList.add('hidden');
+    }
+
+    // ══ RÈGLE FACTURATION CIBLE CI ════════════════════════════
+    // Identique à PHP monthsBetween() — 15j = demi-mois
+    function _months(startStr, endStr) {
+        const a = new Date(startStr + 'T00:00:00');
+        const b = new Date(endStr   + 'T00:00:00');
+        const totalDays = Math.round((b - a) / 86400000);
+        if (totalDays <= 0) return 0.5;
+        const fullMonths = Math.floor(totalDays / 30);
+        const remainDays = totalDays % 30;
+        let fraction = 0;
+        if (remainDays >= 1 && remainDays <= 15) fraction = 0.5;
+        else if (remainDays > 15)                fraction = 1;
+        return Math.max(fullMonths + fraction, 0.5);
+    }
+
+    // ══ OBJET PRINCIPAL DISPO ════════════════════════════════
+    window.DISPO = {
+
+        // ── ÉTAT MONTANT PERSONNALISÉ ─────────────────────────
+        _customAmount:     null,
+        _originalEstimate: 0,
+
+        // ── FILTRES ───────────────────────────────────────────
+        set(k, v) {
+            S.f[k] = v; S.page = 1;
+            this._fetch(); this._syncUI();
+        },
+
+        onSearch(v) {
+            S.f.q = v.trim(); S.page = 1;
+            clearTimeout(S.searchDebounce);
+            S.searchDebounce = setTimeout(() => { this._fetch(); this._syncUI(); }, 350);
+            _el('btn-clear-search').classList.toggle('hidden', !v);
+        },
+
+        clearSearch() {
+            S.f.q = ''; S.page = 1;
+            _el('f-search').value = '';
+            _el('btn-clear-search').classList.add('hidden');
+            this._fetch(); this._syncUI();
+        },
+
+        onSourceChange(v) {
+            S.f.source = v;
+            if (v === 'internal') { S.f.agency_ids = []; _syncMs('agency_ids'); }
+            S.page = 1; this._fetch(); this._syncUI();
+        },
+
+        onDateChange(which, val) {
+            if (which === 'du') {
+                S.f.du = val;
+                const next = new Date(val); next.setDate(next.getDate() + 1);
+                const auEl = _el('f-au');
+                auEl.min = next.toISOString().split('T')[0];
+                if (S.f.au && S.f.au <= val) { S.f.au = ''; auEl.value = ''; }
+            } else {
+                S.f.au = val;
             }
-
-            function injectSelect2Styles() {
-                if (document.getElementById('select2-cible-styles')) return;
-                const style = document.createElement('style');
-                style.id = 'select2-cible-styles';
-                style.textContent = `
-        .select2-container--default .select2-selection--single { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:10px !important;height:42px !important;display:flex !important;align-items:center !important; }
-        .select2-container--default.select2-container--open .select2-selection--single { border-color:var(--accent) !important;box-shadow:0 0 0 2px var(--accent-dim) !important; }
-        .select2-container--default .select2-selection--single .select2-selection__rendered { color:var(--text) !important;font-size:13px !important;padding-left:12px !important;line-height:42px !important; }
-        .select2-container--default .select2-selection--single .select2-selection__placeholder { color:var(--text3) !important; }
-        .select2-container--default .select2-selection--single .select2-selection__arrow { height:42px !important;right:8px !important; }
-        .select2-dropdown { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:12px !important;box-shadow:0 12px 40px rgba(0,0,0,.2) !important;z-index:99999 !important; }
-        .select2-container--default .select2-search--dropdown { padding:8px !important;border-bottom:1px solid var(--border) !important;background:var(--surface) !important; }
-        .select2-container--default .select2-search--dropdown .select2-search__field { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:8px !important;color:var(--text) !important;font-size:13px !important;padding:7px 10px !important;outline:none !important; }
-        .select2-results__option { color:var(--text2) !important;font-size:13px !important;padding:9px 14px !important;border-bottom:1px solid var(--border) !important; }
-        .select2-results__option--highlighted { background:var(--accent-dim) !important;color:var(--accent) !important; }
-        .select2-results__option[aria-selected="true"] { background:var(--accent-dim) !important;color:var(--accent) !important;font-weight:600 !important; }
-    `;
-                document.head.appendChild(style);
+            _hideDateErr();
+            if (S.f.du && S.f.au && S.f.au <= S.f.du) {
+                _showDateErr('La date de fin doit être après la date de début.');
+                S.f.au = ''; _el('f-au').value = ''; return;
             }
+            S.page = 1; this._fetch(); this._syncUI();
+        },
 
-            function addClientToSelect2(id, name) {
-                $('#modal-client-select').append(new Option(name, id, true, true)).trigger('change');
+        reset() {
+            S.f = { commune_ids:[], zone_ids:[], format_ids:[], agency_ids:[], dimensions:'', is_lit:'', statut:'tous', du:'', au:'', source:'all', q:'' };
+            S.page = 1;
+            ['f-dimensions','f-is_lit'].forEach(id => { const el=_el(id); if(el) el.value=''; });
+            const s=_el('f-statut'); if(s) s.value='tous';
+            const r=_el('f-source'); if(r) r.value='all';
+            _el('f-du').value=''; _el('f-au').value='';
+            _el('f-search').value=''; _el('btn-clear-search').classList.add('hidden');
+            ['commune_ids','zone_ids','format_ids','agency_ids'].forEach(_syncMs);
+            _hideDateErr(); this._fetch(); this._syncUI();
+        },
+
+        // ── VUE ───────────────────────────────────────────────
+        setView(mode) {
+            S.view = mode;
+            const grid=_el('panels-grid'), list=_el('panels-list'), btnG=_el('btn-view-grid'), btnL=_el('btn-view-list');
+            if (!grid || !list) return;
+            const on  = 'px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-[var(--accent)] text-white';
+            const off = 'px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-[var(--text3)] hover:text-[var(--text)]';
+            if (mode === 'grid') {
+                grid.style.display='grid'; list.style.display='none';
+                btnG.className=on; btnL.className=off;
+            } else {
+                grid.style.display='none'; list.style.display='block';
+                btnG.className=off; btnL.className=on;
+                if (S._lastPanels.length > 0) this._renderList(S._lastPanels);
             }
-        </script>
+        },
 
-        <script>
-            (function() {
-                'use strict';
+        // ── EXPORTS PDF ───────────────────────────────────────
+        exportPdf(type) {
+            const ids = S._lastPanels.filter(p => p.source === 'internal').map(p => p.id);
+            if (!ids.length) { alert('Aucun panneau interne à exporter.'); return; }
+            const fId = type==='images' ? 'form-pdf-images' : 'form-pdf-liste';
+            const iId = type==='images' ? 'pdf-images-inputs' : 'pdf-liste-inputs';
+            const sId = type==='images' ? 'pdf-start' : 'pdf-liste-start';
+            const eId = type==='images' ? 'pdf-end' : 'pdf-liste-end';
+            _el(iId).innerHTML = ids.map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
+            if (type === 'liste') {
+                const hs = document.getElementById('dispo-hide-status')?.checked;
+                if (hs) _el(iId).innerHTML += `<input type="hidden" name="hide_status" value="1">`;
+            }
+            _el(sId).value = S.f.du || ''; _el(eId).value = S.f.au || '';
+            document.getElementById(fId).submit();
+        },
 
-                const D = window.__DISPO__;
+        exportSelPdf(type) {
+            const ids = S.sel.ids.filter(id => !String(id).startsWith('ext_'));
+            if (!ids.length) { alert('Aucun panneau interne sélectionné.'); return; }
+            const fId = type==='images' ? 'form-pdf-images' : 'form-pdf-liste';
+            const iId = type==='images' ? 'pdf-images-inputs' : 'pdf-liste-inputs';
+            const sId = type==='images' ? 'pdf-start' : 'pdf-liste-start';
+            const eId = type==='images' ? 'pdf-end' : 'pdf-liste-end';
+            _el(iId).innerHTML = ids.map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
+            _el(sId).value = S.f.du || ''; _el(eId).value = S.f.au || '';
+            document.getElementById(fId).submit();
+        },
 
-                const S = {
-                    f: {
-                        commune_ids: [],
-                        zone_ids: [],
-                        format_ids: [],
-                        agency_ids: [],
-                        dimensions: '',
-                        is_lit: '',
-                        statut: 'tous',
-                        du: '',
-                        au: '',
-                        source: 'all',
-                        q: ''
-                    },
-                    sel: {
-                        ids: [],
-                        rates: {},
-                        sources: {}
-                    },
-                    view: 'grid',
-                    page: 1,
-                    pages: 1,
-                    total: 0,
-                    perPage: 48,
-                    loading: false,
-                    reqId: 0,
-                    debounce: null,
-                    searchDebounce: null,
-                    _lastPanels: [],
-                };
+        // ── EXPORTS EXCEL ─────────────────────────────────────
+        exportExcel() {
+            const ids = S._lastPanels.filter(p => p.source === 'internal').map(p => p.id);
+            if (!ids.length) { alert('Aucun panneau interne à exporter.'); return; }
+            this._submitExcelForm(ids);
+        },
 
-                const MS_DATA = {
-                    commune_ids: D.communes,
-                    zone_ids: D.zones,
-                    format_ids: D.formats,
-                    agency_ids: D.agencies
-                };
+        exportSelExcel() {
+            const ids = S.sel.ids.filter(id => !String(id).startsWith('ext_'));
+            if (!ids.length) { alert('Aucun panneau interne sélectionné.'); return; }
+            this._submitExcelForm(ids);
+        },
 
-                const STATUS_CFG = {
-                    libre: {
-                        l: 'Disponible',
-                        c: '#22c55e',
-                        b: 'rgba(34,197,94,.08)',
-                        bd: 'rgba(34,197,94,.3)'
-                    },
-                    occupe: {
-                        l: 'Occupé',
-                        c: '#e20613',
-                        b: 'rgba(226,6,19,.08)',
-                        bd: 'rgba(226,6,19,.3)'
-                    },
-                    option_periode: {
-                        l: 'En option',
-                        c: '#f97316',
-                        b: 'rgba(249,115,22,.12)',
-                        bd: 'rgba(249,115,22,.5)'
-                    },
-                    option: {
-                        l: 'En option',
-                        c: '#f97316',
-                        b: 'rgba(249,115,22,.12)',
-                        bd: 'rgba(249,115,22,.5)'
-                    },
-                    confirme: {
-                        l: 'Confirmé',
-                        c: '#81358a',
-                        b: 'rgba(129,53,138,.08)',
-                        bd: 'rgba(129,53,138,.3)'
-                    },
-                    maintenance: {
-                        l: 'Maintenance',
-                        c: '#6b7280',
-                        b: 'rgba(107,114,128,.08)',
-                        bd: 'rgba(107,114,128,.3)'
-                    },
-                    a_verifier: {
-                        l: 'À vérifier',
-                        c: '#94a3b8',
-                        b: 'rgba(148,163,184,.08)',
-                        bd: 'rgba(148,163,184,.3)'
-                    },
-                };
+        _submitExcelForm(ids) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '{{ route("admin.reservations.disponibilites.export-excel") }}';
+            form.target = '_blank';
+            form.style.display = 'none';
+            const addInput = (name, value) => {
+                const i = document.createElement('input');
+                i.type = 'hidden'; i.name = name; i.value = value;
+                form.appendChild(i);
+            };
+            addInput('_token', D.csrf);
+            ids.forEach(id => addInput('panel_ids[]', id));
+            if (S.f.du) addInput('start_date', S.f.du);
+            if (S.f.au) addInput('end_date',   S.f.au);
+            const hs = document.getElementById('dispo-hide-status')?.checked;
+            if (hs)    addInput('hide_status', '1');
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        },
 
-                window.DISPO = {
-                    set(k, v) {
-                        S.f[k] = v;
-                        S.page = 1;
-                        this._fetch();
-                        this._syncUI();
-                    },
-                    onSearch(v) {
-                        S.f.q = v.trim();
-                        S.page = 1;
-                        clearTimeout(S.searchDebounce);
-                        S.searchDebounce = setTimeout(() => {
-                            this._fetch();
-                            this._syncUI();
-                        }, 350);
-                        _el('btn-clear-search').classList.toggle('hidden', !v);
-                    },
-                    clearSearch() {
-                        S.f.q = '';
-                        S.page = 1;
-                        _el('f-search').value = '';
-                        _el('btn-clear-search').classList.add('hidden');
-                        this._fetch();
-                        this._syncUI();
-                    },
-                    onSourceChange(v) {
-                        S.f.source = v;
-                        if (v === 'internal') {
-                            S.f.agency_ids = [];
-                            _syncMs('agency_ids');
-                        }
-                        S.page = 1;
-                        this._fetch();
-                        this._syncUI();
-                    },
-                    onDateChange(which, val) {
-                        if (which === 'du') {
-                            S.f.du = val;
-                            const next = new Date(val);
-                            next.setDate(next.getDate() + 1);
-                            const auEl = _el('f-au');
-                            auEl.min = next.toISOString().split('T')[0];
-                            if (S.f.au && S.f.au <= val) {
-                                S.f.au = '';
-                                auEl.value = '';
-                            }
-                        } else {
-                            S.f.au = val;
-                        }
-                        _hideDateErr();
-                        if (S.f.du && S.f.au && S.f.au <= S.f.du) {
-                            _showDateErr('La date de fin doit être après la date de début.');
-                            S.f.au = '';
-                            _el('f-au').value = '';
-                            return;
-                        }
-                        S.page = 1;
-                        this._fetch();
-                        this._syncUI();
-                    },
-                    reset() {
-                        S.f = {
-                            commune_ids: [],
-                            zone_ids: [],
-                            format_ids: [],
-                            agency_ids: [],
-                            dimensions: '',
-                            is_lit: '',
-                            statut: 'tous',
-                            du: '',
-                            au: '',
-                            source: 'all',
-                            q: ''
-                        };
-                        S.page = 1;
-                        ['f-dimensions', 'f-is_lit'].forEach(id => {
-                            const el = _el(id);
-                            if (el) el.value = '';
-                        });
-                        const s = _el('f-statut');
-                        if (s) s.value = 'tous';
-                        const r = _el('f-source');
-                        if (r) r.value = 'all';
-                        _el('f-du').value = '';
-                        _el('f-au').value = '';
-                        _el('f-search').value = '';
-                        _el('btn-clear-search').classList.add('hidden');
-                        ['commune_ids', 'zone_ids', 'format_ids', 'agency_ids'].forEach(_syncMs);
-                        _hideDateErr();
-                        this._fetch();
-                        this._syncUI();
-                    },
-                    setView(mode) {
-                        S.view = mode;
-                        const grid = _el('panels-grid'),
-                            list = _el('panels-list'),
-                            btnG = _el('btn-view-grid'),
-                            btnL = _el('btn-view-list');
-                        if (!grid || !list) return;
-                        const on =
-                            'px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-[var(--accent)] text-white';
-                        const off =
-                            'px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-[var(--text3)] hover:text-[var(--text)]';
-                        if (mode === 'grid') {
-                            grid.style.display = 'grid';
-                            list.style.display = 'none';
-                            btnG.className = on;
-                            btnL.className = off;
-                        } else {
-                            grid.style.display = 'none';
-                            list.style.display = 'block';
-                            btnG.className = off;
-                            btnL.className = on;
-                            if (S._lastPanels.length > 0) this._renderList(S._lastPanels);
-                        }
-                    },
-                    exportPdf(type) {
-                        const ids = S._lastPanels.filter(p => p.source === 'internal').map(p => p.id);
-                        if (ids.length === 0) {
-                            alert('Aucun panneau interne à exporter.');
-                            return;
-                        }
-                        const fId = type === 'images' ? 'form-pdf-images' : 'form-pdf-liste';
-                        const iId = type === 'images' ? 'pdf-images-inputs' : 'pdf-liste-inputs';
-                        const sId = type === 'images' ? 'pdf-start' : 'pdf-liste-start';
-                        const eId = type === 'images' ? 'pdf-end' : 'pdf-liste-end';
-                        _el(iId).innerHTML = ids.map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`)
-                            .join('');
-                        // Ajouter hide_status si coché
-                        if (type === 'liste') {
-                            const hideStatus = document.getElementById('dispo-hide-status')?.checked;
-                            if (hideStatus) _el(iId).innerHTML += `<input type="hidden" name="hide_status" value="1">`;
-                        }
-                        _el(sId).value = S.f.du || '';
-                        _el(eId).value = S.f.au || '';
-                        document.getElementById(fId).submit();
-                    },
-                    exportSelPdf(type) {
-                        const ids = S.sel.ids.filter(id => !String(id).startsWith('ext_'));
-                        if (ids.length === 0) {
-                            alert('Aucun panneau interne sélectionné.');
-                            return;
-                        }
-                        const fId = type === 'images' ? 'form-pdf-images' : 'form-pdf-liste';
-                        const iId = type === 'images' ? 'pdf-images-inputs' : 'pdf-liste-inputs';
-                        const sId = type === 'images' ? 'pdf-start' : 'pdf-liste-start';
-                        const eId = type === 'images' ? 'pdf-end' : 'pdf-liste-end';
-                        _el(iId).innerHTML = ids.map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`)
-                            .join('');
-                        _el(sId).value = S.f.du || '';
-                        _el(eId).value = S.f.au || '';
-                        document.getElementById(fId).submit();
-                    },
+        // ── PAGINATION ────────────────────────────────────────
+        prevPage() { if (S.page > 1) { S.page--; this._fetch(); } },
+        nextPage() {
+            if (S.page < S.pages) {
+                S.page++;
+                this._fetch();
+                _el('panels-grid')?.scrollIntoView({ behavior:'smooth', block:'start' });
+            }
+        },
 
-                    // Exporter en Excel les panneaux affichés (avec les filtres et dates)
-                   exportExcel() {
-                        const ids = S._lastPanels.map(p => p.id);
-                        
-                        if (ids.length === 0) {
-                            alert('Aucun panneau à exporter.');
-                            return;
-                        }
-                        
-                        // Créer un iframe invisible pour le téléchargement
-                        const iframe = document.createElement('iframe');
-                        iframe.style.display = 'none';
-                        document.body.appendChild(iframe);
-                        
-                        const form = document.createElement('form');
-                        form.method = 'POST';
-                        form.action = '{{ route("admin.reservations.disponibilites.export-excel") }}';
-                        form.target = iframe.name || '_blank';
-                        
-                        const csrfInput = document.createElement('input');
-                        csrfInput.type = 'hidden';
-                        csrfInput.name = '_token';
-                        csrfInput.value = D.csrf;
-                        form.appendChild(csrfInput);
-                        
-                        ids.forEach(id => {
-                            const input = document.createElement('input');
-                            input.type = 'hidden';
-                            input.name = 'panel_ids[]';
-                            input.value = id;
-                            form.appendChild(input);
-                        });
-                        
-                        if (S.f.du) {
-                            const startInput = document.createElement('input');
-                            startInput.type = 'hidden';
-                            startInput.name = 'start_date';
-                            startInput.value = S.f.du;
-                            form.appendChild(startInput);
-                        }
-                        
-                        if (S.f.au) {
-                            const endInput = document.createElement('input');
-                            endInput.type = 'hidden';
-                            endInput.name = 'end_date';
-                            endInput.value = S.f.au;
-                            form.appendChild(endInput);
-                        }
-                        
-                        document.body.appendChild(form);
-                        form.submit();
-                        
-                        setTimeout(() => {
-                            document.body.removeChild(form);
-                            document.body.removeChild(iframe);
-                        }, 1000);
-                    },
+        // ── SÉLECTION ─────────────────────────────────────────
+        toggle(id, rate, source) {
+            id = String(id);
+            const idx = S.sel.ids.indexOf(id);
+            if (idx === -1) {
+                S.sel.ids.push(id);
+                S.sel.rates[id]   = parseFloat(rate) || 0;
+                S.sel.sources[id] = source || 'internal';
+            } else {
+                S.sel.ids.splice(idx, 1);
+                delete S.sel.rates[id];
+                delete S.sel.sources[id];
+            }
+            const sel  = S.sel.ids.includes(id);
+            const card = document.querySelector(`.panel-card[data-id="${id}"]`);
+            if (card) {
+                card.classList.toggle('selected', sel);
+                const btn = card.querySelector('.btn-sel');
+                if (btn) { btn.textContent = sel ? '✓ Sélectionné' : '+ Sélectionner'; btn.style.background = sel ? 'var(--accent)' : 'var(--surface3)'; btn.style.color = sel ? '#fff' : 'var(--text)'; }
+                const chk = card.querySelector('.card-chk');
+                if (chk) chk.checked = sel;
+            }
+            const row = document.querySelector(`.list-row[data-id="${id}"]`);
+            if (row) {
+                row.classList.toggle('selected', sel);
+                const chk = row.querySelector('.card-chk');
+                if (chk) chk.checked = sel;
+            }
+            this._syncSelBar();
+        },
 
-                    // Pour l'export Excel de la sélection
-                    exportSelExcel() {
-                        const ids = S.sel.ids.filter(id => !String(id).startsWith('ext_'));
-                        if (ids.length === 0) {
-                            alert('Aucun panneau interne sélectionné.');
-                            return;
-                        }
-                        
-                        const form = document.createElement('form');
-                        form.method = 'POST';
-                        form.action = '{{ route("admin.reservations.disponibilites.export-excel") }}';
-                        form.target = '_blank';
-                        form.style.display = 'none';
-                        
-                        const csrfInput = document.createElement('input');
-                        csrfInput.type = 'hidden';
-                        csrfInput.name = '_token';
-                        csrfInput.value = D.csrf;
-                        form.appendChild(csrfInput);
-                        
-                        ids.forEach(id => {
-                            const input = document.createElement('input');
-                            input.type = 'hidden';
-                            input.name = 'panel_ids[]';
-                            input.value = id;
-                            form.appendChild(input);
-                        });
-                        
-                        if (S.f.du) {
-                            const startInput = document.createElement('input');
-                            startInput.type = 'hidden';
-                            startInput.name = 'start_date';
-                            startInput.value = S.f.du;
-                            form.appendChild(startInput);
-                        }
-                        
-                        if (S.f.au) {
-                            const endInput = document.createElement('input');
-                            endInput.type = 'hidden';
-                            endInput.name = 'end_date';
-                            endInput.value = S.f.au;
-                            form.appendChild(endInput);
-                        }
-                        
-                        document.body.appendChild(form);
-                        form.submit();
-                        document.body.removeChild(form);
-                    },
-
-                    prevPage() {
-                        if (S.page > 1) {
-                            S.page--;
-                            this._fetch();
-                        }
-                    },
-                    nextPage() {
-                        if (S.page < S.pages) {
-                            S.page++;
-                            this._fetch();
-                            _el('panels-grid')?.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'start'
-                            });
-                        }
-                    },
-                    toggle(id, rate, source) {
-                        id = String(id);
-                        const idx = S.sel.ids.indexOf(id);
-                        if (idx === -1) {
-                            S.sel.ids.push(id);
-                            S.sel.rates[id] = parseFloat(rate) || 0;
-                            S.sel.sources[id] = source || 'internal';
-                        } else {
-                            S.sel.ids.splice(idx, 1);
-                            delete S.sel.rates[id];
-                            delete S.sel.sources[id];
-                        }
-                        const sel = S.sel.ids.includes(id);
-                        const card = document.querySelector(`.panel-card[data-id="${id}"]`);
-                        if (card) {
-                            card.classList.toggle('selected', sel);
-                            const btn = card.querySelector('.btn-sel');
-                            if (btn) {
-                                btn.textContent = sel ? '✓ Sélectionné' : '+ Sélectionner';
-                                btn.style.background = sel ? 'var(--accent)' : 'var(--surface3)';
-                                btn.style.color = sel ? '#fff' : 'var(--text)';
-                            }
-                            const chk = card.querySelector('.card-chk');
-                            if (chk) chk.checked = sel;
-                        }
-                        const row = document.querySelector(`.list-row[data-id="${id}"]`);
-                        if (row) {
-                            row.classList.toggle('selected', sel);
-                            const chk = row.querySelector('.card-chk');
-                            if (chk) chk.checked = sel;
-                        }
-                        this._syncSelBar();
-                    },
-                    clearSelection() {
-                        S.sel = {
-                            ids: [],
-                            rates: {},
-                            sources: {}
-                        };
-                        document.querySelectorAll('.panel-card.selected,.list-row.selected').forEach(el => {
-                            el.classList.remove('selected');
-                            const btn = el.querySelector('.btn-sel');
-                            if (btn) {
-                                btn.textContent = '+ Sélectionner';
-                                btn.style.background = 'var(--surface3)';
-                                btn.style.color = 'var(--text)';
-                            }
-                            const chk = el.querySelector('.card-chk');
-                            if (chk) chk.checked = false;
-                        });
-                        this._syncSelBar();
-                    },
-                    openConfirmModal() {
-                        _el('modal-du').value = S.f.du || '';
-                        _el('modal-au').value = S.f.au || '';
-                        _el('hidden-panels').innerHTML = S.sel.ids.map(id =>
-                            `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
-                        const hasExt = Object.values(S.sel.sources).includes('external');
-                        _el('modal-ext-warn').classList.toggle('hidden', !hasExt);
-                        _el('modal-ext-warn').classList.toggle('flex', hasExt);
-                        _el('modal-errors').classList.add('hidden');
-                        _el('modal-date-err').classList.add('hidden');
-                        _el('modal-client-err').classList.add('hidden');
-                        _el('modal-summary').textContent = `${S.sel.ids.length} panneau(x) sélectionné(s)`;
-                        this.calcEstimate();
-                        _show('modal-confirm');
-                        setTimeout(() => initConfirmSelect2(), 50);
-                    },
-                    closeConfirmModal() {
-                        _hide('modal-confirm');
-                    },
-                    setType(type) {
-                        document.querySelector(`input[name="type"][value="${type}"]`).checked = true;
-                        const isOpt = type === 'option';
-                        _el('lbl-option').style.borderColor = isOpt ? '#f97316' : 'var(--border2)';
-                        _el('lbl-option').style.borderWidth = isOpt ? '2px' : '1px';
-                        _el('lbl-ferme').style.borderColor = !isOpt ? '#22c55e' : 'var(--border2)';
-                        _el('lbl-ferme').style.borderWidth = !isOpt ? '2px' : '1px';
-                        _el('wrapper-campaign-name').classList.toggle('hidden', isOpt);
-                    },
-                    calcEstimate() {
-                        const du = _el('modal-du').value,
-                            au = _el('modal-au').value;
-                        if (du && au && au <= du) {
-                            _el('modal-date-err').classList.remove('hidden');
-                            _el('modal-date-err-text').textContent = 'La date de fin doit être après la date de début.';
-                            _el('modal-total').textContent = '—';
-                            _el('modal-months').textContent = '';
-                            return;
-                        }
-                        _el('modal-date-err').classList.add('hidden');
-                        if (!du || !au) {
-                            _el('modal-total').textContent = '—';
-                            _el('modal-months').textContent = '';
-                            return;
-                        }
-                        const months = _months(du, au);
-                        const total = S.sel.ids.reduce((s, id) => s + (S.sel.rates[id] || 0) * months, 0);
-                        _el('modal-total').textContent = Math.round(total).toLocaleString('fr-FR');
-                        _el('modal-months').textContent = `(${months} mois)`;
-                    },
-                    submitForm() {
-                        const du = document.getElementById('modal-du').value;
-                        const au = document.getElementById('modal-au').value;
-                        const client = $('#modal-client-select').val();
-                        const errors = [];
-                        
-                        if (!client) {
-                            errors.push('Veuillez sélectionner un client.');
-                            document.getElementById('modal-client-err').classList.remove('hidden');
-                        } else {
-                            document.getElementById('modal-client-err').classList.add('hidden');
-                        }
-                        
-                        if (!du) errors.push('La date de début est obligatoire.');
-                        if (!au) errors.push('La date de fin est obligatoire.');
-                        if (du && au && au <= du) errors.push('La date de fin doit être après la date de début.');
-                        
-                        if (errors.length > 0) {
-                            const box = document.getElementById('modal-errors');
-                            box.innerHTML = errors.map(e => `<div class="flex gap-2"><span>⚠️</span><span>${e}</span></div>`).join('');
-                            box.classList.remove('hidden');
-                            return;
-                        }
-                        
-                        // ✅ CORRECTION : Utiliser S.sel.ids directement
-                        const hiddenPanels = document.getElementById('hidden-panels');
-                        hiddenPanels.innerHTML = S.sel.ids.map(id => 
-                            `<input type="hidden" name="panel_ids[]" value="${id}">`
-                        ).join('');
-                        
-                        // Ajouter le montant personnalisé s'il existe
-                        if (this._customAmount !== null && this._customAmount > 0) {
-                            const amountInput = document.createElement('input');
-                            amountInput.type = 'hidden';
-                            amountInput.name = 'custom_amount';
-                            amountInput.value = this._customAmount;
-                            hiddenPanels.appendChild(amountInput);
-                        }
-                        
-                        document.getElementById('modal-submit-txt').textContent = 'Envoi en cours…';
-                        document.getElementById('modal-submit').disabled = true;
-                        document.getElementById('form-confirm').submit();
-                    },
-                    openFiche(p) {
-                        _el('fiche-title').textContent = `📋 ${p.reference} — ${p.name}`;
-                        const src = p.source === 'external' ? `🤝 ${p.agency_name}` : '🏢 Interne';
-                        const fields = [
-                            ['RÉFÉRENCE', p.reference],
-                            ['SOURCE', src],
-                            ['COMMUNE', p.commune],
-                            ['ZONE', p.zone],
-                            ['FORMAT', p.format],
-                            ['DIMENSIONS', p.dimensions || '—'],
-                            ['ÉCLAIRAGE', p.is_lit ? '💡 Éclairé' : 'Non éclairé'],
-                            ['TRAFIC/JOUR', p.daily_traffic > 0 ? p.daily_traffic.toLocaleString('fr-FR') +
-                                ' contacts' : '—'
-                            ]
-                        ];
-                        _el('fiche-body').innerHTML =
-                            `<div class="grid grid-cols-2 gap-2 mb-4">${fields.map(([l,v])=>`<div style="background:var(--surface2);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${l}</div><div style="font-size:13px;color:var(--text);font-weight:500">${v||'—'}</div></div>`).join('')}</div><div style="background:var(--accent-dim);border:1px solid var(--accent)22;border-radius:12px;padding:16px;text-align:center;margin-bottom:12px"><div style="font-size:10px;color:var(--text3);margin-bottom:4px">TARIF MENSUEL</div><div style="font-size:24px;font-weight:800;color:var(--accent)">${p.monthly_rate?Math.round(p.monthly_rate).toLocaleString('fr-FR')+' FCFA':'—'}</div></div>${p.zone_description?`<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:4px">Zone</div><div style="background:var(--surface2);border-radius:10px;padding:12px;font-size:12px;color:var(--text2)">${p.zone_description}</div>`:''}`;
-                        _show('modal-fiche');
-                    },
-                    closeFiche() {
-                        _hide('modal-fiche');
-                    },
-                    showError(msgs) {
-                        _el('error-body').innerHTML = (Array.isArray(msgs) ? msgs : [msgs]).map(m =>
-                            `<div class="flex gap-2 items-start"><span class="text-red-500">•</span><span>${m}</span></div>`
-                        ).join('');
-                        _show('modal-error');
-                    },
-                    closeError() {
-                        _hide('modal-error');
-                    },
-                    openQuickClientModal() {
-                        const form = _el('form-quick-client');
-                        if (form) form.reset();
-                        _el('quick-client-errors').classList.add('hidden');
-                        _el('qc-submit-txt').textContent = 'Créer le client';
-                        _el('qc-submit').disabled = false;
-                        _show('modal-quick-client');
-                        setTimeout(() => _el('qc-name')?.focus(), 100);
-                    },
-                    closeQuickClientModal() {
-                        _hide('modal-quick-client');
-                    },
-                    async submitQuickClient(event) {
-                        event.preventDefault();
-                        const btn = _el('qc-submit'),
-                            errBox = _el('quick-client-errors');
-                        errBox.classList.add('hidden');
-                        const name = _el('qc-name').value.trim();
-                        if (!name) {
-                            errBox.innerHTML =
-                                '<div class="flex gap-2"><span>⚠️</span><span>Le nom est obligatoire.</span></div>';
-                            errBox.classList.remove('hidden');
-                            _el('qc-name').focus();
-                            return;
-                        }
-                        _el('qc-submit-icon').textContent = '⟳';
-                        _el('qc-submit-txt').textContent = 'Création…';
-                        btn.disabled = true;
-                        try {
-                            const res = await fetch(
-                                '{{ secure_url(route('admin.clients.quick-store', [], false)) }}', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'Accept': 'application/json',
-                                        'X-CSRF-TOKEN': D.csrf
-                                    },
-                                    body: JSON.stringify({
-                                        name: _el('qc-name').value.trim(),
-                                        ncc: _el('qc-ncc').value.trim() || null,
-                                        email: _el('qc-email').value.trim() || null,
-                                        phone: _el('qc-phone').value.trim() || null,
-                                        contact_name: _el('qc-contact').value.trim() || null
-                                    })
-                                });
-                            const data = await res.json();
-                            if (!res.ok) {
-                                const messages = data.errors ? Object.values(data.errors).flat() : [data.message ||
-                                    'Erreur.'
-                                ];
-                                errBox.innerHTML = messages.map(m =>
-                                    `<div class="flex gap-2"><span>⚠️</span><span>${m}</span></div>`).join('');
-                                errBox.classList.remove('hidden');
-                                return;
-                            }
-                            addClientToSelect2(data.id, data.name);
-                            this.closeQuickClientModal();
-                            this.showSuccessToast(`Client "${data.name}" créé ✅`);
-                        } catch (err) {
-                            errBox.innerHTML =
-                                `<div class="flex gap-2"><span>⚠️</span><span>Erreur réseau : ${err.message}</span></div>`;
-                            errBox.classList.remove('hidden');
-                        } finally {
-                            _el('qc-submit-icon').textContent = '🏢';
-                            _el('qc-submit-txt').textContent = 'Créer le client';
-                            btn.disabled = false;
-                        }
-                    },
-                    showSuccessToast(message) {
-                        const toast = document.createElement('div');
-                        toast.style.cssText =
-                            'position:fixed;bottom:24px;right:24px;z-index:10002;background:var(--surface);border:1px solid rgba(34,197,94,.4);border-left:3px solid #22c55e;color:var(--text);padding:12px 16px;border-radius:12px;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.2);display:flex;align-items:center;gap:8px;animation:slideInToast .3s ease;max-width:360px;';
-                        toast.innerHTML = `<span style="color:#22c55e;font-size:16px;">✅</span><span>${message}</span>`;
-                        document.body.appendChild(toast);
-                        setTimeout(() => {
-                            toast.style.opacity = '0';
-                            toast.style.transform = 'translateX(20px)';
-                            toast.style.transition = 'all .3s ease';
-                            setTimeout(() => toast.remove(), 300);
-                        }, 3500);
-                    },
-                    _fetch(delay) {
-                        clearTimeout(S.debounce);
-                        S.debounce = setTimeout(() => this._doFetch(), delay !== undefined ? delay : 300);
-                    },
-                    async _doFetch() {
-                        const rid = ++S.reqId;
-                        S.loading = true;
-                        _showLoader();
-                        const p = new URLSearchParams();
-                        S.f.commune_ids.forEach(id => p.append('commune_ids[]', id));
-                        S.f.zone_ids.forEach(id => p.append('zone_ids[]', id));
-                        S.f.format_ids.forEach(id => p.append('format_ids[]', id));
-                        S.f.agency_ids.forEach(id => p.append('agency_ids[]', id));
-                        if (S.f.dimensions) p.set('dimensions', S.f.dimensions);
-                        if (S.f.is_lit !== '') p.set('is_lit', S.f.is_lit);
-                        if (S.f.statut !== 'tous') p.set('statut', S.f.statut);
-                        if (S.f.du) p.set('dispo_du', S.f.du);
-                        if (S.f.au) p.set('dispo_au', S.f.au);
-                        if (S.f.source !== 'all') p.set('source', S.f.source);
-                        if (S.f.q) p.set('q', S.f.q);
-                        p.set('page', S.page);
-                        p.set('per_page', S.perPage);
-                        try {
-                            const safeUrl = D.ajaxUrl.replace(/^http:\/\//i, 'https://');
-                            const res = await fetch(`${safeUrl}?${p}`, {
-                                headers: {
-                                    Accept: 'application/json',
-                                    'X-CSRF-TOKEN': D.csrf
-                                }
-                            });
-                            if (rid !== S.reqId) return;
-                            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                            const data = await res.json();
-                            S.loading = false;
-                            if (data.date_error) {
-                                _showDateErr(data.date_error);
-                                _showEmpty(data.date_error, '');
-                                return;
-                            }
-                            S.pages = data.stats.pages || 1;
-                            S.total = data.stats.total || 0;
-                            S._lastPanels = data.panels || [];
-                            this._renderPanels(data.panels);
-                            this._renderStats(data.stats, data.has_period);
-                            this._renderPagination(data.stats);
-                        } catch (err) {
-                            if (rid !== S.reqId) return;
-                            S.loading = false;
-                            _showEmpty('Erreur de chargement', 'Vérifiez votre connexion.');
-                            console.error('[DISPO]', err);
-                        }
-                    },
-                    _renderPanels(panels) {
-                        const grid = _el('panels-grid'),
-                            empty = _el('empty-state');
-                        _hide('loader');
-                        if (!panels || panels.length === 0) {
-                            grid.innerHTML = '';
-                            _el('panels-list-body').innerHTML = '';
-                            empty.style.display = 'block';
-                            return;
-                        }
-                        empty.style.display = 'none';
-                        const frag = document.createDocumentFragment();
-                        panels.forEach(p => {
-                            const div = document.createElement('div');
-                            div.innerHTML = this._cardHtml(p);
-                            frag.appendChild(div.firstElementChild);
-                        });
-                        grid.innerHTML = '';
-                        grid.appendChild(frag);
-                        if (S.view === 'list') this._renderList(panels);
-                        S.sel.ids.forEach(id => {
-                            const card = grid.querySelector(`.panel-card[data-id="${id}"]`);
-                            if (!card) return;
-                            card.classList.add('selected');
-                            const btn = card.querySelector('.btn-sel');
-                            if (btn) {
-                                btn.textContent = '✓ Sélectionné';
-                                btn.style.background = 'var(--accent)';
-                                btn.style.color = '#fff';
-                            }
-                            const chk = card.querySelector('.card-chk');
-                            if (chk) chk.checked = true;
-                        });
-                    },
-                    _cardHtml(p) {
-                        const sc = STATUS_CFG[p.display_status] || STATUS_CFG.libre;
-                        const bg = D.colors[p.card_color_idx || 0] || '#3b82f6';
-                        const isSel = S.sel.ids.includes(String(p.id));
-                        const thumbStyle = p.photo_url ? `background:url('${p.photo_url}') center/cover no-repeat;` :
-                            `background:${bg};`;
-                        const tags = [p.format ? `<span class="tag">${p.format}</span>` : '', p.dimensions ?
-                            `<span class="tag">${p.dimensions}</span>` : '', p.is_lit ?
-                            `<span class="tag" style="color:var(--accent)">💡</span>` : ''
-                        ].filter(Boolean).join('');
-                        const releaseHtml = p.release_info ?
-                            `<div style="margin-top:4px;padding:4px 8px;border-radius:6px;font-size:10px;background:rgba(226,6,19,.06);border:1px solid rgba(226,6,19,.15);"><span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'var(--accent)':'var(--text3)'}">📅 ${p.release_info.label}</span></div>` :
-                            '';
-                        const selBtn = p.is_selectable ?
-                            `<button type="button" class="btn-sel" style="flex:1.2;font-size:11px;padding:6px 10px;border-radius:7px;background:${isSel?'var(--accent)':'var(--surface3)'};color:${isSel?'#fff':'var(--text)'};border:1px solid ${isSel?'transparent':'var(--border2)'};cursor:pointer;transition:all .15s;" onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">${isSel?'✓ Sélectionné':'+ Sélectionner'}</button>` :
-                            `<div style="flex:1.2;padding:6px 10px;background:var(--surface3);border-radius:7px;font-size:11px;color:var(--text3);text-align:center;border:1px solid var(--border);">${sc.l}</div>`;
-                        const safeP = encodeURIComponent(JSON.stringify(p));
-                        return `<div class="panel-card${p.is_selectable?' selectable':''}${isSel?' selected':''}" data-id="${p.id}" ${p.is_selectable?`onclick="DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')"`:''}>${p.source==='external'?`<div style="position:absolute;top:8px;left:8px;z-index:2;font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)">🤝 ${p.agency_name}</div>`:''} ${p.is_selectable?`<div style="position:absolute;top:10px;left:10px;z-index:2;"><input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')"></div>`:''}<div style="position:absolute;top:8px;right:8px;z-index:2;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${sc.c};color:white;text-transform:uppercase;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.3);">${sc.l}</div><div style="height:96px;flex-shrink:0;position:relative;overflow:hidden;${thumbStyle}"><div style="position:absolute;inset:0;background:${p.photo_url?'linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.65))':'rgba(0,0,0,.15)'}"></div><div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border-radius:7px;padding:4px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#fff;letter-spacing:1.5px;white-space:nowrap;backdrop-filter:blur(4px);">${p.reference}</div></div><div style="padding:12px 14px;flex:1;display:flex;flex-direction:column;"><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div><div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.name}">${p.name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">${tags}</div>${p.zone_description?`<div style="font-size:11px;color:var(--text2);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.zone_description}">📍 ${p.zone_description}</div>`:''}<div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);"><div style="font-size:17px;font-weight:800;color:var(--accent);margin-bottom:6px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K <span style="font-size:11px;font-weight:400;color:var(--text3)">FCFA/mois</span>':'<span style="font-size:13px;color:var(--text3)">Tarif non défini</span>'}</div>${releaseHtml}<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" style="flex:none;font-size:10px;padding:6px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button>${selBtn}</div></div></div></div>`;
-                    },
-                    _renderList(panels) {
-                        const tbody = _el('panels-list-body');
-                        if (!tbody) return;
-                        const frag = document.createDocumentFragment();
-                        panels.forEach(p => {
-                            const sc = STATUS_CFG[p.display_status] || STATUS_CFG.libre;
-                            const isSel = S.sel.ids.includes(String(p.id));
-                            const tr = document.createElement('tr');
-                            tr.className = `list-row${isSel?' selected':''}`;
-                            tr.dataset.id = p.id;
-                            if (p.is_selectable) tr.onclick = () => DISPO.toggle(p.id, p.monthly_rate, p
-                                .source);
-                            const safeP = encodeURIComponent(JSON.stringify(p));
-                            tr.innerHTML =
-                                `<td style="padding:10px 8px;width:36px;text-align:center;">${p.is_selectable?`<input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">`:`<span style="font-size:12px;opacity:.4;">🔒</span>`}</td><td style="padding:10px 8px;"><span style="font-family:monospace;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;background:${sc.b};color:${sc.c}">${p.reference}</span>${p.source==='external'?`<span style="display:block;font-size:9px;color:#60a5fa;margin-top:2px;">🤝 ${p.agency_name}</span>`:''}</td><td style="padding:10px 8px;"><div style="font-weight:600;font-size:13px;color:var(--text);">${p.name}</div><div style="font-size:11px;color:var(--text3);">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div></td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.format||'—'}</td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.dimensions||'—'}${p.is_lit?' 💡':''}</td><td style="padding:10px 8px;"><div style="font-weight:700;color:var(--accent);font-size:13px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K':'—'} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></div></td><td style="padding:10px 8px;"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">${sc.l}</span>${p.release_info?`<div style="font-size:10px;color:var(--text3);margin-top:3px;">📅 ${p.release_info.label}</div>`:''}</td><td style="padding:10px 8px;"><button type="button" style="font-size:10px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button></td>`;
-                            frag.appendChild(tr);
-                        });
-                        tbody.innerHTML = '';
-                        tbody.appendChild(frag);
-                        S.sel.ids.forEach(id => {
-                            const row = tbody.querySelector(`.list-row[data-id="${id}"]`);
-                            if (row) {
-                                row.classList.add('selected');
-                                const chk = row.querySelector('.card-chk');
-                                if (chk) chk.checked = true;
-                            }
-                        });
-                    },
-                    _renderStats(stats, hasPeriod) {
-                        const set = (id, html, show = true) => {
-                            const el = _el(id);
-                            if (!el) return;
-                            el.style.display = show ? 'inline-flex' : 'none';
-                            if (show) el.innerHTML = html;
-                        };
-                        set('stat-total', `📊 <strong>${stats.total}</strong> panneau(x)`);
-                        set('stat-dispo', `✅ <strong>${stats.disponibles}</strong> disponible(s)`, hasPeriod && stats
-                            .disponibles > 0);
-                        set('stat-occupes', `🔒 <strong>${stats.occupes}</strong> occupé(s)`, hasPeriod && stats
-                            .occupes > 0);
-                        set('stat-options', `⏳ <strong>${stats.options || 0}</strong> en option`, hasPeriod && (stats
-                            .options || 0) > 0);
-                        set('stat-ext', `🤝 <strong>${stats.externes}</strong> externe(s)`, stats.externes > 0);
-                    },
-                    _renderPagination(stats) {
-                        const bar = _el('pagination-bar'),
-                            info = _el('pag-info'),
-                            prev = _el('btn-prev'),
-                            next = _el('btn-next');
-                        if (!bar) return;
-                        if (stats.pages <= 1) {
-                            bar.classList.add('hidden');
-                            return;
-                        }
-                        bar.classList.remove('hidden');
-                        const from = (S.page - 1) * S.perPage + 1,
-                            to = Math.min(S.page * S.perPage, stats.total);
-                        if (info) info.textContent = `${from}–${to} sur ${stats.total}`;
-                        if (prev) prev.disabled = S.page <= 1;
-                        if (next) next.disabled = S.page >= stats.pages;
-                    },
-                    _syncSelBar() {
-                        const n = S.sel.ids.length,
-                            total = Object.values(S.sel.rates).reduce((s, r) => s + r, 0),
-                            nExt = Object.values(S.sel.sources).filter(s => s === 'external').length;
-                        _el('sel-bar').style.display = n > 0 ? 'block' : 'none';
-                        const tw = _el('topbar-confirm-wrapper');
-                        if (tw) tw.style.display = n > 0 ? 'block' : 'none';
-                        _el('sel-count').textContent = n;
-                        _el('sel-amount').textContent = Math.round(total).toLocaleString('fr-FR') + ' FCFA/mois';
-                        _el('topbar-count').textContent = n;
-                        const eb = _el('sel-ext-badge');
-                        if (eb) {
-                            eb.classList.toggle('hidden', nExt === 0);
-                            _el('sel-ext-n').textContent = nExt;
-                        }
-                    },
-                    _syncUI() {
-                        const f = S.f,
-                            active = f.commune_ids.length || f.zone_ids.length || f.format_ids.length || f.agency_ids
-                            .length || f.dimensions || f.is_lit !== '' || f.statut !== 'tous' || f.du || f.au || f
-                            .source !== 'all' || f.q;
-                        _el('btn-reset').classList.toggle('hidden', !active);
-                        this._renderTags();
-                    },
-                    _renderTags() {
-                        const f = S.f,
-                            tags = [];
-                        const addMS = (ids, key, data) => ids.forEach(id => {
-                            const it = data.find(x => x.id === id || x.id === parseInt(id));
-                            if (it) tags.push({
-                                l: it.name,
-                                rm: () => {
-                                    const i = S.f[key].indexOf(id);
-                                    if (i > -1) S.f[key].splice(i, 1);
-                                    S.page = 1;
-                                    _syncMs(key);
-                                    this._fetch();
-                                    this._syncUI();
-                                }
-                            });
-                        });
-                        addMS(f.commune_ids, 'commune_ids', D.communes);
-                        addMS(f.zone_ids, 'zone_ids', D.zones);
-                        addMS(f.format_ids, 'format_ids', D.formats);
-                        addMS(f.agency_ids, 'agency_ids', D.agencies);
-                        if (f.dimensions) tags.push({
-                            l: f.dimensions,
-                            rm: () => {
-                                S.f.dimensions = '';
-                                _el('f-dimensions').value = '';
-                                S.page = 1;
-                                this._fetch();
-                                this._syncUI();
-                            }
-                        });
-                        if (f.is_lit === '1') tags.push({
-                            l: '💡 Éclairé',
-                            rm: () => {
-                                S.f.is_lit = '';
-                                _el('f-is_lit').value = '';
-                                S.page = 1;
-                                this._fetch();
-                                this._syncUI();
-                            }
-                        });
-                        if (f.is_lit === '0') tags.push({
-                            l: 'Non éclairé',
-                            rm: () => {
-                                S.f.is_lit = '';
-                                _el('f-is_lit').value = '';
-                                S.page = 1;
-                                this._fetch();
-                                this._syncUI();
-                            }
-                        });
-                        if (f.statut !== 'tous') tags.push({
-                            l: 'Statut: ' + f.statut,
-                            rm: () => {
-                                S.f.statut = 'tous';
-                                _el('f-statut').value = 'tous';
-                                S.page = 1;
-                                this._fetch();
-                                this._syncUI();
-                            }
-                        });
-                        if (f.q) tags.push({
-                            l: '🔍 ' + f.q,
-                            rm: () => {
-                                S.f.q = '';
-                                _el('f-search').value = '';
-                                _el('btn-clear-search').classList.add('hidden');
-                                S.page = 1;
-                                this._fetch();
-                                this._syncUI();
-                            }
-                        });
-                        const bar = _el('tags-bar'),
-                            list = _el('tags-list');
-                        if (!bar || !list) return;
-                        bar.classList.toggle('hidden', tags.length === 0);
-                        bar.classList.toggle('flex', tags.length > 0);
-                        list.innerHTML = tags.map((t, i) =>
-                            `<span class="ms-chip">${t.l}<button type="button" onclick="__tagRm(${i})" title="Retirer">✕</button></span>`
-                        ).join('');
-                        window.__tagCbs = tags.map(t => t.rm);
-                    },
-
-                    // ═══════════════════════════════════════════════════════════════
-                    // GESTION DU MONTANT PERSONNALISÉ
-                    // ═══════════════════════════════════════════════════════════════
-                    
-                    _customAmount: null,
-                    _originalEstimate: 0,
-
-                    toggleAmountEdit() {
-                        const wrap = document.getElementById('amount-edit-wrap');
-                        const btn = document.getElementById('btn-toggle-amount');
-                        const isVisible = wrap && wrap.classList.contains('hidden') === false;
-                        
-                        if (isVisible) {
-                            wrap.classList.add('hidden');
-                            btn.innerHTML = '✏️ Personnaliser';
-                            this._customAmount = null;
-                            this._refreshEstimatedTotal();
-                        } else {
-                            wrap.classList.remove('hidden');
-                            btn.innerHTML = '✕ Annuler personnalisation';
-                            const amountInput = document.getElementById('modal-amount');
-                            if (amountInput) {
-                                amountInput.value = '';
-                                amountInput.placeholder = this._originalEstimate > 0 ? Math.round(this._originalEstimate).toLocaleString('fr-FR') + ' FCFA' : 'Montant total…';
-                                amountInput.focus();
-                            }
-                        }
-                    },
-
-                    onAmountInput(value) {
-                        const num = parseFloat(value);
-                        const totalSpan = document.getElementById('modal-total');
-                        const monthsSpan = document.getElementById('modal-months');
-                        
-                        if (!isNaN(num) && num > 0) {
-                            this._customAmount = num;
-                            totalSpan.textContent = Math.round(num).toLocaleString('fr-FR');
-                            monthsSpan.textContent = '(montant personnalisé)';
-                        } else {
-                            this._customAmount = null;
-                            this._refreshEstimatedTotal();
-                        }
-                    },
-
-                    resetAmount() {
-                        const amountInput = document.getElementById('modal-amount');
-                        if (amountInput) amountInput.value = '';
-                        this._customAmount = null;
-                        this._refreshEstimatedTotal();
-                    },
-
-                    _refreshEstimatedTotal() {
-                        const du = document.getElementById('modal-du').value;
-                        const au = document.getElementById('modal-au').value;
-                        const totalSpan = document.getElementById('modal-total');
-                        const monthsSpan = document.getElementById('modal-months');
-                        
-                        if (!du || !au) {
-                            totalSpan.textContent = '—';
-                            monthsSpan.textContent = '';
-                            return;
-                        }
-                        
-                        const months = this._months(du, au);
-                        
-                        // ✅ CORRECTION : Utiliser S.sel (S est accessible)
-                        const total = S.sel.ids.reduce((sum, id) => {
-                            return sum + (S.sel.rates[id] || 0) * months;
-                        }, 0);
-                        
-                        this._originalEstimate = total;
-                        
-                        totalSpan.textContent = Math.round(total).toLocaleString('fr-FR');
-                        monthsSpan.textContent = `(${months} mois)`;
-                        
-                        const amountInput = document.getElementById('modal-amount');
-                        if (amountInput && !amountInput.value) {
-                            amountInput.placeholder = Math.round(total).toLocaleString('fr-FR') + ' FCFA';
-                        }
-                    },
-
-                    calcEstimate() {
-                        const du = document.getElementById('modal-du').value;
-                        const au = document.getElementById('modal-au').value;
-                        
-                        if (du && au && au <= du) {
-                            document.getElementById('modal-date-err').classList.remove('hidden');
-                            document.getElementById('modal-date-err-text').textContent = 'La date de fin doit être après la date de début.';
-                            document.getElementById('modal-total').textContent = '—';
-                            document.getElementById('modal-months').textContent = '';
-                            return;
-                        }
-                        
-                        document.getElementById('modal-date-err').classList.add('hidden');
-                        
-                        if (!du || !au) {
-                            document.getElementById('modal-total').textContent = '—';
-                            document.getElementById('modal-months').textContent = '';
-                            return;
-                        }
-                        
-                        // Calcul du nombre de mois
-                        const months = this._months(du, au);
-                        const total = S.sel.ids.reduce((sum, id) => {
-                            return sum + (S.sel.rates[id] || 0) * months;
-                        }, 0);
-                        
-                        // Sauvegarder l'estimation originale
-                        this._originalEstimate = total;
-                        
-                        // Afficher le montant estimé
-                        document.getElementById('modal-total').textContent = Math.round(total).toLocaleString('fr-FR');
-                        document.getElementById('modal-months').textContent = `(${months} mois)`;
-                        
-                        // Mettre à jour le placeholder du champ personnalisé
-                        const amountInput = document.getElementById('modal-amount');
-                        if (amountInput && !amountInput.value) {
-                            amountInput.placeholder = Math.round(total).toLocaleString('fr-FR') + ' FCFA';
-                        }
-                        
-                        // Si un montant personnalisé était actif, le restaurer
-                        if (this._customAmount !== null && this._customAmount > 0) {
-                            document.getElementById('modal-total').textContent = Math.round(this._customAmount).toLocaleString('fr-FR');
-                            document.getElementById('modal-months').textContent = '(montant personnalisé)';
-                        }
-                    },
-
-                _months(startDate, endDate) {
-                    const start = new Date(startDate);
-                    const end = new Date(endDate);
-                    
-                    const totalDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
-                    if (totalDays <= 0) return 0.5;
-                    
-                    const fullMonths = Math.floor(totalDays / 30);
-                    const remainDays = totalDays % 30;
-                    
-                    let fraction = 0;
-                    if (remainDays >= 1 && remainDays <= 15) {
-                        fraction = 0.5;
-                    } else if (remainDays > 15) {
-                        fraction = 1;
-                    }
-                    
-                    return Math.max(fullMonths + fraction, 0.5);
-                },
-
-                    submitForm() {
-                        const du = document.getElementById('modal-du').value;
-                        const au = document.getElementById('modal-au').value;
-                        const client = $('#modal-client-select').val();
-                        const errors = [];
-                        
-                        if (!client) {
-                            errors.push('Veuillez sélectionner un client.');
-                            document.getElementById('modal-client-err').classList.remove('hidden');
-                        } else {
-                            document.getElementById('modal-client-err').classList.add('hidden');
-                        }
-                        
-                        if (!du) errors.push('La date de début est obligatoire.');
-                        if (!au) errors.push('La date de fin est obligatoire.');
-                        if (du && au && au <= du) errors.push('La date de fin doit être après la date de début.');
-                        
-                        if (errors.length > 0) {
-                            const box = document.getElementById('modal-errors');
-                            box.innerHTML = errors.map(e => `<div class="flex gap-2"><span>⚠️</span><span>${e}</span></div>`).join('');
-                            box.classList.remove('hidden');
-                            return;
-                        }
-                        
-                        document.getElementById('hidden-panels').innerHTML = (window.S?.sel?.ids || []).map(id =>
-                            `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
-                        
-                        if (this._customAmount !== null && this._customAmount > 0) {
-                            const amountInput = document.createElement('input');
-                            amountInput.type = 'hidden';
-                            amountInput.name = 'custom_amount';
-                            amountInput.value = this._customAmount;
-                            document.getElementById('hidden-panels').appendChild(amountInput);
-                        }
-                        
-                        document.getElementById('modal-submit-txt').textContent = 'Envoi en cours…';
-                        document.getElementById('modal-submit').disabled = true;
-                        document.getElementById('form-confirm').submit();
-                    },
-                };
-                const MS = {};
-
-                function buildMs(wrapper) {
-                    const key = wrapper.dataset.key,
-                        ph = wrapper.dataset.placeholder || 'Sélectionner',
-                        data = MS_DATA[key] || [];
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'ms-btn';
-                    btn.innerHTML = `<span class="ms-tags-inner"><span class="ms-placeholder">${ph}</span></span>`;
-                    const drop = document.createElement('div');
-                    drop.className = 'ms-drop';
-                    drop.style.display = 'none';
-                    const srch = document.createElement('div');
-                    srch.className = 'ms-search';
-                    const si = document.createElement('input');
-                    si.type = 'text';
-                    si.placeholder = 'Rechercher…';
-                    si.autocomplete = 'off';
-                    srch.appendChild(si);
-                    drop.appendChild(srch);
-                    const listEl = document.createElement('div');
-                    listEl.className = 'ms-list';
-                    drop.appendChild(listEl);
-                    const foot = document.createElement('div');
-                    foot.className = 'ms-foot';
-                    foot.innerHTML =
-                        `<span id="ms-foot-${key}">0 sélectionné(s)</span><div><button type="button" onclick="__msAll('${key}')">Tout</button><button type="button" onclick="__msClear('${key}')">Aucun</button></div>`;
-                    drop.appendChild(foot);
-                    wrapper.appendChild(btn);
-                    wrapper.appendChild(drop);
-
-                    function render(q = '') {
-                        const sel = S.f[key],
-                            filtered = q ? data.filter(i => i.name.toLowerCase().includes(q.toLowerCase())) : data;
-                        if (filtered.length === 0) {
-                            listEl.innerHTML =
-                                '<div class="ms-opt" style="justify-content:center;font-style:italic">Aucun résultat</div>';
-                            return;
-                        }
-                        const frag = document.createDocumentFragment();
-                        filtered.forEach(item => {
-                            const isSel = sel.includes(item.id) || sel.includes(String(item.id));
-                            const lbl = document.createElement('label');
-                            lbl.className = 'ms-opt' + (isSel ? ' selected' : '');
-                            lbl.dataset.id = item.id;
-                            const dim = (key === 'format_ids' && item.width && item.height) ?
-                                ` <small style="color:var(--text3)">(${Math.round(item.width)}×${Math.round(item.height)}m)</small>` :
-                                '';
-                            lbl.innerHTML = `<input type="checkbox" ${isSel?'checked':''}> ${item.name}${dim}`;
-                            lbl.querySelector('input').addEventListener('change', () => {
-                                const arr = S.f[key];
-                                const idx = arr.indexOf(item.id);
-                                if (idx === -1) arr.push(item.id);
-                                else arr.splice(idx, 1);
-                                lbl.classList.toggle('selected', arr.includes(item.id));
-                                updateTrigger();
-                                updateFoot();
-                                S.page = 1;
-                                DISPO._fetch();
-                                DISPO._syncUI();
-                            });
-                            frag.appendChild(lbl);
-                        });
-                        listEl.innerHTML = '';
-                        listEl.appendChild(frag);
-                    }
-
-                    function updateTrigger() {
-                        const sel = S.f[key],
-                            inner = btn.querySelector('.ms-tags-inner');
-                        if (!inner) return;
-                        if (sel.length === 0) {
-                            inner.innerHTML = `<span class="ms-placeholder">${ph}</span>`;
-                        } else {
-                            inner.innerHTML = sel.map(id => {
-                                const it = data.find(x => x.id === id || x.id === parseInt(id));
-                                return it ?
-                                    `<span class="ms-chip">${it.name}<button type="button" onclick="event.preventDefault();event.stopPropagation();__msRemove('${key}',${id})" title="Retirer">✕</button></span>` :
-                                    '';
-                            }).join('');
-                        }
-                        const badge = _el(`badge-${key}`);
-                        if (badge) {
-                            badge.textContent = sel.length;
-                            badge.classList.toggle('hidden', sel.length === 0);
-                        }
-                        listEl.querySelectorAll('label.ms-opt').forEach(l => {
-                            const id = parseInt(l.dataset.id);
-                            const c = l.querySelector('input');
-                            const s = sel.includes(id) || sel.includes(String(id));
-                            if (c) c.checked = s;
-                            l.classList.toggle('selected', s);
-                        });
-                    }
-
-                    function updateFoot() {
-                        const n = S.f[key].length;
-                        const el = _el(`ms-foot-${key}`);
-                        if (el) el.textContent = n + ' sélectionné(s)';
-                    }
-                    let stimer;
-                    si.addEventListener('input', () => {
-                        clearTimeout(stimer);
-                        stimer = setTimeout(() => render(si.value), 150);
-                    });
-                    btn.addEventListener('click', e => {
-                        e.stopPropagation();
-                        const isOpen = drop.style.display !== 'none';
-                        _closeAllMs();
-                        if (!isOpen) {
-                            drop.style.display = 'flex';
-                            btn.classList.add('open');
-                            render('');
-                            si.value = '';
-                            si.focus();
-                            updateFoot();
-                        }
-                    });
-                    MS[key] = {
-                        el: wrapper,
-                        btn,
-                        drop,
-                        listEl,
-                        render,
-                        updateTrigger,
-                        updateFoot
-                    };
-                }
-
-                function _syncMs(key) {
-                    MS[key]?.updateTrigger();
-                }
-
-                function _closeAllMs() {
-                    Object.values(MS).forEach(m => {
-                        m.drop.style.display = 'none';
-                        m.btn.classList.remove('open');
-                    });
-                }
-                window.__msAll = k => {
-                    const d = MS_DATA[k] || [];
-                    const q = MS[k]?.drop?.querySelector('.ms-search input')?.value?.toLowerCase() || '';
-                    const visible = q ? d.filter(i => i.name.toLowerCase().includes(q)) : d;
-                    visible.forEach(i => {
-                        if (!S.f[k].includes(i.id) && !S.f[k].includes(String(i.id))) S.f[k].push(i.id);
-                    });
-                    MS[k]?.updateTrigger();
-                    MS[k]?.updateFoot();
-                    S.page = 1;
-                    DISPO._fetch();
-                    DISPO._syncUI();
-                };
-                window.__msClear = k => {
-                    S.f[k] = [];
-                    MS[k]?.updateTrigger();
-                    MS[k]?.updateFoot();
-                    S.page = 1;
-                    DISPO._fetch();
-                    DISPO._syncUI();
-                };
-                window.__msRemove = (k, id) => {
-                    const i = S.f[k].indexOf(id);
-                    const i2 = S.f[k].indexOf(String(id));
-                    if (i > -1) S.f[k].splice(i, 1);
-                    else if (i2 > -1) S.f[k].splice(i2, 1);
-                    MS[k]?.updateTrigger();
-                    MS[k]?.updateFoot();
-                    S.page = 1;
-                    DISPO._fetch();
-                    DISPO._syncUI();
-                };
-                window.__tagRm = i => {
-                    window.__tagCbs?.[i]?.();
-                };
-                document.addEventListener('click', _closeAllMs);
-
-                function _el(id) {
-                    return document.getElementById(id);
-                }
-
-                function _show(id) {
-                    const el = _el(id);
-                    if (el) el.style.display = 'flex';
-                }
-
-                function _hide(id) {
-                    const el = _el(id);
-                    if (el) el.style.display = 'none';
-                }
-
-                function _showLoader() {
-                    const l = _el('loader'),
-                        g = _el('panels-grid'),
-                        e = _el('empty-state'),
-                        p = _el('pagination-bar');
-                    if (l) l.style.display = 'block';
-                    if (g) g.innerHTML = '';
-                    const tb = _el('panels-list-body');
-                    if (tb) tb.innerHTML = '';
-                    if (e) e.style.display = 'none';
-                    if (p) p.classList.add('hidden');
-                }
-
-                function _showEmpty(title, sub) {
-                    _hide('loader');
-                    const g = _el('panels-grid');
-                    if (g) g.innerHTML = '';
-                    const tb = _el('panels-list-body');
-                    if (tb) tb.innerHTML = '';
-                    const e = _el('empty-state');
-                    if (e) e.style.display = 'block';
-                    const t = _el('empty-title');
-                    if (t) t.textContent = title;
-                    const s = _el('empty-sub');
-                    if (s) s.textContent = sub;
-                }
-
-                function _showDateErr(msg) {
-                    const el = _el('date-error');
-                    if (el) {
-                        el.textContent = '⚠️ ' + msg;
-                        el.classList.remove('hidden');
-                    }
-                }
-
-                function _hideDateErr() {
-                    const el = _el('date-error');
-                    if (el) el.classList.add('hidden');
-                }
-
-                function _months(s, e) {
-                    const a = new Date(s + 'T00:00:00');
-                    const b = new Date(e + 'T00:00:00');
-
-                    const totalDays = Math.round((b - a) / (1000 * 60 * 60 * 24));
-                    if (totalDays <= 0) return 0.5;
-
-                    const fullMonths = Math.floor(totalDays / 30);
-                    const remainDays = totalDays % 30;
-
-                    let fraction = 0;
-                    if (remainDays >= 1 && remainDays <= 15) {
-                        fraction = 0.5;
-                    } else if (remainDays > 15) {
-                        fraction = 1;
-                    }
-
-                    return Math.max(fullMonths + fraction, 0.5);
-                }
-                document.addEventListener('DOMContentLoaded', () => {
-                    document.querySelectorAll('.ms-wrapper').forEach(buildMs);
-                    const dimSel = _el('f-dimensions');
-                    if (dimSel) D.dimensions.forEach(d => {
-                        const o = document.createElement('option');
-                        o.value = d;
-                        o.textContent = d;
-                        dimSel.appendChild(o);
-                    });
-                    document.addEventListener('keydown', e => {
-                        if (e.key === 'Escape') {
-                            DISPO.closeConfirmModal();
-                            DISPO.closeFiche();
-                            DISPO.closeError();
-                            _closeAllMs();
-                        }
-                    });
-                    if (D.hasErrors && D.flashErrors.length > 0) DISPO.showError(D.flashErrors);
-                    DISPO._fetch(0);
-                    DISPO._syncSelBar();
-                });
-            })();
-            // Fermer dropdown export dispo
-            document.addEventListener('click', function(e) {
-                const wrap = document.getElementById('dispo-export-wrap');
-                if (wrap && !wrap.contains(e.target)) {
-                    const dd = document.getElementById('dispo-export-dropdown');
-                    if (dd) dd.classList.add('hidden');
-                }
+        clearSelection() {
+            S.sel = { ids:[], rates:{}, sources:{} };
+            document.querySelectorAll('.panel-card.selected,.list-row.selected').forEach(el => {
+                el.classList.remove('selected');
+                const btn = el.querySelector('.btn-sel');
+                if (btn) { btn.textContent='+ Sélectionner'; btn.style.background='var(--surface3)'; btn.style.color='var(--text)'; }
+                const chk = el.querySelector('.card-chk');
+                if (chk) chk.checked = false;
             });
-        </script>
+            this._syncSelBar();
+        },
+
+        // ── MODAL CONFIRMATION ────────────────────────────────
+        openConfirmModal() {
+            if (S.sel.ids.length === 0) {
+                this.showError(['Veuillez sélectionner au moins un panneau avant de continuer.']);
+                return;
+            }
+            _el('modal-du').value = S.f.du || '';
+            _el('modal-au').value = S.f.au || '';
+
+            // ✅ FIX — utiliser S.sel.ids directement (closure)
+            _el('hidden-panels').innerHTML = S.sel.ids
+                .map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`)
+                .join('');
+
+            const hasExt = Object.values(S.sel.sources).includes('external');
+            _el('modal-ext-warn').classList.toggle('hidden', !hasExt);
+            _el('modal-ext-warn').classList.toggle('flex', hasExt);
+            _el('modal-errors').classList.add('hidden');
+            _el('modal-date-err').classList.add('hidden');
+            _el('modal-client-err').classList.add('hidden');
+            _el('modal-summary').textContent = `${S.sel.ids.length} panneau(x) sélectionné(s)`;
+
+            // Reset montant personnalisé
+            this._customAmount = null;
+            const amountWrap = document.getElementById('amount-edit-wrap');
+            if (amountWrap) amountWrap.classList.add('hidden');
+            const btnToggle = document.getElementById('btn-toggle-amount');
+            if (btnToggle) btnToggle.innerHTML = '✏️ Personnaliser';
+            const amountInput = document.getElementById('modal-amount');
+            if (amountInput) amountInput.value = '';
+
+            this.calcEstimate();
+            _show('modal-confirm');
+            setTimeout(() => initConfirmSelect2(), 50);
+        },
+
+        closeConfirmModal() { _hide('modal-confirm'); },
+
+        setType(type) {
+            document.querySelector(`input[name="type"][value="${type}"]`).checked = true;
+            const isOpt = type === 'option';
+            _el('lbl-option').style.borderColor = isOpt ? '#f97316' : 'var(--border2)';
+            _el('lbl-option').style.borderWidth  = isOpt ? '2px' : '1px';
+            _el('lbl-ferme').style.borderColor   = !isOpt ? '#22c55e' : 'var(--border2)';
+            _el('lbl-ferme').style.borderWidth    = !isOpt ? '2px' : '1px';
+            _el('wrapper-campaign-name').classList.toggle('hidden', isOpt);
+        },
+
+        // ── CALCUL MONTANT ────────────────────────────────────
+        calcEstimate() {
+            const du = _el('modal-du').value, au = _el('modal-au').value;
+            const totalEl = _el('modal-total'), monthsEl = _el('modal-months');
+            const errEl   = _el('modal-date-err'), errTxt = _el('modal-date-err-text');
+
+            if (du && au && au <= du) {
+                errEl.classList.remove('hidden');
+                errTxt.textContent = 'La date de fin doit être après la date de début.';
+                totalEl.textContent = '—'; monthsEl.textContent = ''; return;
+            }
+            errEl.classList.add('hidden');
+
+            if (!du || !au) { totalEl.textContent = '—'; monthsEl.textContent = ''; return; }
+
+            const months = _months(du, au);
+            // ✅ Utiliser S directement (même closure)
+            const total  = S.sel.ids.reduce((s, id) => s + (S.sel.rates[id] || 0) * months, 0);
+            this._originalEstimate = total;
+
+            // Si montant personnalisé actif → garder
+            if (this._customAmount !== null && this._customAmount > 0) {
+                totalEl.textContent  = Math.round(this._customAmount).toLocaleString('fr-FR');
+                monthsEl.textContent = '(montant personnalisé)';
+            } else {
+                totalEl.textContent  = Math.round(total).toLocaleString('fr-FR');
+                monthsEl.textContent = `(${months} mois)`;
+            }
+
+            const amountInput = document.getElementById('modal-amount');
+            if (amountInput && !amountInput.value) {
+                amountInput.placeholder = Math.round(total).toLocaleString('fr-FR') + ' FCFA';
+            }
+        },
+
+        // ── MONTANT PERSONNALISÉ ──────────────────────────────
+        toggleAmountEdit() {
+            const wrap    = document.getElementById('amount-edit-wrap');
+            const btn     = document.getElementById('btn-toggle-amount');
+            const visible = wrap && !wrap.classList.contains('hidden');
+            if (visible) {
+                wrap.classList.add('hidden');
+                btn.innerHTML = '✏️ Personnaliser';
+                this._customAmount = null;
+                this.calcEstimate();
+            } else {
+                wrap.classList.remove('hidden');
+                btn.innerHTML = '✕ Annuler personnalisation';
+                const inp = document.getElementById('modal-amount');
+                if (inp) { inp.value = ''; inp.focus(); }
+            }
+        },
+
+        onAmountInput(value) {
+            const num = parseFloat(value);
+            if (!isNaN(num) && num > 0) {
+                this._customAmount = num;
+                _el('modal-total').textContent  = Math.round(num).toLocaleString('fr-FR');
+                _el('modal-months').textContent = '(montant personnalisé)';
+            } else {
+                this._customAmount = null;
+                this.calcEstimate();
+            }
+        },
+
+        resetAmount() {
+            const inp = document.getElementById('modal-amount');
+            if (inp) inp.value = '';
+            this._customAmount = null;
+            this.calcEstimate();
+        },
+
+        // ── SUBMIT FORMULAIRE ─────────────────────────────────
+        submitForm() {
+            const du     = _el('modal-du').value;
+            const au     = _el('modal-au').value;
+            const client = $('#modal-client-select').val();
+            const errors = [];
+
+            // Validation client
+            if (!client) {
+                errors.push('Veuillez sélectionner un client.');
+                _el('modal-client-err').classList.remove('hidden');
+            } else {
+                _el('modal-client-err').classList.add('hidden');
+            }
+
+            // Validation dates
+            if (!du) errors.push('La date de début est obligatoire.');
+            if (!au) errors.push('La date de fin est obligatoire.');
+            if (du && au && au <= du) errors.push('La date de fin doit être après la date de début.');
+
+            // ✅ FIX CRITIQUE — validation panneaux via S (closure directe)
+            if (S.sel.ids.length === 0) {
+                errors.push('Aucun panneau sélectionné. Veuillez sélectionner au moins un panneau.');
+            }
+
+            if (errors.length > 0) {
+                const box = _el('modal-errors');
+                box.innerHTML = errors.map(e => `<div class="flex gap-2"><span>⚠️</span><span>${e}</span></div>`).join('');
+                box.classList.remove('hidden');
+                return;
+            }
+
+            // ✅ FIX — injecter les panel_ids depuis S.sel.ids (closure directe)
+            _el('hidden-panels').innerHTML = S.sel.ids
+                .map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`)
+                .join('');
+
+            // Montant personnalisé
+            if (this._customAmount !== null && this._customAmount > 0) {
+                const inp = document.createElement('input');
+                inp.type = 'hidden'; inp.name = 'custom_amount'; inp.value = this._customAmount;
+                _el('hidden-panels').appendChild(inp);
+            }
+
+            _el('modal-submit-txt').textContent = 'Envoi en cours…';
+            _el('modal-submit').disabled = true;
+            _el('form-confirm').submit();
+        },
+
+        // ── MODAL FICHE ───────────────────────────────────────
+        openFiche(p) {
+            _el('fiche-title').textContent = `📋 ${p.reference} — ${p.name}`;
+            const src = p.source === 'external' ? `🤝 ${p.agency_name}` : '🏢 Interne';
+            const fields = [
+                ['RÉFÉRENCE',   p.reference],
+                ['SOURCE',      src],
+                ['COMMUNE',     p.commune],
+                ['ZONE',        p.zone],
+                ['FORMAT',      p.format],
+                ['DIMENSIONS',  p.dimensions || '—'],
+                ['ÉCLAIRAGE',   p.is_lit ? '💡 Éclairé' : 'Non éclairé'],
+                ['TRAFIC/JOUR', p.daily_traffic > 0 ? p.daily_traffic.toLocaleString('fr-FR') + ' contacts' : '—'],
+            ];
+            _el('fiche-body').innerHTML =
+                `<div class="grid grid-cols-2 gap-2 mb-4">${
+                    fields.map(([l,v]) => `<div style="background:var(--surface2);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${l}</div><div style="font-size:13px;color:var(--text);font-weight:500">${v||'—'}</div></div>`).join('')
+                }</div>
+                <div style="background:var(--accent-dim);border:1px solid rgba(232,160,32,.22);border-radius:12px;padding:16px;text-align:center;margin-bottom:12px">
+                    <div style="font-size:10px;color:var(--text3);margin-bottom:4px">TARIF MENSUEL</div>
+                    <div style="font-size:24px;font-weight:800;color:var(--accent)">${p.monthly_rate ? Math.round(p.monthly_rate).toLocaleString('fr-FR')+' FCFA' : '—'}</div>
+                </div>
+                ${p.zone_description ? `<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:4px">Zone</div><div style="background:var(--surface2);border-radius:10px;padding:12px;font-size:12px;color:var(--text2)">${p.zone_description}</div>` : ''}`;
+            _show('modal-fiche');
+        },
+        closeFiche() { _hide('modal-fiche'); },
+
+        // ── MODAL ERREUR ──────────────────────────────────────
+        showError(msgs) {
+            _el('error-body').innerHTML = (Array.isArray(msgs) ? msgs : [msgs])
+                .map(m => `<div class="flex gap-2 items-start"><span class="text-red-500">•</span><span>${m}</span></div>`)
+                .join('');
+            _show('modal-error');
+        },
+        closeError() { _hide('modal-error'); },
+
+        // ── MODAL CLIENT RAPIDE ───────────────────────────────
+        openQuickClientModal() {
+            const form = _el('form-quick-client');
+            if (form) form.reset();
+            _el('quick-client-errors').classList.add('hidden');
+            _el('qc-submit-txt').textContent = 'Créer le client';
+            _el('qc-submit').disabled = false;
+            _show('modal-quick-client');
+            setTimeout(() => _el('qc-name')?.focus(), 100);
+        },
+        closeQuickClientModal() { _hide('modal-quick-client'); },
+
+        async submitQuickClient(event) {
+            event.preventDefault();
+            const btn = _el('qc-submit'), errBox = _el('quick-client-errors');
+            errBox.classList.add('hidden');
+            const name = _el('qc-name').value.trim();
+            if (!name) {
+                errBox.innerHTML = '<div class="flex gap-2"><span>⚠️</span><span>Le nom est obligatoire.</span></div>';
+                errBox.classList.remove('hidden');
+                _el('qc-name').focus(); return;
+            }
+            _el('qc-submit-icon').textContent = '⟳';
+            _el('qc-submit-txt').textContent  = 'Création…';
+            btn.disabled = true;
+            try {
+                const res = await fetch('{{ secure_url(route("admin.clients.quick-store", [], false)) }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type':'application/json', 'Accept':'application/json', 'X-CSRF-TOKEN': D.csrf },
+                    body: JSON.stringify({
+                        name:         _el('qc-name').value.trim(),
+                        ncc:          _el('qc-ncc').value.trim()     || null,
+                        email:        _el('qc-email').value.trim()   || null,
+                        phone:        _el('qc-phone').value.trim()   || null,
+                        contact_name: _el('qc-contact').value.trim() || null,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    const messages = data.errors ? Object.values(data.errors).flat() : [data.message || 'Erreur.'];
+                    errBox.innerHTML = messages.map(m => `<div class="flex gap-2"><span>⚠️</span><span>${m}</span></div>`).join('');
+                    errBox.classList.remove('hidden'); return;
+                }
+                addClientToSelect2(data.id, data.name);
+                this.closeQuickClientModal();
+                this.showSuccessToast(`Client "${data.name}" créé ✅`);
+            } catch (err) {
+                errBox.innerHTML = `<div class="flex gap-2"><span>⚠️</span><span>Erreur réseau : ${err.message}</span></div>`;
+                errBox.classList.remove('hidden');
+            } finally {
+                _el('qc-submit-icon').textContent = '🏢';
+                _el('qc-submit-txt').textContent  = 'Créer le client';
+                btn.disabled = false;
+            }
+        },
+
+        showSuccessToast(message) {
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:10002;background:var(--surface);border:1px solid rgba(34,197,94,.4);border-left:3px solid #22c55e;color:var(--text);padding:12px 16px;border-radius:12px;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.2);display:flex;align-items:center;gap:8px;animation:slideInToast .3s ease;max-width:360px;';
+            toast.innerHTML = `<span style="color:#22c55e;font-size:16px;">✅</span><span>${message}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0'; toast.style.transform = 'translateX(20px)';
+                toast.style.transition = 'all .3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        },
+
+        // ── FETCH AJAX ────────────────────────────────────────
+        _fetch(delay) {
+            clearTimeout(S.debounce);
+            S.debounce = setTimeout(() => this._doFetch(), delay !== undefined ? delay : 300);
+        },
+
+        async _doFetch() {
+            const rid = ++S.reqId;
+            S.loading = true; _showLoader();
+            const p = new URLSearchParams();
+            S.f.commune_ids.forEach(id => p.append('commune_ids[]', id));
+            S.f.zone_ids.forEach(id    => p.append('zone_ids[]', id));
+            S.f.format_ids.forEach(id  => p.append('format_ids[]', id));
+            S.f.agency_ids.forEach(id  => p.append('agency_ids[]', id));
+            if (S.f.dimensions)     p.set('dimensions', S.f.dimensions);
+            if (S.f.is_lit !== '')  p.set('is_lit', S.f.is_lit);
+            if (S.f.statut !== 'tous') p.set('statut', S.f.statut);
+            if (S.f.du)   p.set('dispo_du', S.f.du);
+            if (S.f.au)   p.set('dispo_au', S.f.au);
+            if (S.f.source !== 'all') p.set('source', S.f.source);
+            if (S.f.q)    p.set('q', S.f.q);
+            p.set('page', S.page); p.set('per_page', S.perPage);
+            try {
+                const safeUrl = D.ajaxUrl.replace(/^http:\/\//i, 'https://');
+                const res = await fetch(`${safeUrl}?${p}`, { headers:{ Accept:'application/json','X-CSRF-TOKEN':D.csrf }});
+                if (rid !== S.reqId) return;
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                S.loading = false;
+                if (data.date_error) { _showDateErr(data.date_error); _showEmpty(data.date_error,''); return; }
+                S.pages = data.stats.pages || 1;
+                S.total = data.stats.total || 0;
+                S._lastPanels = data.panels || [];
+                this._renderPanels(data.panels);
+                this._renderStats(data.stats, data.has_period);
+                this._renderPagination(data.stats);
+            } catch (err) {
+                if (rid !== S.reqId) return;
+                S.loading = false;
+                _showEmpty('Erreur de chargement', 'Vérifiez votre connexion.');
+                console.error('[DISPO]', err);
+            }
+        },
+
+        // ── RENDU PANNEAUX ────────────────────────────────────
+        _renderPanels(panels) {
+            const grid = _el('panels-grid'), empty = _el('empty-state');
+            _hide('loader');
+            if (!panels || panels.length === 0) {
+                grid.innerHTML = ''; _el('panels-list-body').innerHTML = '';
+                empty.style.display = 'block'; return;
+            }
+            empty.style.display = 'none';
+            const frag = document.createDocumentFragment();
+            panels.forEach(p => {
+                const div = document.createElement('div');
+                div.innerHTML = this._cardHtml(p);
+                frag.appendChild(div.firstElementChild);
+            });
+            grid.innerHTML = ''; grid.appendChild(frag);
+            if (S.view === 'list') this._renderList(panels);
+            // Restaurer état sélection après rechargement
+            S.sel.ids.forEach(id => {
+                const card = grid.querySelector(`.panel-card[data-id="${id}"]`);
+                if (!card) return;
+                card.classList.add('selected');
+                const btn = card.querySelector('.btn-sel');
+                if (btn) { btn.textContent='✓ Sélectionné'; btn.style.background='var(--accent)'; btn.style.color='#fff'; }
+                const chk = card.querySelector('.card-chk');
+                if (chk) chk.checked = true;
+            });
+        },
+
+        _cardHtml(p) {
+            const sc       = STATUS_CFG[p.display_status] || STATUS_CFG.libre;
+            const bg       = D.colors[p.card_color_idx || 0] || '#3b82f6';
+            const isSel    = S.sel.ids.includes(String(p.id));
+            const thumbSt  = p.photo_url ? `background:url('${p.photo_url}') center/cover no-repeat;` : `background:${bg};`;
+            const tags     = [
+                p.format     ? `<span class="tag">${p.format}</span>` : '',
+                p.dimensions ? `<span class="tag">${p.dimensions}</span>` : '',
+                p.is_lit     ? `<span class="tag" style="color:var(--accent)">💡</span>` : '',
+            ].filter(Boolean).join('');
+            const releaseHtml = p.release_info
+                ? `<div style="margin-top:4px;padding:4px 8px;border-radius:6px;font-size:10px;background:rgba(226,6,19,.06);border:1px solid rgba(226,6,19,.15);"><span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'var(--accent)':'var(--text3)'}">📅 ${p.release_info.label}</span></div>` : '';
+            const selBtn = p.is_selectable
+                ? `<button type="button" class="btn-sel" style="flex:1.2;font-size:11px;padding:6px 10px;border-radius:7px;background:${isSel?'var(--accent)':'var(--surface3)'};color:${isSel?'#fff':'var(--text)'};border:1px solid ${isSel?'transparent':'var(--border2)'};cursor:pointer;transition:all .15s;" onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">${isSel?'✓ Sélectionné':'+ Sélectionner'}</button>`
+                : `<div style="flex:1.2;padding:6px 10px;background:var(--surface3);border-radius:7px;font-size:11px;color:var(--text3);text-align:center;border:1px solid var(--border);">${sc.l}</div>`;
+            const safeP = encodeURIComponent(JSON.stringify(p));
+            return `<div class="panel-card${p.is_selectable?' selectable':''}${isSel?' selected':''}" data-id="${p.id}" ${p.is_selectable?`onclick="DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')"`:''}>${p.source==='external'?`<div style="position:absolute;top:8px;left:8px;z-index:2;font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)">🤝 ${p.agency_name}</div>`:''} ${p.is_selectable?`<div style="position:absolute;top:10px;left:10px;z-index:2;"><input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')"></div>`:''}<div style="position:absolute;top:8px;right:8px;z-index:2;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${sc.c};color:white;text-transform:uppercase;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.3);">${sc.l}</div><div style="height:96px;flex-shrink:0;position:relative;overflow:hidden;${thumbSt}"><div style="position:absolute;inset:0;background:${p.photo_url?'linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.65))':'rgba(0,0,0,.15)'}"></div><div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border-radius:7px;padding:4px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#fff;letter-spacing:1.5px;white-space:nowrap;backdrop-filter:blur(4px);">${p.reference}</div></div><div style="padding:12px 14px;flex:1;display:flex;flex-direction:column;"><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div><div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.name}">${p.name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">${tags}</div>${p.zone_description?`<div style="font-size:11px;color:var(--text2);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.zone_description}">📍 ${p.zone_description}</div>`:''}<div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);"><div style="font-size:17px;font-weight:800;color:var(--accent);margin-bottom:6px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K <span style="font-size:11px;font-weight:400;color:var(--text3)">FCFA/mois</span>':'<span style="font-size:13px;color:var(--text3)">Tarif non défini</span>'}</div>${releaseHtml}<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" style="flex:none;font-size:10px;padding:6px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button>${selBtn}</div></div></div></div>`;
+        },
+
+        _renderList(panels) {
+            const tbody = _el('panels-list-body'); if (!tbody) return;
+            const frag = document.createDocumentFragment();
+            panels.forEach(p => {
+                const sc    = STATUS_CFG[p.display_status] || STATUS_CFG.libre;
+                const isSel = S.sel.ids.includes(String(p.id));
+                const tr    = document.createElement('tr');
+                tr.className  = `list-row${isSel?' selected':''}`;
+                tr.dataset.id = p.id;
+                if (p.is_selectable) tr.onclick = () => DISPO.toggle(p.id, p.monthly_rate, p.source);
+                const safeP = encodeURIComponent(JSON.stringify(p));
+                tr.innerHTML = `<td style="padding:10px 8px;width:36px;text-align:center;">${p.is_selectable?`<input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">`:`<span style="font-size:12px;opacity:.4;">🔒</span>`}</td><td style="padding:10px 8px;"><span style="font-family:monospace;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;background:${sc.b};color:${sc.c}">${p.reference}</span>${p.source==='external'?`<span style="display:block;font-size:9px;color:#60a5fa;margin-top:2px;">🤝 ${p.agency_name}</span>`:''}</td><td style="padding:10px 8px;"><div style="font-weight:600;font-size:13px;color:var(--text);">${p.name}</div><div style="font-size:11px;color:var(--text3);">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div></td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.format||'—'}</td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.dimensions||'—'}${p.is_lit?' 💡':''}</td><td style="padding:10px 8px;"><div style="font-weight:700;color:var(--accent);font-size:13px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K':'—'} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></div></td><td style="padding:10px 8px;"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">${sc.l}</span>${p.release_info?`<div style="font-size:10px;color:var(--text3);margin-top:3px;">📅 ${p.release_info.label}</div>`:''}</td><td style="padding:10px 8px;"><button type="button" style="font-size:10px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button></td>`;
+                frag.appendChild(tr);
+            });
+            tbody.innerHTML = ''; tbody.appendChild(frag);
+            S.sel.ids.forEach(id => {
+                const row = tbody.querySelector(`.list-row[data-id="${id}"]`);
+                if (row) { row.classList.add('selected'); const chk=row.querySelector('.card-chk'); if(chk) chk.checked=true; }
+            });
+        },
+
+        _renderStats(stats, hasPeriod) {
+            const set = (id, html, show=true) => {
+                const el=_el(id); if(!el) return;
+                el.style.display = show ? 'inline-flex' : 'none';
+                if (show) el.innerHTML = html;
+            };
+            set('stat-total',  `📊 <strong>${stats.total}</strong> panneau(x)`);
+            set('stat-dispo',  `✅ <strong>${stats.disponibles}</strong> disponible(s)`,  hasPeriod && stats.disponibles > 0);
+            set('stat-occupes',`🔒 <strong>${stats.occupes}</strong> occupé(s)`,          hasPeriod && stats.occupes > 0);
+            set('stat-options',`⏳ <strong>${stats.options||0}</strong> en option`,        hasPeriod && (stats.options||0) > 0);
+            set('stat-ext',    `🤝 <strong>${stats.externes}</strong> externe(s)`,         stats.externes > 0);
+        },
+
+        _renderPagination(stats) {
+            const bar=_el('pagination-bar'), info=_el('pag-info'), prev=_el('btn-prev'), next=_el('btn-next');
+            if (!bar) return;
+            if (stats.pages <= 1) { bar.classList.add('hidden'); return; }
+            bar.classList.remove('hidden');
+            const from=(S.page-1)*S.perPage+1, to=Math.min(S.page*S.perPage, stats.total);
+            if (info) info.textContent = `${from}–${to} sur ${stats.total}`;
+            if (prev) prev.disabled = S.page <= 1;
+            if (next) next.disabled = S.page >= stats.pages;
+        },
+
+        _syncSelBar() {
+            const n     = S.sel.ids.length;
+            const total = Object.values(S.sel.rates).reduce((s,r) => s+r, 0);
+            const nExt  = Object.values(S.sel.sources).filter(s => s==='external').length;
+            _el('sel-bar').style.display = n > 0 ? 'block' : 'none';
+            const tw = _el('topbar-confirm-wrapper');
+            if (tw) tw.style.display = n > 0 ? 'block' : 'none';
+            _el('sel-count').textContent  = n;
+            _el('sel-amount').textContent = Math.round(total).toLocaleString('fr-FR') + ' FCFA/mois';
+            _el('topbar-count').textContent = n;
+            const eb = _el('sel-ext-badge');
+            if (eb) { eb.classList.toggle('hidden', nExt===0); _el('sel-ext-n').textContent = nExt; }
+        },
+
+        _syncUI() {
+            const f = S.f;
+            const active = f.commune_ids.length || f.zone_ids.length || f.format_ids.length || f.agency_ids.length || f.dimensions || f.is_lit!=='' || f.statut!=='tous' || f.du || f.au || f.source!=='all' || f.q;
+            _el('btn-reset').classList.toggle('hidden', !active);
+            this._renderTags();
+        },
+
+        _renderTags() {
+            const f=S.f, tags=[];
+            const addMS=(ids, key, data) => ids.forEach(id => {
+                const it=data.find(x=>x.id===id||x.id===parseInt(id));
+                if(it) tags.push({ l:it.name, rm:()=>{ const i=S.f[key].indexOf(id); if(i>-1) S.f[key].splice(i,1); S.page=1; _syncMs(key); this._fetch(); this._syncUI(); }});
+            });
+            addMS(f.commune_ids,'commune_ids',D.communes);
+            addMS(f.zone_ids,'zone_ids',D.zones);
+            addMS(f.format_ids,'format_ids',D.formats);
+            addMS(f.agency_ids,'agency_ids',D.agencies);
+            if(f.dimensions) tags.push({ l:f.dimensions, rm:()=>{ S.f.dimensions=''; _el('f-dimensions').value=''; S.page=1; this._fetch(); this._syncUI(); }});
+            if(f.is_lit==='1') tags.push({ l:'💡 Éclairé', rm:()=>{ S.f.is_lit=''; _el('f-is_lit').value=''; S.page=1; this._fetch(); this._syncUI(); }});
+            if(f.is_lit==='0') tags.push({ l:'Non éclairé', rm:()=>{ S.f.is_lit=''; _el('f-is_lit').value=''; S.page=1; this._fetch(); this._syncUI(); }});
+            if(f.statut!=='tous') tags.push({ l:'Statut: '+f.statut, rm:()=>{ S.f.statut='tous'; _el('f-statut').value='tous'; S.page=1; this._fetch(); this._syncUI(); }});
+            if(f.q) tags.push({ l:'🔍 '+f.q, rm:()=>{ S.f.q=''; _el('f-search').value=''; _el('btn-clear-search').classList.add('hidden'); S.page=1; this._fetch(); this._syncUI(); }});
+            const bar=_el('tags-bar'), list=_el('tags-list');
+            if(!bar||!list) return;
+            bar.classList.toggle('hidden', tags.length===0);
+            bar.classList.toggle('flex',   tags.length>0);
+            list.innerHTML = tags.map((t,i) => `<span class="ms-chip">${t.l}<button type="button" onclick="__tagRm(${i})" title="Retirer">✕</button></span>`).join('');
+            window.__tagCbs = tags.map(t => t.rm);
+        },
+    }; // fin window.DISPO
+
+    // ══ MULTI-SELECT ══════════════════════════════════════════
+    const MS = {};
+
+    function buildMs(wrapper) {
+        const key=wrapper.dataset.key, ph=wrapper.dataset.placeholder||'Sélectionner', data=MS_DATA[key]||[];
+        const btn=document.createElement('button'); btn.type='button'; btn.className='ms-btn';
+        btn.innerHTML=`<span class="ms-tags-inner"><span class="ms-placeholder">${ph}</span></span>`;
+        const drop=document.createElement('div'); drop.className='ms-drop'; drop.style.display='none';
+        const srch=document.createElement('div'); srch.className='ms-search';
+        const si=document.createElement('input'); si.type='text'; si.placeholder='Rechercher…'; si.autocomplete='off';
+        srch.appendChild(si); drop.appendChild(srch);
+        const listEl=document.createElement('div'); listEl.className='ms-list'; drop.appendChild(listEl);
+        const foot=document.createElement('div'); foot.className='ms-foot';
+        foot.innerHTML=`<span id="ms-foot-${key}">0 sélectionné(s)</span><div><button type="button" onclick="__msAll('${key}')">Tout</button><button type="button" onclick="__msClear('${key}')">Aucun</button></div>`;
+        drop.appendChild(foot); wrapper.appendChild(btn); wrapper.appendChild(drop);
+
+        function render(q='') {
+            const sel=S.f[key], filtered=q ? data.filter(i=>i.name.toLowerCase().includes(q.toLowerCase())) : data;
+            if(!filtered.length) { listEl.innerHTML='<div class="ms-opt" style="justify-content:center;font-style:italic">Aucun résultat</div>'; return; }
+            const frag=document.createDocumentFragment();
+            filtered.forEach(item => {
+                const isSel=sel.includes(item.id)||sel.includes(String(item.id));
+                const lbl=document.createElement('label');
+                lbl.className='ms-opt'+(isSel?' selected':''); lbl.dataset.id=item.id;
+                const dim=(key==='format_ids'&&item.width&&item.height)?` <small style="color:var(--text3)">(${Math.round(item.width)}×${Math.round(item.height)}m)</small>`:'';
+                lbl.innerHTML=`<input type="checkbox" ${isSel?'checked':''}> ${item.name}${dim}`;
+                lbl.querySelector('input').addEventListener('change', () => {
+                    const arr=S.f[key], idx=arr.indexOf(item.id);
+                    if(idx===-1) arr.push(item.id); else arr.splice(idx,1);
+                    lbl.classList.toggle('selected', arr.includes(item.id));
+                    updateTrigger(); updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI();
+                });
+                frag.appendChild(lbl);
+            });
+            listEl.innerHTML=''; listEl.appendChild(frag);
+        }
+
+        function updateTrigger() {
+            const sel=S.f[key], inner=btn.querySelector('.ms-tags-inner'); if(!inner) return;
+            if(!sel.length) { inner.innerHTML=`<span class="ms-placeholder">${ph}</span>`; }
+            else { inner.innerHTML=sel.map(id => { const it=data.find(x=>x.id===id||x.id===parseInt(id)); return it?`<span class="ms-chip">${it.name}<button type="button" onclick="event.preventDefault();event.stopPropagation();__msRemove('${key}',${id})" title="Retirer">✕</button></span>`:''; }).join(''); }
+            const badge=_el(`badge-${key}`);
+            if(badge) { badge.textContent=sel.length; badge.classList.toggle('hidden', sel.length===0); }
+            listEl.querySelectorAll('label.ms-opt').forEach(l => {
+                const id=parseInt(l.dataset.id), c=l.querySelector('input'), s=sel.includes(id)||sel.includes(String(id));
+                if(c) c.checked=s; l.classList.toggle('selected', s);
+            });
+        }
+
+        function updateFoot() { const el=_el(`ms-foot-${key}`); if(el) el.textContent=S.f[key].length+' sélectionné(s)'; }
+
+        let stimer;
+        si.addEventListener('input', () => { clearTimeout(stimer); stimer=setTimeout(()=>render(si.value),150); });
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const isOpen=drop.style.display!=='none'; _closeAllMs();
+            if(!isOpen) { drop.style.display='flex'; btn.classList.add('open'); render(''); si.value=''; si.focus(); updateFoot(); }
+        });
+        MS[key]={ el:wrapper, btn, drop, listEl, render, updateTrigger, updateFoot };
+    }
+
+    function _syncMs(key)    { MS[key]?.updateTrigger(); }
+    function _closeAllMs()   { Object.values(MS).forEach(m=>{ m.drop.style.display='none'; m.btn.classList.remove('open'); }); }
+
+    window.__msAll    = k => { const d=MS_DATA[k]||[]; const q=MS[k]?.drop?.querySelector('.ms-search input')?.value?.toLowerCase()||''; const vis=q?d.filter(i=>i.name.toLowerCase().includes(q)):d; vis.forEach(i=>{ if(!S.f[k].includes(i.id)&&!S.f[k].includes(String(i.id))) S.f[k].push(i.id); }); MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
+    window.__msClear  = k => { S.f[k]=[]; MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
+    window.__msRemove = (k,id) => { const i=S.f[k].indexOf(id), i2=S.f[k].indexOf(String(id)); if(i>-1) S.f[k].splice(i,1); else if(i2>-1) S.f[k].splice(i2,1); MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
+    window.__tagRm    = i => { window.__tagCbs?.[i]?.(); };
+
+    document.addEventListener('click', _closeAllMs);
+
+    // ══ INIT ═════════════════════════════════════════════════
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.ms-wrapper').forEach(buildMs);
+
+        // Remplir dimensions
+        const dimSel = _el('f-dimensions');
+        if (dimSel) D.dimensions.forEach(d => {
+            const o=document.createElement('option'); o.value=d; o.textContent=d; dimSel.appendChild(o);
+        });
+
+        // Fermer avec Escape
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                DISPO.closeConfirmModal(); DISPO.closeFiche(); DISPO.closeError(); _closeAllMs();
+            }
+        });
+
+        // Afficher erreurs flash
+        if (D.hasErrors && D.flashErrors.length > 0) DISPO.showError(D.flashErrors);
+
+        DISPO._fetch(0);
+        DISPO._syncSelBar();
+    });
+
+})();
+
+// Fermer dropdown export PDF liste
+document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('dispo-export-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+        const dd = document.getElementById('dispo-export-dropdown');
+        if (dd) dd.classList.add('hidden');
+    }
+});
+</script>
     @endpush
 </x-admin-layout>
