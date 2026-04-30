@@ -279,61 +279,44 @@
 
     </div>
 
-    {{-- ══ MODAL CONFIRMER ══ --}}
-    <div id="modal-confirm"
-        class="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm items-center justify-center p-4"
-        style="display:none" onclick="if(event.target===this)DISPO.closeConfirmModal()">
-
-        <div class="bg-[var(--surface)] border border-[var(--border2)] rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl"
-            onclick="event.stopPropagation()">
-
-            <div
-                class="px-6 py-4 border-b border-[var(--border)] bg-[var(--surface2)] rounded-t-2xl flex justify-between items-center flex-shrink-0">
+    {{-- ══ MODAL CONFIRMER AVEC PRIX MODIFIABLE ══ --}}
+    <div id="modal-confirm" class="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm items-center justify-center p-4" style="display:none" onclick="if(event.target===this)DISPO.closeConfirmModal()">
+        <div class="bg-[var(--surface)] border border-[var(--border2)] rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl" onclick="event.stopPropagation()">
+            <div class="px-6 py-4 border-b border-[var(--border)] bg-[var(--surface2)] rounded-t-2xl flex justify-between items-center flex-shrink-0">
                 <div>
                     <div class="font-bold text-[var(--text)] text-sm">✅ Nouvelle réservation</div>
                     <div id="modal-summary" class="text-xs text-[var(--text3)] mt-0.5"></div>
                 </div>
-                <button onclick="DISPO.closeConfirmModal()"
-                    class="w-8 h-8 flex items-center justify-center bg-[var(--surface3)] border border-[var(--border2)] rounded-lg text-[var(--text3)] hover:text-red-500 hover:bg-red-500/10 transition-all text-sm">✕</button>
+                <button onclick="DISPO.closeConfirmModal()" class="w-8 h-8 flex items-center justify-center bg-[var(--surface3)] border border-[var(--border2)] rounded-lg text-[var(--text3)] hover:text-red-500 hover:bg-red-500/10 transition-all text-sm">✕</button>
             </div>
 
-            <form id="form-confirm" method="POST" action="{{ route('admin.reservations.confirmer-selection') }}"
-                class="flex flex-col flex-1 overflow-hidden">
+            <form id="form-confirm" method="POST" action="{{ route('admin.reservations.confirmer-selection') }}" class="flex flex-col flex-1 overflow-hidden">
                 @csrf
                 <div id="hidden-panels"></div>
 
                 <div class="p-5 overflow-y-auto flex-1 space-y-4">
 
-                    <div id="modal-errors"
-                        class="hidden bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-sm text-red-500 space-y-1">
-                    </div>
+                    <div id="modal-errors" class="hidden bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-sm text-red-500 space-y-1"></div>
 
-                    <div
-                        class="flex items-center gap-2 bg-green-500/5 border border-green-500/20 rounded-xl px-3 py-2 text-xs text-green-500">
+                    <div class="flex items-center gap-2 bg-green-500/5 border border-green-500/20 rounded-xl px-3 py-2 text-xs text-green-500">
                         🛡️ Anti double-booking actif
                     </div>
 
-                    <div id="modal-ext-warn"
-                        class="hidden items-center gap-2 bg-blue-500/5 border border-blue-500/20 rounded-xl px-3 py-2 text-xs text-blue-400">
+                    <div id="modal-ext-warn" class="hidden items-center gap-2 bg-blue-500/5 border border-blue-500/20 rounded-xl px-3 py-2 text-xs text-blue-400">
                         🤝 Sélection avec panneaux externes — vérifiez leur disponibilité auprès de la régie.
                     </div>
 
                     <div>
                         <div class="filter-label mb-2">Type *</div>
                         <div class="grid grid-cols-2 gap-3">
-                            <label id="lbl-option"
-                                class="cursor-pointer p-3 rounded-xl border-2 border-orange-500 bg-orange-500/8 flex items-center gap-3"
-                                onclick="DISPO.setType('option')">
-                                <input type="radio" name="type" value="option" checked
-                                    class="accent-orange-500">
+                            <label id="lbl-option" class="cursor-pointer p-3 rounded-xl border-2 border-orange-500 bg-orange-500/8 flex items-center gap-3" onclick="DISPO.setType('option')">
+                                <input type="radio" name="type" value="option" checked class="accent-orange-500">
                                 <div>
                                     <div class="text-sm font-bold text-orange-400">⏳ Option</div>
                                     <div class="text-xs text-[var(--text3)]">Temporaire</div>
                                 </div>
                             </label>
-                            <label id="lbl-ferme"
-                                class="cursor-pointer p-3 rounded-xl border border-[var(--border2)] bg-[var(--surface2)] flex items-center gap-3"
-                                onclick="DISPO.setType('ferme')">
+                            <label id="lbl-ferme" class="cursor-pointer p-3 rounded-xl border border-[var(--border2)] bg-[var(--surface2)] flex items-center gap-3" onclick="DISPO.setType('ferme')">
                                 <input type="radio" name="type" value="ferme" class="accent-green-500">
                                 <div>
                                     <div class="text-sm font-bold text-[var(--text2)]">🔒 Ferme</div>
@@ -346,8 +329,7 @@
                     <div>
                         <div class="flex items-center justify-between mb-2">
                             <label class="filter-label">Client *</label>
-                            <button type="button" onclick="DISPO.openQuickClientModal()"
-                                class="flex items-center gap-1 text-xs text-[var(--accent)] hover:opacity-75 transition-opacity">
+                            <button type="button" onclick="DISPO.openQuickClientModal()" class="flex items-center gap-1 text-xs text-[var(--accent)] hover:opacity-75 transition-opacity">
                                 <span class="text-base leading-none">＋</span>
                                 <span>Nouveau client</span>
                             </button>
@@ -358,66 +340,86 @@
                                 <option value="{{ $c->id }}">{{ $c->name }}</option>
                             @endforeach
                         </select>
-                        <div id="modal-client-err" class="hidden mt-1 text-xs text-red-500">
-                            Veuillez sélectionner un client.
-                        </div>
+                        <div id="modal-client-err" class="hidden mt-1 text-xs text-red-500">Veuillez sélectionner un client.</div>
                     </div>
 
                     <div id="wrapper-campaign-name" class="hidden">
-                        <label class="filter-label block mb-1">
-                            Nom campagne <span class="text-[var(--text3)] font-normal">(optionnel)</span>
-                        </label>
-                        <input type="text" name="campaign_name" id="modal-campaign"
-                            placeholder="Ex : Ramadan 2026" class="modal-input w-full">
+                        <label class="filter-label block mb-1">Nom campagne <span class="text-[var(--text3)] font-normal">(optionnel)</span></label>
+                        <input type="text" name="campaign_name" id="modal-campaign" placeholder="Ex : Ramadan 2026" class="modal-input w-full">
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="filter-label block mb-1">Date début *</label>
-                            <input type="date" name="start_date" id="modal-du" required
-                                class="modal-input w-full" onchange="DISPO.calcEstimate()">
+                            <input type="date" name="start_date" id="modal-du" required class="modal-input w-full" onchange="DISPO.calcEstimate()">
                         </div>
                         <div>
                             <label class="filter-label block mb-1">Date fin *</label>
-                            <input type="date" name="end_date" id="modal-au" required class="modal-input w-full"
-                                onchange="DISPO.calcEstimate()">
+                            <input type="date" name="end_date" id="modal-au" required class="modal-input w-full" onchange="DISPO.calcEstimate()">
                         </div>
                     </div>
 
-                    <div id="modal-date-err"
-                        class="hidden text-xs text-red-500 bg-red-500/10 px-3 py-2 rounded-lg flex items-center gap-2">
+                    <div id="modal-date-err" class="hidden text-xs text-red-500 bg-red-500/10 px-3 py-2 rounded-lg flex items-center gap-2">
                         <span>⚠️</span><span id="modal-date-err-text"></span>
                     </div>
 
-                    <div
-                        class="flex justify-between items-center bg-[var(--accent-dim)] border border-[var(--accent)]/20 rounded-xl px-4 py-3">
-                        <div class="text-xs text-[var(--text3)]">
-                            Montant estimé <span id="modal-months" class="ml-1"></span>
+                    {{-- ✅ SECTION MONTANT AVEC PERSONNALISATION --}}
+                    <div>
+                        <div class="flex justify-between items-center bg-[var(--accent-dim)] border border-[var(--accent)]/20 rounded-xl px-4 py-3">
+                            <div>
+                                <div class="text-xs text-[var(--text3)]">
+                                    Montant estimé <span id="modal-months" class="ml-1"></span>
+                                </div>
+                                <div class="text-xl font-black text-[var(--accent)] mt-1">
+                                    <span id="modal-total">—</span>
+                                    <span class="text-xs font-normal text-[var(--text3)]"> FCFA</span>
+                                </div>
+                            </div>
+                            {{-- ✅ Bouton pour personnaliser le montant --}}
+                            <button type="button"
+                                    onclick="DISPO.toggleAmountEdit()"
+                                    id="btn-toggle-amount"
+                                    class="text-xs text-[var(--accent)] bg-[var(--surface)] border border-[var(--accent)]/25 rounded-lg px-3 py-1.5 hover:opacity-80 transition-opacity">
+                                ✏️ Personnaliser
+                            </button>
                         </div>
-                        <div class="text-xl font-black text-[var(--accent)]">
-                            <span id="modal-total">—</span>
-                            <span class="text-xs font-normal text-[var(--text3)]"> FCFA</span>
+
+                        {{-- ✅ Champ montant personnalisé (caché par défaut) --}}
+                        <div id="amount-edit-wrap" class="hidden mt-2">
+                            <div class="relative">
+                                <input type="number"
+                                    name="amount"
+                                    id="modal-amount"
+                                    min="0"
+                                    step="1000"
+                                    placeholder="Montant total personnalisé (FCFA)…"
+                                    class="modal-input w-full pr-16"
+                                    oninput="DISPO.onAmountInput(this.value)">
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text3)] pointer-events-none font-bold">FCFA</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1.5 px-1">
+                                <span class="text-xs text-[var(--text3)]">Laissez vide pour le calcul automatique</span>
+                                <button type="button"
+                                        onclick="DISPO.resetAmount()"
+                                        class="text-xs text-[var(--accent)] hover:opacity-75 transition-opacity">
+                                    ↺ Réinitialiser
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <div>
-                        <label class="filter-label block mb-1">
-                            Notes <span class="text-[var(--text3)] font-normal">(optionnel)</span>
-                        </label>
-                        <textarea name="notes" rows="2" placeholder="Remarques…"
-                            class="modal-input w-full resize-none min-h-[56px]"></textarea>
+                        <label class="filter-label block mb-1">Notes <span class="text-[var(--text3)] font-normal">(optionnel)</span></label>
+                        <textarea name="notes" rows="2" placeholder="Remarques…" class="modal-input w-full resize-none min-h-[56px]"></textarea>
                     </div>
 
                 </div>
 
-                <div
-                    class="px-5 py-3 border-t border-[var(--border)] bg-[var(--surface2)] rounded-b-2xl flex justify-between items-center gap-3 flex-shrink-0">
-                    <button type="button" onclick="DISPO.closeConfirmModal()"
-                        class="px-4 py-2 text-sm border border-[var(--border2)] rounded-xl text-[var(--text3)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all">
+                <div class="px-5 py-3 border-t border-[var(--border)] bg-[var(--surface2)] rounded-b-2xl flex justify-between items-center gap-3 flex-shrink-0">
+                    <button type="button" onclick="DISPO.closeConfirmModal()" class="px-4 py-2 text-sm border border-[var(--border2)] rounded-xl text-[var(--text3)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all">
                         Annuler
                     </button>
-                    <button type="button" id="modal-submit" onclick="DISPO.submitForm()"
-                        class="px-5 py-2 bg-[var(--accent)] text-white font-bold text-sm rounded-xl hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button type="button" id="modal-submit" onclick="DISPO.submitForm()" class="px-5 py-2 bg-[var(--accent)] text-white font-bold text-sm rounded-xl hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                         <span id="modal-submit-icon">✅</span>
                         <span id="modal-submit-txt">Confirmer et bloquer</span>
                     </button>
@@ -1702,6 +1704,155 @@
                         ).join('');
                         window.__tagCbs = tags.map(t => t.rm);
                     },
+
+                    // ═══════════════════════════════════════════════════════════════
+                    // GESTION DU MONTANT PERSONNALISÉ
+                    // ═══════════════════════════════════════════════════════════════
+                    
+                    _customAmount: null,
+                    _originalEstimate: 0,
+
+                    toggleAmountEdit() {
+                        const wrap = document.getElementById('amount-edit-wrap');
+                        const btn = document.getElementById('btn-toggle-amount');
+                        const isVisible = wrap && wrap.classList.contains('hidden') === false;
+                        
+                        if (isVisible) {
+                            wrap.classList.add('hidden');
+                            btn.innerHTML = '✏️ Personnaliser';
+                            this._customAmount = null;
+                            this._refreshEstimatedTotal();
+                        } else {
+                            wrap.classList.remove('hidden');
+                            btn.innerHTML = '✕ Annuler personnalisation';
+                            const amountInput = document.getElementById('modal-amount');
+                            if (amountInput) {
+                                amountInput.value = '';
+                                amountInput.placeholder = this._originalEstimate > 0 ? Math.round(this._originalEstimate).toLocaleString('fr-FR') + ' FCFA' : 'Montant total…';
+                                amountInput.focus();
+                            }
+                        }
+                    },
+
+                    onAmountInput(value) {
+                        const num = parseFloat(value);
+                        const totalSpan = document.getElementById('modal-total');
+                        const monthsSpan = document.getElementById('modal-months');
+                        
+                        if (!isNaN(num) && num > 0) {
+                            this._customAmount = num;
+                            totalSpan.textContent = Math.round(num).toLocaleString('fr-FR');
+                            monthsSpan.textContent = '(montant personnalisé)';
+                        } else {
+                            this._customAmount = null;
+                            this._refreshEstimatedTotal();
+                        }
+                    },
+
+                    resetAmount() {
+                        const amountInput = document.getElementById('modal-amount');
+                        if (amountInput) amountInput.value = '';
+                        this._customAmount = null;
+                        this._refreshEstimatedTotal();
+                    },
+
+                    _refreshEstimatedTotal() {
+                        const du = document.getElementById('modal-du').value;
+                        const au = document.getElementById('modal-au').value;
+                        const totalSpan = document.getElementById('modal-total');
+                        const monthsSpan = document.getElementById('modal-months');
+                        
+                        if (!du || !au) {
+                            totalSpan.textContent = '—';
+                            monthsSpan.textContent = '';
+                            return;
+                        }
+                        
+                        const months = window._months(du, au);
+                        const total = (window.S?.sel?.ids || []).reduce((s, id) => s + ((window.S?.sel?.rates[id]) || 0) * months, 0);
+                        this._originalEstimate = total;
+                        
+                        totalSpan.textContent = Math.round(total).toLocaleString('fr-FR');
+                        monthsSpan.textContent = `(${months} mois)`;
+                        
+                        const amountInput = document.getElementById('modal-amount');
+                        if (amountInput && !amountInput.value) {
+                            amountInput.placeholder = Math.round(total).toLocaleString('fr-FR') + ' FCFA';
+                        }
+                    },
+
+                    calcEstimate() {
+                        const du = document.getElementById('modal-du').value;
+                        const au = document.getElementById('modal-au').value;
+                        
+                        if (du && au && au <= du) {
+                            document.getElementById('modal-date-err').classList.remove('hidden');
+                            document.getElementById('modal-date-err-text').textContent = 'La date de fin doit être après la date de début.';
+                            document.getElementById('modal-total').textContent = '—';
+                            document.getElementById('modal-months').textContent = '';
+                            return;
+                        }
+                        
+                        document.getElementById('modal-date-err').classList.add('hidden');
+                        
+                        if (!du || !au) {
+                            document.getElementById('modal-total').textContent = '—';
+                            document.getElementById('modal-months').textContent = '';
+                            return;
+                        }
+                        
+                        this._refreshEstimatedTotal();
+                        
+                        if (this._customAmount !== null) {
+                            const amountInput = document.getElementById('modal-amount');
+                            if (amountInput && !amountInput.value) {
+                                this._customAmount = null;
+                            }
+                        }
+                    },
+
+                    submitForm() {
+                        const du = document.getElementById('modal-du').value;
+                        const au = document.getElementById('modal-au').value;
+                        const client = $('#modal-client-select').val();
+                        const errors = [];
+                        
+                        if (!client) {
+                            errors.push('Veuillez sélectionner un client.');
+                            document.getElementById('modal-client-err').classList.remove('hidden');
+                        } else {
+                            document.getElementById('modal-client-err').classList.add('hidden');
+                        }
+                        
+                        if (!du) errors.push('La date de début est obligatoire.');
+                        if (!au) errors.push('La date de fin est obligatoire.');
+                        if (du && au && au <= du) errors.push('La date de fin doit être après la date de début.');
+                        
+                        if (errors.length > 0) {
+                            const box = document.getElementById('modal-errors');
+                            box.innerHTML = errors.map(e => `<div class="flex gap-2"><span>⚠️</span><span>${e}</span></div>`).join('');
+                            box.classList.remove('hidden');
+                            return;
+                        }
+                        
+                        document.getElementById('hidden-panels').innerHTML = (window.S?.sel?.ids || []).map(id =>
+                            `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
+                        
+                        if (this._customAmount !== null && this._customAmount > 0) {
+                            const amountInput = document.createElement('input');
+                            amountInput.type = 'hidden';
+                            amountInput.name = 'custom_amount';
+                            amountInput.value = this._customAmount;
+                            document.getElementById('hidden-panels').appendChild(amountInput);
+                        }
+                        
+                        document.getElementById('modal-submit-txt').textContent = 'Envoi en cours…';
+                        document.getElementById('modal-submit').disabled = true;
+                        document.getElementById('form-confirm').submit();
+                    },
+                };
+                
+                
                 };
 
                 const MS = {};
