@@ -529,28 +529,6 @@
         </div>
     </div>
 
-    {{-- ══ MODAL ERREUR ══ --}}
-    <div id="modal-error" class="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm items-center justify-center p-4"
-        style="display:none" onclick="if(event.target===this)DISPO.closeError()">
-        <div class="bg-[var(--surface)] border border-red-500/40 rounded-2xl w-full max-w-md shadow-2xl"
-            onclick="event.stopPropagation()">
-            <div
-                class="px-5 py-4 border-b border-red-500/30 flex justify-between items-center bg-red-500/5 rounded-t-2xl">
-                <div class="font-bold text-red-500 flex items-center gap-2"><span>⚠️</span> Erreur</div>
-                <button onclick="DISPO.closeError()" class="text-[var(--text3)] hover:text-[var(--text)]">✕</button>
-            </div>
-            <div class="p-5">
-                <div id="error-body" class="text-sm text-[var(--text2)] space-y-2"></div>
-            </div>
-            <div class="px-5 py-3 border-t border-[var(--border)] flex justify-end">
-                <button onclick="DISPO.closeError()"
-                    class="px-4 py-2 bg-[var(--surface2)] border border-[var(--border2)] rounded-xl text-sm text-[var(--text2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all">
-                    Fermer
-                </button>
-            </div>
-        </div>
-    </div>
-
     <style>
         #modal-client-select {
             display: block !important;
@@ -1426,31 +1404,47 @@
                         _el('modal-months').textContent = `(${months} mois)`;
                     },
                     submitForm() {
-                        const du = _el('modal-du').value,
-                            au = _el('modal-au').value,
-                            client = $('#modal-client-select').val(),
-                            errors = [];
+                        const du = document.getElementById('modal-du').value;
+                        const au = document.getElementById('modal-au').value;
+                        const client = $('#modal-client-select').val();
+                        const errors = [];
+                        
                         if (!client) {
                             errors.push('Veuillez sélectionner un client.');
-                            _el('modal-client-err').classList.remove('hidden');
+                            document.getElementById('modal-client-err').classList.remove('hidden');
                         } else {
-                            _el('modal-client-err').classList.add('hidden');
+                            document.getElementById('modal-client-err').classList.add('hidden');
                         }
+                        
                         if (!du) errors.push('La date de début est obligatoire.');
                         if (!au) errors.push('La date de fin est obligatoire.');
                         if (du && au && au <= du) errors.push('La date de fin doit être après la date de début.');
+                        
                         if (errors.length > 0) {
-                            const box = _el('modal-errors');
-                            box.innerHTML = errors.map(e =>
-                                `<div class="flex gap-2"><span>⚠️</span><span>${e}</span></div>`).join('');
+                            const box = document.getElementById('modal-errors');
+                            box.innerHTML = errors.map(e => `<div class="flex gap-2"><span>⚠️</span><span>${e}</span></div>`).join('');
                             box.classList.remove('hidden');
                             return;
                         }
-                        _el('hidden-panels').innerHTML = S.sel.ids.map(id =>
-                            `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
-                        _el('modal-submit-txt').textContent = 'Envoi en cours…';
-                        _el('modal-submit').disabled = true;
-                        _el('form-confirm').submit();
+                        
+                        // ✅ CORRECTION : Utiliser S.sel.ids (S est accessible dans la closure)
+                        const hiddenPanels = document.getElementById('hidden-panels');
+                        hiddenPanels.innerHTML = S.sel.ids.map(id => 
+                            `<input type="hidden" name="panel_ids[]" value="${id}">`
+                        ).join('');
+                        
+                        // ✅ Ajouter le montant personnalisé s'il existe
+                        if (this._customAmount !== null && this._customAmount > 0) {
+                            const amountInput = document.createElement('input');
+                            amountInput.type = 'hidden';
+                            amountInput.name = 'custom_amount';
+                            amountInput.value = this._customAmount;
+                            hiddenPanels.appendChild(amountInput);
+                        }
+                        
+                        document.getElementById('modal-submit-txt').textContent = 'Envoi en cours…';
+                        document.getElementById('modal-submit').disabled = true;
+                        document.getElementById('form-confirm').submit();
                     },
                     openFiche(p) {
                         _el('fiche-title').textContent = `📋 ${p.reference} — ${p.name}`;
@@ -1919,25 +1913,49 @@
                     },
 
                     calcEstimate() {
-                        const du = _el('modal-du').value,
-                            au = _el('modal-au').value;
+                        const du = document.getElementById('modal-du').value;
+                        const au = document.getElementById('modal-au').value;
+                        
                         if (du && au && au <= du) {
-                            _el('modal-date-err').classList.remove('hidden');
-                            _el('modal-date-err-text').textContent = 'La date de fin doit être après la date de début.';
-                            _el('modal-total').textContent = '—';
-                            _el('modal-months').textContent = '';
+                            document.getElementById('modal-date-err').classList.remove('hidden');
+                            document.getElementById('modal-date-err-text').textContent = 'La date de fin doit être après la date de début.';
+                            document.getElementById('modal-total').textContent = '—';
+                            document.getElementById('modal-months').textContent = '';
                             return;
                         }
-                        _el('modal-date-err').classList.add('hidden');
+                        
+                        document.getElementById('modal-date-err').classList.add('hidden');
+                        
                         if (!du || !au) {
-                            _el('modal-total').textContent = '—';
-                            _el('modal-months').textContent = '';
+                            document.getElementById('modal-total').textContent = '—';
+                            document.getElementById('modal-months').textContent = '';
                             return;
                         }
-                        const months = _months(du, au);
-                        const total = S.sel.ids.reduce((s, id) => s + (S.sel.rates[id] || 0) * months, 0);
-                        _el('modal-total').textContent = Math.round(total).toLocaleString('fr-FR');
-                        _el('modal-months').textContent = `(${months} mois)`;
+                        
+                        // Calcul du nombre de mois
+                        const months = this._months(du, au);
+                        const total = S.sel.ids.reduce((sum, id) => {
+                            return sum + (S.sel.rates[id] || 0) * months;
+                        }, 0);
+                        
+                        // Sauvegarder l'estimation originale
+                        this._originalEstimate = total;
+                        
+                        // Afficher le montant estimé
+                        document.getElementById('modal-total').textContent = Math.round(total).toLocaleString('fr-FR');
+                        document.getElementById('modal-months').textContent = `(${months} mois)`;
+                        
+                        // Mettre à jour le placeholder du champ personnalisé
+                        const amountInput = document.getElementById('modal-amount');
+                        if (amountInput && !amountInput.value) {
+                            amountInput.placeholder = Math.round(total).toLocaleString('fr-FR') + ' FCFA';
+                        }
+                        
+                        // Si un montant personnalisé était actif, le restaurer
+                        if (this._customAmount !== null && this._customAmount > 0) {
+                            document.getElementById('modal-total').textContent = Math.round(this._customAmount).toLocaleString('fr-FR');
+                            document.getElementById('modal-months').textContent = '(montant personnalisé)';
+                        }
                     },
 
                 _months(startDate, endDate) {
