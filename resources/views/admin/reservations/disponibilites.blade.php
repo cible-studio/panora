@@ -1851,10 +1851,6 @@
                         document.getElementById('form-confirm').submit();
                     },
                 };
-                
-                
-                };
-
                 const MS = {};
 
                 function buildMs(wrapper) {
