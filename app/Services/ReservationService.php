@@ -7,6 +7,7 @@ use App\Enums\ReservationStatus;
 use App\Models\Campaign;
 use App\Models\Panel;
 use App\Models\Reservation;
+use App\Services\AlertService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -19,16 +20,8 @@ class ReservationService
     ) {}
 
     // ══════════════════════════════════════════════════════════════
-    // CRÉER UNE RÉSERVATION (option ou ferme)
-    // Extrait de confirmerSelection() — logique pure sans HTTP
+    // CRÉER UNE RÉSERVATION
     // ══════════════════════════════════════════════════════════════
-    /**
-     * @param  array  $data       Champs validés : client_id, start_date, end_date, notes, type
-     * @param  array  $panelIds   IDs des panneaux internes
-     * @param  string $campaignName  Nom de campagne si création auto (optionnel)
-     * @return array  ['reservation' => Reservation, 'campaign' => Campaign|null]
-     * @throws \RuntimeException  CONFLICT:refs | CAMPAIGN_EXISTS:msg | SYSTEM:msg
-     */
     public function createFromSelection(
         array  $data,
         array  $panelIds,
@@ -36,10 +29,8 @@ class ReservationService
     ): array {
         return DB::transaction(function () use ($data, $panelIds, $campaignName) {
 
-            // 🔒 Verrou pessimiste — anti race condition
             Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
 
-            // Source de vérité — conflits APRÈS verrou
             $conflicts = $this->availability->getUnavailablePanelIds(
                 $panelIds,
                 $data['start_date'],
@@ -51,21 +42,19 @@ class ReservationService
                 throw new \RuntimeException("CONFLICT:{$refs}");
             }
 
-            $status = $data['type'] === 'ferme'
+            $status    = $data['type'] === 'ferme'
                 ? ReservationStatus::CONFIRME
                 : ReservationStatus::EN_ATTENTE;
 
-            // Calcul montant
             $months    = $this->monthsBetween($data['start_date'], $data['end_date']);
             $panelData = Panel::whereIn('id', $panelIds)->get()->keyBy('id');
             $total     = 0;
             $attach    = [];
 
             foreach ($panelIds as $id) {
-                $panel   = $panelData[$id];
-                $unit    = (float)($panel->monthly_rate ?? 0);
-                $tot     = $unit * $months;
-                $total  += $tot;
+                $unit        = (float) ($panelData[$id]->monthly_rate ?? 0);
+                $tot         = $unit * $months;
+                $total      += $tot;
                 $attach[$id] = ['unit_price' => $unit, 'total_price' => $tot];
             }
 
@@ -93,7 +82,6 @@ class ReservationService
                 'user_id'        => auth()->id(),
             ]);
 
-            // Campagne automatique si ferme + nom fourni
             $campaign = null;
             if ($data['type'] === 'ferme' && $campaignName !== '') {
                 $campaign = $this->createCampaignFromReservation(
@@ -109,15 +97,8 @@ class ReservationService
     }
 
     // ══════════════════════════════════════════════════════════════
-    // METTRE À JOUR UNE RÉSERVATION
-    // Extrait de update() — logique pure sans HTTP
+    // METTRE À JOUR
     // ══════════════════════════════════════════════════════════════
-    /**
-     * @param  Reservation $reservation
-     * @param  array       $data      Champs validés : client_id, start_date, end_date, notes, panel_ids
-     * @param  array       $oldPanels IDs avant modification (pour sync)
-     * @throws \RuntimeException  CONFLICT:refs
-     */
     public function updateReservation(
         Reservation $reservation,
         array       $data,
@@ -145,8 +126,7 @@ class ReservationService
             $total     = 0;
 
             foreach ($data['panel_ids'] as $id) {
-                $panel      = $panelData[$id];
-                $unit       = (float)($panel->monthly_rate ?? 0);
+                $unit       = (float) ($panelData[$id]->monthly_rate ?? 0);
                 $tot        = $unit * $months;
                 $total     += $tot;
                 $sync[$id]  = ['unit_price' => $unit, 'total_price' => $tot];
@@ -174,20 +154,24 @@ class ReservationService
     }
 
     // ══════════════════════════════════════════════════════════════
-    // ANNULER UNE RÉSERVATION
+    // ANNULER — avec motif documenté (extraData optionnel)
     // ══════════════════════════════════════════════════════════════
-    public function cancel(Reservation $reservation): void
+    public function cancel(Reservation $reservation, array $extraData = []): void
     {
         $panelIds  = $reservation->panels->pluck('id')->toArray();
         $oldStatus = $reservation->status->value;
 
-        $reservation->update(['status' => ReservationStatus::ANNULE->value]);
+        $reservation->update(array_merge(
+            ['status' => ReservationStatus::ANNULE->value],
+            $extraData // cancel_type, cancel_reason, cancelled_at, cancelled_by
+        ));
+
         $this->availability->syncPanelStatuses($panelIds);
-        // ReservationObserver cascade → Campaign si liée
 
         Log::info('reservation.cancelled', [
             'reservation_id' => $reservation->id,
             'from_status'    => $oldStatus,
+            'cancel_type'    => $extraData['cancel_type'] ?? null,
             'panel_ids'      => $panelIds,
             'user_id'        => auth()->id(),
         ]);
@@ -220,7 +204,7 @@ class ReservationService
     }
 
     // ══════════════════════════════════════════════════════════════
-    // SUPPRIMER UNE RÉSERVATION (avec cascade campagne)
+    // SUPPRIMER
     // ══════════════════════════════════════════════════════════════
     public function delete(Reservation $reservation): void
     {
@@ -231,7 +215,10 @@ class ReservationService
             if ($campaign) {
                 $campaign->update([
                     'status' => CampaignStatus::ANNULE->value,
-                    'notes'  => trim(($campaign->notes ?? '') . "\n[Auto] Campagne annulée — réservation #{$reservation->reference} supprimée"),
+                    'notes'  => trim(
+                        ($campaign->notes ?? '') .
+                        "\n[Auto] Campagne annulée — réservation #{$reservation->reference} supprimée"
+                    ),
                 ]);
 
                 Log::info('campaign.cancelled_by_reservation_deletion', [
@@ -249,11 +236,11 @@ class ReservationService
             }
 
             Log::info('reservation.deleted', [
-                'reservation_id'  => $reservation->id,
-                'reference'       => $reservation->reference,
-                'campaign_annuled'=> $campaign !== null,
-                'panels_freed'    => count($panelIds),
-                'user_id'         => auth()->id(),
+                'reservation_id'   => $reservation->id,
+                'reference'        => $reservation->reference,
+                'campaign_annuled' => $campaign !== null,
+                'panels_freed'     => count($panelIds),
+                'user_id'          => auth()->id(),
             ]);
         });
     }
@@ -268,15 +255,17 @@ class ReservationService
         array       $panelIds,
         float       $total
     ): Campaign {
-        $exists = Campaign::where('client_id', $reservation->client_id)
-            ->where('name', $campaignName)
-            ->exists();
-
-        if ($exists) {
+        if (Campaign::where('client_id', $reservation->client_id)
+            ->where('name', $campaignName)->exists()) {
             throw new \RuntimeException(
                 'CAMPAIGN_EXISTS:Une campagne avec ce nom existe déjà pour ce client.'
             );
         }
+
+        // Statut selon date de début
+        $campStatus = now()->startOfDay()->lt(
+            Carbon::parse($reservation->start_date)->startOfDay()
+        ) ? CampaignStatus::PLANIFIE->value : CampaignStatus::ACTIF->value;
 
         $campaign = Campaign::create([
             'name'           => $campaignName,
@@ -285,7 +274,7 @@ class ReservationService
             'user_id'        => auth()->id(),
             'start_date'     => $reservation->start_date,
             'end_date'       => $reservation->end_date,
-            'status'         => CampaignStatus::ACTIF->value,
+            'status'         => $campStatus,
             'total_panels'   => count($panelIds),
             'total_amount'   => $total,
             'notes'          => $reservation->notes,
@@ -296,6 +285,7 @@ class ReservationService
         Log::info('campaign.auto_created', [
             'campaign_id'    => $campaign->id,
             'reservation_id' => $reservation->id,
+            'status'         => $campStatus,
             'user_id'        => auth()->id(),
         ]);
 
@@ -306,11 +296,12 @@ class ReservationService
     {
         $attempts = 0;
         do {
-            $candidate = 'RES-' . strtoupper(Str::random(8));
-            if (++$attempts > 10) {
-                $candidate = 'RES-' . strtoupper(substr(str_replace('-', '', (string)Str::uuid()), 0, 8));
-            }
-            if ($attempts > 20) {
+            // Après 10 tentatives → fallback UUID
+            $candidate = $attempts < 10
+                ? 'RES-' . strtoupper(Str::random(8))
+                : 'RES-' . strtoupper(substr(str_replace('-', '', (string) Str::uuid()), 0, 8));
+
+            if (++$attempts > 20) {
                 throw new \RuntimeException('SYSTEM:Référence impossible à générer.');
             }
         } while (Reservation::where('reference', $candidate)->exists());
@@ -318,12 +309,29 @@ class ReservationService
         return $candidate;
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // RÈGLE FACTURATION CIBLE CI — 15j = demi-mois
+    // Identique à ReservationController::monthsBetween()
+    // et à la fonction JS _months()
+    // ══════════════════════════════════════════════════════════════
     public function monthsBetween(string $start, string $end): float
     {
-        $s      = Carbon::parse($start)->startOfDay();
-        $e      = Carbon::parse($end)->endOfDay();
-        $months = (int)$s->diffInMonths($e);
-        $remain = $s->copy()->addMonths($months)->diffInDays($e);
-        return max((float)($remain > 0 ? $months + 1 : $months), 1.0);
+        $s         = Carbon::parse($start)->startOfDay();
+        $e         = Carbon::parse($end)->startOfDay();
+        $totalDays = (int) $s->diffInDays($e);
+
+        if ($totalDays <= 0) return 0.5;
+
+        $fullMonths = (int) floor($totalDays / 30);
+        $remainDays = $totalDays % 30;
+
+        $fraction = 0;
+        if ($remainDays >= 1 && $remainDays <= 15) {
+            $fraction = 0.5;
+        } elseif ($remainDays > 15) {
+            $fraction = 1;
+        }
+
+        return max($fullMonths + $fraction, 0.5);
     }
 }
