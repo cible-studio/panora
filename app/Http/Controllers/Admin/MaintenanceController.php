@@ -120,6 +120,15 @@ class MaintenanceController extends Controller
 
         $maintenance->update($request->all());
 
+        // Alerte modification maintenance (uniquement si changements importants)
+        AlertService::create(
+            'maintenance',
+            'info',
+            '✏️ Maintenance modifiée — ' . $maintenance->panel->reference,
+            auth()->user()->name . ' a modifié la maintenance de ' . $maintenance->panel->reference . ' (statut: ' . $maintenance->statut . ', priorité: ' . $maintenance->priorite . ').',
+             $maintenance
+        );
+
         return redirect()->route('admin.maintenances.index')
             ->with('success', 'Maintenance mise à jour !');
     }

@@ -178,6 +178,7 @@ class ClientController extends Controller
 
     public function update(UpdateClientRequest $request, Client $client)
     {
+        $oldName = $client->name;
         $client->update($request->validated());
 
         Log::info('client.updated', [
@@ -185,11 +186,19 @@ class ClientController extends Controller
             'user_id' => auth()->id(),
         ]);
 
+        // Alerte modification client
+        AlertService::create(
+            'client',
+            'info',
+            '✏️ Client modifié — ' . $client->name,
+            auth()->user()->name . ' a modifié le client ' . $oldName . '.',
+            $client
+        );
+
         return redirect()
             ->route('admin.clients.show', $client)
             ->with('success', 'Client mis à jour avec succès.');
     }
-
     // ══════════════════════════════════════════════════════════════
     // DESTROY
     // ══════════════════════════════════════════════════════════════
@@ -211,6 +220,15 @@ class ClientController extends Controller
             'client_name' => $name,
             'user_id' => auth()->id(),
         ]);
+
+        // Alerte suppression client
+        AlertService::create(
+            'client',
+            'danger',
+            '🗑 Client supprimé — ' . $name,
+            auth()->user()->name . ' a supprimé le client ' . $name . '.',
+            null
+        );
 
         return redirect()
             ->route('admin.clients.index')

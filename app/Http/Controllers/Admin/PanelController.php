@@ -226,6 +226,7 @@ class PanelController extends Controller
                 ]);
             }
         }
+
         AlertService::create(
             'panneau',
             'info',
@@ -432,7 +433,19 @@ class PanelController extends Controller
     // ── SUPPRIMER ──
     public function destroy(Panel $panel)
     {
+        $panelRef = $panel->reference;
+        
         $panel->delete();
+        
+        // Alerte suppression panneau
+        AlertService::create(
+            'panneau',
+            'danger',
+            '🗑 Panneau supprimé — ' . $panelRef,
+            auth()->user()->name . ' a supprimé le panneau ' . $panelRef . '.',
+            null
+        );
+        
         return redirect()->route('admin.panels.index')
             ->with('success', 'Panneau supprimé !');
     }

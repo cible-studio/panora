@@ -166,6 +166,15 @@ class PigeController extends Controller
 
         $msg = $result['count'] . ' pige(s) uploadée(s) avec succès — en attente de vérification.';
 
+        // Alerte upload piges
+        AlertService::create(
+            'pige',
+            'info',
+            '📸 Nouvelles piges uploadées',
+            auth()->user()->name . ' a uploadé ' . $result['count'] . ' pige(s) pour le panneau ' . ($request->panel_id ? '#' . $request->panel_id : ''),
+            null
+        );
+
         // Rediriger vers index filtré sur la campagne/panneau
         $redirectParams = array_filter([
             'campaign_id' => $request->campaign_id,
@@ -335,6 +344,17 @@ class PigeController extends Controller
             ]);
         }
 
+        // Alerte vérification pige (uniquement pour les requêtes non AJAX)
+        if (!$request->wantsJson()) {
+            AlertService::create(
+                'pige',
+                'success',
+                '✅ Pige vérifiée — ' . ($pige->panel?->reference ?? ''),
+                auth()->user()->name . ' a vérifié la pige du panneau ' . ($pige->panel?->reference ?? ''),
+                $pige
+            );
+        }
+
         return back()->with('success', 'Pige marquée comme vérifiée.');
     }
 
@@ -351,6 +371,15 @@ class PigeController extends Controller
             }
             return back()->with('error', $result['error']);
         }
+
+        // Alerte suppression pige
+        AlertService::create(
+            'pige',
+            'danger',
+            '🗑 Pige supprimée — ' . ($pige->panel?->reference ?? ''),
+            auth()->user()->name . ' a supprimé une pige du panneau ' . ($pige->panel?->reference ?? ''),
+            null
+        );
 
         if (request()->wantsJson()) {
             return response()->json(['success' => true, 'message' => 'Pige supprimée avec succès.']);

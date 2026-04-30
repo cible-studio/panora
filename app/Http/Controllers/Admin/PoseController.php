@@ -156,8 +156,18 @@ class PoseController extends Controller
         if (!empty($result['warnings'])) {
             $msg .= ' ⚠️ ' . implode(' ', $result['warnings']);
         }
- 
+
+        // Alerte création pose
+        AlertService::create(
+            'pose',
+            'info',
+            '🔧 Nouvelles tâches de pose — ' . $result['count'] . ' tâche(s)',
+            auth()->user()->name . ' a créé ' . $result['count'] . ' tâche(s) de pose',
+            null
+        );
+
         return redirect()->route('admin.pose-tasks.index')->with('success', $msg);
+ 
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -243,6 +253,15 @@ class PoseController extends Controller
         if (!$result['ok']) {
             return back()->withInput()->with('error', $result['error']);
         }
+
+        // Alerte modification pose (uniquement si changements importants)
+        AlertService::create(
+            'pose',
+            'info',
+            '✏️ Tâche de pose modifiée — ' . ($poseTask->panel?->reference ?? ''),
+            auth()->user()->name . ' a modifié la tâche de pose du panneau ' . ($poseTask->panel?->reference ?? ''),
+            $poseTask
+        );
  
         return redirect()->route('admin.pose-tasks.show', $poseTask)
             ->with('success', 'Tâche mise à jour avec succès.');
@@ -256,7 +275,19 @@ class PoseController extends Controller
         if ($poseTask->status === PoseTaskStatus::COMPLETED->value) {
             return back()->with('error', 'Impossible de supprimer une tâche déjà réalisée.');
         }
+        
+        $panelRef = $poseTask->panel?->reference ?? '';
         $poseTask->delete();
+        
+        // Alerte suppression pose
+        AlertService::create(
+            'pose',
+            'danger',
+            '🗑 Tâche de pose supprimée — ' . $panelRef,
+            auth()->user()->name . ' a supprimé la tâche de pose du panneau ' . $panelRef,
+            null
+        );
+        
         return redirect()->route('admin.pose-tasks.index')->with('success', 'Tâche de pose supprimée.');
     }
 
