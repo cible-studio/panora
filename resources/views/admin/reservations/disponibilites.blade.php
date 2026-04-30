@@ -1189,13 +1189,18 @@
                         document.getElementById(fId).submit();
                     },
 
-                    // Exporter en Excel les panneaux internes affichés (avec les filtres et dates)
+                    // Exporter en Excel les panneaux affichés (avec les filtres et dates)
                     exportExcel() {
-                        // Exporter tous les panneaux affichés (internes + externes)
+                        // Choisis une des deux lignes ci-dessous (décommente celle que tu veux)
+                        
+                        // Option 1: Exporter TOUS les panneaux (internes + externes)
                         const ids = S._lastPanels.map(p => p.id);
-                        const ids = S._lastPanels.filter(p => p.source === 'internal').map(p => p.id);
+                        
+                        // Option 2: Exporter UNIQUEMENT les panneaux internes
+                        // const ids = S._lastPanels.filter(p => p.source === 'internal').map(p => p.id);
+                        
                         if (ids.length === 0) {
-                            alert('Aucun panneau interne à exporter.');
+                            alert('Aucun panneau à exporter.');
                             return;
                         }
                         
@@ -1302,8 +1307,6 @@
                         form.submit();
                         document.body.removeChild(form);
                     },
-
-
 
                     prevPage() {
                         if (S.page > 1) {
