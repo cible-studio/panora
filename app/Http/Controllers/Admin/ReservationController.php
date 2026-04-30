@@ -24,6 +24,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
+use App\Exports\PanelsExport;
+use Maatwebsite\Excel\Facades\Excel;
+
 class ReservationController extends Controller
 {
     public function __construct(
@@ -560,6 +563,34 @@ class ReservationController extends Controller
         ]);
         
         return $pdf->download('selection-panneaux-liste-' . now()->format('Ymd') . '.pdf');
+    }
+
+    /**
+     * EXPORT EXCEL — Liste des panneaux disponibles
+     */
+    public function exportExcel(Request $request)
+    {
+        $request->validate([
+            'panel_ids' => 'required|array|min:1',
+            'panel_ids.*' => 'integer|exists:panels,id',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date',
+            'hide_status' => 'nullable|boolean',
+        ]);
+
+        $panels = Panel::with(['commune', 'zone', 'format', 'category'])
+            ->whereIn('id', $request->panel_ids)
+            ->orderBy('reference')
+            ->get();
+
+        $startDate = $request->start_date;
+        $endDate = $request->end_date;
+        $hideStatus = $request->boolean('hide_status', false);
+
+        return Excel::download(
+            new PanelsExport($panels, $startDate, $endDate, $hideStatus),
+            'panneaux-disponibles-' . now()->format('Y-m-d') . '.xlsx'
+        );
     }
 
     // ══════════════════════════════════════════════════════════════

@@ -317,6 +317,8 @@ Route::prefix('admin')
             ->name('reservations.disponibilites.pdf-images');
         Route::post('disponibilites/pdf-liste', [ReservationController::class, 'pdfListe'])
             ->name('reservations.disponibilites.pdf-liste');
+        Route::post('disponibilites/export-excel', [ReservationController::class, 'exportExcel'])
+            ->name('reservations.disponibilites.export-excel');
 
 
         // Réservations

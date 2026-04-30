@@ -170,6 +170,16 @@
                         📋 PDF images
                     </button>
 
+                    {{-- Bouton Excel --}}
+                    <div style="position:relative;display:inline-block;" id="dispo-export-wrap">
+                        <div class="flex gap-2 flex-wrap">
+                            <button onclick="DISPO.exportExcel()"
+                                class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-green-600 hover:border-green-600 hover:bg-green-500/5 transition-all">
+                                📊 Excel
+                            </button>
+                        </div>
+                    </div>
+
                     <div style="position:relative;display:inline-block;" id="dispo-export-wrap">
                         <button onclick="document.getElementById('dispo-export-dropdown').classList.toggle('hidden')"
                             class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--blue)] hover:border-[var(--blue)] hover:bg-blue-500/5 transition-all">
@@ -251,6 +261,8 @@
                 </div>
                 <div class="flex gap-2">
                     <button class="btn btn-ghost btn-sm" onclick="DISPO.clearSelection()">✕ Vider</button>
+                    <button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(34,197,94,.4)" 
+                    onclick="DISPO.exportSelExcel()">📊 Excel sélection</button>
                     <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(239,68,68,.4)"
                         onclick="DISPO.exportSelPdf('images')">📄 PDF images</button>
                     <button class="btn btn-ghost btn-sm" style="color:var(--blue);border-color:rgba(59,130,246,.4)"
@@ -1176,6 +1188,123 @@
                         _el(eId).value = S.f.au || '';
                         document.getElementById(fId).submit();
                     },
+
+                    // Exporter en Excel les panneaux internes affichés (avec les filtres et dates)
+                    exportExcel() {
+                        // Exporter tous les panneaux affichés (internes + externes)
+                        const ids = S._lastPanels.map(p => p.id);
+                        const ids = S._lastPanels.filter(p => p.source === 'internal').map(p => p.id);
+                        if (ids.length === 0) {
+                            alert('Aucun panneau interne à exporter.');
+                            return;
+                        }
+                        
+                        // Créer un formulaire temporaire
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '{{ route("admin.reservations.disponibilites.export-excel") }}';
+                        form.target = '_blank';
+                        form.style.display = 'none';
+                        
+                        // Ajouter CSRF
+                        const csrfInput = document.createElement('input');
+                        csrfInput.type = 'hidden';
+                        csrfInput.name = '_token';
+                        csrfInput.value = D.csrf;
+                        form.appendChild(csrfInput);
+                        
+                        // Ajouter les IDs des panneaux
+                        ids.forEach(id => {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'panel_ids[]';
+                            input.value = id;
+                            form.appendChild(input);
+                        });
+                        
+                        // Ajouter les dates
+                        if (S.f.du) {
+                            const startInput = document.createElement('input');
+                            startInput.type = 'hidden';
+                            startInput.name = 'start_date';
+                            startInput.value = S.f.du;
+                            form.appendChild(startInput);
+                        }
+                        
+                        if (S.f.au) {
+                            const endInput = document.createElement('input');
+                            endInput.type = 'hidden';
+                            endInput.name = 'end_date';
+                            endInput.value = S.f.au;
+                            form.appendChild(endInput);
+                        }
+                        
+                        // Option masquer statut
+                        const hideStatus = document.getElementById('dispo-hide-status')?.checked;
+                        if (hideStatus) {
+                            const hideInput = document.createElement('input');
+                            hideInput.type = 'hidden';
+                            hideInput.name = 'hide_status';
+                            hideInput.value = '1';
+                            form.appendChild(hideInput);
+                        }
+                        
+                        document.body.appendChild(form);
+                        form.submit();
+                        document.body.removeChild(form);
+                    },
+
+                    // Pour l'export Excel de la sélection
+                    exportSelExcel() {
+                        const ids = S.sel.ids.filter(id => !String(id).startsWith('ext_'));
+                        if (ids.length === 0) {
+                            alert('Aucun panneau interne sélectionné.');
+                            return;
+                        }
+                        
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '{{ route("admin.reservations.disponibilites.export-excel") }}';
+                        form.target = '_blank';
+                        form.style.display = 'none';
+                        
+                        const csrfInput = document.createElement('input');
+                        csrfInput.type = 'hidden';
+                        csrfInput.name = '_token';
+                        csrfInput.value = D.csrf;
+                        form.appendChild(csrfInput);
+                        
+                        ids.forEach(id => {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'panel_ids[]';
+                            input.value = id;
+                            form.appendChild(input);
+                        });
+                        
+                        if (S.f.du) {
+                            const startInput = document.createElement('input');
+                            startInput.type = 'hidden';
+                            startInput.name = 'start_date';
+                            startInput.value = S.f.du;
+                            form.appendChild(startInput);
+                        }
+                        
+                        if (S.f.au) {
+                            const endInput = document.createElement('input');
+                            endInput.type = 'hidden';
+                            endInput.name = 'end_date';
+                            endInput.value = S.f.au;
+                            form.appendChild(endInput);
+                        }
+                        
+                        document.body.appendChild(form);
+                        form.submit();
+                        document.body.removeChild(form);
+                    },
+
+
+
                     prevPage() {
                         if (S.page > 1) {
                             S.page--;
