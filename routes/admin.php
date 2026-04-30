@@ -297,16 +297,9 @@ Route::prefix('admin')
 
         // Prix panneaux dans une réservation
         Route::patch(
-            'reservations/{reservation}/panels/{panel}/price',
-            [ReservationController::class, 'updatePanelPrice']
-        )
-            ->name('reservations.panels.price');
+            'reservations/{reservation}/panels/{panel}/price', [ReservationController::class, 'updatePanelPrice'])->name('reservations.panels.price');
 
-        Route::post(
-            'reservations/{reservation}/panels/{panel}/price/reset',
-            [ReservationController::class, 'resetPanelPrice']
-        )
-            ->name('reservations.panels.price.reset');
+        Route::post('reservations/{reservation}/panels/{panel}/price/reset', [ReservationController::class, 'resetPanelPrice'])->name('reservations.panels.price.reset');
 
         // Disponibilités
         Route::get('disponibilites', [ReservationController::class, 'disponibilites'])->name('reservations.disponibilites');
@@ -331,6 +324,9 @@ Route::prefix('admin')
             ->name('reservations.available-panels')
             ->middleware('throttle:60,1');
         Route::post('reservations/mark-seen', [ReservationController::class, 'markSeen'])->name('reservations.mark-seen');
+
+        // Ajout de panneaux à une réservation existante (utilisé dans la modale d'ajout de panneaux)
+        Route::post('reservations/{reservation}/panels/add', [ReservationController::class, 'addPanel']) ->name('reservations.panels.add');
 
         // CRUD Réservations (en dernier pour ne pas capturer les routes spécifiques)
         Route::resource('reservations', ReservationController::class)->except(['create', 'store']);

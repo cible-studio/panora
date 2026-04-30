@@ -425,6 +425,9 @@ class ReservationController extends Controller
             'panel_ids.*' => 'integer|exists:panels,id',
         ]);
 
+        $reservationRef = $request->reservation_ref ?? null;
+        $clientName = $request->client_name ?? null;
+
         $panelModels = Panel::with([
             'commune:id,name',
             'zone:id,name',
@@ -499,6 +502,8 @@ class ReservationController extends Controller
                 'startDate' => $startDate,
                 'endDate' => $endDate,
                 'generated' => now()->format('d/m/Y'),
+                'reservation_ref' => $reservationRef,
+                'client_name' => $clientName,
             ]
         )
             ->setPaper('a4', 'portrait')
@@ -851,43 +856,80 @@ class ReservationController extends Controller
     {
         if ($reservation->client?->trashed())
             return back()->with('error', 'Impossible : client supprimé.');
+        
         $request->validate(['status' => 'required|in:' . implode(',', array_column(ReservationStatus::cases(), 'value'))]);
+        
         if (!$reservation->canTransitionTo($request->status)) {
             return back()->with('error', "Transition interdite : {$reservation->status->value} → {$request->status}.");
         }
-        $this->reservationService->changeStatus($reservation, $request->status);
-
-        $statusLabels = ['confirme' => 'confirmée', 'refuse' => 'refusée', 'en_attente' => 'en attente', 'termine' => 'terminée'];
-        $label = $statusLabels[$request->status] ?? $request->status;
-        $niveau = $request->status === 'confirme' ? 'info' : ($request->status === 'refuse' ? 'danger' : 'info');
-
-        AlertService::create(
-            'reservation',
-            $niveau,
-            '📋 Réservation ' . $label . ' — ' . ($reservation->client?->name ?? ''),
-            auth()->user()->name . ' a mis à jour la réservation ' . $reservation->reference . ' → ' . $label . '.',
-            $reservation
-        );
-        return redirect()->route('admin.reservations.show', $reservation)->with('success', "Statut mis à jour : {$request->status}.");
+        
+        // Si on passe à "annule", on peut aussi passer le motif
+        if ($request->status === 'annule') {
+            $cancelData = [
+                'cancel_type' => $request->input('cancel_type', 'autre'),
+                'cancel_reason' => $request->input('cancel_reason', ''),
+                'cancelled_at' => now(),
+                'cancelled_by' => auth()->id(),
+            ];
+            $this->reservationService->cancel($reservation, $cancelData);
+            
+            AlertService::create(
+                'reservation',
+                'danger',
+                '🚫 Réservation annulée — ' . ($reservation->client?->name ?? ''),
+                auth()->user()->name . ' a annulé la réservation ' . $reservation->reference,
+                $reservation
+            );
+        } else {
+            $this->reservationService->changeStatus($reservation, $request->status);
+            
+            $statusLabels = ['confirme' => 'confirmée', 'refuse' => 'refusée', 'en_attente' => 'en attente', 'termine' => 'terminée'];
+            $label = $statusLabels[$request->status] ?? $request->status;
+            $niveau = $request->status === 'confirme' ? 'info' : ($request->status === 'refuse' ? 'danger' : 'info');
+            
+            AlertService::create(
+                'reservation',
+                $niveau,
+                '📋 Réservation ' . $label . ' — ' . ($reservation->client?->name ?? ''),
+                auth()->user()->name . ' a mis à jour la réservation ' . $reservation->reference . ' → ' . $label . '.',
+                $reservation
+            );
+        }
+        
+        return redirect()->route('admin.reservations.show', $reservation)
+            ->with('success', "Statut mis à jour : {$request->status}.");
     }
 
-    public function annuler(Reservation $reservation)
+    public function annuler(Request $request, Reservation $reservation)
     {
         if ($reservation->client?->trashed())
             abort(403, 'Impossible : client supprimé.');
         if (!$reservation->isCancellable())
             abort(403, 'Réservation non annulable.');
+        
         $panelCount = $reservation->panels->count();
-        $this->reservationService->cancel($reservation);
+        
+        // Extraire les données d'annulation
+        $cancelData = [
+            'cancel_type' => $request->input('cancel_type', 'autre'),
+            'cancel_reason' => $request->input('cancel_reason', ''),
+            'cancelled_at' => now(),
+            'cancelled_by' => auth()->id(),
+        ];
+        
+        $this->reservationService->cancel($reservation, $cancelData);
+        
         // Alerte annulation
         AlertService::create(
             'reservation',
             'danger',
             '🚫 Réservation annulée — ' . ($reservation->client?->name ?? ''),
-            auth()->user()->name . ' a annulé la réservation ' . $reservation->reference,
+            auth()->user()->name . ' a annulé la réservation ' . $reservation->reference . ' (Motif: ' . ($cancelData['cancel_type'] ?? 'autre') . ')',
             $reservation
         );
-        return redirect()->route('admin.reservations.index')->with('success', "Réservation annulée. {$panelCount} panneau(x) libéré(s).");
+        
+        return redirect()->route('admin.reservations.index')
+            ->with('success', "Réservation annulée. {$panelCount} panneau(x) libéré(s).");
     }
 
     public function destroy(Reservation $reservation)
@@ -1090,6 +1132,79 @@ class ReservationController extends Controller
         $reservation->update(['total_amount' => $newTotal]);
 
         return back()->with('success', 'Prix remis au tarif catalogue.');
+    }
+
+    /**
+     * AJOUTER UN PANNEAU À UNE RÉSERVATION EXISTANTE
+     * POST /admin/reservations/{reservation}/panels/add
+     */
+    public function addPanel(Request $request, Reservation $reservation)
+    {
+        if (!$reservation->isEditable()) {
+            return response()->json(['success' => false, 'message' => 'Réservation non modifiable.'], 403);
+        }
+
+        $request->validate([
+            'panel_id'   => 'required|integer|exists:panels,id',
+            'unit_price' => 'nullable|numeric|min:0',
+        ]);
+
+        $panelId = $request->panel_id;
+        $unitPrice = $request->unit_price ?? null;
+
+        // Vérifier que le panneau n'est pas déjà dans la réservation
+        if ($reservation->panels()->where('panel_id', $panelId)->exists()) {
+            return response()->json(['success' => false, 'message' => 'Ce panneau est déjà dans la réservation.'], 422);
+        }
+
+        // Vérifier la disponibilité du panneau sur la période
+        $conflicts = $this->availability->getUnavailablePanelIds(
+            [$panelId],
+            $reservation->start_date->format('Y-m-d'),
+            $reservation->end_date->format('Y-m-d'),
+            $reservation->id
+        );
+
+        if (!empty($conflicts)) {
+            return response()->json(['success' => false, 'message' => 'Panneau non disponible sur cette période.'], 422);
+        }
+
+        $months = $this->monthsBetween(
+            $reservation->start_date->format('Y-m-d'),
+            $reservation->end_date->format('Y-m-d')
+        );
+
+        // Récupérer le prix catalogue si unit_price non fourni
+        if ($unitPrice === null) {
+            $panel = Panel::find($panelId);
+            $unitPrice = $panel->monthly_rate ?? 0;
+        }
+
+        $totalPrice = $unitPrice * $months;
+
+        // Ajouter le panneau
+        $reservation->panels()->attach($panelId, [
+            'unit_price'  => $unitPrice,
+            'total_price' => $totalPrice,
+        ]);
+
+        // Recalculer le total de la réservation
+        $newTotal = $reservation->panels()->sum(DB::raw('reservation_panels.total_price'));
+        $reservation->update(['total_amount' => $newTotal]);
+
+        // Mettre à jour le statut du panneau
+        $this->availability->syncPanelStatuses([$panelId]);
+
+        // Alerte d'ajout
+        AlertService::create(
+            'reservation',
+            'info',
+            '➕ Panneau ajouté — ' . $reservation->reference,
+            auth()->user()->name . ' a ajouté un panneau à la réservation ' . $reservation->reference,
+            $reservation
+        );
+
+        return response()->json(['success' => true, 'message' => 'Panneau ajouté avec succès.']);
     }
 
 }
