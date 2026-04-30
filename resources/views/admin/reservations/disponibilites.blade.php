@@ -1449,9 +1449,8 @@
                             return;
                         }
                         
-                        // ✅ CORRECTION : Utiliser S.sel.ids (S est accessible dans la closure)
-                        const hiddenPanels = document.getElementById('hidden-panels');
-                        hiddenPanels.innerHTML = S.sel.ids.map(id => 
+                        // ✅ CORRECTION CRITIQUE : Utiliser S.sel.ids (pas window.S)
+                        document.getElementById('hidden-panels').innerHTML = S.sel.ids.map(id => 
                             `<input type="hidden" name="panel_ids[]" value="${id}">`
                         ).join('');
                         
@@ -1461,7 +1460,7 @@
                             amountInput.type = 'hidden';
                             amountInput.name = 'custom_amount';
                             amountInput.value = this._customAmount;
-                            hiddenPanels.appendChild(amountInput);
+                            document.getElementById('hidden-panels').appendChild(amountInput);
                         }
                         
                         document.getElementById('modal-submit-txt').textContent = 'Envoi en cours…';
