@@ -1756,7 +1756,7 @@
                         this._refreshEstimatedTotal();
                     },
 
-                    _refreshEstimatedTotal() {
+                   _refreshEstimatedTotal() {
                         const du = document.getElementById('modal-du').value;
                         const au = document.getElementById('modal-au').value;
                         const totalSpan = document.getElementById('modal-total');
@@ -1768,8 +1768,16 @@
                             return;
                         }
                         
-                        const months = window._months(du, au);
-                        const total = (window.S?.sel?.ids || []).reduce((s, id) => s + ((window.S?.sel?.rates[id]) || 0) * months, 0);
+                        const months = this._months(du, au);
+                        
+                        // Utiliser window.S au lieu de S (car S est dans la closure)
+                        const selectedIds = window.S?.sel?.ids || [];
+                        const selectedRates = window.S?.sel?.rates || {};
+                        
+                        const total = selectedIds.reduce((sum, id) => {
+                            return sum + (selectedRates[id] || 0) * months;
+                        }, 0);
+                        
                         this._originalEstimate = total;
                         
                         totalSpan.textContent = Math.round(total).toLocaleString('fr-FR');
@@ -1801,15 +1809,52 @@
                             return;
                         }
                         
-                        this._refreshEstimatedTotal();
+                        // Calcul du nombre de mois
+                        const months = this._months(du, au);
+                        const total = S.sel.ids.reduce((sum, id) => {
+                            return sum + (S.sel.rates[id] || 0) * months;
+                        }, 0);
                         
-                        if (this._customAmount !== null) {
-                            const amountInput = document.getElementById('modal-amount');
-                            if (amountInput && !amountInput.value) {
-                                this._customAmount = null;
-                            }
+                        // Sauvegarder l'estimation originale
+                        this._originalEstimate = total;
+                        
+                        // Afficher le montant estimé
+                        document.getElementById('modal-total').textContent = Math.round(total).toLocaleString('fr-FR');
+                        document.getElementById('modal-months').textContent = `(${months} mois)`;
+                        
+                        // Mettre à jour le placeholder du champ personnalisé
+                        const amountInput = document.getElementById('modal-amount');
+                        if (amountInput && !amountInput.value) {
+                            amountInput.placeholder = Math.round(total).toLocaleString('fr-FR') + ' FCFA';
+                        }
+                        
+                        // Si un montant personnalisé était actif, le restaurer
+                        if (this._customAmount !== null && this._customAmount > 0) {
+                            document.getElementById('modal-total').textContent = Math.round(this._customAmount).toLocaleString('fr-FR');
+                            document.getElementById('modal-months').textContent = '(montant personnalisé)';
                         }
                     },
+
+                // Ajoute cette méthode utilitaire si elle n'existe pas
+                _months(startDate, endDate) {
+                    const start = new Date(startDate);
+                    const end = new Date(endDate);
+                    
+                    const totalDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+                    if (totalDays <= 0) return 0.5;
+                    
+                    const fullMonths = Math.floor(totalDays / 30);
+                    const remainDays = totalDays % 30;
+                    
+                    let fraction = 0;
+                    if (remainDays >= 1 && remainDays <= 15) {
+                        fraction = 0.5;
+                    } else if (remainDays > 15) {
+                        fraction = 1;
+                    }
+                    
+                    return Math.max(fullMonths + fraction, 0.5);
+                },
 
                     submitForm() {
                         const du = document.getElementById('modal-du').value;
