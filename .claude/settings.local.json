@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php -l app/Models/Campaign.php)",
+      "Bash(php -l app/Http/Controllers/Admin/CampaignController.php)",
+      "Bash(php -l app/Services/CampaignService.php)",
+      "Bash(php -l routes/admin.php)",
+      "Bash(php -r 'require '\\\\''vendor/autoload.php'\\\\''; $app = require '\\\\''bootstrap/app.php'\\\\''; $app->make\\(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class\\)->bootstrap\\(\\); echo '\\\\''BOOT OK'\\\\''.PHP_EOL;')",
+      "Bash(php artisan *)"
+    ]
+  }
+}

@@ -23,6 +23,7 @@
         @php
         $statCards = [
             ['key'=>'all', 'label'=>'Total', 'icon'=>'📋', 'color'=>'var(--text)', 'bg'=>'var(--surface)'],
+            ['key'=>'planifie', 'label'=>'Planifiées', 'icon'=>'📅', 'color'=>'#f97316', 'bg'=>'rgba(249,115,22,0.08)'],
             ['key'=>'actif', 'label'=>'En cours', 'icon'=>'📡', 'color'=>'#22c55e', 'bg'=>'rgba(34,197,94,0.08)'],
             ['key'=>'pose', 'label'=>'En pose', 'icon'=>'🔧', 'color'=>'#3b82f6', 'bg'=>'rgba(59,130,246,0.08)'],
             ['key'=>'termine', 'label'=>'Terminées', 'icon'=>'✅', 'color'=>'#6b7280', 'bg'=>'rgba(107,114,128,0.08)'],

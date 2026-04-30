@@ -1,11 +1,12 @@
 @forelse($campaigns as $campaign)
 @php
-    $statusCfg = $campaign->status->uiConfig();
-    $daysLeft = $campaign->daysRemaining();
-    $pct = $campaign->progressPercent();
-    $endingSoon = $campaign->isEndingSoon();
+    $statusCfg     = $campaign->status->uiConfig();
+    $isRunning     = in_array($campaign->status->value, ['actif', 'pose']);
+    $daysLeft      = $campaign->daysRemaining();
+    $pct           = $isRunning ? $campaign->progressPercent() : 0;
+    $endingSoon    = $campaign->isEndingSoon();
     $isNonFacturee = in_array($campaign->status->value, ['actif','pose','termine']) && ($campaign->invoices_count ?? 0) === 0;
-    
+
     $barColor = $pct >= 90 ? '#ef4444' : ($pct >= 70 ? '#e8a020' : '#22c55e');
 @endphp
 <tr style="{{ $endingSoon ? 'background:rgba(232,160,32,0.03);' : '' }}">
@@ -43,11 +44,11 @@
         <span class="status-badge" style="background:{{ $statusCfg['bg'] }};color:{{ $statusCfg['color'] }};border-color:{{ $statusCfg['border'] }}">
             {{ $statusCfg['icon'] }} {{ $campaign->status->label() }}
         </span>
-        @if($campaign->status->value === 'actif')
+        @if($isRunning)
         <div class="progress-bar">
             <div class="progress-fill" style="background:{{ $barColor }}; width:{{ $pct }}%;"></div>
         </div>
-        <div class="days-left">{{ $pct }}% écoulé · {{ $daysLeft }}j restants</div>
+        <div class="days-left">{{ number_format($pct, 1, ',', '') }}% écoulé · {{ $daysLeft }}j restants</div>
         @endif
     </td>
     <td>

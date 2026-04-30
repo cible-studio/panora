@@ -1,29 +1,26 @@
 <x-admin-layout title="{{ $campaign->name }}">
     <x-slot:topbarActions>
-        <a href="{{ route('admin.campaigns.index') }}" class="btn btn-ghost btn-sm">
-            ← Retour
-        </a>
+        <a href="{{ route('admin.campaigns.index') }}" class="btn btn-ghost btn-sm">← Retour</a>
         @if($can['update'])
-        <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn btn-ghost btn-sm">
-            ✏️ Modifier
-        </a>
+            <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn btn-ghost btn-sm">✏️ Modifier</a>
         @endif
         @if($can['delete'])
-        <button type="button"
-                onclick="openDeleteModal({{ $campaign->id }}, '{{ addslashes($campaign->name) }}')"
-                class="btn btn-ghost btn-sm text-red-400 border-red-500/30 hover:bg-red-500/20">
-            🗑 Supprimer
-        </button>
+            <button type="button"
+                    onclick="openDeleteModal({{ $campaign->id }}, @js($campaign->name))"
+                    class="btn btn-ghost btn-sm text-red-400 border-red-500/30 hover:bg-red-500/20">
+                🗑 Supprimer
+            </button>
         @endif
     </x-slot:topbarActions>
 
     @php
-        $statusCfg = $campaign->status->uiConfig();
-        $daysLeft  = $campaign->daysRemaining();
-        $humanTime = $campaign->humanTimeRemaining();
-        $pct       = $campaign->progressPercent();
-        $barColor  = $pct >= 90 ? '#ef4444' : ($pct >= 70 ? '#f59e0b' : '#10b981');
+        $statusCfg  = $campaign->status->uiConfig();
+        $daysLeft   = $campaign->daysRemaining();
+        $humanTime  = $campaign->humanTimeRemaining();
+        $pct        = $campaign->progressPercent();
         $endingSoon = $campaign->isEndingSoon();
+        $isRunning  = in_array($campaign->status->value, ['actif', 'pose']);
+        $minNewEnd  = $campaign->end_date->copy()->addDay()->format('Y-m-d');
     @endphp
 
     {{-- ── EN-TÊTE ── --}}
@@ -32,19 +29,12 @@
         <div class="relative px-6 py-5">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="flex items-center gap-4 flex-wrap">
-                    <h1 class="text-3xl font-bold" style="color:var(--text)">
-                        {{ $campaign->name }}
-                    </h1>
-                    <span class="px-4 py-1.5 rounded-full text-sm font-bold shadow-lg"
+                    <h1 class="text-3xl font-bold" style="color:var(--text)">{{ $campaign->name }}</h1>
+                    <span id="campaign-status-badge"
+                          class="px-4 py-1.5 rounded-full text-sm font-bold shadow-lg"
                           style="background:{{ $statusCfg['bg'] }};color:{{ $statusCfg['color'] }};border:1px solid {{ $statusCfg['border'] }}">
                         {{ $statusCfg['icon'] }} {{ $campaign->status->label() }}
                     </span>
-                    @if(isset($campaign->type))
-                    <span class="px-3 py-1.5 rounded-full text-xs font-semibold"
-                          style="background:var(--surface3);color:var(--text2);border:1px solid var(--border)">
-                        {{ $campaign->type === 'ferme' ? '🔒 Ferme' : '⏳ Option' }}
-                    </span>
-                    @endif
                 </div>
                 <div class="text-right">
                     <div class="text-sm" style="color:var(--text3)">Durée totale</div>
@@ -55,28 +45,24 @@
     </div>
 
     {{-- ── ALERTE FIN PROCHE ── --}}
-    @if($endingSoon)
-    <div class="mb-6 rounded-xl border p-4 flex items-center gap-4"
+    <div id="campaign-ending-alert" class="mb-6 rounded-xl border p-4 flex items-center gap-4 {{ $endingSoon ? '' : 'hidden' }}"
          style="background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.3)">
         <div class="w-10 h-10 rounded-full flex items-center justify-center text-2xl"
              style="background:rgba(245,158,11,0.2)">⚠️</div>
         <div class="flex-1">
             <div class="font-bold" style="color:#f59e0b">
-                Campagne se terminant bientôt — {{ $daysLeft }} jour(s) restant(s)
+                Campagne se terminant bientôt — <span id="ending-days-left">{{ $daysLeft }}</span> jour(s) restant(s)
             </div>
             <div class="text-sm" style="color:var(--text2)">
                 Pensez à relancer <strong style="color:#f59e0b">{{ $campaign->client?->name }}</strong> pour prolongation.
             </div>
         </div>
         @if($can['update'])
-        <button onclick="scrollToProlonger()"
-                class="px-4 py-2 text-white rounded-lg text-sm font-bold"
-                style="background:#f59e0b">
-            📅 Prolonger
-        </button>
+            <button onclick="scrollToProlonger()" class="px-4 py-2 text-white rounded-lg text-sm font-bold" style="background:#f59e0b">
+                📅 Prolonger
+            </button>
         @endif
     </div>
-    @endif
 
     {{-- ── GRILLE PRINCIPALE ── --}}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -96,12 +82,12 @@
                     <div class="rounded-xl p-4 border" style="background:var(--surface2);border-color:var(--border)">
                         <div class="text-xs uppercase font-semibold mb-2" style="color:var(--text3)">👤 Client</div>
                         @if($campaign->client?->trashed())
-                            <div style="color:var(--text2)">{{ $campaign->client->name }}
+                            <div style="color:var(--text2)">
+                                {{ $campaign->client->name }}
                                 <span class="text-xs px-2 py-0.5 rounded" style="color:#ef4444;background:rgba(239,68,68,0.1)">Supprimé</span>
                             </div>
                         @else
-                            <a href="{{ route('admin.clients.show', $campaign->client) }}"
-                               class="font-medium hover:underline" style="color:var(--accent)">
+                            <a href="{{ route('admin.clients.show', $campaign->client) }}" class="font-medium hover:underline" style="color:var(--accent)">
                                 {{ $campaign->client?->name ?? '—' }}
                             </a>
                         @endif
@@ -125,7 +111,7 @@
                         </div>
                     </div>
 
-                    {{-- Réservation liée --}}
+                    {{-- Réservation --}}
                     <div class="rounded-xl p-4 border" style="background:var(--surface2);border-color:var(--border)">
                         <div class="text-xs uppercase font-semibold mb-2" style="color:var(--text3)">🔗 Réservation liée</div>
                         @if($campaign->reservation)
@@ -155,35 +141,42 @@
                     </div>
                 </div>
 
-                {{-- Notes --}}
                 @if($campaign->notes)
                 <div class="mt-6 pt-6 border-t" style="border-color:var(--border)">
                     <div class="text-xs uppercase font-semibold mb-3" style="color:var(--text3)">📝 Notes</div>
                     <div class="rounded-xl p-4 border" style="background:var(--surface2);border-color:var(--border)">
-                        <p style="color:var(--text2)">{{ $campaign->notes }}</p>
+                        <p style="color:var(--text2);white-space:pre-line">{{ $campaign->notes }}</p>
                     </div>
                 </div>
                 @endif
 
-                {{-- Barre progression --}}
-                @if($campaign->status->value === 'actif')
-                <div class="mt-6 pt-6 border-t" style="border-color:var(--border)">
+                {{-- ── BARRE DE PROGRESSION DYNAMIQUE ── --}}
+                <div id="campaign-progress-block" class="mt-6 pt-6 border-t {{ $isRunning ? '' : 'hidden' }}"
+                     style="border-color:var(--border)"
+                     data-campaign-id="{{ $campaign->id }}"
+                     data-progress-url="{{ route('admin.campaigns.progress', $campaign) }}"
+                     data-start="{{ $campaign->start_date->copy()->startOfDay()->toIso8601String() }}"
+                     data-end="{{ $campaign->end_date->copy()->endOfDay()->toIso8601String() }}">
                     <div class="flex justify-between items-center mb-3">
-                        <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--text3)">📊 Progression</span>
-                        <span class="text-sm font-medium" style="color:var(--accent)">{{ $humanTime }}</span>
+                        <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--text3)">
+                            📊 Progression <span id="progress-live-dot" class="inline-block w-1.5 h-1.5 rounded-full ml-1" style="background:#10b981;animation:pulse-dot 2s infinite"></span>
+                        </span>
+                        <span id="progress-human" class="text-sm font-medium" style="color:var(--accent)">{{ $humanTime }}</span>
                     </div>
                     <div class="relative h-3 rounded-full overflow-hidden" style="background:var(--surface3)">
-                        <div class="absolute h-full rounded-full transition-all duration-500"
-                             style="background:{{ $barColor }};width:{{ $pct }}%"></div>
+                        <div id="progress-bar"
+                             class="absolute h-full rounded-full"
+                             style="background:#10b981;width:{{ $pct }}%;transition:width .8s ease-out, background .3s"></div>
                     </div>
                     <div class="flex justify-between text-xs mt-2">
-                        <span style="color:var(--text3)">{{ $pct }}% écoulé</span>
-                        @if($daysLeft > 0)
-                            <span style="color:var(--accent)">📅 {{ $daysLeft }} jour(s) restant(s)</span>
-                        @endif
+                        <span style="color:var(--text3)"><span id="progress-pct">{{ number_format($pct, 1, ',', '') }}</span>% écoulé</span>
+                        <span id="progress-days" style="color:var(--accent)">
+                            @if($daysLeft > 0)📅 {{ $daysLeft }} jour(s) restant(s)@endif
+                        </span>
                     </div>
                 </div>
-                @endif
+
+                <style>@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}</style>
             </div>
         </div>
 
@@ -191,8 +184,7 @@
         <div class="space-y-6">
 
             {{-- Actions --}}
-            <div class="rounded-2xl border overflow-hidden shadow-xl"
-                 style="background:var(--surface);border-color:var(--border)">
+            <div class="rounded-2xl border overflow-hidden shadow-xl" style="background:var(--surface);border-color:var(--border)">
                 <div class="px-6 py-4 border-b" style="background:var(--surface2);border-color:var(--border)">
                     <h2 class="font-bold text-lg flex items-center gap-2" style="color:var(--text)">
                         <span class="text-2xl">⚡</span> Actions
@@ -209,36 +201,39 @@
                     @if($can['updateStatus'] && !empty($allowed))
                     <div class="space-y-3">
                         @foreach($allowed as $val => $label)
-                        @php
-                            $btnStyle = match($val) {
-                                'termine' => 'background:#6b7280;color:#fff',
-                                'annule'  => 'background:#ef4444;color:#fff',
-                                'actif'   => 'background:#10b981;color:#fff',
-                                default   => 'background:var(--surface2);color:var(--text)',
-                            };
-                            $btnIcon = match($val) { 'termine' => '✅', 'annule' => '🚫', 'actif' => '▶️', default => '→' };
-                        @endphp
-                        <form method="POST" action="{{ route('admin.campaigns.update-status', $campaign) }}">
-                            @csrf @method('PATCH')
-                            <input type="hidden" name="status" value="{{ $val }}">
-                            <button type="submit"
-                                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all"
-                                    style="{{ $btnStyle }}"
-                                    @if($val === 'annule') onclick="return confirm('Confirmer l\'annulation ?')" @endif>
-                                {{ $btnIcon }} {{ $label }}
-                            </button>
-                        </form>
+                            @php
+                                $btnStyle = match($val) {
+                                    'termine' => 'background:#6b7280;color:#fff',
+                                    'annule'  => 'background:#ef4444;color:#fff',
+                                    'actif'   => 'background:#10b981;color:#fff',
+                                    'pose'    => 'background:#3b82f6;color:#fff',
+                                    default   => 'background:var(--surface2);color:var(--text)',
+                                };
+                                $btnIcon = match($val) {
+                                    'termine' => '✅', 'annule' => '🚫', 'actif' => '▶️', 'pose' => '🔧', default => '→'
+                                };
+                            @endphp
+                            <form method="POST" action="{{ route('admin.campaigns.update-status', $campaign) }}">
+                                @csrf @method('PATCH')
+                                <input type="hidden" name="status" value="{{ $val }}">
+                                <button type="submit"
+                                        class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all"
+                                        style="{{ $btnStyle }}"
+                                        @if($val === 'annule') onclick="return confirm('Confirmer l\'annulation ?')" @endif>
+                                    {{ $btnIcon }} {{ $label }}
+                                </button>
+                            </form>
                         @endforeach
                     </div>
                     @else
-                    <p class="text-center text-sm py-3" style="color:var(--text3)">Aucune transition disponible</p>
+                        <p class="text-center text-sm py-3" style="color:var(--text3)">Aucune transition disponible</p>
                     @endif
 
                     {{-- Prolonger --}}
-                    @if($can['update'] && in_array($campaign->status->value, ['actif','termine']))
+                    @if($can['update'] && in_array($campaign->status->value, ['actif', 'pose', 'termine']))
                     <div class="mt-5 pt-5 border-t" id="section-prolonger" style="border-color:var(--border)" x-data="{ show: false }">
                         <button type="button"
-                                class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold btn-prolonger"
+                                class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold"
                                 style="background:var(--surface2);color:var(--text);border:1px solid var(--border)"
                                 @click="show = !show">
                             📅 Prolonger la campagne
@@ -247,7 +242,7 @@
                             <form method="POST" action="{{ route('admin.campaigns.prolonger', $campaign) }}">
                                 @csrf @method('PATCH')
                                 <label class="text-xs font-semibold block mb-2" style="color:var(--text3)">NOUVELLE DATE DE FIN</label>
-                                <input type="date" name="new_end_date" required min="{{ $campaign->end_date->addDay()->format('Y-m-d') }}"
+                                <input type="date" name="new_end_date" required min="{{ $minNewEnd }}"
                                        class="w-full rounded-lg px-4 py-2.5 text-sm mb-4 focus:outline-none"
                                        style="background:var(--surface2);border:1px solid var(--border);color:var(--text)">
                                 <button type="submit"
@@ -263,8 +258,7 @@
             </div>
 
             {{-- Facturation --}}
-            <div class="rounded-2xl border overflow-hidden shadow-xl"
-                 style="background:var(--surface);border-color:var(--border)">
+            <div class="rounded-2xl border overflow-hidden shadow-xl" style="background:var(--surface);border-color:var(--border)">
                 <div class="px-6 py-4 border-b" style="background:var(--surface2);border-color:var(--border)">
                     <h2 class="font-bold text-lg flex items-center gap-2" style="color:var(--text)">
                         <span class="text-2xl">💰</span> Facturation
@@ -272,21 +266,21 @@
                 </div>
                 <div class="p-5">
                     @if($campaign->invoices->isNotEmpty())
-                    <div class="space-y-3">
-                        @foreach($campaign->invoices as $inv)
-                        <div class="flex justify-between items-center py-3 px-4 rounded-xl border"
-                             style="background:var(--surface2);border-color:var(--border)">
-                            <span class="font-mono text-sm" style="color:var(--accent)">{{ $inv->reference ?? '#'.$inv->id }}</span>
-                            <span class="font-bold" style="color:var(--text)">{{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA</span>
+                        <div class="space-y-3">
+                            @foreach($campaign->invoices as $inv)
+                                <div class="flex justify-between items-center py-3 px-4 rounded-xl border"
+                                     style="background:var(--surface2);border-color:var(--border)">
+                                    <span class="font-mono text-sm" style="color:var(--accent)">{{ $inv->reference ?? '#'.$inv->id }}</span>
+                                    <span class="font-bold" style="color:var(--text)">{{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA</span>
+                                </div>
+                            @endforeach
                         </div>
-                        @endforeach
-                    </div>
                     @else
-                    <div class="text-center py-8 rounded-xl border border-dashed" style="border-color:var(--border)">
-                        <div class="text-4xl mb-3">💰</div>
-                        <div class="text-sm font-semibold" style="color:var(--accent)">À facturer</div>
-                        <div class="text-xs mt-1" style="color:var(--text3)">Aucune facture émise</div>
-                    </div>
+                        <div class="text-center py-8 rounded-xl border border-dashed" style="border-color:var(--border)">
+                            <div class="text-4xl mb-3">💰</div>
+                            <div class="text-sm font-semibold" style="color:var(--accent)">À facturer</div>
+                            <div class="text-xs mt-1" style="color:var(--text3)">Aucune facture émise</div>
+                        </div>
                     @endif
                 </div>
             </div>
@@ -310,12 +304,11 @@
             <button type="button"
                     class="px-4 py-2 text-sm font-semibold rounded-lg text-white"
                     style="background:var(--accent)"
-                    @click="showAdd = !showAdd; if(showAdd) loadPanels()"
+                    @click="toggleAdd()"
                     x-text="showAdd ? '✕ Annuler' : '+ Ajouter un panneau'"></button>
             @endif
         </div>
 
-        {{-- Ajout panneaux --}}
         @if($can['managePanel'])
         <div x-show="showAdd" x-collapse class="border-b" style="border-color:var(--border)">
             <div class="p-5" style="background:var(--surface2)">
@@ -324,7 +317,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
                         <div>
                             <label class="text-xs font-semibold block mb-2" style="color:var(--text3)">🔍 Recherche</label>
-                            <input type="text" x-model="search" @input.debounce.300ms="filterPanels()"
+                            <input type="text" x-model="search" @input.debounce.250ms="filterPanels()"
                                    placeholder="Référence, nom..."
                                    class="w-full rounded-lg px-4 py-2.5 text-sm focus:outline-none"
                                    style="background:var(--surface);border:1px solid var(--border);color:var(--text)">
@@ -335,7 +328,9 @@
                                     class="w-full rounded-lg px-4 py-2.5 text-sm focus:outline-none"
                                     style="background:var(--surface);border:1px solid var(--border);color:var(--text)">
                                 <option value="">Toutes</option>
-                                @foreach($communes as $c)<option value="{{ $c->name }}">{{ $c->name }}</option>@endforeach
+                                <template x-for="c in communeOptions" :key="c">
+                                    <option :value="c" x-text="c"></option>
+                                </template>
                             </select>
                         </div>
                         <div>
@@ -344,7 +339,9 @@
                                     class="w-full rounded-lg px-4 py-2.5 text-sm focus:outline-none"
                                     style="background:var(--surface);border:1px solid var(--border);color:var(--text)">
                                 <option value="">Tous</option>
-                                @foreach($formats as $f)<option value="{{ $f->name }}">{{ $f->name }}</option>@endforeach
+                                <template x-for="f in formatOptions" :key="f">
+                                    <option :value="f" x-text="f"></option>
+                                </template>
                             </select>
                         </div>
                         <div>
@@ -364,7 +361,7 @@
                         <div x-show="loadingPanels" class="text-center py-12">
                             <div class="inline-block w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
                                  style="border-color:var(--accent);border-top-color:transparent"></div>
-                            <div class="text-sm mt-2" style="color:var(--text3)">Chargement...</div>
+                            <div class="text-sm mt-2" style="color:var(--text3)">Chargement des panneaux disponibles...</div>
                         </div>
                         <template x-if="!loadingPanels && filteredPanels.length === 0">
                             <div class="text-center py-12" style="color:var(--text3)">Aucun panneau libre trouvé</div>
@@ -389,6 +386,12 @@
                                 </div>
                             </label>
                         </template>
+                    </div>
+
+                    <div x-show="filteredPanels.length > visibleCount" class="text-center py-3">
+                        <button type="button" @click="visibleCount += 20" class="text-sm font-semibold" style="color:var(--accent)">
+                            + Afficher plus (<span x-text="filteredPanels.length - visibleCount"></span> restant(s))
+                        </button>
                     </div>
 
                     <div x-show="selectedPanels.length > 0"
@@ -426,7 +429,8 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($campaign->panels as $panel)
+                @php $billableMonths = $campaign->billableMonths(); @endphp
+                @forelse($campaign->panels as $panel)
                     @php
                         $ps = $panel->status->value;
                         $psColor = match($ps) {
@@ -436,9 +440,9 @@
                             'maintenance' => ['#ef4444','rgba(239,68,68,0.1)','rgba(239,68,68,0.3)'],
                             default       => ['#6b7280','rgba(107,114,128,0.1)','rgba(107,114,128,0.3)'],
                         };
+                        $rate = (float) ($panel->monthly_rate ?? 0);
                     @endphp
-                    <tr class="border-b transition-all group"
-                        style="border-color:var(--border)"
+                    <tr class="border-b transition-all group" style="border-color:var(--border)"
                         onmouseover="this.style.background='var(--surface2)'"
                         onmouseout="this.style.background='transparent'">
                         <td class="px-5 py-4">
@@ -455,10 +459,10 @@
                             @endif
                         </td>
                         <td class="px-5 py-4 text-right" style="color:var(--text2)">
-                            {{ $panel->monthly_rate ? number_format($panel->monthly_rate, 0, ',', ' ') . ' FCFA' : '—' }}
+                            {{ $rate > 0 ? number_format($rate, 0, ',', ' ') . ' FCFA' : '—' }}
                         </td>
                         <td class="px-5 py-4 text-right font-semibold" style="color:var(--accent)">
-                            {{ $panel->monthly_rate ? number_format($panel->monthly_rate * $campaign->durationInMonths(), 0, ',', ' ') . ' FCFA' : '—' }}
+                            {{ $rate > 0 ? number_format($rate * $billableMonths, 0, ',', ' ') . ' FCFA' : '—' }}
                         </td>
                         <td class="px-5 py-4">
                             <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold border"
@@ -467,37 +471,33 @@
                             </span>
                         </td>
                         @if($can['managePanel'])
-                        <td class="px-5 py-4">
-                            <button type="button"
-                                    onclick="openRetirePanel({{ $panel->id }}, '{{ addslashes($panel->reference) }}')"
-                                    class="p-2 rounded-lg transition-all"
-                                    style="color:#ef4444"
-                                    onmouseover="this.style.background='rgba(239,68,68,0.1)'"
-                                    onmouseout="this.style.background='transparent'">✕</button>
-                        </td>
+                            <td class="px-5 py-4">
+                                <button type="button"
+                                        onclick="openRetirePanel({{ $panel->id }}, @js($panel->reference))"
+                                        class="p-2 rounded-lg transition-all"
+                                        style="color:#ef4444"
+                                        onmouseover="this.style.background='rgba(239,68,68,0.1)'"
+                                        onmouseout="this.style.background='transparent'">✕</button>
+                            </td>
                         @endif
                     </tr>
-                    @empty
+                @empty
                     <tr>
-                        <td colspan="{{ $can['managePanel'] ? 9 : 8 }}"
-                            class="text-center py-16" style="color:var(--text3)">
+                        <td colspan="{{ $can['managePanel'] ? 9 : 8 }}" class="text-center py-16" style="color:var(--text3)">
                             Aucun panneau lié à cette campagne
                         </td>
                     </tr>
-                    @endforelse
+                @endforelse
                 </tbody>
             </table>
         </div>
     </div>
 
     {{-- ── MODAL SUPPRESSION ── --}}
-    <div id="modal-delete"
-         class="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50 hidden"
-         style="background:rgba(0,0,0,0.7)"
-         onclick="if(event.target===this) closeModal()">
+    <div id="modal-delete" class="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50 hidden"
+         style="background:rgba(0,0,0,0.7)" onclick="if(event.target===this) closeModal()">
         <div class="rounded-2xl border max-w-md w-full mx-4 overflow-hidden shadow-2xl"
-             style="background:var(--surface);border-color:var(--border)"
-             onclick="event.stopPropagation()">
+             style="background:var(--surface);border-color:var(--border)" onclick="event.stopPropagation()">
             <div class="px-6 py-5 border-b flex justify-between items-center"
                  style="background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.25)">
                 <h3 class="font-bold text-xl" style="color:#ef4444">🗑 Supprimer la campagne</h3>
@@ -518,21 +518,17 @@
                         style="border-color:var(--border);color:var(--text2)">Annuler</button>
                 <form id="delete-form" method="POST">
                     @csrf @method('DELETE')
-                    <button type="submit" class="px-5 py-2 rounded-xl text-white font-semibold"
-                            style="background:#ef4444">🗑 Supprimer</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl text-white font-semibold" style="background:#ef4444">🗑 Supprimer</button>
                 </form>
             </div>
         </div>
     </div>
 
     {{-- ── MODAL RETRAIT PANNEAU ── --}}
-    <div id="modal-retire"
-         class="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50 hidden"
-         style="background:rgba(0,0,0,0.7)"
-         onclick="if(event.target===this) closeRetireModal()">
+    <div id="modal-retire" class="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50 hidden"
+         style="background:rgba(0,0,0,0.7)" onclick="if(event.target===this) closeRetireModal()">
         <div class="rounded-2xl border max-w-md w-full mx-4 overflow-hidden shadow-2xl"
-             style="background:var(--surface);border-color:var(--border)"
-             onclick="event.stopPropagation()">
+             style="background:var(--surface);border-color:var(--border)" onclick="event.stopPropagation()">
             <div class="px-6 py-5 border-b flex justify-between items-center"
                  style="background:rgba(249,115,22,0.08);border-color:rgba(249,115,22,0.25)">
                 <h3 class="font-bold text-xl" style="color:#f97316">✕ Retirer le panneau</h3>
@@ -552,26 +548,97 @@
                         style="border-color:var(--border);color:var(--text2)">Annuler</button>
                 <form id="retire-form" method="POST">
                     @csrf @method('DELETE')
-                    <button type="submit" class="px-5 py-2 rounded-xl text-white font-semibold"
-                            style="background:#ef4444">✕ Retirer</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl text-white font-semibold" style="background:#ef4444">✕ Retirer</button>
                 </form>
             </div>
         </div>
     </div>
 
-    {{-- ── SCRIPT ── --}}
+    {{-- ── SCRIPTS ── --}}
     <script>
-    const AVAILABLE_PANELS = {!! json_encode($availablePanels->map(fn($p) => [
-        'id'           => $p->id,
-        'reference'    => $p->reference,
-        'name'         => $p->name,
-        'commune'      => $p->commune?->name ?? '',
-        'format'       => $p->format?->name ?? '',
-        'monthly_rate' => (float)($p->monthly_rate ?? 0),
-        'is_lit'       => (bool)$p->is_lit,
-    ])->values()->toArray()) !!};
+    // ─────────────────────────────────────────────────────────────────
+    // PROGRESSION DYNAMIQUE
+    // - Polling JSON toutes les 60 s pour synchro serveur (statut, jours)
+    // - Interpolation locale toutes les 1 s entre 2 polls (animation fluide)
+    // - Si le serveur signale un changement de statut → rechargement page
+    // ─────────────────────────────────────────────────────────────────
+    (function () {
+        const block = document.getElementById('campaign-progress-block');
+        if (!block || block.classList.contains('hidden')) return;
 
-    const CAMPAIGN_MONTHS = {{ $campaign->durationInMonths() }};
+        const POLL_INTERVAL = 60_000; // 60 s
+        const TICK_INTERVAL = 1_000;  // interpolation locale
+
+        const startTs = new Date(block.dataset.start).getTime();
+        const endTs   = new Date(block.dataset.end).getTime();
+        const url     = block.dataset.progressUrl;
+
+        const $bar    = document.getElementById('progress-bar');
+        const $pct    = document.getElementById('progress-pct');
+        const $human  = document.getElementById('progress-human');
+        const $days   = document.getElementById('progress-days');
+        const $alert  = document.getElementById('campaign-ending-alert');
+        const $alertDays = document.getElementById('ending-days-left');
+        const $statusBadge = document.getElementById('campaign-status-badge');
+
+        const colorFor = (pct) => pct >= 90 ? '#ef4444' : (pct >= 70 ? '#f59e0b' : '#10b981');
+
+        function computeLocalPct() {
+            const now = Date.now();
+            if (now <= startTs) return 0;
+            if (now >= endTs)   return 100;
+            const total   = endTs - startTs;
+            const elapsed = now - startTs;
+            return Math.max(0, Math.min(100, (elapsed / total) * 100));
+        }
+
+        function applyPct(pct) {
+            const rounded = pct.toFixed(1).replace('.', ',');
+            if ($bar)   { $bar.style.width = pct + '%'; $bar.style.background = colorFor(pct); }
+            if ($pct)   $pct.textContent = rounded;
+        }
+
+        // Tick local (animation entre 2 polls)
+        setInterval(() => applyPct(computeLocalPct()), TICK_INTERVAL);
+
+        // Poll serveur (vérité, jours, statut)
+        async function poll() {
+            try {
+                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                if (!res.ok) return;
+                const d = await res.json();
+
+                if (d.reload) { window.location.reload(); return; }
+
+                applyPct(parseFloat(d.pct));
+                if ($human) $human.textContent = d.human_time;
+                if ($days)  $days.textContent = d.days_left > 0 ? `📅 ${d.days_left} jour(s) restant(s)` : '';
+
+                // Alerte fin proche
+                if (d.ending_soon) {
+                    $alert?.classList.remove('hidden');
+                    if ($alertDays) $alertDays.textContent = d.days_left;
+                } else {
+                    $alert?.classList.add('hidden');
+                }
+
+                // Si la campagne est terminée → on cache la barre
+                if (!d.is_running) {
+                    block.classList.add('hidden');
+                }
+            } catch (e) { /* offline / network — silencieux */ }
+        }
+
+        poll();
+        setInterval(poll, POLL_INTERVAL);
+    })();
+
+    // ─────────────────────────────────────────────────────────────────
+    // GESTION PANNEAUX (lazy AJAX au lieu de tout précharger)
+    // ─────────────────────────────────────────────────────────────────
+    @if($can['managePanel'])
+    const PANELS_URL = @json(route('admin.campaigns.available-panels', $campaign));
+    @endif
 
     function panneauxManager() {
         return {
@@ -584,19 +651,52 @@
             allPanels: [],
             filteredPanels: [],
             loadingPanels: false,
-            get paginatedPanels() { return this.filteredPanels.slice(0, 20); },
-            async loadPanels() {
-                if (this.allPanels.length > 0) return;
-                this.loadingPanels = true;
-                this.allPanels     = AVAILABLE_PANELS;
-                this.filteredPanels = [...this.allPanels];
-                this.loadingPanels = false;
+            loaded: false,
+            visibleCount: 20,
+            campaignMonths: {{ $billableMonths }},
+
+            get communeOptions() {
+                return [...new Set(this.allPanels.map(p => p.commune).filter(Boolean))].sort();
             },
+            get formatOptions() {
+                return [...new Set(this.allPanels.map(p => p.format).filter(Boolean))].sort();
+            },
+            get paginatedPanels() {
+                return this.filteredPanels.slice(0, this.visibleCount);
+            },
+
+            async toggleAdd() {
+                this.showAdd = !this.showAdd;
+                if (this.showAdd && !this.loaded) {
+                    await this.loadPanels();
+                }
+            },
+
+            async loadPanels() {
+                @if($can['managePanel'])
+                this.loadingPanels = true;
+                try {
+                    const res = await fetch(PANELS_URL, { headers: { 'Accept': 'application/json' } });
+                    const data = await res.json();
+                    this.allPanels      = data.panels || [];
+                    this.campaignMonths = data.campaign_months || this.campaignMonths;
+                    this.filteredPanels = [...this.allPanels];
+                    this.loaded = true;
+                } catch (e) {
+                    this.allPanels = [];
+                    this.filteredPanels = [];
+                } finally {
+                    this.loadingPanels = false;
+                }
+                @endif
+            },
+
             filterPanels() {
                 const s  = this.search.toLowerCase().trim();
                 const fc = this.filterCommune.toLowerCase();
                 const ff = this.filterFormat.toLowerCase();
                 const fl = this.filterIsLit;
+                this.visibleCount = 20;
                 this.filteredPanels = this.allPanels.filter(p =>
                     (!s  || p.reference.toLowerCase().includes(s) || p.name.toLowerCase().includes(s) || p.commune.toLowerCase().includes(s)) &&
                     (!fc || p.commune.toLowerCase() === fc) &&
@@ -604,10 +704,11 @@
                     (!fl || (fl === '1' ? p.is_lit : !p.is_lit))
                 );
             },
-            formatPrice(p)    { return Number(p).toLocaleString('fr-FR') + ' FCFA/mois'; },
-            formatEstimate()  {
+
+            formatPrice(p) { return Number(p).toLocaleString('fr-FR') + ' FCFA/mois'; },
+            formatEstimate() {
                 const total = this.selectedPanels.reduce((s, id) =>
-                    s + ((this.allPanels.find(x => x.id === id)?.monthly_rate || 0) * CAMPAIGN_MONTHS), 0);
+                    s + ((this.allPanels.find(x => x.id === id)?.monthly_rate || 0) * this.campaignMonths), 0);
                 return Math.round(total).toLocaleString('fr-FR');
             },
         };

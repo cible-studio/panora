@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 
 use App\Services\CampaignService;
 use App\Services\AvailabilityService;
+use App\Services\AlertService;
 
 use App\Models\Campaign;
 use App\Models\Client;
@@ -12,10 +13,9 @@ use App\Models\Commune;
 use App\Models\Panel;
 use App\Models\PanelFormat;
 use App\Models\Reservation;
+use App\Models\Zone;
 
 use App\Enums\CampaignStatus;
-
-use App\Services\AlertService;
 
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -38,50 +38,19 @@ class CampaignController extends Controller
 
         $query = Campaign::with(['client', 'user'])
             ->withCount(['panels', 'invoices'])
-            ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%$s%"))
+            ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
             ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
             ->when($request->status,      fn($q, $s)  => $q->where('status', $s))
             ->when($request->date_from,   fn($q, $d)  => $q->where('start_date', '>=', $d))
             ->when($request->date_to,     fn($q, $d)  => $q->where('end_date', '<=', $d))
-            ->when($request->non_facturee,fn($q)       => $q->nonFacturees())
-            ->when($request->commune_id,  function($q) use ($request) {
-                $q->whereHas('panels', function($p) use ($request) {
-                    $p->where('commune_id', $request->commune_id);
-                });
-            })
-            ->when($request->zone_id,     function($q) use ($request) {
-                $q->whereHas('panels', function($p) use ($request) {
-                    $p->where('zone_id', $request->zone_id);
-                });
-            })
+            ->when($request->non_facturee, fn($q)     => $q->nonFacturees())
+            ->when($request->commune_id,  fn($q, $id) => $q->whereHas('panels', fn($p) => $p->where('commune_id', $id)))
+            ->when($request->zone_id,     fn($q, $id) => $q->whereHas('panels', fn($p) => $p->where('zone_id', $id)))
             ->orderByDesc('created_at');
-
-        $communes = \App\Models\Commune::orderBy('name')->get(['id', 'name']);
-        $zones    = \App\Models\Zone::orderBy('name')->get(['id', 'name']);
 
         $campaigns = $query->paginate(20)->withQueryString();
 
-        $rawCounts = Campaign::selectRaw('status, count(*) as total')
-            ->groupBy('status')->pluck('total', 'status');
-        $counts = [
-            'actif'   => $rawCounts['actif']   ?? 0,
-            'pose'    => $rawCounts['pose']    ?? 0,
-            'termine' => $rawCounts['termine'] ?? 0,
-            'annule'  => $rawCounts['annule']  ?? 0,
-        ];
-
-        $nonFactureesCount = Campaign::nonFacturees()->count();
-        $endingSoonCount   = Campaign::where('status', 'actif')
-            ->where('end_date', '>=', now()->startOfDay())
-            ->where('end_date', '<=', now()->addDays(14)->endOfDay())
-            ->count();
-
-        $clients = Client::orderBy('name')->get();
-
         if ($request->ajax()) {
-            // Recharger les campagnes avec les filtres appliqués
-            $campaigns = $query->paginate(20)->withQueryString();
-            
             return response()->json([
                 'html'       => view('admin.campaigns.partials.table-rows', compact('campaigns'))->render(),
                 'pagination' => $campaigns->links('pagination::bootstrap-4')->render(),
@@ -89,8 +58,27 @@ class CampaignController extends Controller
             ]);
         }
 
+        $rawCounts = Campaign::selectRaw('status, count(*) as total')
+            ->groupBy('status')->pluck('total', 'status');
+
+        $counts = [
+            'planifie' => $rawCounts['planifie'] ?? 0,
+            'actif'    => $rawCounts['actif']    ?? 0,
+            'pose'     => $rawCounts['pose']     ?? 0,
+            'termine'  => $rawCounts['termine']  ?? 0,
+            'annule'   => $rawCounts['annule']   ?? 0,
+        ];
+
+        $nonFactureesCount = Campaign::nonFacturees()->count();
+        $endingSoonCount   = Campaign::endingSoon(14)->count();
+
+        $clients  = Client::orderBy('name')->get(['id', 'name']);
+        $communes = Commune::orderBy('name')->get(['id', 'name']);
+        $zones    = Zone::orderBy('name')->get(['id', 'name']);
+
         return view('admin.campaigns.index', compact(
-            'campaigns', 'counts', 'nonFactureesCount', 'endingSoonCount', 'clients', 'communes', 'zones'
+            'campaigns', 'counts', 'nonFactureesCount', 'endingSoonCount',
+            'clients', 'communes', 'zones'
         ));
     }
 
@@ -101,50 +89,97 @@ class CampaignController extends Controller
     {
         $this->authorize('view', $campaign);
 
+        // Synchroniser le statut avec les dates (idempotent, gratuit si déjà à jour)
+        $campaign->syncStatusWithDates();
+
         $campaign->load([
             'client', 'user', 'updatedBy',
-            'reservation',
-            'panels.commune', 'panels.format',
-            'invoices',
+            'reservation:id,reference,status,start_date,end_date',
+            'panels.commune:id,name',
+            'panels.format:id,name',
+            'invoices:id,campaign_id,reference,amount_ttc',
         ]);
 
         $user = auth()->user();
+        $canManagePanel = $user->can('managePanel', $campaign)
+            && in_array($campaign->status->value, ['planifie', 'actif', 'pose']);
 
         $can = [
             'update'       => $user->can('update', $campaign),
             'updateStatus' => $user->can('updateStatus', $campaign),
-            'managePanel'  => $user->can('managePanel', $campaign)
-                           && in_array($campaign->status->value, ['actif', 'pose']),
+            'managePanel'  => $canManagePanel,
             'delete'       => $user->can('delete', $campaign),
         ];
 
-        // Panneaux disponibles pour ajout — source de vérité via AvailabilityService
-        $availablePanels = collect();
-        if ($can['managePanel']) {
-            $availablePanels = $this->availability
-                ->getAvailablePanels(
-                    $campaign->start_date->format('Y-m-d'),
-                    $campaign->end_date->format('Y-m-d'),
-                    $campaign->reservation_id
-                )
-                ->filter(fn($p) => !$campaign->panels->contains('id', $p->id))
-                ->take(200)
-                ->values();
+        $allowed = $campaign->status->allowedTransitionsLabels();
+
+        // Panneaux disponibles : chargés en AJAX à l'ouverture du modal (cf. méthode availablePanels())
+        // pour ne pas pénaliser le rendu initial de la page.
+
+        return view('admin.campaigns.show', compact('campaign', 'can', 'allowed'));
+    }
+
+    /**
+     * Endpoint JSON léger pour rafraîchir la progression sans recharger la page.
+     * Appelé par le JS toutes les 60 secondes sur la page show.
+     */
+    public function progress(Campaign $campaign)
+    {
+        $this->authorize('view', $campaign);
+
+        // Sync silencieuse — si end_date est passée, le statut bascule en TERMINE
+        $changed = $campaign->syncStatusWithDates();
+
+        return response()->json([
+            'pct'         => $campaign->progressPercent(),
+            'days_left'   => $campaign->daysRemaining(),
+            'human_time'  => $campaign->humanTimeRemaining(),
+            'status'      => $campaign->status->value,
+            'status_label'=> $campaign->status->label(),
+            'ending_soon' => $campaign->isEndingSoon(),
+            'is_running'  => in_array($campaign->status, [CampaignStatus::ACTIF, CampaignStatus::POSE]),
+            'reload'      => $changed, // Frontend recharge la page si statut a changé
+            'server_time' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Endpoint JSON pour charger les panneaux disponibles à l'ouverture du modal d'ajout.
+     * Évite de précharger 200 panneaux à chaque rendu de la page show.
+     */
+    public function availablePanels(Campaign $campaign)
+    {
+        $this->authorize('managePanel', $campaign);
+
+        if (!in_array($campaign->status->value, ['planifie', 'actif', 'pose'])) {
+            return response()->json(['panels' => []]);
         }
 
-        $communes = Commune::orderBy('name')->get();
-        $formats  = PanelFormat::orderBy('name')->get();
-        $allowed  = $campaign->status->allowedTransitionsLabels();
+        $existingIds = $campaign->panels()->pluck('panels.id')->all();
 
-        $daysLeft  = $campaign->daysRemaining();
-        $humanTime = $campaign->humanTimeRemaining();
-        $pct       = $campaign->progressPercent();
+        $panels = $this->availability
+            ->getAvailablePanels(
+                $campaign->start_date->format('Y-m-d'),
+                $campaign->end_date->format('Y-m-d'),
+                $campaign->reservation_id
+            )
+            ->reject(fn($p) => in_array($p->id, $existingIds))
+            ->take(500)
+            ->map(fn($p) => [
+                'id'           => $p->id,
+                'reference'    => $p->reference,
+                'name'         => $p->name,
+                'commune'      => $p->commune?->name ?? '',
+                'format'       => $p->format?->name ?? '',
+                'monthly_rate' => (float) ($p->monthly_rate ?? 0),
+                'is_lit'       => (bool) $p->is_lit,
+            ])
+            ->values();
 
-        return view('admin.campaigns.show', compact(
-            'campaign', 'can', 'availablePanels',
-            'communes', 'formats', 'allowed',
-            'daysLeft', 'humanTime', 'pct'
-        ));
+        return response()->json([
+            'panels'           => $panels,
+            'campaign_months'  => $campaign->billableMonths(),
+        ]);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -196,18 +231,23 @@ class CampaignController extends Controller
 
         try {
             $campaign = DB::transaction(function () use ($data) {
-                $data['status']  = CampaignStatus::ACTIF->value;
                 $data['user_id'] = auth()->id();
+
+                // Statut initial dérivé des dates
+                $today = now()->startOfDay();
+                $start = \Carbon\Carbon::parse($data['start_date'])->startOfDay();
+                $data['status'] = $start->gt($today)
+                    ? CampaignStatus::PLANIFIE->value
+                    : CampaignStatus::ACTIF->value;
 
                 $reservation = null;
                 if (!empty($data['reservation_id'])) {
-                    $reservation = Reservation::with('panels')
-                        ->findOrFail($data['reservation_id']);
+                    $reservation = Reservation::with('panels')->findOrFail($data['reservation_id']);
 
                     if ($reservation->campaign()->exists()) {
                         throw new \Exception('Cette réservation est déjà liée à une campagne.');
                     }
-                    if ($reservation->client_id !== (int)$data['client_id']) {
+                    if ($reservation->client_id !== (int) $data['client_id']) {
                         throw new \Exception('Le client ne correspond pas à celui de la réservation.');
                     }
 
@@ -224,18 +264,19 @@ class CampaignController extends Controller
                 }
 
                 Log::info('campaign.created', [
-                    'campaign_id'    => $campaign->id,
-                    'user_id'        => auth()->id(),
-                    'client_id'      => $campaign->client_id,
-                    'with_reservation'=> $reservation !== null,
+                    'campaign_id'      => $campaign->id,
+                    'user_id'          => auth()->id(),
+                    'client_id'        => $campaign->client_id,
+                    'with_reservation' => $reservation !== null,
+                    'status'           => $campaign->status->value,
                 ]);
 
-                // Alerte création campagne
                 AlertService::create(
                     'campagne',
                     'info',
                     '🚀 Campagne créée — ' . $campaign->name,
-                    auth()->user()->name . ' a créé la campagne "' . $campaign->name . '"' . ($campaign->reservation ? ' depuis la réservation ' . $campaign->reservation->reference : ''),
+                    auth()->user()?->name . ' a créé la campagne "' . $campaign->name . '"'
+                        . ($reservation ? ' depuis la réservation ' . $reservation->reference : ''),
                     $campaign
                 );
 
@@ -261,14 +302,18 @@ class CampaignController extends Controller
         return view('admin.campaigns.edit', compact('campaign', 'clients'));
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // UPDATE — Mise à jour avec gestion intelligente du statut
-    // ══════════════════════════════════════════════════════════════
     public function update(Request $request, Campaign $campaign)
     {
         $this->authorize('update', $campaign);
 
-        // 1. Récupération des données avec gestion spéciale pour start_date
+        // Garde-fou : seules les campagnes PLANIFIEE / ACTIVE sont modifiables
+        if (in_array($campaign->status->value, ['pose', 'termine', 'annule'])) {
+            return back()->withInput()->with('error',
+                "❌ Une campagne « {$campaign->status->label()} » ne peut pas être modifiée. " .
+                "Seules les campagnes Planifiées ou Actives sont modifiables."
+            );
+        }
+
         $rules = [
             'name' => [
                 'required', 'string', 'max:150',
@@ -276,128 +321,91 @@ class CampaignController extends Controller
                     ->where('client_id', $request->client_id)
                     ->ignore($campaign->id),
             ],
-            'client_id'  => 'required|exists:clients,id',
-            'end_date'   => 'required|date|after:start_date',
-            'notes'      => 'nullable|string|max:2000',
+            'client_id' => 'required|exists:clients,id',
+            'end_date'  => 'required|date|after:start_date',
+            'notes'     => 'nullable|string|max:2000',
         ];
 
-        // Pour les campagnes actives, start_date est optionnel (vient du champ caché)
-        // Pour les autres, il est requis
-        if ($campaign->status !== CampaignStatus::ACTIF) {
-            $rules['start_date'] = 'required|date';
-        } else {
-            $rules['start_date'] = 'nullable|date';
-        }
+        // start_date : verrouillée pour campagne ACTIVE, modifiable pour PLANIFIEE
+        $rules['start_date'] = $campaign->status === CampaignStatus::ACTIF
+            ? 'nullable|date'
+            : 'required|date';
 
         $data = $request->validate($rules);
 
-        // 2. Gestion de la start_date pour les campagnes actives
-        if ($campaign->status === CampaignStatus::ACTIF) {
-            // Utiliser la start_date existante si non fournie
-            if (empty($data['start_date'])) {
-                $data['start_date'] = $campaign->start_date->format('Y-m-d');
-            }
+        if ($campaign->status === CampaignStatus::ACTIF && empty($data['start_date'])) {
+            $data['start_date'] = $campaign->start_date->format('Y-m-d');
         }
 
-        $today = now()->startOfDay();
-        $newStart = \Carbon\Carbon::parse($data['start_date']);
-        $newEnd = \Carbon\Carbon::parse($data['end_date']);
+        $today    = now()->startOfDay();
+        $newStart = \Carbon\Carbon::parse($data['start_date'])->startOfDay();
+        $newEnd   = \Carbon\Carbon::parse($data['end_date'])->startOfDay();
 
-        // Vérifications supplémentaires
         if ($newEnd->lte($newStart)) {
-            return back()->withInput()->with('error', 
-                '❌ La date de fin doit être postérieure à la date de début.'
-            );
+            return back()->withInput()->with('error',
+                '❌ La date de fin doit être postérieure à la date de début.');
         }
 
-        // === RÈGLES MÉTIER ===
-        if ($campaign->status === CampaignStatus::ACTIF) {
-            // Vérifier que start_date n'a pas changé
-            if (!$campaign->start_date->isSameDay($newStart)) {
-                return back()->withInput()->with('error', 
-                    '❌ Une campagne active ne peut pas voir sa date de début modifiée. ' .
-                    'La campagne a déjà commencé le ' . $campaign->start_date->format('d/m/Y') . '.'
-                );
-            }
-
-            // Vérifier que la nouvelle end_date n'est pas avant aujourd'hui
-            if ($newEnd->lt($today)) {
-                $data['status'] = CampaignStatus::TERMINE->value;
-            } else {
-                $data['status'] = CampaignStatus::ACTIF->value;
-            }
-        } 
-        elseif ($campaign->status === CampaignStatus::PLANIFIE) {
-            // Planifiée : tout modifiable, le statut sera recalculé après
-        } 
-        elseif (in_array($campaign->status->value, ['pose', 'termine', 'annule'])) {
-            return back()->withInput()->with('error', 
-                "❌ Une campagne « {$campaign->status->label()} » ne peut pas être modifiée. " .
-                "Seules les campagnes Planifiées ou Actives sont modifiables."
-            );
+        // Garde-fou durée maximale : 36 mois (cohérence Reservation)
+        if (abs($newStart->diffInMonths($newEnd)) > 36) {
+            return back()->withInput()->with('error',
+                '❌ La durée maximale d\'une campagne est de 36 mois.');
         }
 
-        // 3. Mise à jour des données
-        $data['updated_by'] = auth()->id();
-        
-        // Sauvegarde des anciennes valeurs
-        $oldStart = $campaign->start_date;
-        $oldEnd = $campaign->end_date;
+        // Verrou date début pour campagne active
+        if ($campaign->status === CampaignStatus::ACTIF
+            && !$campaign->start_date->isSameDay($newStart)) {
+            return back()->withInput()->with('error',
+                '❌ Une campagne active ne peut pas voir sa date de début modifiée. ' .
+                'La campagne a déjà commencé le ' . $campaign->start_date->format('d/m/Y') . '.');
+        }
+
+        // Statut recalculé en fonction des nouvelles dates
+        $data['status'] = $this->calculateStatus($newStart, $newEnd, $campaign->status);
+
+        $oldStart  = $campaign->start_date;
+        $oldEnd    = $campaign->end_date;
         $oldStatus = $campaign->status;
 
-        $campaign->update($data);
+        $data['updated_by'] = auth()->id();
 
-        // 4. Recalcul automatique du statut pour les campagnes planifiées
-        if ($oldStatus === CampaignStatus::PLANIFIE) {
-            $campaign->refresh();
-            $newStatus = $this->calculateStatus($campaign);
-            
-            if ($newStatus !== $campaign->status->value) {
-                $campaign->status = $newStatus;
-                $campaign->save();
-                
-                Log::info('campaign.status.auto_updated', [
-                    'campaign_id' => $campaign->id,
-                    'old_status'  => $oldStatus->value,
-                    'new_status'  => $newStatus,
-                    'reason'      => 'dates_modified',
-                    'user_id'     => auth()->id(),
+        DB::transaction(function () use ($campaign, $data) {
+            $campaign->update($data);
+
+            // Si dates changées et qu'il y a une réservation liée, on doit
+            // au minimum aligner end_date pour la cohérence facturation
+            if ($campaign->reservation && $campaign->wasChanged(['start_date', 'end_date'])) {
+                $campaign->reservation->updateWithoutObservers([
+                    'start_date' => $campaign->start_date->format('Y-m-d'),
+                    'end_date'   => $campaign->end_date->format('Y-m-d'),
                 ]);
             }
-        }
 
-        // 5. Log de l'opération
+            // Recalcul du montant si la durée a changé
+            if ($campaign->wasChanged(['start_date', 'end_date'])) {
+                $this->campaignService->recalculateCampaignAmount($campaign->fresh());
+            }
+        });
+
         Log::info('campaign.updated', [
             'campaign_id' => $campaign->id,
             'user_id'     => auth()->id(),
             'changes'     => [
-                'start_date' => [
-                    'old' => $oldStart->format('Y-m-d'),
-                    'new' => $campaign->start_date->format('Y-m-d')
-                ],
-                'end_date' => [
-                    'old' => $oldEnd->format('Y-m-d'),
-                    'new' => $campaign->end_date->format('Y-m-d')
-                ],
-                'status' => [
-                    'old' => $oldStatus->label(),
-                    'new' => $campaign->status->label()
-                ]
-            ]
+                'start_date' => ['old' => $oldStart->format('Y-m-d'), 'new' => $campaign->start_date->format('Y-m-d')],
+                'end_date'   => ['old' => $oldEnd->format('Y-m-d'),   'new' => $campaign->end_date->format('Y-m-d')],
+                'status'     => ['old' => $oldStatus->value,           'new' => $campaign->status->value],
+            ],
         ]);
 
-        // Alerte modification campagne
         AlertService::create(
             'campagne',
             'info',
             '✏️ Campagne modifiée — ' . $campaign->name,
-            auth()->user()->name . ' a modifié la campagne "' . $campaign->name . '" (dates ou informations)',
+            auth()->user()?->name . ' a modifié la campagne "' . $campaign->name . '"',
             $campaign
         );
 
-        // 6. Message de succès personnalisé
         $message = "✅ Campagne « {$campaign->name} » mise à jour avec succès.";
-        
         if ($oldStatus === CampaignStatus::PLANIFIE && $campaign->status === CampaignStatus::ACTIF) {
             $message .= " La campagne est maintenant active.";
         } elseif ($campaign->status === CampaignStatus::TERMINE && $newEnd->lt($today)) {
@@ -409,35 +417,20 @@ class CampaignController extends Controller
             ->with('success', $message);
     }
 
-    /**
-     * Calcule le statut d'une campagne en fonction de ses dates
-     * 
-     * @param Campaign $campaign
-     * @return string
-     */
-    protected function calculateStatus(Campaign $campaign): string
+    /** Calcule le statut cible d'une campagne à partir de ses nouvelles dates */
+    protected function calculateStatus(\Carbon\Carbon $start, \Carbon\Carbon $end, CampaignStatus $current): string
     {
         $today = now()->startOfDay();
-        $start = $campaign->start_date->startOfDay();
-        $end   = $campaign->end_date->startOfDay();
 
-        if ($start > $today) {
-            return CampaignStatus::PLANIFIE->value;
-        }
-        
-        if ($start <= $today && $end > $today) {
-            return CampaignStatus::ACTIF->value;
-        }
-        
-        if ($end <= $today) {
-            return CampaignStatus::TERMINE->value;
-        }
-        
-        return $campaign->status->value;
+        if ($end->lte($today))   return CampaignStatus::TERMINE->value;
+        if ($start->gt($today))  return CampaignStatus::PLANIFIE->value;
+        // Si campagne en pose et toujours dans la fenêtre, on garde POSE ; sinon ACTIF
+        if ($current === CampaignStatus::POSE) return CampaignStatus::POSE->value;
+        return CampaignStatus::ACTIF->value;
     }
 
     // ══════════════════════════════════════════════════════════════
-    // ADD PANEL — délégué entièrement à CampaignService
+    // ADD PANEL
     // ══════════════════════════════════════════════════════════════
     public function addPanel(Request $request, Campaign $campaign)
     {
@@ -448,32 +441,32 @@ class CampaignController extends Controller
             'panel_ids.*' => 'required|integer|exists:panels,id',
         ]);
 
-        if (!in_array($campaign->status->value, ['actif', 'pose'])) {
+        if (!in_array($campaign->status->value, ['planifie', 'actif', 'pose'])) {
             return back()->with('error',
                 'Impossible d\'ajouter des panneaux à une campagne terminée ou annulée.');
         }
 
-        // Toute la logique métier est dans le service
         $result = $this->campaignService->addPanels($campaign, $request->panel_ids);
 
         if (!$result['ok']) {
             return back()->with('error', $result['error']);
         }
 
-        return back()->with('success',
-            ($result['added'] ?? count($request->panel_ids)) . ' panneau(x) ajouté(s). Montant recalculé.');
-        // Alerte ajout panneau
+        $count = $result['added'] ?? count($request->panel_ids);
+
         AlertService::create(
             'campagne',
             'info',
             '➕ Panneau ajouté — ' . $campaign->name,
-            auth()->user()->name . ' a ajouté ' . ($result['added'] ?? count($request->panel_ids)) . ' panneau(x) à la campagne "' . $campaign->name . '"',
+            auth()->user()?->name . " a ajouté {$count} panneau(x) à la campagne \"{$campaign->name}\"",
             $campaign
         );
+
+        return back()->with('success', "{$count} panneau(x) ajouté(s). Montant recalculé.");
     }
 
     // ══════════════════════════════════════════════════════════════
-    // REMOVE PANEL — délégué à CampaignService
+    // REMOVE PANEL
     // ══════════════════════════════════════════════════════════════
     public function removePanel(Campaign $campaign, Panel $panel)
     {
@@ -485,45 +478,44 @@ class CampaignController extends Controller
             return back()->with('error', $result['error']);
         }
 
-        $msg = "Panneau {$panel->reference} retiré.";
-
-        if (isset($result['warning'])) {
-            $msg .= ' ⚠️ ' . $result['warning'];
-            return redirect()
-                ->route('admin.campaigns.index')
-                ->with('warning', $msg);
-        }
-
-        return back()->with('success', $msg . ' Montant recalculé.');
-        // Alerte retrait panneau
         AlertService::create(
             'campagne',
             'warning',
             '➖ Panneau retiré — ' . $campaign->name,
-            auth()->user()->name . ' a retiré le panneau ' . $panel->reference . ' de la campagne "' . $campaign->name . '"',
+            auth()->user()?->name . " a retiré le panneau {$panel->reference} de la campagne \"{$campaign->name}\"",
             $campaign
         );
+
+        $msg = "Panneau {$panel->reference} retiré.";
+
+        if (isset($result['warning'])) {
+            return redirect()
+                ->route('admin.campaigns.index')
+                ->with('warning', $msg . ' ⚠️ ' . $result['warning']);
+        }
+
+        return back()->with('success', $msg . ' Montant recalculé.');
     }
 
     // ══════════════════════════════════════════════════════════════
-    // DESTROY — délégué à CampaignService
+    // DESTROY
     // ══════════════════════════════════════════════════════════════
     public function destroy(Campaign $campaign)
     {
         $this->authorize('delete', $campaign);
 
+        $name   = $campaign->name;
         $result = $this->campaignService->delete($campaign);
 
         if (!$result['ok']) {
             return back()->with('error', $result['error']);
         }
 
-        // Alerte suppression campagne
         AlertService::create(
             'campagne',
             'danger',
-            '🗑 Campagne supprimée — ' . $campaign->name,
-            auth()->user()->name . ' a supprimé la campagne "' . $campaign->name . '"',
+            '🗑 Campagne supprimée — ' . $name,
+            auth()->user()?->name . " a supprimé la campagne \"{$name}\"",
             null
         );
 
@@ -533,9 +525,8 @@ class CampaignController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
-    // UPDATE STATUS — cascade si annulation
+    // UPDATE STATUS
     // ══════════════════════════════════════════════════════════════
-
     public function updateStatus(Request $request, Campaign $campaign)
     {
         $this->authorize('updateStatus', $campaign);
@@ -551,43 +542,35 @@ class CampaignController extends Controller
                 "Transition interdite : {$campaign->status->label()} → {$newStatus->label()}.");
         }
 
+        $userName = auth()->user()?->name;
+
         if ($newStatus === CampaignStatus::ANNULE) {
-            $this->campaignService->cancel($campaign, 'Annulation manuelle par ' . auth()->user()?->name);
-            
-            // Alerte annulation campagne
-            AlertService::create(
-                'campagne',
-                'danger',
-                '🚫 Campagne annulée — ' . $campaign->name,
-                auth()->user()->name . ' a annulé la campagne "' . $campaign->name . '"',
-                $campaign
-            );
+            $this->campaignService->cancel($campaign, "Annulation manuelle par {$userName}");
+            $alertLevel = 'danger';
+            $alertIcon  = '🚫';
+            $alertVerb  = 'a annulé';
         } elseif ($newStatus === CampaignStatus::TERMINE) {
-            $this->campaignService->terminate($campaign, 'Clôture manuelle par ' . auth()->user()?->name);
-            
-            // Alerte clôture campagne
-            AlertService::create(
-                'campagne',
-                'info',
-                '✅ Campagne terminée — ' . $campaign->name,
-                auth()->user()->name . ' a clôturé la campagne "' . $campaign->name . '"',
-                $campaign
-            );
+            $this->campaignService->terminate($campaign, "Clôture manuelle par {$userName}");
+            $alertLevel = 'info';
+            $alertIcon  = '✅';
+            $alertVerb  = 'a clôturé';
         } else {
             $campaign->update([
                 'status'     => $newStatus->value,
                 'updated_by' => auth()->id(),
             ]);
-            
-            // Alerte changement statut campagne
-            AlertService::create(
-                'campagne',
-                'info',
-                '🔄 Statut changé — ' . $campaign->name,
-                auth()->user()->name . ' a changé le statut de "' . $campaign->name . '" → ' . $newStatus->label(),
-                $campaign
-            );
+            $alertLevel = 'info';
+            $alertIcon  = '🔄';
+            $alertVerb  = 'a changé le statut de';
         }
+
+        AlertService::create(
+            'campagne',
+            $alertLevel,
+            "{$alertIcon} Campagne — {$campaign->name}",
+            "{$userName} {$alertVerb} la campagne \"{$campaign->name}\" → {$newStatus->label()}",
+            $campaign
+        );
 
         return redirect()
             ->route('admin.campaigns.show', $campaign)
@@ -612,12 +595,20 @@ class CampaignController extends Controller
             ],
         ]);
 
-        // Vérifier conflits sur la période étendue (ancienne fin → nouvelle fin)
+        $newEndDate = \Carbon\Carbon::parse($request->new_end_date)->startOfDay();
+
+        // Garde-fou durée maximale 36 mois
+        if (abs($campaign->start_date->copy()->startOfDay()->diffInMonths($newEndDate)) > 36) {
+            return back()->with('error',
+                '❌ La durée totale dépasserait 36 mois (limite régie).');
+        }
+
+        // Vérifier conflits sur la période étendue
         $panelIds  = $campaign->panels->pluck('id')->toArray();
         $conflicts = $this->availability->getUnavailablePanelIds(
             $panelIds,
             $campaign->end_date->format('Y-m-d'),
-            $request->new_end_date,
+            $newEndDate->format('Y-m-d'),
             $campaign->reservation_id
         );
 
@@ -628,21 +619,21 @@ class CampaignController extends Controller
         }
 
         $oldEnd = $campaign->end_date->format('d/m/Y');
-        $newEnd = \Carbon\Carbon::parse($request->new_end_date)->format('d/m/Y');
+        $newEnd = $newEndDate->format('d/m/Y');
 
-        DB::transaction(function () use ($campaign, $request) {
+        DB::transaction(function () use ($campaign, $newEndDate) {
             $campaign->update([
-                'end_date'   => $request->new_end_date,
+                'end_date'   => $newEndDate->format('Y-m-d'),
                 'status'     => CampaignStatus::ACTIF->value,
                 'updated_by' => auth()->id(),
             ]);
 
-            // Prolonger aussi la réservation liée
             if ($campaign->reservation) {
-                $campaign->reservation->update(['end_date' => $request->new_end_date]);
+                $campaign->reservation->updateWithoutObservers([
+                    'end_date' => $newEndDate->format('Y-m-d'),
+                ]);
             }
 
-            // Recalculer le montant avec la nouvelle durée
             $this->campaignService->recalculateCampaignAmount($campaign->fresh());
         });
 
@@ -653,16 +644,14 @@ class CampaignController extends Controller
             'user_id'      => auth()->id(),
         ]);
 
-        // Alerte prolongation campagne
         AlertService::create(
             'campagne',
             'info',
             '📅 Campagne prolongée — ' . $campaign->name,
-            auth()->user()->name . ' a prolongé la campagne "' . $campaign->name . '" jusqu\'au ' . $newEnd,
+            auth()->user()?->name . " a prolongé la campagne \"{$campaign->name}\" jusqu'au {$newEnd}",
             $campaign
         );
 
-        return back()->with('success',
-            "Campagne prolongée jusqu'au {$newEnd}. Montant recalculé.");
+        return back()->with('success', "Campagne prolongée jusqu'au {$newEnd}. Montant recalculé.");
     }
 }
