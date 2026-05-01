@@ -259,10 +259,15 @@
                         dont <span id="sel-ext-n">0</span> externe(s)
                     </div>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 items-center flex-wrap">
+                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;padding:6px 10px;border:1px dashed var(--border);border-radius:8px;"
+                           title="Cocher pour générer le PDF liste sans la colonne Statut (proposition commerciale propre)">
+                        <input type="checkbox" id="pdf-hide-status" style="accent-color:var(--accent)">
+                        <span>🕶️ Masquer statut (proposition)</span>
+                    </label>
                     <button class="btn btn-ghost btn-sm" onclick="DISPO.clearSelection()">✕ Vider</button>
-                    <button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(34,197,94,.4)" 
-                    onclick="DISPO.exportSelExcel()">📊 Excel sélection</button>
+                    <button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(34,197,94,.4)"
+                        onclick="DISPO.exportSelExcel()">📊 Excel sélection</button>
                     <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(239,68,68,.4)"
                         onclick="DISPO.exportSelPdf('images')">📄 PDF images</button>
                     <button class="btn btn-ghost btn-sm" style="color:var(--blue);border-color:rgba(59,130,246,.4)"
@@ -285,6 +290,7 @@
             <div id="pdf-liste-inputs"></div>
             <input type="hidden" name="start_date" id="pdf-liste-start">
             <input type="hidden" name="end_date" id="pdf-liste-end">
+            <input type="hidden" name="hide_status" id="pdf-liste-hide-status" value="0">
         </form>
 
     </div>
@@ -1163,6 +1169,12 @@
             const eId = type==='images' ? 'pdf-end' : 'pdf-liste-end';
             _el(iId).innerHTML = ids.map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
             _el(sId).value = S.f.du || ''; _el(eId).value = S.f.au || '';
+            // Tâche 3 : si checkbox cochée, on transmet hide_status=1 au PDF liste
+            if (type === 'liste') {
+                const hideStatus = document.getElementById('pdf-hide-status')?.checked ? '1' : '0';
+                const hsField = document.getElementById('pdf-liste-hide-status');
+                if (hsField) hsField.value = hideStatus;
+            }
             document.getElementById(fId).submit();
         },
 

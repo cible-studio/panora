@@ -6,7 +6,27 @@
       "Bash(php -l app/Services/CampaignService.php)",
       "Bash(php -l routes/admin.php)",
       "Bash(php -r 'require '\\\\''vendor/autoload.php'\\\\''; $app = require '\\\\''bootstrap/app.php'\\\\''; $app->make\\(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class\\)->bootstrap\\(\\); echo '\\\\''BOOT OK'\\\\''.PHP_EOL;')",
-      "Bash(php artisan *)"
+      "Bash(php artisan *)",
+      "Bash(php -r ' *)",
+      "Bash(npx vite *)",
+      "Bash(grep -r 'style=\"[^\"]*width:\\\\s*[0-9]{3,}px' /c/wamp64/www/panora/resources/views/admin --include=\"*.blade.php\" -l)",
+      "Bash(xargs -I{} sh -c 'grep -o \"style=\\\\\"[^\\\\\"]*width:\\\\s*[0-9][0-9]*px\" \"{}\" | wc -l | xargs -I@ echo \"{}: @\"')",
+      "Bash(sort -t: -k2 -rn)",
+      "Bash(grep -r 'style=\"[^\"]*grid-template-columns:[^\"]*px\\\\|style=\"[^\"]*width:\\\\s*[0-9]{3,}px' /c/wamp64/www/panora/resources/views --include=\"*.blade.php\" -l)",
+      "Read(//tmp/**)",
+      "Bash(xargs -I {} sh -c 'grep -c \"style=\\\\\"width:[0-9]*px\" \"{}\" | xargs -I@ echo \"{}: @\"')",
+      "Bash(grep -n \"grid-template-columns\\\\|min-width:[0-9]\\\\{3,\\\\}\\\\|width:[0-9]\\\\{3,\\\\}px\" resources/views/client/campagne-detail.blade.php)",
+      "Bash(grep -n \"grid-template-columns\\\\|width:[0-9]\\\\{3,\\\\}px\" resources/views/admin/poses/index.blade.php)",
+      "Bash(grep -n \"grid-template-columns\\\\|width:[0-9]\\\\{3,\\\\}px\\\\|min-width:[0-9]\\\\{3,\\\\}\" resources/views/admin/piges/index.blade.php)",
+      "Bash(grep -n \"grid-template-columns\\\\|width:[0-9]\\\\{3,\\\\}px\\\\|min-width:[0-9]\\\\{3,\\\\}\" resources/views/admin/rapports/index.blade.php)",
+      "Bash(grep -n \"grid-template-columns\\\\|width:[0-9]\\\\{3,\\\\}px\\\\|min-width:[0-9]\\\\{3,\\\\}\" resources/views/admin/reservations/disponibilites.blade.php)",
+      "Bash(ls app/Http/Requests/Client/)",
+      "Bash(ls app/Imports/)",
+      "Bash(php -l app/Http/Controllers/Admin/ReservationController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/PropositionController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/PanelController.php)",
+      "Bash(php -l app/Http/Requests/Client/StoreClientRequest.php)",
+      "Bash(php -l app/Http/Requests/Client/UpdateClientRequest.php)"
     ]
   }
 }

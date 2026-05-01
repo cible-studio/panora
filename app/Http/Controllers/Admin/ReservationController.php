@@ -25,10 +25,13 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 use App\Exports\PanelsExport;
+use App\Support\PdfAssets;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ReservationController extends Controller
 {
+    use PdfAssets;
+
     public function __construct(
         protected AvailabilityService $availability,
         protected ReservationService $reservationService
@@ -191,11 +194,15 @@ class ReservationController extends Controller
                 }
 
                 if (!$dateError && $startDate && $endDate) {
+                    // Règle métier : un panneau confirmé prime sur l'option.
+                    // → "occupe"  = uniquement réservations confirmées (rouge)
+                    // → "option"  = en attente sans confirmation parallèle (orange)
+                    // → "libre"   = ni l'un ni l'autre + pas en maintenance
                     $panels = match ($statut) {
-                        'occupe' => $panels->filter(fn($p) => $occupiedIds->contains($p->id) || $optionIds->contains($p->id))->values(),
-                        'option' => $panels->filter(fn($p) => $optionIds->contains($p->id) && !$occupiedIds->contains($p->id))->values(),                        
-                        'libre' => $panels->filter(fn($p) => !$occupiedIds->contains($p->id) && !$optionIds->contains($p->id) && $p->status->value !== 'maintenance')->values(),
-                        default => $panels,
+                        'occupe' => $panels->filter(fn($p) => $occupiedIds->contains($p->id))->values(),
+                        'option' => $panels->filter(fn($p) => $optionIds->contains($p->id) && !$occupiedIds->contains($p->id))->values(),
+                        'libre'  => $panels->filter(fn($p) => !$occupiedIds->contains($p->id) && !$optionIds->contains($p->id) && $p->status->value !== 'maintenance')->values(),
+                        default  => $panels,
                     };
                 }
 
@@ -524,25 +531,26 @@ class ReservationController extends Controller
     public function pdfListe(Request $request)
     {
         $request->validate([
-            'panel_ids' => 'required|array|min:1',
-            'panel_ids.*' => 'integer|exists:panels,id',
+            'panel_ids'    => 'required|array|min:1',
+            'panel_ids.*'  => 'integer|exists:panels,id',
+            'hide_status'  => 'nullable|boolean',
         ]);
 
         $panels = Panel::with(['commune', 'format', 'category'])
             ->whereIn('id', $request->panel_ids)
             ->orderBy('reference')
             ->get();
-        
-        $startDate = $request->start_date;
-        $endDate = $request->end_date;
-        $dureeEnMois = ($startDate && $endDate)
+
+        $startDate    = $request->start_date;
+        $endDate      = $request->end_date;
+        $dureeEnMois  = ($startDate && $endDate)
             ? max(1, (int) ceil(Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) / 30))
             : 1;
-        $totalMensuel = $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0));
+        $totalMensuel = (float) $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0));
         $totalPeriode = $totalMensuel * $dureeEnMois;
-        
-        // ✅ Ajouter la variable manquante
-        $generated = now()->format('d/m/Y à H:i');
+        $generated    = now()->format('d/m/Y à H:i');
+        $hideStatus   = (bool) $request->boolean('hide_status');
+        $logoSrc      = $this->getLogoPdf();
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.reservations.pdf.disponibilites-list', compact(
             'panels',
@@ -551,18 +559,21 @@ class ReservationController extends Controller
             'dureeEnMois',
             'totalMensuel',
             'totalPeriode',
-            'generated'  // ✅ Ajouter ici
+            'generated',
+            'hideStatus',
+            'logoSrc'
         ));
-        
+
         $pdf->setPaper('A4', 'landscape');
         $pdf->setOptions([
             'isHtml5ParserEnabled' => true,
-            'isRemoteEnabled' => false,
-            'defaultFont' => 'DejaVu Sans',
-            'dpi' => 96,
+            'isRemoteEnabled'      => false,
+            'defaultFont'          => 'DejaVu Sans',
+            'dpi'                  => 96,
         ]);
-        
-        return $pdf->download('selection-panneaux-liste-' . now()->format('Ymd') . '.pdf');
+
+        $suffix = $hideStatus ? '-proposition' : '';
+        return $pdf->download('selection-panneaux-liste' . $suffix . '-' . now()->format('Ymd') . '.pdf');
     }
 
     /**
@@ -756,6 +767,44 @@ class ReservationController extends Controller
             ->with('success', $request->type === 'ferme'
                 ? 'Réservation ferme créée. Panneaux confirmés. ✅'
                 : 'Panneaux mis sous option. ⏳');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // GET PANELS — JSON pour modale "Voir les panneaux" depuis la liste
+    // (tâche 5 — visualiser panneaux d'une réservation en option)
+    // ══════════════════════════════════════════════════════════════
+    public function getPanels(Reservation $reservation): \Illuminate\Http\JsonResponse
+    {
+        $this->authorize('view', $reservation);
+
+        $reservation->load([
+            'panels:id,reference,name,commune_id,format_id,monthly_rate,is_lit',
+            'panels.commune:id,name',
+            'panels.format:id,name',
+            'panels.photos' => fn($q) => $q->orderBy('ordre')->limit(1),
+        ]);
+
+        return response()->json([
+            'reservation' => [
+                'reference'  => $reservation->reference,
+                'start_date' => $reservation->start_date->format('d/m/Y'),
+                'end_date'   => $reservation->end_date->format('d/m/Y'),
+                'status'     => $reservation->status->value,
+                'count'      => $reservation->panels->count(),
+            ],
+            'panels' => $reservation->panels->map(fn($p) => [
+                'id'           => $p->id,
+                'reference'    => $p->reference,
+                'name'         => $p->name,
+                'commune'      => $p->commune?->name ?? '—',
+                'format'       => $p->format?->name  ?? '—',
+                'is_lit'       => (bool) $p->is_lit,
+                'monthly_rate' => (float) ($p->pivot->unit_price ?? $p->monthly_rate ?? 0),
+                'photo_url'    => $p->photos->first()
+                    ? asset('storage/' . $p->photos->first()->path)
+                    : null,
+            ])->values(),
+        ]);
     }
 
     // ══════════════════════════════════════════════════════════════

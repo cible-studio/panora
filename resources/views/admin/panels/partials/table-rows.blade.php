@@ -2,7 +2,23 @@
 @if($source !== 'externe')
 @forelse($panels as $panel)
 <tr>
-    <td>@if($panel->photos->first())<img src="{{ asset('storage/'.$panel->photos->first()->path) }}" style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid var(--border);" onerror="this.onerror=null;this.parentElement.innerHTML='<div style=\'width:60px;height:45px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:18px;\'>🪧</div>'">@else<div style="width:60px;height:45px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:18px;">🪧</div>@endif</td>
+    <td>
+        @php
+            $photo = $panel->photos->first();
+            $photoPath = $photo ? storage_path('app/public/'.$photo->path) : null;
+            $hasFile = $photo && file_exists($photoPath);
+        @endphp
+        @if($hasFile)
+            <img src="{{ asset('storage/'.$photo->path) }}"
+                 alt="{{ $panel->reference }}"
+                 loading="lazy"
+                 onerror="this.onerror=null;this.src='/images/panel-placeholder.svg';"
+                 style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid var(--border);">
+        @else
+            <img src="/images/panel-placeholder.svg" alt="placeholder"
+                 style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid var(--border);background:var(--surface2);">
+        @endif
+    </td>
     <td><span style="font-family:monospace;color:var(--accent);font-weight:700;">{{ $panel->reference }}</span></td>
     <td><div style="font-weight:500;">{{ $panel->name }}</div><div style="font-size:11px;color:var(--text3);">{{ $panel->category?->name ?? '—' }} @if($panel->is_lit) · 💡 @endif</div></td>
     <td>{{ $panel->commune->name }}</td>

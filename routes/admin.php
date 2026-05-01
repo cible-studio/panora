@@ -331,6 +331,10 @@ Route::prefix('admin')
         Route::post('reservations/{reservation}/panels/add', [ReservationController::class, 'addPanel']) ->name('reservations.panels.add');
 
         // CRUD Réservations (en dernier pour ne pas capturer les routes spécifiques)
+        // JSON — liste des panneaux d'une réservation (modale "Voir les panneaux" depuis l'index)
+        Route::get('reservations/{reservation}/panels-list', [ReservationController::class, 'getPanels'])
+            ->name('reservations.panels.list');
+
         Route::resource('reservations', ReservationController::class)->except(['create', 'store']);
         Route::patch('reservations/{reservation}/status', [ReservationController::class, 'updateStatus'])->name('reservations.update-status');
         Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])->name('reservations.annuler');

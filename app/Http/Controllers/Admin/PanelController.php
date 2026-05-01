@@ -39,7 +39,16 @@ class PanelController extends Controller
             $panneauxOccupes = 0;
             $enMaintenance = 0;
         } else {
-            $query = Panel::with('commune', 'zone', 'format', 'category', 'photos');
+            // Eager loading optimisé : on ne charge que la photo principale (ordre=0/1)
+            // pour éviter de tirer toutes les photos sur l'index (réduit drastiquement
+            // la taille du payload et le N+1 photos).
+            $query = Panel::with([
+                'commune:id,name',
+                'zone:id,name',
+                'format:id,name,width,height',
+                'category:id,name',
+                'photos' => fn($q) => $q->orderBy('ordre')->limit(1),
+            ]);
 
             // 🔍 RECHERCHE EXACTE SUR MOT ENTIER
             // Exemple : "ABG" trouve "ABG-002" mais pas "CABG-001"

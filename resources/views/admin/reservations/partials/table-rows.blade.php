@@ -69,12 +69,15 @@
     </td>
     <td>
         <div class="actions">
-            <a href="{{ route('admin.reservations.show', $res) }}" class="btn-icon" title="Voir">👁</a>
+            <a href="{{ route('admin.reservations.show', $res) }}" class="btn-icon" title="Voir la fiche">👁</a>
+            <button type="button" class="btn-icon"
+                    onclick="openPanelsModal({{ $res->id }}, @js($res->reference))"
+                    title="Voir les panneaux">🪧</button>
             @if($canEdit)
             <a href="{{ route('admin.reservations.edit', $res) }}" class="btn-icon" title="Modifier">✏️</a>
             @endif
             @if($canAnnuler)
-            <button class="btn-icon btn-cancel" 
+            <button class="btn-icon btn-cancel"
                     onclick="openAnnulerModal({{ $res->id }}, '{{ $res->reference }}', '{{ addslashes($res->client?->name ?? '') }}', {{ $res->panels_count }})"
                     title="Annuler">🚫</button>
             @endif

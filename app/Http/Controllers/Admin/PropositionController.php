@@ -128,13 +128,37 @@ class PropositionController extends Controller
 
             return back()->with('success', "✅ Proposition envoyée à {$reservation->client->email}.");
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('admin.propositions.send_failed', [
                 'reservation_id' => $reservation->id,
                 'error'          => $e->getMessage(),
             ]);
+
+            // Diagnostic explicite : l'admin doit comprendre quoi faire
+            $msg  = $e->getMessage();
+            $hint = match (true) {
+                str_contains($msg, 'Connection could not be established'),
+                str_contains($msg, 'Connection refused'),
+                str_contains($msg, 'Could not connect') =>
+                    '⚠️ Connexion SMTP impossible. Vérifiez MAIL_HOST et MAIL_PORT dans .env.',
+                str_contains($msg, 'Authentication failed'),
+                str_contains($msg, 'Authentication required'),
+                str_contains($msg, 'Username and Password not accepted') =>
+                    '⚠️ Identifiants SMTP refusés. Vérifiez MAIL_USERNAME et MAIL_PASSWORD dans .env (mot de passe d\'application Gmail si 2FA active).',
+                str_contains($msg, 'STARTTLS'),
+                str_contains($msg, 'TLS'),
+                str_contains($msg, 'SSL') =>
+                    '⚠️ Erreur TLS/SSL. Vérifiez MAIL_ENCRYPTION (tls ou ssl) dans .env.',
+                str_contains($msg, 'Address')             =>
+                    '⚠️ Adresse email invalide ou expéditeur (MAIL_FROM_ADDRESS) mal configuré.',
+                default => '⚠️ Erreur d\'envoi : ' . mb_substr($msg, 0, 180),
+            };
+
             $link = route('admin.propositions.show', [$reservation->reference, $slug]);
-            return back()->with('warning', "⚠️ Erreur email. Lien : {$link}");
+
+            return back()->with('warning',
+                $hint . ' Lien à partager manuellement : ' . $link
+            );
         }
     }
 

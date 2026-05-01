@@ -232,7 +232,9 @@
                 <th>Catégorie</th>
                 <th>💡</th>
                 <th>Trafic/j</th>
+                @unless($hideStatus ?? false)
                 <th>Statut</th>
+                @endunless
             </tr>
         </thead>
         <tbody>
@@ -281,7 +283,9 @@
                     @endif
                 </td>
                 <td>{{ $traffic > 0 ? number_format($traffic, 0, ',', ' ') : '—' }}</td>
+                @unless($hideStatus ?? false)
                 <td><span class="badge {{ $statusLabel['class'] }}">{{ $statusLabel['label'] }}</span></td>
+                @endunless
             </tr>
             @endforeach
         </tbody>

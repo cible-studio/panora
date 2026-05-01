@@ -20,14 +20,22 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         .nav-icon { width: 18px; height: 18px; flex-shrink: 0; }
+        [x-cloak] { display: none !important; }
     </style>
 </head>
 
 <body>
-    <div class="app-layout" x-data>
+    <div class="app-layout"
+         x-data="{ sidebarOpen: false }"
+         x-effect="document.documentElement.classList.toggle('sidebar-locked', sidebarOpen)"
+         @keydown.escape.window="sidebarOpen = false">
+
+        {{-- Backdrop overlay (mobile uniquement, visible quand sidebar ouverte) --}}
+        <div class="sidebar-backdrop" x-show="sidebarOpen" @click="sidebarOpen = false"
+             x-transition.opacity.duration.200ms x-cloak></div>
 
         {{-- ══ SIDEBAR ══ --}}
-        <aside class="sidebar">
+        <aside class="sidebar" id="main-sidebar" :class="{ 'is-open': sidebarOpen }">
             <div class="sidebar-logo">
                 <div class="sidebar-logo-mark">
                     <img id="logo-dark"  class="w-40" src="{{ asset('images/logob.png') }}" alt="Logo Panora">
@@ -35,98 +43,115 @@
                 </div>
             </div>
 
-            <div class="role-pill">⚡ {{ Auth::user()?->role?->value ?? 'admin' }}</div>
+            <div class="role-pill">⚡ <span class="nav-text">{{ Auth::user()?->role?->value ?? 'admin' }}</span></div>
 
-            <nav style="flex:1; padding: 8px 0;">
+            <nav class="sidebar-nav" @click="sidebarOpen = false">
                 <div class="nav-section">
                     <div class="nav-label">Principal</div>
-                    <a href="{{ route('dashboard') }}" class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span> Tableau de bord
+                    <a href="{{ route('dashboard') }}" data-tooltip="Tableau de bord" class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+                        <span class="nav-text">Tableau de bord</span>
                     </a>
-                    <a href="{{ route('admin.reservations.disponibilites') }}" class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span> Disponibilités
+                    <a href="{{ route('admin.reservations.disponibilites') }}" data-tooltip="Disponibilités" class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span>
+                        <span class="nav-text">Disponibilités</span>
                     </a>
-                    <a href="{{ route('admin.panels.index') }}" class="nav-item {{ request()->routeIs('admin.panels.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span> Inventaire
+                    <a href="{{ route('admin.panels.index') }}" data-tooltip="Inventaire" class="nav-item {{ request()->routeIs('admin.panels.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+                        <span class="nav-text">Inventaire</span>
                     </a>
-                    <a href="{{ route('admin.campaigns.index') }}" class="nav-item {{ request()->routeIs('admin.campaigns.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span> Campagnes
+                    <a href="{{ route('admin.campaigns.index') }}" data-tooltip="Campagnes" class="nav-item {{ request()->routeIs('admin.campaigns.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+                        <span class="nav-text">Campagnes</span>
                     </a>
-                    <a href="{{ route('admin.clients.index') }}" class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Clients
+                    <a href="{{ route('admin.clients.index') }}" data-tooltip="Clients" class="nav-item {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                        <span class="nav-text">Clients</span>
                     </a>
-                    <a href="{{ route('admin.external-agencies.index') }}" class="nav-item {{ request()->routeIs('admin.external-agencies.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span> Régies externes
+                    <a href="{{ route('admin.external-agencies.index') }}" data-tooltip="Régies externes" class="nav-item {{ request()->routeIs('admin.external-agencies.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+                        <span class="nav-text">Régies externes</span>
                     </a>
                 </div>
 
                 <div class="nav-section">
                     <div class="nav-label">Opérations</div>
-                    <a href="{{ route('admin.reservations.index') }}" class="nav-item {{ request()->routeIs('admin.reservations.*') && !request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span> Confirmations
-                        
+                    <a href="{{ route('admin.reservations.index') }}" data-tooltip="Confirmations" class="nav-item {{ request()->routeIs('admin.reservations.*') && !request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
+                        <span class="nav-text">Confirmations</span>
                     </a>
-                    <a href="{{ route('admin.pose-tasks.index') }}" class="nav-item {{ request()->routeIs('admin.pose-tasks.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></span> Gestion Pose OOH
+                    <a href="{{ route('admin.pose-tasks.index') }}" data-tooltip="Gestion Pose OOH" class="nav-item {{ request()->routeIs('admin.pose-tasks.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></span>
+                        <span class="nav-text">Gestion Pose OOH</span>
                     </a>
-                    <a href="{{ route('admin.piges.index') }}" class="nav-item {{ request()->routeIs('admin.piges.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span> Piges Photos
+                    <a href="{{ route('admin.piges.index') }}" data-tooltip="Piges Photos" class="nav-item {{ request()->routeIs('admin.piges.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
+                        <span class="nav-text">Piges Photos</span>
                     </a>
-                    <a href="{{ route('admin.taxes.index') }}" class="nav-item {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Taxes Communes
+                    <a href="{{ route('admin.taxes.index') }}" data-tooltip="Taxes Communes" class="nav-item {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+                        <span class="nav-text">Taxes Communes</span>
                     </a>
-                    <a href="{{ route('admin.invoices.index') }}" class="nav-item {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span> Facturation
+                    <a href="{{ route('admin.invoices.index') }}" data-tooltip="Facturation" class="nav-item {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
+                        <span class="nav-text">Facturation</span>
                     </a>
-                    <a href="{{ route('admin.alerts.index') }}" class="nav-item {{ request()->routeIs('admin.alerts.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span> Alertes
+                    <a href="{{ route('admin.alerts.index') }}" data-tooltip="Alertes" class="nav-item {{ request()->routeIs('admin.alerts.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+                        <span class="nav-text">Alertes</span>
                     </a>
                 </div>
 
                 <div class="nav-section">
                     <div class="nav-label">Analyse</div>
-                    <a href="{{ route('admin.map') }}" class="nav-item {{ request()->routeIs('admin.map*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></span> Carte & Heatmap
+                    <a href="{{ route('admin.map') }}" data-tooltip="Carte & Heatmap" class="nav-item {{ request()->routeIs('admin.map*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></span>
+                        <span class="nav-text">Carte &amp; Heatmap</span>
                     </a>
-                    <a href="{{ route('admin.rapports.index') }}" class="nav-item {{ request()->routeIs('admin.rapports.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span> Rapports
+                    <a href="{{ route('admin.rapports.index') }}" data-tooltip="Rapports" class="nav-item {{ request()->routeIs('admin.rapports.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+                        <span class="nav-text">Rapports</span>
                     </a>
                 </div>
 
                 <div class="nav-section">
                     <div class="nav-label">Administration</div>
-                    <a href="{{ route('admin.users.index') }}" class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Utilisateurs
+                    <a href="{{ route('admin.users.index') }}" data-tooltip="Utilisateurs" class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                        <span class="nav-text">Utilisateurs</span>
                     </a>
-                    <a href="{{ route('admin.maintenances.index') }}" class="nav-item {{ request()->routeIs('admin.maintenances.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Maintenance
+                    <a href="{{ route('admin.maintenances.index') }}" data-tooltip="Maintenance" class="nav-item {{ request()->routeIs('admin.maintenances.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+                        <span class="nav-text">Maintenance</span>
                     </a>
-                    <a href="{{ route('admin.audit.logs') }}" class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span> Logs d'audit
+                    <a href="{{ route('admin.audit.logs') }}" data-tooltip="Logs d'audit" class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
+                        <span class="nav-text">Logs d'audit</span>
                     </a>
-                    <a href="{{ route('admin.settings.index') }}" class="nav-item {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Paramètres
+                    <a href="{{ route('admin.settings.index') }}" data-tooltip="Paramètres" class="nav-item {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+                        <span class="nav-text">Paramètres</span>
                     </a>
                 </div>
             </nav>
 
             <div class="sidebar-footer">
-                <div class="user-card">
+                <div class="user-card" data-tooltip="{{ Auth::user()?->name ?? 'Admin' }}">
                     <div class="user-avatar">{{ strtoupper(substr(Auth::user()?->name ?? 'A', 0, 1)) }}</div>
-                    <div>
+                    <div class="user-card-info">
                         <div class="user-name">{{ Auth::user()?->name ?? 'Admin' }}</div>
                         <div class="user-role">{{ Auth::user()?->role?->value ?? 'admin' }}</div>
                     </div>
-                    <form method="POST" action="{{ route('logout') }}" style="margin-left:auto">
+                    <form method="POST" action="{{ route('logout') }}" class="user-logout">
                         @csrf
-                        <button type="submit" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;" title="Déconnexion" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">⏻</button>
+                        <button type="submit" title="Déconnexion" aria-label="Se déconnecter">⏻</button>
                     </form>
                 </div>
             </div>
         </aside>
 
-        <!-- Barre couleurs Panora -->
-        <div class="brand-bar">
+        <!-- Barre couleurs Panora (purement décorative — masquée < tablette) -->
+        <div class="brand-bar" aria-hidden="true">
             <div class="brand red"></div>
             <div class="brand yellow"></div>
             <div class="brand green"></div>
@@ -135,11 +160,25 @@
         </div>
 
         {{-- ══ CONTENU ══ --}}
-        <div class="main-area" style="margin-left:235px;">
-            <div class="topbar" style="position:fixed; top:0; left:235px; right:0; z-index:30;">
+        <div class="main-area">
+            <header class="topbar topbar-fixed">
+                {{-- Hamburger : visible uniquement < 768px --}}
+                <button type="button" class="sidebar-toggle" @click="sidebarOpen = !sidebarOpen"
+                        :aria-expanded="sidebarOpen" aria-label="Ouvrir le menu" aria-controls="main-sidebar">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" x-show="!sidebarOpen">
+                        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                    </svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" x-show="sidebarOpen" x-cloak>
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+
                 <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <label class="theme-switch">
+
+                <div class="topbar-actions">
+                    <label class="theme-switch" title="Changer de thème">
                         <input type="checkbox" id="theme-toggle" onchange="toggleThemeSwitch()">
                         <span class="slider"></span>
                     </label>
@@ -151,16 +190,16 @@
                     </a>
                     {{ $topbarActions ?? '' }}
                 </div>
-            </div>
+            </header>
 
-            <div style="height:52px;"></div>
+            <div class="topbar-spacer" aria-hidden="true"></div>
 
-            <div style="padding: 0 20px;">
+            <div class="flash-zone">
                 @if (session('success'))
-                    <div class="flash flash-success" style="margin-top:16px;">✓ {{ session('success') }}</div>
+                    <div class="flash flash-success">✓ {{ session('success') }}</div>
                 @endif
                 @if (session('error'))
-                    <div class="flash flash-error" style="margin-top:16px;">✕ {{ session('error') }}</div>
+                    <div class="flash flash-error">✕ {{ session('error') }}</div>
                 @endif
             </div>
 

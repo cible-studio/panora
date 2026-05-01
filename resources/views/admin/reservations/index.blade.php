@@ -229,6 +229,33 @@
         </div>
     </div>
 
+    {{-- ══════════════════════════════════════════════════════
+         MODAL "VOIR LES PANNEAUX" — chargée en AJAX
+    ══════════════════════════════════════════════════════ --}}
+    <div id="modal-panels" class="modal-overlay" style="display:none;" onclick="closePanelsModal(event)">
+        <div class="modal" style="max-width:920px;width:100%;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 class="modal-title">🪧 Panneaux — <span id="panels-modal-ref" style="color:var(--accent);"></span></h3>
+                <button class="modal-close" onclick="closePanelsModal()" type="button" aria-label="Fermer">✕</button>
+            </div>
+            <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+                <div id="panels-modal-meta" style="font-size:12px;color:var(--text3);margin-bottom:14px;"></div>
+                <div id="panels-modal-loading" style="text-align:center;padding:40px;color:var(--text3);">
+                    <div class="animate-spin" style="display:inline-block;width:24px;height:24px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;"></div>
+                    <div style="margin-top:8px;font-size:12px;">Chargement…</div>
+                </div>
+                <div id="panels-modal-grid" style="display:none;"></div>
+                <div id="panels-modal-empty" style="display:none;text-align:center;padding:40px;color:var(--text3);">
+                    <div style="font-size:48px;">🪧</div>
+                    <div>Aucun panneau lié à cette réservation.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closePanelsModal()" class="btn btn-ghost">Fermer</button>
+            </div>
+        </div>
+    </div>
+
     <style>
         /* Stats grid */
         .stats-grid {
@@ -539,6 +566,80 @@
         if (!e || e.target === document.getElementById('modal-annuler') || e.target.closest('.modal-close')) {
             document.getElementById('modal-annuler').style.display = 'none';
         }
+    }
+
+    // ─── Modale "Voir les panneaux" — chargée en AJAX ──────────────
+    async function openPanelsModal(reservationId, reference) {
+        const modal   = document.getElementById('modal-panels');
+        const loading = document.getElementById('panels-modal-loading');
+        const grid    = document.getElementById('panels-modal-grid');
+        const empty   = document.getElementById('panels-modal-empty');
+        const meta    = document.getElementById('panels-modal-meta');
+
+        document.getElementById('panels-modal-ref').textContent = reference;
+        loading.style.display = 'block';
+        grid.style.display    = 'none';
+        empty.style.display   = 'none';
+        grid.innerHTML        = '';
+        meta.textContent      = '';
+        modal.style.display   = 'flex';
+
+        try {
+            const url  = `/admin/reservations/${reservationId}/panels-list`;
+            const res  = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+
+            loading.style.display = 'none';
+            meta.textContent = `${data.reservation.count} panneau(x) — Période : ${data.reservation.start_date} → ${data.reservation.end_date}`;
+
+            if (!data.panels.length) {
+                empty.style.display = 'block';
+                return;
+            }
+
+            grid.style.display = 'grid';
+            grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(220px,1fr))';
+            grid.style.gap = '12px';
+
+            const placeholder = '/images/panel-placeholder.svg';
+            grid.innerHTML = data.panels.map(p => `
+                <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface2);">
+                    <div style="height:120px;background:var(--surface3);display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                        ${p.photo_url
+                            ? `<img src="${p.photo_url}" alt="${p.reference}" loading="lazy"
+                                  onerror="this.onerror=null;this.src='${placeholder}'"
+                                  style="width:100%;height:100%;object-fit:cover;">`
+                            : `<img src="${placeholder}" alt="placeholder" style="width:60%;height:60%;object-fit:contain;opacity:.7;">`}
+                    </div>
+                    <div style="padding:10px 12px;">
+                        <div style="font-family:monospace;font-weight:700;color:var(--accent);font-size:13px;">${escapeHtml(p.reference)}</div>
+                        <div style="font-weight:500;font-size:13px;margin:2px 0 6px;">${escapeHtml(p.name)}</div>
+                        <div style="font-size:11px;color:var(--text3);display:flex;flex-wrap:wrap;gap:6px;">
+                            <span>📍 ${escapeHtml(p.commune)}</span>
+                            <span>📏 ${escapeHtml(p.format)}</span>
+                            ${p.is_lit ? '<span style="color:var(--accent);">💡</span>' : ''}
+                        </div>
+                        <div style="margin-top:6px;font-size:12px;font-weight:600;color:var(--accent);">
+                            ${Number(p.monthly_rate).toLocaleString('fr-FR')} FCFA/mois
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {
+            loading.style.display = 'none';
+            empty.style.display = 'block';
+            empty.innerHTML = '<div style="font-size:48px;">⚠️</div><div>Impossible de charger les panneaux.</div>';
+        }
+    }
+
+    function closePanelsModal(e) {
+        if (!e || e.target === document.getElementById('modal-panels') || e.target.closest('.modal-close')) {
+            document.getElementById('modal-panels').style.display = 'none';
+        }
+    }
+
+    function escapeHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
     
     document.addEventListener('keydown', function(e) {
