@@ -157,8 +157,10 @@ $sIconLg = match($poseTask->status) {
                 $tech        = $poseTask->technicien;
                 $waSent      = $poseTask->whatsapp_sent_at;
                 $progress    = (int) ($poseTask->progress_percent ?? 0);
-                $progColor   = $poseTask->progressColor ?? null;
-                if (method_exists($poseTask, 'progressColor')) $progColor = $poseTask->progressColor();
+                // Note : progressColor est une méthode, pas un attribut → toujours appelée avec ()
+                $progColor   = method_exists($poseTask, 'progressColor')
+                    ? $poseTask->progressColor()
+                    : '#ef4444';
             @endphp
 
             <div style="margin:0 18px 18px;border-top:1px solid var(--border);padding-top:14px">

@@ -1194,7 +1194,10 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
   [style*="grid-template-columns:repeat(5"],
   [style*="grid-template-columns: repeat(5"],
   [style*="grid-template-columns:repeat(6"],
-  [style*="grid-template-columns: repeat(6"] {
+  [style*="grid-template-columns: repeat(6"],
+  /* Patterns 1fr 1fr / 1fr 1fr 1fr (sans repeat) */
+  [style*="grid-template-columns:1fr 1fr"],
+  [style*="grid-template-columns: 1fr 1fr"] {
     grid-template-columns: 1fr !important;
   }
 
@@ -1345,6 +1348,40 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
   .filters-row,
   .filter-row { flex-wrap: wrap !important; }
   .filter-group { flex: 1 1 100% !important; min-width: 0 !important; }
+}
+
+/* ═══════════════════════════════════════════════
+   PATTERNS DASHBOARD + PAGES LISTE — défensif
+   Couvre les layouts 2-colonnes (left + right rail) communs.
+   ═══════════════════════════════════════════════ */
+
+/* Dashboard : layout 2 colonnes ≤ 1024px → stack */
+@media (max-width: 1024px) {
+  /* Left+right rails forcés à wrap */
+  [style*="display:flex"][style*="align-items:flex-start"][style*="gap"],
+  [style*="display: flex"][style*="align-items: flex-start"][style*="gap"] {
+    flex-wrap: wrap !important;
+  }
+  /* Right rail (270px / 280px / 300px / 320px) → pleine largeur */
+  [style*="width:270px"][style*="flex-shrink:0"],
+  [style*="width: 270px"][style*="flex-shrink:0"],
+  [style*="width:280px"][style*="flex-shrink:0"],
+  [style*="width: 280px"][style*="flex-shrink:0"],
+  [style*="width:300px"][style*="flex-shrink:0"],
+  [style*="width: 300px"][style*="flex-shrink:0"],
+  [style*="width:320px"][style*="flex-shrink:0"],
+  [style*="width: 320px"][style*="flex-shrink:0"] {
+    width: 100% !important;
+  }
+}
+
+/* Tablette ≤ 1024px : stats-grid 4+ cols → 2 cols (déjà couvert plus haut, mais on
+   ajoute la version sans repeat) */
+@media (max-width: 1024px) {
+  [style*="grid-template-columns:1fr 1fr 1fr 1fr"],
+  [style*="grid-template-columns: 1fr 1fr 1fr 1fr"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
 }
 
 /* SMALL MOBILE (≤ 480px) — encore plus serré */
