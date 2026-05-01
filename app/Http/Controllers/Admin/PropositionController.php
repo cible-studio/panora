@@ -114,52 +114,27 @@ class PropositionController extends Controller
             'proposition_expires_at' => now()->addDays(30),
         ]);
 
-        try {
-            \Mail::to($reservation->client->email)->send(
-                new \App\Mail\PropositionMail($reservation, $token)
-            );
-
-            Log::info('admin.propositions.sent', [
+        // Envoi via NotificationMailer (try/catch + diagnostic SMTP + log centralisés)
+        $result = app(\App\Services\NotificationMailer::class)->send(
+            $reservation->client->email,
+            new \App\Mail\PropositionMail($reservation),
+            context: [
+                'action'         => 'proposition.sent',
                 'reservation_id' => $reservation->id,
                 'reference'      => $reservation->reference,
-                'client_email'   => $reservation->client->email,
-                'user_id'        => auth()->id(),
-            ]);
+                'sent_by'        => auth()->id(),
+            ]
+        );
 
+        if ($result->ok) {
             return back()->with('success', "✅ Proposition envoyée à {$reservation->client->email}.");
-
-        } catch (\Throwable $e) {
-            Log::error('admin.propositions.send_failed', [
-                'reservation_id' => $reservation->id,
-                'error'          => $e->getMessage(),
-            ]);
-
-            // Diagnostic explicite : l'admin doit comprendre quoi faire
-            $msg  = $e->getMessage();
-            $hint = match (true) {
-                str_contains($msg, 'Connection could not be established'),
-                str_contains($msg, 'Connection refused'),
-                str_contains($msg, 'Could not connect') =>
-                    '⚠️ Connexion SMTP impossible. Vérifiez MAIL_HOST et MAIL_PORT dans .env.',
-                str_contains($msg, 'Authentication failed'),
-                str_contains($msg, 'Authentication required'),
-                str_contains($msg, 'Username and Password not accepted') =>
-                    '⚠️ Identifiants SMTP refusés. Vérifiez MAIL_USERNAME et MAIL_PASSWORD dans .env (mot de passe d\'application Gmail si 2FA active).',
-                str_contains($msg, 'STARTTLS'),
-                str_contains($msg, 'TLS'),
-                str_contains($msg, 'SSL') =>
-                    '⚠️ Erreur TLS/SSL. Vérifiez MAIL_ENCRYPTION (tls ou ssl) dans .env.',
-                str_contains($msg, 'Address')             =>
-                    '⚠️ Adresse email invalide ou expéditeur (MAIL_FROM_ADDRESS) mal configuré.',
-                default => '⚠️ Erreur d\'envoi : ' . mb_substr($msg, 0, 180),
-            };
-
-            $link = route('admin.propositions.show', [$reservation->reference, $slug]);
-
-            return back()->with('warning',
-                $hint . ' Lien à partager manuellement : ' . $link
-            );
         }
+
+        // Échec → on donne à l'admin le lien public à partager manuellement
+        $link = route('proposition.show', [$reservation->reference, $slug]);
+        return back()->with('warning',
+            $result->message . ' Lien à partager manuellement : ' . $link
+        );
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -238,8 +213,11 @@ class PropositionController extends Controller
                 ->with('error', 'Erreur lors de la confirmation. Contactez votre commercial.');
         }
 
+        $reservation = $reservation->fresh(['client', 'panels', 'user']);
+        $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_ACCEPTED);
+
         return view('admin.propositions.confirmed', [
-            'reservation' => $reservation->fresh(['client', 'panels']),
+            'reservation' => $reservation,
             'client'      => $reservation->client,
             'campaign'    => $campaign,
         ]);
@@ -254,12 +232,59 @@ class PropositionController extends Controller
         if (!$reservation)
             abort(404);
 
-        $this->propositionService->refuser($reservation, $request->input('motif'));
+        $motif = $request->input('motif');
+        $this->propositionService->refuser($reservation, $motif);
+
+        $reservation = $reservation->fresh(['client', 'panels', 'user']);
+        $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_REFUSED, $motif);
 
         return view('admin.propositions.refused', [
             'reservation' => $reservation,
             'client'      => $reservation->client,
         ]);
+    }
+
+    /**
+     * Notifie par mail le commercial qui a créé la proposition.
+     * Si pas de user_id sur la réservation → fallback : tous les admins actifs.
+     * Échec d'envoi silencieux (le client a déjà fait sa décision, on ne casse rien).
+     */
+    private function notifyDecision(\App\Models\Reservation $reservation, string $decision, ?string $reason = null): void
+    {
+        $mailer = app(\App\Services\NotificationMailer::class);
+
+        $recipients = [];
+        if ($reservation->user?->email && filter_var($reservation->user->email, FILTER_VALIDATE_EMAIL)) {
+            $recipients[] = $reservation->user->email;
+        }
+
+        // Fallback : si le créateur n'existe plus / pas d'email, on prévient les admins
+        if (empty($recipients)) {
+            $recipients = \App\Models\User::query()
+                ->where('is_active', true)
+                ->where('role', 'admin')
+                ->pluck('email')
+                ->filter(fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL))
+                ->all();
+        }
+
+        if (empty($recipients)) {
+            Log::warning('proposition.decision.no_recipient', [
+                'reservation_id' => $reservation->id,
+                'decision'       => $decision,
+            ]);
+            return;
+        }
+
+        $mailer->sendSilently(
+            $recipients,
+            new \App\Mail\PropositionDecisionMail($reservation, $decision, $reason),
+            context: [
+                'action'         => 'proposition.decision',
+                'reservation_id' => $reservation->id,
+                'decision'       => $decision,
+            ]
+        );
     }
 
     // ══════════════════════════════════════════════════════════════

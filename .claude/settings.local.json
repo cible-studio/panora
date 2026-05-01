@@ -32,7 +32,12 @@
       "Bash(php -l app/Support/PdfAssets.php)",
       "Bash(grep -n 'match \\($statut\\\\|case '\\\\''option\\\\|case '\\\\''occupe\\\\|in_array\\($statut' /c/wamp64/www/panora/app/Http/Controllers/Admin/ReservationController.php)",
       "Bash(php -l app/Services/AvailabilityService.php)",
-      "Bash(php -l database/migrations/2026_05_01_120000_add_overlap_index_for_anti_double_booking.php)"
+      "Bash(php -l database/migrations/2026_05_01_120000_add_overlap_index_for_anti_double_booking.php)",
+      "Bash(php -l app/Http/Controllers/Admin/UserController.php)",
+      "Bash(php -l app/Mail/PropositionMail.php)",
+      "Bash(php -l app/Mail/UserWelcomeMail.php)",
+      "Bash(php -l app/Mail/PropositionDecisionMail.php)",
+      "Bash(php -l app/Services/NotificationMailer.php)"
     ]
   }
 }

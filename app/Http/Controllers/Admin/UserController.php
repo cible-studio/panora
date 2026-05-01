@@ -3,12 +3,14 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 
+use App\Mail\UserWelcomeMail;
 use App\Models\User;
 use App\Models\AuditLog;
 
 use App\Enums\UserRole;
 
 use App\Services\AlertService;
+use App\Services\NotificationMailer;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -36,10 +38,12 @@ class UserController extends Controller
             'agent_code' => 'nullable|string|unique:users,agent_code',
         ]);
 
+        $plainPassword = $request->password; // gardé pour l'email AVANT hash
+
         $user = User::create([
             'name'       => $request->name,
             'email'      => $request->email,
-            'password'   => Hash::make($request->password),
+            'password'   => Hash::make($plainPassword),
             'role'       => $request->role,
             'agent_code' => $request->agent_code,
             'is_active'  => true,
@@ -53,7 +57,7 @@ class UserController extends Controller
             'technique' => 'Technicien',
         ];
         $roleLabel = $roleLabels[$request->role] ?? $request->role;
-        
+
         AlertService::create(
             'utilisateur',
             'info',
@@ -62,8 +66,24 @@ class UserController extends Controller
             $user
         );
 
+        // ── Mail de bienvenue (queue + try/catch via NotificationMailer) ───
+        // Si l'envoi échoue (SMTP, erreur app...), on ne casse PAS la création.
+        $mailResult = app(NotificationMailer::class)->send(
+            $user->email,
+            new UserWelcomeMail($user, $plainPassword, 'created'),
+            context: ['action' => 'user.welcome', 'created_by' => auth()->id()]
+        );
+
+        $msg = 'Utilisateur créé avec succès !';
+        if ($mailResult->ok) {
+            $msg .= ' 📧 Un email de bienvenue a été envoyé à ' . $user->email . '.';
+            return redirect()->route('admin.users.index')->with('success', $msg);
+        }
+
+        // Mail KO → on prévient l'admin sans bloquer
         return redirect()->route('admin.users.index')
-            ->with('success', 'Utilisateur créé avec succès !');
+            ->with('warning', $msg . ' ' . $mailResult->message
+                . ' Vous pouvez communiquer manuellement les identifiants à ' . $user->email . '.');
     }
 
     public function edit(User $user)
@@ -158,8 +178,18 @@ class UserController extends Controller
 
         $oldStatus = $user->is_active ? 'actif' : 'désactivé';
         $newStatus = !$user->is_active;
-        
+        $wasInactive = !$user->is_active;
+
         $user->update(['is_active' => $newStatus]);
+
+        // Notifier l'utilisateur si son compte vient d'être (ré)activé
+        if ($wasInactive && $newStatus === true) {
+            app(NotificationMailer::class)->sendSilently(
+                $user->email,
+                new UserWelcomeMail($user, null, 'reactivated'),
+                context: ['action' => 'user.reactivated', 'by' => auth()->id()]
+            );
+        }
 
         $statusText = $newStatus ? 'activé' : 'désactivé';
         $statusIcon = $newStatus ? '✅' : '🔒';
