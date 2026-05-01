@@ -38,20 +38,84 @@
   <div class="card-body">
     <div class="form-3col">
       <div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">CONTACT</div>
-        <div style="font-weight:500;">{{ $agency->contact ?? '—' }}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">EMAIL GÉNÉRAL</div>
+        <div style="font-weight:500;">
+            @if($agency->email)
+                <a href="mailto:{{ $agency->email }}" style="color:var(--accent);text-decoration:none">{{ $agency->email }}</a>
+            @else — @endif
+        </div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">EMAIL</div>
-        <div style="font-weight:500;">{{ $agency->email ?? '—' }}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">TÉLÉPHONE</div>
+        <div style="font-weight:500;">
+            @if($agency->phone)
+                <a href="tel:{{ $agency->phone }}" style="color:var(--accent);text-decoration:none">{{ $agency->phone }}</a>
+            @else — @endif
+        </div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">ADRESSE</div>
-        <div style="font-weight:500;">{{ $agency->address ?? '—' }}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">VILLE</div>
+        <div style="font-weight:500;">{{ $agency->city ?? '—' }}</div>
       </div>
     </div>
+    @if($agency->address)
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">ADRESSE COMPLÈTE</div>
+            <div style="font-weight:500;">{{ $agency->address }}</div>
+        </div>
+    @endif
   </div>
 </div>
+
+{{-- ── Carte Contacts détaillés (T11) ─────────────────────────── --}}
+@if($agency->manager_name || $agency->commercial_name || $agency->commercial_email || $agency->commercial_phone)
+<div class="card" style="margin-top:14px">
+    <div class="card-header">
+        <span class="card-title">👥 Contacts</span>
+    </div>
+    <div class="card-body">
+        <div class="form-2col">
+            {{-- Responsable --}}
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:700;margin-bottom:6px">
+                    🎩 Responsable
+                </div>
+                @if($agency->manager_name)
+                    <div style="font-weight:600;color:var(--text);font-size:14px">{{ $agency->manager_name }}</div>
+                @else
+                    <div style="color:var(--text3);font-style:italic;font-size:12px">Non renseigné</div>
+                @endif
+            </div>
+
+            {{-- Commercial --}}
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:700;margin-bottom:6px">
+                    💼 Commercial dédié
+                </div>
+                @if($agency->commercial_name)
+                    <div style="font-weight:600;color:var(--text);font-size:14px;margin-bottom:6px">{{ $agency->commercial_name }}</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px">
+                        @if($agency->commercial_email)
+                            <a href="mailto:{{ $agency->commercial_email }}"
+                               style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--accent-dim);border:1px solid rgba(232,160,32,.3);border-radius:6px;color:var(--accent);text-decoration:none;font-weight:500">
+                                ✉️ {{ $agency->commercial_email }}
+                            </a>
+                        @endif
+                        @if($agency->commercial_phone)
+                            <a href="tel:{{ $agency->commercial_phone }}"
+                               style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--accent-dim);border:1px solid rgba(232,160,32,.3);border-radius:6px;color:var(--accent);text-decoration:none;font-weight:500">
+                                ☎ {{ $agency->commercial_phone }}
+                            </a>
+                        @endif
+                    </div>
+                @else
+                    <div style="color:var(--text3);font-style:italic;font-size:12px">Aucun commercial dédié</div>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- Tableau panneaux --}}
 <div class="card">

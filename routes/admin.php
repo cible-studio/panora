@@ -45,6 +45,15 @@ Route::prefix('pose')->name('pose.public.')->middleware('throttle:30,1')->group(
         ->name('update');
 });
 
+// ── Route PUBLIQUE Satisfaction client (T9) ─────────────────────────
+// Accès direct via token 64 chars sans authentification.
+Route::prefix('satisfaction')->middleware('throttle:10,1')->group(function () {
+    Route::get('/{token}',  [\App\Http\Controllers\SatisfactionController::class, 'show'])
+        ->name('satisfaction.show');
+    Route::post('/{token}', [\App\Http\Controllers\SatisfactionController::class, 'submit'])
+        ->name('satisfaction.submit');
+});
+
 Route::prefix('proposition')->name('proposition.')->group(function () {
 
     // Ancienne URL (token 64 chars) — rétrocompatibilité
@@ -277,6 +286,11 @@ Route::prefix('admin')
         // Clients
         Route::post('clients/quick-store', [ClientController::class, 'storeQuick'])
             ->name('clients.quick-store');
+        // Import Excel (avant les routes paramétriques pour éviter conflit)
+        Route::get('clients/import/template', [ClientController::class, 'importTemplate'])
+            ->name('clients.import.template');
+        Route::post('clients/import',         [ClientController::class, 'import'])
+            ->name('clients.import');
         Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
         Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');
         Route::get('clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');
@@ -381,6 +395,12 @@ Route::prefix('admin')
             ->name('propositions.update-status');
         Route::get('propositions/{proposition}/pdf', [PropositionController::class, 'exportPdf'])
             ->name('propositions.pdf');
+
+        // Campagnes — exports (avant le resource pour éviter conflit /campaigns/{id})
+        Route::get('campaigns/export/excel', [CampaignController::class, 'exportExcel'])
+            ->name('campaigns.export.excel');
+        Route::get('campaigns/export/pdf',   [CampaignController::class, 'exportPdf'])
+            ->name('campaigns.export.pdf');
 
         // Campagnes
         Route::resource('campaigns', CampaignController::class);

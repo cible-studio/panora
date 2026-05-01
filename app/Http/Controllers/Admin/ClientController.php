@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Client\StoreClientRequest;
 use App\Http\Requests\Client\UpdateClientRequest;
+use App\Imports\ClientsImport;
 use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use App\Services\AlertService;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 
 class ClientController extends Controller
@@ -387,6 +390,86 @@ class ClientController extends Controller
             'text' => $client->name,
             'ncc' => $client->ncc,
 
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // IMPORT EXCEL — admin/clients/import
+    // ══════════════════════════════════════════════════════════════════
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:5120', // 5 Mo
+        ], [
+            'file.required' => 'Veuillez sélectionner un fichier.',
+            'file.mimes'    => 'Format invalide. Acceptés : .xlsx, .xls, .csv',
+            'file.max'      => 'Fichier trop volumineux (max 5 Mo).',
+        ]);
+
+        $importer = new ClientsImport();
+
+        try {
+            Excel::import($importer, $request->file('file'));
+        } catch (\Throwable $e) {
+            Log::error('clients.import.failed', ['error' => $e->getMessage()]);
+            return back()->with('error',
+                '❌ Erreur d\'import : ' . mb_substr($e->getMessage(), 0, 200));
+        }
+
+        $errors = method_exists($importer, 'errors') ? $importer->errors() : collect();
+        $errorCount = $errors->count();
+
+        $msg = "✅ {$importer->imported} client(s) importé(s).";
+        if ($importer->skipped > 0) {
+            $msg .= " {$importer->skipped} ignoré(s) (doublons ou lignes vides).";
+        }
+        if ($errorCount > 0) {
+            $msg .= " ⚠️ {$errorCount} ligne(s) en erreur.";
+        }
+
+        Log::info('clients.import.success', [
+            'imported' => $importer->imported,
+            'skipped'  => $importer->skipped,
+            'errors'   => $errorCount,
+            'user_id'  => auth()->id(),
+        ]);
+
+        AlertService::create(
+            'client',
+            'info',
+            '📥 Import clients — ' . $importer->imported . ' nouveau(x)',
+            auth()->user()?->name . ' a importé ' . $importer->imported . ' client(s) depuis un fichier Excel/CSV.',
+            null
+        );
+
+        return redirect()->route('admin.clients.index')
+            ->with($importer->imported > 0 ? 'success' : 'warning', $msg);
+    }
+
+    /**
+     * Modèle CSV téléchargeable pour l'import.
+     * GET admin/clients/import/template
+     */
+    public function importTemplate(): StreamedResponse
+    {
+        $headers = ['nom', 'email', 'telephone', 'entreprise', 'ncc', 'contact', 'secteur', 'adresse'];
+        $sample  = [
+            ['EXEMPLE SARL', 'contact@exemple.ci', '0707070707', 'EXEMPLE GROUP', 'NCC-2026-001', 'Mr KOFFI', 'Telecom', 'Plateau, Abidjan'],
+            ['CIBLE TEST',   'test@cible.ci',     '0102030405', '',                '',           '',          '',         ''],
+        ];
+
+        $callback = function () use ($headers, $sample) {
+            $out = fopen('php://output', 'w');
+            // BOM UTF-8 pour Excel français
+            fputs($out, "\xEF\xBB\xBF");
+            fputcsv($out, $headers, ';');
+            foreach ($sample as $row) fputcsv($out, $row, ';');
+            fclose($out);
+        };
+
+        return response()->streamDownload($callback, 'modele-import-clients.csv', [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="modele-import-clients.csv"',
         ]);
     }
 

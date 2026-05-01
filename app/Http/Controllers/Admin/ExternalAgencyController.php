@@ -20,19 +20,44 @@ class ExternalAgencyController extends Controller
     // ── Liste des régies ──────────────────────────────────────
     public function index(Request $request)
     {
-        $agencies = ExternalAgency::query()
+        $query = ExternalAgency::query()
             ->withCount('externalPanels')
-            ->with(['externalPanels.campaigns.client', 'externalPanels.campaigns'])
-            ->when($request->search, fn($q, $s) =>
-                $q->where('name', 'like', "%$s%")
-                  ->orWhere('email', 'like', "%$s%")
-                  ->orWhere('contact', 'like', "%$s%")
-            )
-            ->orderBy('name')
-            ->paginate(15)
-            ->withQueryString();
+            ->with(['externalPanels.campaigns.client', 'externalPanels.campaigns']);
 
-        return view('admin.external-agencies.index', compact('agencies'));
+        // Recherche : mot entier en début de mot (LIKE 'terme%') sur plusieurs colonnes
+        if ($request->filled('search')) {
+            $term     = trim($request->input('search'));
+            $startLike = $term . '%';
+            $anyLike  = '%' . $term . '%';
+
+            $query->where(function ($q) use ($startLike, $anyLike) {
+                $q->where('name', 'like', $startLike)
+                  ->orWhere('manager_name', 'like', $startLike)
+                  ->orWhere('commercial_name', 'like', $startLike)
+                  ->orWhere('email', 'like', $startLike)
+                  ->orWhere('commercial_email', 'like', $startLike)
+                  ->orWhere('contact', 'like', $startLike)
+                  // Recherche large sur ville/adresse pour catch les partials utiles
+                  ->orWhere('city', 'like', $anyLike)
+                  ->orWhere('address', 'like', $anyLike);
+            });
+        }
+
+        // Filtre statut depuis les KPI cliquables : ?status=active|inactive
+        if ($request->filled('status')) {
+            $query->where('is_active', $request->input('status') === 'active');
+        }
+
+        $agencies = $query->orderBy('name')->paginate(15)->withQueryString();
+
+        // Stats pour les KPI cliquables
+        $stats = [
+            'total'    => ExternalAgency::count(),
+            'active'   => ExternalAgency::where('is_active', true)->count(),
+            'inactive' => ExternalAgency::where('is_active', false)->count(),
+        ];
+
+        return view('admin.external-agencies.index', compact('agencies', 'stats'));
     }
 
     // ── Fiche régie + ses panneaux ────────────────────────────

@@ -31,6 +31,11 @@ class AppServiceProvider extends ServiceProvider
             ExternalPanel::observe(\App\Observers\ExternalPanelObserver::class);
         }
 
+        // T9 : déclenche l'enquête de satisfaction quand campaign passe en "termine"
+        if (class_exists(\App\Observers\CampaignObserver::class)) {
+            Campaign::observe(\App\Observers\CampaignObserver::class);
+        }
+
 
         if (app()->runningInConsole() === false || app()->environment('production')) {
             

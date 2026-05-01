@@ -1,5 +1,14 @@
 <x-admin-layout title="Campagnes">
     <x-slot:topbarActions>
+        {{-- Exports (préservent les filtres URL courants) --}}
+        <a href="{{ route('admin.campaigns.export.excel', request()->query()) }}"
+           class="btn btn-ghost btn-sm" title="Exporter la liste filtrée en Excel">
+            📊 Excel
+        </a>
+        <a href="{{ route('admin.campaigns.export.pdf', request()->query()) }}"
+           class="btn btn-ghost btn-sm" title="Exporter la liste filtrée en PDF">
+            📄 PDF
+        </a>
         @can('create', App\Models\Campaign::class)
         <a href="{{ route('admin.campaigns.create') }}" class="btn btn-primary">
             + Nouvelle campagne

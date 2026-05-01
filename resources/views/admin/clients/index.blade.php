@@ -1,11 +1,15 @@
 <x-admin-layout title="Clients">
     <x-slot:topbarActions>
+        <button type="button" onclick="document.getElementById('modal-import-clients').style.display='flex'"
+                class="btn btn-ghost btn-sm">
+            📥 Importer
+        </button>
         <a href="{{ route('admin.clients.create') }}" class="btn btn-primary">
             + Nouveau client
         </a>
     </x-slot:topbarActions>
 
-    {{-- ══ STATS ══ --}}
+    {{-- ══ STATS (sans CA total — déplacé dans la fiche client) ══ --}}
     <div class="ci-stats-grid">
         <div class="ci-stat">
             <div class="ci-stat-icon">👥</div>
@@ -21,19 +25,11 @@
                 <div class="ci-stat-label">Avec campagne active</div>
             </div>
         </div>
-        <div class="ci-stat ci-stat-gold">
-            <div class="ci-stat-icon">💰</div>
-            <div class="ci-stat-body">
-                <div class="ci-stat-num">{{ number_format($stats['ca_total'] ?? 0, 0, ',', ' ') }}</div>
-                <div class="ci-stat-label">CA total (FCFA)</div>
-            </div>
-        </div>
         <div class="ci-stat ci-stat-actions">
-            <div class="ci-stat-label" style="margin-bottom:10px">Exports</div>
-            <div style="display:flex;gap:8px">
-                <button class="ci-export-btn" onclick="CI.toast('Export Excel en développement','info')">📊
-                    Excel</button>
-                <button class="ci-export-btn" onclick="CI.toast('Export PDF en développement','info')">📄 PDF</button>
+            <div class="ci-stat-label" style="margin-bottom:10px">Exports & Import</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="ci-export-btn" onclick="document.getElementById('modal-import-clients').style.display='flex'">📥 Import Excel</button>
+                <a class="ci-export-btn" href="{{ route('admin.clients.import.template') }}" style="text-decoration:none">📋 Modèle CSV</a>
             </div>
         </div>
     </div>
@@ -757,6 +753,48 @@
             }
         }
     </style>
+
+    {{-- ══ MODAL IMPORT EXCEL ══ --}}
+    <div id="modal-import-clients" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px"
+         onclick="if(event.target===this)this.style.display='none'">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:520px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.35)">
+            <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:10px">
+                    <span style="font-size:22px">📥</span>
+                    <div>
+                        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:600">Module Clients</div>
+                        <h3 style="font-size:16px;font-weight:600;color:var(--text);margin:2px 0 0">Import Excel / CSV</h3>
+                    </div>
+                </div>
+                <button type="button" onclick="document.getElementById('modal-import-clients').style.display='none'"
+                        style="background:none;border:none;font-size:18px;color:var(--text3);cursor:pointer">✕</button>
+            </div>
+            <form method="POST" action="{{ route('admin.clients.import') }}" enctype="multipart/form-data">
+                @csrf
+                <div style="padding:20px 22px">
+                    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.5">
+                        <strong style="color:var(--text)">Format attendu :</strong>
+                        <span style="font-family:ui-monospace,monospace;color:var(--accent);">nom · email · telephone · entreprise · ncc · contact · secteur · adresse</span>
+                        <br>
+                        Les doublons (même email ou même NCC) sont ignorés silencieusement.
+                        <br>
+                        <a href="{{ route('admin.clients.import.template') }}" style="color:var(--accent);text-decoration:underline;font-weight:600">📋 Télécharger le modèle CSV</a>
+                    </div>
+
+                    <label style="display:block;font-size:12px;color:var(--text2);margin-bottom:6px;font-weight:500">
+                        Fichier Excel ou CSV (max 5 Mo)
+                    </label>
+                    <input type="file" name="file" required accept=".xlsx,.xls,.csv,.txt"
+                           style="width:100%;padding:10px;border:1px dashed var(--border);border-radius:8px;background:var(--surface2);color:var(--text)">
+                </div>
+                <div style="padding:14px 22px;border-top:1px solid var(--border);background:var(--surface2);display:flex;gap:8px;justify-content:flex-end">
+                    <button type="button" onclick="document.getElementById('modal-import-clients').style.display='none'"
+                            class="btn btn-ghost btn-sm">Annuler</button>
+                    <button type="submit" class="btn btn-primary btn-sm">📥 Lancer l'import</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     @push('scripts')
         <script>

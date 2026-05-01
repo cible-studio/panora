@@ -91,12 +91,51 @@
     {{-- Activité --}}
     <div style="display:flex;flex-direction:column;gap:16px;">
 
-        {{-- Stats --}}
+        {{-- Badges client récurrent / satisfaction --}}
+        @php
+            $campaignsCount     = $client->campaigns->count();
+            $reservationsCount  = $client->reservations->count();
+            $isRecurrent        = $campaignsCount > 1;
+            // Note moyenne satisfaction (calculée si la table existe — sinon null)
+            $satisfactionAvg = null;
+            $satisfactionN   = 0;
+            if (\Illuminate\Support\Facades\Schema::hasTable('satisfaction_surveys')) {
+                $sStats = \DB::table('satisfaction_surveys')
+                    ->where('client_id', $client->id)
+                    ->whereNotNull('completed_at')
+                    ->selectRaw('AVG(score_global) as avg, COUNT(*) as n')
+                    ->first();
+                if ($sStats && $sStats->n > 0) {
+                    $satisfactionAvg = round((float) $sStats->avg, 1);
+                    $satisfactionN   = (int) $sStats->n;
+                }
+            }
+        @endphp
+
+        @if($isRecurrent || $satisfactionAvg !== null)
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                @if($isRecurrent)
+                    <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(232,160,32,0.1);border:1px solid rgba(232,160,32,0.3);color:var(--accent);padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600">
+                        🔄 Client récurrent ({{ $campaignsCount }} campagnes)
+                    </span>
+                @endif
+                @if($satisfactionAvg !== null)
+                    @php
+                        $satColor = $satisfactionAvg >= 4 ? '#22c55e' : ($satisfactionAvg >= 3 ? '#f59e0b' : '#ef4444');
+                    @endphp
+                    <span style="display:inline-flex;align-items:center;gap:6px;background:{{ $satColor }}1a;border:1px solid {{ $satColor }}55;color:{{ $satColor }};padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600">
+                        ⭐ {{ number_format($satisfactionAvg, 1, ',', '') }}/5 satisfaction ({{ $satisfactionN }} avis)
+                    </span>
+                @endif
+            </div>
+        @endif
+
+        {{-- Analyse financière (déplacée depuis la liste) --}}
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
             @foreach([
-                ['Réservations',  $client->reservations->count(), 'var(--text)'],
-                ['Campagnes',     $client->campaigns->count(),    '#3b82f6'],
-                ['CA Total',      number_format($totalFacture, 0, ',', ' ') . ' FCFA', 'var(--accent)'],
+                ['Réservations',  $reservationsCount,                                              'var(--text)'],
+                ['Campagnes',     $campaignsCount,                                                 '#3b82f6'],
+                ['CA Total',      number_format($totalFacture, 0, ',', ' ') . ' FCFA',             'var(--accent)'],
             ] as [$label, $value, $color])
             <div style="background:var(--surface);border:1px solid var(--border);
                         border-radius:12px;padding:16px;text-align:center;">

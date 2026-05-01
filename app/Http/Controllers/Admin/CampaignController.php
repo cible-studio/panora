@@ -16,14 +16,19 @@ use App\Models\Reservation;
 use App\Models\Zone;
 
 use App\Enums\CampaignStatus;
+use App\Exports\CampaignsExport;
+use App\Support\PdfAssets;
 
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 
 class CampaignController extends Controller
 {
+    use PdfAssets;
+
     public function __construct(
         protected CampaignService     $campaignService,
         protected AvailabilityService $availability
@@ -41,8 +46,12 @@ class CampaignController extends Controller
             ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
             ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
             ->when($request->status,      fn($q, $s)  => $q->where('status', $s))
+            // Filtres date originaux : date_from (start) / date_to (end)
             ->when($request->date_from,   fn($q, $d)  => $q->where('start_date', '>=', $d))
             ->when($request->date_to,     fn($q, $d)  => $q->where('end_date', '<=', $d))
+            // T12 : Filtre période personnalisée (start_date BETWEEN date_debut AND date_fin)
+            ->when($request->date_debut,  fn($q, $d)  => $q->where('start_date', '>=', $d))
+            ->when($request->date_fin,    fn($q, $d)  => $q->where('start_date', '<=', $d))
             ->when($request->non_facturee, fn($q)     => $q->nonFacturees())
             ->when($request->commune_id,  fn($q, $id) => $q->whereHas('panels', fn($p) => $p->where('commune_id', $id)))
             ->when($request->zone_id,     fn($q, $id) => $q->whereHas('panels', fn($p) => $p->where('zone_id', $id)))
@@ -653,5 +662,68 @@ class CampaignController extends Controller
         );
 
         return back()->with('success', "Campagne prolongée jusqu'au {$newEnd}. Montant recalculé.");
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // EXPORT EXCEL — applique les mêmes filtres que l'index
+    // ══════════════════════════════════════════════════════════════
+    public function exportExcel(Request $request)
+    {
+        $this->authorize('viewAny', Campaign::class);
+
+        $filters = $request->only([
+            'search', 'status', 'client_id',
+            'date_debut', 'date_fin', 'date_from', 'date_to',
+        ]);
+
+        $filename = 'campagnes-' . now()->format('Ymd-His') . '.xlsx';
+
+        Log::info('campaigns.export.excel', [
+            'filters' => $filters,
+            'user_id' => auth()->id(),
+        ]);
+
+        return Excel::download(new CampaignsExport($filters), $filename);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // EXPORT PDF — liste filtrée, format A4 paysage
+    // ══════════════════════════════════════════════════════════════
+    public function exportPdf(Request $request)
+    {
+        $this->authorize('viewAny', Campaign::class);
+
+        $query = Campaign::with(['client:id,name', 'user:id,name'])
+            ->withCount('panels')
+            ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
+            ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
+            ->when($request->status,      fn($q, $s)  => $q->where('status', $s))
+            ->when($request->date_debut,  fn($q, $d)  => $q->where('start_date', '>=', $d))
+            ->when($request->date_fin,    fn($q, $d)  => $q->where('start_date', '<=', $d))
+            ->when($request->date_from,   fn($q, $d)  => $q->where('start_date', '>=', $d))
+            ->when($request->date_to,     fn($q, $d)  => $q->where('end_date', '<=', $d))
+            ->orderByDesc('created_at')
+            ->limit(2000); // garde-fou perf : pas plus de 2000 lignes par PDF
+
+        $campaigns = $query->get();
+        $logoSrc   = $this->getLogoPdf();
+        $generated = now()->format('d/m/Y à H:i');
+        $totalAmount = (float) $campaigns->sum('total_amount');
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.campaigns.pdf.list', compact(
+            'campaigns', 'logoSrc', 'generated', 'totalAmount'
+        ))->setPaper('a4', 'landscape')->setOptions([
+            'isHtml5ParserEnabled' => true,
+            'isRemoteEnabled'      => false,
+            'defaultFont'          => 'DejaVu Sans',
+            'dpi'                  => 96,
+        ]);
+
+        Log::info('campaigns.export.pdf', [
+            'count'   => $campaigns->count(),
+            'user_id' => auth()->id(),
+        ]);
+
+        return $pdf->download('campagnes-' . now()->format('Ymd-His') . '.pdf');
     }
 }

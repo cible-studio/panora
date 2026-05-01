@@ -8,20 +8,46 @@
   </button>
 </x-slot:topbarActions>
 
-{{-- ── Filtres ── --}}
+{{-- ── KPI cliquables (filtre par status) ── --}}
+@php
+    $currentStatus = request('status');
+    $kpis = [
+        ['key' => null,        'label' => 'Total',     'icon' => '🏢', 'value' => $stats['total']    ?? 0, 'color' => 'var(--text)'],
+        ['key' => 'active',    'label' => 'Actives',   'icon' => '✅', 'value' => $stats['active']   ?? 0, 'color' => '#22c55e'],
+        ['key' => 'inactive',  'label' => 'Inactives', 'icon' => '⏸',  'value' => $stats['inactive'] ?? 0, 'color' => '#ef4444'],
+    ];
+@endphp
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+    @foreach($kpis as $k)
+        @php $isActive = ($currentStatus ?? '') === ($k['key'] ?? ''); @endphp
+        <a href="{{ route('admin.external-agencies.index', $k['key'] ? ['status' => $k['key']] : []) }}"
+           class="stat-card {{ $isActive ? 'is-active' : '' }}"
+           style="text-decoration:none;border:1px solid {{ $isActive ? $k['color'] : 'var(--border)' }};background:{{ $isActive ? 'var(--accent-dim)' : 'var(--surface)' }};border-radius:14px;padding:16px;display:flex;align-items:center;gap:14px;transition:all .15s">
+            <div style="font-size:24px">{{ $k['icon'] }}</div>
+            <div>
+                <div style="font-size:22px;font-weight:700;color:{{ $k['color'] }};line-height:1.1">{{ $k['value'] }}</div>
+                <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600">{{ $k['label'] }}</div>
+            </div>
+        </a>
+    @endforeach
+</div>
+
+{{-- ── Filtres recherche ── --}}
 <div class="filter-bar" style="margin-bottom:16px;border-radius:12px 12px 0 0;">
   <form method="GET" action="{{ route('admin.external-agencies.index') }}"
         style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;width:100%;">
+    {{-- Conserve le filtre status courant via hidden --}}
+    @if(request('status'))<input type="hidden" name="status" value="{{ request('status') }}">@endif
     <div class="filter-group" style="flex:1;min-width:200px;">
       <label class="filter-label">Recherche</label>
       <input type="text" name="search" value="{{ request('search') }}"
              class="filter-input" style="width:100%;"
-             placeholder="Nom, email, contact…"/>
+             placeholder="Nom, responsable, commercial, ville…"/>
     </div>
     <div class="filter-group">
       <button type="submit" class="btn btn-primary btn-sm">Filtrer</button>
     </div>
-    @if(request('search'))
+    @if(request('search') || request('status'))
       <div class="filter-group">
         <a href="{{ route('admin.external-agencies.index') }}"
            class="btn btn-ghost btn-sm">Réinitialiser</a>
@@ -160,23 +186,68 @@
 
         <div class="form-2col">
           <div class="mfg">
-            <label>Contact</label>
-            <input type="text" name="contact" value="{{ old('contact') }}"
-                   placeholder="Nom du responsable"/>
-          </div>
-          <div class="mfg">
-            <label>Email</label>
+            <label>Email général</label>
             <input type="email" name="email" value="{{ old('email') }}"
                    class="{{ $errors->has('email') ? 'error' : '' }}"
                    placeholder="contact@regie.ci"/>
             @error('email')<div class="field-error">{{ $message }}</div>@enderror
           </div>
+          <div class="mfg">
+            <label>Téléphone général</label>
+            <input type="text" name="phone" value="{{ old('phone') }}"
+                   placeholder="+225 ..."/>
+          </div>
+        </div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Ville</label>
+            <input type="text" name="city" value="{{ old('city') }}" placeholder="Abidjan"/>
+          </div>
+          <div class="mfg">
+            <label>Statut</label>
+            <select name="is_active">
+                <option value="1" {{ old('is_active', 1) == 1 ? 'selected' : '' }}>✅ Active</option>
+                <option value="0" {{ old('is_active', 1) == 0 ? 'selected' : '' }}>⏸ Inactive</option>
+            </select>
+          </div>
         </div>
 
         <div class="mfg">
           <label>Adresse</label>
-          <textarea name="address"
-                    placeholder="Ex : Zone 4, Abidjan">{{ old('address') }}</textarea>
+          <textarea name="address" placeholder="Ex : Zone 4, Abidjan">{{ old('address') }}</textarea>
+        </div>
+
+        {{-- ── Section Contacts (T11) ───────────────────────── --}}
+        <div class="section-label" style="margin-top:16px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-weight:700;border-top:1px solid var(--border);padding-top:14px;">
+            👥 Contacts détaillés
+        </div>
+
+        <div class="mfg">
+          <label>Responsable général</label>
+          <input type="text" name="manager_name" value="{{ old('manager_name') }}"
+                 placeholder="Nom & prénom du responsable"/>
+        </div>
+
+        <div class="mfg">
+          <label>Commercial dédié</label>
+          <input type="text" name="commercial_name" value="{{ old('commercial_name') }}"
+                 placeholder="Nom & prénom du commercial"/>
+        </div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Email commercial</label>
+            <input type="email" name="commercial_email" value="{{ old('commercial_email') }}"
+                   class="{{ $errors->has('commercial_email') ? 'error' : '' }}"
+                   placeholder="commercial@regie.ci"/>
+            @error('commercial_email')<div class="field-error">{{ $message }}</div>@enderror
+          </div>
+          <div class="mfg">
+            <label>Téléphone commercial</label>
+            <input type="text" name="commercial_phone" value="{{ old('commercial_phone') }}"
+                   placeholder="+225 ..."/>
+          </div>
         </div>
 
       </div>
@@ -215,18 +286,58 @@
 
         <div class="form-2col">
           <div class="mfg">
-            <label>Contact</label>
-            <input type="text" name="contact" :value="agency.contact"/>
+            <label>Email général</label>
+            <input type="email" name="email" :value="agency.email"/>
           </div>
           <div class="mfg">
-            <label>Email</label>
-            <input type="email" name="email" :value="agency.email"/>
+            <label>Téléphone général</label>
+            <input type="text" name="phone" :value="agency.phone"/>
+          </div>
+        </div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Ville</label>
+            <input type="text" name="city" :value="agency.city"/>
+          </div>
+          <div class="mfg">
+            <label>Statut</label>
+            <select name="is_active">
+                <option value="1" :selected="agency.is_active == 1 || agency.is_active === true">✅ Active</option>
+                <option value="0" :selected="agency.is_active == 0 || agency.is_active === false">⏸ Inactive</option>
+            </select>
           </div>
         </div>
 
         <div class="mfg">
           <label>Adresse</label>
           <textarea name="address" x-text="agency.address"></textarea>
+        </div>
+
+        {{-- ── Section Contacts (T11) ───────────────────────── --}}
+        <div class="section-label" style="margin-top:16px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-weight:700;border-top:1px solid var(--border);padding-top:14px;">
+            👥 Contacts détaillés
+        </div>
+
+        <div class="mfg">
+          <label>Responsable général</label>
+          <input type="text" name="manager_name" :value="agency.manager_name"/>
+        </div>
+
+        <div class="mfg">
+          <label>Commercial dédié</label>
+          <input type="text" name="commercial_name" :value="agency.commercial_name"/>
+        </div>
+
+        <div class="form-2col">
+          <div class="mfg">
+            <label>Email commercial</label>
+            <input type="email" name="commercial_email" :value="agency.commercial_email"/>
+          </div>
+          <div class="mfg">
+            <label>Téléphone commercial</label>
+            <input type="text" name="commercial_phone" :value="agency.commercial_phone"/>
+          </div>
         </div>
 
       </div>
