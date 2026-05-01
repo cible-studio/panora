@@ -36,6 +36,15 @@ use App\Http\Controllers\Client\ClientDashboardController;
 // ══════════════════════════════════════════════════════════════
 
 // ── Routes propositions publiques ──────────────────────────────
+// ── Routes PUBLIQUES Pose OOH (accès technicien sans auth) ─────────
+// Throttle strict pour éviter l'abus en cas de fuite du lien.
+Route::prefix('pose')->name('pose.public.')->middleware('throttle:30,1')->group(function () {
+    Route::get('/{token}',         [\App\Http\Controllers\PoseTaskPublicController::class, 'show'])
+        ->name('show');
+    Route::post('/{token}/update', [\App\Http\Controllers\PoseTaskPublicController::class, 'update'])
+        ->name('update');
+});
+
 Route::prefix('proposition')->name('proposition.')->group(function () {
 
     // Ancienne URL (token 64 chars) — rétrocompatibilité
@@ -162,6 +171,8 @@ Route::prefix('admin')
             Route::get('search-campaigns', [PoseController::class, 'searchCampaigns'])->name('search-campaigns');
             Route::get('campaign-panels',  [PoseController::class, 'campaignPanels']) ->name('campaign-panels');
             Route::get('search-panels',    [PoseController::class, 'searchPanels'])   ->name('search-panels');
+            // Polling progression temps réel (vue admin index)
+            Route::get('progress',         [PoseController::class, 'progress'])       ->name('progress');
 
             // ── CRUD standard ─────────────────────────────────────────
             Route::get('/',         [PoseController::class, 'index'])  ->name('index');

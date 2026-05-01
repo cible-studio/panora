@@ -248,8 +248,9 @@ class PoseController extends Controller
             'notes.max'               => 'Les notes ne doivent pas dépasser 1000 caractères.',
         ]);
  
-        $result = $this->poseService->update($poseTask, $validated, auth()->user());
- 
+        $oldTechId = $poseTask->assigned_user_id;
+        $result    = $this->poseService->update($poseTask, $validated, auth()->user());
+
         if (!$result['ok']) {
             return back()->withInput()->with('error', $result['error']);
         }
@@ -262,9 +263,54 @@ class PoseController extends Controller
             auth()->user()->name . ' a modifié la tâche de pose du panneau ' . ($poseTask->panel?->reference ?? ''),
             $poseTask
         );
- 
+
+        // Si le technicien a changé → renvoyer le lien WhatsApp au nouveau
+        $newTechId = (int) ($validated['assigned_user_id'] ?? 0);
+        if ($newTechId && $newTechId !== (int) $oldTechId) {
+            $this->poseService->notifyTechnicianOnWhatsApp($poseTask->fresh()->load('panel.commune', 'technicien'));
+        }
+
         return redirect()->route('admin.pose-tasks.show', $poseTask)
             ->with('success', 'Tâche mise à jour avec succès.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // PROGRESS — JSON polling pour la vue admin (toutes les 30 s)
+    // ══════════════════════════════════════════════════════════════
+    public function progress(Request $request): JsonResponse
+    {
+        $ids = array_map('intval', array_filter((array) $request->input('ids', [])));
+        $query = PoseTask::query()->select([
+            'id', 'panel_id', 'status', 'progress_percent',
+            'started_at', 'done_at', 'real_minutes', 'whatsapp_sent_at',
+        ]);
+
+        if (!empty($ids)) {
+            $query->whereIn('id', $ids);
+        } else {
+            // Par défaut on retourne uniquement les tâches non-terminées des 90 derniers jours
+            $query->whereNotIn('status', [PoseTaskStatus::COMPLETED->value, PoseTaskStatus::CANCELLED->value])
+                  ->where('updated_at', '>=', now()->subDays(90));
+        }
+
+        $tasks = $query->limit(500)->get()->map(fn($t) => [
+            'id'              => $t->id,
+            'status'          => $t->status,
+            'status_label'    => PoseTaskStatus::tryFrom($t->status)?->label() ?? '—',
+            'percent'         => (int) ($t->progress_percent ?? 0),
+            'color'           => $t->progressColor(),
+            'is_running'      => $t->isInProgress(),
+            'is_done'         => $t->status === PoseTaskStatus::COMPLETED->value,
+            'started_at'      => $t->started_at?->toIso8601String(),
+            'done_at'         => $t->done_at?->toIso8601String(),
+            'real_minutes'    => $t->real_minutes,
+            'whatsapp_sent'   => $t->whatsapp_sent_at !== null,
+        ]);
+
+        return response()->json([
+            'tasks'      => $tasks,
+            'server_time'=> now()->toIso8601String(),
+        ]);
     }
 
     // ══════════════════════════════════════════════════════════════

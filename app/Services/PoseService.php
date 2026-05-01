@@ -82,6 +82,10 @@ class PoseService
                     'notes'            => $data['notes'] ?? null,
                 ]);
 
+                // Génération du token public dès la création (pour pouvoir envoyer
+                // immédiatement le lien au technicien par WhatsApp).
+                $task->ensurePublicToken();
+
                 $created[] = $task->id;
 
                 Log::info('pose_task.created', [
@@ -90,6 +94,18 @@ class PoseService
                     'campaign_id' => $campaign?->id,
                     'created_by'  => $creator->id,
                 ]);
+            }
+
+            // Envoi WhatsApp (best-effort, après commit pour ne pas bloquer la trans)
+            // — fait en dehors de la transaction pour ne pas la garder ouverte le
+            //   temps des appels HTTP externes
+            if (!empty($created)) {
+                $tasks = PoseTask::with(['panel:id,reference,name,adresse,quartier,commune_id', 'panel.commune:id,name', 'technicien:id,name,whatsapp_number'])
+                    ->whereIn('id', $created)
+                    ->get();
+                foreach ($tasks as $t) {
+                    $this->notifyTechnicianOnWhatsApp($t);
+                }
             }
 
             if (empty($created) && !empty($warnings)) {
@@ -207,6 +223,54 @@ class PoseService
             ->orderBy('scheduled_at')
             ->limit(20)
             ->get();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // NOTIFICATION WHATSAPP — best effort, n'échoue jamais le flux
+    // ══════════════════════════════════════════════════════════════
+    public function notifyTechnicianOnWhatsApp(PoseTask $task): bool
+    {
+        if (!config('services.whatsapp.enabled', true)) {
+            return false;
+        }
+
+        $tech = $task->technicien;
+        if (!$tech || empty($tech->whatsapp_number)) {
+            Log::info('pose_task.whatsapp.skipped_no_number', [
+                'task_id' => $task->id,
+                'tech_id' => $tech?->id,
+            ]);
+            return false;
+        }
+
+        $task->ensurePublicToken();
+        $url       = $task->publicUrl();
+        $panel     = $task->panel;
+        $commune   = $panel?->commune?->name ?? '—';
+        $address   = trim(($panel?->adresse ?? '') . ($panel?->quartier ? ' · ' . $panel->quartier : ''));
+        $scheduled = $task->scheduled_at?->format('d/m/Y à H:i') ?? '—';
+
+        $message = "Bonjour {$tech->name},\n\n"
+                 . "Une tâche de pose vous est assignée par CIBLE CI :\n\n"
+                 . "• Panneau : " . ($panel->reference ?? '—') . " — " . ($panel->name ?? '') . "\n"
+                 . ($address ? "• Adresse : {$address}\n" : '')
+                 . "• Commune : {$commune}\n"
+                 . "• Prévue : {$scheduled}\n"
+                 . ($task->campaign ? "• Campagne : {$task->campaign->name}\n" : '')
+                 . "\nMettez à jour votre avancement en temps réel ici :\n{$url}\n\n"
+                 . "Merci.\nCIBLE CI";
+
+        $sent = app(WhatsAppService::class)->send(
+            $tech->whatsapp_number,
+            $message,
+            ['action' => 'pose.assignment', 'task_id' => $task->id, 'tech_id' => $tech->id],
+        );
+
+        if ($sent) {
+            $task->forceFill(['whatsapp_sent_at' => now()])->saveQuietly();
+        }
+
+        return $sent;
     }
 
     // ── Helpers ───────────────────────────────────────────────────

@@ -182,6 +182,67 @@ $kpis = [
     @endif
 </div>
 
+{{-- ════ POLLING TEMPS RÉEL : progression des poses ════ --}}
+<script>
+(function () {
+    const POLL_URL      = "{{ route('admin.pose-tasks.progress') }}";
+    const POLL_INTERVAL = 30_000; // 30 s
+
+    function getVisibleTaskIds() {
+        return Array.from(document.querySelectorAll('tr[data-pose-id]'))
+            .map(tr => Number(tr.dataset.poseId))
+            .filter(Boolean);
+    }
+
+    function colorFor(p) {
+        p = Number(p);
+        if (p >= 100) return '#22c55e';
+        if (p >=  67) return '#3b82f6';
+        if (p >=  34) return '#f59e0b';
+        return '#ef4444';
+    }
+
+    async function poll() {
+        const ids = getVisibleTaskIds();
+        if (!ids.length) return;
+
+        try {
+            const url = new URL(POLL_URL, window.location.origin);
+            ids.forEach(id => url.searchParams.append('ids[]', id));
+
+            const res = await fetch(url.toString(), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+
+            (data.tasks || []).forEach(t => {
+                const fill = document.querySelector(`[data-pose-progress="${t.id}"]`);
+                if (fill) {
+                    fill.style.width = t.percent + '%';
+                    fill.style.background = t.color || colorFor(t.percent);
+                    const textEl = fill.closest('td')?.querySelector('.pose-progress-text');
+                    if (textEl) textEl.textContent = t.percent + '%';
+                }
+
+                // Si le statut a changé, signaler visuellement (subtil — pas d'overlay agressif)
+                const row = document.querySelector(`tr[data-pose-id="${t.id}"]`);
+                if (row) {
+                    if (t.is_done) row.dataset.poseStatus = 'realisee';
+                    else if (t.is_running) row.dataset.poseStatus = 'en_cours';
+                }
+            });
+        } catch (e) {
+            // Silencieux — réseau instable
+        }
+    }
+
+    // Démarre le polling après 5s (pour ne pas charger la page initiale + polling en concurrence)
+    setTimeout(poll, 5000);
+    setInterval(poll, POLL_INTERVAL);
+})();
+</script>
+
 {{-- ════ MODAL CONFIRMATION ════ --}}
 <div id="modal-confirm" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.4)">

@@ -19,6 +19,7 @@ class User extends Authenticatable
         'role', 'agent_code', 'is_active',
         'two_fa_enabled', 'last_login_at',
         'reservations_last_seen_at',
+        'whatsapp_number',
     ];
 
     protected $hidden = [

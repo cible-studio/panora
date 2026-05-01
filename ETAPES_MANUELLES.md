@@ -264,6 +264,91 @@ LOG_CHANNEL=daily
 LOG_LEVEL=info
 ```
 
+## ✅ 7.bis Module WhatsApp — notifications techniciens
+
+Le module Pose OOH envoie maintenant un WhatsApp au technicien à chaque
+nouvelle assignation (et à la réassignation). Configuration :
+
+### A. Renseigner le WhatsApp des techniciens
+
+Dans la fiche utilisateur (admin → Utilisateurs → modifier), saisir le numéro
+au format CI :
+- `0707070707` (sera auto-converti en `+225 07 07 07 07 07`)
+- ou directement `+2250707070707`
+
+### B. Choisir un provider (.env)
+
+```env
+# Activer / désactiver globalement
+WHATSAPP_ENABLED=true
+
+# "callmebot" (gratuit, MVP) ou "twilio" (prod payant)
+WHATSAPP_PROVIDER=callmebot
+```
+
+#### Option 1 — CallMeBot (gratuit, démarrage rapide)
+
+1. Sur ton téléphone, ajoute le numéro CallMeBot (`+34 644 51 95 23`) en contact
+2. Envoie un message WhatsApp à ce numéro :
+   `I allow callmebot to send me messages`
+3. Tu recevras une clé API en réponse
+4. Mets-la dans `.env` :
+   ```env
+   CALLMEBOT_API_KEY=123456
+   ```
+
+⚠️ **Limite CallMeBot** : la clé API est liée à un seul numéro destinataire.
+   Pour envoyer à plusieurs techniciens, il faut que **chacun** suive la
+   procédure (contacter CallMeBot avec son propre téléphone). Pratique pour
+   tester et démarrer, mais peu scalable.
+
+#### Option 2 — Twilio (recommandé production)
+
+1. Créer un compte sur https://www.twilio.com (sandbox WhatsApp gratuit pour test)
+2. Activer "Twilio Sandbox for WhatsApp" dans la console
+3. Récupérer SID, Auth Token, et le numéro From
+4. Mettre dans `.env` :
+   ```env
+   WHATSAPP_PROVIDER=twilio
+   TWILIO_SID=ACxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_WHATSAPP_FROM=14155238886
+   ```
+5. Pour les vrais clients (hors sandbox), il faut faire approuver des
+   "templates" WhatsApp Business par Twilio (procédure 24-48h)
+
+### C. Tester l'envoi
+
+Depuis le terminal :
+```bash
+php artisan tinker
+> app(\App\Services\WhatsAppService::class)->send('07XXXXXXXX', 'Test depuis CIBLE CI');
+```
+
+Si tout est OK, le technicien reçoit le message ; sinon `storage/logs/laravel.log`
+contient le diagnostic (`whatsapp.failed`, `whatsapp.callmebot.no_api_key`...).
+
+### D. URL publique technicien
+
+Chaque tâche reçoit un `public_token` (32 chars). Le technicien clique sur le
+lien WhatsApp et arrive sur :
+```
+https://app.cible-ci.com/pose/<token>
+```
+Page mobile-friendly avec :
+- Slider 0-100 % + presets rapides 0/25/50/75/100
+- Note libre optionnelle
+- Bouton "Mettre à jour"
+
+À l'atteinte de 100 %, la tâche est automatiquement marquée comme **réalisée**
+(`status = realisee`, `done_at` rempli, `real_minutes` calculé depuis `started_at`).
+
+### E. Polling temps réel côté admin
+
+La vue admin → Gestion Pose OOH rafraîchit automatiquement les barres de
+progression toutes les **30 secondes** (sans rechargement de page). C'est
+visible dans la colonne "Statut" : pill + barre de progression colorée.
+
 ## ✅ 8. Cron Laravel (autres fonctionnalités)
 
 Si pas déjà en place, ajouter au crontab du serveur :

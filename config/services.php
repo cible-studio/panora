@@ -35,4 +35,25 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | WhatsApp — notifications techniciens (poses OOH)
+    |--------------------------------------------------------------------------
+    | Provider : "callmebot" (gratuit, MVP) ou "twilio" (prod payant).
+    */
+    'whatsapp' => [
+        'provider' => env('WHATSAPP_PROVIDER', 'callmebot'),
+        'enabled'  => (bool) env('WHATSAPP_ENABLED', true),
+    ],
+
+    'callmebot' => [
+        'api_key' => env('CALLMEBOT_API_KEY'),
+    ],
+
+    'twilio' => [
+        'sid'            => env('TWILIO_SID'),
+        'token'          => env('TWILIO_AUTH_TOKEN'),
+        'whatsapp_from'  => env('TWILIO_WHATSAPP_FROM'), // ex: 14155238886 (sandbox)
+    ],
+
 ];
