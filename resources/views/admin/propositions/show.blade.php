@@ -1,397 +1,789 @@
-<!-- admin/propositions/show.blade.php -->
+{{-- Page publique proposition — design sobre & pro (light theme) --}}
 <!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Proposition — CIBLE CI</title>
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>Proposition {{ $reservation->reference }} — CIBLE CI</title>
 <meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="{{ asset('images/faviconl.png') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-@vite(['resources/css/app.css', 'resources/js/app.js'])
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --gold: #e8a020;
-    --gold-light: rgba(232,160,32,0.12);
-    --gold-border: rgba(232,160,32,0.25);
-    --dark: #0b0e17;
-    --surface: #131724;
-    --surface2: #1a2030;
-    --surface3: #212840;
-    --text: #e2e8f0;
-    --text2: #94a3b8;
-    --text3: #64748b;
-    --green: #22c55e;
-    --red: #ef4444;
-    --radius: 14px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
-  body { background: var(--dark); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; }
+    /* ─────────── Design system pro (Stripe / Notion / Linear style) ─────────── */
+    :root {
+        --bg:        #f4f6f8;
+        --card:      #ffffff;
+        --border:    #e5e7eb;
+        --border-strong: #d1d5db;
+        --text:      #111827;
+        --text2:     #4b5563;
+        --text3:     #9ca3af;
+        --accent:    #c2570d;
+        --accent-hover: #a04609;
+        --accent-soft: #fff7ed;
+        --green:     #16a34a;
+        --green-hover: #15803d;
+        --red:       #dc2626;
+        --red-hover: #b91c1c;
+        --warning-bg: #fffbeb;
+        --warning-border: #fde68a;
+        --warning-text: #92400e;
+        --radius:    8px;
+        --radius-lg: 12px;
+    }
 
-  /* ── NAVBAR ── */
-  .navbar { position: sticky; top: 0; z-index: 100; background: rgba(11,14,23,0.9); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(232,160,32,0.1); padding: 0 24px; height: 60px; display: flex; align-items: center; justify-content: space-between; }
-  .nav-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px; color: var(--gold); letter-spacing: -0.5px; }
-  .nav-meta { font-size: 12px; color: var(--text3); }
+    *, *::before, *::after { box-sizing: border-box; }
+    body, html { margin: 0; padding: 0; }
 
-  /* ── HERO ── */
-  .hero { background: linear-gradient(160deg, #131724 0%, #0d1421 100%); border-bottom: 1px solid rgba(232,160,32,0.1); padding: 48px 24px 40px; text-align: center; }
-  .hero-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--gold-light); border: 1px solid var(--gold-border); color: var(--gold); border-radius: 20px; padding: 5px 16px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 20px; }
-  .hero h1 { font-family: 'Syne', sans-serif; font-size: clamp(24px, 5vw, 38px); font-weight: 800; color: #f8fafc; line-height: 1.2; margin-bottom: 12px; }
-  .hero-sub { font-size: 15px; color: var(--text2); max-width: 520px; margin: 0 auto 28px; line-height: 1.65; }
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+    }
 
-  /* Période */
-  .period-grid { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
-  .period-card { background: var(--surface); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px 20px; text-align: center; min-width: 120px; }
-  .period-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-  .period-val { font-size: 16px; font-weight: 700; color: var(--gold); font-family: 'Syne', sans-serif; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
 
-  /* Expiration countdown */
-  .expire-bar { display: inline-flex; align-items: center; gap: 6px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; padding: 8px 16px; font-size: 12px; color: #fca5a5; }
+    /* ─────────── Header ─────────── */
+    .header {
+        background: var(--card);
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        z-index: 50;
+    }
+    .header-inner {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 16px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+    }
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .brand-logo {
+        font-family: 'Inter', sans-serif;
+        font-weight: 700;
+        font-size: 18px;
+        color: var(--text);
+        letter-spacing: -0.3px;
+    }
+    .brand-logo .accent { color: var(--accent); }
+    .brand-sub {
+        font-size: 11px;
+        color: var(--text3);
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-top: -2px;
+    }
+    .header-meta {
+        font-size: 12px;
+        color: var(--text3);
+        text-align: right;
+    }
+    .header-meta .ref {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        color: var(--text);
+        font-weight: 600;
+    }
 
-  /* ── ALERTS ── */
-  .alert { margin: 16px 24px; padding: 14px 18px; border-radius: 10px; font-size: 14px; display: flex; align-items: flex-start; gap: 10px; }
-  .alert-error { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); color: #fca5a5; }
-  .alert-success { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25); color: #86efac; }
+    /* ─────────── Container ─────────── */
+    .container {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 32px 24px 48px;
+    }
 
-  /* ── CONTENU PRINCIPAL ── */
-  .main { max-width: 860px; margin: 0 auto; padding: 32px 16px 80px; }
+    /* ─────────── Alerts ─────────── */
+    .alert {
+        padding: 12px 16px;
+        border-radius: var(--radius);
+        font-size: 13px;
+        margin-bottom: 16px;
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+    }
+    .alert-error   { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
 
-  /* ── PANNEAUX GRID ── */
-  .panels-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-  .panels-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; color: var(--text); }
-  .panels-count { font-size: 12px; color: var(--text3); background: var(--surface); border: 1px solid rgba(255,255,255,0.06); border-radius: 20px; padding: 3px 12px; }
+    /* ─────────── Hero (intro) ─────────── */
+    .intro {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 32px;
+        margin-bottom: 20px;
+    }
+    .intro .pill {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--accent);
+        background: var(--accent-soft);
+        padding: 4px 10px;
+        border-radius: 999px;
+        margin-bottom: 16px;
+    }
+    .intro h1 {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--text);
+        line-height: 1.3;
+        margin: 0 0 8px;
+        letter-spacing: -0.3px;
+    }
+    .intro p {
+        font-size: 14px;
+        color: var(--text2);
+        margin: 0;
+    }
 
-  .panels-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    /* Période / résumé */
+    .summary {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+    }
+    .summary-cell .lbl {
+        font-size: 11px;
+        color: var(--text3);
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 4px;
+        font-weight: 600;
+    }
+    .summary-cell .val {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text);
+    }
 
-  .panel-card { background: var(--surface); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius); overflow: hidden; transition: transform 0.15s, border-color 0.15s; }
-  .panel-card:hover { transform: translateY(-2px); border-color: var(--gold-border); }
-  .panel-img { width: 100%; height: 160px; object-fit: cover; background: var(--surface2); }
-  .panel-img-ph { width: 100%; height: 160px; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-family: monospace; font-size: 14px; color: var(--text3); border-bottom: 1px solid rgba(255,255,255,0.04); }
-  .panel-body { padding: 14px 16px; }
-  .panel-ref { font-family: monospace; font-size: 12px; font-weight: 700; color: var(--gold); margin-bottom: 4px; }
-  .panel-name { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; line-height: 1.3; }
-  .panel-meta { font-size: 12px; color: var(--text3); line-height: 1.7; }
-  .panel-price { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
-  .price-label { font-size: 11px; color: var(--text3); }
-  .price-val { font-size: 15px; font-weight: 700; color: var(--gold); font-family: 'Syne', sans-serif; }
-  .lit-badge { display: inline-flex; align-items: center; gap: 3px; background: rgba(250,204,21,0.1); border: 1px solid rgba(250,204,21,0.2); color: #fde047; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; }
+    /* Bandeau expiration */
+    .expire {
+        margin-top: 16px;
+        padding: 10px 14px;
+        background: var(--warning-bg);
+        border: 1px solid var(--warning-border);
+        border-radius: var(--radius);
+        font-size: 13px;
+        color: var(--warning-text);
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    .expired {
+        background: #fef2f2;
+        border-color: #fecaca;
+        color: #991b1b;
+    }
 
-  /* ── TOTAL BOX ── */
-  .total-box { background: var(--surface); border: 1px solid var(--gold-border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-  .total-info { }
-  .total-label { font-size: 13px; color: var(--text2); margin-bottom: 4px; }
-  .total-amount { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: var(--gold); }
-  .total-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
-  .total-right { text-align: right; }
-  .total-panels { font-size: 13px; color: var(--text2); }
-  .total-duration { font-size: 13px; color: var(--text3); margin-top: 2px; }
+    /* ─────────── Section panneaux ─────────── */
+    .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin: 8px 4px 14px;
+    }
+    .section-head h2 {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text);
+    }
+    .section-head .count {
+        font-size: 13px;
+        color: var(--text3);
+    }
 
-  /* ── CTA SECTION ── */
-  .cta-section { background: var(--surface); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius); padding: 28px 24px; text-align: center; }
-  .cta-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
-  .cta-sub { font-size: 14px; color: var(--text2); margin-bottom: 24px; line-height: 1.5; }
-  .cta-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-  .btn-confirm { background: var(--gold); color: #0b0e17; font-weight: 700; font-size: 15px; padding: 14px 36px; border-radius: 50px; border: none; cursor: pointer; transition: opacity 0.15s, transform 0.15s; font-family: 'Syne', sans-serif; letter-spacing: 0.3px; }
-  .btn-confirm:hover { opacity: 0.9; transform: scale(1.02); }
-  .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-  .btn-refuse { background: transparent; color: var(--text2); font-size: 14px; padding: 14px 28px; border-radius: 50px; border: 1px solid rgba(255,255,255,0.12); cursor: pointer; transition: border-color 0.15s, color 0.15s; }
-  .btn-refuse:hover { border-color: rgba(239,68,68,0.4); color: #fca5a5; }
-  .cta-note { margin-top: 16px; font-size: 11px; color: var(--text3); }
+    .panels-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+    }
+    @media (max-width: 800px) {
+        .panels-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 540px) {
+        .panels-grid { grid-template-columns: 1fr; }
+        .summary { grid-template-columns: repeat(2, 1fr); }
+    }
 
-  /* ── MODAL CONFIRMATION ── */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); z-index: 200; display: none; align-items: center; justify-content: center; padding: 16px; }
-  .modal-overlay.open { display: flex; }
-  .modal { background: var(--surface2); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 32px; width: 100%; max-width: 480px; animation: modalFadeIn 0.2s ease; }
-  @keyframes modalFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-  .modal h3 { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 12px; color: var(--text); text-align: center; }
-  .modal p { font-size: 14px; color: var(--text2); margin-bottom: 24px; text-align: center; line-height: 1.5; }
-  .modal-warning { background: rgba(232,160,32,0.08); border: 1px solid rgba(232,160,32,0.2); border-radius: 12px; padding: 12px 16px; margin-bottom: 24px; font-size: 12px; color: var(--gold); display: flex; align-items: center; gap: 8px; }
-  .modal-warning span:first-child { font-size: 18px; }
-  .modal-btns { display: flex; gap: 12px; }
-  .btn-modal-cancel { flex: 1; background: transparent; color: var(--text2); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
-  .btn-modal-cancel:hover { border-color: var(--text3); color: var(--text); }
-  .btn-modal-confirm { flex: 1; background: var(--gold); color: #0b0e17; border: none; border-radius: 12px; padding: 12px; cursor: pointer; font-size: 14px; font-weight: 700; transition: opacity 0.2s; }
-  .btn-modal-confirm:hover { opacity: 0.9; }
+    .panel {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transition: border-color .15s, box-shadow .15s;
+    }
+    .panel:hover { border-color: var(--border-strong); box-shadow: 0 1px 3px rgba(0,0,0,.04); }
 
-  /* ── MODAL REFUS ── */
-  .modal-refus textarea { width: 100%; background: var(--surface3); border: 1px solid rgba(255,255,255,0.08); color: var(--text); border-radius: 12px; padding: 12px; font-size: 13px; font-family: 'Inter', sans-serif; resize: vertical; min-height: 80px; margin-bottom: 20px; }
-  .modal-refus textarea:focus { outline: none; border-color: rgba(239,68,68,0.4); }
+    .panel-photo {
+        height: 140px;
+        background: #f3f4f6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-bottom: 1px solid var(--border);
+    }
+    .panel-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .panel-photo .placeholder {
+        font-family: ui-monospace, monospace;
+        font-size: 13px;
+        color: var(--text3);
+        font-weight: 600;
+    }
 
-  /* ── FOOTER ── */
-  .page-footer { text-align: center; padding: 24px; font-size: 11px; color: var(--text3); border-top: 1px solid rgba(255,255,255,0.04); }
+    .panel-body {
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex: 1;
+    }
+    .panel-ref {
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--accent);
+        letter-spacing: 0.3px;
+    }
+    .panel-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+        line-height: 1.35;
+    }
+    .panel-meta {
+        font-size: 12px;
+        color: var(--text2);
+        line-height: 1.5;
+    }
+    .panel-tags {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+    }
+    .panel-tag {
+        font-size: 10px;
+        font-weight: 500;
+        color: var(--text2);
+        background: #f3f4f6;
+        padding: 2px 8px;
+        border-radius: 999px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    .panel-price {
+        margin-top: auto;
+        padding-top: 12px;
+        border-top: 1px dashed var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+    }
+    .panel-price .lbl {
+        font-size: 11px;
+        color: var(--text3);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .panel-price .val {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text);
+    }
 
-  /* ── RESPONSIVE ── */
-  @media (max-width: 600px) {
-    .panels-grid { grid-template-columns: 1fr; }
-    .hero { padding: 32px 16px 28px; }
-    .total-box { flex-direction: column; text-align: center; }
-    .total-right { text-align: center; }
-    .cta-buttons { flex-direction: column; }
-    .btn-confirm, .btn-refuse { width: 100%; }
-    .modal { padding: 24px; }
-    .modal-btns { flex-direction: column; }
-  }
+    .panel-remove {
+        padding: 8px 14px 12px;
+    }
+    .panel-remove button {
+        width: 100%;
+        padding: 7px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--text3);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all .15s;
+    }
+    .panel-remove button:hover { color: var(--red); border-color: #fecaca; background: #fef2f2; }
+
+    /* ─────────── Total ─────────── */
+    .total {
+        margin-top: 24px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 24px 28px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 24px;
+        flex-wrap: wrap;
+    }
+    .total .lbl {
+        font-size: 12px;
+        color: var(--text3);
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+    .total .amount {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text);
+        letter-spacing: -0.5px;
+    }
+    .total .sub {
+        font-size: 12px;
+        color: var(--text3);
+        margin-top: 4px;
+    }
+    .total-right {
+        text-align: right;
+    }
+    .total-right .stat {
+        font-size: 14px;
+        color: var(--text2);
+    }
+    .total-right .stat strong { color: var(--text); }
+
+    /* ─────────── CTA ─────────── */
+    .cta {
+        margin-top: 24px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 28px;
+        text-align: center;
+    }
+    .cta h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text);
+        margin: 0 0 6px;
+    }
+    .cta p {
+        font-size: 13px;
+        color: var(--text2);
+        margin: 0 0 18px;
+    }
+    .cta-buttons {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    .btn {
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        padding: 11px 24px;
+        border-radius: var(--radius);
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all .15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .btn-primary {
+        background: var(--green);
+        color: #fff;
+    }
+    .btn-primary:hover { background: var(--green-hover); }
+
+    .btn-secondary {
+        background: var(--card);
+        color: var(--text);
+        border-color: var(--border-strong);
+    }
+    .btn-secondary:hover { background: var(--bg); border-color: #9ca3af; }
+
+    .btn-danger {
+        background: var(--card);
+        color: var(--red);
+        border-color: #fecaca;
+    }
+    .btn-danger:hover { background: #fef2f2; border-color: var(--red); }
+
+    .cta-note {
+        margin-top: 16px;
+        font-size: 11px;
+        color: var(--text3);
+    }
+
+    /* ─────────── Footer ─────────── */
+    .footer {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 24px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--text3);
+        border-top: 1px solid var(--border);
+    }
+
+    /* ─────────── Modals ─────────── */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(17, 24, 39, 0.5);
+        backdrop-filter: blur(2px);
+        z-index: 100;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+        background: var(--card);
+        border-radius: var(--radius-lg);
+        padding: 28px;
+        max-width: 440px;
+        width: 100%;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, .12);
+    }
+    .modal h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text);
+        margin: 0 0 8px;
+    }
+    .modal p {
+        font-size: 13px;
+        color: var(--text2);
+        margin: 0 0 16px;
+        line-height: 1.6;
+    }
+    .modal-warning {
+        background: var(--warning-bg);
+        border: 1px solid var(--warning-border);
+        border-radius: var(--radius);
+        padding: 10px 14px;
+        font-size: 12px;
+        color: var(--warning-text);
+        margin-bottom: 18px;
+    }
+    .modal textarea {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        font-size: 13px;
+        font-family: inherit;
+        color: var(--text);
+        background: var(--card);
+        margin-bottom: 16px;
+        min-height: 90px;
+        resize: vertical;
+    }
+    .modal textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .modal-btns {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
 </style>
 </head>
 <body>
 
-{{-- ── NAVBAR ── --}}
-<nav class="navbar">
-  <div class="nav-logo">CIBLE CI</div>
-  <div class="nav-meta">Proposition · Réf. {{ $reservation->reference }}</div>
-</nav>
-
-{{-- ── ALERTS ── --}}
-@if(session('error'))
-  <div class="alert alert-error">⚠️ {{ session('error') }}</div>
-@endif
-@if(session('success'))
-  <div class="alert alert-success">✅ {{ session('success') }}</div>
-@endif
-
-{{-- ── HERO ── --}}
-<div class="hero">
-  <div class="hero-badge">
-    <span>📋</span> Proposition Commerciale
-  </div>
-  <h1>
-    Bonjour {{ $reservation->client?->name ?? 'Client' }},<br>
-    voici votre sélection de panneaux
-  </h1>
-  <p class="hero-sub">
-    Notre équipe commerciale a sélectionné <strong>{{ $panels->count() }} emplacement(s)</strong>
-    correspondant à vos besoins. Consultez les détails et répondez en un clic.
-  </p>
-
-  <div class="period-grid">
-    <div class="period-card">
-      <div class="period-label">Début</div>
-      <div class="period-val">{{ $reservation->start_date->format('d/m/Y') }}</div>
-    </div>
-    <div class="period-card">
-      <div class="period-label">Fin</div>
-      <div class="period-val">{{ $reservation->end_date->format('d/m/Y') }}</div>
-    </div>
-    <div class="period-card">
-      <div class="period-label">Durée</div>
-      <div class="period-val">{{ round($months) }} mois</div>
-    </div>
-    <div class="period-card">
-      <div class="period-label">Panneaux</div>
-      <div class="period-val">{{ $panels->count() }}</div>
-    </div>
-  </div>
-
-  @if($expiresIn !== null && $expiresIn > 0)
-    <div class="expire-bar">
-      ⏰ Expire dans {{ $expiresIn > 24 ? round($expiresIn / 24) . ' jour(s)' : $expiresIn . ' heure(s)' }}
-      — {{ $reservation->proposition_expires_at->format('d/m/Y à H:i') }}
-    </div>
-  @elseif($expiresIn !== null && $expiresIn <= 0)
-    <div class="expire-bar">⚠️ Cette proposition a expiré</div>
-  @endif
-</div>
-
-{{-- ── CONTENU PRINCIPAL ── --}}
-<div class="main">
-
-  {{-- Grille panneaux --}}
-  <div class="panels-header">
-    <div class="panels-title">Emplacements sélectionnés</div>
-    <div class="panels-count">{{ $panels->count() }} panneau(x)</div>
-  </div>
-
-  <div class="panels-grid">
-    @foreach($panels as $panel)
-    <div class="panel-card">
-      @if($panel['photo_url'])
-        <img src="{{ $panel['photo_url'] }}" class="panel-img" alt="{{ $panel['reference'] }}" loading="lazy">
-      @else
-        <div class="panel-img-ph">{{ $panel['reference'] }}</div>
-      @endif
-
-      <div class="panel-body">
-
-        <div class="panel-ref">{{ $panel['reference'] }}</div>
-        <div class="panel-name">{{ Str::limit($panel['name'], 45) }}</div>
-        <div class="panel-meta">
-          📍 {{ $panel['commune'] }}
-          @if($panel['zone'] !== '—') · {{ $panel['zone'] }} @endif
-          @if($panel['dimensions']) · {{ $panel['dimensions'] }} @endif
-          @if($panel['category'] !== '—') · {{ $panel['category'] }} @endif
+{{-- ────────── HEADER ────────── --}}
+<header class="header">
+    <div class="header-inner">
+        <div class="brand">
+            <div>
+                <div class="brand-logo">CIBLE <span class="accent">CI</span></div>
+                <div class="brand-sub">Régie Publicitaire</div>
+            </div>
         </div>
-        @if($panel['is_lit'])
-          <span class="lit-badge" style="margin-top:6px;display:inline-flex">💡 Éclairé</span>
+        <div class="header-meta">
+            <div>Proposition <span class="ref">{{ $reservation->reference }}</span></div>
+            @if($reservation->proposition_sent_at)
+                <div style="margin-top:2px">Envoyée le {{ $reservation->proposition_sent_at->format('d/m/Y') }}</div>
+            @endif
+        </div>
+    </div>
+</header>
+
+<div class="container">
+
+    {{-- Alerts session --}}
+    @if(session('error'))
+        <div class="alert alert-error">{{ session('error') }}</div>
+    @endif
+    @if(session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+
+    {{-- ────────── INTRO ────────── --}}
+    <div class="intro">
+        <span class="pill">Proposition commerciale</span>
+        <h1>Bonjour {{ $reservation->client?->name ?? 'Client' }},</h1>
+        <p>
+            Notre équipe a sélectionné <strong>{{ $panels->count() }} emplacement{{ $panels->count() > 1 ? 's' : '' }}</strong>
+            adapté{{ $panels->count() > 1 ? 's' : '' }} à vos besoins. Consultez les détails ci-dessous puis
+            confirmez ou refusez la proposition.
+        </p>
+
+        <div class="summary">
+            <div class="summary-cell">
+                <div class="lbl">Début</div>
+                <div class="val">{{ $reservation->start_date->format('d/m/Y') }}</div>
+            </div>
+            <div class="summary-cell">
+                <div class="lbl">Fin</div>
+                <div class="val">{{ $reservation->end_date->format('d/m/Y') }}</div>
+            </div>
+            <div class="summary-cell">
+                <div class="lbl">Durée</div>
+                <div class="val">{{ round($months) }} mois</div>
+            </div>
+            <div class="summary-cell">
+                <div class="lbl">Emplacements</div>
+                <div class="val">{{ $panels->count() }}</div>
+            </div>
+        </div>
+
+        @if($expiresIn !== null && $expiresIn > 0)
+            <div class="expire">
+                <span>⏱</span>
+                <span>
+                    Cette proposition expire dans
+                    <strong>{{ $expiresIn > 24 ? round($expiresIn / 24) . ' jour(s)' : $expiresIn . ' heure(s)' }}</strong>
+                    — le {{ $reservation->proposition_expires_at->format('d/m/Y à H:i') }}
+                </span>
+            </div>
+        @elseif($expiresIn !== null && $expiresIn <= 0)
+            <div class="expire expired">
+                <span>⚠</span>
+                <span>Cette proposition a expiré.</span>
+            </div>
         @endif
+    </div>
 
-        <div class="panel-price">
-          <span class="price-label">Tarif / campagne</span>
-          @if($panel['total'] > 0)
-            <span class="price-val">{{ number_format($panel['total'], 0, ',', ' ') }} FCFA</span>
-          @else
-            <span class="price-val" style="font-size:12px;color:var(--text3)">Sur devis</span>
-          @endif
+    {{-- ────────── PANNEAUX ────────── --}}
+    <div class="section-head">
+        <h2>Emplacements proposés</h2>
+        <div class="count">{{ $panels->count() }} panneau{{ $panels->count() > 1 ? 'x' : '' }}</div>
+    </div>
+
+    <div class="panels-grid">
+        @foreach($panels as $panel)
+            <div class="panel">
+                <div class="panel-photo">
+                    @if($panel['photo_url'])
+                        <img src="{{ $panel['photo_url'] }}" alt="{{ $panel['reference'] }}" loading="lazy"
+                             onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\'placeholder\'>{{ $panel['reference'] }}</span>'">
+                    @else
+                        <span class="placeholder">{{ $panel['reference'] }}</span>
+                    @endif
+                </div>
+
+                <div class="panel-body">
+                    <div class="panel-ref">{{ $panel['reference'] }}</div>
+                    <div class="panel-name">{{ \Illuminate\Support\Str::limit($panel['name'], 50) }}</div>
+
+                    <div class="panel-meta">
+                        {{ $panel['commune'] }}
+                        @if($panel['zone'] !== '—') · {{ $panel['zone'] }} @endif
+                    </div>
+
+                    <div class="panel-tags">
+                        @if($panel['dimensions'])
+                            <span class="panel-tag">{{ $panel['dimensions'] }}</span>
+                        @endif
+                        @if($panel['category'] !== '—')
+                            <span class="panel-tag">{{ $panel['category'] }}</span>
+                        @endif
+                        @if($panel['is_lit'])
+                            <span class="panel-tag" style="color:#a04609;background:#fff7ed">Éclairé</span>
+                        @endif
+                    </div>
+
+                    <div class="panel-price">
+                        <span class="lbl">Tarif campagne</span>
+                        @if($panel['total'] > 0)
+                            <span class="val">{{ number_format($panel['total'], 0, ',', ' ') }} FCFA</span>
+                        @else
+                            <span class="val" style="font-size:12px;color:var(--text3);font-weight:500">Sur devis</span>
+                        @endif
+                    </div>
+                </div>
+
+                @if($isActif)
+                    <div class="panel-remove">
+                        <form method="POST"
+                              action="{{ route('proposition.retirer-panneau', [$reference, $slug, $panel['id']]) }}"
+                              onsubmit="return confirm('Retirer ce panneau de la proposition ?')">
+                            @csrf @method('DELETE')
+                            <button type="submit">Retirer cet emplacement</button>
+                        </form>
+                    </div>
+                @endif
+            </div>
+        @endforeach
+    </div>
+
+    {{-- ────────── TOTAL ────────── --}}
+    @php
+        $totalAmount = $panels->sum('total');
+        $panelCount  = $panels->count();
+    @endphp
+
+    @if($totalAmount > 0)
+        <div class="total">
+            <div>
+                <div class="lbl">Montant total estimé HT</div>
+                <div class="amount">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</div>
+                <div class="sub">Hors taxes — devis définitif sur confirmation</div>
+            </div>
+            <div class="total-right">
+                <div class="stat"><strong>{{ $panelCount }}</strong> emplacement{{ $panelCount > 1 ? 's' : '' }}</div>
+                <div class="stat" style="margin-top:4px"><strong>{{ round($months) }} mois</strong> de campagne</div>
+            </div>
         </div>
-      </div>
-      @if($isActif)
-      <div style="padding:0 16px 14px;">
-          <form method="POST"
-                action="{{ route('proposition.retirer-panneau', [$reference, $slug, $panel['id']]) }}"
-                onsubmit="return confirm('Retirer ce panneau de la proposition ?')">
-              @csrf @method('DELETE')
-              <button type="submit"
-                      style="width:100%;padding:7px;font-size:11px;color:#ef4444;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:8px;cursor:pointer;transition:all .15s"
-                      onmouseover="this.style.background='rgba(239,68,68,0.12)'"
-                      onmouseout="this.style.background='rgba(239,68,68,0.06)'">
-                  ✕ Retirer ce panneau
-              </button>
-          </form>
-      </div>
-      @endif
-    </div>
-    @endforeach
-  </div>
+    @endif
 
-  {{-- Total --}}
-  @php
-    $totalAmount = $panels->sum('total');
-    $panelCount  = $panels->count();
-    $duration    = $reservation->start_date->diff($reservation->end_date);
-    $durationStr = round($months) . ' mois';
-  @endphp
+    {{-- ────────── CTA ────────── --}}
+    @if($expiresIn === null || $expiresIn > 0)
+        <div class="cta">
+            <h3>Votre décision</h3>
+            <p>
+                Confirmez pour attribuer les emplacements et créer votre campagne, ou refusez si la
+                proposition ne convient pas. Notre équipe reste à votre disposition.
+            </p>
 
-  @if($totalAmount > 0)
-  <div class="total-box">
-    <div class="total-info">
-      <div class="total-label">Montant total estimé HT</div>
-      <div class="total-amount">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</div>
-      <div class="total-sub">Hors taxes · Devis définitif sur confirmation</div>
-    </div>
-    <div class="total-right">
-      <div class="total-panels">{{ $panelCount }} emplacement(s)</div>
-      <div class="total-duration">{{ $durationStr }} de campagne</div>
-    </div>
-  </div>
-  @endif
+            <div class="cta-buttons">
+                <button type="button" class="btn btn-primary" id="btn-confirm" onclick="openConfirmModal()">
+                    Confirmer la proposition
+                </button>
+                <button type="button" class="btn btn-danger" onclick="openRefusModal()">
+                    Refuser
+                </button>
+            </div>
 
-  {{-- CTA --}}
-  @if($expiresIn === null || $expiresIn > 0)
-  <div class="cta-section">
-    <div class="cta-title">Quelle est votre décision ?</div>
-    <div class="cta-sub">
-      Votre réponse sera prise en compte immédiatement.<br>
-      En confirmant, les panneaux vous seront attribués et une campagne sera créée.
-    </div>
-
-    <div class="cta-buttons">
-      <button type="button" class="btn-confirm" id="btn-confirm" onclick="openConfirmModal()">
-        ✅ Je confirme cette proposition
-      </button>
-
-      <button type="button" class="btn-refuse" onclick="openRefusModal()">
-        ✗ Je refuse
-      </button>
-    </div>
-
-    <div class="cta-note">
-      🔒 Votre réponse est sécurisée · Aucune inscription requise · CIBLE CI · Abidjan
-    </div>
-  </div>
-  @endif
+            <div class="cta-note">
+                Votre réponse est sécurisée et prise en compte immédiatement.
+            </div>
+        </div>
+    @endif
 
 </div>
 
-{{-- ── MODAL CONFIRMATION ── --}}
-<div class="modal-overlay" id="modal-confirm">
-  <div class="modal">
-    <h3>✅ Confirmer la proposition</h3>
-    <p>Souhaitez-vous confirmer cette proposition ?<br>Les panneaux vous seront attribués immédiatement.</p>
-    <div class="modal-warning">
-      <span>🔒</span>
-      <span>Cette action est définitive et déclenche la création de votre campagne.</span>
+<footer class="footer">
+    CIBLE CI — Régie Publicitaire — Abidjan, Côte d'Ivoire<br>
+    © {{ date('Y') }} · Référence : {{ $reservation->reference }}
+</footer>
+
+{{-- ────────── MODAL CONFIRMATION ────────── --}}
+<div class="modal-overlay" id="modal-confirm" role="dialog" aria-modal="true">
+    <div class="modal">
+        <h3>Confirmer la proposition</h3>
+        <p>
+            En confirmant, les emplacements vous seront attribués et une campagne sera automatiquement
+            créée. Cette action est définitive.
+        </p>
+        <div class="modal-warning">
+            Vous recevrez ensuite un email de confirmation avec le récapitulatif détaillé.
+        </div>
+        <div class="modal-btns">
+            <button type="button" class="btn btn-secondary" onclick="closeConfirmModal()">Annuler</button>
+            <button type="button" class="btn btn-primary" id="modal-confirm-btn" onclick="submitConfirm()">
+                Je confirme
+            </button>
+        </div>
     </div>
-    <div class="modal-btns">
-      <button type="button" class="btn-modal-cancel" onclick="closeConfirmModal()">Annuler</button>
-      <button type="button" class="btn-modal-confirm" id="modal-confirm-btn" onclick="submitConfirm()">Confirmer la proposition</button>
-    </div>
-  </div>
 </div>
 
-{{-- ── MODAL REFUS ── --}}
-<div class="modal-overlay modal-refus" id="modal-refus">
-  <div class="modal">
-    <h3>✗ Refuser la proposition</h3>
-    <p>Souhaitez-vous indiquer un motif ? Cela nous aidera à mieux vous proposer des emplacements adaptés.</p>
-
-    <form method="POST" action="{{ route('proposition.refuser', [$reference, $slug]) }}" id="form-refuser">
-      @csrf
-      <textarea name="motif" placeholder="Motif (optionnel) — ex: budget insuffisant, zones non souhaitées..."></textarea>
-      <div class="modal-btns">
-        <button type="button" class="btn-modal-cancel" onclick="closeRefusModal()">Annuler</button>
-        <button type="submit" class="btn-modal-confirm">Confirmer le refus</button>
-      </div>
-    </form>
-  </div>
+{{-- ────────── MODAL REFUS ────────── --}}
+<div class="modal-overlay" id="modal-refus" role="dialog" aria-modal="true">
+    <div class="modal">
+        <h3>Refuser la proposition</h3>
+        <p>
+            Indiquez optionnellement un motif. Cela aide notre équipe à mieux adapter les futures
+            propositions à vos besoins.
+        </p>
+        <form method="POST" action="{{ route('proposition.refuser', [$reference, $slug]) }}" id="form-refuser">
+            @csrf
+            <textarea name="motif" placeholder="Motif (optionnel) — budget, zones, période, autre..."></textarea>
+            <div class="modal-btns">
+                <button type="button" class="btn btn-secondary" onclick="closeRefusModal()">Annuler</button>
+                <button type="submit" class="btn btn-danger">Confirmer le refus</button>
+            </div>
+        </form>
+    </div>
 </div>
 
-{{-- Formulaire de confirmation caché --}}
+{{-- Form caché pour la confirmation --}}
 <form method="POST" action="{{ route('proposition.confirmer', [$reference, $slug]) }}" id="form-confirmer" style="display:none;">
-  @csrf
+    @csrf
 </form>
 
-{{-- ── FOOTER ── --}}
-<div class="page-footer">
-  CIBLE CI · Régie Publicitaire · Abidjan, Côte d'Ivoire<br>
-  Référence : {{ $reservation->reference }} · Proposition envoyée le {{ $reservation->proposition_sent_at?->format('d/m/Y') }}
-</div>
-
 <script>
-function openConfirmModal() {
-  document.getElementById('modal-confirm').classList.add('open');
-}
+    function openConfirmModal() { document.getElementById('modal-confirm').classList.add('open'); }
+    function closeConfirmModal(){ document.getElementById('modal-confirm').classList.remove('open'); }
+    function openRefusModal()   { document.getElementById('modal-refus').classList.add('open'); }
+    function closeRefusModal()  { document.getElementById('modal-refus').classList.remove('open'); }
 
-function closeConfirmModal() {
-  document.getElementById('modal-confirm').classList.remove('open');
-}
+    function submitConfirm() {
+        const btn = document.getElementById('modal-confirm-btn');
+        const cta = document.getElementById('btn-confirm');
+        btn.disabled = true;
+        btn.textContent = 'Confirmation en cours...';
+        if (cta) cta.disabled = true;
+        document.getElementById('form-confirmer').submit();
+    }
 
-function submitConfirm() {
-  const btn = document.getElementById('modal-confirm-btn');
-  const confirmBtn = document.getElementById('btn-confirm');
-  
-  // Désactiver les boutons
-  btn.disabled = true;
-  btn.textContent = 'Confirmation en cours...';
-  if (confirmBtn) confirmBtn.disabled = true;
-  
-  // Soumettre le formulaire
-  document.getElementById('form-confirmer').submit();
-}
+    // Click hors modal = fermer
+    document.getElementById('modal-confirm').addEventListener('click', e => { if (e.target === e.currentTarget) closeConfirmModal(); });
+    document.getElementById('modal-refus').addEventListener('click', e => { if (e.target === e.currentTarget) closeRefusModal(); });
 
-function openRefusModal() {
-  document.getElementById('modal-refus').classList.add('open');
-}
+    // Échap = fermer toutes les modales
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { closeConfirmModal(); closeRefusModal(); }
+    });
 
-function closeRefusModal() {
-  document.getElementById('modal-refus').classList.remove('open');
-}
-
-// Fermer les modals au clic en dehors
-document.getElementById('modal-confirm').addEventListener('click', function(e) {
-  if (e.target === this) closeConfirmModal();
-});
-document.getElementById('modal-refus').addEventListener('click', function(e) {
-  if (e.target === this) closeRefusModal();
-});
-
-// Désactiver le double-soumission du formulaire de refus
-document.getElementById('form-refuser')?.addEventListener('submit', function() {
-  const btn = this.querySelector('button[type="submit"]');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Refus en cours...';
-  }
-});
+    // Empêche double-soumission du formulaire de refus
+    document.getElementById('form-refuser')?.addEventListener('submit', function () {
+        const btn = this.querySelector('button[type="submit"]');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Refus en cours...';
+        }
+    });
 </script>
 
 </body>

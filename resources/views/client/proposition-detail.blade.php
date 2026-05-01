@@ -266,7 +266,7 @@
         <div style="background:rgba(250,184,11,.08);border:1px solid rgba(250,184,11,.2);border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:#fab80b;">
             Cette action est définitive — elle déclenche la création de votre campagne.
         </div>
-        <form method="POST" action="{{ route('proposition.confirmer', $token) }}">
+        <form method="POST" action="{{ route('proposition.confirmer', [$reservation->reference, $reservation->proposition_slug]) }}">
             @csrf
             <div style="display:flex;gap:10px;justify-content:center;">
                 <button type="button" onclick="closeConfirmModal()"
@@ -296,7 +296,7 @@
             <h3 style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;">Refuser la proposition</h3>
             <p style="font-size:13px;color:var(--text2);line-height:1.6;">Un motif aide notre équipe à mieux adapter les futures propositions.</p>
         </div>
-        <form method="POST" action="{{ route('proposition.refuser', $token) }}">
+        <form method="POST" action="{{ route('proposition.refuser', [$reservation->reference, $reservation->proposition_slug]) }}">
             @csrf
             <textarea name="motif" rows="3"
                       style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--text);resize:vertical;outline:none;transition:border-color .15s;margin-bottom:16px;font-family:inherit;"
