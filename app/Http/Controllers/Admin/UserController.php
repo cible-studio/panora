@@ -50,13 +50,7 @@ class UserController extends Controller
         ]);
 
         // Alerte création utilisateur
-        $roleLabels = [
-            'admin' => 'Administrateur',
-            'commercial' => 'Commercial',
-            'mediaplanner' => 'Media Planner',
-            'technique' => 'Technicien',
-        ];
-        $roleLabel = $roleLabels[$request->role] ?? $request->role;
+        $roleLabel = UserRole::labelFor($request->role);
 
         AlertService::create(
             'utilisateur',
@@ -66,9 +60,11 @@ class UserController extends Controller
             $user
         );
 
-        // ── Mail de bienvenue (queue + try/catch via NotificationMailer) ───
-        // Si l'envoi échoue (SMTP, erreur app...), on ne casse PAS la création.
-        $mailResult = app(NotificationMailer::class)->send(
+        // ── Mail de bienvenue ────────────────────────────────────────────
+        // sendNow() = envoi synchrone (bypass queue). On veut savoir
+        // immédiatement si le mail est parti, car le mot de passe temporaire
+        // n'est pas re-récupérable plus tard.
+        $mailResult = app(NotificationMailer::class)->sendNow(
             $user->email,
             new UserWelcomeMail($user, $plainPassword, 'created'),
             context: ['action' => 'user.welcome', 'created_by' => auth()->id()]
@@ -118,13 +114,7 @@ class UserController extends Controller
         $user->update($data);
 
         // Alerte modification utilisateur
-        $roleLabels = [
-            'admin' => 'Administrateur',
-            'commercial' => 'Commercial',
-            'mediaplanner' => 'Media Planner',
-            'technique' => 'Technicien',
-        ];
-        $newRoleLabel = $roleLabels[$request->role] ?? $request->role;
+        $newRoleLabel = UserRole::labelFor($request->role);
         
         AlertService::create(
             'utilisateur',
@@ -144,17 +134,9 @@ class UserController extends Controller
             return back()->with('error', 'Vous ne pouvez pas supprimer votre propre compte !');
         }
 
-        $userName = $user->name;
-        $userRole = $user->role;
-        
-        $roleLabels = [
-            'admin' => 'Administrateur',
-            'commercial' => 'Commercial',
-            'mediaplanner' => 'Media Planner',
-            'technique' => 'Technicien',
-        ];
-        $roleLabel = $roleLabels[$userRole] ?? $userRole;
-        
+        $userName  = $user->name;
+        $roleLabel = UserRole::labelFor($user->role);
+
         $user->delete();
         
         // Alerte suppression utilisateur
@@ -195,13 +177,7 @@ class UserController extends Controller
         $statusIcon = $newStatus ? '✅' : '🔒';
         
         // Alerte activation/désactivation utilisateur
-        $roleLabels = [
-            'admin' => 'Administrateur',
-            'commercial' => 'Commercial',
-            'mediaplanner' => 'Media Planner',
-            'technique' => 'Technicien',
-        ];
-        $roleLabel = $roleLabels[$user->role] ?? $user->role;
+        $roleLabel = UserRole::labelFor($user->role);
         
         AlertService::create(
             'utilisateur',

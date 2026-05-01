@@ -94,14 +94,32 @@ class PropositionController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function envoyerProposition(Request $request, Reservation $reservation)
     {
+        // Helper interne : retour JSON si AJAX, redirect back() sinon.
+        $respond = function (string $level, string $message, array $extra = []) use ($request) {
+            if ($request->expectsJson() || $request->ajax()) {
+                $httpStatus = match ($level) {
+                    'success' => 200,
+                    'warning' => 200,        // mail KO mais lien fourni — pas une vraie erreur HTTP
+                    'error'   => 422,
+                    default   => 200,
+                };
+                return response()->json(array_merge([
+                    'success' => $level === 'success',
+                    'level'   => $level,
+                    'message' => $message,
+                ], $extra), $httpStatus);
+            }
+            return back()->with($level, $message);
+        };
+
         if (!$reservation->client)
-            return back()->with('error', 'Pas de client associé.');
+            return $respond('error', 'Pas de client associé.');
         if ($reservation->client->trashed())
-            return back()->with('error', 'Client supprimé — envoi impossible.');
+            return $respond('error', 'Client supprimé — envoi impossible.');
         if (empty($reservation->client->email))
-            return back()->with('error', "Ce client n'a pas d'email.");
+            return $respond('error', "Ce client n'a pas d'email.");
         if (!in_array($reservation->status->value, ['en_attente', 'confirme']))
-            return back()->with('error', "Impossible d'envoyer pour une réservation {$reservation->status->value}.");
+            return $respond('error', "Impossible d'envoyer pour une réservation {$reservation->status->value}.");
 
         // Générer token long (sécurité BD) + slug court (URL lisible)
         $token = $reservation->proposition_token ?? Str::random(64);
@@ -114,8 +132,11 @@ class PropositionController extends Controller
             'proposition_expires_at' => now()->addDays(30),
         ]);
 
-        // Envoi via NotificationMailer (try/catch + diagnostic SMTP + log centralisés)
-        $result = app(\App\Services\NotificationMailer::class)->send(
+        // Envoi via NotificationMailer.
+        // sendNow() force l'envoi synchrone (bypass queue) → l'admin sait
+        // immédiatement si le mail est parti, pas un faux positif "queued".
+        $mailer = app(\App\Services\NotificationMailer::class);
+        $result = $mailer->sendNow(
             $reservation->client->email,
             new \App\Mail\PropositionMail($reservation),
             context: [
@@ -127,13 +148,14 @@ class PropositionController extends Controller
         );
 
         if ($result->ok) {
-            return back()->with('success', "✅ Proposition envoyée à {$reservation->client->email}.");
+            return $respond('success', "✅ Proposition envoyée à {$reservation->client->email}.");
         }
 
         // Échec → on donne à l'admin le lien public à partager manuellement
         $link = route('proposition.show', [$reservation->reference, $slug]);
-        return back()->with('warning',
-            $result->message . ' Lien à partager manuellement : ' . $link
+        return $respond('warning',
+            $result->message . ' Lien à partager manuellement : ' . $link,
+            ['fallback_link' => $link]
         );
     }
 

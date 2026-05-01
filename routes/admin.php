@@ -346,6 +346,15 @@ Route::prefix('admin')
         )
             ->name('reservations.proposition.envoyer');
 
+        // Renvoyer = même action, le contrôleur regénère token+slug si nécessaire.
+        // Le JS du partial proposition-actions.blade.php utilise cette URL quand
+        // l'admin clique "Renvoyer la proposition".
+        Route::post(
+            'reservations/{reservation}/proposition/renvoyer',
+            [PropositionController::class, 'envoyerProposition']
+        )
+            ->name('reservations.proposition.renvoyer');
+
         Route::post(
             'reservations/{reservation}/proposition/reinitialiser',
             [PropositionController::class, 'reinitialiserProposition']

@@ -44,38 +44,62 @@ Test depuis le serveur :
 php artisan tinker --execute="Mail::raw('Test depuis Panora', fn(\$m) => \$m->to('toi@example.com')->subject('Test SMTP'));"
 ```
 
-## ✅ 3. Configurer la queue (RECOMMANDÉ pour la perf)
+## ✅ 3. Queue mail — IMPORTANT À LIRE
 
-Tous les mails de l'app implémentent `ShouldQueue` — ils sont prêts pour une
-queue worker.
+⚠️ **Comportement par défaut sécurisé** : `NotificationMailer::send()` utilise
+maintenant `sendNow()` en interne, ce qui force l'envoi **synchrone** quel
+que soit ton `QUEUE_CONNECTION`. Conséquences :
 
-**Sans worker (par défaut)** : `QUEUE_CONNECTION=sync` → les mails partent immédiatement
-mais bloquent l'utilisateur 1-3 sec à chaque action. Acceptable pour le MVP.
+- ✅ Le mail part immédiatement → pas de faux positif "envoyé" alors qu'il
+  dort dans la table `jobs`
+- ⚠️ La requête HTTP de l'admin attend le SMTP (généralement < 1 sec, rarement
+  problématique sur Gmail/Resend/Mailgun)
 
-**Avec worker (recommandé prod)** :
-```env
-QUEUE_CONNECTION=database
-```
+### Si tu veux la queue async pour la perf (RECOMMANDÉ à terme)
 
-Puis créer la table jobs :
+1. Créer la table jobs (si pas déjà fait) :
+   ```bash
+   php artisan queue:table
+   php artisan migrate
+   ```
+
+2. Garder ou définir :
+   ```env
+   QUEUE_CONNECTION=database
+   ```
+
+3. Démarrer un worker en daemon :
+   ```bash
+   php artisan queue:work --queue=default --sleep=3 --tries=3 --max-time=3600
+   ```
+
+4. Sur **Coolify** : créer un **service séparé** type `worker` (image identique
+   à l'app) avec comme commande de démarrage :
+   ```bash
+   php artisan queue:work --queue=default --tries=3 --backoff=10
+   ```
+
+5. Une fois le worker en place, dans le code, remplacer `send()` par
+   `dispatchAsync()` aux endroits non-critiques :
+   ```php
+   // au lieu de :
+   $mailer->send(...);
+   // utiliser :
+   $mailer->dispatchAsync(...);
+   ```
+
+   Les notifications décision proposition / réactivation user sont déjà en
+   `sendSilently` (sync) — tu peux les passer en `dispatchAsync` quand le
+   worker tourne.
+
+### Comment savoir si un worker tourne ?
+
 ```bash
-php artisan queue:table
-php artisan migrate
+ps aux | grep "queue:work"
+# OU sur Coolify : voir le statut du service worker
 ```
 
-Démarrer un worker (sur Hetzner/Coolify, créer un service supervisé) :
-```bash
-php artisan queue:work --queue=default --sleep=3 --tries=3 --max-time=3600
-```
-
-Sur **Coolify** : ajouter une commande dans le `start` de l'app :
-```bash
-php artisan queue:work --daemon &
-php artisan serve --host=0.0.0.0 --port=8080
-```
-
-Plus propre : créer un **service séparé** dans Coolify type `worker` avec la
-commande `php artisan queue:work`. Cf. doc Coolify > Services.
+S'il n'y a pas de processus → reste sur `send()` / `sendSilently()` (sync).
 
 ## ✅ 4. Tester le flux complet
 

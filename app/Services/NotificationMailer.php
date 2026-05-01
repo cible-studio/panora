@@ -24,7 +24,16 @@ use Throwable;
 class NotificationMailer
 {
     /**
-     * Envoie un Mailable à un destinataire.
+     * Envoie un Mailable à un destinataire (synchrone par défaut).
+     *
+     * IMPORTANT — comportement par défaut SYNC :
+     * Sans worker queue actif, un Mailable `ShouldQueue` reste empilé dans la
+     * table `jobs` et n'est JAMAIS envoyé. C'est un faux positif côté UX.
+     * Pour éviter ça, send() utilise toujours sendNow() qui force l'envoi
+     * synchrone, peu importe le QUEUE_CONNECTION.
+     *
+     * Si tu veux explicitement utiliser la queue (worker actif sur le serveur),
+     * appelle plutôt dispatchAsync().
      *
      * @param  string|array  $to       email(s) destinataire(s)
      * @param  Mailable      $mailable instance Mailable
@@ -34,6 +43,26 @@ class NotificationMailer
      */
     public function send($to, Mailable $mailable, ?string $cc = null, array $context = []): MailResult
     {
+        // Par défaut on force sync pour garantir la délivrance.
+        return $this->sendNow($to, $mailable, $cc, $context);
+    }
+
+    /**
+     * Tente un envoi mais ne casse JAMAIS le flux. Idempotent.
+     * Utiliser quand on veut "fire-and-forget" sans bloquer (ex: notif annexe).
+     */
+    public function sendSilently($to, Mailable $mailable, ?string $cc = null, array $context = []): bool
+    {
+        return $this->send($to, $mailable, $cc, $context)->ok;
+    }
+
+    /**
+     * Met en queue le Mailable (asynchrone). À utiliser SEULEMENT si tu sais
+     * qu'un worker queue tourne en prod (php artisan queue:work).
+     * Sinon, le mail reste empilé dans la table `jobs` et n'est jamais envoyé.
+     */
+    public function dispatchAsync($to, Mailable $mailable, ?string $cc = null, array $context = []): MailResult
+    {
         $recipients = is_array($to) ? $to : [$to];
         $recipients = array_values(array_filter($recipients, fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL)));
 
@@ -41,6 +70,7 @@ class NotificationMailer
             Log::warning('mail.skipped.invalid_recipient', array_merge($context, [
                 'mailable' => get_class($mailable),
                 'to_raw'   => $to,
+                'mode'     => 'async',
             ]));
             return MailResult::failure('Aucun destinataire valide.', 'INVALID_RECIPIENT');
         }
@@ -50,13 +80,69 @@ class NotificationMailer
             if ($cc && filter_var($cc, FILTER_VALIDATE_EMAIL)) {
                 $send->cc($cc);
             }
-            $send->send($mailable);
+            $send->send($mailable); // push en queue si Mailable implements ShouldQueue
+
+            Log::info('mail.queued', array_merge($context, [
+                'mailable'   => get_class($mailable),
+                'recipients' => $recipients,
+                'mode'       => 'async',
+            ]));
+
+            return MailResult::success();
+        } catch (Throwable $e) {
+            $diagnostic = $this->diagnose($e);
+            Log::error('mail.failed', array_merge($context, [
+                'mailable'   => get_class($mailable),
+                'recipients' => $recipients,
+                'error'      => $e->getMessage(),
+                'class'      => get_class($e),
+                'diagnostic' => $diagnostic,
+                'mode'       => 'async',
+            ]));
+            return MailResult::failure($diagnostic, $this->errorCode($e));
+        }
+    }
+
+    /**
+     * Force un envoi SYNCHRONE même si le Mailable implements ShouldQueue.
+     *
+     * Critique pour les flows où l'utilisateur doit savoir IMMÉDIATEMENT si
+     * l'email est parti :
+     *   - Création de compte (l'admin doit communiquer le mot de passe)
+     *   - Envoi de proposition (l'admin doit re-tenter si KO)
+     *   - Reset password
+     *
+     * Sans ça, sur un environnement avec QUEUE_CONNECTION=database et SANS
+     * worker actif, le mail reste empilé indéfiniment alors que le code
+     * retourne "ok" → faux positif vu côté UX.
+     */
+    public function sendNow($to, Mailable $mailable, ?string $cc = null, array $context = []): MailResult
+    {
+        $recipients = is_array($to) ? $to : [$to];
+        $recipients = array_values(array_filter($recipients, fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL)));
+
+        if (empty($recipients)) {
+            Log::warning('mail.skipped.invalid_recipient', array_merge($context, [
+                'mailable' => get_class($mailable),
+                'to_raw'   => $to,
+                'mode'     => 'sendNow',
+            ]));
+            return MailResult::failure('Aucun destinataire valide.', 'INVALID_RECIPIENT');
+        }
+
+        try {
+            $send = Mail::to($recipients);
+            if ($cc && filter_var($cc, FILTER_VALIDATE_EMAIL)) {
+                $send->cc($cc);
+            }
+            // sendNow() bypasse la queue, force l'envoi synchrone immédiat.
+            $send->sendNow($mailable);
 
             Log::info('mail.sent', array_merge($context, [
                 'mailable'   => get_class($mailable),
                 'recipients' => $recipients,
                 'cc'         => $cc,
-                'queued'     => $mailable instanceof \Illuminate\Contracts\Queue\ShouldQueue,
+                'mode'       => 'sync',
             ]));
 
             return MailResult::success();
@@ -70,19 +156,11 @@ class NotificationMailer
                 'error'      => $e->getMessage(),
                 'class'      => get_class($e),
                 'diagnostic' => $diagnostic,
+                'mode'       => 'sync',
             ]));
 
             return MailResult::failure($diagnostic, $this->errorCode($e));
         }
-    }
-
-    /**
-     * Tente un envoi mais ne casse JAMAIS le flux. Idempotent.
-     * Utiliser quand on veut "fire-and-forget" sans bloquer (ex: notif annexe).
-     */
-    public function sendSilently($to, Mailable $mailable, ?string $cc = null, array $context = []): bool
-    {
-        return $this->send($to, $mailable, $cc, $context)->ok;
     }
 
     /**
