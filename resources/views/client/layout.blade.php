@@ -338,7 +338,28 @@
             'active'=> request()->routeIs('client.campagnes*'),
             'icon'  => '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
         ],
+        [
+            'type'  => 'item',
+            'label' => "Piges d'affichage",
+            'route' => 'client.piges',
+            'active'=> request()->routeIs('client.piges*'),
+            'icon'  => '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+        ],
+        [
+            'type'  => 'item',
+            'label' => 'Contacter la régie',
+            'route' => 'client.contact',
+            'active'=> request()->routeIs('client.contact*'),
+            'icon'  => '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+        ],
         ['type' => 'category', 'label' => 'Mon compte'],
+        [
+            'type'  => 'item',
+            'label' => 'Mon équipe',
+            'route' => 'client.equipe',
+            'active'=> request()->routeIs('client.equipe*'),
+            'icon'  => '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+        ],
         [
             'type'  => 'item',
             'label' => 'Mon profil',
@@ -364,7 +385,7 @@
     <div class="sidebar-desktop">
         <div class="sidebar">
             <div class="sidebar-header">
-                <img class="logo-img h-8 w-auto" src="{{ $logoB }}" data-logo-light="{{ $logoL }}" data-logo-dark="{{ $logoB }}" alt="CIBLE CI">
+                <img class="logo-img h-10 w-auto" src="{{ $logoB }}" data-logo-light="{{ $logoL }}" data-logo-dark="{{ $logoB }}" alt="CIBLE CI">
                 <div style="font-size:9px;letter-spacing:.12em;color:var(--text3);font-weight:700;margin-top:14px;">ESPACE CLIENT</div>
             </div>
             <nav class="sidebar-nav">
@@ -416,7 +437,7 @@
 
     <aside class="sidebar-mobile" :class="{ 'is-open': open }" @click="open = false">
         <div class="sidebar-header">
-            <img class="logo-img h-8 w-auto" src="{{ $logoB }}" data-logo-light="{{ $logoL }}" data-logo-dark="{{ $logoB }}" alt="CIBLE CI">
+            <img class="logo-img h-10 w-auto" src="{{ $logoB }}" data-logo-light="{{ $logoL }}" data-logo-dark="{{ $logoB }}" alt="CIBLE CI">
             <div style="font-size:9px;letter-spacing:.12em;color:var(--text3);font-weight:700;margin-top:14px;">ESPACE CLIENT</div>
         </div>
         <nav class="sidebar-nav">

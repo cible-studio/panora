@@ -5,6 +5,15 @@
 
 @section('content')
 
+{{-- ══ RETOUR ══ --}}
+<a href="{{ route('client.propositions') }}"
+   style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text3);text-decoration:none;padding:6px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);transition:all .15s;margin-bottom:18px;"
+   onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--border2)';this.style.background='var(--surface2)'"
+   onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border)';this.style.background='var(--surface)'">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    Mes propositions
+</a>
+
 {{-- ══ BREADCRUMB ══ --}}
 <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3);margin-bottom:20px;">
     <a href="{{ route('client.dashboard') }}" style="color:var(--text3);text-decoration:none;transition:color .15s;" onmouseover="this.style.color='#e20613'" onmouseout="this.style.color='var(--text3)'">Accueil</a>
@@ -160,14 +169,14 @@
 </div>
 
 {{-- ══ TOTAL ══ --}}
-@php $total = collect($panels)->sum('total'); @endphp
-@if($total > 0)
+@php $totalAmount = (float) $reservation->total_amount; @endphp
+@if($totalAmount > 0)
 <div style="background:linear-gradient(135deg,rgba(226,6,19,.08),transparent);border:1px solid rgba(226,6,19,.2);border-radius:14px;padding:24px;margin-bottom:20px;">
     <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;margin-bottom:12px;">
         <div>
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Montant total estimé (HT)</div>
             <div style="font-size:28px;font-weight:800;color:#e20613;line-height:1;">
-                {{ number_format($total, 0, ',', ' ') }}
+                {{ number_format($totalAmount, 0, ',', ' ') }}
                 <span style="font-size:14px;font-weight:400;color:var(--text3);"> FCFA</span>
             </div>
             <div style="font-size:11px;color:var(--text3);margin-top:4px;">Pour {{ round($months) }} mois · {{ count($panels) }} emplacement(s)</div>
@@ -175,6 +184,42 @@
     </div>
     <div style="font-size:11px;color:var(--text3);padding-top:12px;border-top:1px solid rgba(226,6,19,.15);">
         Devis définitif établi lors de la confirmation. Tarifs nets hors taxes et frais techniques.
+    </div>
+</div>
+@endif
+
+{{-- ══ INTERLOCUTEUR ══ --}}
+@if($reservation->user)
+@php
+    $interlocuteur = $reservation->user;
+    $initials = collect(explode(' ', $interlocuteur->name))
+        ->map(fn($w) => strtoupper($w[0] ?? ''))->filter()->take(2)->implode('');
+@endphp
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#e20613,#fab80b);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:#fff;flex-shrink:0;letter-spacing:-.5px;">
+        {{ $initials }}
+    </div>
+    <div style="flex:1;min-width:140px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Votre interlocuteur</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);">{{ $interlocuteur->name }}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">{{ $interlocuteur->role?->label() ?? '—' }}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;min-width:0;">
+        <a href="mailto:{{ $interlocuteur->email }}"
+           style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);text-decoration:none;transition:color .15s;white-space:nowrap;"
+           onmouseover="this.style.color='#e20613'" onmouseout="this.style.color='var(--text2)'">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            {{ $interlocuteur->email }}
+        </a>
+        @if($interlocuteur->whatsapp_number)
+        <a href="https://wa.me/{{ preg_replace('/\D/', '', $interlocuteur->whatsapp_number) }}"
+           target="_blank" rel="noopener"
+           style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);text-decoration:none;transition:color .15s;white-space:nowrap;"
+           onmouseover="this.style.color='#22c55e'" onmouseout="this.style.color='var(--text2)'">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            {{ $interlocuteur->whatsapp_number }}
+        </a>
+        @endif
     </div>
 </div>
 @endif

@@ -1,14 +1,23 @@
 @extends('client.layout')
-@section('title', "Preuves d'affichage")
-@section('page-title', "Preuves d'affichage")
+@section('title', "Piges d'affichage")
+@section('page-title', "Piges d'affichage")
 
 @section('content')
+
+{{-- ══ RETOUR ══ --}}
+<a href="{{ route('client.dashboard') }}"
+   style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text3);text-decoration:none;padding:6px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);transition:all .15s;margin-bottom:18px;"
+   onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--border2)';this.style.background='var(--surface2)'"
+   onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border)';this.style.background='var(--surface)'">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    Tableau de bord
+</a>
 
 {{-- ── Info ─────────────────────────────────────────────────── --}}
 <div style="background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px;">
     <svg width="14" height="14" style="flex-shrink:0;margin-top:1px" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     <div style="font-size:12px;color:#4ade80;line-height:1.5;">
-        <strong>Preuves d'affichage (piges) :</strong> Ces photos ont été prises sur le terrain par nos équipes de vérification et validées par un superviseur. Elles constituent la preuve que votre visuel est bien diffusé conformément à votre commande.
+        <strong>Piges d'affichage :</strong> Ces photos ont été prises sur le terrain par nos équipes de vérification et validées par un superviseur. Elles constituent la preuve que votre visuel est bien diffusé conformément à votre commande.
     </div>
 </div>
 
@@ -68,7 +77,7 @@
             @endif
         </div>
         <div style="margin-left:auto;align-self:flex-end;font-size:11px;color:var(--text3);padding-bottom:2px;">
-            <strong style="color:var(--text);">{{ number_format($piges->total()) }}</strong> preuve(s) disponible(s)
+            <strong style="color:var(--text);">{{ number_format($piges->total()) }}</strong> pige(s) disponible(s)
         </div>
     </form>
 </div>
@@ -77,7 +86,7 @@
 @if($piges->isEmpty())
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:60px;text-align:center;color:var(--text3);">
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="display:block;margin:0 auto 16px;opacity:.2;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-    <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:6px;">Aucune preuve disponible</div>
+    <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:6px;">Aucune pige disponible</div>
     <div style="font-size:12px;line-height:1.5;">
         @if(request()->hasAny(['q','campaign_id','date_from','date_to']))
         Modifiez les filtres pour voir plus de résultats.

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\ClientUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -38,38 +39,60 @@ class ClientAuthController extends Controller
         $credentials = $request->only('email', 'password');
         $remember    = $request->boolean('remember');
 
-        if (!Auth::guard('client')->attempt($credentials, $remember)) {
-            return back()
-                ->withInput($request->only('email'))
-                ->withErrors(['email' => 'Email ou mot de passe incorrect.']);
+        // ── Tentative 1 : compte principal Client ────────────────────
+        if (Auth::guard('client')->attempt($credentials, $remember)) {
+            $client = Auth::guard('client')->user();
+
+            if (!$client->hasAccount()) {
+                Auth::guard('client')->logout();
+                return back()->withErrors([
+                    'email' => 'Votre compte n\'est pas encore activé. Contactez votre commercial.',
+                ]);
+            }
+
+            $client->update(['last_login_at' => now(), 'last_login_ip' => $request->ip()]);
+            session()->forget(['client_user_id', 'client_user_name', 'client_user_role']);
+            $request->session()->regenerate();
+
+            if ($client->must_change_password) {
+                return redirect()->route('client.password.change')
+                    ->with('warning', 'Bienvenue ! Veuillez définir votre mot de passe personnel.');
+            }
+
+            return redirect()->intended(route('client.dashboard'))
+                ->with('success', 'Bienvenue, ' . $client->name . ' !');
         }
 
-        $client = Auth::guard('client')->user();
+        // ── Tentative 2 : sous-utilisateur ClientUser ────────────────
+        $clientUser = ClientUser::where('email', $credentials['email'])
+            ->where('is_active', true)
+            ->with('client')
+            ->first();
 
-        // Vérifier que le compte est activé (password défini par l'admin)
-        if (!$client->hasAccount()) {
-            Auth::guard('client')->logout();
-            return back()->withErrors([
-                'email' => 'Votre compte n\'est pas encore activé. Contactez votre commercial.',
+        if ($clientUser && Hash::check($credentials['password'], $clientUser->password)) {
+            $client = $clientUser->client;
+
+            if (!$client || !$client->hasAccount()) {
+                return back()->withInput($request->only('email'))
+                    ->withErrors(['email' => 'Compte parent désactivé. Contactez votre administrateur.']);
+            }
+
+            Auth::guard('client')->login($client, $remember);
+            session([
+                'client_user_id'   => $clientUser->id,
+                'client_user_name' => $clientUser->name,
+                'client_user_role' => $clientUser->role,
             ]);
+            $clientUser->update(['last_login_at' => now()]);
+            $request->session()->regenerate();
+
+            return redirect()->intended(route('client.dashboard'))
+                ->with('success', 'Bienvenue, ' . $clientUser->name . ' !');
         }
 
-        // Enregistrer dernier login
-        $client->update([
-            'last_login_at' => now(),
-            'last_login_ip' => $request->ip(),
-        ]);
-
-        $request->session()->regenerate();
-
-        // Si doit changer de mot de passe → rediriger
-        if ($client->must_change_password) {
-            return redirect()->route('client.password.change')
-                ->with('warning', 'Bienvenue ! Veuillez définir votre mot de passe personnel.');
-        }
-
-        return redirect()->intended(route('client.dashboard'))
-            ->with('success', 'Bienvenue, ' . $client->name . ' !');
+        return back()
+            ->withInput($request->only('email'))
+            ->withErrors(['email' => 'Email ou mot de passe incorrect.']);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -79,6 +102,7 @@ class ClientAuthController extends Controller
     public function logout(Request $request)
     {
         Auth::guard('client')->logout();
+        session()->forget(['client_user_id', 'client_user_name', 'client_user_role']);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

@@ -66,6 +66,11 @@ class Campaign extends Model
         return $this->hasMany(Invoice::class);
     }
 
+    public function satisfactionSurvey()
+    {
+        return $this->hasOne(SatisfactionSurvey::class);
+    }
+
     // ── Scopes ────────────────────────────────────────────────────
     public function scopeActive($query)
     {

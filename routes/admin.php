@@ -93,7 +93,7 @@ Route::prefix('client')->name('client.')->group(function () {
     Route::get('/login', [ClientAuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [ClientAuthController::class, 'login'])
         ->name('login.post')
-        ->middleware('throttle:5,1');
+        ->middleware('throttle:20,1');
     Route::post('/logout', [ClientAuthController::class, 'logout'])->name('logout');
 
     // Routes protégées
@@ -115,10 +115,22 @@ Route::prefix('client')->name('client.')->group(function () {
         //Poses & Piges
         Route::get('/poses',  [ClientDashboardController::class, 'poses']) ->name('poses');
         Route::get('/piges',  [ClientDashboardController::class, 'piges']) ->name('piges');
+        Route::get('/piges/{pige}/download', [ClientDashboardController::class, 'pigeDownload'])->name('pige.download');
+        Route::get('/campagnes/{campaign}/piges/download-zip', [ClientDashboardController::class, 'pigesZip'])->name('campagne.piges.zip');
 
         // Profil
         Route::get('/profil', [ClientDashboardController::class, 'profil'])->name('profil');
         Route::patch('/profil', [ClientDashboardController::class, 'updateProfil'])->name('profil.update');
+
+        // Contact
+        Route::get('/contact',  [ClientDashboardController::class, 'contact'])->name('contact');
+        Route::post('/contact', [ClientDashboardController::class, 'sendContact'])->name('contact.send');
+
+        // Équipe (multi-utilisateurs)
+        Route::get('/equipe',                   [\App\Http\Controllers\Client\ClientUserController::class, 'index'])  ->name('equipe');
+        Route::post('/equipe',                  [\App\Http\Controllers\Client\ClientUserController::class, 'store'])  ->name('equipe.store');
+        Route::patch('/equipe/{clientUser}',    [\App\Http\Controllers\Client\ClientUserController::class, 'update']) ->name('equipe.update');
+        Route::delete('/equipe/{clientUser}',   [\App\Http\Controllers\Client\ClientUserController::class, 'destroy'])->name('equipe.destroy');
 
         // Changement mot de passe (sans middleware ForceClientPasswordChange)
         Route::get('/password/change', [ClientAuthController::class, 'showChangePassword'])
