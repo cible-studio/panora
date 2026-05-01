@@ -101,6 +101,98 @@ ps aux | grep "queue:work"
 
 S'il n'y a pas de processus → reste sur `send()` / `sendSilently()` (sync).
 
+## ✅ 3.bis Anti-spam — IMPORTANT
+
+Si tes mails arrivent en **spam**, c'est presque toujours dû à 3 choses :
+authentification de domaine, contenu, et IP d'envoi. Voici l'ordre de priorité.
+
+### A. Authentifier le domaine `cible-ci.com` (le plus impactant)
+
+Sans ces 3 enregistrements DNS, Gmail/Outlook classifient en spam quasi
+systématiquement les mails envoyés via Gmail SMTP au nom de `@cible-ci.com`.
+
+#### 1. SPF (TXT)
+
+Sur Cloudflare DNS, ajouter un TXT à la racine `cible-ci.com` :
+
+```
+Type:  TXT
+Name:  cible-ci.com  (ou @)
+Value: v=spf1 include:_spf.google.com ~all
+```
+
+Si tu envoies aussi via d'autres serveurs (Hetzner direct, Mailgun…), inclure
+chacun :
+```
+v=spf1 include:_spf.google.com ip4:<IP_HETZNER> ~all
+```
+
+#### 2. DKIM (TXT) — Gmail signe les mails
+
+Dans **Google Workspace Admin** (admin.google.com) :
+- Apps → Google Workspace → Gmail → Authenticate email
+- Generate new record (sélectionner `cible-ci.com`)
+- Copier la valeur DKIM générée → ajouter dans Cloudflare :
+  ```
+  Type:  TXT
+  Name:  google._domainkey
+  Value: (la longue chaîne v=DKIM1; k=rsa; p=...)
+  ```
+- Patienter 24-48h puis cliquer "Start Authentication" dans Workspace
+
+#### 3. DMARC (TXT)
+
+Une fois SPF et DKIM en place, ajouter DMARC :
+```
+Type:  TXT
+Name:  _dmarc
+Value: v=DMARC1; p=quarantine; rua=mailto:postmaster@cible-ci.com; pct=100
+```
+
+Pour vérifier que tout est bien configuré : https://www.mail-tester.com/
+(envoyer un mail à l'adresse fournie, score 10/10 attendu).
+
+### B. Bonnes pratiques contenu (déjà appliquées dans le code)
+
+| Règle | Implémentation |
+|-------|----------------|
+| Pas d'emoji dans le subject | ✅ "Proposition commerciale CIBLE CI - Réf. R-001" au lieu de "📋 ✅" |
+| Version texte/plain en + du HTML | ✅ `text: 'emails.plain.xxx'` dans chaque Mailable |
+| Préheader court et descriptif | ✅ Slot `$preheader` dans le layout |
+| Logo embarqué (data-URI base64) | ✅ Pas d'image externe à charger |
+| Lien "From" qui matche le domaine | ✅ `MAIL_FROM_ADDRESS=noreply@cible-ci.com` |
+| Pas de `!`, MAJUSCULES, "FREE", etc. | ✅ Texte sobre |
+| Light theme propre | ✅ Fini les fonds sombres "spammy" |
+| Ratio texte/HTML équilibré | ✅ |
+
+### C. IP d'envoi
+
+Tu utilises **Gmail SMTP** (`smtp.gmail.com`). C'est OK pour des volumes faibles
+(< 500 mails/jour) si SPF/DKIM/DMARC sont en place. Au-delà :
+- Migrer vers un service transactionnel : **Resend**, **Postmark**, **Mailgun**
+- Avantages : meilleure réputation IP, dashboard, webhooks bounce/spam, 99 %+ delivrabilité
+- Tarif : Resend gratuit jusqu'à 3 000 mails/mois — largement suffisant pour démarrer
+
+Pour Resend (recommandé) :
+```env
+MAIL_MAILER=resend
+RESEND_KEY=re_xxxxxxxxxxxxxxxxxxxxxxx
+MAIL_FROM_ADDRESS=noreply@cible-ci.com
+MAIL_FROM_NAME="CIBLE CI"
+```
++ `composer require resend/resend-laravel`
+
+### D. Première étape concrète à faire MAINTENANT
+
+1. Aller sur https://www.mail-tester.com/
+2. Copier l'adresse de test fournie
+3. Depuis Panora, créer un user avec cette adresse → mail welcome envoyé
+4. Cliquer "Then check your score" sur mail-tester
+5. Score :
+   - **9-10/10** : tout est OK, juste arrivé en spam pour autre raison
+   - **7-8/10** : SPF ou DKIM manquant
+   - **< 7/10** : SPF + DKIM + DMARC tous manquants
+
 ## ✅ 4. Tester le flux complet
 
 Une fois en prod :

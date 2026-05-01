@@ -30,16 +30,17 @@ class UserWelcomeMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
+        // Subjects sobres et descriptifs — pas d'emoji, pas de "!"
         $subject = match ($this->context) {
-            'activated'   => '✅ Compte activé — CIBLE CI',
-            'reactivated' => '🔓 Compte réactivé — CIBLE CI',
-            default       => '👋 Bienvenue sur CIBLE CI — votre compte est prêt',
+            'activated'   => 'Votre compte CIBLE CI a été activé',
+            'reactivated' => 'Votre compte CIBLE CI a été réactivé',
+            default       => 'Bienvenue sur CIBLE CI - vos identifiants',
         };
 
         return new Envelope(
             subject:  $subject,
             tags:     ['user', 'welcome', $this->context],
-            metadata: ['user_id' => $this->user->id],
+            metadata: ['user_id' => (string) $this->user->id],
         );
     }
 
@@ -47,6 +48,7 @@ class UserWelcomeMail extends Mailable implements ShouldQueue
     {
         return new Content(
             view: 'emails.user-welcome',
+            text: 'emails.plain.user-welcome',    // Version texte (anti-spam)
             with: [
                 'user'              => $this->user,
                 'temporaryPassword' => $this->temporaryPassword,

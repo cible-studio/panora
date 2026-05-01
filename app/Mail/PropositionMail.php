@@ -30,18 +30,15 @@ class PropositionMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        $clientName = $this->reservation->client?->name ?? 'Client';
-        $panelCount = $this->reservation->panels->count();
-        $period     = $this->reservation->start_date->format('d/m/Y') .
-                      ' → ' .
-                      $this->reservation->end_date->format('d/m/Y');
-
+        $clientName = $this->reservation->client?->name ?? 'client';
+        // Subject sobre — pas d'emoji, pas de majuscules agressives, pas de "!"
+        // (réduit le score spam Gmail / SpamAssassin)
         return new Envelope(
-            subject: "📋 Proposition commerciale — {$panelCount} panneau(x) · {$period} — CIBLE CI",
-            tags:    ['proposition', 'commercial'],
+            subject:  "Proposition commerciale CIBLE CI - Réf. {$this->reservation->reference}",
+            tags:     ['proposition', 'commercial'],
             metadata: [
-                'reservation_id' => $this->reservation->id,
-                'client_id'      => $this->reservation->client_id,
+                'reservation_id' => (string) $this->reservation->id,
+                'client_id'      => (string) ($this->reservation->client_id ?? ''),
             ],
         );
     }
@@ -61,6 +58,7 @@ class PropositionMail extends Mailable implements ShouldQueue
 
         return new Content(
             view: 'admin.emails.proposition',
+            text: 'emails.plain.proposition',     // Version texte (anti-spam)
             with: [
                 'reservation' => $this->reservation,
                 'client'      => $this->reservation->client,

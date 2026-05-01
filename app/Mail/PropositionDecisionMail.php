@@ -31,19 +31,20 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        $clientName = $this->reservation->client?->name ?? 'Client';
+        $clientName = $this->reservation->client?->name ?? 'le client';
         $ref        = $this->reservation->reference;
 
+        // Subjects sobres et descriptifs (anti-spam)
         $subject = $this->decision === self::DECISION_ACCEPTED
-            ? "✅ Proposition acceptée par {$clientName} — {$ref}"
-            : "❌ Proposition refusée par {$clientName} — {$ref}";
+            ? "Proposition {$ref} acceptée par {$clientName}"
+            : "Proposition {$ref} refusée par {$clientName}";
 
         return new Envelope(
             subject:  $subject,
             tags:     ['proposition', 'decision', $this->decision],
             metadata: [
-                'reservation_id' => $this->reservation->id,
-                'client_id'      => $this->reservation->client_id,
+                'reservation_id' => (string) $this->reservation->id,
+                'client_id'      => (string) ($this->reservation->client_id ?? ''),
                 'decision'       => $this->decision,
             ],
         );
@@ -53,6 +54,7 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
     {
         return new Content(
             view: 'emails.proposition-decision',
+            text: 'emails.plain.proposition-decision',  // Version texte (anti-spam)
             with: [
                 'reservation' => $this->reservation,
                 'client'      => $this->reservation->client,
