@@ -31,22 +31,38 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'       => 'required|string|max:100',
-            'email'      => 'required|email|unique:users,email',
-            'password'   => 'required|min:8|confirmed',
-            'role'       => 'required|in:admin,commercial,mediaplanner,technique',
-            'agent_code' => 'nullable|string|unique:users,agent_code',
+            'name'            => 'required|string|max:100',
+            'email'           => 'required|email|unique:users,email',
+            'password'        => 'required|min:8|confirmed',
+            'role'            => 'required|in:admin,commercial,mediaplanner,technique',
+            'agent_code'      => 'nullable|string|unique:users,agent_code',
+            'whatsapp_number' => 'nullable|string|max:20|regex:/^[\+\d\s\-\(\)\.]{6,20}$/',
+        ], [
+            'whatsapp_number.regex' => 'Format WhatsApp invalide (ex: 0707070707 ou +2250707070707).',
         ]);
 
         $plainPassword = $request->password; // gardé pour l'email AVANT hash
 
+        // Normalisation du numéro WhatsApp si fourni → format international sans "+"
+        $whatsapp = null;
+        if ($request->filled('whatsapp_number')) {
+            $whatsapp = app(\App\Services\WhatsAppService::class)
+                ->normalizeNumber($request->input('whatsapp_number'));
+            if ($whatsapp === null) {
+                return back()->withInput()->withErrors([
+                    'whatsapp_number' => 'Numéro WhatsApp invalide.',
+                ]);
+            }
+        }
+
         $user = User::create([
-            'name'       => $request->name,
-            'email'      => $request->email,
-            'password'   => Hash::make($plainPassword),
-            'role'       => $request->role,
-            'agent_code' => $request->agent_code,
-            'is_active'  => true,
+            'name'            => $request->name,
+            'email'           => $request->email,
+            'password'        => Hash::make($plainPassword),
+            'role'            => $request->role,
+            'agent_code'      => $request->agent_code,
+            'whatsapp_number' => $whatsapp,
+            'is_active'       => true,
         ]);
 
         // Alerte création utilisateur
@@ -90,21 +106,37 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $request->validate([
-            'name'       => 'required|string|max:100',
-            'email'      => 'required|email|unique:users,email,'.$user->id,
-            'role'       => 'required|in:admin,commercial,mediaplanner,technique',
-            'agent_code' => 'nullable|string|unique:users,agent_code,'.$user->id,
-            'password'   => 'nullable|min:8|confirmed',
+            'name'            => 'required|string|max:100',
+            'email'           => 'required|email|unique:users,email,'.$user->id,
+            'role'            => 'required|in:admin,commercial,mediaplanner,technique',
+            'agent_code'      => 'nullable|string|unique:users,agent_code,'.$user->id,
+            'password'        => 'nullable|min:8|confirmed',
+            'whatsapp_number' => 'nullable|string|max:20|regex:/^[\+\d\s\-\(\)\.]{6,20}$/',
+        ], [
+            'whatsapp_number.regex' => 'Format WhatsApp invalide (ex: 0707070707 ou +2250707070707).',
         ]);
 
         $oldName = $user->name;
         $oldRole = $user->role;
-        
+
+        // Normalisation WhatsApp : si vide → null, sinon E.164 sans +
+        $whatsapp = null;
+        if ($request->filled('whatsapp_number')) {
+            $whatsapp = app(\App\Services\WhatsAppService::class)
+                ->normalizeNumber($request->input('whatsapp_number'));
+            if ($whatsapp === null) {
+                return back()->withInput()->withErrors([
+                    'whatsapp_number' => 'Numéro WhatsApp invalide.',
+                ]);
+            }
+        }
+
         $data = [
-            'name'       => $request->name,
-            'email'      => $request->email,
-            'role'       => $request->role,
-            'agent_code' => $request->agent_code,
+            'name'            => $request->name,
+            'email'           => $request->email,
+            'role'            => $request->role,
+            'agent_code'      => $request->agent_code,
+            'whatsapp_number' => $whatsapp,
         ];
 
         if ($request->filled('password')) {
