@@ -141,7 +141,15 @@
                         Consulter
                     </a>
                 @endif
-                <a href="{{ route('proposition.show', $res->proposition_token) }}" target="_blank"
+                @php
+                    // Route 'proposition.show' attend [reference, slug].
+                    // Si le slug n'a pas été généré (anciennes propositions), fallback sur la
+                    // route legacy par token qui redirige automatiquement.
+                    $publicLink = $res->proposition_slug
+                        ? route('proposition.show', [$res->reference, $res->proposition_slug])
+                        : route('proposition.show.legacy', $res->proposition_token);
+                @endphp
+                <a href="{{ $publicLink }}" target="_blank" rel="noopener"
                    style="padding:8px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:12px;color:var(--text2);text-decoration:none;transition:all .15s;"
                    onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
                     Lien public
