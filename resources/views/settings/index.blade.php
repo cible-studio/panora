@@ -54,7 +54,7 @@
         </div>
         @if($communes->hasPages())
         <div style="padding:10px 16px;border-top:1px solid var(--border);">
-            {{ $communes->appends(request()->except('communes_page'))->links('vendor.pagination.simple-bootstrap-4') }}
+            {{ $communes->appends(request()->except('communes_page'))->links('pagination::simple-bootstrap-4') }}
         </div>
         @endif
     </div>
@@ -108,7 +108,7 @@
         </div>
         @if($zones->hasPages())
         <div style="padding:10px 16px;border-top:1px solid var(--border);">
-            {{ $zones->appends(request()->except('zones_page'))->links('vendor.pagination.simple-bootstrap-4') }}
+            {{ $zones->appends(request()->except('zones_page'))->links('pagination::simple-bootstrap-4') }}
         </div>
         @endif
     </div>
@@ -168,7 +168,7 @@
         </div>
         @if($formats->hasPages())
         <div style="padding:10px 16px;border-top:1px solid var(--border);">
-            {{ $formats->appends(request()->except('formats_page'))->links('vendor.pagination.simple-bootstrap-4') }}
+            {{ $formats->appends(request()->except('formats_page'))->links('pagination::simple-bootstrap-4') }}
         </div>
         @endif
     </div>
@@ -220,7 +220,7 @@
         </div>
         @if($categories->hasPages())
         <div style="padding:10px 16px;border-top:1px solid var(--border);">
-            {{ $categories->appends(request()->except('categories_page'))->links('vendor.pagination.simple-bootstrap-4') }}
+            {{ $categories->appends(request()->except('categories_page'))->links('pagination::simple-bootstrap-4') }}
         </div>
         @endif
     </div>
