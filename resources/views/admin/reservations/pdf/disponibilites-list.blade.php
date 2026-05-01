@@ -173,11 +173,18 @@
 <body>
 
 @php
-    $logoPath = public_path('images/logon.png');
-    $logoBase64 = null;
-    if (file_exists($logoPath)) {
-        $logoData = file_get_contents($logoPath);
-        $logoBase64 = 'data:image/png;base64,' . base64_encode($logoData);
+    // Source de vérité unique : $logoSrc passé par le controller via PdfAssets::getLogoPdf().
+    // Fallback inline si la vue est rendue sans la variable (compat ascendante).
+    if (!isset($logoSrc)) {
+        $logoPath = public_path('images/logon.png');
+        $logoSrc = file_exists($logoPath)
+            ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
+            : 'data:image/svg+xml;base64,' . base64_encode(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="50">'
+                .'<rect width="180" height="50" rx="6" fill="#0d1117"/>'
+                .'<text x="90" y="34" font-family="Arial" font-weight="900" font-size="20" fill="#e8a020" text-anchor="middle">CIBLE CI</text>'
+                .'</svg>'
+              );
     }
 @endphp
 
@@ -185,9 +192,7 @@
     {{-- HEADER --}}
     <div class="header">
         <div class="logo-container">
-            @if($logoBase64)
-                <img src="{{ $logoBase64 }}" class="logo-img" alt="CIBLE CI">
-            @endif
+            <img src="{{ $logoSrc }}" class="logo-img" alt="CIBLE CI">
             <div>
                 <h1>CIBLE CI — Sélection de panneaux</h1>
                 <p>Généré le {{ $generated ?? now()->format('d/m/Y H:i') }} · {{ count($panels) }} panneau(x)</p>

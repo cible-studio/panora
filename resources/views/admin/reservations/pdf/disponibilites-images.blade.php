@@ -205,55 +205,64 @@
 @php
     use Carbon\Carbon;
 
-    $fmtDate = fn($d) => $d ? Carbon::parse($d)->format('d/m/Y') : '—';
+    $fmtDate    = fn($d) => $d ? Carbon::parse($d)->format('d/m/Y') : '—';
     $totalCount = count($panels);
-    $logoPath = public_path('images/logon.png');
 
     $statusMap = fn($s) => match ($s) {
-        'libre' => ['label' => 'Disponible', 'class' => 'status-libre'],
-        'occupe' => ['label' => 'Occupé', 'class' => 'status-occupe'],
-        'option_periode', 'option' => ['label' => 'En option', 'class' => 'status-option'],
-        'confirme' => ['label' => 'Confirmé', 'class' => 'status-confirme'],
-        'maintenance' => ['label' => 'Maintenance', 'class' => 'status-maintenance'],
-        default => ['label' => 'Indisponible', 'class' => 'status-occupe'],
+        'libre'                    => ['label' => 'Disponible',  'class' => 'status-libre'],
+        'occupe'                   => ['label' => 'Occupé',      'class' => 'status-occupe'],
+        'option_periode', 'option' => ['label' => 'En option',   'class' => 'status-option'],
+        'confirme'                 => ['label' => 'Confirmé',    'class' => 'status-confirme'],
+        'maintenance'              => ['label' => 'Maintenance', 'class' => 'status-maintenance'],
+        default                    => ['label' => 'Indisponible','class' => 'status-occupe'],
     };
 
-    $logoBase64 = null;
-    if (file_exists($logoPath)) {
-        $logoData = file_get_contents($logoPath);
-        $logoBase64 = 'data:image/png;base64,' . base64_encode($logoData);
+    // Logo : provient de PdfAssets::getLogoPdf() via $logoSrc.
+    // Fallback inline si la vue est rendue sans la variable (compat ascendante).
+    if (!isset($logoSrc)) {
+        $logoPath = public_path('images/logon.png');
+        $logoSrc = file_exists($logoPath)
+            ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
+            : 'data:image/svg+xml;base64,' . base64_encode(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="50">'
+                .'<rect width="180" height="50" rx="6" fill="#0d1117"/>'
+                .'<text x="90" y="34" font-family="Arial" font-weight="900" font-size="20" fill="#e8a020" text-anchor="middle">CIBLE CI</text>'
+                .'</svg>'
+              );
     }
 @endphp
 
 @foreach ($panels as $index => $p)
     @php
-        $pageNum = $index + 1;
-        $status = $statusMap($p['display_status'] ?? 'occupe');
-        $traffic = (int) ($p['daily_traffic'] ?? 0);
+        $pageNum  = $index + 1;
+        $status   = $statusMap($p['display_status'] ?? 'occupe');
+        $traffic  = (int) ($p['daily_traffic'] ?? 0);
         $zoneDesc = $p['zone_description'] ?? '';
 
-        $imgSrc = null;
-        if (!empty($p['photo_path']) && file_exists($p['photo_path'])) {
-            $ext = strtolower(pathinfo($p['photo_path'], PATHINFO_EXTENSION));
+        // Photo : on utilise photo_src (base64 ou URL fallback) fournie par enrichPanel().
+        // Compat ascendante avec ancienne clé photo_path (chemin local) :
+        $imgSrc = $p['photo_src'] ?? null;
+        if (!$imgSrc && !empty($p['photo_path']) && file_exists($p['photo_path'])) {
+            $ext  = strtolower(pathinfo($p['photo_path'], PATHINFO_EXTENSION));
             $mime = match ($ext) {
-                'png' => 'image/png',
+                'png'  => 'image/png',
                 'webp' => 'image/webp',
-                'gif' => 'image/gif',
+                'gif'  => 'image/gif',
                 default => 'image/jpeg',
             };
             $imgSrc = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p['photo_path']));
-        } elseif (!empty($p['photo_url'])) {
+        } elseif (!$imgSrc && !empty($p['photo_url'])) {
             $imgSrc = $p['photo_url'];
         }
 
-        $commune = $p['commune'] ?? '—';
-        $zone = $p['zone'] ?? '—';
-        $format = $p['format'] ?? '—';
-        $dims = $p['dimensions'] ?? null;
-        $category = $p['category'] ?? '—';
-        $isLit = (bool) ($p['is_lit'] ?? false);
-        $latitude = $p['latitude'] ?? null;
-        $longitude = $p['longitude'] ?? null;
+        $commune   = $p['commune']    ?? '—';
+        $zone      = $p['zone']       ?? '—';
+        $format    = $p['format']     ?? '—';
+        $dims      = $p['dimensions'] ?? null;
+        $category  = $p['category']   ?? '—';
+        $isLit     = (bool) ($p['is_lit'] ?? false);
+        $latitude  = $p['latitude']   ?? null;
+        $longitude = $p['longitude']  ?? null;
     @endphp
 
     <div class="page">
@@ -263,9 +272,7 @@
                 <tr>
                     <td class="header-left">
                         <div class="logo-container">
-                            @if($logoBase64)
-                                <img src="{{ $logoBase64 }}" class="logo-img" alt="CIBLE CI">
-                            @endif
+                            <img src="{{ $logoSrc }}" class="logo-img" alt="CIBLE CI">
                             <div>
                                 <div class="logo-text">CIBLE CI</div>
                                 <div class="logo-sub">Régie Publicitaire OOH</div>
@@ -334,7 +341,10 @@
                 <tr>
                     <td class="info-label">📍 Coordonnées GPS</td>
                     <td class="info-value">
-                        <span style="font-family:monospace;font-size:9px;">{{ $latitude }}, {{ $longitude }}</span>
+                        <span style="font-family:monospace;font-size:9px;">{{ number_format($latitude, 6, '.', '') }}, {{ number_format($longitude, 6, '.', '') }}</span>
+                        @if(!empty($p['gps_link']))
+                            <br><a href="{{ $p['gps_link'] }}" style="color:#2563eb;text-decoration:none;font-size:9px;">📍 Voir sur Google Maps</a>
+                        @endif
                     </td>
                 </tr>
             @endif

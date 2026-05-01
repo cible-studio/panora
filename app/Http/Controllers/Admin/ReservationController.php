@@ -452,76 +452,32 @@ class ReservationController extends Controller
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
-        $panels = $panelModels->map(function ($panel) {
-
-            $photo = $panel->photos->first();
-            $photoPath = null;
-            $photoUrl = null;
-
-            if ($photo) {
-                $rel = ltrim($photo->path, '/');
-
-                foreach ([
-                    storage_path('app/public/' . $rel),
-                    public_path('storage/' . $rel),
-                ] as $candidate) {
-                    if (file_exists($candidate)) {
-                        $photoPath = $candidate;
-                        break;
-                    }
-                }
-
-                if (!$photoPath) {
-                    $photoUrl = asset('storage/' . $rel);
-                }
-            }
-
-            $dims = null;
-            if ($panel->format?->width && $panel->format?->height) {
-                $w = rtrim(rtrim(number_format($panel->format->width, 2, '.', ''), '0'), '.');
-                $h = rtrim(rtrim(number_format($panel->format->height, 2, '.', ''), '0'), '.');
-                $dims = "{$w}x{$h}m";
-            }
-
-            return [
-                'id' => $panel->id,
-                'reference' => $panel->reference,
-                'name' => $panel->name,
-                'commune' => $panel->commune?->name ?? '—',
-                'zone' => $panel->zone?->name ?? '—',
-                'format' => $panel->format?->name ?? '—',
-                'dimensions' => $dims,
-                'category' => $panel->category?->name ?? '—',
-                'is_lit' => (bool) $panel->is_lit,
-                'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
-                'daily_traffic' => (int) ($panel->daily_traffic ?? 0),
-                'zone_description' => $panel->zone_description ?? '',
-                'display_status' => $panel->status->value,
-                'source' => 'internal',
-                'photo_path' => $photoPath,
-                'photo_url' => $photoUrl,
-            ];
-        });
+        // Enrichissement délégué au service (DRY) — il s'occupe du base64 photos
+        // via PdfAssets::photoToDataUri(), des dimensions, du lien GPS, etc.
+        $service = app(\App\Services\PdfExportService::class);
+        $panels = $panelModels->map(fn($panel) => $service->enrichPanel($panel));
 
         $filename = 'panneaux-' . now()->format('Ymd_His');
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView(
             'admin.reservations.pdf.disponibilites-images',
             [
-                'panels' => $panels,
-                'startDate' => $startDate,
-                'endDate' => $endDate,
-                'generated' => now()->format('d/m/Y'),
+                'panels'          => $panels,
+                'startDate'       => $startDate,
+                'endDate'         => $endDate,
+                'generated'       => now()->format('d/m/Y à H:i'),
                 'reservation_ref' => $reservationRef,
-                'client_name' => $clientName,
+                'client_name'     => $clientName,
+                'logoSrc'         => $this->getLogoPdf(),
+                'hideStatus'      => (bool) $request->boolean('hide_status'),
             ]
         )
             ->setPaper('a4', 'portrait')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => false,
-                'defaultFont' => 'DejaVu Sans',
-                'dpi' => 96,
+                'isRemoteEnabled'      => false,
+                'defaultFont'          => 'DejaVu Sans',
+                'dpi'                  => 96,
             ]);
 
         return $pdf->download($filename . '.pdf');
@@ -550,7 +506,7 @@ class ReservationController extends Controller
         $totalPeriode = $totalMensuel * $dureeEnMois;
         $generated    = now()->format('d/m/Y à H:i');
         $hideStatus   = (bool) $request->boolean('hide_status');
-        $logoSrc      = $this->getLogoPdf();
+        $logoSrc      = $this->getLogoPdf(); // via trait PdfAssets
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.reservations.pdf.disponibilites-list', compact(
             'panels',

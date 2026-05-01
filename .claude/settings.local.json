@@ -26,7 +26,10 @@
       "Bash(php -l app/Http/Controllers/Admin/PropositionController.php)",
       "Bash(php -l app/Http/Controllers/Admin/PanelController.php)",
       "Bash(php -l app/Http/Requests/Client/StoreClientRequest.php)",
-      "Bash(php -l app/Http/Requests/Client/UpdateClientRequest.php)"
+      "Bash(php -l app/Http/Requests/Client/UpdateClientRequest.php)",
+      "Bash(grep -n \"exportPdf\\\\|exportList\\\\|exportNetwork\\\\|use App\\\\\\\\\\\\\\\\Support\\\\|public function\" app/Http/Controllers/Admin/PanelController.php)",
+      "Bash(php -l app/Services/PdfExportService.php)",
+      "Bash(php -l app/Support/PdfAssets.php)"
     ]
   }
 }
