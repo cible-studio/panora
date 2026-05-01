@@ -598,6 +598,8 @@ class ReservationController extends Controller
             'panel_ids.*' => 'required|integer|exists:panels,id',
             'type' => 'required|in:option,ferme',
             'campaign_name' => 'nullable|string|max:150',
+            // Tâche 6.1 — montant personnalisé optionnel (override du calcul auto)
+            'amount' => 'nullable|numeric|min:0|max:9999999999',
         ]);
 
         $maintenancePanels = Panel::whereIn('id', $internalIds)
@@ -629,14 +631,32 @@ class ReservationController extends Controller
                 $reference = $this->generateUniqueReference();
                 $panelData = Panel::whereIn('id', $internalIds)->get()->keyBy('id');
                 $months = $this->monthsBetween($request->start_date, $request->end_date);
-                $total = 0;
+                $autoTotal = 0;
                 $attach = [];
 
                 foreach ($internalIds as $panelId) {
                     $unit = (float) ($panelData[$panelId]->monthly_rate ?? 0);
                     $tot = $unit * $months;
-                    $total += $tot;
+                    $autoTotal += $tot;
                     $attach[$panelId] = ['unit_price' => $unit, 'total_price' => $tot];
+                }
+
+                // Tâche 6.1 : montant personnalisé éventuel.
+                //   - Si l'admin a saisi un montant > 0 → override du calcul auto.
+                //   - Sinon → montant auto-calculé d'après le tarif catalogue × mois.
+                $customAmount = (float) $request->input('amount', 0);
+                $total        = $customAmount > 0 ? $customAmount : $autoTotal;
+
+                // Si on override, on conserve les unit_price du pivot (pour audit)
+                // mais on log l'écart pour traçabilité.
+                if ($customAmount > 0 && abs($customAmount - $autoTotal) > 0.01) {
+                    Log::info('reservation.custom_amount', [
+                        'reference'    => $reference,
+                        'auto'         => $autoTotal,
+                        'custom'       => $customAmount,
+                        'delta'        => round($customAmount - $autoTotal, 2),
+                        'user_id'      => auth()->id(),
+                    ]);
                 }
 
                 $reservation = Reservation::create([
@@ -1173,6 +1193,10 @@ class ReservationController extends Controller
     /**
      * AJOUTER UN PANNEAU À UNE RÉSERVATION EXISTANTE
      * POST /admin/reservations/{reservation}/panels/add
+     *
+     * Anti double-booking : la totalité de l'opération est entourée d'une
+     * DB::transaction + lockForUpdate sur le panneau cible. Le re-check de
+     * disponibilité se fait APRÈS le verrou pour avoir la source de vérité.
      */
     public function addPanel(Request $request, Reservation $reservation)
     {
@@ -1185,58 +1209,92 @@ class ReservationController extends Controller
             'unit_price' => 'nullable|numeric|min:0',
         ]);
 
-        $panelId = $request->panel_id;
-        $unitPrice = $request->unit_price ?? null;
+        $panelId   = (int) $request->panel_id;
+        $unitPrice = $request->unit_price !== null ? (float) $request->unit_price : null;
 
-        // Vérifier que le panneau n'est pas déjà dans la réservation
+        // Pré-check rapide hors transaction (gagne du temps sur le cas évident)
         if ($reservation->panels()->where('panel_id', $panelId)->exists()) {
             return response()->json(['success' => false, 'message' => 'Ce panneau est déjà dans la réservation.'], 422);
         }
 
-        // Vérifier la disponibilité du panneau sur la période
-        $conflicts = $this->availability->getUnavailablePanelIds(
-            [$panelId],
-            $reservation->start_date->format('Y-m-d'),
-            $reservation->end_date->format('Y-m-d'),
-            $reservation->id
-        );
+        try {
+            DB::transaction(function () use ($reservation, $panelId, &$unitPrice) {
+                // ── Verrou pessimiste ────────────────────────────────────────
+                // SELECT ... FOR UPDATE bloque les autres transactions qui
+                // tenteraient de prendre ce même panneau jusqu'au COMMIT/ROLLBACK.
+                $panel = Panel::whereKey($panelId)->lockForUpdate()->first();
+                if (!$panel) {
+                    throw new \RuntimeException('NOT_FOUND:Panneau introuvable.');
+                }
 
-        if (!empty($conflicts)) {
-            return response()->json(['success' => false, 'message' => 'Panneau non disponible sur cette période.'], 422);
+                // ── Re-check disponibilité APRÈS verrou = source de vérité ──
+                $conflicts = $this->availability->getUnavailablePanelIds(
+                    [$panelId],
+                    $reservation->start_date->format('Y-m-d'),
+                    $reservation->end_date->format('Y-m-d'),
+                    $reservation->id
+                );
+                if (!empty($conflicts)) {
+                    throw new \RuntimeException("CONFLICT:{$panel->reference}");
+                }
+
+                // Re-check duplicate dans la transaction (au cas où une autre
+                // requête concurrente l'aurait ajouté entre le pré-check et ici)
+                if ($reservation->panels()->where('panel_id', $panelId)->exists()) {
+                    throw new \RuntimeException('DUPLICATE:Ce panneau a déjà été ajouté.');
+                }
+
+                $months    = $this->monthsBetween(
+                    $reservation->start_date->format('Y-m-d'),
+                    $reservation->end_date->format('Y-m-d')
+                );
+                if ($unitPrice === null) {
+                    $unitPrice = (float) ($panel->monthly_rate ?? 0);
+                }
+                $totalPrice = $unitPrice * $months;
+
+                $reservation->panels()->attach($panelId, [
+                    'unit_price'  => $unitPrice,
+                    'total_price' => $totalPrice,
+                ]);
+
+                // Recalcul total réservation (somme des total_price du pivot)
+                $newTotal = (float) DB::table('reservation_panels')
+                    ->where('reservation_id', $reservation->id)
+                    ->sum('total_price');
+                $reservation->update(['total_amount' => round($newTotal, 2)]);
+
+                $this->availability->syncPanelStatuses([$panelId]);
+
+                Log::info('reservation.panel_added', [
+                    'reservation_id' => $reservation->id,
+                    'panel_id'       => $panelId,
+                    'panel_ref'      => $panel->reference,
+                    'user_id'        => auth()->id(),
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            $msg = $e->getMessage();
+            if (str_starts_with($msg, 'CONFLICT:')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Conflit : le panneau ' . substr($msg, 9) . ' n\'est plus disponible (réservation concurrente).',
+                ], 409);
+            }
+            if (str_starts_with($msg, 'DUPLICATE:')) {
+                return response()->json(['success' => false, 'message' => substr($msg, 10)], 422);
+            }
+            if (str_starts_with($msg, 'NOT_FOUND:')) {
+                return response()->json(['success' => false, 'message' => substr($msg, 10)], 404);
+            }
+            throw $e;
         }
 
-        $months = $this->monthsBetween(
-            $reservation->start_date->format('Y-m-d'),
-            $reservation->end_date->format('Y-m-d')
-        );
-
-        // Récupérer le prix catalogue si unit_price non fourni
-        if ($unitPrice === null) {
-            $panel = Panel::find($panelId);
-            $unitPrice = $panel->monthly_rate ?? 0;
-        }
-
-        $totalPrice = $unitPrice * $months;
-
-        // Ajouter le panneau
-        $reservation->panels()->attach($panelId, [
-            'unit_price'  => $unitPrice,
-            'total_price' => $totalPrice,
-        ]);
-
-        // Recalculer le total de la réservation
-        $newTotal = $reservation->panels()->sum(DB::raw('reservation_panels.total_price'));
-        $reservation->update(['total_amount' => $newTotal]);
-
-        // Mettre à jour le statut du panneau
-        $this->availability->syncPanelStatuses([$panelId]);
-
-        // Alerte d'ajout
         AlertService::create(
             'reservation',
             'info',
             '➕ Panneau ajouté — ' . $reservation->reference,
-            auth()->user()->name . ' a ajouté un panneau à la réservation ' . $reservation->reference,
+            auth()->user()?->name . ' a ajouté un panneau à la réservation ' . $reservation->reference,
             $reservation
         );
 

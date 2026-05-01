@@ -105,7 +105,13 @@
              style="border-top:1px solid var(--border)">
             <div>
                 <div class="text-xs uppercase tracking-wider mb-1" style="color:var(--text3)">Créée par</div>
-                <div class="text-sm">{{ $reservation->user?->name ?? '—' }}</div>
+                <div class="text-sm font-medium">{{ $reservation->user?->name ?? '—' }}</div>
+                @if($reservation->created_at)
+                    <div class="text-xs mt-0.5" style="color:var(--text3)" title="{{ $reservation->created_at->format('d/m/Y H:i:s') }}">
+                        🕐 {{ $reservation->created_at->format('d/m/Y') }} à {{ $reservation->created_at->format('H:i') }}
+                        <span style="opacity:.7">({{ $reservation->created_at->diffForHumans() }})</span>
+                    </div>
+                @endif
             </div>
             <div>
                 <div class="text-xs uppercase tracking-wider mb-1" style="color:var(--text3)">Date confirmation</div>

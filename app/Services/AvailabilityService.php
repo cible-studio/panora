@@ -19,6 +19,31 @@ use Illuminate\Support\Facades\Log;
  *
  * panels.status = cache de lecture — JAMAIS utilisé pour décider
  * de la disponibilité réelle.
+ *
+ * ─── ANTI DOUBLE-BOOKING (pattern d'usage) ──────────────────────────────
+ * À CHAQUE création/ajout de panneau qui pourrait entrer en conflit, le
+ * code appelant DOIT respecter ce pattern (verrouillage pessimiste) :
+ *
+ *   DB::transaction(function () use ($panelIds, ...) {
+ *       Panel::whereIn('id', $panelIds)->lockForUpdate()->get();    // ① verrou
+ *       $conflicts = $availability->getUnavailablePanelIds(...);     // ② re-check
+ *       if (!empty($conflicts)) { throw new RuntimeException(...); } // ③ rollback
+ *       // ... attach + create
+ *   });
+ *
+ * Le verrou pessimiste (SELECT ... FOR UPDATE) bloque toute autre transaction
+ * concurrente qui tenterait `lockForUpdate()` sur les mêmes panneaux jusqu'au
+ * COMMIT/ROLLBACK. Combiné au re-check après verrou, on a une garantie forte :
+ *   - Avec 2 utilisateurs simultanés sur le même panneau, 1 seul peut commiter.
+ *   - Le second voit `getUnavailablePanelIds()` détecter le conflit et rollback.
+ *
+ * Niveau d'isolation requis : REPEATABLE READ (défaut MySQL InnoDB) ou supérieur.
+ * Sous READ COMMITTED, le re-check pourrait passer entre 2 transactions concurrentes.
+ *
+ * Index DB optimal pour la requête de chevauchement (cf. migration
+ * 2026_05_01_120000_add_overlap_index_for_anti_double_booking) :
+ *   `idx_reservations_overlap (status, start_date, end_date)`
+ * ────────────────────────────────────────────────────────────────────────
  */
 class AvailabilityService
 {

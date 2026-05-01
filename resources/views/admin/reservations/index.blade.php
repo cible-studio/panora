@@ -230,31 +230,198 @@
     </div>
 
     {{-- ══════════════════════════════════════════════════════
-         MODAL "VOIR LES PANNEAUX" — chargée en AJAX
+         MODAL "VOIR LES PANNEAUX" — chargée en AJAX (design moderne)
     ══════════════════════════════════════════════════════ --}}
     <div id="modal-panels" class="modal-overlay" style="display:none;" onclick="closePanelsModal(event)">
-        <div class="modal" style="max-width:920px;width:100%;" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h3 class="modal-title">🪧 Panneaux — <span id="panels-modal-ref" style="color:var(--accent);"></span></h3>
+        <div class="modal panels-modal" onclick="event.stopPropagation()">
+            <div class="modal-header" style="background:linear-gradient(135deg, var(--surface2), var(--surface));">
+                <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
+                    <span style="font-size:24px;flex-shrink:0;">🪧</span>
+                    <div style="min-width:0;">
+                        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);font-weight:600;">Panneaux liés</div>
+                        <h3 class="modal-title" style="margin:2px 0 0;font-size:18px;">
+                            Réservation <span id="panels-modal-ref" style="color:var(--accent);font-family:monospace;"></span>
+                        </h3>
+                    </div>
+                </div>
                 <button class="modal-close" onclick="closePanelsModal()" type="button" aria-label="Fermer">✕</button>
             </div>
-            <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
-                <div id="panels-modal-meta" style="font-size:12px;color:var(--text3);margin-bottom:14px;"></div>
-                <div id="panels-modal-loading" style="text-align:center;padding:40px;color:var(--text3);">
-                    <div class="animate-spin" style="display:inline-block;width:24px;height:24px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;"></div>
-                    <div style="margin-top:8px;font-size:12px;">Chargement…</div>
+
+            <div class="panels-modal-meta" id="panels-modal-meta"></div>
+
+            <div class="modal-body panels-modal-body">
+                {{-- Loading state --}}
+                <div id="panels-modal-loading" class="panels-state">
+                    <div class="panels-spinner"></div>
+                    <div style="margin-top:12px;font-size:13px;color:var(--text3);">Chargement des panneaux…</div>
                 </div>
-                <div id="panels-modal-grid" style="display:none;"></div>
-                <div id="panels-modal-empty" style="display:none;text-align:center;padding:40px;color:var(--text3);">
-                    <div style="font-size:48px;">🪧</div>
-                    <div>Aucun panneau lié à cette réservation.</div>
+
+                {{-- Grid (rempli par JS) --}}
+                <div id="panels-modal-grid" class="panels-grid" style="display:none;"></div>
+
+                {{-- Empty state --}}
+                <div id="panels-modal-empty" class="panels-state" style="display:none;">
+                    <div style="font-size:64px;opacity:.4;">🪧</div>
+                    <div style="margin-top:8px;font-weight:600;color:var(--text2);">Aucun panneau lié</div>
+                    <div style="margin-top:4px;font-size:12px;color:var(--text3);">Cette réservation n'a pas encore de panneau associé.</div>
                 </div>
             </div>
-            <div class="modal-footer">
+
+            <div class="modal-footer" style="justify-content:space-between;">
+                <div id="panels-modal-total" style="font-size:13px;color:var(--text2);"></div>
                 <button type="button" onclick="closePanelsModal()" class="btn btn-ghost">Fermer</button>
             </div>
         </div>
     </div>
+
+    <style>
+        /* ═══ MODALE PANNEAUX — design moderne ═══ */
+        .panels-modal {
+            max-width: 960px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            max-height: 90vh;
+        }
+        .panels-modal-meta {
+            padding: 12px 24px;
+            background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text2);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+        }
+        .panels-modal-meta .meta-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .panels-modal-meta .meta-chip.status-en-attente { color: #f97316; border-color: rgba(249,115,22,.4); background: rgba(249,115,22,.08); }
+        .panels-modal-meta .meta-chip.status-confirme   { color: #22c55e; border-color: rgba(34,197,94,.4);  background: rgba(34,197,94,.08); }
+        .panels-modal-meta .meta-chip.status-annule     { color: #ef4444; border-color: rgba(239,68,68,.4);  background: rgba(239,68,68,.08); }
+        .panels-modal-meta .meta-chip.status-termine    { color: #6b7280; border-color: rgba(107,114,128,.4);background: rgba(107,114,128,.08); }
+
+        .panels-modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 18px 24px;
+            background: var(--surface);
+        }
+
+        .panels-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+        .panels-spinner {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--accent);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .panels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 14px;
+        }
+        .panel-card {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--surface2);
+            transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent);
+            box-shadow: 0 12px 28px rgba(0,0,0,.18);
+        }
+        .panel-card-photo {
+            position: relative;
+            height: 140px;
+            background: var(--surface3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .panel-card-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .panel-card-photo .photo-fallback {
+            font-size: 36px;
+            opacity: .5;
+        }
+        .panel-card-photo .lit-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(232,160,32,0.95);
+            color: #000;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 999px;
+            box-shadow: 0 2px 6px rgba(0,0,0,.3);
+        }
+        .panel-card-body { padding: 12px 14px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+        .panel-card-ref  {
+            font-family: monospace;
+            font-weight: 700;
+            font-size: 13px;
+            color: var(--accent);
+            letter-spacing: .5px;
+        }
+        .panel-card-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .panel-card-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--text3);
+            margin-top: 2px;
+        }
+        .panel-card-rate {
+            margin-top: auto;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border);
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        @media (max-width: 640px) {
+            .panels-grid { grid-template-columns: 1fr; }
+            .panels-modal-meta { padding: 10px 14px; font-size: 11px; }
+            .panels-modal-body { padding: 14px; }
+        }
+    </style>
 
     <style>
         /* Stats grid */
@@ -568,20 +735,32 @@
         }
     }
 
-    // ─── Modale "Voir les panneaux" — chargée en AJAX ──────────────
+    // ─── Modale "Voir les panneaux" — design moderne ──────────────
+    const PANEL_PLACEHOLDER = '/images/panel-placeholder.svg';
+
+    const STATUS_LABELS = {
+        en_attente: { label: 'En option',   class: 'status-en-attente' },
+        confirme:   { label: 'Confirmée',   class: 'status-confirme'   },
+        annule:     { label: 'Annulée',     class: 'status-annule'     },
+        refuse:     { label: 'Refusée',     class: 'status-annule'     },
+        termine:    { label: 'Terminée',    class: 'status-termine'    },
+    };
+
     async function openPanelsModal(reservationId, reference) {
         const modal   = document.getElementById('modal-panels');
         const loading = document.getElementById('panels-modal-loading');
         const grid    = document.getElementById('panels-modal-grid');
         const empty   = document.getElementById('panels-modal-empty');
         const meta    = document.getElementById('panels-modal-meta');
+        const totalEl = document.getElementById('panels-modal-total');
 
         document.getElementById('panels-modal-ref').textContent = reference;
         loading.style.display = 'block';
         grid.style.display    = 'none';
         empty.style.display   = 'none';
         grid.innerHTML        = '';
-        meta.textContent      = '';
+        meta.innerHTML        = '';
+        totalEl.textContent   = '';
         modal.style.display   = 'flex';
 
         try {
@@ -590,45 +769,58 @@
             const data = await res.json();
 
             loading.style.display = 'none';
-            meta.textContent = `${data.reservation.count} panneau(x) — Période : ${data.reservation.start_date} → ${data.reservation.end_date}`;
+
+            // ─── Méta-info enrichie en chips colorés ───
+            const r = data.reservation;
+            const st = STATUS_LABELS[r.status] || { label: r.status || '—', class: '' };
+            meta.innerHTML = `
+                <span class="meta-chip ${st.class}">${st.label}</span>
+                <span class="meta-chip">📅 ${r.start_date} → ${r.end_date}</span>
+                <span class="meta-chip">🪧 ${r.count} panneau${r.count > 1 ? 'x' : ''}</span>
+            `;
 
             if (!data.panels.length) {
                 empty.style.display = 'block';
                 return;
             }
 
+            // ─── Grille de cards modernes ───
             grid.style.display = 'grid';
-            grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(220px,1fr))';
-            grid.style.gap = '12px';
-
-            const placeholder = '/images/panel-placeholder.svg';
             grid.innerHTML = data.panels.map(p => `
-                <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface2);">
-                    <div style="height:120px;background:var(--surface3);display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                <div class="panel-card">
+                    <div class="panel-card-photo">
                         ${p.photo_url
-                            ? `<img src="${p.photo_url}" alt="${p.reference}" loading="lazy"
-                                  onerror="this.onerror=null;this.src='${placeholder}'"
-                                  style="width:100%;height:100%;object-fit:cover;">`
-                            : `<img src="${placeholder}" alt="placeholder" style="width:60%;height:60%;object-fit:contain;opacity:.7;">`}
+                            ? `<img src="${p.photo_url}" alt="${escapeAttr(p.reference)}" loading="lazy"
+                                  onerror="this.onerror=null;this.outerHTML='<span class=&quot;photo-fallback&quot;>🪧</span>';">`
+                            : `<span class="photo-fallback">🪧</span>`}
+                        ${p.is_lit ? '<span class="lit-badge">💡 LED</span>' : ''}
                     </div>
-                    <div style="padding:10px 12px;">
-                        <div style="font-family:monospace;font-weight:700;color:var(--accent);font-size:13px;">${escapeHtml(p.reference)}</div>
-                        <div style="font-weight:500;font-size:13px;margin:2px 0 6px;">${escapeHtml(p.name)}</div>
-                        <div style="font-size:11px;color:var(--text3);display:flex;flex-wrap:wrap;gap:6px;">
+                    <div class="panel-card-body">
+                        <div class="panel-card-ref">${escapeHtml(p.reference)}</div>
+                        <div class="panel-card-name" title="${escapeAttr(p.name)}">${escapeHtml(p.name)}</div>
+                        <div class="panel-card-meta">
                             <span>📍 ${escapeHtml(p.commune)}</span>
                             <span>📏 ${escapeHtml(p.format)}</span>
-                            ${p.is_lit ? '<span style="color:var(--accent);">💡</span>' : ''}
                         </div>
-                        <div style="margin-top:6px;font-size:12px;font-weight:600;color:var(--accent);">
-                            ${Number(p.monthly_rate).toLocaleString('fr-FR')} FCFA/mois
+                        <div class="panel-card-rate">
+                            ${Number(p.monthly_rate || 0).toLocaleString('fr-FR')} FCFA/mois
                         </div>
                     </div>
                 </div>
             `).join('');
+
+            // ─── Total dans le footer ───
+            const total = data.panels.reduce((s, p) => s + Number(p.monthly_rate || 0), 0);
+            totalEl.innerHTML = `Total mensuel : <strong style="color:var(--accent);">${total.toLocaleString('fr-FR')} FCFA</strong>`;
+
         } catch (e) {
             loading.style.display = 'none';
             empty.style.display = 'block';
-            empty.innerHTML = '<div style="font-size:48px;">⚠️</div><div>Impossible de charger les panneaux.</div>';
+            empty.innerHTML = `
+                <div style="font-size:64px;opacity:.5;">⚠️</div>
+                <div style="margin-top:8px;font-weight:600;color:var(--text2);">Erreur de chargement</div>
+                <div style="margin-top:4px;font-size:12px;color:var(--text3);">Impossible de charger les panneaux. Réessayez ou rafraîchissez la page.</div>
+            `;
         }
     }
 
@@ -638,9 +830,15 @@
         }
     }
 
+    // Fermer avec Échap
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closePanelsModal();
+    });
+
     function escapeHtml(s) {
         return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
+    function escapeAttr(s) { return escapeHtml(s).replace(/`/g, '&#96;'); }
     
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {

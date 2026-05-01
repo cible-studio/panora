@@ -29,7 +29,10 @@
       "Bash(php -l app/Http/Requests/Client/UpdateClientRequest.php)",
       "Bash(grep -n \"exportPdf\\\\|exportList\\\\|exportNetwork\\\\|use App\\\\\\\\\\\\\\\\Support\\\\|public function\" app/Http/Controllers/Admin/PanelController.php)",
       "Bash(php -l app/Services/PdfExportService.php)",
-      "Bash(php -l app/Support/PdfAssets.php)"
+      "Bash(php -l app/Support/PdfAssets.php)",
+      "Bash(grep -n 'match \\($statut\\\\|case '\\\\''option\\\\|case '\\\\''occupe\\\\|in_array\\($statut' /c/wamp64/www/panora/app/Http/Controllers/Admin/ReservationController.php)",
+      "Bash(php -l app/Services/AvailabilityService.php)",
+      "Bash(php -l database/migrations/2026_05_01_120000_add_overlap_index_for_anti_double_booking.php)"
     ]
   }
 }

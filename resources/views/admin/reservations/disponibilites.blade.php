@@ -5,6 +5,11 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <x-slot:topbarActions>
+        {{-- Tâche 6.5 : bouton Retour cohérent avec les autres pages show/edit --}}
+        <a href="{{ route('admin.reservations.index') }}" class="btn btn-ghost btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+            Retour
+        </a>
         <div id="topbar-confirm-wrapper" style="display:none">
             <button class="btn btn-primary" onclick="DISPO.openConfirmModal()">
                 ✅ Confirmer (<span id="topbar-count">0</span>)
@@ -1516,7 +1521,12 @@
                 }
                 addClientToSelect2(data.id, data.name);
                 this.closeQuickClientModal();
-                this.showSuccessToast(`Client "${data.name}" créé ✅`);
+                // Tâche 6.2 : utiliser le système Toast global de l'app pour cohérence visuelle
+                if (window.Toast?.success) {
+                    window.Toast.success(`Client <strong>${data.name}</strong> créé et sélectionné automatiquement.`);
+                } else {
+                    this.showSuccessToast(`Client "${data.name}" créé ✅`);
+                }
             } catch (err) {
                 errBox.innerHTML = `<div class="flex gap-2"><span>⚠️</span><span>Erreur réseau : ${err.message}</span></div>`;
                 errBox.classList.remove('hidden');

@@ -220,7 +220,7 @@
     // Logo : provient de PdfAssets::getLogoPdf() via $logoSrc.
     // Fallback inline si la vue est rendue sans la variable (compat ascendante).
     if (!isset($logoSrc)) {
-        $logoPath = public_path('images/logon.png');
+        $logoPath = public_path('images/logol.png');
         $logoSrc = file_exists($logoPath)
             ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
             : 'data:image/svg+xml;base64,' . base64_encode(
