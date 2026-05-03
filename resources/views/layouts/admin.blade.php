@@ -175,6 +175,9 @@
                     </svg>
                 </button>
 
+                @if(!empty($topbarLeft))
+                <div>{{ $topbarLeft }}</div>
+                @endif
                 <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
 
                 <div class="topbar-actions">

@@ -1,8 +1,8 @@
 <x-admin-layout title="Modifier — {{ $campaign->name }}">
 
-<x-slot:topbarActions>
+<x-slot:topbarLeft>
   <a href="{{ route('admin.campaigns.show', $campaign) }}" class="btn btn-ghost">← Retour</a>
-</x-slot:topbarActions>
+</x-slot:topbarLeft>
 
 <div style="max-width:720px;margin:0 auto;">
 
