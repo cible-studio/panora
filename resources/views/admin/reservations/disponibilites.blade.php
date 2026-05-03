@@ -1167,7 +1167,8 @@
             _el(iId).innerHTML = ids.map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
             if (type === 'liste') {
                 const hs = document.getElementById('dispo-hide-status')?.checked;
-                if (hs) _el(iId).innerHTML += `<input type="hidden" name="hide_status" value="1">`;
+                const hsField = document.getElementById('pdf-liste-hide-status');
+                if (hsField) hsField.value = hs ? '1' : '0';
             }
             _el(sId).value = S.f.du || ''; _el(eId).value = S.f.au || '';
             document.getElementById(fId).submit();
