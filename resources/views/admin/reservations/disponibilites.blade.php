@@ -1022,7 +1022,7 @@
         occupe:       { l: 'Occupé',      c: '#e20613', b: 'rgba(226,6,19,.08)',    bd: 'rgba(226,6,19,.3)' },
         option_periode:{ l: 'En option',  c: '#f97316', b: 'rgba(249,115,22,.12)',  bd: 'rgba(249,115,22,.5)' },
         option:       { l: 'En option',   c: '#f97316', b: 'rgba(249,115,22,.12)',  bd: 'rgba(249,115,22,.5)' },
-        confirme:     { l: 'Confirmé',    c: '#81358a', b: 'rgba(129,53,138,.08)',  bd: 'rgba(129,53,138,.3)' },
+        confirme:     { l: 'Confirmé',    c: '#e20613', b: 'rgba(226,6,19,.08)',   bd: 'rgba(226,6,19,.3)'  },
         maintenance:  { l: 'Maintenance', c: '#6b7280', b: 'rgba(107,114,128,.08)', bd: 'rgba(107,114,128,.3)' },
         a_verifier:   { l: 'À vérifier',  c: '#94a3b8', b: 'rgba(148,163,184,.08)', bd: 'rgba(148,163,184,.3)' },
     };

@@ -1,6 +1,10 @@
 <x-admin-layout>
 <x-slot name="title">Modifier — {{ $panel->reference }}</x-slot>
 
+<x-slot:topbarActions>
+  <a href="{{ route('admin.panels.show', $panel) }}" class="btn btn-ghost">← Retour</a>
+</x-slot:topbarActions>
+
 <div style="max-width:800px;">
     <div class="card">
         <div class="card-header">
