@@ -213,6 +213,34 @@
     {{-- TOAST container --}}
     <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:380px;"></div>
 
+    {{-- LIGHTBOX global --}}
+    <div id="lightbox-overlay"
+         onclick="closeLightbox()"
+         style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:999999;
+                align-items:center;justify-content:center;cursor:zoom-out;">
+        <img id="lightbox-img" src="" alt=""
+             style="max-width:92vw;max-height:92vh;border-radius:10px;
+                    box-shadow:0 20px 80px rgba(0,0,0,.8);object-fit:contain;">
+        <button onclick="closeLightbox()" title="Fermer"
+                style="position:absolute;top:18px;right:22px;background:rgba(255,255,255,.12);
+                       border:none;color:#fff;font-size:26px;line-height:1;width:44px;height:44px;
+                       border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <script>
+    function openLightbox(src) {
+        document.getElementById('lightbox-img').src = src;
+        const ol = document.getElementById('lightbox-overlay');
+        ol.style.display = 'flex';
+        document.addEventListener('keydown', _lbKey);
+    }
+    function closeLightbox() {
+        document.getElementById('lightbox-overlay').style.display = 'none';
+        document.getElementById('lightbox-img').src = '';
+        document.removeEventListener('keydown', _lbKey);
+    }
+    function _lbKey(e) { if (e.key === 'Escape') closeLightbox(); }
+    </script>
+
     <style>
         .toast { min-width:300px;max-width:380px;padding:14px 16px;border-radius:12px;font-size:13px;font-weight:500;display:flex;align-items:flex-start;gap:12px;pointer-events:all;cursor:pointer;box-shadow:0 8px 32px rgba(0,0,0,.5);animation:toastIn .3s cubic-bezier(0.34,1.56,0.64,1);line-height:1.5;border:1px solid transparent;backdrop-filter:blur(8px); }
         .toast.success { background:rgba(5,46,22,0.95);border-color:#166534;color:#4ade80; }
