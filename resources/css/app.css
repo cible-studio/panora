@@ -348,6 +348,16 @@ body {
   font-weight: 700;
   font-size: 16px;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-left {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
 .topbar-search {
@@ -1002,6 +1012,9 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
 @media (max-width: 1024px) {
   :root { --sidebar-width: var(--sidebar-collapsed); }
 
+  /* Formulaires : 3 cols → 2 cols */
+  .form-3col { grid-template-columns: 1fr 1fr; }
+
   /* Active le mode rail visuellement */
   .sidebar { width: var(--sidebar-collapsed); }
   .sidebar { /* alias logique pour tooltips */ }
@@ -1099,11 +1112,16 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
   /* Backdrop visible quand drawer ouvert */
   .sidebar-backdrop { display: block; }
 
+  /* Formulaires : 2 et 3 cols → 1 col */
+  .form-2col, .form-3col { grid-template-columns: 1fr; }
+
   /* Topbar plus compacte */
-  .topbar { padding: 0 12px; gap: 10px; }
+  .topbar { padding: 0 12px; gap: 8px; }
   .topbar-title { font-size: 14px; }
   .topbar-search { display: none; }
-  .topbar-actions { gap: 6px; }
+  /* Actions : pas de wrap (topbar hauteur fixe) → scroll caché */
+  .topbar-actions { gap: 6px; flex-wrap: nowrap; overflow: hidden; }
+  .topbar-left { flex-shrink: 0; }
 
   /* Grilles : 3/4 cols → 1 en mobile */
   .grid.grid-cols-3,
@@ -1118,7 +1136,9 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
 
   /* Modales plein écran avec scroll interne */
   [id^="modal-"] > div,
-  .modal-content {
+  .modal-content,
+  .modal,
+  .modal-wide {
     width: 100% !important;
     max-width: 100% !important;
     height: 100dvh !important;
@@ -1127,6 +1147,7 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
     margin: 0 !important;
     overflow-y: auto !important;
   }
+  .modal-overlay { align-items: flex-start; }
 
   .topbar .btn-sm { padding: 4px 8px; }
 }
@@ -1386,13 +1407,12 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
 
 /* SMALL MOBILE (≤ 480px) — encore plus serré */
 @media (max-width: 480px) {
-  .topbar-title { max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* Boutons topbar : icônes seulement si trop d'éléments */
-  .topbar .btn .btn-label { display: none; }
   /* Page padding très réduit */
   .page-content { padding: 10px; }
   /* Tables : hauteur de cellule plus compacte */
   table th, table td { padding: 8px 10px !important; font-size: 12px; }
+  /* Boutons retour/topbarLeft : label masqué si trop serré */
+  .topbar-left .btn-label { display: none; }
 }
 
 /* ═══════════════════════════════════════════════

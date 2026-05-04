@@ -176,7 +176,7 @@
                 </button>
 
                 @if(!empty($topbarLeft))
-                <div>{{ $topbarLeft }}</div>
+                <div class="topbar-left">{{ $topbarLeft }}</div>
                 @endif
                 <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
 
@@ -195,7 +195,7 @@
                 </div>
             </header>
 
-            <div class="topbar-spacer" aria-hidden="true" style="height:8px;"></div>
+            <div class="topbar-spacer" aria-hidden="true"></div>
 
             <div class="flash-zone">
                 @if (session('success'))
