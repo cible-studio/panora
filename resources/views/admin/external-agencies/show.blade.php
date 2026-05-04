@@ -176,7 +176,8 @@
               @if($panel->photo_path)
                 <img src="{{ asset('storage/' . $panel->photo_path) }}"
                      alt=""
-                     style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block;">
+                     onclick="openLightbox(this.src)"
+                     style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block;cursor:zoom-in;">
               @else
                 <div style="width:44px;height:44px;border-radius:6px;border:1px dashed var(--border);
                             background:var(--surface2);display:flex;align-items:center;justify-content:center;">

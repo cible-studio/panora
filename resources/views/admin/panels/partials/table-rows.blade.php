@@ -12,8 +12,9 @@
             <img src="{{ asset('storage/'.$photo->path) }}"
                  alt="{{ $panel->reference }}"
                  loading="lazy"
+                 onclick="openLightbox(this.src)"
                  onerror="this.onerror=null;this.src='/images/panel-placeholder.svg';"
-                 style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid var(--border);">
+                 style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:zoom-in;">
         @else
             <img src="/images/panel-placeholder.svg" alt="placeholder"
                  style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid var(--border);background:var(--surface2);">
@@ -44,7 +45,17 @@
 
 @foreach($externalPanels as $ext)
 <tr style="background:rgba(168,85,247,0.02);">
-    <td><div style="width:60px;height:45px;border-radius:6px;border:1px solid rgba(168,85,247,0.2);background:rgba(168,85,247,0.08);display:flex;align-items:center;justify-content:center;color:var(--purple);font-size:16px;">🏢</div></td>
+    <td>
+        @if($ext->photo_path && file_exists(storage_path('app/public/'.$ext->photo_path)))
+            <img src="{{ asset('storage/'.$ext->photo_path) }}"
+                 alt="{{ $ext->code_panneau }}"
+                 loading="lazy"
+                 onclick="openLightbox(this.src)"
+                 style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid rgba(168,85,247,0.2);cursor:zoom-in;">
+        @else
+            <div style="width:60px;height:45px;border-radius:6px;border:1px solid rgba(168,85,247,0.2);background:rgba(168,85,247,0.08);display:flex;align-items:center;justify-content:center;color:var(--purple);font-size:16px;">🏢</div>
+        @endif
+    </td>
     <td><span style="font-family:monospace;color:var(--purple);font-weight:700;">{{ $ext->code_panneau }}</span><div style="margin-top:2px;"><span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(168,85,247,0.12);color:var(--purple);font-weight:600;">{{ $ext->agency->name }}</span></div></td>
     <td><div style="font-weight:500;">{{ $ext->designation }}</div><div style="font-size:11px;color:var(--text3);">{{ $ext->category?->name ?? '—' }} @if($ext->is_lit) · 💡 @endif</div></td>
     <td>{{ $ext->commune?->name ?? '—' }}</td>

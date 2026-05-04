@@ -244,7 +244,9 @@
         <tbody>
             @foreach($panels as $p)
                 @php
-                    $statusValue = $p->status->value ?? ($p['status'] ?? 'libre');
+                    // $p is always a stdClass from ExternalAgencyController::pdfListe()
+                    $statusObj   = $p->status ?? null;
+                    $statusValue = is_object($statusObj) ? ($statusObj->value ?? 'libre') : ($statusObj ?? 'libre');
                     $statusMeta  = match($statusValue) {
                         'libre'       => ['label' => 'Disponible', 'class' => 'badge-libre'],
                         'occupe'      => ['label' => 'Occupé',     'class' => 'badge-occupe'],
@@ -255,21 +257,25 @@
                     };
                     $traffic   = (int) ($p->daily_traffic ?? 0);
                     $isLit     = (bool) ($p->is_lit ?? false);
-                    $reference = $p->reference ?? ($p['reference'] ?? '—');
-                    $name      = $p->name      ?? ($p['name']      ?? '—');
-                    $commune   = $p->commune?->name  ?? ($p['commune']  ?? '—');
-                    $zone      = $p->zone?->name     ?? ($p['zone']     ?? '—');
-                    $format    = $p->format?->name   ?? ($p['format']   ?? '—');
-                    $category  = $p->category?->name ?? ($p['category'] ?? '—');
+                    $reference = $p->reference ?? '—';
+                    $name      = $p->name      ?? '—';
+                    $communeVal = $p->commune ?? null;
+                    $commune    = is_object($communeVal) ? ($communeVal->name ?? '—') : ($communeVal ?? '—');
+                    $zoneVal    = $p->zone ?? null;
+                    $zone       = is_object($zoneVal) ? ($zoneVal->name ?? '—') : ($zoneVal ?? '—');
+                    $formatVal  = $p->format ?? null;
+                    $format     = is_object($formatVal) ? ($formatVal->name ?? '—') : ($formatVal ?? '—');
+                    $categoryVal = $p->category ?? null;
+                    $category    = is_object($categoryVal) ? ($categoryVal->name ?? '—') : ($categoryVal ?? '—');
                     $rate      = (float) ($p->monthly_rate ?? 0);
 
                     $dims = null;
-                    if (isset($p->format) && $p->format?->width && $p->format?->height) {
-                        $w = rtrim(rtrim(number_format($p->format->width, 2, '.', ''), '0'), '.');
-                        $h = rtrim(rtrim(number_format($p->format->height, 2, '.', ''), '0'), '.');
+                    if (is_object($formatVal) && isset($formatVal->width) && isset($formatVal->height) && $formatVal->width && $formatVal->height) {
+                        $w = rtrim(rtrim(number_format($formatVal->width, 2, '.', ''), '0'), '.');
+                        $h = rtrim(rtrim(number_format($formatVal->height, 2, '.', ''), '0'), '.');
                         $dims = "{$w} × {$h} m";
-                    } elseif (isset($p['dimensions']) && $p['dimensions']) {
-                        $dims = $p['dimensions'];
+                    } elseif (isset($p->dimensions) && $p->dimensions) {
+                        $dims = $p->dimensions;
                     }
                 @endphp
                 <tr>

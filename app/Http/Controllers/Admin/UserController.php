@@ -184,6 +184,23 @@ class UserController extends Controller
             ->with('success', 'Utilisateur supprimé !');
     }
 
+    public function auditLogs(Request $request)
+    {
+        $query = AuditLog::with('user')->latest();
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->integer('user_id'));
+        }
+        if ($request->filled('action')) {
+            $query->where('action', 'like', '%' . $request->input('action') . '%');
+        }
+
+        $logs  = $query->paginate(50)->withQueryString();
+        $users = User::orderBy('name')->get(['id', 'name']);
+
+        return view('admin.audit.logs', compact('logs', 'users'));
+    }
+
     public function toggleActive(User $user)
     {
         if ($user->id === auth()->id()) {
