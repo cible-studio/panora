@@ -1,10 +1,13 @@
 <x-admin-layout title="Tâche {{ $poseTask->panel?->reference }}">
 
-<x-slot:topbarActions>
+<x-slot:topbarLeft>
     <a href="{{ route('admin.pose-tasks.index') }}" class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         Retour
     </a>
+</x-slot:topbarLeft>
+
+<x-slot:topbarActions>
     @if(!in_array($poseTask->status, ['realisee','annulee']))
     <a href="{{ route('admin.pose-tasks.edit', $poseTask) }}" class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>

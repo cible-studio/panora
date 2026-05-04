@@ -14,6 +14,9 @@ use App\Services\PropositionService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ClientDashboardController extends Controller
 {
@@ -117,7 +120,8 @@ class ClientDashboardController extends Controller
         $client = Auth::guard('client')->user();
 
         $query = $client->campaigns()
-            ->withCount('panels');
+            ->withCount('panels')
+            ->with('satisfactionSurvey');
 
         if ($request->filled('search')) {
             $query->where('name', 'like', '%' . $request->search . '%');
@@ -127,6 +131,14 @@ class ClientDashboardController extends Controller
         }
 
         $campagnes = $query->orderByDesc('created_at')->paginate(20)->withQueryString();
+
+        if ($request->ajax()) {
+            return response()->json([
+                'html'  => view('client.partials.campagnes-rows', compact('campagnes'))->render(),
+                'total' => $campagnes->total(),
+                'pages' => $campagnes->lastPage(),
+            ]);
+        }
 
         return view('client.campagnes', compact('client', 'campagnes'));
     }
@@ -166,12 +178,15 @@ class ClientDashboardController extends Controller
             // Proposition expirée/traitée — afficher quand même
         }
 
-        $reservation->load(['panels.photos', 'panels.commune', 'panels.format', 'panels.zone', 'panels.category']);
+        $reservation->load(['panels.photos', 'panels.commune', 'panels.format', 'panels.zone', 'panels.category', 'user:id,name,email,role,whatsapp_number']);
         $this->propositionService->marquerVue($reservation);
 
         $months = $this->monthsBetween($reservation->start_date, $reservation->end_date);
         $panels = $reservation->panels->map(function ($panel) use ($months) {
             $photo = $panel->photos->sortBy('ordre')->first();
+            // Utiliser le prix pivot négocié (même logique que PropositionController::buildPanels)
+            $unitPrice  = (float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0);
+            $totalPrice = (float) ($panel->pivot->total_price ?? ($unitPrice * $months));
             return [
                 'id'           => $panel->id,
                 'reference'    => $panel->reference,
@@ -182,14 +197,13 @@ class ClientDashboardController extends Controller
                 'dimensions'   => $this->formatDims($panel->format),
                 'category'     => $panel->category?->name ?? '—',
                 'is_lit'       => (bool) $panel->is_lit,
-                'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
-                'total'        => (float) ($panel->monthly_rate ?? 0) * $months,
+                'monthly_rate' => $unitPrice,
+                'total'        => $totalPrice,
                 'photo_url'    => $photo ? asset('storage/' . ltrim($photo->path, '/')) : null,
-                // ← Ajout : toutes les photos pour le modal JS
                 'photos'       => $panel->photos->sortBy('ordre')->map(fn($p) => [
                     'url' => asset('storage/' . ltrim($p->path, '/'))
                 ])->values()->toArray(),
-                    ];
+            ];
         });
 
         $joursRestants = now()->startOfDay()->diffInDays($reservation->end_date->startOfDay(), false);
@@ -213,6 +227,8 @@ class ClientDashboardController extends Controller
             'panels.commune:id,name',
             'panels.format:id,name,width,height',
             'invoices',
+            'user:id,name,email,role,whatsapp_number',
+            'satisfactionSurvey',
         ]);
 
         $panelIds = $campaign->panels->pluck('id');
@@ -345,6 +361,96 @@ class ClientDashboardController extends Controller
             ->get(['id', 'name', 'status']);
 
         return view('client.piges', compact('piges', 'kpi', 'campaigns', 'client'));
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // PIGE — téléchargement individuel
+    // ══════════════════════════════════════════════════════════════
+    public function pigeDownload(Pige $pige)
+    {
+        $client      = Auth::guard('client')->user();
+        $campaignIds = $client->campaigns()->pluck('id');
+
+        if (!$campaignIds->contains($pige->campaign_id)) abort(403);
+
+        $path = Storage::disk('public')->path($pige->photo_path);
+        if (!file_exists($path)) abort(404);
+
+        $ext = pathinfo($path, PATHINFO_EXTENSION) ?: 'jpg';
+        return response()->download($path, "pige-{$pige->id}.{$ext}");
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // PIGES — téléchargement ZIP campagne
+    // ══════════════════════════════════════════════════════════════
+    public function pigesZip(Campaign $campaign)
+    {
+        $client = Auth::guard('client')->user();
+        if ($campaign->client_id !== $client->id) abort(403);
+
+        $piges = Pige::where('campaign_id', $campaign->id)
+            ->where('status', 'verifie')
+            ->get();
+
+        if ($piges->isEmpty()) abort(404, 'Aucune pige disponible.');
+
+        $zip     = new \ZipArchive();
+        $tmpPath = tempnam(sys_get_temp_dir(), 'piges_') . '.zip';
+        $zip->open($tmpPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+
+        foreach ($piges as $pige) {
+            $filePath = Storage::disk('public')->path($pige->photo_path);
+            if (file_exists($filePath)) {
+                $ext      = pathinfo($filePath, PATHINFO_EXTENSION) ?: 'jpg';
+                $zip->addFile($filePath, "pige-{$pige->id}.{$ext}");
+            }
+        }
+        $zip->close();
+
+        $zipName = 'piges-' . Str::slug($campaign->name) . '.zip';
+        return response()->download($tmpPath, $zipName)->deleteFileAfterSend(true);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // CONTACT — page et envoi
+    // ══════════════════════════════════════════════════════════════
+    public function contact()
+    {
+        $client = Auth::guard('client')->user();
+
+        $interlocutors = $client->campaigns()
+            ->whereIn('status', ['actif', 'pose', 'planifie'])
+            ->with('user:id,name,email,role,whatsapp_number')
+            ->get()
+            ->pluck('user')
+            ->filter()
+            ->unique('id')
+            ->values();
+
+        return view('client.contact', compact('client', 'interlocutors'));
+    }
+
+    public function sendContact(Request $request)
+    {
+        $client = Auth::guard('client')->user();
+
+        $data = $request->validate([
+            'subject' => 'required|string|max:150',
+            'message' => 'required|string|max:3000',
+        ]);
+
+        $from    = $client->company ?? $client->name;
+        $body    = "De : {$from} ({$client->email})\nObjet : {$data['subject']}\n\n{$data['message']}";
+        $to      = config('mail.from.address');
+        $subject = "[Espace Client] {$data['subject']}";
+
+        Mail::raw($body, function ($m) use ($to, $client, $subject) {
+            $m->to($to)
+              ->replyTo($client->email, $client->company ?? $client->name)
+              ->subject($subject);
+        });
+
+        return back()->with('contact_success', 'Votre message a été envoyé. Nous vous répondrons dans les plus brefs délais.');
     }
 
     // ══════════════════════════════════════════════════════════════

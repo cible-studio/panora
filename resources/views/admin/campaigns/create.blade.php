@@ -1,5 +1,9 @@
 <x-admin-layout title="Nouvelle campagne">
 
+<x-slot:topbarLeft>
+  <a href="{{ route('admin.campaigns.index') }}" class="btn btn-ghost">← Retour</a>
+</x-slot:topbarLeft>
+
 <div style="max-width:720px;margin:0 auto;">
 
     <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">

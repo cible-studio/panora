@@ -175,6 +175,9 @@
                     </svg>
                 </button>
 
+                @if(!empty($topbarLeft))
+                <div>{{ $topbarLeft }}</div>
+                @endif
                 <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
 
                 <div class="topbar-actions">
@@ -192,7 +195,7 @@
                 </div>
             </header>
 
-            <div class="topbar-spacer" aria-hidden="true"></div>
+            <div class="topbar-spacer" aria-hidden="true" style="height:8px;"></div>
 
             <div class="flash-zone">
                 @if (session('success'))

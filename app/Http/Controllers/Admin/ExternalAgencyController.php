@@ -14,6 +14,7 @@ use App\Models\ExternalPanel;
 use App\Models\PanelFormat;
 use App\Models\Zone;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ExternalAgencyController extends Controller
 {
@@ -128,6 +129,10 @@ class ExternalAgencyController extends Controller
             'campaign_id' => $request->campaign_id ?: null,
         ]);
 
+        if ($request->hasFile('photo')) {
+            $data['photo_path'] = $request->file('photo')->store('external-panels', 'public');
+        }
+
         $externalAgency->externalPanels()->create($data);
 
         return redirect()
@@ -139,7 +144,17 @@ class ExternalAgencyController extends Controller
     public function updatePanel(UpdateExternalPanelRequest $request, ExternalAgency $externalAgency, ExternalPanel $panel)
     {
         abort_if($panel->agency_id !== $externalAgency->id, 403);
-        $panel->update($request->validated());
+
+        $data = $request->validated();
+
+        if ($request->hasFile('photo')) {
+            if ($panel->photo_path) {
+                Storage::disk('public')->delete($panel->photo_path);
+            }
+            $data['photo_path'] = $request->file('photo')->store('external-panels', 'public');
+        }
+
+        $panel->update($data);
 
         return redirect()
             ->route('admin.external-agencies.show', $externalAgency)

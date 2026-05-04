@@ -177,7 +177,7 @@ class PdfExportService
             'display_status'    => $panel->status->value,
             'source'            => 'internal',
             // Pour DomPDF on privilégie le base64 (clé "photo_src"), photo_url reste un fallback
-            'photo_src'         => $photoBase64 ?? $photoUrl,
+            'photo_src'         => $photoBase64,
             'photo_path'        => $photoBase64 ? null : ($photoUrl ? null : null), // legacy
             'photo_url'         => $photoUrl,
             'release_info'      => null,
