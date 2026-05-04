@@ -221,7 +221,10 @@ class ReservationController extends Controller
         // search) s'appliquent AUSSI aux externes. Les bookings (occupé/option)
         // sont calculés depuis reservation_panels (source='externe') sur la
         // période demandée — exactement comme pour les internes.
-        if (in_array($source, ['external', 'all']) && !$dateError) {
+        // Defensive : si une erreur SQL survient (donnée corrompue, colonne
+        // manquante…), on log et on continue avec les seuls internes — pas
+        // de 500 sur la grille entière.
+        if (in_array($source, ['external', 'all']) && !$dateError) try {
             $extQuery = \App\Models\ExternalPanel::with([
                 'agency:id,name',
                 'commune:id,name',
@@ -306,6 +309,15 @@ class ReservationController extends Controller
                     fn($p) => self::formatExternalPanel($p, $startDate, $endDate, $extBookings->get($p->id))
                 );
             }
+        } catch (\Throwable $e) {
+            Log::error('disponibilites.external_query_failed', [
+                'message' => $e->getMessage(),
+                'file'    => $e->getFile() . ':' . $e->getLine(),
+                'search'  => $search,
+                'statut'  => $statut,
+                'source'  => $source,
+            ]);
+            $externalResult = collect();
         }
 
         // ══ FUSION + PAGINATION ══════════════════════════════════════

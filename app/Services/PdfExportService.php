@@ -193,8 +193,30 @@ class PdfExportService
 
     public function enrichExternalPanel(ExternalPanel $panel): array
     {
+        // 1) Tentative directe : data-URI base64 prêt à servir (DomPDF idéal)
         $photoBase64 = $this->photoToDataUri($panel->photo_path);
-        $photoUrl    = (!$photoBase64 && $panel->photo_path)
+
+        // 2) Fallback chemin local : si le base64 a échoué (taille, droits…),
+        //    on tente de localiser le fichier sur disque pour que la vue
+        //    puisse l'embarquer elle-même (file_exists + base64 inline).
+        $localPath = null;
+        if (!$photoBase64 && !empty($panel->photo_path)) {
+            $rel = ltrim($panel->photo_path, '/');
+            foreach ([
+                storage_path('app/public/' . $rel),
+                public_path('storage/' . $rel),
+                public_path($rel),
+            ] as $candidate) {
+                if (is_file($candidate) && is_readable($candidate)) {
+                    $localPath = $candidate;
+                    break;
+                }
+            }
+        }
+
+        // 3) Dernier recours : URL via asset() — utile pour le HTML (web),
+        //    ignoré par DomPDF car isRemoteEnabled=false.
+        $photoUrl = (!$photoBase64 && !$localPath && $panel->photo_path)
             ? asset('storage/' . ltrim($panel->photo_path, '/'))
             : null;
 
@@ -252,7 +274,7 @@ class PdfExportService
             'source'            => 'external',
             'agency_name'       => $panel->agency?->name ?? null,
             'photo_src'         => $photoBase64,
-            'photo_path'        => null,
+            'photo_path'        => $localPath, // chemin LOCAL absolu (fallback view)
             'photo_url'         => $photoUrl,
             'release_info'      => null,
         ];

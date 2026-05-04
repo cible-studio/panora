@@ -4,6 +4,14 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
+    {{-- Bouton Retour à GAUCHE — cohérent avec les pages show/edit --}}
+    <x-slot:topbarLeft>
+        <a href="{{ route('admin.reservations.index') }}" class="btn btn-ghost btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+            Retour
+        </a>
+    </x-slot:topbarLeft>
+
     <x-slot:topbarActions>
         {{-- Bouton Tableau de bord (raccourci) --}}
         <a href="{{ route('dashboard') }}" class="btn btn-ghost btn-sm" title="Tableau de bord">
@@ -12,11 +20,6 @@
                 <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
             </svg>
             Dashboard
-        </a>
-        {{-- Bouton Retour cohérent avec les autres pages show/edit --}}
-        <a href="{{ route('admin.reservations.index') }}" class="btn btn-ghost btn-sm">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-            Retour
         </a>
         <div id="topbar-confirm-wrapper" style="display:none">
             <button class="btn btn-primary" onclick="DISPO.openConfirmModal()">

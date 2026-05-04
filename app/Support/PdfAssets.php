@@ -45,24 +45,60 @@ trait PdfAssets
     }
 
     /**
-     * Convertit un chemin photo (storage public) en data-URI base64 pour PDF.
-     * Retourne null si le fichier n'existe pas ou n'est pas lisible.
+     * Convertit un chemin photo en data-URI base64 pour DomPDF (qui ne sait
+     * pas faire de HTTP). Retourne null si le fichier est introuvable.
+     *
+     * Fallbacks de résolution (du plus probable au moins probable) :
+     *   1. storage_path('app/public/' . $rel)              ← disque "public"
+     *   2. storage_path('app/' . $rel)                     ← disque "local"
+     *   3. public_path('storage/' . $rel)                  ← lien symbolique
+     *   4. public_path($rel)                               ← chemin absolu sous public/
+     *   5. $rel lui-même s'il est déjà absolu              ← rare, mais possible
+     *
+     * Log en cas d'échec → utile pour diagnostiquer en prod sans casser le PDF.
      */
     protected function photoToDataUri(?string $relativePath): ?string
     {
         if (!$relativePath) return null;
 
-        // Chemin physique sur le disque public
-        $path = storage_path('app/public/' . ltrim($relativePath, '/'));
+        $rel = ltrim($relativePath, '/');
 
-        if (!is_file($path) || !is_readable($path)) {
-            return null;
+        // Si on reçoit déjà une URL HTTP (asset()), on tente d'en extraire
+        // le chemin relatif sous storage/ pour pouvoir le résoudre localement.
+        if (preg_match('#^https?://[^/]+/storage/(.+)$#', $relativePath, $m)) {
+            $rel = $m[1];
         }
 
-        $mime = mime_content_type($path) ?: 'image/jpeg';
-        // Sécurité : refuser les fichiers > 4 Mo (DomPDF crash sinon)
-        if (filesize($path) > 4 * 1024 * 1024) return null;
+        $candidates = [
+            storage_path('app/public/' . $rel),
+            storage_path('app/' . $rel),
+            public_path('storage/' . $rel),
+            public_path($rel),
+        ];
 
-        return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
+        if (str_starts_with($relativePath, '/') || preg_match('/^[A-Za-z]:[\\\\\/]/', $relativePath)) {
+            // Chemin absolu (Linux ou Windows) — on l'essaie en premier.
+            array_unshift($candidates, $relativePath);
+        }
+
+        foreach ($candidates as $path) {
+            if (is_file($path) && is_readable($path)) {
+                if (filesize($path) > 4 * 1024 * 1024) {
+                    \Illuminate\Support\Facades\Log::warning('pdf.photo.too_large', [
+                        'path' => $path,
+                        'size' => filesize($path),
+                    ]);
+                    return null;
+                }
+                $mime = mime_content_type($path) ?: 'image/jpeg';
+                return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::info('pdf.photo.not_found', [
+            'requested' => $relativePath,
+            'tried'     => $candidates,
+        ]);
+        return null;
     }
 }
