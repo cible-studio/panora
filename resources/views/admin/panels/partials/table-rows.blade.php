@@ -32,7 +32,7 @@
 </tr>
 @empty
 @if($source === 'cible' || ($externalPanels ?? collect())->isEmpty())
-<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:32px;">Aucun panneau trouvé</td></tr>
+<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:32px;">Aucun panneau trouvé</td></tr>
 @endif
 @endforelse
 @endif
@@ -40,7 +40,7 @@
 {{-- PANNEAUX EXTERNES --}}
 @if($source !== 'cible' && isset($externalPanels) && $externalPanels->isNotEmpty())
 @if($source === 'all' && ($panels ?? collect())->isNotEmpty())
-<tr><td colspan="11" style="padding:8px 12px;background:rgba(168,85,247,0.06);border-top:2px solid rgba(168,85,247,0.3);border-bottom:1px solid rgba(168,85,247,0.2);"><span style="font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:1px;">🏢 Panneaux — Régies externes ({{ $externalPanels->count() }})</span></td></tr>
+<tr><td colspan="10" style="padding:8px 12px;background:rgba(168,85,247,0.06);border-top:2px solid rgba(168,85,247,0.3);border-bottom:1px solid rgba(168,85,247,0.2);"><span style="font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:1px;">🏢 Panneaux — Régies externes ({{ $externalPanels->count() }})</span></td></tr>
 @endif
 
 @foreach($externalPanels as $ext)
@@ -56,7 +56,7 @@
             <div style="width:60px;height:45px;border-radius:6px;border:1px solid rgba(168,85,247,0.2);background:rgba(168,85,247,0.08);display:flex;align-items:center;justify-content:center;color:var(--purple);font-size:16px;">🏢</div>
         @endif
     </td>
-    <td><span style="font-family:monospace;color:var(--purple);font-weight:700;">{{ $ext->code_panneau }}</span><div style="margin-top:2px;"><span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(168,85,247,0.12);color:var(--purple);font-weight:600;">{{ $ext->agency->name }}</span></div></td>
+    <td><span style="font-family:monospace;color:var(--purple);font-weight:700;">{{ $ext->code_panneau }}</span>@if($ext->agency)<div style="margin-top:2px;"><span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(168,85,247,0.12);color:var(--purple);font-weight:600;">{{ $ext->agency->name }}</span></div>@endif</td>
     <td><div style="font-weight:500;">{{ $ext->designation }}</div><div style="font-size:11px;color:var(--text3);">{{ $ext->category?->name ?? '—' }} @if($ext->is_lit) · 💡 @endif</div></td>
     <td>{{ $ext->commune?->name ?? '—' }}</td>
     <td><div>{{ $ext->format?->name ?? '—' }}</div>@if($ext->format?->surface)<div style="font-size:11px;color:var(--text3);">{{ $ext->format->surface }}m²</div>@endif</td>
