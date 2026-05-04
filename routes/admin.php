@@ -328,6 +328,14 @@ Route::prefix('admin')
         Route::delete('external-agencies/{externalAgency}/panels/{panel}', [ExternalAgencyController::class, 'destroyPanel'])
             ->name('external-agencies.panels.destroy');
 
+        // Exports régie externe (PDF images / PDF liste / Excel)
+        Route::post('external-agencies/{externalAgency}/exports/pdf-images', [ExternalAgencyController::class, 'pdfImages'])
+            ->name('external-agencies.exports.pdf-images');
+        Route::post('external-agencies/{externalAgency}/exports/pdf-liste', [ExternalAgencyController::class, 'pdfListe'])
+            ->name('external-agencies.exports.pdf-liste');
+        Route::post('external-agencies/{externalAgency}/exports/excel', [ExternalAgencyController::class, 'exportExcel'])
+            ->name('external-agencies.exports.excel');
+
         // ══════════════════════════════════════════════════════════
         // ⚠️ RÈGLE IMPORTANTE : routes GET spécifiques AVANT resource
         // ══════════════════════════════════════════════════════════

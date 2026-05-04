@@ -6,6 +6,7 @@
 namespace App\Services;
 
 use App\Models\Panel;
+use App\Models\ExternalPanel;
 use App\Models\Commune;
 use App\Support\PdfAssets;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -179,6 +180,79 @@ class PdfExportService
             // Pour DomPDF on privilégie le base64 (clé "photo_src"), photo_url reste un fallback
             'photo_src'         => $photoBase64,
             'photo_path'        => $photoBase64 ? null : ($photoUrl ? null : null), // legacy
+            'photo_url'         => $photoUrl,
+            'release_info'      => null,
+        ];
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // HELPER : enrichir un ExternalPanel pour les vues PDF (mêmes
+    // clés que enrichPanel() afin de réutiliser disponibilites-images
+    // et disponibilites-list sans dupliquer les blades).
+    // ══════════════════════════════════════════════════════════════
+
+    public function enrichExternalPanel(ExternalPanel $panel): array
+    {
+        $photoBase64 = $this->photoToDataUri($panel->photo_path);
+        $photoUrl    = (!$photoBase64 && $panel->photo_path)
+            ? asset('storage/' . ltrim($panel->photo_path, '/'))
+            : null;
+
+        $dims    = null;
+        $surface = null;
+        if ($panel->format?->width && $panel->format?->height) {
+            $w = rtrim(rtrim(number_format($panel->format->width,  2, '.', ''), '0'), '.');
+            $h = rtrim(rtrim(number_format($panel->format->height, 2, '.', ''), '0'), '.');
+            $dims    = "{$w} × {$h} m";
+            $surface = round($panel->format->width * $panel->format->height, 2);
+        }
+
+        $gpsLink = null;
+        if ($panel->latitude !== null && $panel->longitude !== null) {
+            $gpsLink = "https://maps.google.com/?q={$panel->latitude},{$panel->longitude}";
+        }
+
+        // Mapping availability_status (string) → display_status pour le statusMap
+        // commun aux vues PDF (qui attendent libre/occupe/option/confirme/maintenance)
+        $rawStatus = $panel->availability_status ?? 'disponible';
+        $displayStatus = match ($rawStatus) {
+            'disponible'                => 'libre',
+            'occupe'                    => 'occupe',
+            'option', 'option_periode'  => 'option',
+            'confirme'                  => 'confirme',
+            'maintenance'               => 'maintenance',
+            default                     => 'occupe',
+        };
+
+        return [
+            'id'                => $panel->id,
+            // L'ExternalPanel n'a pas de "reference" / "name" — on mappe les libellés
+            // exposés par l'agence (code_panneau / designation) sur ces clés pour que
+            // les vues PDF marchent sans modification.
+            'reference'         => $panel->code_panneau,
+            'name'              => $panel->designation,
+            'adresse'           => $panel->adresse ?? null,
+            'quartier'          => $panel->quartier ?? null,
+            'commune'           => $panel->commune?->name ?? '—',
+            'zone'              => $panel->zone?->name ?? '—',
+            'format'            => $panel->format?->name ?? '—',
+            'format_width'      => $panel->format?->width ?? null,
+            'format_height'     => $panel->format?->height ?? null,
+            'dimensions'        => $dims,
+            'surface_m2'        => $surface,
+            'category'          => $panel->category?->name ?? ($panel->type ?? '—'),
+            'is_lit'            => (bool) $panel->is_lit,
+            'monthly_rate'      => (float) ($panel->monthly_rate ?? 0),
+            'daily_traffic'     => (int)   ($panel->daily_traffic ?? 0),
+            'zone_description'  => $panel->zone_description ?? '',
+            'latitude'          => $panel->latitude ?? null,
+            'longitude'         => $panel->longitude ?? null,
+            'gps_link'          => $gpsLink,
+            'display_status'    => $displayStatus,
+            'source'            => 'external',
+            'agency_name'       => $panel->agency?->name ?? null,
+            'photo_src'         => $photoBase64,
+            'photo_path'        => null,
             'photo_url'         => $photoUrl,
             'release_info'      => null,
         ];

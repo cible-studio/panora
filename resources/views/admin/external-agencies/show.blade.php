@@ -118,11 +118,32 @@
 
 {{-- Tableau panneaux --}}
 <div class="card">
-  <div class="card-header">
-    <span class="card-title">🪧 Panneaux de la régie</span>
-    <span style="font-size:12px;color:var(--text2);">
-      {{ $agency->externalPanels->count() }} panneau(x)
-    </span>
+  <div class="card-header" style="flex-wrap:wrap;gap:10px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="card-title">🪧 Panneaux de la régie</span>
+      <span style="font-size:12px;color:var(--text2);">
+        {{ $agency->externalPanels->count() }} panneau(x)
+      </span>
+    </div>
+
+    @if($agency->externalPanels->count() > 0)
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;padding:6px 10px;border:1px dashed var(--border);border-radius:8px;"
+               title="Cocher pour inclure tarif et statut dans les exports (usage interne)">
+          <input type="checkbox" id="ext-show-pricing" style="accent-color:var(--accent)">
+          <span>💰 Inclure prix + statut</span>
+        </label>
+        <button type="button" class="btn btn-ghost btn-sm"
+                style="color:var(--green);border-color:rgba(34,197,94,.4)"
+                onclick="EXT_EXPORTS.run('excel')">📊 Excel</button>
+        <button type="button" class="btn btn-ghost btn-sm"
+                style="color:var(--red);border-color:rgba(239,68,68,.4)"
+                onclick="EXT_EXPORTS.run('pdf-images')">📄 PDF images</button>
+        <button type="button" class="btn btn-ghost btn-sm"
+                style="color:var(--blue);border-color:rgba(59,130,246,.4)"
+                onclick="EXT_EXPORTS.run('pdf-liste')">📋 PDF liste</button>
+      </div>
+    @endif
   </div>
   <div class="table-wrap">
     <table>
@@ -241,6 +262,62 @@
     </table>
   </div>
 </div>
+
+{{-- ══════════════════════════════════════
+     EXPORTS — module JS (PDF images / PDF liste / Excel)
+     Cohérent avec la barre de sélection des disponibilités :
+     - par défaut : pas de prix ni de statut
+     - cocher "Inclure prix + statut" pour transmettre show_pricing=1
+══════════════════════════════════════ --}}
+@if($agency->externalPanels->count() > 0)
+<script>
+window.EXT_EXPORTS = (function () {
+    const ENDPOINTS = {
+        'pdf-images': @json(route('admin.external-agencies.exports.pdf-images', $agency)),
+        'pdf-liste':  @json(route('admin.external-agencies.exports.pdf-liste',  $agency)),
+        'excel':      @json(route('admin.external-agencies.exports.excel',      $agency)),
+    };
+    const CSRF = @json(csrf_token());
+
+    function buildForm(action, fields) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = action;
+        form.style.display = 'none';
+        const add = (name, value) => {
+            const i = document.createElement('input');
+            i.type = 'hidden';
+            i.name = name;
+            i.value = value;
+            form.appendChild(i);
+        };
+        add('_token', CSRF);
+        Object.entries(fields).forEach(([k, v]) => {
+            if (Array.isArray(v)) v.forEach(x => add(k + '[]', x));
+            else if (v !== null && v !== '') add(k, v);
+        });
+        return form;
+    }
+
+    return {
+        run(type) {
+            const action = ENDPOINTS[type];
+            if (!action) return;
+
+            const showPricing = document.getElementById('ext-show-pricing')?.checked ? '1' : '0';
+            const form = buildForm(action, { show_pricing: showPricing });
+
+            // Excel : ouvrir dans un nouvel onglet pour ne pas bloquer la page
+            if (type === 'excel') form.target = '_blank';
+
+            document.body.appendChild(form);
+            form.submit();
+            setTimeout(() => form.remove(), 1000);
+        },
+    };
+})();
+</script>
+@endif
 
 {{-- ══════════════════════════════════════
      MACRO : champs communs panneau
