@@ -336,16 +336,26 @@
 
                         if (source) {
                             currentFilters.source = source;
-                            elements.sourceBtns.forEach(btn => {
-                                if (btn.dataset.source === source) {
-                                    btn.classList.remove('btn-ghost');
-                                    btn.classList.add('btn-primary');
-                                } else {
-                                    btn.classList.remove('btn-primary');
-                                    btn.classList.add('btn-ghost');
-                                }
-                            });
+                        } else if (status) {
+                            // Si on filtre par statut, forcer source sur "cible" (panneaux internes)
+                            currentFilters.source = 'cible';
                         }
+
+                        // Mettre à jour l'apparence des boutons source
+                        elements.sourceBtns.forEach(btn => {
+                            if (btn.dataset.source === currentFilters.source) {
+                                btn.classList.remove('btn-ghost');
+                                btn.classList.add('btn-primary');
+                            } else {
+                                btn.classList.remove('btn-primary');
+                                btn.classList.add('btn-ghost');
+                                if (btn.dataset.source === 'externe') {
+                                    btn.style.color = 'var(--purple)';
+                                    btn.style.borderColor = 'rgba(168,85,247,0.3)';
+                                }
+                            }
+                        });
+
                         if (status) {
                             currentFilters.status = status;
                             if (elements.status) elements.status.value = status;
