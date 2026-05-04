@@ -243,6 +243,18 @@ class PropositionController extends Controller
         $reservation = $reservation->fresh(['client', 'panels', 'user']);
         $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_ACCEPTED);
 
+        // Alerte in-app pour le commercial concerné (en plus du mail)
+        \App\Services\AlertService::create(
+            'reservation',
+            'success',
+            '✅ Proposition acceptée — ' . ($reservation->client?->name ?? 'Client'),
+            sprintf(
+                'Le client a accepté la proposition %s. Consultez votre boîte mail pour les détails complets et créez la campagne dans la foulée.',
+                $reservation->reference
+            ),
+            $reservation
+        );
+
         return view('admin.propositions.confirmed', [
             'reservation' => $reservation,
             'client'      => $reservation->client,
@@ -269,6 +281,20 @@ class PropositionController extends Controller
 
         $reservation = $reservation->fresh(['client', 'panels', 'user']);
         $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_REFUSED, $motif);
+
+        // Alerte in-app pour le commercial — niveau "warning" car action de
+        // suivi possible (relance, ajustement, replanification…).
+        \App\Services\AlertService::create(
+            'reservation',
+            'warning',
+            '❌ Proposition refusée — ' . ($reservation->client?->name ?? 'Client'),
+            sprintf(
+                'Le client a refusé la proposition %s%s. Consultez votre boîte mail pour le message du client et envisagez une relance.',
+                $reservation->reference,
+                $motif ? ' (motif transmis)' : ''
+            ),
+            $reservation
+        );
 
         return view('admin.propositions.refused', [
             'reservation' => $reservation,

@@ -35,7 +35,14 @@
         {{ $res->end_date->format('d/m/Y') }}
     </td>
     <td>
-        <span class="badge">{{ $res->panels_count }} 🪧</span>
+        @php
+            $intCount = (int) ($res->panels_count ?? 0);
+            $extCount = (int) ($res->external_panels_count ?? 0);
+            $total    = $intCount + $extCount;
+        @endphp
+        <span class="badge" title="{{ $intCount }} interne(s){{ $extCount > 0 ? ' + '.$extCount.' externe(s)' : '' }}">
+            {{ $total }} 🪧@if($extCount > 0)<span style="font-size:9px;margin-left:4px;color:#60a5fa;font-weight:700">🤝{{ $extCount }}</span>@endif
+        </span>
     </td>
     <td class="amount">
         {{ number_format($res->total_amount, 0, ',', ' ') }}
@@ -78,7 +85,7 @@
             @endif
             @if($canAnnuler)
             <button class="btn-icon btn-cancel"
-                    onclick="openAnnulerModal({{ $res->id }}, '{{ $res->reference }}', '{{ addslashes($res->client?->name ?? '') }}', {{ $res->panels_count }})"
+                    onclick="openAnnulerModal({{ $res->id }}, '{{ $res->reference }}', '{{ addslashes($res->client?->name ?? '') }}', {{ $total }})"
                     title="Annuler">🚫</button>
             @endif
            

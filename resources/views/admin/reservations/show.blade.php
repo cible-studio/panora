@@ -186,9 +186,43 @@
 @include('admin.reservations.partials.proposition-actions', ['reservation' => $reservation])
 
 {{-- ══════════════════════════════════════════════════════
-     VISUEL PANNEAUX + PDF (réservation en option)
+     EXPORTS PDF — visible quand la réservation est en option
 ══════════════════════════════════════════════════════ --}}
-@if($reservation->status->value === 'en_attente')
+@if($reservation->status->value === 'en_attente' && $totalCount > 0)
+@php
+    $pdfPanelIds = $unifiedPanels->map(fn($p) => $p['source'] === 'external' ? 'ext_'.$p['id'] : (string) $p['id']);
+@endphp
+<div class="card mb-4" style="padding:14px 18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div style="font-size:13px;color:var(--text2)">
+            📤 Exporter cette sélection en PDF pour le client
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <form method="POST" action="{{ route('admin.reservations.disponibilites.pdf-images') }}" target="_blank" style="display:inline">
+                @csrf
+                @foreach($pdfPanelIds as $pid)<input type="hidden" name="panel_ids[]" value="{{ $pid }}">@endforeach
+                <input type="hidden" name="start_date" value="{{ $reservation->start_date->format('Y-m-d') }}">
+                <input type="hidden" name="end_date"   value="{{ $reservation->end_date->format('Y-m-d') }}">
+                <input type="hidden" name="reservation_ref" value="{{ $reservation->reference }}">
+                <input type="hidden" name="client_name" value="{{ $reservation->client?->name }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(239,68,68,.3)">📋 PDF images</button>
+            </form>
+            <form method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}" target="_blank" style="display:inline">
+                @csrf
+                @foreach($pdfPanelIds as $pid)<input type="hidden" name="panel_ids[]" value="{{ $pid }}">@endforeach
+                <input type="hidden" name="start_date" value="{{ $reservation->start_date->format('Y-m-d') }}">
+                <input type="hidden" name="end_date"   value="{{ $reservation->end_date->format('Y-m-d') }}">
+                <input type="hidden" name="reservation_ref" value="{{ $reservation->reference }}">
+                <input type="hidden" name="client_name" value="{{ $reservation->client?->name }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--blue);border-color:rgba(59,130,246,.3)">📄 PDF liste</button>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- LEGACY old visuels card removed: photos + price + agency now unified in one card below --}}
+@if(false)
 <div class="card mb-4">
     <div class="card-header">
         <div class="card-title">📸 Visuels des panneaux</div>
@@ -326,23 +360,44 @@
 @endif
 
 {{-- ══════════════════════════════════════════════════════
-     PANNEAUX RÉSERVÉS — avec modification prix
+     PANNEAUX DE LA RÉSERVATION — vue unifiée (interne + externe)
+     Photo + référence + source + prix négociable + total période
 ══════════════════════════════════════════════════════ --}}
+@php
+    $intCount = $unifiedPanels->where('source','internal')->count();
+    $extCount = $unifiedPanels->where('source','external')->count();
+    // Affichage durée humain : "5 jours · 0,5 mois facturé(s)"
+    $monthsLabel = rtrim(rtrim(number_format($months, 1, ',', ''), '0'), ',');
+@endphp
 <div class="card" id="panels-card">
-    <div class="card-header">
-        <span class="card-title">🪧 Panneaux réservés</span>
-        <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-400">
-                {{ $reservation->panels->count() }} panneau(x)
+    <div class="card-header" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="card-title">🪧 Panneaux de la réservation</span>
+            <span class="text-xs" style="color:var(--text3)">
+                {{ $totalCount }} au total
+                @if($intCount > 0)<span style="margin-left:6px;padding:2px 8px;border-radius:6px;background:rgba(232,160,32,.1);color:var(--accent);font-weight:600">🏢 {{ $intCount }} CIBLE</span>@endif
+                @if($extCount > 0)<span style="margin-left:4px;padding:2px 8px;border-radius:6px;background:rgba(59,130,246,.12);color:#60a5fa;font-weight:600">🤝 {{ $extCount }} régie(s)</span>@endif
+            </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span class="text-xs" style="color:var(--text2);background:var(--surface2);padding:4px 10px;border-radius:6px;border:1px solid var(--border)">
+                📅 {{ $days }} jour(s) · <strong>{{ $monthsLabel }} mois</strong> facturé(s)
             </span>
             @if($can['update'])
-            <span class="text-xs text-[#e8a020] bg-[#e8a020]/10 px-2 py-1 rounded-lg">
-                ✏️ Prix modifiables
-            </span>
+                <span class="text-xs" style="color:var(--accent);background:rgba(232,160,32,.1);padding:4px 10px;border-radius:6px;border:1px solid rgba(232,160,32,.25)">
+                    ✏️ Prix négociables
+                </span>
             @endif
         </div>
     </div>
 
+    @if($totalCount === 0)
+        <div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">
+            Aucun panneau associé.
+        </div>
+    @else
+
+    @if(false) {{-- ── ANCIENNE TABLE désactivée — remplacée par le bloc unifié ci-dessous ── --}}
     <div class="overflow-x-auto">
         <table class="w-full border-collapse">
             <thead>
@@ -531,6 +586,141 @@
     </div>
 </div>
 @endif
+    @endif {{-- ── FIN du bloc legacy désactivé ── --}}
+
+    {{-- ══════════════════════════════════════════════════════
+         BLOC UNIFIÉ : panneaux internes + externes en une table
+    ══════════════════════════════════════════════════════ --}}
+    <div class="overflow-x-auto">
+        <table class="w-full border-collapse">
+            <thead>
+                <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
+                    <th style="width:64px;padding:10px 8px"></th>
+                    <th style="text-align:left;padding:10px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Réf · Source</th>
+                    <th style="text-align:left;padding:10px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Emplacement</th>
+                    <th style="text-align:left;padding:10px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Format</th>
+                    <th style="text-align:right;padding:10px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Tarif catalogue</th>
+                    <th style="text-align:right;padding:10px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Prix appliqué/mois</th>
+                    <th style="text-align:right;padding:10px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Total ({{ $monthsLabel }} mois)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($unifiedPanels as $row)
+                @php
+                    $isExt        = $row['source'] === 'external';
+                    $isPriceModif = abs($row['unit_price'] - $row['catalog_price']) > 0.01;
+                    $rowKey       = ($isExt ? 'ext' : 'int') . '-' . $row['id'];
+                @endphp
+                <tr style="border-bottom:1px solid var(--border)" id="panel-row-{{ $rowKey }}">
+                    {{-- Photo --}}
+                    <td style="padding:8px;width:64px;vertical-align:middle">
+                        @if($row['photo_url'])
+                            <img src="{{ $row['photo_url'] }}" alt="{{ $row['reference'] }}"
+                                 style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:block"
+                                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                            <div style="display:none;width:52px;height:52px;border-radius:8px;background:var(--surface3);align-items:center;justify-content:center"><span style="font-size:20px;opacity:.4">🪧</span></div>
+                        @else
+                            <div style="width:52px;height:52px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center"><span style="font-size:20px;opacity:.4">🪧</span></div>
+                        @endif
+                    </td>
+
+                    {{-- Référence + Source --}}
+                    <td style="padding:10px;vertical-align:middle">
+                        <div style="display:flex;flex-direction:column;gap:4px">
+                            <span style="font-family:monospace;font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;background:{{ $isExt ? 'rgba(59,130,246,.1)' : 'rgba(232,160,32,.1)' }};color:{{ $isExt ? '#60a5fa' : 'var(--accent)' }};display:inline-block;width:fit-content">
+                                {{ $row['reference'] }}
+                            </span>
+                            <span style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:{{ $isExt ? '#60a5fa' : 'var(--accent)' }}">
+                                {{ $isExt ? '🤝 ' . ($row['agency'] ?? 'Régie partenaire') : '🏢 CIBLE CI' }}
+                            </span>
+                        </div>
+                    </td>
+
+                    {{-- Emplacement --}}
+                    <td style="padding:10px;vertical-align:middle">
+                        <div style="font-size:13px;font-weight:600;color:var(--text)">{{ $row['name'] }}</div>
+                        <div style="font-size:11px;color:var(--text3);margin-top:2px">📍 {{ $row['commune'] }}</div>
+                    </td>
+
+                    {{-- Format --}}
+                    <td style="padding:10px;vertical-align:middle;font-size:12px;color:var(--text2)">
+                        {{ $row['format'] }}
+                        @if($row['format_dim'])<div style="font-size:10px;color:var(--text3);margin-top:2px">{{ $row['format_dim'] }}</div>@endif
+                    </td>
+
+                    {{-- Tarif catalogue --}}
+                    <td style="padding:10px;text-align:right;vertical-align:middle">
+                        <span style="font-size:12px;color:var(--text3)">
+                            {{ $row['catalog_price'] > 0 ? number_format($row['catalog_price'], 0, ',', ' ') . ' FCFA' : '—' }}
+                        </span>
+                    </td>
+
+                    {{-- Prix appliqué (négociable) --}}
+                    <td style="padding:10px;text-align:right;vertical-align:middle">
+                        <div id="price-display-{{ $rowKey }}" style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+                            <span style="font-size:13px;font-weight:700;color:{{ $isPriceModif ? '#22c55e' : 'var(--accent)' }}">
+                                {{ number_format($row['unit_price'], 0, ',', ' ') }} FCFA
+                            </span>
+                            @if($isPriceModif)<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(34,197,94,.1);color:#22c55e;border:1px solid rgba(34,197,94,.25)" title="Prix négocié">✓</span>@endif
+                            @if($can['update'])
+                                <button type="button" onclick="showPriceEdit('{{ $rowKey }}')"
+                                        style="padding:3px;border:none;background:transparent;color:var(--text3);cursor:pointer;border-radius:4px" title="Modifier">
+                                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                </button>
+                            @endif
+                        </div>
+                        @if($can['update'])
+                        <div id="price-edit-{{ $rowKey }}" style="display:none;margin-top:4px">
+                            <form method="POST" action="{{ $row['edit_url'] }}" style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
+                                @csrf @method('PATCH')
+                                <input type="number" name="unit_price" value="{{ $row['unit_price'] }}" min="0" step="1000" required
+                                       style="width:110px;padding:5px 8px;background:var(--surface);border:1px solid var(--accent);border-radius:6px;font-size:12px;color:var(--accent);font-weight:700;text-align:right"
+                                       onfocus="this.select()" onkeydown="if(event.key==='Escape') hidePriceEdit('{{ $rowKey }}')">
+                                <button type="submit" style="padding:5px 7px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);border-radius:6px;color:#22c55e;cursor:pointer" title="Valider">✓</button>
+                                <button type="button" onclick="hidePriceEdit('{{ $rowKey }}')" style="padding:5px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text3);cursor:pointer" title="Annuler">✕</button>
+                            </form>
+                            @if($isPriceModif)
+                                <form method="POST" action="{{ $row['reset_url'] }}" style="margin-top:3px;text-align:right">
+                                    @csrf
+                                    <button type="submit" style="font-size:10px;color:var(--text3);background:none;border:none;cursor:pointer"
+                                            onclick="return confirm('Remettre au tarif catalogue ?')">↺ Tarif catalogue</button>
+                                </form>
+                            @endif
+                        </div>
+                        @endif
+                    </td>
+
+                    {{-- Total période --}}
+                    <td style="padding:10px;text-align:right;vertical-align:middle">
+                        <span style="font-size:13px;font-weight:700;color:var(--text)">
+                            {{ number_format($row['total_price'], 0, ',', ' ') }} <span style="font-size:10px;color:var(--text3);font-weight:400">FCFA</span>
+                        </span>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+            <tfoot>
+                <tr style="background:var(--surface2);border-top:2px solid var(--border)">
+                    <td colspan="6" style="padding:12px 10px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2)">
+                        TOTAL ({{ $days }} jour(s) · {{ $monthsLabel }} mois)
+                    </td>
+                    <td style="padding:12px 10px;text-align:right">
+                        <span style="font-size:18px;font-weight:900;color:var(--accent)">
+                            {{ number_format($reservation->total_amount, 0, ',', ' ') }} <span style="font-size:11px;font-weight:500;color:var(--text3)">FCFA</span>
+                        </span>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    @if($extCount > 0)
+        <div style="padding:8px 16px;background:rgba(59,130,246,.05);border-top:1px solid rgba(59,130,246,.2);font-size:11px;color:#60a5fa">
+            ℹ️ Les panneaux 🤝 sont gérés par des régies partenaires. Confirme leur disponibilité auprès de la régie avant exécution.
+        </div>
+    @endif
+    @endif {{-- /if $totalCount === 0 --}}
+</div>
 
 {{-- ✅ AJOUTER UN PANNEAU depuis la fiche --}}
 @if($can['update'] && !in_array($reservation->status->value, ['annule','refuse','termine']))
@@ -697,22 +887,24 @@
 
 @push('scripts')
 <script>
-// ── Prix panneaux ────────────────────────────────────────────────
-function showPriceEdit(panelId, currentPrice, cataloguePrice) {
-    document.getElementById(`price-display-${panelId}`).classList.add('hidden');
-    document.getElementById(`price-edit-${panelId}`).classList.remove('hidden');
-    const input = document.getElementById(`price-input-${panelId}`);
-    if (input) { input.value = currentPrice; setTimeout(() => { input.focus(); input.select(); }, 50); }
+// ── Prix panneaux (toggle inline edit, internes + externes) ────
+// Le rowKey est de la forme "int-{id}" ou "ext-{id}" (cf. blade ci-dessus).
+// Affiche le formulaire, masque la valeur lue. Echap annule.
+function showPriceEdit(rowKey) {
+    const display = document.getElementById('price-display-' + rowKey);
+    const edit    = document.getElementById('price-edit-' + rowKey);
+    if (!display || !edit) return;
+    display.style.display = 'none';
+    edit.style.display    = 'block';
+    const input = edit.querySelector('input[name="unit_price"]');
+    if (input) setTimeout(() => { input.focus(); input.select(); }, 50);
 }
-function hidePriceEdit(panelId) {
-    document.getElementById(`price-display-${panelId}`).classList.remove('hidden');
-    document.getElementById(`price-edit-${panelId}`).classList.add('hidden');
-}
-function validatePriceForm(panelId) {
-    const input = document.getElementById(`price-input-${panelId}`);
-    const val   = parseFloat(input.value);
-    if (isNaN(val) || val < 0) { input.style.borderColor = '#ef4444'; input.focus(); return false; }
-    return true;
+function hidePriceEdit(rowKey) {
+    const display = document.getElementById('price-display-' + rowKey);
+    const edit    = document.getElementById('price-edit-' + rowKey);
+    if (!display || !edit) return;
+    display.style.display = 'flex';
+    edit.style.display    = 'none';
 }
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {

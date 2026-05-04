@@ -208,8 +208,15 @@ class ClientDashboardController extends Controller
 
         $joursRestants = now()->startOfDay()->diffInDays($reservation->end_date->startOfDay(), false);
 
+        // Durée réelle de la campagne, pour affichage cohérent partout :
+        //   - $days        : nombre de jours
+        //   - $monthsLabel : libellé court "0,5" ou "1" ou "2,5"
+        $days = (int) abs($reservation->start_date->copy()->startOfDay()
+            ->diffInDays($reservation->end_date->copy()->startOfDay()));
+        $monthsLabel = rtrim(rtrim(number_format($months, 1, ',', ''), '0'), ',');
+
         return view('client.proposition-detail', compact(
-            'reservation', 'panels', 'months', 'joursRestants', 'token', 'client'
+            'reservation', 'panels', 'months', 'days', 'monthsLabel', 'joursRestants', 'token', 'client'
         ));
     }
 

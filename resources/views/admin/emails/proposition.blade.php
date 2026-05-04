@@ -3,17 +3,29 @@
 
     $clientName  = $client?->name ?? 'Client';
     $panelCount  = $panels->count();
-    $months      = max(1.0, (function ($s, $e) {
-        $s = \Carbon\Carbon::parse($s)->startOfDay();
-        $e = \Carbon\Carbon::parse($e)->endOfDay();
-        $m = (int) abs($s->diffInMonths($e));
-        $r = abs($s->copy()->addMonths($m)->diffInDays($e));
-        return (float) ($r > 0 ? $m + 1 : $m);
-    })($reservation->start_date, $reservation->end_date));
-    $totalAmount = $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0) * $months);
-    $preheader   = "{$panelCount} emplacements proposés du "
-        . $reservation->start_date->format('d/m/Y')
-        . ' au ' . $reservation->end_date->format('d/m/Y') . '.';
+
+    // ── Règle CIBLE CI (cohérente avec le contrôleur) ─────────────────
+    //   1-15 jours résiduels → +0.5 mois
+    //   16-30 jours          → +1 mois
+    //   minimum facturable   → 0.5 mois
+    $sd = \Carbon\Carbon::parse($reservation->start_date)->startOfDay();
+    $ed = \Carbon\Carbon::parse($reservation->end_date)->startOfDay();
+    $totalDays = max(1, (int) $sd->diffInDays($ed));
+    $fullMonths = (int) floor($totalDays / 30);
+    $remainDays = $totalDays % 30;
+    $fraction   = $remainDays === 0 ? 0 : ($remainDays <= 15 ? 0.5 : 1);
+    $months     = max(0.5, $fullMonths + $fraction);
+    $monthsLabel = rtrim(rtrim(number_format($months, 1, ',', ''), '0'), ',');
+
+    // ── Montant total : on PRIVILÉGIE total_amount (négocié, fait foi),
+    //    sinon on retombe sur somme(monthly_rate × mois).
+    $totalAmount = (float) ($reservation->total_amount ?? 0);
+    if ($totalAmount <= 0) {
+        $totalAmount = $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0) * $months);
+    }
+
+    $preheader = "{$panelCount} emplacements · {$totalDays} jour" . ($totalDays > 1 ? 's' : '')
+        . ' · ' . number_format($totalAmount, 0, ',', ' ') . ' FCFA';
 @endphp
 
 <x-mail.layout title="Proposition commerciale" :preheader="$preheader">
@@ -34,7 +46,12 @@
         </div>
         <div class="info-row">
             <div class="lbl">Période</div>
-            <div class="val">{{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}</div>
+            <div class="val">
+                {{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}
+                <div style="font-size:11px;color:#6b7280;margin-top:2px">
+                    {{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }} · {{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }}
+                </div>
+            </div>
         </div>
         <div class="info-row">
             <div class="lbl">Emplacements</div>
@@ -42,20 +59,27 @@
         </div>
         @if($totalAmount > 0)
             <div class="info-row">
-                <div class="lbl">Montant indicatif</div>
-                <div class="val"><strong style="color:#c2570d;">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</strong></div>
+                <div class="lbl">Montant total à payer</div>
+                <div class="val">
+                    <strong style="color:#c2570d;font-size:16px">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</strong>
+                    <div style="font-size:11px;color:#6b7280;margin-top:2px">
+                        Pour la totalité de la campagne ({{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }})
+                    </div>
+                </div>
             </div>
         @endif
     </div>
 
     @if($panels->count() > 0)
-        <h2>Aperçu des emplacements</h2>
+        <h2>Détail des emplacements</h2>
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
                style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:8px 0 18px;">
             @foreach($panels->take(5) as $i => $panel)
                 @php
-                    $unit  = (float) ($panel->monthly_rate ?? 0);
-                    $total = $unit * $months;
+                    $catalogue = (float) ($panel->monthly_rate ?? 0);
+                    $unit      = (float) ($panel->pivot->unit_price ?? $catalogue);
+                    $total     = (float) ($panel->pivot->total_price ?? ($unit * $months));
+                    $negotiated = abs($unit - $catalogue) > 0.01;
                 @endphp
                 <tr style="{{ $i > 0 ? 'border-top:1px solid #f1f5f9;' : '' }}">
                     <td style="padding:12px 16px;">
@@ -68,8 +92,18 @@
                     </td>
                     <td style="padding:12px 16px;text-align:right;vertical-align:top;white-space:nowrap;">
                         @if($total > 0)
-                            <div style="font-size:14px;color:#111827;font-weight:600;">{{ number_format($total, 0, ',', ' ') }} FCFA</div>
-                            <div style="font-size:11px;color:#9ca3af;">sur la période</div>
+                            <div style="font-size:14px;color:#111827;font-weight:700;">{{ number_format($total, 0, ',', ' ') }} FCFA</div>
+                            <div style="font-size:11px;color:#9ca3af;">total période</div>
+                            @if($unit > 0)
+                                <div style="font-size:11px;color:#6b7280;margin-top:4px;">
+                                    @if($negotiated)
+                                        <span style="text-decoration:line-through;color:#9ca3af">{{ number_format($catalogue, 0, ',', ' ') }} FCFA/mois</span><br>
+                                        <span style="color:#16a34a;font-weight:600">→ {{ number_format($unit, 0, ',', ' ') }} FCFA/mois</span>
+                                    @else
+                                        {{ number_format($unit, 0, ',', ' ') }} FCFA/mois
+                                    @endif
+                                </div>
+                            @endif
                         @else
                             <div style="font-size:12px;color:#6b7280;">Sur devis</div>
                         @endif
@@ -85,6 +119,9 @@
                 </tr>
             @endif
         </table>
+        <p style="font-size:12px;color:#6b7280;margin:8px 0 18px;">
+            ℹ️ Le total prend en compte la durée réelle de votre campagne ({{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }} = {{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }}).
+        </p>
     @endif
 
     <div class="cta-wrap">

@@ -87,7 +87,8 @@
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2" style="margin:0 auto 8px;display:block;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Durée</div>
-        <div style="font-size:14px;font-weight:600;color:var(--text);">{{ round($months) }} mois</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);">{{ $days }} jour{{ $days > 1 ? 's' : '' }}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">{{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }}</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2" style="margin:0 auto 8px;display:block;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -153,9 +154,15 @@
                     <span style="color:{{ $panel['is_lit'] ? '#fab80b' : 'var(--text2)' }};font-weight:500;">{{ $panel['is_lit'] ? 'Éclairé' : 'Non éclairé' }}</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;font-size:13px;border-top:1px dashed var(--border);padding-top:8px;margin-top:2px;">
-                    <span style="color:var(--text2);font-weight:500;">Tarif mensuel</span>
-                    <span style="color:#e20613;font-weight:700;">{{ number_format($panel['monthly_rate'], 0, ',', ' ') }} FCFA</span>
+                    <span style="color:var(--text2);font-weight:500;">Prix mensuel</span>
+                    <span style="color:var(--text2);font-weight:600;">{{ number_format($panel['monthly_rate'], 0, ',', ' ') }} FCFA</span>
                 </div>
+                @if(!empty($panel['total']) && $panel['total'] > 0)
+                <div style="display:flex;justify-content:space-between;font-size:13px;padding-top:6px;">
+                    <span style="color:var(--text);font-weight:600;">Total ({{ $monthsLabel }} mois)</span>
+                    <span style="color:#e20613;font-weight:800;">{{ number_format($panel['total'], 0, ',', ' ') }} FCFA</span>
+                </div>
+                @endif
             </div>
 
             <button onclick="openPanelModal({{ $index }})"
@@ -179,7 +186,7 @@
                 {{ number_format($totalAmount, 0, ',', ' ') }}
                 <span style="font-size:14px;font-weight:400;color:var(--text3);"> FCFA</span>
             </div>
-            <div style="font-size:11px;color:var(--text3);margin-top:4px;">Pour {{ round($months) }} mois · {{ count($panels) }} emplacement(s)</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px;">Pour {{ $days }} jour{{ $days > 1 ? 's' : '' }} ({{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }}) · {{ count($panels) }} emplacement(s)</div>
         </div>
     </div>
     <div style="font-size:11px;color:var(--text3);padding-top:12px;border-top:1px solid rgba(226,6,19,.15);">
@@ -381,7 +388,31 @@
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <h3 style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px;">Confirmer la proposition</h3>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;">Souhaitez-vous confirmer cette proposition ? Les panneaux vous seront attribués et une campagne sera créée.</p>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">Souhaitez-vous confirmer cette proposition ? Les panneaux vous seront attribués et une campagne sera créée.</p>
+
+        {{-- Récap clair : durée réelle + montant total --}}
+        @php $totalAmount = (float) $reservation->total_amount; @endphp
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;text-align:left;">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:6px;">
+                <span style="color:var(--text3)">Période</span>
+                <span style="color:var(--text);font-weight:600">{{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:6px;">
+                <span style="color:var(--text3)">Durée</span>
+                <span style="color:var(--text);font-weight:600">{{ $days }} jour{{ $days > 1 ? 's' : '' }} · {{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:6px;">
+                <span style="color:var(--text3)">Emplacements</span>
+                <span style="color:var(--text);font-weight:600">{{ count($panels) }} panneau{{ count($panels) > 1 ? 'x' : '' }}</span>
+            </div>
+            @if($totalAmount > 0)
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:14px;padding-top:8px;border-top:1px solid var(--border);margin-top:6px;">
+                <span style="color:var(--text);font-weight:700">Total à payer (HT)</span>
+                <span style="color:#e20613;font-weight:800;font-size:16px">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</span>
+            </div>
+            @endif
+        </div>
+
         <div style="background:rgba(250,184,11,.08);border:1px solid rgba(250,184,11,.2);border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:#fab80b;">
             Cette action est définitive — elle déclenche la création de votre campagne.
         </div>

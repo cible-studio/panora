@@ -1,18 +1,34 @@
 @php
     /**
-     * Logo CIBLE CI — embarqué en base64 pour fiabilité (Gmail / Outlook
-     * masquent souvent les images externes par défaut).
-     * Cherche dans plusieurs chemins, fallback texte si rien trouvé.
+     * Logo CIBLE CI — Stratégie hybride pour maximiser la compatibilité :
+     *
+     *   1) Essayer une URL absolue HTTPS via asset() — Gmail/Outlook peuvent
+     *      la fetch normalement (option la plus fiable en prod).
+     *   2) Fallback : data-URI base64 embarqué (pour les clients qui bloquent
+     *      les images externes ou en absence de host accessible).
+     *
+     * Note : un base64 énorme peut faire que Gmail tronque ou cache l'email.
+     *        On préfère donc l'URL absolue tant que possible.
      */
     $logoSrc = (function () {
-        foreach ([
-            public_path('images/logo-cible.png'),
-            public_path('images/logol.png'),
-            public_path('images/logo.png'),
-        ] as $p) {
-            if (is_file($p) && is_readable($p)) {
-                $mime = mime_content_type($p) ?: 'image/png';
-                return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        $candidates = [
+            'images/logol.png',         // logo officiel CIBLE light
+            'images/logo-cible.png',
+            'images/logo.png',
+        ];
+        // 1) URL absolue (prod-friendly, fonctionne avec Gmail proxy)
+        foreach ($candidates as $rel) {
+            $abs = public_path($rel);
+            if (is_file($abs) && is_readable($abs)) {
+                return asset($rel); // forcera APP_URL/images/...
+            }
+        }
+        // 2) Fallback base64 si rien d'accessible
+        foreach ($candidates as $rel) {
+            $abs = public_path($rel);
+            if (is_file($abs) && is_readable($abs)) {
+                $mime = mime_content_type($abs) ?: 'image/png';
+                return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($abs));
             }
         }
         return null;

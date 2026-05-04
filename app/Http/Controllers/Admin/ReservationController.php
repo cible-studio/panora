@@ -1094,7 +1094,41 @@ class ReservationController extends Controller
             'panels.commune:id,name',
             'panels.format:id,name',
             'panels.photos' => fn($q) => $q->orderBy('ordre')->limit(1),
+            'externalPanels:id,code_panneau,designation,commune_id,format_id,monthly_rate,is_lit,photo_path,agency_id',
+            'externalPanels.commune:id,name',
+            'externalPanels.format:id,name',
+            'externalPanels.agency:id,name',
         ]);
+
+        $internalPanels = $reservation->panels->map(fn($p) => [
+            'id'           => $p->id,
+            'source'       => 'internal',
+            'reference'    => $p->reference,
+            'name'         => $p->name,
+            'commune'      => $p->commune?->name ?? '—',
+            'format'       => $p->format?->name  ?? '—',
+            'is_lit'       => (bool) $p->is_lit,
+            'agency_name'  => null,
+            'monthly_rate' => (float) ($p->pivot->unit_price ?? $p->monthly_rate ?? 0),
+            'photo_url'    => $p->photos->first()
+                ? asset('storage/' . $p->photos->first()->path)
+                : null,
+        ]);
+
+        $externalPanels = $reservation->externalPanels->map(fn($p) => [
+            'id'           => 'ext_' . $p->id,
+            'source'       => 'external',
+            'reference'    => $p->code_panneau,
+            'name'         => $p->designation,
+            'commune'      => $p->commune?->name ?? '—',
+            'format'       => $p->format?->name  ?? '—',
+            'is_lit'       => (bool) $p->is_lit,
+            'agency_name'  => $p->agency?->name,
+            'monthly_rate' => (float) ($p->pivot->unit_price ?? $p->monthly_rate ?? 0),
+            'photo_url'    => $p->photo_path ? asset('storage/' . ltrim($p->photo_path, '/')) : null,
+        ]);
+
+        $totalCount = $reservation->panels->count() + $reservation->externalPanels->count();
 
         return response()->json([
             'reservation' => [
@@ -1102,20 +1136,9 @@ class ReservationController extends Controller
                 'start_date' => $reservation->start_date->format('d/m/Y'),
                 'end_date'   => $reservation->end_date->format('d/m/Y'),
                 'status'     => $reservation->status->value,
-                'count'      => $reservation->panels->count(),
+                'count'      => $totalCount,
             ],
-            'panels' => $reservation->panels->map(fn($p) => [
-                'id'           => $p->id,
-                'reference'    => $p->reference,
-                'name'         => $p->name,
-                'commune'      => $p->commune?->name ?? '—',
-                'format'       => $p->format?->name  ?? '—',
-                'is_lit'       => (bool) $p->is_lit,
-                'monthly_rate' => (float) ($p->pivot->unit_price ?? $p->monthly_rate ?? 0),
-                'photo_url'    => $p->photos->first()
-                    ? asset('storage/' . $p->photos->first()->path)
-                    : null,
-            ])->values(),
+            'panels' => $internalPanels->concat($externalPanels)->values(),
         ]);
     }
 
@@ -1124,7 +1147,8 @@ class ReservationController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function index(Request $request)
     {
-        $query = Reservation::with(['client', 'user'])->withCount('panels');
+        $query = Reservation::with(['client', 'user'])
+            ->withCount(['panels', 'externalPanels']);
 
         if ($request->search) {
             $query->where(
@@ -1206,7 +1230,70 @@ class ReservationController extends Controller
             'annuler' => $reservation->isCancellable() && $user->can('annuler', $reservation),
             'delete' => $reservation->isDeletable() && $user->can('delete', $reservation),
         ];
-        return view('admin.reservations.show', compact('reservation', 'can'));
+
+        // ─── Construction d'une vue unifiée des panneaux (internes + externes)
+        // Permet à la vue d'avoir UNE SEULE boucle propre. Chaque ligne contient
+        // tout ce dont la vue a besoin sans logique conditionnelle compliquée.
+        $months = $this->monthsBetween(
+            $reservation->start_date->format('Y-m-d'),
+            $reservation->end_date->format('Y-m-d')
+        );
+        $days = (int) abs($reservation->start_date->copy()->startOfDay()
+            ->diffInDays($reservation->end_date->copy()->startOfDay()));
+
+        $unifiedPanels = collect();
+
+        foreach ($reservation->panels as $p) {
+            $unifiedPanels->push([
+                'id'             => $p->id,
+                'source'         => 'internal',
+                'reference'      => $p->reference,
+                'name'           => $p->name,
+                'commune'        => $p->commune?->name ?? '—',
+                'format'         => $p->format?->name ?? '—',
+                'format_dim'     => ($p->format?->width && $p->format?->height)
+                    ? rtrim(rtrim(number_format($p->format->width, 2, '.', ''), '0'), '.')
+                      . '×' . rtrim(rtrim(number_format($p->format->height, 2, '.', ''), '0'), '.') . 'm'
+                    : null,
+                'agency'         => null,
+                'photo_url'      => $p->photos->sortBy('ordre')->first()
+                    ? asset('storage/' . $p->photos->sortBy('ordre')->first()->path)
+                    : null,
+                'unit_price'     => (float) ($p->pivot->unit_price  ?? $p->monthly_rate ?? 0),
+                'total_price'    => (float) ($p->pivot->total_price ?? 0),
+                'catalog_price'  => (float) ($p->monthly_rate ?? 0),
+                'edit_url'       => route('admin.reservations.panels.price', [$reservation, $p->id]),
+                'reset_url'      => route('admin.reservations.panels.price.reset', [$reservation, $p->id]),
+            ]);
+        }
+
+        foreach ($reservation->externalPanels as $p) {
+            $unifiedPanels->push([
+                'id'             => $p->id,
+                'source'         => 'external',
+                'reference'      => $p->code_panneau,
+                'name'           => $p->designation,
+                'commune'        => $p->commune?->name ?? '—',
+                'format'         => $p->format?->name ?? '—',
+                'format_dim'     => ($p->format?->width && $p->format?->height)
+                    ? rtrim(rtrim(number_format($p->format->width, 2, '.', ''), '0'), '.')
+                      . '×' . rtrim(rtrim(number_format($p->format->height, 2, '.', ''), '0'), '.') . 'm'
+                    : null,
+                'agency'         => $p->agency?->name,
+                'photo_url'      => $p->photo_path ? asset('storage/' . ltrim($p->photo_path, '/')) : null,
+                'unit_price'     => (float) ($p->pivot->unit_price  ?? $p->monthly_rate ?? 0),
+                'total_price'    => (float) ($p->pivot->total_price ?? 0),
+                'catalog_price'  => (float) ($p->monthly_rate ?? 0),
+                'edit_url'       => route('admin.reservations.external-panels.price', [$reservation, $p->id]),
+                'reset_url'      => route('admin.reservations.external-panels.price.reset', [$reservation, $p->id]),
+            ]);
+        }
+
+        $totalCount = $unifiedPanels->count();
+
+        return view('admin.reservations.show', compact(
+            'reservation', 'can', 'unifiedPanels', 'months', 'days', 'totalCount'
+        ));
     }
 
     public function edit(Reservation $reservation)
@@ -1589,11 +1676,67 @@ class ReservationController extends Controller
             'total_price' => $panel->monthly_rate * $months,
         ]);
 
-        $newTotal = $reservation->panels()->get()
-            ->sum(fn($p) => (float) ($p->pivot->total_price ?? 0));
-        $reservation->update(['total_amount' => $newTotal]);
+        $this->refreshReservationTotal($reservation);
 
         return back()->with('success', 'Prix remis au tarif catalogue.');
+    }
+
+    // ── EXTERNES : prix négocié + reset (mêmes endpoints que internes) ──
+    public function updateExternalPanelPrice(Request $request, Reservation $reservation, ExternalPanel $panel)
+    {
+        $request->validate(['unit_price' => 'required|numeric|min:0']);
+        if (!$reservation->isEditable()) abort(403, 'Réservation non modifiable.');
+
+        $months = $this->monthsBetween(
+            $reservation->start_date->format('Y-m-d'),
+            $reservation->end_date->format('Y-m-d')
+        );
+
+        DB::table('reservation_panels')
+            ->where('reservation_id', $reservation->id)
+            ->where('external_panel_id', $panel->id)
+            ->where('source', 'externe')
+            ->update([
+                'unit_price'  => $request->unit_price,
+                'total_price' => $request->unit_price * $months,
+                'updated_at'  => now(),
+            ]);
+
+        $this->refreshReservationTotal($reservation);
+        return back()->with('success', 'Prix du panneau externe mis à jour.');
+    }
+
+    public function resetExternalPanelPrice(Reservation $reservation, ExternalPanel $panel)
+    {
+        if (!$reservation->isEditable()) abort(403, 'Réservation non modifiable.');
+
+        $months = $this->monthsBetween(
+            $reservation->start_date->format('Y-m-d'),
+            $reservation->end_date->format('Y-m-d')
+        );
+        $catalogue = (float) ($panel->monthly_rate ?? 0);
+
+        DB::table('reservation_panels')
+            ->where('reservation_id', $reservation->id)
+            ->where('external_panel_id', $panel->id)
+            ->where('source', 'externe')
+            ->update([
+                'unit_price'  => $catalogue,
+                'total_price' => $catalogue * $months,
+                'updated_at'  => now(),
+            ]);
+
+        $this->refreshReservationTotal($reservation);
+        return back()->with('success', 'Prix remis au tarif catalogue.');
+    }
+
+    /** Recalcule total_amount = somme(total_price) sur reservation_panels (internes + externes). */
+    private function refreshReservationTotal(Reservation $reservation): void
+    {
+        $newTotal = (float) DB::table('reservation_panels')
+            ->where('reservation_id', $reservation->id)
+            ->sum('total_price');
+        $reservation->update(['total_amount' => round($newTotal, 2)]);
     }
 
     /**

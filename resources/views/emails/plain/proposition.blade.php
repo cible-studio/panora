@@ -1,14 +1,20 @@
 @php
     $clientName = $client?->name ?? 'Client';
     $panelCount = $panels->count();
-    $months     = max(1.0, (function ($s, $e) {
-        $s = \Carbon\Carbon::parse($s)->startOfDay();
-        $e = \Carbon\Carbon::parse($e)->endOfDay();
-        $m = (int) abs($s->diffInMonths($e));
-        $r = abs($s->copy()->addMonths($m)->diffInDays($e));
-        return (float) ($r > 0 ? $m + 1 : $m);
-    })($reservation->start_date, $reservation->end_date));
-    $totalAmount = $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0) * $months);
+
+    $sd = \Carbon\Carbon::parse($reservation->start_date)->startOfDay();
+    $ed = \Carbon\Carbon::parse($reservation->end_date)->startOfDay();
+    $totalDays = max(1, (int) $sd->diffInDays($ed));
+    $fullMonths = (int) floor($totalDays / 30);
+    $remainDays = $totalDays % 30;
+    $fraction   = $remainDays === 0 ? 0 : ($remainDays <= 15 ? 0.5 : 1);
+    $months     = max(0.5, $fullMonths + $fraction);
+    $monthsLabel = rtrim(rtrim(number_format($months, 1, ',', ''), '0'), ',');
+
+    $totalAmount = (float) ($reservation->total_amount ?? 0);
+    if ($totalAmount <= 0) {
+        $totalAmount = $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0) * $months);
+    }
 @endphp
 CIBLE CI — Régie Publicitaire (Abidjan, Côte d'Ivoire)
 
@@ -20,9 +26,10 @@ campagne d'affichage. Vous pouvez consulter le détail et confirmer ou refuser.
 Détails :
 - Référence    : {{ $reservation->reference }}
 - Période      : {{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}
-- Emplacements : {{ $panelCount }}
+- Durée        : {{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }} ({{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }})
+- Emplacements : {{ $panelCount }} panneau{{ $panelCount > 1 ? 'x' : '' }}
 @if($totalAmount > 0)
-- Montant      : {{ number_format($totalAmount, 0, ',', ' ') }} FCFA (indicatif)
+- Montant total : {{ number_format($totalAmount, 0, ',', ' ') }} FCFA (pour la totalité de la campagne)
 @endif
 
 Consulter et répondre : {{ $lien }}

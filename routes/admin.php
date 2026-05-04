@@ -340,11 +340,16 @@ Route::prefix('admin')
         // ⚠️ RÈGLE IMPORTANTE : routes GET spécifiques AVANT resource
         // ══════════════════════════════════════════════════════════
 
-        // Prix panneaux dans une réservation
-        Route::patch(
-            'reservations/{reservation}/panels/{panel}/price', [ReservationController::class, 'updatePanelPrice'])->name('reservations.panels.price');
+        // Prix panneaux dans une réservation (internes + externes)
+        Route::patch('reservations/{reservation}/panels/{panel}/price',
+            [ReservationController::class, 'updatePanelPrice'])->name('reservations.panels.price');
+        Route::post('reservations/{reservation}/panels/{panel}/price/reset',
+            [ReservationController::class, 'resetPanelPrice'])->name('reservations.panels.price.reset');
 
-        Route::post('reservations/{reservation}/panels/{panel}/price/reset', [ReservationController::class, 'resetPanelPrice'])->name('reservations.panels.price.reset');
+        Route::patch('reservations/{reservation}/external-panels/{panel}/price',
+            [ReservationController::class, 'updateExternalPanelPrice'])->name('reservations.external-panels.price');
+        Route::post('reservations/{reservation}/external-panels/{panel}/price/reset',
+            [ReservationController::class, 'resetExternalPanelPrice'])->name('reservations.external-panels.price.reset');
 
         // Disponibilités
         Route::get('disponibilites', [ReservationController::class, 'disponibilites'])->name('reservations.disponibilites');
