@@ -236,7 +236,7 @@ class PropositionController extends Controller
             $campaign = $this->propositionService->confirmer($reservation);
         } catch (\Exception $e) {
             Log::error('admin.propositions.error', ['error' => $e->getMessage()]);
-            return redirect()->route('admin.propositions.show', [$reference, $slug])
+            return redirect()->route('proposition.show', [$reference, $slug])
                 ->with('error', 'Erreur lors de la confirmation. Contactez votre commercial.');
         }
 
@@ -306,7 +306,7 @@ class PropositionController extends Controller
                 'current_status' => $reservation->status->value,
             ]);
 
-            return redirect()->route('admin.propositions.show', [$reference, $slug])
+            return redirect()->route('proposition.show', [$reference, $slug])
                 ->with('error', "Cette proposition est {$stateLabel}. Impossible de la {$action}.");
         }
 
@@ -321,7 +321,7 @@ class PropositionController extends Controller
                 'expired_at'     => $reservation->proposition_expires_at->toIso8601String(),
             ]);
 
-            return redirect()->route('admin.propositions.show', [$reference, $slug])
+            return redirect()->route('proposition.show', [$reference, $slug])
                 ->with('error', "Cette proposition a expiré le {$expiredAt}. Contactez votre commercial pour en recevoir une nouvelle.");
         }
 
@@ -401,7 +401,7 @@ class PropositionController extends Controller
 
         // Empêcher de retirer le dernier panneau
         if ($reservation->panels->count() <= 1)
-            return redirect()->route('admin.propositions.show', [$reference, $slug])
+            return redirect()->route('proposition.show', [$reference, $slug])
                 ->with('error', 'Impossible de retirer le dernier panneau.');
 
         // Retirer le panneau
@@ -420,7 +420,7 @@ class PropositionController extends Controller
             'panel_id'       => $panelId,
         ]);
 
-        return redirect()->route('admin.propositions.show', [$reference, $slug])
+        return redirect()->route('proposition.show', [$reference, $slug])
             ->with('success', 'Panneau retiré de la proposition.');
     }
 

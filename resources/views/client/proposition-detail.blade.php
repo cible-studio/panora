@@ -225,27 +225,95 @@
 @endif
 
 {{-- ══ ACTIONS ══ --}}
-@if($joursRestants >= 0 && $reservation->status->value === 'en_attente')
-<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:32px;text-align:center;">
-    <h3 style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px;">Quelle est votre décision ?</h3>
-    <p style="font-size:13px;color:var(--text2);max-width:500px;margin:0 auto 24px;line-height:1.7;">
-        En confirmant, les panneaux vous seront attribués immédiatement et une campagne sera créée dans votre espace.
-    </p>
-    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:16px;">
-        <button onclick="openConfirmModal()"
-                style="padding:12px 28px;background:#e20613;color:#fff;font-weight:700;border-radius:10px;font-size:14px;border:none;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;gap:8px;"
-                onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-            Accepter la proposition
-        </button>
-        <button onclick="openRefuseModal()"
-                style="padding:12px 24px;background:rgba(239,68,68,.08);color:#ef4444;font-weight:600;border-radius:10px;font-size:14px;border:1px solid rgba(239,68,68,.25);cursor:pointer;transition:all .15s;"
-                onmouseover="this.style.background='rgba(239,68,68,.15)'" onmouseout="this.style.background='rgba(239,68,68,.08)'">
-            Refuser
-        </button>
+@php
+    // Conditions pour pouvoir agir (cohérentes avec PropositionController::assertActionable)
+    $canAct = $reservation->status->value === 'en_attente'
+        && $joursRestants >= 0
+        && !empty($reservation->proposition_token)
+        && !empty($reservation->proposition_slug);
+@endphp
+
+@if($canAct)
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:32px;text-align:center;">
+        <h3 style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px;">Quelle est votre décision ?</h3>
+        <p style="font-size:13px;color:var(--text2);max-width:500px;margin:0 auto 24px;line-height:1.7;">
+            En confirmant, les panneaux vous seront attribués immédiatement et une campagne sera créée dans votre espace.
+        </p>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:16px;">
+            <button onclick="openConfirmModal()"
+                    style="padding:12px 28px;background:#e20613;color:#fff;font-weight:700;border-radius:10px;font-size:14px;border:none;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;gap:8px;"
+                    onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Accepter la proposition
+            </button>
+            <button onclick="openRefuseModal()"
+                    style="padding:12px 24px;background:rgba(239,68,68,.08);color:#ef4444;font-weight:600;border-radius:10px;font-size:14px;border:1px solid rgba(239,68,68,.25);cursor:pointer;transition:all .15s;"
+                    onmouseover="this.style.background='rgba(239,68,68,.15)'" onmouseout="this.style.background='rgba(239,68,68,.08)'">
+                Refuser
+            </button>
+        </div>
+        <div style="font-size:11px;color:var(--text3);">Réponse sécurisée · CIBLE CI · Abidjan</div>
     </div>
-    <div style="font-size:11px;color:var(--text3);">Réponse sécurisée · CIBLE CI · Abidjan</div>
-</div>
+@else
+    {{-- Action impossible — affichage explicite pour ne pas laisser le client perplexe --}}
+    @php
+        $blockReason = match(true) {
+            $reservation->status->value === 'confirme' => [
+                'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
+                'color' => '#22c55e',
+                'title' => 'Proposition déjà acceptée',
+                'msg'   => 'Vous avez confirmé cette proposition. Une campagne a été créée dans votre espace. Notre équipe commerciale prendra contact avec vous pour la suite.',
+            ],
+            $reservation->status->value === 'refuse' => [
+                'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+                'color' => '#94a3b8',
+                'title' => 'Proposition refusée',
+                'msg'   => 'Cette proposition a été refusée. Pour recevoir une nouvelle sélection adaptée à vos besoins, contactez votre interlocuteur commercial CIBLE CI.',
+            ],
+            $reservation->status->value === 'annule' => [
+                'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>',
+                'color' => '#94a3b8',
+                'title' => 'Proposition annulée',
+                'msg'   => 'Cette proposition a été annulée par notre équipe. Contactez votre commercial pour plus de détails.',
+            ],
+            $joursRestants < 0 => [
+                'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+                'color' => '#ef4444',
+                'title' => 'Proposition expirée',
+                'msg'   => 'Le délai de validité de cette proposition est dépassé. Contactez votre commercial pour recevoir une nouvelle proposition adaptée à vos besoins actuels.',
+            ],
+            default => [
+                'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+                'color' => '#94a3b8',
+                'title' => 'Action impossible',
+                'msg'   => 'Cette proposition n\'est plus modifiable. Contactez votre commercial pour plus d\'informations.',
+            ],
+        };
+    @endphp
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;text-align:center;">
+        <div style="width:52px;height:52px;border-radius:50%;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.2);display:inline-flex;align-items:center;justify-content:center;color:{{ $blockReason['color'] }};margin-bottom:14px;">
+            {!! $blockReason['icon'] !!}
+        </div>
+        <h3 style="font-size:17px;font-weight:600;color:var(--text);margin-bottom:8px;">{{ $blockReason['title'] }}</h3>
+        <p style="font-size:13px;color:var(--text2);max-width:500px;margin:0 auto 18px;line-height:1.7;">
+            {{ $blockReason['msg'] }}
+        </p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+            <a href="{{ route('client.propositions') }}"
+               style="padding:10px 22px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:13px;color:var(--text2);text-decoration:none;font-weight:500;transition:all .15s;"
+               onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--text3)'"
+               onmouseout="this.style.color='var(--text2)';this.style.borderColor='var(--border2)'">
+                ← Mes propositions
+            </a>
+            @if($reservation->status->value === 'confirme')
+                <a href="{{ route('client.campagnes') }}"
+                   style="padding:10px 22px;background:#e20613;color:#fff;font-weight:600;border-radius:9px;font-size:13px;text-decoration:none;transition:opacity .15s;"
+                   onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                    Voir mes campagnes →
+                </a>
+            @endif
+        </div>
+    </div>
 @endif
 
 {{-- ══ MODAL PANNEAU ══ --}}
@@ -297,6 +365,12 @@
     </div>
 </div>
 
+{{-- ══ MODALES — uniquement si la proposition est encore actionnable
+     ($canAct est défini plus haut dans le fichier).
+     Cela évite qu'un client puisse les ouvrir via la console JS sur une
+     proposition expirée ou déjà traitée. La garde côté controller fait
+     office de double rempart serveur. ══ --}}
+@if($canAct ?? false)
 {{-- ══ MODAL CONFIRMATION ══ --}}
 <div id="modal-confirm" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(4px);z-index:9999;align-items:center;justify-content:center;padding:16px;"
      onclick="if(event.target===this)closeConfirmModal()">
@@ -360,6 +434,7 @@
         </form>
     </div>
 </div>
+@endif {{-- /canAct (modales) --}}
 
 <script>
 const panelsData = @json($panels);
@@ -423,10 +498,10 @@ function closePanelModal() {
     document.getElementById('modal-panel').style.display = 'none';
     document.body.style.overflow = '';
 }
-function openConfirmModal()  { document.getElementById('modal-confirm').style.display='flex'; document.body.style.overflow='hidden'; }
-function closeConfirmModal() { document.getElementById('modal-confirm').style.display='none'; document.body.style.overflow=''; }
-function openRefuseModal()   { document.getElementById('modal-refus').style.display='flex';  document.body.style.overflow='hidden'; }
-function closeRefuseModal()  { document.getElementById('modal-refus').style.display='none';  document.body.style.overflow=''; }
+function openConfirmModal()  { const el = document.getElementById('modal-confirm'); if (!el) return; el.style.display='flex'; document.body.style.overflow='hidden'; }
+function closeConfirmModal() { const el = document.getElementById('modal-confirm'); if (!el) return; el.style.display='none'; document.body.style.overflow=''; }
+function openRefuseModal()   { const el = document.getElementById('modal-refus');   if (!el) return; el.style.display='flex'; document.body.style.overflow='hidden'; }
+function closeRefuseModal()  { const el = document.getElementById('modal-refus');   if (!el) return; el.style.display='none'; document.body.style.overflow=''; }
 
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { closePanelModal(); closeConfirmModal(); closeRefuseModal(); }

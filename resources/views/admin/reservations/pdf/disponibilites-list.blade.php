@@ -2,181 +2,175 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <title>Liste des panneaux — CIBLE CI</title>
     <style>
-        /* ═══════════════════════════════════════════════════════════════
-           CIBLE CI — Liste des Disponibilités
-           Chartre graphique : Rouge (#e20613) + Doré (#e8a020)
-           ═══════════════════════════════════════════════════════════════ */
-        * { margin:0; padding:0; box-sizing:border-box; }
-
-        @page {
-            margin: 12mm 10mm;
-            size: A4 landscape;
-        }
+        @page { margin: 0; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
             font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 8px;
-            color: #1e293b;
-            background: #fff;
+            color: #1f2937;
+            font-size: 9.5px;
             line-height: 1.4;
         }
 
-        /* ── PAGE ── */
-        .page {
-            position: relative;
-            min-height: 190mm;
-        }
+        .container { padding: 14px 18px 60px; }
 
-        /* ── HEADER AVEC LOGO ── */
-        .header {
-            background: #0f172a;
-            padding: 10px 14px;
-            margin-bottom: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #e8a020;
+        /* ── HEADER UNIFORME (cohérent avec fiche panneau) ── */
+        .pdf-header {
+            background: #0d1117;
+            color: #ffffff;
+            padding: 14px 22px;
+            display: table;
+            width: 100%;
+            border-bottom: 3px solid #e8a020;
+            margin-bottom: 14px;
         }
-
-        .logo-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        .pdf-header > div { display: table-cell; vertical-align: middle; }
+        .pdf-header .logo-cell  { width: 30%; text-align: left; }
+        .pdf-header .title-cell { width: 40%; text-align: center; }
+        .pdf-header .meta-cell  { width: 30%; text-align: right; font-size: 9px; color: #9ca3af; }
+        .pdf-header img {
+            height: 38px;
+            width: auto;
+            vertical-align: middle;
+            background: #ffffff;
+            padding: 4px 8px;
+            border-radius: 4px;
         }
-
-        .logo-img {
-            width: 35px;
-            height: auto;
+        .pdf-header h1 {
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #ffffff;
+            text-transform: uppercase;
         }
+        .pdf-header .accent { color: #e8a020; }
 
-        .header h1 {
-            font-size: 12px;
+        /* ── BANNER CONTEXTE (période / réservation / client) ── */
+        .context-banner {
+            background: #fff7ed;
+            border-left: 4px solid #e8a020;
+            padding: 10px 16px;
+            margin-bottom: 14px;
+            font-size: 10px;
+            color: #1f2937;
+            display: table;
+            width: 100%;
+        }
+        .context-banner > div { display: table-cell; vertical-align: middle; }
+        .context-banner .left  { text-align: left; }
+        .context-banner .right { text-align: right; color: #c2570d; font-weight: 600; }
+        .context-banner strong { color: #c2570d; }
+
+        /* ── TABLE ── */
+        h2.section-title {
+            font-size: 10px;
             font-weight: 700;
             color: #e8a020;
-            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 6px;
         }
 
-        .header p {
-            font-size: 7px;
-            color: #94a3b8;
-            margin-top: 2px;
-        }
-
-        .header-right {
-            text-align: right;
-            font-size: 7px;
-            color: #94a3b8;
-        }
-
-        /* ── TABLEAU ── */
-        table {
+        table.list {
             width: 100%;
             border-collapse: collapse;
+            font-size: 9px;
         }
-
-        thead tr {
-            background: #f1f5f9;
-        }
-
-        th {
-            padding: 6px 6px;
-            text-align: left;
-            font-size: 7px;
+        table.list thead th {
+            background: #f3f4f6;
+            color: #374151;
             font-weight: 700;
             text-transform: uppercase;
-            color: #1e293b;
-            border-bottom: 2px solid #e20613;
+            font-size: 8px;
+            letter-spacing: 0.5px;
+            padding: 8px 6px;
+            border-bottom: 2px solid #e5e7eb;
+            text-align: left;
+            white-space: nowrap;
         }
-
-        td {
-            padding: 5px 6px;
-            border-bottom: 1px solid #e2e8f0;
-            vertical-align: middle;
+        table.list tbody td {
+            padding: 7px 6px;
+            border-bottom: 1px solid #f3f4f6;
+            vertical-align: top;
+            color: #1f2937;
         }
+        table.list tbody tr:nth-child(even) { background: #fafafa; }
 
-        tr:nth-child(even) td {
-            background: #f8fafc;
-        }
-
-        /* ── STYLES ── */
         .ref {
-            font-family: monospace;
+            font-family: 'Courier New', monospace;
+            color: #c2570d;
             font-weight: 700;
-            font-size: 9px;
-            color: #e20613;
+            font-size: 9.5px;
         }
+        .lit-badge {
+            display: inline-block;
+            font-size: 8.5px;
+            font-weight: 600;
+            color: #c2570d;
+        }
+        .non-lit-badge {
+            font-size: 8.5px;
+            color: #9ca3af;
+        }
+        .num { text-align: right; font-variant-numeric: tabular-nums; }
 
+        /* ── BADGES STATUT (uniquement si showPricing) ── */
         .badge {
             display: inline-block;
             padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 7px;
-            font-weight: 600;
-        }
-        .badge-libre       { background: #dcfce7; color: #166534; }
-        .badge-occupe      { background: #fee2e2; color: #991b1b; }
-        .badge-option      { background: #fef3c7; color: #92400e; }
-        .badge-confirme    { background: #dbeafe; color: #1e40af; }
-        .badge-maintenance { background: #f1f5f9; color: #475569; }
-
-        .lit {
-            color: #e8a020;
-            font-weight: 600;
-            font-size: 8px;
-        }
-        .non-lit {
-            color: #94a3b8;
-            font-size: 8px;
-        }
-
-        /* ── TOTAUX ── */
-        .totals {
-            margin-top: 12px;
-            padding: 8px 12px;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            text-align: right;
-            font-size: 8px;
+            border-radius: 4px;
+            font-size: 8.5px;
             font-weight: 700;
+            text-transform: uppercase;
         }
-        .totals span {
-            color: #e20613;
-            font-size: 10px;
+        .badge-libre       { background: #d1fae5; color: #065f46; }
+        .badge-occupe      { background: #fee2e2; color: #991b1b; }
+        .badge-option      { background: #fed7aa; color: #9a3412; }
+        .badge-confirme    { background: #dbeafe; color: #1e40af; }
+        .badge-maintenance { background: #fde68a; color: #92400e; }
+
+        /* ── TOTAUX (uniquement si showPricing) ── */
+        .totals {
+            margin-top: 14px;
+            padding: 12px 16px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 5px;
+            display: table;
+            width: 100%;
+            font-size: 11px;
+        }
+        .totals > div { display: table-cell; vertical-align: middle; }
+        .totals .label { color: #6b7280; font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; }
+        .totals .amount {
+            color: #c2570d;
+            font-weight: 700;
+            font-size: 14px;
+            text-align: right;
         }
 
-        /* ── FOOTER ── */
-        .footer {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            margin-top: 12px;
+        /* ── FOOTER FIXE ── */
+        .pdf-footer {
+            position: fixed;
+            bottom: 14px;
+            left: 22px;
+            right: 22px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 8px;
+            font-size: 8.5px;
+            color: #9ca3af;
             text-align: center;
-            font-size: 6px;
-            color: #94a3b8;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 6px;
-        }
-
-        /* ── MENTIONS ── */
-        .client-ref {
-            margin-top: 8px;
-            padding: 6px 10px;
-            background: #fefce8;
-            border-left: 3px solid #e8a020;
-            font-size: 7px;
-            color: #475569;
         }
     </style>
 </head>
 <body>
 
 @php
-    // Source de vérité unique : $logoSrc passé par le controller via PdfAssets::getLogoPdf().
-    // Fallback inline si la vue est rendue sans la variable (compat ascendante).
+    // Logo : passé par PdfAssets::getLogoPdf() — fallback inline si la vue est rendue sans
     if (!isset($logoSrc)) {
-        $logoPath = public_path('images/logon.png');
+        $logoPath = public_path('images/logol.png');
         $logoSrc = file_exists($logoPath)
             ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
             : 'data:image/svg+xml;base64,' . base64_encode(
@@ -186,130 +180,149 @@
                 .'</svg>'
               );
     }
+
+    // Logique d'affichage : par défaut PAS de prix ni de statut.
+    // Pour afficher : envoyer show_pricing=1 (ou hide_status=0).
+    $showPricing = $showPricing ?? !($hideStatus ?? true);
+    $count       = count($panels);
 @endphp
 
-<div class="page">
-    {{-- HEADER --}}
-    <div class="header">
-        <div class="logo-container">
-            <img src="{{ $logoSrc }}" class="logo-img" alt="CIBLE CI">
-            <div>
-                <h1>CIBLE CI — Sélection de panneaux</h1>
-                <p>Généré le {{ $generated ?? now()->format('d/m/Y H:i') }} · {{ count($panels) }} panneau(x)</p>
-                @if($startDate && $endDate)
-                    <p>Période : {{ \Carbon\Carbon::parse($startDate)->format('d/m/Y') }} → {{ \Carbon\Carbon::parse($endDate)->format('d/m/Y') }}</p>
+{{-- ── HEADER UNIFORME ── --}}
+<div class="pdf-header">
+    <div class="logo-cell">
+        <img src="{{ $logoSrc }}" alt="CIBLE CI">
+    </div>
+    <div class="title-cell">
+        <h1>Sélection de <span class="accent">panneaux</span></h1>
+    </div>
+    <div class="meta-cell">
+        Généré le {{ $generated ?? now()->format('d/m/Y à H:i') }}<br>
+        {{ $count }} panneau{{ $count > 1 ? 'x' : '' }}
+    </div>
+</div>
+
+<div class="container">
+
+    {{-- ── BANNER PÉRIODE / CONTEXTE ── --}}
+    @if(($startDate ?? null) || isset($reservation_ref) || isset($client_name))
+        <div class="context-banner">
+            <div class="left">
+                @if(isset($reservation_ref))
+                    Réf. réservation : <strong>{{ $reservation_ref }}</strong>
+                    @if(isset($client_name)) — Client : <strong>{{ $client_name }}</strong>@endif
+                    <br>
+                @endif
+                @if(($startDate ?? null) && ($endDate ?? null))
+                    Période : <strong>{{ \Carbon\Carbon::parse($startDate)->format('d/m/Y') }} → {{ \Carbon\Carbon::parse($endDate)->format('d/m/Y') }}</strong>
                 @endif
             </div>
+            <div class="right">
+                {{ $count }} emplacement{{ $count > 1 ? 's' : '' }}
+            </div>
         </div>
-        <div class="header-right">
-            @if(isset($reservation_ref))
-                Réservation : <strong>{{ $reservation_ref }}</strong><br>
-            @endif
-            @if(isset($client_name))
-                Client : {{ $client_name }}
-            @endif
-        </div>
-    </div>
-
-    {{-- Mention réservation (si présente) --}}
-    @if(isset($reservation_ref) || isset($client_name))
-    <div class="client-ref">
-        📄 Document confidentiel — Proposition commerciale
-        @if(isset($reservation_ref))
-            · Réf. réservation : <strong>{{ $reservation_ref }}</strong>
-        @endif
-        @if(isset($client_name))
-            · Client : <strong>{{ $client_name }}</strong>
-        @endif
-    </div>
     @endif
 
-    {{-- TABLEAU --}}
-    <table>
+    {{-- ── TABLEAU ── --}}
+    <table class="list">
         <thead>
             <tr>
-                <th>Réf.</th>
-                <th>Emplacement</th>
-                <th>Commune</th>
-                <th>Zone</th>
-                <th>Format</th>
-                <th>Dimensions</th>
-                <th>Catégorie</th>
-                <th>💡</th>
-                <th>Trafic/j</th>
-                @unless($hideStatus ?? false)
-                <th>Statut</th>
-                @endunless
+                <th style="width:9%">Réf.</th>
+                <th style="width:22%">Emplacement</th>
+                <th style="width:11%">Commune</th>
+                <th style="width:9%">Zone</th>
+                <th style="width:11%">Format</th>
+                <th style="width:9%">Dimensions</th>
+                <th style="width:11%">Catégorie</th>
+                <th style="width:6%">Éclair.</th>
+                <th class="num" style="width:7%">Trafic/j</th>
+                @if($showPricing)
+                    <th class="num" style="width:9%">Prix HT/mois</th>
+                    <th style="width:8%">Statut</th>
+                @endif
             </tr>
         </thead>
         <tbody>
             @foreach($panels as $p)
-            @php
-                $statusLabel = match($p->status->value ?? $p['status'] ?? 'libre') {
-                    'libre'          => ['label' => 'Disponible', 'class' => 'badge-libre'],
-                    'occupe'         => ['label' => 'Occupé',     'class' => 'badge-occupe'],
-                    'option'         => ['label' => 'En option',  'class' => 'badge-option'],
-                    'confirme'       => ['label' => 'Confirmé',   'class' => 'badge-confirme'],
-                    'maintenance'    => ['label' => 'Maintenance','class' => 'badge-maintenance'],
-                    default          => ['label' => ucfirst($p->status->value ?? '—'), 'class' => 'badge-libre'],
-                };
-                $traffic = (int)($p->daily_traffic ?? 0);
-                $isLit = (bool)($p->is_lit ?? false);
-                $reference = $p->reference ?? ($p['reference'] ?? '—');
-                $name = $p->name ?? ($p['name'] ?? '—');
-                $commune = $p->commune?->name ?? ($p['commune'] ?? '—');
-                $zone = $p->zone?->name ?? ($p['zone'] ?? '—');
-                $format = $p->format?->name ?? ($p['format'] ?? '—');
-                $category = $p->category?->name ?? ($p['category'] ?? '—');
+                @php
+                    $statusValue = $p->status->value ?? ($p['status'] ?? 'libre');
+                    $statusMeta  = match($statusValue) {
+                        'libre'       => ['label' => 'Disponible', 'class' => 'badge-libre'],
+                        'occupe'      => ['label' => 'Occupé',     'class' => 'badge-occupe'],
+                        'option'      => ['label' => 'En option',  'class' => 'badge-option'],
+                        'confirme'    => ['label' => 'Confirmé',   'class' => 'badge-confirme'],
+                        'maintenance' => ['label' => 'Maintenance','class' => 'badge-maintenance'],
+                        default       => ['label' => ucfirst($statusValue), 'class' => 'badge-libre'],
+                    };
+                    $traffic   = (int) ($p->daily_traffic ?? 0);
+                    $isLit     = (bool) ($p->is_lit ?? false);
+                    $reference = $p->reference ?? ($p['reference'] ?? '—');
+                    $name      = $p->name      ?? ($p['name']      ?? '—');
+                    $commune   = $p->commune?->name  ?? ($p['commune']  ?? '—');
+                    $zone      = $p->zone?->name     ?? ($p['zone']     ?? '—');
+                    $format    = $p->format?->name   ?? ($p['format']   ?? '—');
+                    $category  = $p->category?->name ?? ($p['category'] ?? '—');
+                    $rate      = (float) ($p->monthly_rate ?? 0);
 
-                $dims = null;
-                if (isset($p->format) && $p->format?->width && $p->format?->height) {
-                    $w = rtrim(rtrim(number_format($p->format->width, 2, '.', ''), '0'), '.');
-                    $h = rtrim(rtrim(number_format($p->format->height, 2, '.', ''), '0'), '.');
-                    $dims = "{$w}x{$h}m";
-                } elseif (isset($p['dimensions']) && $p['dimensions']) {
-                    $dims = $p['dimensions'];
-                }
-            @endphp
-
-            <tr>
-                <td><span class="ref">{{ $reference }}</span></td>
-                <td>{{ $name }}</td>
-                <td>{{ $commune }}</td>
-                <td>{{ $zone }}</td>
-                <td>{{ $format }}</td>
-                <td>{{ $dims ?? '—' }}</td>
-                <td>{{ $category }}</td>
-                <td>
-                    @if($isLit)
-                        <span class="lit">💡 LED</span>
-                    @else
-                        <span class="non-lit">Non éclairé</span>
+                    $dims = null;
+                    if (isset($p->format) && $p->format?->width && $p->format?->height) {
+                        $w = rtrim(rtrim(number_format($p->format->width, 2, '.', ''), '0'), '.');
+                        $h = rtrim(rtrim(number_format($p->format->height, 2, '.', ''), '0'), '.');
+                        $dims = "{$w} × {$h} m";
+                    } elseif (isset($p['dimensions']) && $p['dimensions']) {
+                        $dims = $p['dimensions'];
+                    }
+                @endphp
+                <tr>
+                    <td><span class="ref">{{ $reference }}</span></td>
+                    <td style="font-weight:500">{{ $name }}</td>
+                    <td>{{ $commune }}</td>
+                    <td>{{ $zone }}</td>
+                    <td>{{ $format }}</td>
+                    <td>{{ $dims ?? '—' }}</td>
+                    <td>{{ $category }}</td>
+                    <td>
+                        @if($isLit)
+                            <span class="lit-badge">💡 LED</span>
+                        @else
+                            <span class="non-lit-badge">—</span>
+                        @endif
+                    </td>
+                    <td class="num">{{ $traffic > 0 ? number_format($traffic, 0, ',', ' ') : '—' }}</td>
+                    @if($showPricing)
+                        <td class="num" style="font-weight:600;color:#c2570d">
+                            {{ $rate > 0 ? number_format($rate, 0, ',', ' ') : '—' }}
+                        </td>
+                        <td><span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span></td>
                     @endif
-                </td>
-                <td>{{ $traffic > 0 ? number_format($traffic, 0, ',', ' ') : '—' }}</td>
-                @unless($hideStatus ?? false)
-                <td><span class="badge {{ $statusLabel['class'] }}">{{ $statusLabel['label'] }}</span></td>
-                @endunless
-            </tr>
+                </tr>
             @endforeach
         </tbody>
     </table>
 
-    {{-- TOTAUX --}}
-    @if(isset($totalMensuel) && $totalMensuel > 0)
-    <div class="totals">
-        Total mensuel : <span>{{ number_format($totalMensuel, 0, ',', ' ') }} FCFA</span>
-        @if(isset($startDate) && isset($endDate) && $startDate && $endDate)
-            | Total sur {{ $dureeEnMois ?? 1 }} mois : <span>{{ number_format($totalPeriode ?? 0, 0, ',', ' ') }} FCFA</span>
-        @endif
-    </div>
+    {{-- ── TOTAUX (uniquement si showPricing activé) ── --}}
+    @if($showPricing && isset($totalMensuel) && $totalMensuel > 0)
+        <div class="totals">
+            <div>
+                <div class="label">Total mensuel HT</div>
+                <strong style="color:#c2570d;font-size:14px">{{ number_format($totalMensuel, 0, ',', ' ') }} FCFA</strong>
+                @if(isset($startDate) && isset($endDate) && $startDate && $endDate)
+                    <div class="label" style="margin-top:6px">Total sur {{ $dureeEnMois ?? 1 }} mois</div>
+                    <strong style="color:#c2570d;font-size:14px">{{ number_format($totalPeriode ?? 0, 0, ',', ' ') }} FCFA</strong>
+                @endif
+            </div>
+            <div class="amount">
+                {{ $count }} emplacement{{ $count > 1 ? 's' : '' }}
+                @if(($dureeEnMois ?? 0) > 0)
+                    <div style="font-size:9px;color:#9ca3af;font-weight:400;margin-top:3px">{{ $dureeEnMois }} mois de campagne</div>
+                @endif
+            </div>
+        </div>
     @endif
 
-    {{-- FOOTER --}}
-    <div class="footer">
-        CIBLE CI · Régie Publicitaire · Abidjan, Côte d'Ivoire · Document confidentiel - Tous droits réservés
-    </div>
+</div>
+
+<div class="pdf-footer">
+    CIBLE CI · Régie Publicitaire · Abidjan, Côte d'Ivoire · Document confidentiel
 </div>
 
 </body>

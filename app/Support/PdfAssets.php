@@ -14,12 +14,17 @@ trait PdfAssets
      */
     protected function getLogoPdf(): string
     {
+        // Ordre de priorité — pour les PDF (toujours fond CLAIR) :
+        //   1. logol.png : logo officiel CIBLE light (texte noir + roue colorée)
+        //   2. logo-cible.png : éventuel asset custom
+        //   3. logo.png / logob.png : fallback
+        //   4. logon.png : version fond noir (dernier recours, illisible sur fond clair)
         $candidates = [
+            public_path('images/logol.png'),
             public_path('images/logo-cible.png'),
             public_path('images/logo.png'),
-            public_path('images/logon.png'),
             public_path('images/logob.png'),
-            public_path('images/logol.png'),
+            public_path('images/logon.png'),
         ];
 
         foreach ($candidates as $path) {

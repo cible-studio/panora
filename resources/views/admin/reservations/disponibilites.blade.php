@@ -273,10 +273,12 @@
                     </div>
                 </div>
                 <div class="flex gap-2 items-center flex-wrap">
+                    {{-- Par défaut, le PDF n'affiche NI prix NI statut (proposition commerciale propre).
+                         Cocher pour révéler ces colonnes. --}}
                     <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;padding:6px 10px;border:1px dashed var(--border);border-radius:8px;"
-                           title="Cocher pour générer le PDF liste sans la colonne Statut (proposition commerciale propre)">
-                        <input type="checkbox" id="pdf-hide-status" style="accent-color:var(--accent)">
-                        <span>🕶️ Masquer statut (proposition)</span>
+                           title="Cocher pour inclure le tarif et le statut dans le PDF (usage interne uniquement)">
+                        <input type="checkbox" id="pdf-show-pricing" style="accent-color:var(--accent)">
+                        <span>💰 Inclure prix + statut (interne)</span>
                     </label>
                     <button class="btn btn-ghost btn-sm" onclick="DISPO.clearSelection()">✕ Vider</button>
                     <button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(34,197,94,.4)"
@@ -296,6 +298,7 @@
             <div id="pdf-images-inputs"></div>
             <input type="hidden" name="start_date" id="pdf-start">
             <input type="hidden" name="end_date" id="pdf-end">
+            <input type="hidden" name="show_pricing" id="pdf-images-show-pricing" value="0">
         </form>
 
         <form id="form-pdf-liste" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}" style="display:none">
@@ -303,7 +306,7 @@
             <div id="pdf-liste-inputs"></div>
             <input type="hidden" name="start_date" id="pdf-liste-start">
             <input type="hidden" name="end_date" id="pdf-liste-end">
-            <input type="hidden" name="hide_status" id="pdf-liste-hide-status" value="0">
+            <input type="hidden" name="show_pricing" id="pdf-liste-show-pricing" value="0">
         </form>
 
     </div>
@@ -1157,6 +1160,15 @@
         },
 
         // ── EXPORTS PDF ───────────────────────────────────────
+        // Logique commune : par défaut, le PDF n'affiche NI prix NI statut.
+        // L'admin coche "Inclure prix + statut" pour transmettre show_pricing=1.
+        _injectShowPricing(type) {
+            const checked = document.getElementById('pdf-show-pricing')?.checked ? '1' : '0';
+            const fieldId = type === 'images' ? 'pdf-images-show-pricing' : 'pdf-liste-show-pricing';
+            const field   = document.getElementById(fieldId);
+            if (field) field.value = checked;
+        },
+
         exportPdf(type) {
             const ids = S._lastPanels.filter(p => p.source === 'internal').map(p => p.id);
             if (!ids.length) { alert('Aucun panneau interne à exporter.'); return; }
@@ -1165,12 +1177,8 @@
             const sId = type==='images' ? 'pdf-start' : 'pdf-liste-start';
             const eId = type==='images' ? 'pdf-end' : 'pdf-liste-end';
             _el(iId).innerHTML = ids.map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
-            if (type === 'liste') {
-                const hs = document.getElementById('dispo-hide-status')?.checked;
-                const hsField = document.getElementById('pdf-liste-hide-status');
-                if (hsField) hsField.value = hs ? '1' : '0';
-            }
             _el(sId).value = S.f.du || ''; _el(eId).value = S.f.au || '';
+            this._injectShowPricing(type);
             document.getElementById(fId).submit();
         },
 
@@ -1183,12 +1191,7 @@
             const eId = type==='images' ? 'pdf-end' : 'pdf-liste-end';
             _el(iId).innerHTML = ids.map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
             _el(sId).value = S.f.du || ''; _el(eId).value = S.f.au || '';
-            // Tâche 3 : si checkbox cochée, on transmet hide_status=1 au PDF liste
-            if (type === 'liste') {
-                const hideStatus = document.getElementById('pdf-hide-status')?.checked ? '1' : '0';
-                const hsField = document.getElementById('pdf-liste-hide-status');
-                if (hsField) hsField.value = hideStatus;
-            }
+            this._injectShowPricing(type);
             document.getElementById(fId).submit();
         },
 
@@ -1220,8 +1223,11 @@
             ids.forEach(id => addInput('panel_ids[]', id));
             if (S.f.du) addInput('start_date', S.f.du);
             if (S.f.au) addInput('end_date',   S.f.au);
-            const hs = document.getElementById('dispo-hide-status')?.checked;
-            if (hs)    addInput('hide_status', '1');
+            // Cohérence avec PDF : si la checkbox "Inclure prix + statut" est cochée,
+            // on transmet show_pricing=1 à l'Excel aussi (le backend Excel peut l'ignorer
+            // ou l'utiliser selon le besoin métier).
+            const showP = document.getElementById('pdf-show-pricing')?.checked;
+            if (showP) addInput('show_pricing', '1');
             document.body.appendChild(form);
             form.submit();
             document.body.removeChild(form);

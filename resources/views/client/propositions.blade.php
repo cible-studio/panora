@@ -127,33 +127,43 @@
             </div>
 
             {{-- Actions --}}
+            @php
+                // Une proposition est ACTIONNABLE seulement si :
+                //   - statut = en_attente
+                //   - pas expirée
+                //   - token + slug présents
+                $isActionable = !$expired
+                    && $status === 'en_attente'
+                    && $res->proposition_token
+                    && $res->proposition_slug;
+            @endphp
             <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
-                @if(!$expired && $status === 'en_attente')
+                @if($isActionable)
+                    {{-- Bouton primaire : aller à la fiche client connecté pour répondre --}}
                     <a href="{{ route('client.proposition.detail', $res->proposition_token) }}"
                        style="padding:8px 16px;background:#e20613;color:#fff;font-weight:600;border-radius:9px;font-size:12px;text-decoration:none;transition:opacity .15s;"
                        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
                         Voir et répondre
                     </a>
+
+                    {{-- Lien public (utile pour partager, ex. par email/WhatsApp) --}}
+                    <a href="{{ route('proposition.show', [$res->reference, $res->proposition_slug]) }}"
+                       target="_blank" rel="noopener"
+                       title="Ouvrir la version publique (utile pour la partager)"
+                       style="padding:8px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:12px;color:var(--text2);text-decoration:none;transition:all .15s;"
+                       onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
+                        Lien public
+                    </a>
                 @else
+                    {{-- Non actionnable (déjà confirmée/refusée/expirée) :
+                         on garde uniquement la consultation, pas le lien public
+                         (qui pourrait laisser croire qu'on peut encore agir). --}}
                     <a href="{{ route('client.proposition.detail', $res->proposition_token) }}"
                        style="padding:8px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:12px;color:var(--text2);text-decoration:none;transition:all .15s;"
                        onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
                         Consulter
                     </a>
                 @endif
-                @php
-                    // Route 'proposition.show' attend [reference, slug].
-                    // Si le slug n'a pas été généré (anciennes propositions), fallback sur la
-                    // route legacy par token qui redirige automatiquement.
-                    $publicLink = $res->proposition_slug
-                        ? route('proposition.show', [$res->reference, $res->proposition_slug])
-                        : route('proposition.show.legacy', $res->proposition_token);
-                @endphp
-                <a href="{{ $publicLink }}" target="_blank" rel="noopener"
-                   style="padding:8px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:12px;color:var(--text2);text-decoration:none;transition:all .15s;"
-                   onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
-                    Lien public
-                </a>
             </div>
         </div>
     </div>

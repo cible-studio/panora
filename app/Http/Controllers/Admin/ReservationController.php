@@ -459,6 +459,13 @@ class ReservationController extends Controller
 
         $filename = 'panneaux-' . now()->format('Ymd_His');
 
+        // Règle métier : par défaut on cache prix + statut (proposition propre).
+        // L'admin coche "show_pricing" pour afficher l'info commerciale.
+        $showPricing = $request->boolean('show_pricing');
+        $hideStatus  = $request->has('show_pricing')
+            ? !$showPricing
+            : (bool) $request->boolean('hide_status', true);
+
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView(
             'admin.reservations.pdf.disponibilites-images',
             [
@@ -469,7 +476,8 @@ class ReservationController extends Controller
                 'reservation_ref' => $reservationRef,
                 'client_name'     => $clientName,
                 'logoSrc'         => $this->getLogoPdf(),
-                'hideStatus'      => (bool) $request->boolean('hide_status'),
+                'hideStatus'      => $hideStatus,
+                'showPricing'     => $showPricing,
             ]
         )
             ->setPaper('a4', 'portrait')
@@ -489,6 +497,8 @@ class ReservationController extends Controller
         $request->validate([
             'panel_ids'    => 'required|array|min:1',
             'panel_ids.*'  => 'integer|exists:panels,id',
+            'show_pricing' => 'nullable|boolean',
+            // Compat ascendante : ancien paramètre "hide_status" toujours accepté
             'hide_status'  => 'nullable|boolean',
         ]);
 
@@ -505,7 +515,14 @@ class ReservationController extends Controller
         $totalMensuel = (float) $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0));
         $totalPeriode = $totalMensuel * $dureeEnMois;
         $generated    = now()->format('d/m/Y à H:i');
-        $hideStatus   = (bool) $request->boolean('hide_status');
+
+        // Règle métier : par défaut PAS de prix ni de statut affichés (PDF =
+        // proposition commerciale propre). Coche pour révéler.
+        // Compat ascendante : si l'ancien hide_status=1 est envoyé, on respecte.
+        $showPricing  = $request->boolean('show_pricing');
+        $hideStatus   = $request->has('show_pricing')
+            ? !$showPricing
+            : (bool) $request->boolean('hide_status', true);
         $logoSrc      = $this->getLogoPdf(); // via trait PdfAssets
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.reservations.pdf.disponibilites-list', compact(
@@ -517,6 +534,7 @@ class ReservationController extends Controller
             'totalPeriode',
             'generated',
             'hideStatus',
+            'showPricing',
             'logoSrc'
         ));
 

@@ -37,7 +37,8 @@
       "Bash(php -l app/Mail/PropositionMail.php)",
       "Bash(php -l app/Mail/UserWelcomeMail.php)",
       "Bash(php -l app/Mail/PropositionDecisionMail.php)",
-      "Bash(php -l app/Services/NotificationMailer.php)"
+      "Bash(php -l app/Services/NotificationMailer.php)",
+      "Bash(file /c/wamp64/www/panora/public/images/logo*.png)"
     ]
   }
 }
