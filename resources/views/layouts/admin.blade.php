@@ -195,7 +195,7 @@
                 </div>
             </header>
 
-            <div class="topbar-spacer" aria-hidden="true"></div>
+            <div class="topbar-spacer" aria-hidden="true" style="height:8px;"></div>
 
             <div class="flash-zone">
                 @if (session('success'))
