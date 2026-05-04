@@ -669,8 +669,8 @@
         }
         .btn-primary { background: var(--accent); color: #000; }
         .btn-primary:hover { background: #f0b040; transform: translateY(-1px); }
-        .btn-danger { background: var(--danger); color: #fff; }
-        .btn-danger:hover { background: #dc2626; transform: translateY(-1px); }
+        .btn-danger { background: var(--danger); color: #696666; }
+        .btn-danger:hover { background: #dc2626; color: #fff; transform: translateY(-1px); }
         .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
         .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
         .btn-warning { background: var(--warning); color: #000; border: none; padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; }
