@@ -53,7 +53,7 @@
                  onclick="openLightbox(this.src)"
                  style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid rgba(168,85,247,0.2);cursor:zoom-in;">
         @else
-            <div style="width:60px;height:45px;border-radius:6px;border:1px solid rgba(168,85,247,0.2);background:rgba(168,85,247,0.08);display:flex;align-items:center;justify-content:center;color:var(--purple);font-size:16px;">🏢</div>
+            <div style="width:60px;height:45px;border-radius:6px;border:1px solid rgba(168,85,247,0.2);background:rgba(168,85,247,0.08);display:flex;align-items:center;justify-content:center;color:var(--purple);font-size:16px;"></div>
         @endif
     </td>
     <td style="vertical-align:middle;">
