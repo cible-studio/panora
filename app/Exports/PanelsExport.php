@@ -46,17 +46,18 @@ class PanelsExport implements FromCollection, WithHeadings, WithMapping, WithSty
             'ÉCLAIRAGE',
             'TRAFIC/JOUR',
             'TARIF MENSUEL (FCFA)',
+            'SOURCE',
         ];
-        
+
         if (!$this->hideStatus) {
             $headings[] = 'STATUT';
         }
-        
+
         if ($this->startDate && $this->endDate) {
             $headings[] = 'TOTAL PÉRIODE (FCFA)';
             $headings[] = 'NOMBRE MOIS';
         }
-        
+
         return $headings;
     }
 
@@ -78,6 +79,12 @@ class PanelsExport implements FromCollection, WithHeadings, WithMapping, WithSty
             $totalPeriode = ($panel->monthly_rate ?? 0) * $months;
         }
 
+        // Source : interne CIBLE ou régie externe (avec nom)
+        $isExternal = (bool) ($panel->_external ?? false);
+        $source = $isExternal
+            ? 'Régie · ' . ($panel->agency_name ?? '—')
+            : 'CIBLE CI';
+
         $row = [
             $panel->reference,
             $panel->name,
@@ -89,25 +96,30 @@ class PanelsExport implements FromCollection, WithHeadings, WithMapping, WithSty
             $panel->is_lit ? '💡 Éclairé' : 'Non éclairé',
             $panel->daily_traffic ? number_format($panel->daily_traffic, 0, ',', ' ') : '—',
             $panel->monthly_rate ? number_format($panel->monthly_rate, 0, ',', ' ') : '—',
+            $source,
         ];
-        
+
         if (!$this->hideStatus) {
-            $statusLabel = match($panel->status->value) {
-                'libre' => 'Disponible',
-                'occupe' => 'Occupé',
-                'option' => 'En option',
-                'confirme' => 'Confirmé',
-                'maintenance' => 'Maintenance',
-                default => ucfirst($panel->status->value),
+            // Le statut peut être un enum (Panel) OU un objet avec ->value (ExternalPanel adapté)
+            $statusValue = is_object($panel->status ?? null)
+                ? ($panel->status->value ?? 'libre')
+                : (string) ($panel->status ?? 'libre');
+            $statusLabel = match ($statusValue) {
+                'libre', 'disponible' => 'Disponible',
+                'occupe'              => 'Occupé',
+                'option'              => 'En option',
+                'confirme'            => 'Confirmé',
+                'maintenance'         => 'Maintenance',
+                default               => ucfirst($statusValue),
             };
             $row[] = $statusLabel;
         }
-        
+
         if ($this->startDate && $this->endDate) {
             $row[] = $totalPeriode ? number_format($totalPeriode, 0, ',', ' ') : '—';
             $row[] = $months ?? '—';
         }
-        
+
         return $row;
     }
 

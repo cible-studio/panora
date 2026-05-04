@@ -126,10 +126,19 @@ class WhatsAppService
     }
 
     /**
-     * Twilio — provider payant, multi-destinataires, fiable production.
+     * Twilio — provider payant, scalable, fiable production.
+     *
+     * Deux modes :
+     *   1. FREE-FORM (Body) — sandbox Twilio + fenêtre 24h après que le tech
+     *      ait répondu : OK pour tester.
+     *   2. CONTENT TEMPLATE (ContentSid + ContentVariables) — OBLIGATOIRE en
+     *      production approuvée Meta pour les premiers messages outbound.
+     *      Activé automatiquement quand $context contient :
+     *        - 'twilio_content_sid'  (HX...)
+     *        - 'twilio_content_vars' ([1 => '...', 2 => '...'])
      *
      * Doc : https://www.twilio.com/docs/whatsapp/api
-     * Nécessite : SID, Auth Token, From WhatsApp number (sandbox ou business).
+     * Templates : https://www.twilio.com/docs/content-api
      */
     private function sendViaTwilio(string $to, string $message, array $context): bool
     {
@@ -142,26 +151,48 @@ class WhatsAppService
             return false;
         }
 
+        // Le From peut être passé avec ou sans "+", on normalise pour Twilio
+        // qui attend "whatsapp:+E164"
+        $from = ltrim($from, '+');
+
         $endpoint = "https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json";
+
+        $payload = [
+            'From' => 'whatsapp:+' . $from,
+            'To'   => 'whatsapp:+' . $to,
+        ];
+
+        $contentSid  = $context['twilio_content_sid']  ?? null;
+        $contentVars = $context['twilio_content_vars'] ?? null;
+        $usingTemplate = false;
+
+        if (is_string($contentSid) && $contentSid !== '' && is_array($contentVars)) {
+            // Mode template approuvé Meta (prod)
+            $payload['ContentSid']       = $contentSid;
+            $payload['ContentVariables'] = json_encode($contentVars, JSON_UNESCAPED_UNICODE);
+            $usingTemplate = true;
+        } else {
+            // Mode free-form (sandbox / dev)
+            $payload['Body'] = $message;
+        }
 
         $response = Http::withBasicAuth($sid, $token)
             ->timeout(10)
             ->retry(2, 300)
             ->asForm()
-            ->post($endpoint, [
-                'From' => 'whatsapp:' . $from,
-                'To'   => 'whatsapp:+' . $to,
-                'Body' => $message,
-            ]);
+            ->post($endpoint, $payload);
 
         $ok = $response->successful();
 
         Log::info('whatsapp.sent', array_merge($context, [
-            'to'       => $to,
-            'provider' => 'twilio',
-            'status'   => $response->status(),
-            'ok'       => $ok,
-            'sid'      => $response->json('sid'),
+            'to'         => $to,
+            'provider'   => 'twilio',
+            'mode'       => $usingTemplate ? 'template' : 'freeform',
+            'status'     => $response->status(),
+            'ok'         => $ok,
+            'sid'        => $response->json('sid'),
+            'error_code' => $response->json('code'),
+            'error_msg'  => $response->json('message'),
         ]));
 
         return $ok;

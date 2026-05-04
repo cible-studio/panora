@@ -52,7 +52,24 @@ class Campaign extends Model
 
     public function panels()
     {
+        // wherePivot('type', 'interne') : protège les lignes externes de
+        // campaign_panels (type='externe', external_panel_id IS NOT NULL)
+        // contre les sync()/detach() effectués via cette relation. Les
+        // externes sont gérés séparément (insert manuel + lecture dédiée).
         return $this->belongsToMany(Panel::class, 'campaign_panels')
+                    ->wherePivot('type', 'interne')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Panneaux externes liés à la campagne via campaign_panels (type='externe').
+     * Lecture uniquement — l'écriture passe par INSERT direct dans le contrôleur
+     * de réservation pour préserver la simplicité du flux.
+     */
+    public function externalPanels()
+    {
+        return $this->belongsToMany(\App\Models\ExternalPanel::class, 'campaign_panels', 'campaign_id', 'external_panel_id')
+                    ->wherePivot('type', 'externe')
                     ->withTimestamps();
     }
 

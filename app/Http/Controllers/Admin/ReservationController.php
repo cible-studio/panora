@@ -25,6 +25,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 use App\Exports\PanelsExport;
+use App\Models\ExternalPanel;
+use App\Services\PdfExportService;
 use App\Support\PdfAssets;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -424,38 +426,121 @@ class ReservationController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
-    // PDF — images
+    // HELPERS — parsing des panel_ids mixtes
+    //   Format accepté en entrée : entier (interne) ou "ext_<id>" (externe).
     // ══════════════════════════════════════════════════════════════
-    // Dans ReservationController.php
-    // Version finale optimisée et fonctionnelle
+
+    /**
+     * Sépare une liste mixte en deux tableaux d'entiers : internes / externes.
+     * Filtre les entrées invalides silencieusement (validation dédiée ci-dessous).
+     */
+    private function splitMixedPanelIds(array $rawIds): array
+    {
+        $internalIds = [];
+        $externalIds = [];
+        foreach ($rawIds as $id) {
+            if (is_string($id) && str_starts_with($id, 'ext_')) {
+                $n = (int) substr($id, 4);
+                if ($n > 0) $externalIds[] = $n;
+            } elseif (is_numeric($id)) {
+                $n = (int) $id;
+                if ($n > 0) $internalIds[] = $n;
+            }
+        }
+        return [array_values(array_unique($internalIds)), array_values(array_unique($externalIds))];
+    }
+
+    /**
+     * Validation dédiée pour les IDs mixtes : au moins un ID valide,
+     * existence vérifiée en base sur les deux tables.
+     * Retourne [internalIds, externalIds] ou jette ValidationException.
+     */
+    private function validateMixedPanelIds(Request $request): array
+    {
+        $raw = (array) $request->input('panel_ids', []);
+        if (empty($raw)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'panel_ids' => 'Aucun panneau sélectionné.',
+            ]);
+        }
+
+        [$internalIds, $externalIds] = $this->splitMixedPanelIds($raw);
+
+        if (empty($internalIds) && empty($externalIds)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'panel_ids' => 'Aucun panneau valide sélectionné.',
+            ]);
+        }
+
+        // Vérification d'existence (en deux requêtes count) — moins coûteux
+        // qu'un exists par ligne, et permet un message d'erreur clair.
+        if ($internalIds && Panel::whereIn('id', $internalIds)->count() !== count($internalIds)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'panel_ids' => 'Un ou plusieurs panneaux internes sont introuvables.',
+            ]);
+        }
+        if ($externalIds && ExternalPanel::whereIn('id', $externalIds)->count() !== count($externalIds)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'panel_ids' => 'Un ou plusieurs panneaux externes sont introuvables.',
+            ]);
+        }
+
+        return [$internalIds, $externalIds];
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // PDF — images (supporte sélection mixte interne + externe)
+    // ══════════════════════════════════════════════════════════════
     public function pdfImages(Request $request)
     {
         $request->validate([
-            'panel_ids' => 'required|array|min:1|max:200',
-            'panel_ids.*' => 'integer|exists:panels,id',
+            'panel_ids'    => 'required|array|min:1|max:200',
+            'start_date'   => 'nullable|date',
+            'end_date'     => 'nullable|date',
+            'show_pricing' => 'nullable|boolean',
+            'hide_status'  => 'nullable|boolean',
         ]);
+
+        [$internalIds, $externalIds] = $this->validateMixedPanelIds($request);
 
         $reservationRef = $request->reservation_ref ?? null;
         $clientName = $request->client_name ?? null;
 
-        $panelModels = Panel::with([
-            'commune:id,name',
-            'zone:id,name',
-            'format:id,name,width,height',
-            'category:id,name',
-            'photos' => fn($q) => $q->orderBy('ordre'),
-        ])
-            ->whereIn('id', $request->panel_ids)
-            ->orderByRaw('FIELD(id,' . implode(',', array_map('intval', $request->panel_ids)) . ')')
-            ->get();
+        $service = app(PdfExportService::class);
+        $enriched = collect();
+
+        if ($internalIds) {
+            $internals = Panel::with([
+                'commune:id,name',
+                'zone:id,name',
+                'format:id,name,width,height',
+                'category:id,name',
+                'photos' => fn($q) => $q->orderBy('ordre'),
+            ])
+                ->whereIn('id', $internalIds)
+                ->orderByRaw('FIELD(id,' . implode(',', $internalIds) . ')')
+                ->get();
+            $enriched = $enriched->merge($internals->map(fn($p) => $service->enrichPanel($p)));
+        }
+
+        if ($externalIds) {
+            $externals = ExternalPanel::with([
+                'commune:id,name',
+                'zone:id,name',
+                'format:id,name,width,height',
+                'category:id,name',
+                'agency:id,name',
+            ])
+                ->whereIn('id', $externalIds)
+                ->orderByRaw('FIELD(id,' . implode(',', $externalIds) . ')')
+                ->get();
+            $enriched = $enriched->merge($externals->map(fn($p) => $service->enrichExternalPanel($p)));
+        }
+
+        $panels = $enriched->values();
 
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
-
-        // Enrichissement délégué au service (DRY) — il s'occupe du base64 photos
-        // via PdfAssets::photoToDataUri(), des dimensions, du lien GPS, etc.
-        $service = app(\App\Services\PdfExportService::class);
-        $panels = $panelModels->map(fn($panel) => $service->enrichPanel($panel));
 
         $filename = 'panneaux-' . now()->format('Ymd_His');
 
@@ -496,16 +581,47 @@ class ReservationController extends Controller
     {
         $request->validate([
             'panel_ids'    => 'required|array|min:1',
-            'panel_ids.*'  => 'integer|exists:panels,id',
             'show_pricing' => 'nullable|boolean',
             // Compat ascendante : ancien paramètre "hide_status" toujours accepté
             'hide_status'  => 'nullable|boolean',
         ]);
 
-        $panels = Panel::with(['commune', 'format', 'category'])
-            ->whereIn('id', $request->panel_ids)
-            ->orderBy('reference')
-            ->get();
+        [$internalIds, $externalIds] = $this->validateMixedPanelIds($request);
+
+        // Charge les internes en Eloquent (la vue lit les relations) puis on
+        // adapte les externes en stdClass avec les mêmes clés (reference/name/
+        // status->value) pour ne PAS toucher la vue partagée.
+        $panels = collect();
+
+        if ($internalIds) {
+            $internals = Panel::with(['commune', 'zone', 'format', 'category'])
+                ->whereIn('id', $internalIds)
+                ->orderBy('reference')
+                ->get();
+            $panels = $panels->merge($internals);
+        }
+
+        if ($externalIds) {
+            $externals = ExternalPanel::with(['commune', 'zone', 'format', 'category', 'agency:id,name'])
+                ->whereIn('id', $externalIds)
+                ->orderBy('code_panneau')
+                ->get();
+
+            $panels = $panels->merge($externals->map(fn($p) => (object) [
+                'reference'      => $p->code_panneau,
+                'name'           => $p->designation,
+                'commune'        => $p->commune,
+                'zone'           => $p->zone,
+                'format'         => $p->format,
+                'category'       => $p->category,
+                'monthly_rate'   => $p->monthly_rate,
+                'daily_traffic'  => $p->daily_traffic,
+                'is_lit'         => (bool) $p->is_lit,
+                'status'         => (object) ['value' => $p->availability_status ?? 'libre'],
+                'agency_name'    => $p->agency?->name,
+                '_external'      => true,
+            ]));
+        }
 
         $startDate    = $request->start_date;
         $endDate      = $request->end_date;
@@ -551,26 +667,62 @@ class ReservationController extends Controller
     }
 
     /**
-     * EXPORT EXCEL — Liste des panneaux disponibles
+     * EXPORT EXCEL — Liste des panneaux disponibles (internes + externes)
      */
     public function exportExcel(Request $request)
     {
         $request->validate([
-            'panel_ids' => 'required|array|min:1',
-            'panel_ids.*' => 'integer|exists:panels,id',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date',
-            'hide_status' => 'nullable|boolean',
+            'panel_ids'    => 'required|array|min:1',
+            'start_date'   => 'nullable|date',
+            'end_date'     => 'nullable|date',
+            'show_pricing' => 'nullable|boolean',
+            'hide_status'  => 'nullable|boolean',
         ]);
 
-        $panels = Panel::with(['commune', 'zone', 'format', 'category'])
-            ->whereIn('id', $request->panel_ids)
-            ->orderBy('reference')
-            ->get();
+        [$internalIds, $externalIds] = $this->validateMixedPanelIds($request);
 
-        $startDate = $request->start_date;
-        $endDate = $request->end_date;
-        $hideStatus = $request->boolean('hide_status', false);
+        $panels = collect();
+
+        if ($internalIds) {
+            $panels = $panels->merge(
+                Panel::with(['commune', 'zone', 'format', 'category'])
+                    ->whereIn('id', $internalIds)
+                    ->orderBy('reference')
+                    ->get()
+            );
+        }
+
+        if ($externalIds) {
+            // Adapter ExternalPanel -> stdClass aux clés attendues par PanelsExport.
+            // status->value = availability_status (mappé), reference = code_panneau,
+            // name = designation. PanelsExport::map() lit ces clés via $p->xxx.
+            $externals = ExternalPanel::with(['commune', 'zone', 'format', 'category', 'agency:id,name'])
+                ->whereIn('id', $externalIds)
+                ->orderBy('code_panneau')
+                ->get();
+
+            $panels = $panels->merge($externals->map(fn($p) => (object) [
+                'reference'     => $p->code_panneau,
+                'name'          => $p->designation,
+                'commune'       => $p->commune,
+                'zone'          => $p->zone,
+                'format'        => $p->format,
+                'category'      => $p->category,
+                'is_lit'        => (bool) $p->is_lit,
+                'daily_traffic' => $p->daily_traffic,
+                'monthly_rate'  => $p->monthly_rate,
+                'status'        => (object) ['value' => $p->availability_status ?? 'libre'],
+                'agency_name'   => $p->agency?->name,
+                '_external'     => true,
+            ]));
+        }
+
+        $startDate  = $request->start_date;
+        $endDate    = $request->end_date;
+        // Cohérence avec les PDF : show_pricing prioritaire, fallback hide_status (compat).
+        $hideStatus = $request->has('show_pricing')
+            ? !$request->boolean('show_pricing')
+            : (bool) $request->boolean('hide_status', false);
 
         return Excel::download(
             new PanelsExport($panels, $startDate, $endDate, $hideStatus),
@@ -585,20 +737,19 @@ class ReservationController extends Controller
     // ajouter alerte création réservation
     public function confirmerSelection(Request $request)
     {
-        $rawIds = (array) $request->input('panel_ids', []);
-        $internalIds = [];
-        $externalIds = [];
+        // 1) Parse mixte (interne + ext_<id>)
+        [$internalIds, $externalIds] = $this->splitMixedPanelIds(
+            (array) $request->input('panel_ids', [])
+        );
 
-        foreach ($rawIds as $id) {
-            if (is_string($id) && str_starts_with($id, 'ext_')) {
-                $externalIds[] = (int) substr($id, 4);
-            } elseif (is_numeric($id)) {
-                $internalIds[] = (int) $id;
-            }
+        // 2) Au moins UN panneau (interne ou externe)
+        if (empty($internalIds) && empty($externalIds)) {
+            return back()->withErrors([
+                'panel_ids' => 'Aucun panneau sélectionné.',
+            ])->withInput();
         }
 
-        $request->merge(['panel_ids' => $internalIds]);
-
+        // 3) Validation des autres champs (sans toucher panel_ids — on l'a déjà parsé)
         $request->validate([
             'client_id' => 'required|exists:clients,id',
             'start_date' => [
@@ -612,16 +763,32 @@ class ReservationController extends Controller
             ],
             'end_date' => ['required', 'date', 'date_format:Y-m-d', 'after:start_date'],
             'notes' => 'nullable|string|max:2000',
-            'panel_ids' => 'required|array|min:1|max:50',
-            'panel_ids.*' => 'required|integer|exists:panels,id',
             'type' => 'required|in:option,ferme',
             'campaign_name' => 'nullable|string|max:150',
             // Tâche 6.1 — montant personnalisé optionnel (override du calcul auto)
             'amount' => 'nullable|numeric|min:0|max:9999999999',
         ]);
 
-        $maintenancePanels = Panel::whereIn('id', $internalIds)
-            ->where('status', PanelStatus::MAINTENANCE->value)->pluck('reference');
+        // 4) Cap volume (50 internes + 50 externes max — symétrique)
+        if (count($internalIds) > 50 || count($externalIds) > 50) {
+            return back()->withErrors([
+                'panel_ids' => 'Trop de panneaux sélectionnés (max 50 internes + 50 externes).',
+            ])->withInput();
+        }
+
+        // 5) Existence base de données — interne et externe (en deux requêtes count)
+        if ($internalIds && Panel::whereIn('id', $internalIds)->count() !== count($internalIds)) {
+            return back()->withErrors(['panel_ids' => 'Un ou plusieurs panneaux internes sont introuvables.'])->withInput();
+        }
+        if ($externalIds && ExternalPanel::whereIn('id', $externalIds)->count() !== count($externalIds)) {
+            return back()->withErrors(['panel_ids' => 'Un ou plusieurs panneaux externes sont introuvables.'])->withInput();
+        }
+
+        // 6) Internes en maintenance ?
+        $maintenancePanels = $internalIds
+            ? Panel::whereIn('id', $internalIds)
+                ->where('status', PanelStatus::MAINTENANCE->value)->pluck('reference')
+            : collect();
 
         if ($maintenancePanels->isNotEmpty()) {
             return back()->withErrors(['panel_ids' => 'Panneaux en maintenance : ' . $maintenancePanels->join(', ')])->withInput();
@@ -633,40 +800,55 @@ class ReservationController extends Controller
 
         try {
             DB::transaction(function () use ($request, $internalIds, $externalIds, &$createdCampaignId, &$reservation) {
-                Panel::whereIn('id', $internalIds)->lockForUpdate()->get();
-
-                $conflicts = $this->availability->getUnavailablePanelIds(
-                    $internalIds,
-                    $request->start_date,
-                    $request->end_date
-                );
-                if (!empty($conflicts)) {
-                    $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
-                    throw new \RuntimeException("CONFLICT:$refs");
+                // Lock + check conflits UNIQUEMENT pour les internes (l'antidouble-booking
+                // s'applique au catalogue CIBLE, les externes restent gérés par leur régie).
+                if ($internalIds) {
+                    Panel::whereIn('id', $internalIds)->lockForUpdate()->get();
+                    $conflicts = $this->availability->getUnavailablePanelIds(
+                        $internalIds,
+                        $request->start_date,
+                        $request->end_date
+                    );
+                    if (!empty($conflicts)) {
+                        $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
+                        throw new \RuntimeException("CONFLICT:$refs");
+                    }
                 }
 
                 $status = $request->type === 'ferme' ? ReservationStatus::CONFIRME : ReservationStatus::EN_ATTENTE;
                 $reference = $this->generateUniqueReference();
-                $panelData = Panel::whereIn('id', $internalIds)->get()->keyBy('id');
                 $months = $this->monthsBetween($request->start_date, $request->end_date);
+
+                // Calcul du total — internes + externes (les deux ont monthly_rate)
                 $autoTotal = 0;
                 $attach = [];
+                if ($internalIds) {
+                    $panelData = Panel::whereIn('id', $internalIds)->get()->keyBy('id');
+                    foreach ($internalIds as $panelId) {
+                        $unit = (float) ($panelData[$panelId]->monthly_rate ?? 0);
+                        $tot  = $unit * $months;
+                        $autoTotal += $tot;
+                        $attach[$panelId] = ['unit_price' => $unit, 'total_price' => $tot];
+                    }
+                }
 
-                foreach ($internalIds as $panelId) {
-                    $unit = (float) ($panelData[$panelId]->monthly_rate ?? 0);
-                    $tot = $unit * $months;
-                    $autoTotal += $tot;
-                    $attach[$panelId] = ['unit_price' => $unit, 'total_price' => $tot];
+                $externalRefs = collect();
+                $externalAttach = [];
+                if ($externalIds) {
+                    $extData = ExternalPanel::with('agency:id,name')
+                        ->whereIn('id', $externalIds)->get();
+                    foreach ($extData as $ext) {
+                        $unit = (float) ($ext->monthly_rate ?? 0);
+                        $autoTotal += $unit * $months;
+                        $externalAttach[$ext->id] = ['unit_price' => $unit];
+                        $externalRefs->push($ext->code_panneau . ' (' . ($ext->agency?->name ?? '?') . ')');
+                    }
                 }
 
                 // Tâche 6.1 : montant personnalisé éventuel.
-                //   - Si l'admin a saisi un montant > 0 → override du calcul auto.
-                //   - Sinon → montant auto-calculé d'après le tarif catalogue × mois.
                 $customAmount = (float) $request->input('amount', 0);
                 $total        = $customAmount > 0 ? $customAmount : $autoTotal;
 
-                // Si on override, on conserve les unit_price du pivot (pour audit)
-                // mais on log l'écart pour traçabilité.
                 if ($customAmount > 0 && abs($customAmount - $autoTotal) > 0.01) {
                     Log::info('reservation.custom_amount', [
                         'reference'    => $reference,
@@ -677,6 +859,16 @@ class ReservationController extends Controller
                     ]);
                 }
 
+                // Pour les externes : on appose une trace dans les notes pour
+                // référence (la table reservation_panels ne supporte pas
+                // external_panel_id — coordination manuelle avec la régie).
+                $finalNotes = (string) $request->notes;
+                if ($externalRefs->isNotEmpty()) {
+                    $extNote = '🤝 Panneaux externes (à coordonner avec les régies) : '
+                             . $externalRefs->implode(', ');
+                    $finalNotes = trim($finalNotes . "\n\n" . $extNote);
+                }
+
                 $reservation = Reservation::create([
                     'reference' => $reference,
                     'client_id' => $request->client_id,
@@ -685,27 +877,26 @@ class ReservationController extends Controller
                     'end_date' => $request->end_date,
                     'status' => $status,
                     'type' => $request->type,
-                    'notes' => $request->notes,
+                    'notes' => $finalNotes,
                     'total_amount' => $total,
                     'confirmed_at' => $request->type === 'ferme' ? now() : null,
                 ]);
 
-
-
-                $reservation->panels()->attach($attach);
-                $this->availability->syncPanelStatuses($internalIds);
+                if ($attach) {
+                    $reservation->panels()->attach($attach);
+                    $this->availability->syncPanelStatuses($internalIds);
+                }
 
                 if ($request->type === 'ferme' && $request->filled('campaign_name')) {
                     if (Campaign::where('client_id', $request->client_id)->where('name', $request->campaign_name)->exists()) {
                         throw new \RuntimeException('CAMPAIGN_EXISTS:Une campagne avec ce nom existe déjà pour ce client.');
                     }
 
-                    // Statut correct selon la date de début
                     $campStatus = now()->startOfDay()->lt(
                         \Carbon\Carbon::parse($request->start_date)->startOfDay()
                     )
-                        ? CampaignStatus::PLANIFIE->value  // commence dans le futur
-                        : CampaignStatus::ACTIF->value;    // commence aujourd'hui ou avant
+                        ? CampaignStatus::PLANIFIE->value
+                        : CampaignStatus::ACTIF->value;
 
                     $campaign = Campaign::create([
                         'name'           => $request->campaign_name,
@@ -715,13 +906,32 @@ class ReservationController extends Controller
                         'start_date'     => $request->start_date,
                         'end_date'       => $request->end_date,
                         'status'         => $campStatus,
-                        'total_panels'   => count($internalIds),
+                        'total_panels'   => count($internalIds) + count($externalIds),
                         'total_amount'   => $total,
-                        'notes'          => $request->notes,
+                        'notes'          => $finalNotes,
                     ]);
 
+                    if ($attach) {
+                        $campaign->panels()->sync(array_keys($attach));
+                    }
 
-                    $campaign->panels()->sync(array_keys($attach));
+                    // Le pivot campaign_panels supporte external_panel_id —
+                    // on attache aussi les externes pour pouvoir les retrouver
+                    // dans les vues campagne (pige, suivi, etc.).
+                    if ($externalAttach) {
+                        $campaignPanelsRows = [];
+                        foreach (array_keys($externalAttach) as $extId) {
+                            $campaignPanelsRows[] = [
+                                'campaign_id'       => $campaign->id,
+                                'external_panel_id' => $extId,
+                                'type'              => 'externe',
+                                'created_at'        => now(),
+                                'updated_at'        => now(),
+                            ];
+                        }
+                        DB::table('campaign_panels')->insert($campaignPanelsRows);
+                    }
+
                     $createdCampaignId = $campaign->id;
                 }
 
@@ -733,12 +943,12 @@ class ReservationController extends Controller
                     'user_id' => auth()->id(),
                 ]);
 
-                // Alerte création réservation
+                $totalCount = count($internalIds) + count($externalIds);
                 AlertService::create(
                     'reservation',
                     $status === ReservationStatus::CONFIRME ? 'info' : 'warning',
                     '📋 Nouvelle réservation — ' . ($reservation->client?->name ?? ''),
-                    auth()->user()->name . ' a créé la réservation ' . $reservation->reference . ' (' . count($internalIds) . ' panneau(x))',
+                    auth()->user()->name . ' a créé la réservation ' . $reservation->reference . ' (' . $totalCount . ' panneau(x))',
                     $reservation
                 );
             });

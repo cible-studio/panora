@@ -260,10 +260,36 @@ class PoseService
                  . "\nMettez à jour votre avancement en temps réel ici :\n{$url}\n\n"
                  . "Merci.\nCIBLE CI";
 
+        $context = [
+            'action'  => 'pose.assignment',
+            'task_id' => $task->id,
+            'tech_id' => $tech->id,
+        ];
+
+        // Mode prod (template Meta approuvé) : passer ContentSid + variables
+        // au service. Sinon (sandbox / dev) : envoi free-form du message.
+        // Le template attendu côté Twilio (5 variables) :
+        //   {{1}} = nom technicien
+        //   {{2}} = référence panneau
+        //   {{3}} = adresse / commune
+        //   {{4}} = date/heure prévue
+        //   {{5}} = URL publique de mise à jour
+        $contentSid = config('services.twilio.content_sid_pose_assignment');
+        if (!empty($contentSid)) {
+            $context['twilio_content_sid']  = $contentSid;
+            $context['twilio_content_vars'] = [
+                '1' => $tech->name,
+                '2' => $panel->reference ?? '—',
+                '3' => $address !== '' ? $address : $commune,
+                '4' => $scheduled,
+                '5' => (string) $url,
+            ];
+        }
+
         $sent = app(WhatsAppService::class)->send(
             $tech->whatsapp_number,
             $message,
-            ['action' => 'pose.assignment', 'task_id' => $task->id, 'tech_id' => $tech->id],
+            $context,
         );
 
         if ($sent) {

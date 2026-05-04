@@ -1170,8 +1170,9 @@
         },
 
         exportPdf(type) {
-            const ids = S._lastPanels.filter(p => p.source === 'internal').map(p => p.id);
-            if (!ids.length) { alert('Aucun panneau interne à exporter.'); return; }
+            // Mixed export — internes + externes (ext_<id>). Le backend split.
+            const ids = S._lastPanels.map(p => p.id);
+            if (!ids.length) { alert('Aucun panneau à exporter.'); return; }
             const fId = type==='images' ? 'form-pdf-images' : 'form-pdf-liste';
             const iId = type==='images' ? 'pdf-images-inputs' : 'pdf-liste-inputs';
             const sId = type==='images' ? 'pdf-start' : 'pdf-liste-start';
@@ -1183,8 +1184,10 @@
         },
 
         exportSelPdf(type) {
-            const ids = S.sel.ids.filter(id => !String(id).startsWith('ext_'));
-            if (!ids.length) { alert('Aucun panneau interne sélectionné.'); return; }
+            // On garde TOUS les IDs sélectionnés (internes + ext_<id>) — le
+            // backend sait dispatcher sur la bonne table.
+            const ids = S.sel.ids;
+            if (!ids.length) { alert('Aucun panneau sélectionné.'); return; }
             const fId = type==='images' ? 'form-pdf-images' : 'form-pdf-liste';
             const iId = type==='images' ? 'pdf-images-inputs' : 'pdf-liste-inputs';
             const sId = type==='images' ? 'pdf-start' : 'pdf-liste-start';
@@ -1197,14 +1200,14 @@
 
         // ── EXPORTS EXCEL ─────────────────────────────────────
         exportExcel() {
-            const ids = S._lastPanels.filter(p => p.source === 'internal').map(p => p.id);
-            if (!ids.length) { alert('Aucun panneau interne à exporter.'); return; }
+            const ids = S._lastPanels.map(p => p.id);
+            if (!ids.length) { alert('Aucun panneau à exporter.'); return; }
             this._submitExcelForm(ids);
         },
 
         exportSelExcel() {
-            const ids = S.sel.ids.filter(id => !String(id).startsWith('ext_'));
-            if (!ids.length) { alert('Aucun panneau interne sélectionné.'); return; }
+            const ids = S.sel.ids;
+            if (!ids.length) { alert('Aucun panneau sélectionné.'); return; }
             this._submitExcelForm(ids);
         },
 
