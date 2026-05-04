@@ -129,6 +129,7 @@
       <thead>
         <tr>
           <th>Code</th>
+          <th></th>
           <th>Désignation</th>
           <th>Format / Catégorie</th>
           <th>Commune</th>
@@ -149,6 +150,18 @@
                            border-radius:5px;color:var(--accent);">
                 {{ $panel->code_panneau }}
               </span>
+            </td>
+            <td style="width:52px;padding:6px;">
+              @if($panel->photo_path)
+                <img src="{{ asset('storage/' . $panel->photo_path) }}"
+                     alt=""
+                     style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block;">
+              @else
+                <div style="width:44px;height:44px;border-radius:6px;border:1px dashed var(--border);
+                            background:var(--surface2);display:flex;align-items:center;justify-content:center;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </div>
+              @endif
             </td>
             <td>
               <div style="font-weight:500;">{{ $panel->designation }}</div>
@@ -218,7 +231,7 @@
           </tr>
         @empty
           <tr>
-            <td colspan="10"
+            <td colspan="11"
                 style="text-align:center;padding:40px;color:var(--text3);">
               Aucun panneau pour cette régie.
             </td>
@@ -251,7 +264,8 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
       <button class="modal-close" @click="open = false">✕</button>
     </div>
     <form method="POST"
-          action="{{ route('admin.external-agencies.panels.store', $agency) }}">
+          action="{{ route('admin.external-agencies.panels.store', $agency) }}"
+          enctype="multipart/form-data">
       @csrf
       <input type="hidden" name="agency_id" value="{{ $agency->id }}"/>
       <div class="modal-body">
@@ -446,6 +460,14 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
           </div>
         </div>
 
+        {{-- IMAGE --}}
+        <div class="section-label">Image du panneau <span style="font-weight:400;color:var(--text3);">(optionnel)</span></div>
+        <div class="mfg">
+          <label>Photo</label>
+          <input type="file" name="photo" accept="image/*">
+          <div style="font-size:12px;color:var(--text3);margin-top:4px;">Formats acceptés : JPG, PNG, GIF (max 35 Mo)</div>
+        </div>
+
         {{-- LIAISON COMMERCIALE --}}
         <div class="section-label" style="color:var(--accent);">🔗 Liaison commerciale (optionnel)</div>
         <div style="background:rgba(226,6,19,0.05);border:1px solid rgba(226,6,19,0.2);border-radius:10px;padding:14px;margin-bottom:16px;">
@@ -499,7 +521,8 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
       <button class="modal-close" @click="open = false">✕</button>
     </div>
     <form method="POST"
-          :action="`/admin/external-agencies/{{ $agency->id }}/panels/${panel.id}`">
+          :action="`/admin/external-agencies/{{ $agency->id }}/panels/${panel.id}`"
+          enctype="multipart/form-data">
       @csrf @method('PUT')
       <div class="modal-body">
 
@@ -682,6 +705,20 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
             <input type="number" name="longitude"
                    :value="panel.longitude" step="0.0000001"/>
           </div>
+        </div>
+
+        <div class="section-label">Image du panneau <span style="font-weight:400;color:var(--text3);">(optionnel)</span></div>
+        <div class="mfg">
+          <template x-if="panel.photo_url">
+            <div style="margin-bottom:10px;">
+              <img :src="panel.photo_url" alt="Photo actuelle"
+                   style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border);object-fit:cover;">
+              <div style="font-size:11px;color:var(--text3);margin-top:4px;">Photo actuelle — en uploader une nouvelle remplacera celle-ci.</div>
+            </div>
+          </template>
+          <label>Nouvelle photo</label>
+          <input type="file" name="photo" accept="image/*">
+          <div style="font-size:12px;color:var(--text3);margin-top:4px;">Formats acceptés : JPG, PNG, GIF (max 35 Mo)</div>
         </div>
 
       </div>
