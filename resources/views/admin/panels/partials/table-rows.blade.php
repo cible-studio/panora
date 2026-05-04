@@ -53,7 +53,7 @@
                  onclick="openLightbox(this.src)"
                  style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid rgba(168,85,247,0.2);cursor:zoom-in;">
         @else
-            <div style="width:60px;height:45px;border-radius:6px;border:1px solid rgba(168,85,247,0.2);background:rgba(168,85,247,0.08);display:flex;align-items:center;justify-content:center;color:var(--purple);font-size:16px;"></div>
+            <div style="width:60px;height:45px;border-radius:6px;border:1px solid rgba(168,85,247,0.2);background:rgba(168,85,247,0.08);display:flex;align-items:center;justify-content:center;color:var(--purple);font-size:16px;">🏢</div>
         @endif
     </td>
     <td style="vertical-align:middle;">
@@ -68,7 +68,7 @@
     <td style="text-align:center;vertical-align:middle;"><span style="font-weight:700;color:var(--text2);">{{ $ext->nombre_faces ?? 1 }}</span></td>
     <td style="vertical-align:middle;">@if($ext->quartier)<div style="font-weight:500;font-size:12px;">{{ $ext->quartier }}</div>@endif @if($ext->adresse)<div style="font-size:11px;color:var(--text3);">{{ $ext->adresse }}</div>@endif @if(!$ext->quartier && !$ext->adresse)<span style="color:var(--text3);">—</span>@endif @if($ext->orientation)<span class="badge badge-gray mt-1">{{ ucfirst($ext->orientation) }}</span>@endif</td>
     <td style="color:var(--purple);font-weight:600;vertical-align:middle;">@if($ext->monthly_rate > 0){{ number_format($ext->monthly_rate, 0, ',', ' ') }} FCFA @else<span style="color:var(--text3);">—</span>@endif</td>
-    <td style="vertical-align:middle;"><span style="font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(168,85,247,0.12);color:var(--purple);border:1px solid rgba(168,85,247,0.3);font-weight:600;">🏢 Externe</span></td>
+    <td style="vertical-align:middle;"><span style="font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(168,85,247,0.12);color:var(--purple);border:1px solid rgba(168,85,247,0.3);font-weight:600;">Externe</span></td>
     <td style="vertical-align:middle;"><a href="{{ route('admin.external-agencies.show', $ext->agency_id) }}" class="btn btn-ghost btn-sm" title="Voir la régie">👁️</a></td>
 </tr>
 @endforeach
