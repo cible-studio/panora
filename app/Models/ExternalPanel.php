@@ -51,4 +51,16 @@ class ExternalPanel extends Model
     {
         return $this->belongsToMany(Campaign::class, 'campaign_panels')->withTimestamps();
     }
+
+    /**
+     * Réservations qui bloquent ce panneau (en_attente OU confirme),
+     * via la pivot reservation_panels (source='externe').
+     */
+    public function reservations()
+    {
+        return $this->belongsToMany(\App\Models\Reservation::class, 'reservation_panels', 'external_panel_id', 'reservation_id')
+                    ->wherePivot('source', 'externe')
+                    ->withPivot('unit_price', 'total_price', 'source')
+                    ->withTimestamps();
+    }
 }

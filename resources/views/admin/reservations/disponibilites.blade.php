@@ -1596,17 +1596,33 @@
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 S.loading = false;
-                if (data.date_error) { _showDateErr(data.date_error); _showEmpty(data.date_error,''); return; }
+                if (data.date_error) {
+                    _showDateErr(data.date_error);
+                    _showEmpty(data.date_error, '');
+                    // Reset l'état pour éviter de garder une vieille pagination
+                    S._lastPanels = [];
+                    this._renderStats(data.stats || {}, false);
+                    return;
+                }
+                // Cas nominal — on nettoie tout vestige d'erreur précédente
+                _hideDateErr();
                 S.pages = data.stats.pages || 1;
                 S.total = data.stats.total || 0;
                 S._lastPanels = data.panels || [];
+                // Empty state contextuel : 0 résultat ≠ erreur
+                if ((data.panels || []).length === 0) {
+                    const hint = S.f.q
+                        ? 'Aucun panneau ne correspond à votre recherche.'
+                        : 'Aucun panneau ne correspond aux filtres sélectionnés.';
+                    _showEmpty('Aucun résultat', hint);
+                }
                 this._renderPanels(data.panels);
                 this._renderStats(data.stats, data.has_period);
                 this._renderPagination(data.stats);
             } catch (err) {
                 if (rid !== S.reqId) return;
                 S.loading = false;
-                _showEmpty('Erreur de chargement', 'Vérifiez votre connexion.');
+                _showEmpty('Erreur de chargement', 'Vérifiez votre connexion ou réessayez.');
                 console.error('[DISPO]', err);
             }
         },

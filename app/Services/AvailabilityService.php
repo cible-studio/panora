@@ -3,6 +3,7 @@ namespace App\Services;
 
 use App\Enums\PanelStatus;
 use App\Enums\ReservationStatus;
+use App\Models\ExternalPanel;
 use App\Models\Panel;
 use App\Models\ReservationPanel;
 use Illuminate\Support\Collection;
@@ -195,6 +196,106 @@ class AvailabilityService
             'option'   => count($toOption),
             'libre'    => count($toLibre),
         ]);
+    }
+
+    // ── 5b. Sync statuts EXTERNES — même règle, table external_panels ──────
+    public function syncExternalPanelStatuses(array $externalPanelIds): void
+    {
+        if (empty($externalPanelIds)) return;
+
+        $today = now()->toDateString();
+
+        $activeBookings = DB::table('reservation_panels')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->whereIn('reservation_panels.external_panel_id', $externalPanelIds)
+            ->where('reservation_panels.source', 'externe')
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.end_date', '>=', $today)
+            ->select(
+                'reservation_panels.external_panel_id',
+                DB::raw('MAX(CASE WHEN reservations.status = "confirme"   THEN 1 ELSE 0 END) as has_confirmed'),
+                DB::raw('MAX(CASE WHEN reservations.status = "en_attente" THEN 1 ELSE 0 END) as has_option')
+            )
+            ->groupBy('reservation_panels.external_panel_id')
+            ->get()
+            ->keyBy('external_panel_id');
+
+        // Maintenance → intouchable
+        $maintenanceIds = ExternalPanel::whereIn('id', $externalPanelIds)
+            ->where('availability_status', 'maintenance')
+            ->pluck('id')
+            ->flip();
+
+        $toConfirme = [];
+        $toOption   = [];
+        $toLibre    = [];
+
+        foreach ($externalPanelIds as $id) {
+            if (isset($maintenanceIds[$id])) continue;
+
+            $booking = $activeBookings->get($id);
+            if ($booking?->has_confirmed) {
+                $toConfirme[] = $id;
+            } elseif ($booking?->has_option) {
+                $toOption[]   = $id;
+            } else {
+                $toLibre[]    = $id;
+            }
+        }
+
+        DB::transaction(function () use ($toConfirme, $toOption, $toLibre) {
+            if (!empty($toConfirme)) {
+                ExternalPanel::whereIn('id', $toConfirme)
+                    ->update(['availability_status' => 'confirme']);
+            }
+            if (!empty($toOption)) {
+                ExternalPanel::whereIn('id', $toOption)
+                    ->update(['availability_status' => 'option']);
+            }
+            if (!empty($toLibre)) {
+                ExternalPanel::whereIn('id', $toLibre)
+                    ->update(['availability_status' => 'disponible']);
+            }
+        });
+
+        Log::debug('availability.sync_external_done', [
+            'confirme' => count($toConfirme),
+            'option'   => count($toOption),
+            'libre'    => count($toLibre),
+        ]);
+    }
+
+    /**
+     * Panneaux externes occupés sur la période (par leurs propres réservations).
+     * Renvoie l'ID externe → état dominant ('confirme' / 'en_attente').
+     */
+    public function getExternalPanelBookingMap(
+        array  $externalPanelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null
+    ): Collection {
+        if (empty($externalPanelIds)) return collect();
+
+        return DB::table('reservation_panels')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->whereIn('reservation_panels.external_panel_id', $externalPanelIds)
+            ->where('reservation_panels.source', 'externe')
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.start_date', '<', $endDate)
+            ->where('reservations.end_date',   '>', $startDate)
+            ->when($excludeReservationId, fn($q) =>
+                $q->where('reservations.id', '!=', $excludeReservationId)
+            )
+            ->select(
+                'reservation_panels.external_panel_id as id',
+                DB::raw('MAX(CASE WHEN reservations.status = "confirme"   THEN 1 ELSE 0 END) as has_confirmed'),
+                DB::raw('MAX(CASE WHEN reservations.status = "en_attente" THEN 1 ELSE 0 END) as has_option'),
+                DB::raw('MAX(reservations.end_date) as release_date')
+            )
+            ->groupBy('reservation_panels.external_panel_id')
+            ->get()
+            ->keyBy('id');
     }
 
     // ── 6. Vérification rapide sans chargement modèle ────────────

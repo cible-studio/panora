@@ -110,8 +110,27 @@ class Reservation extends Model
 
     public function panels()
     {
+        // wherePivot('source','interne') protège les lignes externes (lignes
+        // avec external_panel_id IS NOT NULL et source='externe') contre les
+        // sync()/detach() effectués par cette relation. Les externes passent
+        // par la relation externalPanels() ci-dessous.
         return $this->belongsToMany(Panel::class, 'reservation_panels')
-                    ->withPivot('unit_price', 'total_price')
+                    ->wherePivot('source', 'interne')
+                    ->withPivot('unit_price', 'total_price', 'source')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Panneaux de régies externes liés à la réservation.
+     * Lecture seule via Eloquent — l'écriture passe par INSERT/DELETE direct
+     * dans le contrôleur (cf. ReservationController) pour cohérence avec
+     * le verrou pessimiste anti double-booking.
+     */
+    public function externalPanels()
+    {
+        return $this->belongsToMany(\App\Models\ExternalPanel::class, 'reservation_panels', 'reservation_id', 'external_panel_id')
+                    ->wherePivot('source', 'externe')
+                    ->withPivot('unit_price', 'total_price', 'source')
                     ->withTimestamps();
     }
 

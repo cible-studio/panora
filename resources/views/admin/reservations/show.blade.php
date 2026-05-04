@@ -468,6 +468,70 @@
     </div>
 </div>
 
+{{-- ── Panneaux externes (régies partenaires) ─────────────────────── --}}
+@if($reservation->externalPanels->count() > 0)
+<div class="card mt-4">
+    <div class="card-header">
+        <span class="card-title">🤝 Panneaux externes (régies partenaires)</span>
+        <span class="text-xs text-gray-400">
+            {{ $reservation->externalPanels->count() }} panneau(x) · coordination via la régie
+        </span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full border-collapse">
+            <thead>
+                <tr class="border-b border-[#2a2a35]">
+                    <th class="text-left p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Code</th>
+                    <th class="text-left p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Régie</th>
+                    <th class="text-left p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Désignation</th>
+                    <th class="text-left p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Commune</th>
+                    <th class="text-left p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Format</th>
+                    <th class="text-right p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Prix négocié</th>
+                    <th class="text-right p-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total période</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($reservation->externalPanels as $ext)
+                <tr class="border-b border-[#1e1e2e]">
+                    <td class="p-3">
+                        <span class="font-mono text-xs font-bold px-2 py-1 rounded-lg bg-blue-500/10 text-blue-400">
+                            {{ $ext->code_panneau }}
+                        </span>
+                    </td>
+                    <td class="p-3">
+                        <span class="text-xs px-2 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30 font-semibold">
+                            🤝 {{ $ext->agency?->name ?? '—' }}
+                        </span>
+                    </td>
+                    <td class="p-3 text-sm font-medium text-gray-300">{{ $ext->designation }}</td>
+                    <td class="p-3 text-sm text-gray-400">{{ $ext->commune?->name ?? '—' }}</td>
+                    <td class="p-3 text-sm text-gray-500">
+                        {{ $ext->format?->name ?? '—' }}
+                        @if($ext->format?->width && $ext->format?->height)
+                            <div class="text-xs text-gray-600">{{ $ext->format->width }}×{{ $ext->format->height }}m</div>
+                        @endif
+                    </td>
+                    <td class="p-3 text-right">
+                        <span class="font-bold text-[#e8a020] text-sm">
+                            {{ number_format((float)($ext->pivot->unit_price ?? $ext->monthly_rate ?? 0), 0, ',', ' ') }} FCFA
+                        </span>
+                    </td>
+                    <td class="p-3 text-right">
+                        <span class="font-bold text-green-400 text-sm">
+                            {{ number_format((float)($ext->pivot->total_price ?? 0), 0, ',', ' ') }} FCFA
+                        </span>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    <div style="padding:10px 16px;background:rgba(59,130,246,.05);border-top:1px solid rgba(59,130,246,.2);font-size:11px;color:#60a5fa">
+        ⚠️ La disponibilité de ces panneaux doit être confirmée auprès de la régie partenaire avant exécution de la campagne.
+    </div>
+</div>
+@endif
+
 {{-- ✅ AJOUTER UN PANNEAU depuis la fiche --}}
 @if($can['update'] && !in_array($reservation->status->value, ['annule','refuse','termine']))
 <div class="card mt-4" id="add-panel-card">
@@ -759,9 +823,15 @@ document.addEventListener('keydown', function(e) {
         },
         templateResult: p => {
             if (!p.id) return $(`<span style="color:var(--text3)">${p.text}</span>`);
+            const isExt = p.source === 'external';
+            const refColor = isExt ? '#60a5fa' : 'var(--accent)';
+            const sourceBadge = isExt
+                ? `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);font-weight:700">🤝 ${p.agency_name||'Régie externe'}</span>`
+                : `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(232,160,32,.1);color:var(--accent);border:1px solid rgba(232,160,32,.25);font-weight:700">🏢 CIBLE</span>`;
             return $(`<div style="padding:8px 12px;border-bottom:1px solid var(--border)">
-                <div style="display:flex;align-items:center;gap:8px">
-                    <span style="font-family:monospace;font-size:12px;font-weight:700;color:var(--accent)">${p.reference||''}</span>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span style="font-family:monospace;font-size:12px;font-weight:700;color:${refColor}">${p.reference||''}</span>
+                    ${sourceBadge}
                     <span style="font-size:12px;color:var(--text)">${p.name||p.text}</span>
                 </div>
                 <div style="font-size:10px;color:var(--text3);margin-top:2px">
@@ -769,7 +839,11 @@ document.addEventListener('keydown', function(e) {
                 </div>
             </div>`);
         },
-        templateSelection: p => p.id ? `${p.reference||''} — ${p.name||p.text}` : p.text,
+        templateSelection: p => {
+            if (!p.id) return p.text;
+            const tag = p.source === 'external' ? '🤝 ' : '';
+            return `${tag}${p.reference||''} — ${p.name||p.text}`;
+        },
         dropdownParent: $('#add-panel-card'),
         width: '100%',
     });
@@ -801,7 +875,8 @@ document.addEventListener('keydown', function(e) {
                         'X-CSRF-TOKEN': '{{ csrf_token() }}',
                         'Accept':       'application/json',
                     },
-                    body: JSON.stringify({ panel_id: parseInt(panelId), unit_price: price ? parseFloat(price) : null }),
+                    // panel_id reste tel quel (string "ext_X" ou nombre) — le backend split
+                    body: JSON.stringify({ panel_id: panelId, unit_price: price ? parseFloat(price) : null }),
                 });
 
                 const data = await res.json();
