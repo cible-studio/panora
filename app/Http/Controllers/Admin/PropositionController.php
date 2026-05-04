@@ -226,6 +226,11 @@ class PropositionController extends Controller
         if (!$reservation)
             abort(404);
 
+        // ✋ Garde commune : status + expiration + duplicate check
+        if ($block = $this->assertActionable($reservation, $reference, $slug, 'confirmer')) {
+            return $block;
+        }
+
         try {
             $token    = $reservation->proposition_token;
             $campaign = $this->propositionService->confirmer($reservation);
@@ -254,6 +259,11 @@ class PropositionController extends Controller
         if (!$reservation)
             abort(404);
 
+        // ✋ Même garde que confirmer
+        if ($block = $this->assertActionable($reservation, $reference, $slug, 'refuser')) {
+            return $block;
+        }
+
         $motif = $request->input('motif');
         $this->propositionService->refuser($reservation, $motif);
 
@@ -264,6 +274,68 @@ class PropositionController extends Controller
             'reservation' => $reservation,
             'client'      => $reservation->client,
         ]);
+    }
+
+    /**
+     * Garde commune pour confirmer / refuser / retirer-panneau.
+     *
+     * Empêche d'agir sur une proposition :
+     *   - déjà traitée (statut ≠ en_attente)
+     *   - expirée (date < maintenant)
+     *   - sans token (proposition jamais envoyée)
+     *
+     * Retourne null si OK, ou une RedirectResponse vers la page show
+     * si l'action doit être bloquée.
+     */
+    private function assertActionable(\App\Models\Reservation $reservation, string $reference, string $slug, string $action = 'agir'): mixed
+    {
+        // Statut : la réservation doit être en attente d'une décision
+        if ($reservation->status->value !== 'en_attente') {
+            $stateLabel = match ($reservation->status->value) {
+                'confirme' => 'déjà confirmée',
+                'refuse'   => 'déjà refusée',
+                'annule'   => 'annulée',
+                'termine'  => 'terminée',
+                default    => 'dans un état non modifiable (' . $reservation->status->value . ')',
+            };
+
+            Log::warning('proposition.action.blocked.status', [
+                'reservation_id' => $reservation->id,
+                'reference'      => $reference,
+                'action'         => $action,
+                'current_status' => $reservation->status->value,
+            ]);
+
+            return redirect()->route('admin.propositions.show', [$reference, $slug])
+                ->with('error', "Cette proposition est {$stateLabel}. Impossible de la {$action}.");
+        }
+
+        // Expiration : si proposition_expires_at est passée → bloqué
+        if ($reservation->proposition_expires_at && $reservation->proposition_expires_at->isPast()) {
+            $expiredAt = $reservation->proposition_expires_at->format('d/m/Y à H:i');
+
+            Log::warning('proposition.action.blocked.expired', [
+                'reservation_id' => $reservation->id,
+                'reference'      => $reference,
+                'action'         => $action,
+                'expired_at'     => $reservation->proposition_expires_at->toIso8601String(),
+            ]);
+
+            return redirect()->route('admin.propositions.show', [$reference, $slug])
+                ->with('error', "Cette proposition a expiré le {$expiredAt}. Contactez votre commercial pour en recevoir une nouvelle.");
+        }
+
+        // Token absent : la proposition n'a jamais été émise
+        if (empty($reservation->proposition_token)) {
+            Log::warning('proposition.action.blocked.no_token', [
+                'reservation_id' => $reservation->id,
+                'reference'      => $reference,
+                'action'         => $action,
+            ]);
+            abort(404, 'Lien invalide.');
+        }
+
+        return null; // OK pour agir
     }
 
     /**
@@ -316,9 +388,12 @@ class PropositionController extends Controller
     public function retirerPanneau(string $reference, string $slug, int $panelId)
     {
         $reservation = $this->findBySlug($reference, $slug);
+        if (!$reservation) abort(404);
 
-        if (!$reservation || $reservation->status->value !== 'en_attente')
-            abort(403, 'Impossible de modifier cette proposition.');
+        // ✋ Même garde : status + expiration
+        if ($block = $this->assertActionable($reservation, $reference, $slug, 'retirer un panneau de')) {
+            return $block;
+        }
 
         // Vérifier que le panneau appartient bien à cette réservation
         if (!$reservation->panels->contains('id', $panelId))
