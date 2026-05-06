@@ -83,6 +83,13 @@ trait PdfAssets
 
         foreach ($candidates as $path) {
             if (is_file($path) && is_readable($path)) {
+                // Si l'image est trop grosse pour DomPDF (lent/timeout), on
+                // tente un downscale via GD avant d'abandonner.
+                if (filesize($path) > 2 * 1024 * 1024 && extension_loaded('gd')) {
+                    $resized = $this->downscaleImage($path, 1200, 800);
+                    if ($resized !== null) return $resized;
+                }
+
                 if (filesize($path) > 4 * 1024 * 1024) {
                     \Illuminate\Support\Facades\Log::warning('pdf.photo.too_large', [
                         'path' => $path,
@@ -100,5 +107,53 @@ trait PdfAssets
             'tried'     => $candidates,
         ]);
         return null;
+    }
+
+    /**
+     * Redimensionne une image (JPG/PNG/GIF/WEBP) à $maxW × $maxH max en
+     * conservant le ratio, puis renvoie un data-URI JPEG qualité 78.
+     * Retourne null si GD n'arrive pas à lire le fichier.
+     */
+    private function downscaleImage(string $path, int $maxW, int $maxH): ?string
+    {
+        try {
+            $info = @getimagesize($path);
+            if (!$info) return null;
+            [$srcW, $srcH] = $info;
+
+            $ratio = min($maxW / $srcW, $maxH / $srcH, 1.0);
+            $dstW  = (int) round($srcW * $ratio);
+            $dstH  = (int) round($srcH * $ratio);
+
+            $src = match ($info[2]) {
+                IMAGETYPE_JPEG => @imagecreatefromjpeg($path),
+                IMAGETYPE_PNG  => @imagecreatefrompng($path),
+                IMAGETYPE_GIF  => @imagecreatefromgif($path),
+                IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($path) : null,
+                default        => null,
+            };
+            if (!$src) return null;
+
+            $dst = imagecreatetruecolor($dstW, $dstH);
+            // Fond blanc pour les PNG transparents (évite le bandeau noir DomPDF)
+            $white = imagecolorallocate($dst, 255, 255, 255);
+            imagefilledrectangle($dst, 0, 0, $dstW, $dstH, $white);
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, $dstW, $dstH, $srcW, $srcH);
+
+            ob_start();
+            imagejpeg($dst, null, 78);
+            $bin = ob_get_clean();
+
+            imagedestroy($src);
+            imagedestroy($dst);
+
+            return 'data:image/jpeg;base64,' . base64_encode($bin);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('pdf.photo.downscale_failed', [
+                'path'  => $path,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 }

@@ -38,7 +38,11 @@
       "Bash(php -l app/Mail/UserWelcomeMail.php)",
       "Bash(php -l app/Mail/PropositionDecisionMail.php)",
       "Bash(php -l app/Services/NotificationMailer.php)",
-      "Bash(file /c/wamp64/www/panora/public/images/logo*.png)"
+      "Bash(file /c/wamp64/www/panora/public/images/logo*.png)",
+      "Bash(grep -n 'panelCount\\\\s*=\\\\s*\\\\$reservation->panels' c:/wamp64/www/panora/app/Http/Controllers/Admin/ReservationController.php)",
+      "Bash(grep -n \"use Illuminate\\\\\\\\\\\\\\\\Support\\\\\\\\\\\\\\\\Facades\\\\\\\\\\\\\\\\DB\" c:/wamp64/www/panora/app/Http/Controllers/Admin/CampaignController.php)",
+      "Bash(grep -n \"use Log\\\\|use .*\\\\\\\\\\\\\\\\Log\" c:/wamp64/www/panora/app/Http/Controllers/Admin/CampaignController.php)",
+      "Bash(php -l c:/wamp64/www/panora/app/Http/Controllers/Admin/ReservationController.php)"
     ]
   }
 }

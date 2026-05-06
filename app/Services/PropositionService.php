@@ -83,13 +83,23 @@ class PropositionService
 
             // Créer campagne si elle n'existe pas
             if (!$reservation->campaign) {
+                // Si la campagne commence dans le futur → PLANIFIE, sinon ACTIF.
+                // Cohérent avec ReservationController::store + scheduler
+                // campaigns:activate-planned qui basculera ensuite à ACTIF
+                // au premier jour de la campagne.
+                $campStatus = now()->startOfDay()->lt(
+                    Carbon::parse($reservation->start_date)->startOfDay()
+                )
+                    ? CampaignStatus::PLANIFIE->value
+                    : CampaignStatus::ACTIF->value;
+
                 $campaign = Campaign::create([
                     'name'           => "Campagne {$reservation->reference}",
                     'client_id'      => $reservation->client_id,
                     'reservation_id' => $reservation->id,
                     'start_date'     => $reservation->start_date,
                     'end_date'       => $reservation->end_date,
-                    'status'         => CampaignStatus::ACTIF->value,
+                    'status'         => $campStatus,
                     'total_panels'   => count($panelIds) + count($externalIds),
                     'total_amount'   => $reservation->total_amount,
                     'user_id'        => $reservation->user_id,

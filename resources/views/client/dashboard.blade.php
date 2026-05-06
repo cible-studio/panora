@@ -61,7 +61,7 @@
             <a href="{{ route('client.proposition.detail', $prop->proposition_token) }}"
                class="block bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 transition-all hover:border-red-500/30">
                 <div class="font-mono text-[10px] font-bold text-red-500">{{ $prop->reference }}</div>
-                <div class="text-xs text-[var(--text2)] mt-1">{{ $prop->panels->count() }} panneau(x)</div>
+                <div class="text-xs text-[var(--text2)] mt-1">{{ $prop->panels->count() + $prop->externalPanels->count() }} panneau(x)</div>
                 <div class="text-[10px] text-[var(--text3)] mt-1">📅 {{ $prop->end_date->format('d/m/Y') }}</div>
             </a>
             @empty

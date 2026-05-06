@@ -249,9 +249,10 @@
                     {{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}
                 </span>
             </div>
+            @php $panelCount = $reservation->panels->count() + $reservation->externalPanels->count(); @endphp
             <div class="row">
                 <span class="lbl">Emplacements</span>
-                <span class="val">{{ $reservation->panels->count() }} panneau{{ $reservation->panels->count() > 1 ? 'x' : '' }}</span>
+                <span class="val">{{ $panelCount }} panneau{{ $panelCount > 1 ? 'x' : '' }}</span>
             </div>
             @if($reservation->total_amount > 0)
                 <div class="row">

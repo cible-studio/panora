@@ -80,24 +80,25 @@
     }
 
     /* ── PHOTO ── */
+    /* DomPDF gère mal object-fit ET max-height ensemble. On force la photo
+       à respecter l'espace via width fixe + auto-height : DomPDF maintient
+       alors le ratio et pas de bandeau noir résiduel.  */
     .photo-wrap {
         text-align: center;
-        background: #f3f4f6;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        padding: 6px;
-        height: 200px;
         margin-bottom: 14px;
-        line-height: 0;
     }
     .photo-wrap img {
         max-width: 100%;
-        max-height: 188px;
-        object-fit: contain;
+        max-height: 240px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
     }
     .photo-empty {
-        display: inline-block;
-        line-height: 188px;
+        display: block;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 60px 0;
         color: #9ca3af;
         font-size: 13px;
     }
@@ -138,9 +139,13 @@
     .info-table a { color: #2563eb; text-decoration: none; }
 
     /* ── 2 COLONNES ── */
-    .two-cols { display: table; width: 100%; }
-    .two-cols .col { display: table-cell; width: 50%; vertical-align: top; padding-right: 10px; }
-    .two-cols .col:last-child { padding-right: 0; padding-left: 10px; }
+    /* Real <table> outer wrapper — DomPDF gère mal display:table-cell sur
+       div, et finit par couper le rendu après la photo si une cellule
+       contient une table imbriquée ratée. */
+    table.two-cols { width: 100%; border-collapse: collapse; }
+    table.two-cols > tbody > tr > td { width: 50%; vertical-align: top; padding: 0 5px; }
+    table.two-cols > tbody > tr > td:first-child { padding-left: 0; padding-right: 10px; }
+    table.two-cols > tbody > tr > td:last-child { padding-left: 10px; padding-right: 0; }
 
     /* ── BADGES (uniquement si showPricing) ── */
     .badge {
@@ -225,6 +230,10 @@
         $traffic  = (int) ($p['daily_traffic'] ?? 0);
         $zoneDesc = $p['zone_description'] ?? '';
 
+        // photo_src est déjà un data-URI base64 (généré par PdfExportService).
+        // Si absent, on tente une lecture directe du fichier local — DomPDF
+        // n'a pas accès au réseau (isRemoteEnabled=false), donc on ignore
+        // sciemment photo_url qui produirait une image cassée / fond noir.
         $imgSrc = $p['photo_src'] ?? null;
         if (!$imgSrc && !empty($p['photo_path']) && file_exists($p['photo_path'])) {
             $ext  = strtolower(pathinfo($p['photo_path'], PATHINFO_EXTENSION));
@@ -233,8 +242,6 @@
                 default => 'image/jpeg',
             };
             $imgSrc = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p['photo_path']));
-        } elseif (!$imgSrc && !empty($p['photo_url'])) {
-            $imgSrc = $p['photo_url'];
         }
 
         $commune   = $p['commune']    ?? '—';
@@ -288,8 +295,9 @@
             {{-- ─── CARACTÉRISTIQUES (2 colonnes) ─── --}}
             <h2 class="section">Caractéristiques techniques</h2>
 
-            <div class="two-cols">
-                <div class="col">
+            <table class="two-cols">
+                <tr>
+                    <td>
                     <table class="info-table">
                         <tr>
                             <td class="lbl">Référence</td>
@@ -323,9 +331,9 @@
                             </td>
                         </tr>
                     </table>
-                </div>
+                    </td>
 
-                <div class="col">
+                    <td>
                     <table class="info-table">
                         <tr>
                             <td class="lbl">Commune</td>
@@ -380,8 +388,9 @@
                             </tr>
                         @endif
                     </table>
-                </div>
-            </div>
+                    </td>
+                </tr>
+            </table>
 
             @if($zoneDesc)
                 <div class="extra">

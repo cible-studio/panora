@@ -24,10 +24,19 @@ $badge = match($s) {
     'annule'  => ['bg'=>'rgba(239,68,68,.1)',  'color'=>'#ef4444',  'label'=>'Annulé',   'bd'=>'rgba(239,68,68,.25)'],
     default   => ['bg'=>'rgba(148,163,184,.1)','color'=>'#94a3b8',  'label'=>ucfirst($s),'bd'=>'rgba(148,163,184,.25)'],
 };
-$daysLeft = now()->startOfDay()->diffInDays($campaign->end_date->startOfDay(), false);
-$duration = max(1, $campaign->start_date->diffInDays($campaign->end_date));
-$elapsed  = min($duration, $campaign->start_date->diffInDays(now()));
-$progress = round(($elapsed / $duration) * 100);
+$today    = now()->startOfDay();
+$start    = $campaign->start_date->copy()->startOfDay();
+$end      = $campaign->end_date->copy()->startOfDay();
+$daysLeft = (int) $today->diffInDays($end, false);
+
+// Durée totale en jours (au moins 1 pour éviter div par 0)
+$duration = max(1, (int) $start->diffInDays($end));
+
+// Jours écoulés signés : négatif si campagne pas commencée, > duration si terminée
+$elapsedSigned = (int) $start->diffInDays($today, false);
+$elapsed       = max(0, min($duration, $elapsedSigned));
+$progress      = (int) round(($elapsed / $duration) * 100);
+
 $coverageColor = $coveragePercent >= 80 ? '#22c55e' : ($coveragePercent >= 50 ? '#fab80b' : '#ef4444');
 @endphp
 
@@ -213,7 +222,7 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
         </div>
     </div>
 
-    @if($campaign->panels->isEmpty())
+    @if($campaign->panels->isEmpty() && $campaign->externalPanels->isEmpty())
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:60px;text-align:center;color:var(--text3);">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="display:block;margin:0 auto 16px;opacity:.2;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
         <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px;">Aucun panneau associé</div>
@@ -356,6 +365,74 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
                     Pige d'affichage en attente de validation
                 </div>
                 @endif
+            </div>
+        </div>
+        @endforeach
+
+        {{-- Panneaux externes (régies partenaires) — pose et pige suivies par
+             la régie elle-même, pas par notre équipe terrain. --}}
+        @foreach($campaign->externalPanels as $panel)
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border-color .2s,transform .15s;"
+             onmouseover="this.style.transform='translateY(-2px)';this.style.borderColor='rgba(226,6,19,.25)'"
+             onmouseout="this.style.transform='';this.style.borderColor='var(--border)'">
+
+            {{-- Photo --}}
+            <div style="position:relative;height:160px;background:var(--surface2);overflow:hidden;">
+                @if($panel->photo_url)
+                <img src="{{ $panel->photo_url }}"
+                     style="width:100%;height:100%;object-fit:cover;" alt="{{ $panel->code_panneau }}" loading="lazy"
+                     onerror="this.closest('div').innerHTML='<div style=\'display:flex;align-items:center;justify-content:center;height:100%\'><svg width=32 height=32 viewBox=\'0 0 24 24\' fill=none stroke=var(--text3) stroke-width=1.5 opacity=.3><rect x=2 y=3 width=20 height=14 rx=2/><path d=\'M8 21h8M12 17v4\'/></svg></div>'">
+                @else
+                <div style="display:flex;align-items:center;justify-content:center;height:100%;">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.3" style="opacity:.3;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                </div>
+                @endif
+
+                {{-- Référence --}}
+                <div style="position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:linear-gradient(transparent,rgba(0,0,0,.7));font-family:monospace;font-size:11px;font-weight:700;color:#fff;">
+                    {{ $panel->code_panneau }}
+                </div>
+            </div>
+
+            {{-- Infos --}}
+            <div style="padding:12px 14px;">
+                <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ $panel->designation }}">
+                    {{ $panel->designation }}
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3);margin-bottom:10px;">
+                    @if($panel->commune?->name)
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        {{ $panel->commune->name }}
+                    </div>
+                    @endif
+                    @if($panel->format?->name)
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/></svg>
+                        {{ $panel->format->name }}
+                        @if($panel->format->width && $panel->format->height)
+                        <span style="opacity:.6;">· {{ rtrim(rtrim(number_format($panel->format->width,2,'.','.'), '0'), '.') }}×{{ rtrim(rtrim(number_format($panel->format->height,2,'.','.'), '0'), '.') }}m</span>
+                        @endif
+                    </div>
+                    @endif
+                    @if($panel->is_lit)
+                    <div style="display:flex;align-items:center;gap:5px;color:#fab80b;">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                        Éclairé
+                    </div>
+                    @endif
+                </div>
+
+                {{-- Suivi : géré par la régie partenaire --}}
+                <div style="border-top:1px solid var(--border);padding-top:10px;">
+                    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);">
+                        <div style="width:20px;height:20px;background:var(--surface2);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        </div>
+                        <div>Suivi assuré par notre régie partenaire</div>
+                    </div>
+                </div>
             </div>
         </div>
         @endforeach

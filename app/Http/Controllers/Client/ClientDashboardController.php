@@ -47,7 +47,7 @@ class ClientDashboardController extends Controller
         // Campagnes actives
         $campagnesActives = $client->campaigns()
             ->whereIn('status', ['actif', 'pose'])
-            ->withCount('panels')
+            ->withCount(['panels', 'externalPanels'])
             ->orderByDesc('start_date')
             ->limit(5)
             ->get();
@@ -83,12 +83,12 @@ class ClientDashboardController extends Controller
             ->limit(5)
             ->get();
         
-        // Panneaux actifs (une seule requête)
+        // Panneaux actifs (une seule requête, internes + externes)
         $activePanelsCount = $client->campaigns()
             ->whereIn('status', ['actif', 'pose'])
-            ->withCount('panels')
+            ->withCount(['panels', 'externalPanels'])
             ->get()
-            ->sum('panels_count');
+            ->sum(fn($c) => (int) $c->panels_count + (int) $c->external_panels_count);
         
         $stats = [
             'propositions_en_attente' => $client->reservations()
@@ -120,7 +120,7 @@ class ClientDashboardController extends Controller
         $client = Auth::guard('client')->user();
 
         $query = $client->campaigns()
-            ->withCount('panels')
+            ->withCount(['panels', 'externalPanels'])
             ->with('satisfactionSurvey');
 
         if ($request->filled('search')) {
@@ -215,33 +215,43 @@ class ClientDashboardController extends Controller
             'panels.photos',
             'panels.commune:id,name',
             'panels.format:id,name,width,height',
+            'externalPanels.commune:id,name',
+            'externalPanels.format:id,name,width,height',
+            'externalPanels.agency:id,name',
             'invoices',
             'user:id,name,email,role,whatsapp_number',
             'satisfactionSurvey',
         ]);
 
-        $panelIds = $campaign->panels->pluck('id');
+        $panelIds        = $campaign->panels->pluck('id');
+        $externalIdsCount = $campaign->externalPanels->count();
 
-        // Poses réalisées par panneau — 1 requête, keyBy panel_id
+        // Poses réalisées par panneau interne — 1 requête, keyBy panel_id.
+        // NOTE : la table pose_tasks ne référence actuellement que les internes
+        // (colonne panel_id). Les panneaux externes ne sont pas posés via cette
+        // table — un module dédié serait nécessaire pour étendre la pose à eux.
         $poses = PoseTask::where('campaign_id', $campaign->id)
             ->where('status', 'realisee')
             ->orderByDesc('done_at')
             ->get(['panel_id', 'status', 'done_at'])
             ->keyBy('panel_id');
 
-        // Piges vérifiées groupées par panneau — 1 requête
+        // Piges vérifiées groupées par panneau interne (même limitation)
         $pigesVerif = Pige::where('campaign_id', $campaign->id)
             ->where('status', 'verifie')
             ->orderByDesc('verified_at')
             ->get(['id', 'panel_id', 'photo_path', 'photo_thumb', 'verified_at', 'gps_lat', 'gps_lng'])
-            ->groupBy('panel_id'); // Collection de collections indexée par panel_id
+            ->groupBy('panel_id');
 
-        // KPI couverture
-        $totalPanneaux   = $panelIds->count();
-        $posesCount      = $poses->count();         // nb panneaux distincts posés
-        $pigesCount      = $pigesVerif->count();    // nb panneaux distincts pigés
-        $coveragePercent = $totalPanneaux > 0
-            ? round(($pigesCount / $totalPanneaux) * 100)
+        // KPI couverture — total inclut internes + externes pour l'affichage,
+        // mais le pourcentage se calcule sur les internes (ceux qui peuvent
+        // effectivement être pigés via la table piges actuelle).
+        $totalPanneaux        = $panelIds->count() + $externalIdsCount;
+        $totalPanneauxPiges   = $panelIds->count(); // dénominateur réel pour la pige
+        $posesCount           = $poses->count();
+        $pigesCount           = $pigesVerif->count();
+        $coveragePercent      = $totalPanneauxPiges > 0
+            ? round(($pigesCount / $totalPanneauxPiges) * 100)
             : 0;
 
         return view('client.campagne-detail', compact(

@@ -35,7 +35,7 @@
     </td>
     <td class="duration">{{ $campaign->durationHuman() }}</td>
     <td class="text-center">
-        <span class="badge-panels">{{ $campaign->panels_count ?? 0 }} 🪧</span>
+        <span class="badge-panels">{{ ($campaign->panels_count ?? 0) + ($campaign->external_panels_count ?? 0) }} 🪧</span>
     </td>
     <td class="amount">
         {{ number_format($campaign->total_amount, 0, ',', ' ') }} <span>FCFA</span>

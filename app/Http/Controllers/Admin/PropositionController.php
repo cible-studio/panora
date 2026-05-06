@@ -247,7 +247,7 @@ class PropositionController extends Controller
                 ->with('error', 'Erreur lors de la confirmation. Contactez votre commercial.');
         }
 
-        $reservation = $reservation->fresh(['client', 'panels', 'user']);
+        $reservation = $reservation->fresh(['client', 'panels', 'externalPanels', 'user']);
         $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_ACCEPTED);
 
         // Alerte in-app pour le commercial concerné (en plus du mail)
@@ -286,7 +286,7 @@ class PropositionController extends Controller
         $motif = $request->input('motif');
         $this->propositionService->refuser($reservation, $motif);
 
-        $reservation = $reservation->fresh(['client', 'panels', 'user']);
+        $reservation = $reservation->fresh(['client', 'panels', 'externalPanels', 'user']);
         $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_REFUSED, $motif);
 
         // Alerte in-app pour le commercial — niveau "warning" car action de
