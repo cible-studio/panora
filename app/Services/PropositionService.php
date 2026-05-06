@@ -67,10 +67,18 @@ class PropositionService
                 'confirmed_at' => now(),
             ]);
 
-            // Libérer le statut panneaux
+            $availability = app(AvailabilityService::class);
+
+            // Sync panneaux internes
             $panelIds = $reservation->panels->pluck('id')->toArray();
             if (!empty($panelIds)) {
-                app(AvailabilityService::class)->syncPanelStatuses($panelIds);
+                $availability->syncPanelStatuses($panelIds);
+            }
+
+            // Sync panneaux externes
+            $externalIds = $reservation->externalPanels->pluck('id')->toArray();
+            if (!empty($externalIds)) {
+                $availability->syncExternalPanelStatuses($externalIds);
             }
 
             // Créer campagne si elle n'existe pas
@@ -82,12 +90,27 @@ class PropositionService
                     'start_date'     => $reservation->start_date,
                     'end_date'       => $reservation->end_date,
                     'status'         => CampaignStatus::ACTIF->value,
-                    'total_panels'   => $reservation->panels->count(),
+                    'total_panels'   => count($panelIds) + count($externalIds),
                     'total_amount'   => $reservation->total_amount,
                     'user_id'        => $reservation->user_id,
                 ]);
 
-                $campaign->panels()->sync($panelIds);
+                if (!empty($panelIds)) {
+                    $campaign->panels()->sync($panelIds);
+                }
+
+                // Le pivot campaign_panels supporte external_panel_id avec
+                // type='externe' — même schéma que ReservationController::store.
+                if (!empty($externalIds)) {
+                    $rows = array_map(fn($extId) => [
+                        'campaign_id'       => $campaign->id,
+                        'external_panel_id' => $extId,
+                        'type'              => 'externe',
+                        'created_at'        => now(),
+                        'updated_at'        => now(),
+                    ], $externalIds);
+                    DB::table('campaign_panels')->insert($rows);
+                }
             } else {
                 $campaign = $reservation->campaign;
             }
@@ -96,6 +119,8 @@ class PropositionService
                 'reservation_id' => $reservation->id,
                 'campaign_id'    => $campaign->id,
                 'client_id'      => $reservation->client_id,
+                'panels'         => count($panelIds),
+                'externals'      => count($externalIds),
             ]);
         });
 
@@ -113,16 +138,28 @@ class PropositionService
                 : $reservation->notes,
         ]);
 
-        // Libérer les panneaux
+        // Libérer les panneaux (internes + externes) — le statut de la
+        // réservation passé à ANNULE n'est plus bloquant, mais Panel.status
+        // et ExternalPanel.availability_status doivent être resynchronisés
+        // pour refléter la libération immédiatement dans les UI.
+        $availability = app(AvailabilityService::class);
+
         $panelIds = $reservation->panels->pluck('id')->toArray();
         if (!empty($panelIds)) {
-            app(AvailabilityService::class)->syncPanelStatuses($panelIds);
+            $availability->syncPanelStatuses($panelIds);
+        }
+
+        $externalIds = $reservation->externalPanels->pluck('id')->toArray();
+        if (!empty($externalIds)) {
+            $availability->syncExternalPanelStatuses($externalIds);
         }
 
         Log::info('proposition.refused', [
             'reservation_id' => $reservation->id,
             'motif'          => $motif,
             'client_id'      => $reservation->client_id,
+            'panels_freed'   => count($panelIds),
+            'externals_freed'=> count($externalIds),
         ]);
     }
 
@@ -139,13 +176,22 @@ class PropositionService
             ->where('end_date', '<', now()->toDateString())
             ->get();
 
+        $availability = app(AvailabilityService::class);
         $count = 0;
+
         foreach ($expired as $r) {
             $r->update(['status' => ReservationStatus::ANNULE->value]);
+
             $panelIds = $r->panels->pluck('id')->toArray();
             if (!empty($panelIds)) {
-                app(AvailabilityService::class)->syncPanelStatuses($panelIds);
+                $availability->syncPanelStatuses($panelIds);
             }
+
+            $externalIds = $r->externalPanels->pluck('id')->toArray();
+            if (!empty($externalIds)) {
+                $availability->syncExternalPanelStatuses($externalIds);
+            }
+
             $count++;
         }
 

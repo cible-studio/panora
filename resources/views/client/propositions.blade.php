@@ -73,7 +73,15 @@
 {{-- ══ LISTE PROPOSITIONS ══ --}}
 @forelse($propositions as $res)
 @php
-    $total    = $res->panels->sum(fn($p) => (float)($p->monthly_rate ?? 0));
+    // Compte unifié interne + externe (le total_amount fait foi côté finance,
+    // mais on garde la somme monthly_rate ici pour l'affichage rapide quand
+    // total_amount n'est pas renseigné).
+    $totalInternal = $res->panels->sum(fn($p) => (float)($p->monthly_rate ?? 0));
+    $totalExternal = $res->externalPanels->sum(fn($p) => (float)($p->monthly_rate ?? 0));
+    $total    = (float) ($res->total_amount ?? 0) > 0
+                ? (float) $res->total_amount
+                : $totalInternal + $totalExternal;
+    $panelCount = $res->panels->count() + $res->externalPanels->count();
     $expired  = $res->end_date < now();
     $viewed   = !is_null($res->proposition_viewed_at);
     $status   = $res->status->value;
@@ -116,9 +124,9 @@
 
                 {{-- Infos --}}
                 <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text3);">
-                    <span>{{ $res->panels->count() }} panneau(x)</span>
+                    <span>{{ $panelCount }} panneau(x)</span>
                     @if($total > 0)
-                        <span>{{ number_format($total, 0, ',', ' ') }} FCFA/mois</span>
+                        <span>{{ number_format($total, 0, ',', ' ') }} FCFA</span>
                     @endif
                     @if($res->proposition_sent_at)
                         <span>Reçue {{ $res->proposition_sent_at->diffForHumans() }}</span>

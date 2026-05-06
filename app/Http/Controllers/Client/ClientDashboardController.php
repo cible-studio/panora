@@ -152,7 +152,7 @@ class ClientDashboardController extends Controller
 
         $propositions = $client->reservations()
             ->whereNotNull('proposition_token')
-            ->with(['panels.photos', 'panels.commune', 'panels.format'])
+            ->with(['panels.photos', 'panels.commune', 'panels.format', 'externalPanels'])
             ->orderByDesc('proposition_sent_at')
             ->paginate(10);
 
@@ -178,33 +178,15 @@ class ClientDashboardController extends Controller
             // Proposition expirée/traitée — afficher quand même
         }
 
-        $reservation->load(['panels.photos', 'panels.commune', 'panels.format', 'panels.zone', 'panels.category', 'user:id,name,email,role,whatsapp_number']);
+        $reservation->load([
+            'panels.photos', 'panels.commune', 'panels.format', 'panels.zone', 'panels.category',
+            'externalPanels.commune', 'externalPanels.zone', 'externalPanels.format', 'externalPanels.category',
+            'user:id,name,email,role,whatsapp_number',
+        ]);
         $this->propositionService->marquerVue($reservation);
 
         $months = $this->monthsBetween($reservation->start_date, $reservation->end_date);
-        $panels = $reservation->panels->map(function ($panel) use ($months) {
-            $photo = $panel->photos->sortBy('ordre')->first();
-            // Utiliser le prix pivot négocié (même logique que PropositionController::buildPanels)
-            $unitPrice  = (float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0);
-            $totalPrice = (float) ($panel->pivot->total_price ?? ($unitPrice * $months));
-            return [
-                'id'           => $panel->id,
-                'reference'    => $panel->reference,
-                'name'         => $panel->name,
-                'commune'      => $panel->commune?->name ?? '—',
-                'zone'         => $panel->zone?->name ?? '—',
-                'format'       => $panel->format?->name ?? '—',
-                'dimensions'   => $this->formatDims($panel->format),
-                'category'     => $panel->category?->name ?? '—',
-                'is_lit'       => (bool) $panel->is_lit,
-                'monthly_rate' => $unitPrice,
-                'total'        => $totalPrice,
-                'photo_url'    => $photo ? asset('storage/' . ltrim($photo->path, '/')) : null,
-                'photos'       => $panel->photos->sortBy('ordre')->map(fn($p) => [
-                    'url' => asset('storage/' . ltrim($p->path, '/'))
-                ])->values()->toArray(),
-            ];
-        });
+        $panels = $reservation->proposalPanels($months);
 
         $joursRestants = now()->startOfDay()->diffInDays($reservation->end_date->startOfDay(), false);
 
@@ -493,11 +475,4 @@ class ClientDashboardController extends Controller
         return max((float) ($remain > 0 ? $months + 1 : $months), 1.0);
     }
 
-    private function formatDims($format): ?string
-    {
-        if (!$format?->width || !$format?->height) return null;
-        $w = rtrim(rtrim(number_format($format->width,  2, '.', ''), '0'), '.');
-        $h = rtrim(rtrim(number_format($format->height, 2, '.', ''), '0'), '.');
-        return "{$w}×{$h}m";
-    }
 }

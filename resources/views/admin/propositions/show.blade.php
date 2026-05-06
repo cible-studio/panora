@@ -643,7 +643,7 @@
                     </div>
                 </div>
 
-                @if($isActif)
+                @if($isActif && ($panel['source'] ?? 'interne') === 'interne')
                     <div class="panel-remove">
                         <form method="POST"
                               action="{{ route('proposition.retirer-panneau', [$reference, $slug, $panel['id']]) }}"

@@ -56,13 +56,20 @@ class PropositionMail extends Mailable implements ShouldQueue
             ])
             : route('proposition.show.legacy', $this->reservation->proposition_token);
 
+        // Charge les externes si pas déjà chargés (le mail peut être créé
+        // depuis n'importe quel contexte). Idempotent.
+        $this->reservation->loadMissing([
+            'panels.photos', 'panels.commune', 'panels.format',
+            'externalPanels.commune', 'externalPanels.format',
+        ]);
+
         return new Content(
             view: 'admin.emails.proposition',
             text: 'emails.plain.proposition',     // Version texte (anti-spam)
             with: [
                 'reservation' => $this->reservation,
                 'client'      => $this->reservation->client,
-                'panels'      => $this->reservation->panels,
+                'panels'      => $this->reservation->proposalPanels(),
                 'lien'        => $lien,
                 'expiresAt'   => $this->reservation->proposition_expires_at,
                 'sentAt'      => $this->reservation->proposition_sent_at ?? now(),
