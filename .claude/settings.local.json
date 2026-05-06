@@ -47,7 +47,10 @@
       "Bash(php -l c:/wamp64/www/panora/app/Observers/ReservationObserver.php)",
       "Bash(php -l c:/wamp64/www/panora/app/Console/Commands/ExpireOptions.php)",
       "Bash(php -l c:/wamp64/www/panora/app/Console/Commands/ExpireReservationOptions.php)",
-      "Bash(php -l c:/wamp64/www/panora/app/Console/Commands/SyncExpiredReservations.php)"
+      "Bash(php -l c:/wamp64/www/panora/app/Console/Commands/SyncExpiredReservations.php)",
+      "Bash(grep -n 'slot\\\\|{{ $slot\\\\|stack' c:/wamp64/www/panora/resources/views/layouts/admin.blade.php)",
+      "Bash(php -l c:/wamp64/www/panora/app/Services/WhatsAppService.php)",
+      "Bash(php -l c:/wamp64/www/panora/app/Http/Controllers/Admin/PoseController.php)"
     ]
   }
 }

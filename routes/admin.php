@@ -207,7 +207,11 @@ Route::prefix('admin')
         
         // ── Alias pour markComplete (rétrocompatibilité) ──────────────
         Route::post('pose-tasks/{poseTask}/complete', [PoseController::class, 'markComplete'])
-            ->name('pose.complete');        
+            ->name('pose.complete');
+
+        // ── Renvoyer / envoyer manuellement la notification WhatsApp ──
+        Route::post('pose-tasks/{poseTask}/notify', [PoseController::class, 'notifyWhatsApp'])
+            ->name('pose-tasks.notify');
 
         // Maintenance
         Route::resource('maintenances', MaintenanceController::class);

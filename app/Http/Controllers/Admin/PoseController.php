@@ -338,6 +338,39 @@ class PoseController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // NOTIFY WHATSAPP — déclenchement manuel par l'admin
+    // ══════════════════════════════════════════════════════════════
+    public function notifyWhatsApp(PoseTask $poseTask)
+    {
+        if (in_array($poseTask->status, ['realisee', 'annulee'])) {
+            return back()->with('error', 'Notification non pertinente sur une tâche déjà clôturée.');
+        }
+
+        $poseTask->load('panel.commune', 'technicien', 'campaign');
+        $tech = $poseTask->technicien;
+
+        if (!$tech || empty($tech->whatsapp_number)) {
+            return back()->with('error', 'Aucun numéro WhatsApp pour le technicien — configure-le d\'abord.');
+        }
+
+        $sent = $this->poseService->notifyTechnicianOnWhatsApp($poseTask);
+
+        if ($sent) {
+            return back()->with('success', "✅ Notification WhatsApp envoyée à {$tech->name}.");
+        }
+
+        // Échec : message actionnable + lien fallback (lien public à partager
+        // manuellement). On lit la dernière erreur loggée pour aider l'admin
+        // à diagnostiquer (numéro non joint sandbox, SSL, token invalide…).
+        $publicUrl = $poseTask->publicUrl();
+        return back()->with(
+            'warning',
+            "L'envoi automatique a échoué — vérifiez les logs serveur (whatsapp.failed). " .
+            "Vous pouvez partager le lien manuellement : {$publicUrl}"
+        );
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // MARK COMPLETE — lock optimiste + alerte instantanée
     // ══════════════════════════════════════════════════════════════
     public function markComplete(Request $request, PoseTask $poseTask)

@@ -182,18 +182,35 @@ class WhatsAppService
             ->asForm()
             ->post($endpoint, $payload);
 
-        $ok = $response->successful();
+        $ok        = $response->successful();
+        $errorCode = $response->json('code');
+        $errorMsg  = $response->json('message');
 
-        Log::info('whatsapp.sent', array_merge($context, [
+        $logContext = array_merge($context, [
             'to'         => $to,
             'provider'   => 'twilio',
             'mode'       => $usingTemplate ? 'template' : 'freeform',
             'status'     => $response->status(),
-            'ok'         => $ok,
             'sid'        => $response->json('sid'),
-            'error_code' => $response->json('code'),
-            'error_msg'  => $response->json('message'),
-        ]));
+            'error_code' => $errorCode,
+            'error_msg'  => $errorMsg,
+        ]);
+
+        if ($ok) {
+            Log::info('whatsapp.sent', $logContext);
+        } else {
+            // Hint actionnable selon le code Twilio le plus courant — aide
+            // l'admin à diagnostiquer sans aller chercher dans la doc.
+            $logContext['hint'] = match ((int) $errorCode) {
+                21211 => "Numéro destinataire invalide (format E.164 requis).",
+                21408, 63007, 63016 => "Le destinataire n'a pas joint le sandbox Twilio. Faites-lui envoyer 'join <code>' au {$from} depuis WhatsApp.",
+                21610          => "Fenêtre 24h dépassée — le client doit redémarrer la conversation OU utiliser un Content Template approuvé Meta.",
+                21617          => "Numéro From WhatsApp non configuré sur ce compte Twilio.",
+                20003          => "Authentification Twilio invalide (SID/Token).",
+                default        => null,
+            };
+            Log::error('whatsapp.failed', $logContext);
+        }
 
         return $ok;
     }
