@@ -466,13 +466,32 @@ class ClientDashboardController extends Controller
     // ══════════════════════════════════════════════════════════════
     // HELPERS
     // ══════════════════════════════════════════════════════════════
+    /**
+     * Règle facturation CIBLE CI — alignée sur PropositionController::monthsBetween
+     * et ReservationService::monthsBetween :
+     *   1-15 jours résiduels  → +0.5 mois
+     *   16-30 jours résiduels → +1 mois
+     *   minimum facturable    → 0.5 mois
+     */
     private function monthsBetween($start, $end): float
     {
-        $s      = Carbon::parse($start)->startOfDay();
-        $e      = Carbon::parse($end)->endOfDay();
-        $months = (int) $s->diffInMonths($e);
-        $remain = $s->copy()->addMonths($months)->diffInDays($e);
-        return max((float) ($remain > 0 ? $months + 1 : $months), 1.0);
+        $s = Carbon::parse($start)->startOfDay();
+        $e = Carbon::parse($end)->startOfDay();
+
+        $totalDays = (int) $s->diffInDays($e);
+        if ($totalDays <= 0) return 0.5;
+
+        $fullMonths = (int) floor($totalDays / 30);
+        $remainDays = $totalDays % 30;
+
+        $fraction = 0;
+        if ($remainDays >= 1 && $remainDays <= 15) {
+            $fraction = 0.5;
+        } elseif ($remainDays > 15) {
+            $fraction = 1;
+        }
+
+        return max($fullMonths + $fraction, 0.5);
     }
 
 }

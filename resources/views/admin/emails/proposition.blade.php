@@ -90,9 +90,6 @@
                         <div style="font-size:12px;color:#6b7280;margin-top:2px;">
                             {{ $panel['commune'] ?? '—' }}
                             @if(!empty($panel['format']) && $panel['format'] !== '—') · {{ $panel['format'] }} @endif
-                            @if(($panel['source'] ?? null) === 'externe')
-                                <span style="display:inline-block;margin-left:6px;font-size:10px;color:#7c3aed;background:#ede9fe;padding:1px 6px;border-radius:8px;">Régie partenaire</span>
-                            @endif
                         </div>
                     </td>
                     <td style="padding:12px 16px;text-align:right;vertical-align:top;white-space:nowrap;">

@@ -558,6 +558,13 @@
             confirmez ou refusez la proposition.
         </p>
 
+        @php
+            $totalDays   = (int) $reservation->start_date->copy()->startOfDay()
+                ->diffInDays($reservation->end_date->copy()->startOfDay());
+            $totalDays   = max(1, $totalDays);
+            $monthsLabel = rtrim(rtrim(number_format($months, 1, ',', ''), '0'), ',');
+        @endphp
+
         <div class="summary">
             <div class="summary-cell">
                 <div class="lbl">Début</div>
@@ -569,7 +576,10 @@
             </div>
             <div class="summary-cell">
                 <div class="lbl">Durée</div>
-                <div class="val">{{ round($months) }} mois</div>
+                <div class="val">{{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }}</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px;">
+                    {{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }}
+                </div>
             </div>
             <div class="summary-cell">
                 <div class="lbl">Emplacements</div>
@@ -672,7 +682,10 @@
             </div>
             <div class="total-right">
                 <div class="stat"><strong>{{ $panelCount }}</strong> emplacement{{ $panelCount > 1 ? 's' : '' }}</div>
-                <div class="stat" style="margin-top:4px"><strong>{{ round($months) }} mois</strong> de campagne</div>
+                <div class="stat" style="margin-top:4px">
+                    <strong>{{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }}</strong>
+                    ({{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }})
+                </div>
             </div>
         </div>
     @endif
