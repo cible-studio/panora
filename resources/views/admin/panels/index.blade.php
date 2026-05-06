@@ -237,7 +237,7 @@
                     const tbody = document.getElementById('table-body');
                     const originalHtml = tbody.innerHTML;
                     tbody.innerHTML =
-                        '<tr><td colspan="11" style="text-align:center;padding:40px;"><div class="spinner"></div> Chargement...</td></tr>';
+                        '<tr><td colspan="10" style="text-align:center;padding:40px;"><div class="spinner"></div> Chargement...</td></tr>';
 
                     try {
                         const response = await fetch(`{{ route('admin.panels.index') }}?${params}`, {
@@ -428,7 +428,7 @@
 
                     const tbody = document.getElementById('table-body');
                     tbody.innerHTML =
-                        '<tr><td colspan="11" style="text-align:center;padding:40px;"><div class="spinner"></div> Chargement...</td></tr>';
+                        '<tr><td colspan="10" style="text-align:center;padding:40px;"><div class="spinner"></div> Chargement...</td></tr>';
 
                     fetch(`{{ route('admin.panels.index') }}?${params}`, {
                             headers: {
