@@ -49,10 +49,16 @@ class ReservationObserver
         }
 
         // ── Synchroniser les panneaux de la réservation ────────────
-        // C'est ici la source de vérité : réservation annulée → panneaux libres
+        // C'est ici la source de vérité : réservation annulée → panneaux libres.
+        // Sync internes ET externes (les deux relations utilisent reservation_panels).
         $panelIds = $reservation->panels()->pluck('panels.id')->toArray();
         if (!empty($panelIds)) {
             $this->availability->syncPanelStatuses($panelIds);
+        }
+
+        $externalPanelIds = $reservation->externalPanels()->pluck('external_panels.id')->toArray();
+        if (!empty($externalPanelIds)) {
+            $this->availability->syncExternalPanelStatuses($externalPanelIds);
         }
 
         // ── Cascader vers la Campaign si elle existe et est active ──
