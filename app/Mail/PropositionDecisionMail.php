@@ -25,8 +25,9 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
 
     public function __construct(
         public readonly Reservation $reservation,
-        public readonly string      $decision,    // 'accepted' | 'refused'
-        public readonly ?string     $reason = null, // motif de refus éventuel
+        public readonly string      $decision,        // 'accepted' | 'refused'
+        public readonly ?string     $reason = null,   // motif de refus éventuel
+        public readonly ?string     $campaignName = null, // nom de la campagne créée à la confirmation
     ) {}
 
     public function envelope(): Envelope
@@ -56,12 +57,13 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
             view: 'emails.proposition-decision',
             text: 'emails.plain.proposition-decision',  // Version texte (anti-spam)
             with: [
-                'reservation' => $this->reservation,
-                'client'      => $this->reservation->client,
-                'decision'    => $this->decision,
-                'reason'      => $this->reason,
-                'isAccepted'  => $this->decision === self::DECISION_ACCEPTED,
-                'showLink'    => route('admin.reservations.show', $this->reservation),
+                'reservation'  => $this->reservation,
+                'client'       => $this->reservation->client,
+                'decision'     => $this->decision,
+                'reason'       => $this->reason,
+                'campaignName' => $this->campaignName,
+                'isAccepted'   => $this->decision === self::DECISION_ACCEPTED,
+                'showLink'     => route('admin.reservations.show', $this->reservation),
             ],
         );
     }

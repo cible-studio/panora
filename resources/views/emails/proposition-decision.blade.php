@@ -27,6 +27,12 @@
             <div class="lbl">Client</div>
             <div class="val">{{ $client?->name ?? '—' }}</div>
         </div>
+        @if($campaignName)
+        <div class="info-row">
+            <div class="lbl">Campagne</div>
+            <div class="val"><strong>{{ $campaignName }}</strong></div>
+        </div>
+        @endif
         <div class="info-row">
             <div class="lbl">Période</div>
             <div class="val">{{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}</div>

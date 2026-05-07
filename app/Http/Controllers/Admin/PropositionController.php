@@ -241,7 +241,7 @@ class PropositionController extends Controller
         }
 
         $reservation = $reservation->fresh(['client', 'panels', 'user']);
-        $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_ACCEPTED);
+        $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_ACCEPTED, null, $campaign?->name);
 
         // Alerte in-app pour le commercial concerné (en plus du mail)
         \App\Services\AlertService::create(
@@ -369,7 +369,7 @@ class PropositionController extends Controller
      * Si pas de user_id sur la réservation → fallback : tous les admins actifs.
      * Échec d'envoi silencieux (le client a déjà fait sa décision, on ne casse rien).
      */
-    private function notifyDecision(\App\Models\Reservation $reservation, string $decision, ?string $reason = null): void
+    private function notifyDecision(\App\Models\Reservation $reservation, string $decision, ?string $reason = null, ?string $campaignName = null): void
     {
         $mailer = app(\App\Services\NotificationMailer::class);
 
@@ -398,7 +398,7 @@ class PropositionController extends Controller
 
         $mailer->sendSilently(
             $recipients,
-            new \App\Mail\PropositionDecisionMail($reservation, $decision, $reason),
+            new \App\Mail\PropositionDecisionMail($reservation, $decision, $reason, $campaignName),
             context: [
                 'action'         => 'proposition.decision',
                 'reservation_id' => $reservation->id,
