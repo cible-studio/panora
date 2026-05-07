@@ -61,9 +61,10 @@ class PropositionService
 
         DB::transaction(function () use ($reservation, &$campaign) {
 
-            // Changer statut → confirmé
+            // Changer statut → confirmé + promouvoir type option → ferme
             $reservation->update([
                 'status'       => ReservationStatus::CONFIRME,
+                'type'         => 'ferme',
                 'confirmed_at' => now(),
             ]);
 
@@ -142,7 +143,7 @@ class PropositionService
     public function refuser(Reservation $reservation, ?string $motif = null): void
     {
         $reservation->update([
-            'status' => ReservationStatus::ANNULE,
+            'status' => ReservationStatus::REFUSE,
             'notes'  => $motif
                 ? ($reservation->notes ? $reservation->notes . "\n\nRefus client : " . $motif : "Refus client : " . $motif)
                 : $reservation->notes,
