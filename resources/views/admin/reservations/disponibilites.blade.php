@@ -169,13 +169,19 @@
 
         {{-- ══ BARRE OUTILS ══ --}}
         <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-            <div class="flex items-center gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1">
-                <button id="btn-view-grid" onclick="DISPO.setView('grid')"
-                    class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-[var(--accent)] text-white">⊞
-                    Grille</button>
-                <button id="btn-view-list" onclick="DISPO.setView('list')"
-                    class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-[var(--text3)] hover:text-[var(--text)]">☰
-                    Liste</button>
+            <div class="flex items-center gap-2 flex-wrap">
+                <div class="flex items-center gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1">
+                    <button id="btn-view-grid" onclick="DISPO.setView('grid')"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-[var(--accent)] text-white">⊞
+                        Grille</button>
+                    <button id="btn-view-list" onclick="DISPO.setView('list')"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-[var(--text3)] hover:text-[var(--text)]">☰
+                        Liste</button>
+                </div>
+                <button id="btn-select-all" onclick="DISPO.selectAll()"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--text2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all">
+                    ☑ Tout sélectionner
+                </button>
             </div>
 
             {{-- PDF liste avec option masquer statut --}}
@@ -1292,6 +1298,33 @@
             this._syncSelBar();
         },
 
+        selectAll() {
+            const panels = S._lastPanels;
+            if (!panels.length) return;
+            const allSelected = panels.every(p => S.sel.ids.includes(String(p.id)));
+            if (allSelected) {
+                this.clearSelection();
+                return;
+            }
+            panels.forEach(p => {
+                const id = String(p.id);
+                if (S.sel.ids.includes(id)) return;
+                S.sel.ids.push(id);
+                S.sel.rates[id]   = parseFloat(p.monthly_rate) || 0;
+                S.sel.sources[id] = p.source || 'internal';
+            });
+            document.querySelectorAll('.panel-card,.list-row').forEach(el => {
+                const id = el.dataset.id;
+                if (!id || !S.sel.ids.includes(id)) return;
+                el.classList.add('selected');
+                const btn = el.querySelector('.btn-sel');
+                if (btn) { btn.textContent='✓ Sélectionné'; btn.style.background='var(--accent)'; btn.style.color='#fff'; }
+                const chk = el.querySelector('.card-chk');
+                if (chk) chk.checked = true;
+            });
+            this._syncSelBar();
+        },
+
         // ── MODAL CONFIRMATION ────────────────────────────────
         openConfirmModal() {
             if (S.sel.ids.length === 0) {
@@ -1657,6 +1690,7 @@
                 const chk = card.querySelector('.card-chk');
                 if (chk) chk.checked = true;
             });
+            this._syncSelBar();
         },
 
         _cardHtml(p) {
@@ -1735,6 +1769,12 @@
             _el('topbar-count').textContent = n;
             const eb = _el('sel-ext-badge');
             if (eb) { eb.classList.toggle('hidden', nExt===0); _el('sel-ext-n').textContent = nExt; }
+            const btnSA = document.getElementById('btn-select-all');
+            if (btnSA) {
+                const panels = S._lastPanels;
+                const allSel = panels.length > 0 && panels.every(p => S.sel.ids.includes(String(p.id)));
+                btnSA.textContent = allSel ? '☐ Tout désélectionner' : '☑ Tout sélectionner';
+            }
         },
 
         _syncUI() {
