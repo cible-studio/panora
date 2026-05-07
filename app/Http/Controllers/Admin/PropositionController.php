@@ -129,7 +129,7 @@ class PropositionController extends Controller
             'proposition_token'      => $token,
             'proposition_slug'       => $slug,
             'proposition_sent_at'    => now(),
-            'proposition_expires_at' => now()->addDays(30),
+            'proposition_expires_at' => now()->addDays(7),
         ]);
 
         // Envoi via NotificationMailer.

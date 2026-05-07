@@ -22,6 +22,9 @@ Schedule::command('campaigns:sync-expired')->dailyAt('01:30');
 
 Schedule::command('propositions:expire')->everyFifteenMinutes();
 
+// Rappels J+2 et J+5 aux clients dont la proposition est en attente
+Schedule::command('propositions:send-rappels')->dailyAt('09:00');
+
 // 4. Génération automatique des alertes
 //    Tous les jours à 07h00
 Schedule::command('alerts:generate')->dailyAt('07:00');
