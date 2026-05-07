@@ -179,7 +179,7 @@
                         Liste</button>
                 </div>
                 <button id="btn-select-all" onclick="DISPO.selectAll()"
-                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--text2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all">
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-[var(--border)] rounded-xl text-[var(--text2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all">
                     ☑ Tout sélectionner
                 </button>
             </div>
