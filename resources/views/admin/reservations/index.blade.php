@@ -103,6 +103,7 @@
                 @if(($newCount ?? 0) > 0)
                 <span class="new-badge">✦ {{ $newCount }} nouvelle(s)</span>
                 @endif
+                <span id="poll-indicator" style="font-size:11px;color:var(--text3);margin-left:8px;" title="Actualisation automatique toutes les 30s"></span>
             </div>
         </div>
 
@@ -873,6 +874,8 @@
         let isLoading = false;
         let currentUrl = '{{ route("admin.reservations.index") }}';
         let debounceTimer = null;
+        let pollingTimer = null;
+        let isPolling = false;
 
         function init() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -993,7 +996,10 @@
                     // Mettre à jour l'URL
                     const newUrl = buildUrl();
                     window.history.pushState({}, '', newUrl);
-                    
+
+                    // Réinitialiser le timer de polling après un fetch manuel
+                    startPolling();
+
                 } catch (error) {
                     console.error('Erreur:', error);
                     document.getElementById('table-body').innerHTML = '<tr><td colspan="10" class="text-center py-10 text-red-500">❌ Erreur de chargement</td></tr>';
@@ -1001,6 +1007,45 @@
                     isLoading = false;
                 }
             }
+
+        async function fetchDataSilent() {
+            if (isLoading || isPolling) return;
+            isPolling = true;
+            const params = new URLSearchParams();
+            if (currentFilters.search) params.set('search', currentFilters.search);
+            if (currentFilters.status) params.set('status', currentFilters.status);
+            if (currentFilters.type) params.set('type', currentFilters.type);
+            if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
+            if (currentFilters.periode) params.set('periode', currentFilters.periode);
+            params.set('ajax', '1');
+            try {
+                const response = await fetch(`${currentUrl}?${params}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+                document.getElementById('table-body').innerHTML = data.html;
+                const paginationContainer = document.getElementById('pagination-container');
+                if (paginationContainer && data.pagination) paginationContainer.innerHTML = data.pagination;
+                if (data.stats) updateStats(data.stats);
+                const now = new Date();
+                const hh = now.getHours().toString().padStart(2, '0');
+                const mm = now.getMinutes().toString().padStart(2, '0');
+                const indicator = document.getElementById('poll-indicator');
+                if (indicator) indicator.textContent = `↻ ${hh}:${mm}`;
+            } catch (e) {
+                // échec silencieux — le prochain cycle réessaiera
+            } finally {
+                isPolling = false;
+            }
+        }
+
+        function startPolling() {
+            if (pollingTimer) clearInterval(pollingTimer);
+            pollingTimer = setInterval(() => {
+                if (!document.hidden) fetchDataSilent();
+            }, 30000);
+        }
 
         function buildUrl() {
             const params = new URLSearchParams();
@@ -1031,6 +1076,7 @@
         }
 
         init();
+        startPolling();
     })();
     </script>
     @endpush

@@ -184,14 +184,13 @@
                         class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-[var(--text3)] hover:text-[var(--text)]">☰
                         Liste</button>
                 </div>
-                <div>
+            </div>
+            <div>
                     <button id="btn-select-all" onclick="DISPO.selectAll()"
                     class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--text2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all">
                     ☑ Tout sélectionner
                 </button>
                 </div>
-            </div>
-
             {{-- Boutons export --}}
             <div class="flex gap-2 flex-wrap">
                 <button onclick="DISPO.exportPdf('images')"
