@@ -220,4 +220,54 @@ class RapportController extends Controller
     {
         return response()->json(['status' => 'ok']);
     }
+
+    // ── Rapport motifs d'annulation ────────────────────────────
+    public function annulations(Request $request)
+    {
+        $annee = (int) ($request->annee ?? date('Y'));
+        $anneesDisponibles = range(date('Y'), max(2020, date('Y') - 5));
+
+        $cancelledAll = Campaign::where('status', 'annule')
+            ->whereYear('updated_at', $annee)
+            ->with(['client:id,name', 'user:id,name'])
+            ->orderByDesc('updated_at')
+            ->get();
+
+        $total = $cancelledAll->count();
+
+        $reasonLabels = [
+            'budget'     => 'Budget insuffisant',
+            'zone'       => 'Zone non pertinente',
+            'strategie'  => 'Changement de stratégie',
+            'report'     => 'Report de campagne',
+            'concurrent' => 'Choix concurrent',
+            'autre'      => 'Autre',
+            ''           => 'Non renseigné',
+        ];
+        $reasonColors = [
+            'budget'     => '#ef4444',
+            'zone'       => '#f97316',
+            'strategie'  => '#8b5cf6',
+            'report'     => '#3b82f6',
+            'concurrent' => '#06b6d4',
+            'autre'      => '#6b7280',
+            ''           => '#374151',
+        ];
+
+        $byReason = $cancelledAll->groupBy(fn($c) => $c->cancellation_reason ?? '')
+            ->map(fn($group, $key) => [
+                'key'   => $key,
+                'label' => $reasonLabels[$key] ?? 'Autre',
+                'color' => $reasonColors[$key] ?? '#6b7280',
+                'count' => $group->count(),
+                'pct'   => $total > 0 ? round($group->count() / $total * 100) : 0,
+            ])
+            ->sortByDesc('count')
+            ->values();
+
+        return view('admin.rapports.annulations', compact(
+            'annee', 'anneesDisponibles',
+            'cancelledAll', 'total', 'byReason', 'reasonLabels', 'reasonColors'
+        ));
+    }
 }

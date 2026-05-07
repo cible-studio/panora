@@ -226,7 +226,7 @@
                                 <button type="submit"
                                         class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all"
                                         style="{{ $btnStyle }}"
-                                        @if($val === 'annule') onclick="return confirm('Confirmer l\'annulation ?')" @endif>
+                                        @if($val === 'annule') onclick="openCancelModal(event, this.closest('form'))" @endif>
                                     {{ $btnIcon }} {{ $label }}
                                 </button>
                             </form>
@@ -781,5 +781,92 @@
     function scrollToProlonger() {
         document.getElementById('section-prolonger')?.scrollIntoView({ behavior: 'smooth' });
     }
+
+    // ══ MODAL MOTIF D'ANNULATION ══
+    let _cancelForm = null;
+
+    function openCancelModal(e, form) {
+        e.preventDefault();
+        _cancelForm = form;
+        // Réinitialiser le modal
+        document.querySelectorAll('input[name="cancel_reason"]').forEach(r => r.checked = false);
+        document.getElementById('cancel-notes').value = '';
+        document.getElementById('cancel-notes-group').style.display = 'none';
+        document.getElementById('modal-cancel').style.display = 'flex';
+    }
+
+    function closeCancelModal() {
+        document.getElementById('modal-cancel').style.display = 'none';
+        _cancelForm = null;
+    }
+
+    function onCancelReasonChange(val) {
+        document.getElementById('cancel-notes-group').style.display = val === 'autre' ? 'block' : 'none';
+    }
+
+    function confirmCancel() {
+        const reason = document.querySelector('input[name="cancel_reason"]:checked')?.value || '';
+        const notes  = document.getElementById('cancel-notes').value.trim();
+        if (!reason) { alert('Veuillez sélectionner un motif.'); return; }
+
+        const form = _cancelForm;
+        const addHidden = (name, value) => {
+            let inp = form.querySelector(`input[name="${name}"]`);
+            if (!inp) { inp = document.createElement('input'); inp.type = 'hidden'; inp.name = name; form.appendChild(inp); }
+            inp.value = value;
+        };
+        addHidden('cancellation_reason', reason);
+        addHidden('cancellation_notes', notes);
+        closeCancelModal();
+        form.submit();
+    }
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { closeCancelModal(); }
+    });
     </script>
+
+    {{-- ══ MODAL MOTIF D'ANNULATION ══ --}}
+    <div id="modal-cancel"
+         style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:var(--surface);border-radius:20px;border:1px solid var(--border);max-width:480px;width:90%;overflow:hidden;">
+            <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:18px;font-weight:600;color:var(--text)">🚫 Motif d'annulation</div>
+                <button onclick="closeCancelModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
+            </div>
+            <div style="padding:20px;display:grid;gap:12px;">
+                <p style="font-size:13px;color:var(--text2);margin:0;">Sélectionnez le motif d'annulation de cette campagne :</p>
+                @foreach([
+                    'budget'     => 'Budget insuffisant',
+                    'zone'       => 'Zone non pertinente',
+                    'strategie'  => 'Changement de stratégie',
+                    'report'     => 'Report de campagne',
+                    'concurrent' => 'Choix concurrent',
+                    'autre'      => 'Autre',
+                ] as $key => $libelle)
+                <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);cursor:pointer;background:var(--surface2);">
+                    <input type="radio" name="cancel_reason" value="{{ $key }}" onchange="onCancelReasonChange('{{ $key }}')"
+                           style="width:16px;height:16px;accent-color:var(--accent);">
+                    <span style="font-size:13px;font-weight:500;color:var(--text)">{{ $libelle }}</span>
+                </label>
+                @endforeach
+                <div id="cancel-notes-group" style="display:none;margin-top:4px;">
+                    <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px;">Précision (optionnel)</label>
+                    <textarea id="cancel-notes" rows="2"
+                              style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);resize:vertical;box-sizing:border-box;"
+                              placeholder="Détails supplémentaires…"></textarea>
+                </div>
+            </div>
+            <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:12px;">
+                <button onclick="closeCancelModal()"
+                        style="padding:8px 16px;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;background:transparent;border:1px solid var(--border);color:var(--text2)">
+                    Retour
+                </button>
+                <button onclick="confirmCancel()"
+                        style="padding:8px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;background:#ef4444;border:none;color:#fff">
+                    🚫 Confirmer l'annulation
+                </button>
+            </div>
+        </div>
+    </div>
 </x-admin-layout>

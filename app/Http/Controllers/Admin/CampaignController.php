@@ -10,6 +10,7 @@ use App\Services\AlertService;
 use App\Models\Campaign;
 use App\Models\Client;
 use App\Models\Commune;
+use App\Models\Invoice;
 use App\Models\Panel;
 use App\Models\PanelFormat;
 use App\Models\Reservation;
@@ -41,7 +42,11 @@ class CampaignController extends Controller
     {
         $this->authorize('viewAny', Campaign::class);
 
-        $query = Campaign::with(['client', 'user'])
+        $query = Campaign::with([
+                'client',
+                'user',
+                'invoices' => fn($q) => $q->select(['id','campaign_id','status','amount_ttc','paid_at','reference'])->latest(),
+            ])
             ->withCount(['panels', 'externalPanels', 'invoices'])
             ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
             ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
@@ -153,6 +158,74 @@ class CampaignController extends Controller
             'is_running'  => in_array($campaign->status, [CampaignStatus::ACTIF, CampaignStatus::POSE]),
             'reload'      => $changed, // Frontend recharge la page si statut a changé
             'server_time' => now()->toIso8601String(),
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // FACTURATION RAPIDE (inline depuis la liste)
+    // ══════════════════════════════════════════════════════════════
+    public function billingQuick(Request $request, Campaign $campaign)
+    {
+        $this->authorize('update', $campaign);
+
+        $data = $request->validate([
+            'status'     => 'required|in:brouillon,envoyee,payee,annulee',
+            'paid_at'    => 'nullable|date',
+            'amount_ttc' => 'nullable|numeric|min:0',
+        ]);
+
+        $invoice = $campaign->invoices()->latest()->first();
+
+        if (!$invoice) {
+            $year = (int) date('Y');
+            $seq  = Invoice::whereYear('created_at', $year)->count() + 1;
+            $ref  = 'FAC-' . $year . '-' . str_pad($seq, 3, '0', STR_PAD_LEFT);
+
+            $amount = isset($data['amount_ttc']) ? (float) $data['amount_ttc'] : (float) $campaign->total_amount;
+
+            $invoice = Invoice::create([
+                'reference'   => $ref,
+                'client_id'   => $campaign->client_id,
+                'campaign_id' => $campaign->id,
+                'created_by'  => auth()->id(),
+                'amount'      => $amount,
+                'tva'         => 0,
+                'amount_ttc'  => $amount,
+                'issued_at'   => today(),
+                'status'      => $data['status'],
+                'paid_at'     => $data['status'] === 'payee'
+                                    ? ($data['paid_at'] ?? today()->toDateString())
+                                    : null,
+            ]);
+        } else {
+            $update = ['status' => $data['status']];
+            $update['paid_at'] = $data['status'] === 'payee'
+                ? ($data['paid_at'] ?? today()->toDateString())
+                : null;
+            if (isset($data['amount_ttc'])) {
+                $update['amount']     = (float) $data['amount_ttc'];
+                $update['amount_ttc'] = (float) $data['amount_ttc'];
+            }
+            $invoice->update($update);
+        }
+
+        $cfg = [
+            'brouillon' => ['icon' => '📝', 'label' => 'Brouillon', 'color' => '#6b7280'],
+            'envoyee'   => ['icon' => '📤', 'label' => 'Envoyée',   'color' => '#3b82f6'],
+            'payee'     => ['icon' => '✅', 'label' => 'Payée',     'color' => '#22c55e'],
+            'annulee'   => ['icon' => '🚫', 'label' => 'Annulée',   'color' => '#ef4444'],
+        ][$invoice->status] ?? ['icon' => '', 'label' => $invoice->status, 'color' => ''];
+
+        return response()->json([
+            'ok'      => true,
+            'status'  => $invoice->status,
+            'label'   => $cfg['label'],
+            'icon'    => $cfg['icon'],
+            'color'   => $cfg['color'],
+            'paid_at' => $invoice->paid_at?->format('d/m/Y'),
+            'amount'  => number_format((float) $invoice->amount_ttc, 0, ',', ' '),
+            'ref'     => $invoice->reference,
+            'count'   => $campaign->invoices()->count(),
         ]);
     }
 
@@ -575,7 +648,21 @@ class CampaignController extends Controller
         $userName = auth()->user()?->name;
 
         if ($newStatus === CampaignStatus::ANNULE) {
-            $this->campaignService->cancel($campaign, "Annulation manuelle par {$userName}");
+            $reasonKey   = $request->input('cancellation_reason', '');
+            $cancelNotes = $request->input('cancellation_notes', '');
+            $reasonLabels = [
+                'budget'     => 'Budget insuffisant',
+                'zone'       => 'Zone non pertinente',
+                'strategie'  => 'Changement de stratégie',
+                'report'     => 'Report de campagne',
+                'concurrent' => 'Choix concurrent',
+                'autre'      => 'Autre',
+            ];
+            $reasonLabel = $reasonLabels[$reasonKey] ?? '';
+            $label = "Annulation manuelle par {$userName}" . ($reasonLabel ? " — {$reasonLabel}" : "");
+            if ($cancelNotes) $label .= " : {$cancelNotes}";
+
+            $this->campaignService->cancel($campaign, $label, $reasonKey ?: null, $cancelNotes ?: null);
             $alertLevel = 'danger';
             $alertIcon  = '🚫';
             $alertVerb  = 'a annulé';

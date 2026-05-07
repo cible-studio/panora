@@ -204,10 +204,47 @@
         </div>
     </div>
 
+    {{-- ══ MODAL FACTURATION RAPIDE ══ --}}
+    <div id="modal-billing" class="modal-overlay" style="display:none;">
+        <div class="modal" style="max-width:460px;width:100%;">
+            <div class="modal-header">
+                <div class="modal-title">💰 Facturation — <span id="bill-campaign-name" style="font-size:15px;font-weight:500;"></span></div>
+                <button class="modal-close" onclick="closeBillingModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:grid;gap:14px;">
+                    <div>
+                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px;">Statut</label>
+                        <select id="bill-status" style="width:100%;height:40px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);" onchange="onBillStatusChange()">
+                            <option value="brouillon">📝 Brouillon</option>
+                            <option value="envoyee">📤 Envoyée</option>
+                            <option value="payee">✅ Payée</option>
+                            <option value="annulee">🚫 Annulée</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px;">Montant TTC (FCFA)</label>
+                        <input type="number" id="bill-amount" step="1" min="0"
+                               style="width:100%;height:40px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);box-sizing:border-box;">
+                    </div>
+                    <div id="bill-paid-at-group">
+                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px;">Date de paiement</label>
+                        <input type="date" id="bill-paid-at"
+                               style="width:100%;height:40px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);box-sizing:border-box;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeBillingModal()">Annuler</button>
+                <button class="btn btn-primary" id="bill-submit-btn" onclick="submitBilling()">✅ Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
     <style>
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(6, 1fr);
             gap: 12px;
             margin-bottom: 20px;
         }
@@ -447,7 +484,7 @@
         .mb-4 { margin-bottom: 16px; }
 
         @media (max-width: 768px) {
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
             .filters-grid { grid-template-columns: 1fr; }
             .data-table { font-size: 12px; }
             .data-table th, .data-table td { padding: 8px 10px; }
@@ -456,6 +493,70 @@
 
     @push('scripts')
 <script>
+// ══ MODAL FACTURATION RAPIDE ══
+let _billCampaignId = null;
+
+function openBillingModal(id, name, totalAmount, currentStatus, currentAmount, paidAt) {
+    _billCampaignId = id;
+    document.getElementById('bill-campaign-name').textContent = name;
+    document.getElementById('bill-status').value = currentStatus || 'brouillon';
+    document.getElementById('bill-amount').value = currentAmount ? parseInt(currentAmount.replace(/\s/g,'')) : Math.round(totalAmount);
+    document.getElementById('bill-paid-at').value = paidAt || '';
+    onBillStatusChange();
+    document.getElementById('modal-billing').style.display = 'flex';
+}
+
+function closeBillingModal() {
+    document.getElementById('modal-billing').style.display = 'none';
+    _billCampaignId = null;
+}
+
+function onBillStatusChange() {
+    const status = document.getElementById('bill-status').value;
+    const group = document.getElementById('bill-paid-at-group');
+    group.style.display = status === 'payee' ? 'block' : 'none';
+    if (status === 'payee' && !document.getElementById('bill-paid-at').value) {
+        document.getElementById('bill-paid-at').value = new Date().toISOString().split('T')[0];
+    }
+}
+
+async function submitBilling() {
+    if (!_billCampaignId) return;
+    const btn = document.getElementById('bill-submit-btn');
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    const body = new FormData();
+    body.append('_method', 'PATCH');
+    body.append('_token', document.querySelector('meta[name=csrf-token]')?.content || '{{ csrf_token() }}');
+    body.append('status', document.getElementById('bill-status').value);
+    body.append('amount_ttc', document.getElementById('bill-amount').value);
+    const paidAt = document.getElementById('bill-paid-at').value;
+    if (paidAt) body.append('paid_at', paidAt);
+
+    try {
+        const res = await fetch(`/admin/campaigns/${_billCampaignId}/billing-quick`, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            body,
+        });
+        const data = await res.json();
+        if (data.ok) {
+            closeBillingModal();
+            // Rafraîchir silencieusement le tableau
+            if (typeof fetchDataSilent === 'function') fetchDataSilent();
+            else if (typeof fetchData === 'function') fetchData();
+        } else {
+            alert('Erreur lors de la mise à jour.');
+        }
+    } catch(e) {
+        alert('Erreur réseau.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '✅ Enregistrer';
+    }
+}
+
 // ══ MODAL SUPPRESSION ══
 function openDeleteCampaign(id, name) {
     document.getElementById('del-campaign-name').textContent = name;
