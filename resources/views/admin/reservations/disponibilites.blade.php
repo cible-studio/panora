@@ -184,11 +184,12 @@
                         class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-[var(--text3)] hover:text-[var(--text)]">☰
                         Liste</button>
                 </div>
-
-                <button id="btn-select-all" onclick="DISPO.selectAll()"
+                <div>
+                    <button id="btn-select-all" onclick="DISPO.selectAll()"
                     class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--text2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all">
                     ☑ Tout sélectionner
                 </button>
+                </div>
             </div>
 
             {{-- Boutons export --}}
@@ -1574,9 +1575,9 @@
                         const total = S.sel.ids.reduce((s, id) => s + (S.sel.rates[id] || 0) * months, 0);
                         this._originalEstimate = total;
 
-                        // Si montant personnalisé actif → garder
-                        if (this._customAmount !== null && this._customAmount > 0) {
-                            totalEl.textContent = Math.round(this._customAmount).toLocaleString('fr-FR');
+                        // Si montant personnalisé actif → garder (0 est une valeur valide)
+                        if (this._customAmount !== null) {
+                            totalEl.textContent = this._customAmount === 0 ? '0 (sans prix)' : Math.round(this._customAmount).toLocaleString('fr-FR');
                             monthsEl.textContent = '(montant personnalisé)';
                         } else {
                             totalEl.textContent = Math.round(total).toLocaleString('fr-FR');
@@ -1612,9 +1613,9 @@
 
                     onAmountInput(value) {
                         const num = parseFloat(value);
-                        if (!isNaN(num) && num > 0) {
+                        if (!isNaN(num) && num >= 0) {
                             this._customAmount = num;
-                            _el('modal-total').textContent = Math.round(num).toLocaleString('fr-FR');
+                            _el('modal-total').textContent = num === 0 ? '0 (sans prix)' : Math.round(num).toLocaleString('fr-FR');
                             _el('modal-months').textContent = '(montant personnalisé)';
                         } else {
                             this._customAmount = null;
@@ -1667,8 +1668,8 @@
                             .map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`)
                             .join('');
 
-                        // Montant personnalisé
-                        if (this._customAmount !== null && this._customAmount > 0) {
+                        // Montant personnalisé (0 est valide = sans prix)
+                        if (this._customAmount !== null) {
                             const inp = document.createElement('input');
                             inp.type = 'hidden';
                             inp.name = 'custom_amount';

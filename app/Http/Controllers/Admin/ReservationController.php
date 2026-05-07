@@ -989,11 +989,13 @@ class ReservationController extends Controller
                     }
                 }
 
-                // Tâche 6.1 : montant personnalisé éventuel.
-                $customAmount = (float) $request->input('amount', 0);
-                $total        = $customAmount > 0 ? $customAmount : $autoTotal;
+                // Tâche 6.1 / 2.3 : montant personnalisé éventuel (0 = valide = sans prix).
+                // filled() retourne false pour chaîne vide, true pour "0" → distingue intention.
+                $hasCustomAmount = $request->filled('amount');
+                $customAmount    = $hasCustomAmount ? (float) $request->input('amount') : null;
+                $total           = $hasCustomAmount ? $customAmount : $autoTotal;
 
-                if ($customAmount > 0 && abs($customAmount - $autoTotal) > 0.01) {
+                if ($hasCustomAmount && abs($customAmount - $autoTotal) > 0.01) {
                     Log::info('reservation.custom_amount', [
                         'reference'    => $reference,
                         'auto'         => $autoTotal,
