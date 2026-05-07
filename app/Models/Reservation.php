@@ -223,4 +223,85 @@ class Reservation extends Model
             $this->proposition_slug,
         ]);
     }
+
+    /**
+     * Tous les panneaux de la proposition (internes + externes), normalisés
+     * en arrays uniformes. Utilisé par les vues admin/client/mail pour ne
+     * pas avoir à dupliquer la logique de mapping deux fois.
+     *
+     * Le champ 'source' permet de distinguer 'interne' (Panel) d'un panneau
+     * 'externe' (ExternalPanel) côté UI quand c'est nécessaire.
+     */
+    public function proposalPanels(?float $months = null): \Illuminate\Support\Collection
+    {
+        $months = $months ?? 1.0;
+
+        $internal = $this->panels->map(function ($panel) use ($months) {
+            $photo = $panel->photos->sortBy('ordre')->first();
+            return [
+                'id'           => $panel->id,
+                'source'       => 'interne',
+                'reference'    => $panel->reference,
+                'name'         => $panel->name,
+                'commune'      => $panel->commune?->name ?? '—',
+                'zone'         => $panel->zone?->name    ?? '—',
+                'format'       => $panel->format?->name  ?? '—',
+                'dimensions'   => $this->formatPanelDims($panel->format),
+                'category'     => $panel->category?->name ?? '—',
+                'is_lit'       => (bool) $panel->is_lit,
+                'monthly_rate' => (float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0),
+                'total'        => (float) ($panel->pivot->total_price ?? ($panel->monthly_rate ?? 0) * $months),
+                'photo_url'    => $photo
+                    ? asset('storage/' . ltrim($photo->path, '/'))
+                    : null,
+                'photos'       => $panel->photos->sortBy('ordre')->map(fn($p) => [
+                    'url' => asset('storage/' . ltrim($p->path, '/'))
+                ])->values()->toArray(),
+                'orientation'  => $panel->orientation ?? null,
+                'daily_traffic'=> $panel->daily_traffic ?? null,
+            ];
+        });
+
+        $external = $this->externalPanels->map(function ($panel) use ($months) {
+            return [
+                'id'           => $panel->id,
+                'source'       => 'externe',
+                'reference'    => $panel->code_panneau,
+                'name'         => $panel->designation,
+                'commune'      => $panel->commune?->name ?? '—',
+                'zone'         => $panel->zone?->name    ?? '—',
+                'format'       => $panel->format?->name  ?? '—',
+                'dimensions'   => $this->formatPanelDims($panel->format),
+                'category'     => $panel->category?->name ?? '—',
+                'is_lit'       => (bool) $panel->is_lit,
+                'monthly_rate' => (float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0),
+                'total'        => (float) ($panel->pivot->total_price ?? ($panel->monthly_rate ?? 0) * $months),
+                'photo_url'    => $panel->photo_url,
+                'photos'       => $panel->photo_url
+                    ? [['url' => $panel->photo_url]]
+                    : [],
+                'orientation'  => $panel->orientation ?? null,
+                'daily_traffic'=> $panel->daily_traffic ?? null,
+            ];
+        });
+
+        return $internal->concat($external);
+    }
+
+    /**
+     * Compte total de panneaux (internes + externes) — pour les listings où
+     * on ne veut pas charger les détails complets.
+     */
+    public function getProposalPanelCountAttribute(): int
+    {
+        return $this->panels->count() + $this->externalPanels->count();
+    }
+
+    private function formatPanelDims($format): ?string
+    {
+        if (!$format?->width || !$format?->height) return null;
+        $w = rtrim(rtrim(number_format($format->width, 2, '.', ''), '0'), '.');
+        $h = rtrim(rtrim(number_format($format->height, 2, '.', ''), '0'), '.');
+        return "{$w}×{$h}m";
+    }
 }

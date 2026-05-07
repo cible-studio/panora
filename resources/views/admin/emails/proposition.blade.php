@@ -21,7 +21,7 @@
     //    sinon on retombe sur somme(monthly_rate × mois).
     $totalAmount = (float) ($reservation->total_amount ?? 0);
     if ($totalAmount <= 0) {
-        $totalAmount = $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0) * $months);
+        $totalAmount = $panels->sum(fn($p) => (float) ($p['monthly_rate'] ?? 0) * $months);
     }
 
     $preheader = "{$panelCount} emplacements · {$totalDays} jour" . ($totalDays > 1 ? 's' : '')
@@ -76,18 +76,20 @@
                style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:8px 0 18px;">
             @foreach($panels->take(5) as $i => $panel)
                 @php
-                    $catalogue = (float) ($panel->monthly_rate ?? 0);
-                    $unit      = (float) ($panel->pivot->unit_price ?? $catalogue);
-                    $total     = (float) ($panel->pivot->total_price ?? ($unit * $months));
-                    $negotiated = abs($unit - $catalogue) > 0.01;
+                    // Le tarif catalogue n'est pas exposé dans la projection
+                    // unifiée — pour les externes c'est la régie qui fixe.
+                    // On compare unit (pivot) vs monthly_rate ('catalogue' de
+                    // la projection) pour détecter une remise négociée.
+                    $unit  = (float) ($panel['monthly_rate'] ?? 0);
+                    $total = (float) ($panel['total'] ?? ($unit * $months));
                 @endphp
                 <tr style="{{ $i > 0 ? 'border-top:1px solid #f1f5f9;' : '' }}">
                     <td style="padding:12px 16px;">
-                        <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#c2570d;font-weight:600;">{{ $panel->reference }}</div>
-                        <div style="font-size:14px;color:#111827;font-weight:500;margin-top:2px;">{{ Str::limit($panel->name, 50) }}</div>
+                        <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#c2570d;font-weight:600;">{{ $panel['reference'] }}</div>
+                        <div style="font-size:14px;color:#111827;font-weight:500;margin-top:2px;">{{ Str::limit($panel['name'] ?? '', 50) }}</div>
                         <div style="font-size:12px;color:#6b7280;margin-top:2px;">
-                            {{ $panel->commune?->name ?? '—' }}
-                            @if($panel->format?->name) · {{ $panel->format->name }} @endif
+                            {{ $panel['commune'] ?? '—' }}
+                            @if(!empty($panel['format']) && $panel['format'] !== '—') · {{ $panel['format'] }} @endif
                         </div>
                     </td>
                     <td style="padding:12px 16px;text-align:right;vertical-align:top;white-space:nowrap;">
@@ -96,12 +98,7 @@
                             <div style="font-size:11px;color:#9ca3af;">total période</div>
                             @if($unit > 0)
                                 <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-                                    @if($negotiated)
-                                        <span style="text-decoration:line-through;color:#9ca3af">{{ number_format($catalogue, 0, ',', ' ') }} FCFA/mois</span><br>
-                                        <span style="color:#16a34a;font-weight:600">→ {{ number_format($unit, 0, ',', ' ') }} FCFA/mois</span>
-                                    @else
-                                        {{ number_format($unit, 0, ',', ' ') }} FCFA/mois
-                                    @endif
+                                    {{ number_format($unit, 0, ',', ' ') }} FCFA/mois
                                 </div>
                             @endif
                         @else

@@ -1392,8 +1392,8 @@ class ReservationController extends Controller
         if (!$reservation->isCancellable())
             abort(403, 'Réservation non annulable.');
         
-        $panelCount = $reservation->panels->count();
-        
+        $panelCount = $reservation->panels->count() + $reservation->externalPanels->count();
+
         // Extraire les données d'annulation
         $cancelData = [
             'cancel_type' => $request->input('cancel_type', 'autre'),
@@ -1421,7 +1421,7 @@ class ReservationController extends Controller
     {
         if (!$reservation->isDeletable())
             abort(403, 'Impossible : réservation active ou liée à une campagne.');
-        $panelCount = $reservation->panels()->count();
+        $panelCount = $reservation->panels()->count() + $reservation->externalPanels()->count();
         $hasCampaign = $reservation->campaign !== null;
         try {
             $this->reservationService->delete($reservation);

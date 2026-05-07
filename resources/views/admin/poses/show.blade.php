@@ -192,7 +192,17 @@ $sIconLg = match($poseTask->status) {
 
                     {{-- Statut envoi --}}
                     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
-                        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:4px">📤 Notification</div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px">
+                            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)">📤 Notification</div>
+                            @if($tech && $tech->whatsapp_number && !in_array($poseTask->status, ['realisee','annulee']))
+                            <form method="POST" action="{{ route('admin.pose-tasks.notify', $poseTask) }}" style="margin:0">
+                                @csrf
+                                <button type="submit" style="font-size:10px;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0">
+                                    {{ $waSent ? 'Renvoyer' : 'Envoyer' }}
+                                </button>
+                            </form>
+                            @endif
+                        </div>
                         @if($waSent)
                             <div style="font-size:12px;color:#22c55e;font-weight:600">
                                 ✓ Envoyée
@@ -346,13 +356,16 @@ $sIconLg = match($poseTask->status) {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
                         Modifier la tâche
                     </a>
-                    <button type="button"
-                            onclick="Confirm.show('Supprimer définitivement la tâche du panneau <strong>{{ $poseTask->panel?->reference }}</strong> ? Cette action est irréversible.', 'danger', function(){ document.getElementById(\'form-destroy\').submit(); })"
-                            class="sb-action sb-action-danger" style="width:100%;text-align:left;cursor:pointer">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                        Supprimer la tâche
-                    </button>
-                    <form id="form-destroy" method="POST" action="{{ route('admin.pose-tasks.destroy', $poseTask) }}" style="display:none">@csrf @method('DELETE')</form>
+                    <form method="POST"
+                          action="{{ route('admin.pose-tasks.destroy', $poseTask) }}"
+                          onsubmit="return confirm('Supprimer définitivement la tâche du panneau {{ $poseTask->panel?->reference }} ? Cette action est irréversible.');"
+                          style="margin:0">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="sb-action sb-action-danger" style="width:100%;text-align:left;cursor:pointer;border:1px solid rgba(239,68,68,.15)">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                            Supprimer la tâche
+                        </button>
+                    </form>
                 </div>
                 @endif
             </div>

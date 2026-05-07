@@ -38,7 +38,19 @@
       "Bash(php -l app/Mail/UserWelcomeMail.php)",
       "Bash(php -l app/Mail/PropositionDecisionMail.php)",
       "Bash(php -l app/Services/NotificationMailer.php)",
-      "Bash(file /c/wamp64/www/panora/public/images/logo*.png)"
+      "Bash(file /c/wamp64/www/panora/public/images/logo*.png)",
+      "Bash(grep -n 'panelCount\\\\s*=\\\\s*\\\\$reservation->panels' c:/wamp64/www/panora/app/Http/Controllers/Admin/ReservationController.php)",
+      "Bash(grep -n \"use Illuminate\\\\\\\\\\\\\\\\Support\\\\\\\\\\\\\\\\Facades\\\\\\\\\\\\\\\\DB\" c:/wamp64/www/panora/app/Http/Controllers/Admin/CampaignController.php)",
+      "Bash(grep -n \"use Log\\\\|use .*\\\\\\\\\\\\\\\\Log\" c:/wamp64/www/panora/app/Http/Controllers/Admin/CampaignController.php)",
+      "Bash(php -l c:/wamp64/www/panora/app/Http/Controllers/Admin/ReservationController.php)",
+      "Bash(php -l c:/wamp64/www/panora/app/Services/CampaignService.php)",
+      "Bash(php -l c:/wamp64/www/panora/app/Observers/ReservationObserver.php)",
+      "Bash(php -l c:/wamp64/www/panora/app/Console/Commands/ExpireOptions.php)",
+      "Bash(php -l c:/wamp64/www/panora/app/Console/Commands/ExpireReservationOptions.php)",
+      "Bash(php -l c:/wamp64/www/panora/app/Console/Commands/SyncExpiredReservations.php)",
+      "Bash(grep -n 'slot\\\\|{{ $slot\\\\|stack' c:/wamp64/www/panora/resources/views/layouts/admin.blade.php)",
+      "Bash(php -l c:/wamp64/www/panora/app/Services/WhatsAppService.php)",
+      "Bash(php -l c:/wamp64/www/panora/app/Http/Controllers/Admin/PoseController.php)"
     ]
   }
 }

@@ -477,7 +477,7 @@ window.PropositionActions = {
         this._showModal({
             title: 'Envoyer la proposition',
             message: 'Un email sera envoyé au client avec un lien sécurisé pour consulter et valider la proposition.',
-            details: 'Le lien sera valable 30 jours et accessible uniquement au client.',
+            details: 'Le lien sera valable jusqu\'à la fin de la réservation (max 30 jours) et accessible uniquement au client.',
             recipient: this._currentRecipient(),
             type: 'confirm',
             confirmText: 'Envoyer',

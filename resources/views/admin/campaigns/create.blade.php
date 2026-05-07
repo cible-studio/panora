@@ -31,7 +31,7 @@
                 <strong>Pré-rempli depuis la réservation {{ $preselectedReservation->reference }}</strong><br>
                 <span style="font-size:12px;opacity:.8;">
                     {{ $preselectedReservation->client?->name }} ·
-                    {{ $preselectedReservation->panels->count() }} panneau(x) ·
+                    {{ $preselectedReservation->panels->count() + $preselectedReservation->externalPanels->count() }} panneau(x) ·
                     {{ number_format($preselectedReservation->total_amount, 0, ',', ' ') }} FCFA ·
                     {{ $preselectedReservation->start_date->format('d/m/Y') }}
                     → {{ $preselectedReservation->end_date->format('d/m/Y') }}
@@ -104,15 +104,16 @@
                                    padding:10px 14px;color:var(--text);font-size:13px;outline:none;">
                         <option value="">Aucune réservation liée</option>
                         @foreach($reservations as $r)
+                        @php $rTotal = $r->panels->count() + $r->externalPanels->count(); @endphp
                         <option value="{{ $r->id }}"
                                 data-start="{{ $r->start_date->format('Y-m-d') }}"
                                 data-end="{{ $r->end_date->format('Y-m-d') }}"
                                 data-client="{{ $r->client_id }}"
                                 data-amount="{{ $r->total_amount }}"
-                                data-panels="{{ $r->panels->count() }}"
+                                data-panels="{{ $rTotal }}"
                             {{ old('reservation_id', $preselectedReservation?->id) == $r->id ? 'selected' : '' }}>
                             {{ $r->reference }} — {{ $r->client?->name }}
-                            ({{ $r->panels->count() }} pan. ·
+                            ({{ $rTotal }} pan. ·
                             {{ number_format($r->total_amount, 0, ',', ' ') }} FCFA)
                         </option>
                         @endforeach

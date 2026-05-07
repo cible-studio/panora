@@ -31,7 +31,7 @@ class ExpireOptions extends Command
         // Options (en_attente) expirées — la date de fin est passée
         $expired = Reservation::where('status', ReservationStatus::EN_ATTENTE->value)
             ->where('end_date', '<', $today)
-            ->with('panels')
+            ->with(['panels', 'externalPanels'])
             ->get();
 
         if ($expired->isEmpty()) {
@@ -41,19 +41,24 @@ class ExpireOptions extends Command
 
         $count = 0;
         foreach ($expired as $reservation) {
-            $panelIds = $reservation->panels->pluck('id')->toArray();
+            $panelIds    = $reservation->panels->pluck('id')->toArray();
+            $externalIds = $reservation->externalPanels->pluck('id')->toArray();
 
             $reservation->update(['status' => ReservationStatus::ANNULE->value]);
 
             if (!empty($panelIds)) {
                 $this->availability->syncPanelStatuses($panelIds);
             }
+            if (!empty($externalIds)) {
+                $this->availability->syncExternalPanelStatuses($externalIds);
+            }
 
             Log::info('reservation.option_expired', [
-                'reservation_id' => $reservation->id,
-                'reference'      => $reservation->reference,
-                'end_date'       => $reservation->end_date->format('Y-m-d'),
-                'panels_freed'   => count($panelIds),
+                'reservation_id'  => $reservation->id,
+                'reference'       => $reservation->reference,
+                'end_date'        => $reservation->end_date->format('Y-m-d'),
+                'panels_freed'    => count($panelIds),
+                'externals_freed' => count($externalIds),
             ]);
 
             $count++;

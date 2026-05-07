@@ -37,9 +37,10 @@
             <div class="lbl">Période</div>
             <div class="val">{{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}</div>
         </div>
+        @php $panelCount = $reservation->panels->count() + $reservation->externalPanels->count(); @endphp
         <div class="info-row">
             <div class="lbl">Panneaux</div>
-            <div class="val">{{ $reservation->panels->count() }} emplacement{{ $reservation->panels->count() > 1 ? 's' : '' }}</div>
+            <div class="val">{{ $panelCount }} emplacement{{ $panelCount > 1 ? 's' : '' }}</div>
         </div>
         @if($totalAmount > 0)
             <div class="info-row">

@@ -158,21 +158,28 @@ class ReservationService
     // ══════════════════════════════════════════════════════════════
     public function cancel(Reservation $reservation, array $extraData = []): void
     {
-        $panelIds  = $reservation->panels->pluck('id')->toArray();
-        $oldStatus = $reservation->status->value;
+        $panelIds    = $reservation->panels->pluck('id')->toArray();
+        $externalIds = $reservation->externalPanels->pluck('id')->toArray();
+        $oldStatus   = $reservation->status->value;
 
         $reservation->update(array_merge(
             ['status' => ReservationStatus::ANNULE->value],
             $extraData // cancel_type, cancel_reason, cancelled_at, cancelled_by
         ));
 
-        $this->availability->syncPanelStatuses($panelIds);
+        if (!empty($panelIds)) {
+            $this->availability->syncPanelStatuses($panelIds);
+        }
+        if (!empty($externalIds)) {
+            $this->availability->syncExternalPanelStatuses($externalIds);
+        }
 
         Log::info('reservation.cancelled', [
             'reservation_id' => $reservation->id,
             'from_status'    => $oldStatus,
             'cancel_type'    => $extraData['cancel_type'] ?? null,
             'panel_ids'      => $panelIds,
+            'external_ids'   => $externalIds,
             'user_id'        => auth()->id(),
         ]);
     }
@@ -191,9 +198,16 @@ class ReservationService
         }
 
         $reservation->update($data);
-        $this->availability->syncPanelStatuses(
-            $reservation->panels->pluck('id')->toArray()
-        );
+
+        $panelIds    = $reservation->panels->pluck('id')->toArray();
+        $externalIds = $reservation->externalPanels->pluck('id')->toArray();
+
+        if (!empty($panelIds)) {
+            $this->availability->syncPanelStatuses($panelIds);
+        }
+        if (!empty($externalIds)) {
+            $this->availability->syncExternalPanelStatuses($externalIds);
+        }
 
         Log::info('reservation.status_changed', [
             'reservation_id' => $reservation->id,
@@ -208,10 +222,11 @@ class ReservationService
     // ══════════════════════════════════════════════════════════════
     public function delete(Reservation $reservation): void
     {
-        $panelIds = $reservation->panels()->pluck('panels.id')->toArray();
-        $campaign = $reservation->campaign;
+        $panelIds    = $reservation->panels()->pluck('panels.id')->toArray();
+        $externalIds = $reservation->externalPanels()->pluck('external_panels.id')->toArray();
+        $campaign    = $reservation->campaign;
 
-        DB::transaction(function () use ($reservation, $panelIds, $campaign) {
+        DB::transaction(function () use ($reservation, $panelIds, $externalIds, $campaign) {
             if ($campaign) {
                 $campaign->update([
                     'status' => CampaignStatus::ANNULE->value,
@@ -228,11 +243,21 @@ class ReservationService
                 ]);
             }
 
+            // Detach internes via la relation (filtrée source='interne')
+            // + clean les lignes externes de reservation_panels via DELETE direct.
             $reservation->panels()->detach();
+            DB::table('reservation_panels')
+                ->where('reservation_id', $reservation->id)
+                ->where('source', 'externe')
+                ->delete();
+
             $reservation->delete();
 
             if (!empty($panelIds)) {
                 $this->availability->syncPanelStatuses($panelIds);
+            }
+            if (!empty($externalIds)) {
+                $this->availability->syncExternalPanelStatuses($externalIds);
             }
 
             Log::info('reservation.deleted', [
@@ -240,6 +265,7 @@ class ReservationService
                 'reference'        => $reservation->reference,
                 'campaign_annuled' => $campaign !== null,
                 'panels_freed'     => count($panelIds),
+                'externals_freed'  => count($externalIds),
                 'user_id'          => auth()->id(),
             ]);
         });

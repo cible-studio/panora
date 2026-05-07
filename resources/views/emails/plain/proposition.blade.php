@@ -13,7 +13,7 @@
 
     $totalAmount = (float) ($reservation->total_amount ?? 0);
     if ($totalAmount <= 0) {
-        $totalAmount = $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0) * $months);
+        $totalAmount = $panels->sum(fn($p) => (float) ($p['monthly_rate'] ?? 0) * $months);
     }
 @endphp
 CIBLE CI — Régie Publicitaire (Abidjan, Côte d'Ivoire)

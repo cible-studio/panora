@@ -303,7 +303,7 @@
             <h2 class="font-bold text-lg flex items-center gap-2" style="color:var(--text)">
                 <span class="text-2xl">🪧</span> Panneaux
                 <span class="text-sm px-3 py-1 rounded-full" style="background:var(--surface3);color:var(--text3)">
-                    {{ $campaign->panels->count() }}
+                    {{ $campaign->panels->count() + $campaign->externalPanels->count() }}
                 </span>
             </h2>
             @if($can['managePanel'])
@@ -488,12 +488,55 @@
                         @endif
                     </tr>
                 @empty
+                @endforelse
+
+                {{-- Panneaux externes (régies partenaires) — gérés en lecture
+                     seule dans cet écran : ajout/retrait passe par la fiche
+                     réservation pour préserver le verrou anti-double-booking. --}}
+                @foreach($campaign->externalPanels as $panel)
+                    @php $rate = (float) ($panel->monthly_rate ?? 0); @endphp
+                    <tr class="border-b transition-all group" style="border-color:var(--border);background:rgba(124,58,237,0.025)"
+                        onmouseover="this.style.background='rgba(124,58,237,0.06)'"
+                        onmouseout="this.style.background='rgba(124,58,237,0.025)'">
+                        <td class="px-5 py-4">
+                            <span class="font-mono text-sm font-bold" style="color:#7c3aed">{{ $panel->code_panneau }}</span>
+                            <span class="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full" style="background:rgba(124,58,237,.12);color:#7c3aed">
+                                Régie {{ $panel->agency?->name ?? 'partenaire' }}
+                            </span>
+                        </td>
+                        <td class="px-5 py-4 font-medium" style="color:var(--text)">{{ $panel->designation }}</td>
+                        <td class="px-5 py-4" style="color:var(--text2)">{{ $panel->commune?->name ?? '—' }}</td>
+                        <td class="px-5 py-4" style="color:var(--text2)">{{ $panel->format?->name ?? '—' }}</td>
+                        <td class="px-5 py-4">
+                            @if($panel->is_lit)
+                                <span style="color:var(--accent)">💡 Oui</span>
+                            @else
+                                <span style="color:var(--text3)">Non</span>
+                            @endif
+                        </td>
+                        <td class="px-5 py-4 text-right" style="color:var(--text2)">
+                            {{ $rate > 0 ? number_format($rate, 0, ',', ' ') . ' FCFA' : '—' }}
+                        </td>
+                        <td class="px-5 py-4 text-right font-semibold" style="color:var(--accent)">
+                            {{ $rate > 0 ? number_format($rate * $billableMonths, 0, ',', ' ') . ' FCFA' : '—' }}
+                        </td>
+                        <td class="px-5 py-4">
+                            <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold border"
+                                  style="background:rgba(124,58,237,.1);color:#7c3aed;border-color:rgba(124,58,237,.3)">
+                                Externe
+                            </span>
+                        </td>
+                        @if($can['managePanel'])<td class="px-5 py-4"></td>@endif
+                    </tr>
+                @endforeach
+
+                @if($campaign->panels->isEmpty() && $campaign->externalPanels->isEmpty())
                     <tr>
                         <td colspan="{{ $can['managePanel'] ? 9 : 8 }}" class="text-center py-16" style="color:var(--text3)">
                             Aucun panneau lié à cette campagne
                         </td>
                     </tr>
-                @endforelse
+                @endif
                 </tbody>
             </table>
         </div>

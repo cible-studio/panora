@@ -47,7 +47,7 @@ class ClientDashboardController extends Controller
         // Campagnes actives
         $campagnesActives = $client->campaigns()
             ->whereIn('status', ['actif', 'pose'])
-            ->withCount('panels')
+            ->withCount(['panels', 'externalPanels'])
             ->orderByDesc('start_date')
             ->limit(5)
             ->get();
@@ -83,12 +83,12 @@ class ClientDashboardController extends Controller
             ->limit(5)
             ->get();
         
-        // Panneaux actifs (une seule requête)
+        // Panneaux actifs (une seule requête, internes + externes)
         $activePanelsCount = $client->campaigns()
             ->whereIn('status', ['actif', 'pose'])
-            ->withCount('panels')
+            ->withCount(['panels', 'externalPanels'])
             ->get()
-            ->sum('panels_count');
+            ->sum(fn($c) => (int) $c->panels_count + (int) $c->external_panels_count);
         
         $stats = [
             'propositions_en_attente' => $client->reservations()
@@ -120,7 +120,7 @@ class ClientDashboardController extends Controller
         $client = Auth::guard('client')->user();
 
         $query = $client->campaigns()
-            ->withCount('panels')
+            ->withCount(['panels', 'externalPanels'])
             ->with('satisfactionSurvey');
 
         if ($request->filled('search')) {
@@ -152,7 +152,7 @@ class ClientDashboardController extends Controller
 
         $propositions = $client->reservations()
             ->whereNotNull('proposition_token')
-            ->with(['panels.photos', 'panels.commune', 'panels.format'])
+            ->with(['panels.photos', 'panels.commune', 'panels.format', 'externalPanels'])
             ->orderByDesc('proposition_sent_at')
             ->paginate(10);
 
@@ -178,33 +178,15 @@ class ClientDashboardController extends Controller
             // Proposition expirée/traitée — afficher quand même
         }
 
-        $reservation->load(['panels.photos', 'panels.commune', 'panels.format', 'panels.zone', 'panels.category', 'user:id,name,email,role,whatsapp_number']);
+        $reservation->load([
+            'panels.photos', 'panels.commune', 'panels.format', 'panels.zone', 'panels.category',
+            'externalPanels.commune', 'externalPanels.zone', 'externalPanels.format', 'externalPanels.category',
+            'user:id,name,email,role,whatsapp_number',
+        ]);
         $this->propositionService->marquerVue($reservation);
 
         $months = $this->monthsBetween($reservation->start_date, $reservation->end_date);
-        $panels = $reservation->panels->map(function ($panel) use ($months) {
-            $photo = $panel->photos->sortBy('ordre')->first();
-            // Utiliser le prix pivot négocié (même logique que PropositionController::buildPanels)
-            $unitPrice  = (float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0);
-            $totalPrice = (float) ($panel->pivot->total_price ?? ($unitPrice * $months));
-            return [
-                'id'           => $panel->id,
-                'reference'    => $panel->reference,
-                'name'         => $panel->name,
-                'commune'      => $panel->commune?->name ?? '—',
-                'zone'         => $panel->zone?->name ?? '—',
-                'format'       => $panel->format?->name ?? '—',
-                'dimensions'   => $this->formatDims($panel->format),
-                'category'     => $panel->category?->name ?? '—',
-                'is_lit'       => (bool) $panel->is_lit,
-                'monthly_rate' => $unitPrice,
-                'total'        => $totalPrice,
-                'photo_url'    => $photo ? asset('storage/' . ltrim($photo->path, '/')) : null,
-                'photos'       => $panel->photos->sortBy('ordre')->map(fn($p) => [
-                    'url' => asset('storage/' . ltrim($p->path, '/'))
-                ])->values()->toArray(),
-            ];
-        });
+        $panels = $reservation->proposalPanels($months);
 
         $joursRestants = now()->startOfDay()->diffInDays($reservation->end_date->startOfDay(), false);
 
@@ -233,33 +215,43 @@ class ClientDashboardController extends Controller
             'panels.photos',
             'panels.commune:id,name',
             'panels.format:id,name,width,height',
+            'externalPanels.commune:id,name',
+            'externalPanels.format:id,name,width,height',
+            'externalPanels.agency:id,name',
             'invoices',
             'user:id,name,email,role,whatsapp_number',
             'satisfactionSurvey',
         ]);
 
-        $panelIds = $campaign->panels->pluck('id');
+        $panelIds        = $campaign->panels->pluck('id');
+        $externalIdsCount = $campaign->externalPanels->count();
 
-        // Poses réalisées par panneau — 1 requête, keyBy panel_id
+        // Poses réalisées par panneau interne — 1 requête, keyBy panel_id.
+        // NOTE : la table pose_tasks ne référence actuellement que les internes
+        // (colonne panel_id). Les panneaux externes ne sont pas posés via cette
+        // table — un module dédié serait nécessaire pour étendre la pose à eux.
         $poses = PoseTask::where('campaign_id', $campaign->id)
             ->where('status', 'realisee')
             ->orderByDesc('done_at')
             ->get(['panel_id', 'status', 'done_at'])
             ->keyBy('panel_id');
 
-        // Piges vérifiées groupées par panneau — 1 requête
+        // Piges vérifiées groupées par panneau interne (même limitation)
         $pigesVerif = Pige::where('campaign_id', $campaign->id)
             ->where('status', 'verifie')
             ->orderByDesc('verified_at')
             ->get(['id', 'panel_id', 'photo_path', 'photo_thumb', 'verified_at', 'gps_lat', 'gps_lng'])
-            ->groupBy('panel_id'); // Collection de collections indexée par panel_id
+            ->groupBy('panel_id');
 
-        // KPI couverture
-        $totalPanneaux   = $panelIds->count();
-        $posesCount      = $poses->count();         // nb panneaux distincts posés
-        $pigesCount      = $pigesVerif->count();    // nb panneaux distincts pigés
-        $coveragePercent = $totalPanneaux > 0
-            ? round(($pigesCount / $totalPanneaux) * 100)
+        // KPI couverture — total inclut internes + externes pour l'affichage,
+        // mais le pourcentage se calcule sur les internes (ceux qui peuvent
+        // effectivement être pigés via la table piges actuelle).
+        $totalPanneaux        = $panelIds->count() + $externalIdsCount;
+        $totalPanneauxPiges   = $panelIds->count(); // dénominateur réel pour la pige
+        $posesCount           = $poses->count();
+        $pigesCount           = $pigesVerif->count();
+        $coveragePercent      = $totalPanneauxPiges > 0
+            ? round(($pigesCount / $totalPanneauxPiges) * 100)
             : 0;
 
         return view('client.campagne-detail', compact(
@@ -484,20 +476,32 @@ class ClientDashboardController extends Controller
     // ══════════════════════════════════════════════════════════════
     // HELPERS
     // ══════════════════════════════════════════════════════════════
+    /**
+     * Règle facturation CIBLE CI — alignée sur PropositionController::monthsBetween
+     * et ReservationService::monthsBetween :
+     *   1-15 jours résiduels  → +0.5 mois
+     *   16-30 jours résiduels → +1 mois
+     *   minimum facturable    → 0.5 mois
+     */
     private function monthsBetween($start, $end): float
     {
-        $s      = Carbon::parse($start)->startOfDay();
-        $e      = Carbon::parse($end)->endOfDay();
-        $months = (int) $s->diffInMonths($e);
-        $remain = $s->copy()->addMonths($months)->diffInDays($e);
-        return max((float) ($remain > 0 ? $months + 1 : $months), 1.0);
+        $s = Carbon::parse($start)->startOfDay();
+        $e = Carbon::parse($end)->startOfDay();
+
+        $totalDays = (int) $s->diffInDays($e);
+        if ($totalDays <= 0) return 0.5;
+
+        $fullMonths = (int) floor($totalDays / 30);
+        $remainDays = $totalDays % 30;
+
+        $fraction = 0;
+        if ($remainDays >= 1 && $remainDays <= 15) {
+            $fraction = 0.5;
+        } elseif ($remainDays > 15) {
+            $fraction = 1;
+        }
+
+        return max($fullMonths + $fraction, 0.5);
     }
 
-    private function formatDims($format): ?string
-    {
-        if (!$format?->width || !$format?->height) return null;
-        $w = rtrim(rtrim(number_format($format->width,  2, '.', ''), '0'), '.');
-        $h = rtrim(rtrim(number_format($format->height, 2, '.', ''), '0'), '.');
-        return "{$w}×{$h}m";
-    }
 }

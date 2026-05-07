@@ -20,8 +20,8 @@ use App\Exports\CampaignsExport;
 use App\Support\PdfAssets;
 
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -42,7 +42,7 @@ class CampaignController extends Controller
         $this->authorize('viewAny', Campaign::class);
 
         $query = Campaign::with(['client', 'user'])
-            ->withCount(['panels', 'invoices'])
+            ->withCount(['panels', 'externalPanels', 'invoices'])
             ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
             ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
             ->when($request->status,      fn($q, $s)  => $q->where('status', $s))
@@ -106,6 +106,9 @@ class CampaignController extends Controller
             'reservation:id,reference,status,start_date,end_date',
             'panels.commune:id,name',
             'panels.format:id,name',
+            'externalPanels.commune:id,name',
+            'externalPanels.format:id,name',
+            'externalPanels.agency:id,name',
             'invoices:id,campaign_id,reference,amount_ttc',
         ]);
 
@@ -199,14 +202,14 @@ class CampaignController extends Controller
         $this->authorize('create', Campaign::class);
 
         $clients      = Client::orderBy('name')->get();
-        $reservations = Reservation::with('client', 'panels')
+        $reservations = Reservation::with(['client', 'panels', 'externalPanels'])
             ->where('status', 'confirme')
             ->whereDoesntHave('campaign')
             ->get();
 
         $preselectedReservation = null;
         if ($request->filled('reservation_id')) {
-            $preselectedReservation = Reservation::with(['client', 'panels'])
+            $preselectedReservation = Reservation::with(['client', 'panels', 'externalPanels'])
                 ->where('status', 'confirme')
                 ->whereDoesntHave('campaign')
                 ->find($request->reservation_id);
@@ -251,7 +254,7 @@ class CampaignController extends Controller
 
                 $reservation = null;
                 if (!empty($data['reservation_id'])) {
-                    $reservation = Reservation::with('panels')->findOrFail($data['reservation_id']);
+                    $reservation = Reservation::with(['panels', 'externalPanels'])->findOrFail($data['reservation_id']);
 
                     if ($reservation->campaign()->exists()) {
                         throw new \Exception('Cette réservation est déjà liée à une campagne.');
@@ -260,7 +263,7 @@ class CampaignController extends Controller
                         throw new \Exception('Le client ne correspond pas à celui de la réservation.');
                     }
 
-                    $data['total_panels'] = $reservation->panels->count();
+                    $data['total_panels'] = $reservation->panels->count() + $reservation->externalPanels->count();
                     $data['total_amount'] = $reservation->total_amount;
                     $data['start_date']   ??= $reservation->start_date;
                     $data['end_date']     ??= $reservation->end_date;
@@ -269,7 +272,24 @@ class CampaignController extends Controller
                 $campaign = Campaign::create($data);
 
                 if ($reservation !== null) {
-                    $campaign->panels()->sync($reservation->panels->pluck('id'));
+                    $internalIds = $reservation->panels->pluck('id')->all();
+                    if (!empty($internalIds)) {
+                        $campaign->panels()->sync($internalIds);
+                    }
+
+                    // Attache aussi les externes — pivot campaign_panels avec
+                    // type='externe' (cf. ReservationController::store).
+                    $externalIds = $reservation->externalPanels->pluck('id')->all();
+                    if (!empty($externalIds)) {
+                        $rows = array_map(fn($id) => [
+                            'campaign_id'       => $campaign->id,
+                            'external_panel_id' => $id,
+                            'type'              => 'externe',
+                            'created_at'        => now(),
+                            'updated_at'        => now(),
+                        ], $externalIds);
+                        DB::table('campaign_panels')->insert($rows);
+                    }
                 }
 
                 Log::info('campaign.created', [

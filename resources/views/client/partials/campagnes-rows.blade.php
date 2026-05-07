@@ -19,7 +19,7 @@
         {{ $camp->start_date->format('d/m/Y') }} → {{ $camp->end_date->format('d/m/Y') }}
     </td>
     <td style="padding:14px 16px;font-size:13px;color:var(--text2);">
-        {{ $camp->panels_count }}
+        {{ ($camp->panels_count ?? 0) + ($camp->external_panels_count ?? 0) }}
     </td>
     <td style="padding:14px 16px;font-size:13px;font-weight:700;color:#e20613;white-space:nowrap;">
         {{ number_format($camp->total_amount ?? 0, 0, ',', ' ') }} FCFA

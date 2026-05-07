@@ -804,9 +804,10 @@
                 <div class="inline-flex items-center justify-center w-14 h-14 rounded-full text-2xl mb-3"
                      style="background:rgba(239,68,68,.1)">🚫</div>
                 <div class="font-semibold mb-1">Annuler {{ $reservation->reference }} ?</div>
+                @php $resaPanelCount = $reservation->panels->count() + $reservation->externalPanels->count(); @endphp
                 <div class="text-sm" style="color:var(--text2)">
                     Réservation de <strong style="color:var(--text)">{{ $reservation->client?->name }}</strong>
-                    · {{ $reservation->panels->count() }} panneau(x)
+                    · {{ $resaPanelCount }} panneau(x)
                 </div>
             </div>
 
@@ -815,7 +816,7 @@
                 <ul class="space-y-1.5" style="color:var(--text2)">
                     <li class="flex items-start gap-2">
                         <span style="color:var(--green)">✓</span>
-                        <span>Les {{ $reservation->panels->count() }} panneau(x) seront <strong>immédiatement libérés</strong>.</span>
+                        <span>Les {{ $resaPanelCount }} panneau(x) seront <strong>immédiatement libérés</strong>.</span>
                     </li>
                     <li class="flex items-start gap-2">
                         <span style="color:var(--green)">✓</span>
@@ -931,7 +932,7 @@ const STATUS_CONFIG = {
         title: '❌ Refuser la réservation', icon: '❌', iconBg: 'rgba(239,68,68,.1)',
         desc: 'Vous êtes sur le point de refuser la réservation {{ $reservation->reference }}.',
         consequences: [
-            { icon: '🔓', text: 'Les {{ $reservation->panels->count() }} panneau(x) seront <strong>immédiatement libérés</strong>.' },
+            { icon: '🔓', text: 'Les {{ $resaPanelCount }} panneau(x) seront <strong>immédiatement libérés</strong>.' },
             { icon: '🗄️', text: 'La réservation sera conservée en <strong>historique</strong> avec le statut « Refusé ».' },
         ],
         warning: 'Le refus est irréversible.',

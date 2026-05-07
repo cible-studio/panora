@@ -53,6 +53,10 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
+        // S'assure que les compteurs panels/externalPanels sont disponibles
+        // pour les vues — idempotent si déjà chargés.
+        $this->reservation->loadMissing(['panels', 'externalPanels']);
+
         return new Content(
             view: 'emails.proposition-decision',
             text: 'emails.plain.proposition-decision',  // Version texte (anti-spam)
