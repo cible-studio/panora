@@ -456,7 +456,7 @@ class ReservationController extends Controller
                     $daysLeft === 1 => 'Libre demain',
                     $daysLeft > 0   => "Libre le {$rd->format('d/m/Y')} ({$daysLeft}j)",
                     default         => 'Date passée',
-                ],
+                },
                 'color' => $daysLeft <= 0 ? 'green' : ($daysLeft <= 7 ? 'orange' : 'default'),
             ];
             if ($endDate) {
