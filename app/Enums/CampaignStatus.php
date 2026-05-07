@@ -3,9 +3,10 @@ namespace App\Enums;
 
 enum CampaignStatus: string
 {
-    case PLANIFIE = 'planifie'; // ← NOUVEAU
+    case PLANIFIE = 'planifie';
     case ACTIF    = 'actif';
     case POSE     = 'pose';
+    case PAUSE    = 'pause';
     case TERMINE  = 'termine';
     case ANNULE   = 'annule';
 
@@ -15,6 +16,7 @@ enum CampaignStatus: string
             self::PLANIFIE => 'Planifiée',
             self::ACTIF    => 'En cours',
             self::POSE     => 'En pose',
+            self::PAUSE    => 'En pause',
             self::TERMINE  => 'Terminée',
             self::ANNULE   => 'Annulée',
         };
@@ -44,6 +46,13 @@ enum CampaignStatus: string
                 'border'      => 'rgba(59,130,246,0.3)',
                 'description' => 'En cours de pose terrain',
             ],
+            self::PAUSE    => [
+                'icon'        => '⏸',
+                'color'       => '#f59e0b',
+                'bg'          => 'rgba(245,158,11,0.08)',
+                'border'      => 'rgba(245,158,11,0.3)',
+                'description' => 'Campagne suspendue temporairement',
+            ],
             self::TERMINE  => [
                 'icon'        => '✅',
                 'color'       => '#6b7280',
@@ -65,8 +74,9 @@ enum CampaignStatus: string
     {
         return match($this) {
             self::PLANIFIE => [self::ACTIF, self::ANNULE],
-            self::ACTIF    => [self::POSE, self::TERMINE, self::ANNULE],
-            self::POSE     => [self::ACTIF, self::TERMINE, self::ANNULE],
+            self::ACTIF    => [self::POSE, self::PAUSE, self::TERMINE, self::ANNULE],
+            self::POSE     => [self::ACTIF, self::PAUSE, self::TERMINE, self::ANNULE],
+            self::PAUSE    => [self::ACTIF, self::ANNULE],
             self::TERMINE  => [],
             self::ANNULE   => [],
         };
@@ -83,8 +93,9 @@ enum CampaignStatus: string
     {
         $allowed = match($this->value) {
             'planifie' => ['actif', 'annule'],
-            'actif'    => ['pose', 'termine', 'annule'],
-            'pose'     => ['actif', 'termine', 'annule'],
+            'actif'    => ['pose', 'pause', 'termine', 'annule'],
+            'pose'     => ['actif', 'pause', 'termine', 'annule'],
+            'pause'    => ['actif', 'annule'],
             'termine'  => [],
             'annule'   => [],
         };

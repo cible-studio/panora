@@ -74,6 +74,7 @@ class CampaignController extends Controller
             'planifie' => $rawCounts['planifie'] ?? 0,
             'actif'    => $rawCounts['actif']    ?? 0,
             'pose'     => $rawCounts['pose']     ?? 0,
+            'pause'    => $rawCounts['pause']    ?? 0,
             'termine'  => $rawCounts['termine']  ?? 0,
             'annule'   => $rawCounts['annule']   ?? 0,
         ];

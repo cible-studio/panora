@@ -31,11 +31,12 @@
     <div class="stats-grid">
         @php
         $statCards = [
-            ['key'=>'all', 'label'=>'Total', 'icon'=>'📋', 'color'=>'var(--text)', 'bg'=>'var(--surface)'],
-            ['key'=>'planifie', 'label'=>'Planifiées', 'icon'=>'📅', 'color'=>'#f97316', 'bg'=>'rgba(249,115,22,0.08)'],
-            ['key'=>'actif', 'label'=>'En cours', 'icon'=>'📡', 'color'=>'#22c55e', 'bg'=>'rgba(34,197,94,0.08)'],
-            ['key'=>'termine', 'label'=>'Terminées', 'icon'=>'✅', 'color'=>'#6b7280', 'bg'=>'rgba(107,114,128,0.08)'],
-            ['key'=>'annule', 'label'=>'Annulées', 'icon'=>'🚫', 'color'=>'#ef4444', 'bg'=>'rgba(239,68,68,0.08)'],
+            ['key'=>'all',      'label'=>'Total',      'icon'=>'📋', 'color'=>'var(--text)', 'bg'=>'var(--surface)'],
+            ['key'=>'planifie', 'label'=>'Planifiées', 'icon'=>'📅', 'color'=>'#f97316',    'bg'=>'rgba(249,115,22,0.08)'],
+            ['key'=>'actif',    'label'=>'En cours',   'icon'=>'📡', 'color'=>'#22c55e',    'bg'=>'rgba(34,197,94,0.08)'],
+            ['key'=>'pause',    'label'=>'En pause',   'icon'=>'⏸',  'color'=>'#f59e0b',    'bg'=>'rgba(245,158,11,0.08)'],
+            ['key'=>'termine',  'label'=>'Terminées',  'icon'=>'✅', 'color'=>'#6b7280',    'bg'=>'rgba(107,114,128,0.08)'],
+            ['key'=>'annule',   'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'#ef4444',    'bg'=>'rgba(239,68,68,0.08)'],
         ];
         @endphp
 

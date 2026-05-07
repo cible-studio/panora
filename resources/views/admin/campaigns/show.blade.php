@@ -213,10 +213,11 @@
                                     'annule'  => 'background:#ef4444;color:#fff',
                                     'actif'   => 'background:#10b981;color:#fff',
                                     'pose'    => 'background:#3b82f6;color:#fff',
+                                    'pause'   => 'background:#f59e0b;color:#fff',
                                     default   => 'background:var(--surface2);color:var(--text)',
                                 };
                                 $btnIcon = match($val) {
-                                    'termine' => '✅', 'annule' => '🚫', 'actif' => '▶️', 'pose' => '🔧', default => '→'
+                                    'termine' => '✅', 'annule' => '🚫', 'actif' => '▶️', 'pose' => '🔧', 'pause' => '⏸', default => '→'
                                 };
                             @endphp
                             <form method="POST" action="{{ route('admin.campaigns.update-status', $campaign) }}">
