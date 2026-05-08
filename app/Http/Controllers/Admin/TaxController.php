@@ -4,51 +4,71 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Tax;
 use App\Models\Commune;
+use App\Models\CommuneTaxPayment;
+use App\Models\Panel;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class TaxController extends Controller
 {
-    // Dans TaxController.php - méthode index()
+    /**
+     * Vue principale module Taxes — refonte 2025 :
+     * - Tabs Mensuel / Trimestriel / Annuel avec sélecteur de période
+     * - Calcul live ODP + TM via /admin/taxes/calcul (AJAX)
+     * - Suivi paiement par commune avec modale "Enregistrer paiement"
+     *
+     * Le tableau `taxes` legacy (paiement individuel) reste accessible
+     * via /admin/taxes/historique pour l'historique des écritures.
+     */
     public function index(Request $request)
+    {
+        $communes = Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate']);
+
+        // Année par défaut : courante (utile pour pré-sélectionner le filtre)
+        $year         = (int) ($request->input('year', date('Y')));
+        $periodType   = $request->input('period_type', 'mensuel');
+        $periodValue  = (int) ($request->input('period_value', date('n')));
+        $anneesDispos = range(date('Y') + 1, max(2020, date('Y') - 5));
+
+        return view('admin.taxes.index', compact(
+            'communes', 'year', 'periodType', 'periodValue', 'anneesDispos'
+        ));
+    }
+
+    /**
+     * Historique des écritures Tax legacy (avant refonte 2025) — accessible
+     * via /admin/taxes/historique pour les comptes ayant déjà saisi des
+     * paiements ligne à ligne.
+     */
+    public function historique(Request $request)
     {
         $query = Tax::with('commune');
 
-        if ($request->filled('commune_id')) {
-            $query->where('commune_id', $request->commune_id);
-        }
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
-        }
-        if ($request->filled('year')) {
-            $query->where('year', $request->year);
-        }
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
+        if ($request->filled('commune_id')) $query->where('commune_id', $request->commune_id);
+        if ($request->filled('type'))       $query->where('type', $request->type);
+        if ($request->filled('year'))       $query->where('year', $request->year);
+        if ($request->filled('status'))     $query->where('status', $request->status);
 
         $taxes = $query->orderBy('year', 'desc')->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
-        
+
         $communes = Commune::orderBy('name')->get();
-        
-        // Stats
         $totalEnAttente = Tax::where('status', 'en_attente')->count();
-        $totalPayees = Tax::where('status', 'payee')->count();
-        $totalEnRetard = Tax::where('status', 'en_retard')->count();
-        $montantTotal = Tax::where('status', '!=', 'payee')->sum('amount');
-        
-        // ✅ AJAX response
+        $totalPayees    = Tax::where('status', 'payee')->count();
+        $totalEnRetard  = Tax::where('status', 'en_retard')->count();
+        $montantTotal   = Tax::where('status', '!=', 'payee')->sum('amount');
+
         if ($request->ajax() || $request->input('ajax')) {
-            $html = view('admin.taxes.partials.table-rows', compact('taxes'))->render();
-            $paginationHtml = $taxes->hasPages() ? $taxes->links()->render() : '';
             return response()->json([
-                'html' => $html,
-                'pagination' => $paginationHtml,
-                'total' => $taxes->total(),
+                'html'       => view('admin.taxes.partials.table-rows', compact('taxes'))->render(),
+                'pagination' => $taxes->hasPages() ? $taxes->links()->render() : '',
+                'total'      => $taxes->total(),
             ]);
         }
-        
-        return view('admin.taxes.index', compact('taxes', 'communes', 'totalEnAttente', 'totalPayees', 'totalEnRetard', 'montantTotal'));
+
+        return view('admin.taxes.historique', compact('taxes', 'communes', 'totalEnAttente', 'totalPayees', 'totalEnRetard', 'montantTotal'));
     }
 
     public function create()
@@ -155,6 +175,216 @@ class TaxController extends Controller
         }
         return redirect()->route('admin.taxes.index', ['year' => $result['year']])
             ->with('success', $msg);
+    }
+
+    /**
+     * Calcul live ODP + TM sur une période donnée. Retourne le tableau
+     * commune × format avec lignes détaillées + KPIs globaux.
+     *
+     * Formules (CIBLE CI / mairies CI 2025) :
+     *   ODP = commune.odp_rate × surface_m² × nb_panneaux × nb_mois
+     *   TM  = 1000 × surface_m² × nb_panneaux × nb_mois  (fixe national)
+     *
+     * nb_mois selon period_type : mensuel=1, trimestriel=3, annuel=12.
+     *
+     * Endpoint AJAX appelé depuis l'UI pour basculer entre les vues.
+     */
+    public function calcul(Request $request): JsonResponse
+    {
+        $request->validate([
+            'period_type'  => 'required|in:mensuel,trimestriel,annuel',
+            'period_year'  => 'required|integer|min:2000|max:2099',
+            'period_value' => 'required|integer|min:0|max:12',
+        ]);
+
+        $periodType  = $request->input('period_type');
+        $periodYear  = (int) $request->input('period_year');
+        $periodValue = (int) $request->input('period_value');
+
+        $nbMois = match ($periodType) {
+            'mensuel'     => 1,
+            'trimestriel' => 3,
+            'annuel'      => 12,
+            default       => 1,
+        };
+
+        // Charge les communes avec leurs panneaux opérables (exclut
+        // maintenance + supprimés). On limite les colonnes pour rester
+        // léger : un parc de 1000 panneaux × 34 communes = ~30k cellules,
+        // l'agrégation est instantanée en mémoire.
+        $communes = Commune::query()
+            ->with([
+                'panels' => fn($q) => $q
+                    ->whereNull('deleted_at')
+                    ->whereNotIn('status', ['maintenance'])
+                    ->with('format:id,name,width,height'),
+            ])
+            ->whereNotNull('odp_rate')
+            ->get(['id', 'name', 'odp_rate', 'tm_rate']);
+
+        // Index des paiements existants pour cette période
+        $payments = CommuneTaxPayment::where('period_type', $periodType)
+            ->where('period_year', $periodYear)
+            ->where('period_value', $periodValue)
+            ->get()
+            ->keyBy('commune_id');
+
+        $rows = $communes->map(function ($commune) use ($nbMois, $payments) {
+            $tmRate  = (float) ($commune->tm_rate ?: 1000);
+            $odpRate = (float) $commune->odp_rate;
+
+            // Lignes détaillées par format (pour affichage tableau)
+            $lignes = $commune->panels
+                ->groupBy('format_id')
+                ->map(function ($panels) use ($commune, $tmRate, $odpRate, $nbMois) {
+                    $fmt = $panels->first()->format;
+                    if (!$fmt?->width || !$fmt?->height) return null;
+
+                    $m2  = round((float) $fmt->width * (float) $fmt->height, 2);
+                    $qty = $panels->count();
+                    $odp = round($odpRate * $m2 * $qty * $nbMois);
+                    $tm  = round($tmRate  * $m2 * $qty * $nbMois);
+
+                    return [
+                        'format_id'  => $fmt->id,
+                        'format'     => $fmt->name,
+                        'dimensions' => rtrim(rtrim(number_format($fmt->width, 2, '.', ''), '0'), '.')
+                                      . '×'
+                                      . rtrim(rtrim(number_format($fmt->height, 2, '.', ''), '0'), '.') . 'm',
+                        'm2'         => $m2,
+                        'qty'        => $qty,
+                        'odp_taux'   => $odpRate,
+                        'tm_taux'    => $tmRate,
+                        'odp'        => $odp,
+                        'tm'         => $tm,
+                        'total'      => $odp + $tm,
+                    ];
+                })
+                ->filter()
+                ->values();
+
+            $payment = $payments->get($commune->id);
+            $odpTheo = (float) $lignes->sum('odp');
+            $tmTheo  = (float) $lignes->sum('tm');
+            $odpPaye = (float) ($payment?->odp_paye ?? 0);
+            $tmPaye  = (float) ($payment?->tm_paye  ?? 0);
+            $totalTheo = $odpTheo + $tmTheo;
+            $totalPaye = $odpPaye + $tmPaye;
+
+            $statut = match (true) {
+                $totalTheo === 0.0           => 'aucun',
+                $totalPaye <= 0              => 'non_paye',
+                $totalPaye >= $totalTheo - 1 => 'paye',
+                default                      => 'partiel',
+            };
+
+            return [
+                'commune'        => $commune->name,
+                'commune_id'     => $commune->id,
+                'odp_taux'       => $odpRate,
+                'tm_taux'        => $tmRate,
+                'nb_panneaux'    => (int) $commune->panels->count(),
+                'surface_totale' => (float) $lignes->sum(fn($l) => $l['m2'] * $l['qty']),
+                'odp_theorique'  => $odpTheo,
+                'tm_theorique'   => $tmTheo,
+                'total_theorique'=> $totalTheo,
+                'odp_paye'       => $odpPaye,
+                'tm_paye'        => $tmPaye,
+                'total_paye'     => $totalPaye,
+                'solde'          => $totalTheo - $totalPaye,
+                'paid_at'        => $payment?->paid_at?->format('d/m/Y'),
+                'attestation'    => (bool) ($payment?->attestation_recue),
+                'statut'         => $statut,
+                'payment_id'     => $payment?->id,
+                'lignes'         => $lignes,
+            ];
+        })
+        ->filter(fn($r) => $r['nb_panneaux'] > 0) // hide communes vides
+        ->sortBy('commune')
+        ->values();
+
+        // KPIs globaux
+        $kpi = [
+            'odp_total'        => (float) $rows->sum('odp_theorique'),
+            'tm_total'         => (float) $rows->sum('tm_theorique'),
+            'grand_total'      => (float) $rows->sum('total_theorique'),
+            'paye_total'       => (float) $rows->sum('total_paye'),
+            'solde_total'      => (float) $rows->sum('solde'),
+            'communes_actives' => $rows->count(),
+            'panneaux_total'   => (int) $rows->sum('nb_panneaux'),
+        ];
+
+        return response()->json([
+            'period_type'  => $periodType,
+            'period_year'  => $periodYear,
+            'period_value' => $periodValue,
+            'nb_mois'      => $nbMois,
+            'kpi'          => $kpi,
+            'communes'     => $rows,
+        ]);
+    }
+
+    /**
+     * Enregistre / met à jour le paiement d'une commune pour une période
+     * donnée. Idempotent via la contrainte unique (commune × période).
+     */
+    public function recordPayment(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'commune_id'        => 'required|exists:communes,id',
+            'period_type'       => 'required|in:mensuel,trimestriel,annuel',
+            'period_year'       => 'required|integer|min:2000|max:2099',
+            'period_value'      => 'required|integer|min:0|max:12',
+            'odp_paye'          => 'required|numeric|min:0',
+            'tm_paye'           => 'required|numeric|min:0',
+            'odp_theorique'     => 'required|numeric|min:0',
+            'tm_theorique'      => 'required|numeric|min:0',
+            'paid_at'           => 'nullable|date',
+            'attestation_recue' => 'sometimes|boolean',
+            'attestation_date'  => 'nullable|date',
+            'notes'             => 'nullable|string|max:1000',
+        ]);
+
+        $payment = CommuneTaxPayment::updateOrCreate(
+            [
+                'commune_id'   => $data['commune_id'],
+                'period_type'  => $data['period_type'],
+                'period_year'  => $data['period_year'],
+                'period_value' => $data['period_value'],
+            ],
+            [
+                'odp_theorique'     => $data['odp_theorique'],
+                'tm_theorique'      => $data['tm_theorique'],
+                'odp_paye'          => $data['odp_paye'],
+                'tm_paye'           => $data['tm_paye'],
+                'paid_at'           => $data['paid_at'] ?? now(),
+                'attestation_recue' => $data['attestation_recue'] ?? false,
+                'attestation_date'  => $data['attestation_date'] ?? null,
+                'notes'             => $data['notes'] ?? null,
+                'recorded_by'       => auth()->id(),
+            ]
+        );
+
+        Log::info('commune_tax_payment.recorded', [
+            'commune_id' => $data['commune_id'],
+            'period'     => "{$data['period_type']}-{$data['period_year']}-{$data['period_value']}",
+            'odp_paye'   => $data['odp_paye'],
+            'tm_paye'    => $data['tm_paye'],
+            'by'         => auth()->id(),
+        ]);
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Paiement enregistré.',
+            'payment' => [
+                'id'                => $payment->id,
+                'odp_paye'          => (float) $payment->odp_paye,
+                'tm_paye'           => (float) $payment->tm_paye,
+                'paid_at'           => $payment->paid_at?->format('d/m/Y'),
+                'attestation_recue' => (bool) $payment->attestation_recue,
+                'status'            => $payment->status,
+            ],
+        ]);
     }
 
     public function exportPdf(Request $request)

@@ -25,40 +25,67 @@ class RapportController extends Controller
         $anneesDisponibles = range(date('Y'), max(2020, date('Y') - 5));
 
         // ── Stats globales ──────────────────────────────────────
-        $totalPanneaux = Panel::count();
-        $totalClients = Client::count();
-        $totalCampagnes = Campaign::whereBetween('start_date', [$dateFrom, $dateTo])->count();
+        // Périmètre du parc : intemporel (le parc lui-même ne change pas
+        // selon la période sélectionnée). En revanche occupation, CA,
+        // clients actifs sont scopés sur [dateFrom, dateTo] pour que le
+        // filtre Période ait un vrai effet (Lot 8.1).
+        $totalPanneaux  = Panel::count();
+        $totalCampagnes = Campaign::where('start_date', '<=', $dateTo)
+                                  ->where('end_date',   '>=', $dateFrom)
+                                  ->count();
 
-        // ── Occupation globale ──────────────────────────────────
-        $occupes = Panel::whereIn('status', ['occupe', 'option', 'confirme'])->count();
-        $libres = Panel::where('status', 'libre')->count();
+        // Clients actifs sur la période = clients ayant au moins 1
+        // campagne qui chevauche la période.
+        $totalClients = Client::whereHas('campaigns', fn($q) =>
+            $q->where('start_date', '<=', $dateTo)
+              ->where('end_date',   '>=', $dateFrom)
+        )->count();
+
+        // ── Occupation globale SUR LA PÉRIODE ───────────────────
+        // Un panneau est "occupé sur la période" s'il appartient à au
+        // moins 1 campagne actif/pose qui chevauche [dateFrom, dateTo].
+        $occupes = Panel::whereHas('campaigns', fn($q) =>
+            $q->whereIn('status', ['actif', 'pose', 'planifie', 'termine'])
+              ->where('start_date', '<=', $dateTo)
+              ->where('end_date',   '>=', $dateFrom)
+        )->count();
+
         $maintenance = Panel::where('status', 'maintenance')->count();
-        $taux = $totalPanneaux > 0 ? round(($occupes / $totalPanneaux) * 100) : 0;
+        $libres      = max(0, $totalPanneaux - $occupes - $maintenance);
+        $taux        = $totalPanneaux > 0 ? round(($occupes / $totalPanneaux) * 100) : 0;
 
         $occupation = [
-            'taux' => $taux,
-            'occupes' => $occupes,
-            'libres' => $libres,
+            'taux'        => $taux,
+            'occupes'     => $occupes,
+            'libres'      => $libres,
             'maintenance' => $maintenance,
-            'total' => $totalPanneaux,
+            'total'       => $totalPanneaux,
         ];
 
         // ── CA total période ────────────────────────────────────
-        $caTotal = Campaign::whereBetween('start_date', [$dateFrom, $dateTo])
+        // Inclut toute campagne qui chevauche la période (pas seulement
+        // celles qui démarrent dans la période). Cohérent avec occupes.
+        $caTotal = Campaign::where('start_date', '<=', $dateTo)
+            ->where('end_date',   '>=', $dateFrom)
             ->sum('total_amount');
 
         $caTicketMoy = $totalCampagnes > 0 ? round($caTotal / $totalCampagnes) : 0;
 
-        // ── Occupation par commune ──────────────────────────────
+        // ── Occupation par commune SUR LA PÉRIODE ───────────────
         $communes = Commune::withCount(['panels as total_panels'])->get();
-        $occParCommune = $communes->filter(fn($c) => $c->total_panels > 0)->map(function ($commune) {
-            $total = Panel::where('commune_id', $commune->id)->count();
-            $occ = Panel::where('commune_id', $commune->id)
-                ->whereIn('status', ['occupe', 'option', 'confirme'])->count();
-            $taux = $total > 0 ? round(($occ / $total) * 100) : 0;
-            $color = $taux >= 75 ? '#ef4444' : ($taux >= 50 ? '#f97316' : ($taux >= 25 ? '#e8a020' : '#22c55e'));
-            return ['id' => $commune->id, 'commune' => $commune->name, 'total' => $total, 'occupes' => $occ, 'taux' => $taux, 'color' => $color];
-        })->sortByDesc('taux')->values();
+        $occParCommune = $communes->filter(fn($c) => $c->total_panels > 0)
+            ->map(function ($commune) use ($dateFrom, $dateTo) {
+                $total = Panel::where('commune_id', $commune->id)->count();
+                $occ = Panel::where('commune_id', $commune->id)
+                    ->whereHas('campaigns', fn($q) =>
+                        $q->whereIn('status', ['actif', 'pose', 'planifie', 'termine'])
+                          ->where('start_date', '<=', $dateTo)
+                          ->where('end_date',   '>=', $dateFrom)
+                    )->count();
+                $taux = $total > 0 ? round(($occ / $total) * 100) : 0;
+                $color = $taux >= 75 ? '#ef4444' : ($taux >= 50 ? '#f97316' : ($taux >= 25 ? '#e8a020' : '#22c55e'));
+                return ['id' => $commune->id, 'commune' => $commune->name, 'total' => $total, 'occupes' => $occ, 'taux' => $taux, 'color' => $color];
+            })->sortByDesc('taux')->values();
 
         // ── Évolution mensuelle (12 derniers mois) ──────────────
         $evolMensuelle = collect();
@@ -100,32 +127,42 @@ class RapportController extends Controller
             ]);
         }
 
-        // ── Top clients ─────────────────────────────────────────
-        $topClients = Client::withCount(['campaigns as nb_campagnes'])
-            ->with('campaigns')
+        // ── Top clients SUR LA PÉRIODE ─────────────────────────
+        $topClients = Client::with(['campaigns' => fn($q) =>
+                $q->where('start_date', '<=', $dateTo)
+                  ->where('end_date',   '>=', $dateFrom)
+            ])
             ->get()
             ->map(function ($client) {
+                $camps = $client->campaigns; // déjà filtrées par eager load
                 return (object) [
                     'id' => $client->id,
                     'name' => $client->name,
-                    'nb_campagnes' => $client->nb_campagnes,
-                    'ca_total' => $client->campaigns->sum('total_amount'),
-                    'total_panneaux' => $client->campaigns->sum(fn($c) => $c->panels()->count()),
+                    'nb_campagnes' => $camps->count(),
+                    'ca_total' => $camps->sum('total_amount'),
+                    'total_panneaux' => $camps->sum(fn($c) => $c->panels()->count()),
                 ];
             })
+            ->filter(fn($c) => $c->nb_campagnes > 0)
             ->sortByDesc('ca_total')
             ->take(10)
             ->values();
 
-        // ── Stats communes ──────────────────────────────────────
-        $statsCommunes = Commune::withCount('panels')->get()->map(function ($commune) use ($annee) {
+        // ── Stats communes (occupation ET CA scopés période) ────
+        $statsCommunes = Commune::withCount('panels')->get()->map(function ($commune) use ($dateFrom, $dateTo) {
             $total = Panel::where('commune_id', $commune->id)->count();
-            $occ = Panel::where('commune_id', $commune->id)->whereIn('status', ['occupe', 'option', 'confirme'])->count();
-            $libres = Panel::where('commune_id', $commune->id)->where('status', 'libre')->count();
-            $maint = Panel::where('commune_id', $commune->id)->where('status', 'maintenance')->count();
+            $occ = Panel::where('commune_id', $commune->id)
+                ->whereHas('campaigns', fn($q) =>
+                    $q->whereIn('status', ['actif', 'pose', 'planifie', 'termine'])
+                      ->where('start_date', '<=', $dateTo)
+                      ->where('end_date',   '>=', $dateFrom)
+                )->count();
+            $maint  = Panel::where('commune_id', $commune->id)->where('status', 'maintenance')->count();
+            $libres = max(0, $total - $occ - $maint);
             $taux = $total > 0 ? round(($occ / $total) * 100) : 0;
             $tarifMoyen = Panel::where('commune_id', $commune->id)->avg('monthly_rate') ?? 0;
-            $caAnnee = Campaign::whereYear('start_date', $annee)
+            $caAnnee = Campaign::where('start_date', '<=', $dateTo)
+                ->where('end_date',   '>=', $dateFrom)
                 ->whereHas('panels', fn($q) => $q->where('commune_id', $commune->id))
                 ->sum('total_amount');
             return [
@@ -282,9 +319,26 @@ class RapportController extends Controller
     public function communeDetail(Request $request, Commune $commune)
     {
         $annee = (int) ($request->annee ?? date('Y'));
+        // Période d'évaluation du taux d'occupation par panneau — par
+        // défaut l'année entière, ajustable via mois_du / mois_au.
+        $moisDu = (int) ($request->mois_du ?? 1);
+        $moisAu = (int) ($request->mois_au ?? 12);
+        $dateFrom = Carbon::create($annee, $moisDu, 1)->startOfMonth();
+        $dateTo   = Carbon::create($annee, $moisAu, 1)->endOfMonth();
+        $totalDays = max(1, (int) $dateFrom->diffInDays($dateTo) + 1);
 
         $panels = Panel::where('commune_id', $commune->id)
-            ->with(['format:id,name', 'zone:id,name'])
+            ->with([
+                'format:id,name',
+                'zone:id,name',
+                // Lot 8.2 : on charge les campagnes liées au panneau qui
+                // chevauchent la période → calcul taux occupation panneau.
+                'campaigns' => fn($q) =>
+                    $q->whereIn('status', ['actif', 'pose', 'planifie', 'termine'])
+                      ->where('start_date', '<=', $dateTo)
+                      ->where('end_date',   '>=', $dateFrom)
+                      ->select(['campaigns.id', 'campaigns.start_date', 'campaigns.end_date', 'campaigns.status']),
+            ])
             ->orderBy('reference')
             ->get(['id','reference','name','status','monthly_rate','format_id','zone_id','is_lit']);
 
@@ -350,17 +404,43 @@ class RapportController extends Controller
                 'tarif_moyen' => round($tarifMoyen),
                 'ca_annee'    => (float) $caAnnee,
             ],
-            'panels' => $panels->map(fn($p) => [
-                'id'        => $p->id,
-                'reference' => $p->reference,
-                'name'      => $p->name,
-                'format'    => $p->format?->name ?? '—',
-                'zone'      => $p->zone?->name ?? '—',
-                'status'    => $p->status,
-                'is_lit'    => (bool) $p->is_lit,
-                'rate'      => (float) ($p->monthly_rate ?? 0),
-                'url'       => route('admin.panels.show', $p->id),
-            ]),
+            'period' => [
+                'from'       => $dateFrom->format('d/m/Y'),
+                'to'         => $dateTo->format('d/m/Y'),
+                'total_days' => $totalDays,
+            ],
+            'panels' => $panels->map(function ($p) use ($dateFrom, $dateTo, $totalDays) {
+                // Lot 8.2 — Taux d'occupation par panneau sur la période.
+                // Calcul : somme des jours d'occupation effective
+                // (intersection campagnes ∩ période) / total_days × 100.
+                $busyDays = 0;
+                foreach ($p->campaigns as $c) {
+                    $cStart = $c->start_date->lt($dateFrom) ? $dateFrom->copy() : $c->start_date->copy();
+                    $cEnd   = $c->end_date->gt($dateTo)     ? $dateTo->copy()   : $c->end_date->copy();
+                    if ($cStart->lte($cEnd)) {
+                        $busyDays += (int) $cStart->diffInDays($cEnd) + 1;
+                    }
+                }
+                // Si plusieurs campagnes se chevauchent, on cape à 100 %.
+                $busyDays = min($busyDays, $totalDays);
+                $tauxOcc  = $totalDays > 0 ? round(($busyDays / $totalDays) * 100) : 0;
+
+                return [
+                    'id'           => $p->id,
+                    'reference'    => $p->reference,
+                    'name'         => $p->name,
+                    'format'       => $p->format?->name ?? '—',
+                    'zone'         => $p->zone?->name ?? '—',
+                    'status'       => $p->status,
+                    'is_lit'       => (bool) $p->is_lit,
+                    'rate'         => (float) ($p->monthly_rate ?? 0),
+                    'url'          => route('admin.panels.show', $p->id),
+                    // Lot 8.2 — taux d'occupation panneau sur la période
+                    'taux'         => $tauxOcc,
+                    'busy_days'    => $busyDays,
+                    'campaigns'    => $p->campaigns->count(),
+                ];
+            }),
             'campagnes' => $campagnes->map(fn($c) => [
                 'id'         => $c->id,
                 'name'       => $c->name,

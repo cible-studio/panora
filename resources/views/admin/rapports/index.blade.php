@@ -863,20 +863,39 @@ window.CommuneDrilldown = (function () {
         if (!rows || !rows.length) {
             return '<div style="padding:14px 16px;color:var(--text3);font-size:12px;text-align:center;">Aucun panneau installé.</div>';
         }
+        const tauxColor = (t) =>
+            t >= 75 ? '#ef4444' : (t >= 50 ? '#f97316' : (t >= 25 ? '#e8a020' : '#22c55e'));
         return `
             <table class="cm-table">
-                <thead><tr><th>Réf.</th><th>Nom</th><th>Format</th><th>Zone</th><th>Statut</th><th class="r">Tarif/mois</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Réf.</th><th>Nom</th><th>Format</th><th>Zone</th><th>Statut</th>
+                        <th class="r">Tarif/mois</th>
+                        <th class="r" title="Taux d'occupation sur la période sélectionnée (jours occupés / jours période)">Occ. période</th>
+                    </tr>
+                </thead>
                 <tbody>
-                    ${rows.map(p => `
+                    ${rows.map(p => {
+                        const t = p.taux || 0;
+                        const c = tauxColor(t);
+                        return `
                         <tr>
                             <td><a href="${p.url}" style="font-family:monospace;font-weight:700;">${p.reference}</a></td>
-                            <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name || '—'}</td>
+                            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name || '—'}</td>
                             <td>${p.format}${p.is_lit ? ' · 💡' : ''}</td>
                             <td style="color:var(--text3);font-size:11px;">${p.zone}</td>
                             <td><span class="cm-status-pill cm-status-${p.status}">${statusLabels[p.status] || p.status}</span></td>
                             <td class="r">${p.rate > 0 ? fmt(p.rate) + ' FCFA' : (p.rate === 0 ? '0 FCFA' : '—')}</td>
+                            <td class="r" title="${p.busy_days || 0}j occupés${p.campaigns ? ' · ' + p.campaigns + ' campagne(s)' : ''}">
+                                <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;">
+                                    <div style="width:46px;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+                                        <div style="width:${t}%;height:100%;background:${c};"></div>
+                                    </div>
+                                    <strong style="color:${c};min-width:34px;text-align:right;">${t}%</strong>
+                                </div>
+                            </td>
                         </tr>
-                    `).join('')}
+                    `;}).join('')}
                 </tbody>
             </table>
         `;
@@ -890,7 +909,15 @@ window.CommuneDrilldown = (function () {
             document.body.style.overflow = 'hidden';
 
             try {
-                const url = `/admin/rapports/communes/${communeId}/detail?annee=${D.annee || new Date().getFullYear()}`;
+                // Lot 8.2 — Passe la période active au drilldown pour que le
+                // taux d'occupation panneau soit calculé sur la même fenêtre
+                // que le rapport principal.
+                const params = new URLSearchParams({
+                    annee:   D.annee   || new Date().getFullYear(),
+                    mois_du: D.moisDu  || 1,
+                    mois_au: D.moisAu  || 12,
+                });
+                const url = `/admin/rapports/communes/${communeId}/detail?${params}`;
                 const r = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 const data = await r.json();

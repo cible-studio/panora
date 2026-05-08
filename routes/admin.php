@@ -303,6 +303,9 @@ Route::prefix('admin')
         // ── Taxes Communes ────────────────────────────────────────
         Route::get('taxes/auto/preview',  [TaxController::class, 'previewAuto'])->name('taxes.auto.preview');
         Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
+        Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');
+        Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
+        Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
         Route::resource('taxes', TaxController::class);
         Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
         Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
@@ -491,6 +494,9 @@ Route::prefix('admin')
         // ── Taxes Communes ────────────────────────────────────────
         Route::get('taxes/auto/preview',  [TaxController::class, 'previewAuto'])->name('taxes.auto.preview');
         Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
+        Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');
+        Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
+        Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
         Route::resource('taxes', TaxController::class);
         Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
         Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
