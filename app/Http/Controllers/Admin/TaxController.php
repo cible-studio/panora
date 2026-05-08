@@ -119,6 +119,44 @@ class TaxController extends Controller
         return back()->with('success', 'Taxe marquée comme payée ! ✅');
     }
 
+    /**
+     * Pré-visualise les lignes Tax qui seraient créées pour l'année donnée.
+     * Sans effet de bord — l'admin déclenche la création via generateAuto().
+     */
+    public function previewAuto(Request $request, \App\Services\TaxAutoService $service)
+    {
+        $year = (int) $request->input('year', date('Y'));
+        if ($year < 2000 || $year > 2099) {
+            return response()->json(['error' => 'Année invalide.'], 422);
+        }
+        return response()->json($service->preview($year));
+    }
+
+    /**
+     * Applique la génération automatique des taxes pour l'année donnée.
+     * Idempotent : ré-appel sur la même année ne crée rien si les lignes
+     * existent déjà.
+     */
+    public function generateAuto(Request $request, \App\Services\TaxAutoService $service)
+    {
+        $request->validate([
+            'year' => 'required|integer|min:2000|max:2099',
+        ]);
+
+        $result = $service->apply((int) $request->input('year'));
+
+        $msg = $result['created'] > 0
+            ? sprintf('%d taxe(s) créée(s) pour %d (%s FCFA).',
+                     $result['created'], $result['year'], number_format($result['total_amount'], 0, ',', ' '))
+            : 'Aucune nouvelle taxe à créer pour ' . $result['year'] . '.';
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(array_merge(['success' => true, 'message' => $msg], $result));
+        }
+        return redirect()->route('admin.taxes.index', ['year' => $result['year']])
+            ->with('success', $msg);
+    }
+
     public function exportPdf(Request $request)
     {
         $query = Tax::with('commune');
