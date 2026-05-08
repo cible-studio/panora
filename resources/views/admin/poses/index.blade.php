@@ -7,13 +7,34 @@
     </a>
 </x-slot:topbarActions>
 
-{{-- ════ ALERTES ACTIVITÉ DU MODULE ════ --}}
+{{-- ════ ALERTES ACTIVITÉ DU MODULE ════
+     Dismissibles par utilisateur (localStorage). La signature inclut
+     l'identité utilisateur + un hash du contenu (IDs des tâches en
+     retard / nb sans pige) → si une NOUVELLE tâche entre en retard ou
+     qu'une nouvelle pose sans pige apparaît, le hash change et l'alerte
+     ressort. Les détails restent toujours accessibles via "Voir tout"
+     et la fiche détail de chaque tâche. ════ --}}
 @if($overdueTasks->isNotEmpty() || $posesSansPige > 0)
-<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
+@php
+    $alertUserKey = (string) (auth()->id() ?? 'anon');
+    $overdueSig   = 'pose-alert.overdue.' . $alertUserKey . '.' .
+                    md5($overdueTasks->pluck('id')->sort()->values()->join(','));
+    $missingSig   = 'pose-alert.missing-piges.' . $alertUserKey . '.' . md5((string) $posesSansPige);
+@endphp
+<div id="pose-alerts-host" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
 
     @if($overdueTasks->isNotEmpty())
-    <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-radius:12px;padding:12px 16px">
-        <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div class="pose-alert" data-alert-key="{{ $overdueSig }}"
+         style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-radius:12px;padding:12px 16px;position:relative">
+        <button type="button" class="pose-alert-dismiss"
+                onclick="dismissPoseAlert('{{ $overdueSig }}')"
+                title="Masquer cette alerte (réapparaîtra si une nouvelle tâche tombe en retard)"
+                style="position:absolute;top:8px;right:10px;background:transparent;border:none;cursor:pointer;color:rgba(239,68,68,.6);font-size:14px;padding:4px 8px;border-radius:6px;line-height:1;"
+                onmouseenter="this.style.background='rgba(239,68,68,.1)';this.style.color='#ef4444'"
+                onmouseleave="this.style.background='transparent';this.style.color='rgba(239,68,68,.6)'">
+            ✕
+        </button>
+        <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;padding-right:24px">
             <div style="width:34px;height:34px;background:rgba(239,68,68,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
@@ -43,11 +64,20 @@
     @endif
 
     @if($posesSansPige > 0)
-    <div style="background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.25);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px">
+    <div class="pose-alert" data-alert-key="{{ $missingSig }}"
+         style="background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.25);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;position:relative">
+        <button type="button" class="pose-alert-dismiss"
+                onclick="dismissPoseAlert('{{ $missingSig }}')"
+                title="Masquer cette alerte"
+                style="position:absolute;top:8px;right:10px;background:transparent;border:none;cursor:pointer;color:rgba(249,115,22,.6);font-size:14px;padding:4px 8px;border-radius:6px;line-height:1;"
+                onmouseenter="this.style.background='rgba(249,115,22,.1)';this.style.color='#f97316'"
+                onmouseleave="this.style.background='transparent';this.style.color='rgba(249,115,22,.6)'">
+            ✕
+        </button>
         <div style="width:34px;height:34px;background:rgba(249,115,22,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         </div>
-        <div style="flex:1">
+        <div style="flex:1;padding-right:24px">
             <div style="font-size:13px;font-weight:700;color:#f97316">{{ $posesSansPige }} pose(s) réalisée(s) sans pige photo</div>
             <div style="font-size:11px;color:rgba(249,115,22,.75);margin-top:2px">Aucune preuve d'affichage — impossible de facturer le client</div>
         </div>
@@ -58,6 +88,56 @@
     </div>
     @endif
 </div>
+<script>
+// ── Dismiss persistant via localStorage ──
+// La clé inclut user_id + hash du contenu : si le contenu change (nouvelle
+// tâche en retard, nouvelle pose sans pige), la clé change et l'alerte
+// réapparaît. Les détails restent toujours accessibles via "Voir tout"
+// et les fiches détail.
+(function () {
+    const STORE_KEY = 'pose_alerts_dismissed';
+    let dismissed;
+    try { dismissed = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); }
+    catch (e) { dismissed = []; }
+    if (!Array.isArray(dismissed)) dismissed = [];
+
+    // Cache au chargement les alertes déjà dismissed
+    document.querySelectorAll('.pose-alert').forEach(el => {
+        if (dismissed.includes(el.dataset.alertKey)) {
+            el.style.display = 'none';
+        }
+    });
+
+    // Si toutes les alertes sont cachées, on cache le wrapper
+    function cleanupHost() {
+        const host = document.getElementById('pose-alerts-host');
+        if (!host) return;
+        const visible = Array.from(host.querySelectorAll('.pose-alert'))
+            .some(el => el.style.display !== 'none');
+        if (!visible) host.style.display = 'none';
+    }
+    cleanupHost();
+
+    window.dismissPoseAlert = function (key) {
+        const el = document.querySelector(`.pose-alert[data-alert-key="${key}"]`);
+        if (el) {
+            el.style.transition = 'opacity .2s,transform .2s';
+            el.style.opacity = '0';
+            el.style.transform = 'translateX(8px)';
+            setTimeout(() => { el.style.display = 'none'; cleanupHost(); }, 200);
+        }
+        try {
+            const list = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
+            if (!list.includes(key)) {
+                list.push(key);
+                // Garde-fou taille : on tronque les plus vieux au-delà de 50 entrées
+                while (list.length > 50) list.shift();
+                localStorage.setItem(STORE_KEY, JSON.stringify(list));
+            }
+        } catch (e) { /* localStorage indispo : pas critique */ }
+    };
+})();
+</script>
 @endif
 
 {{-- ════ KPI cards (pattern unifié projet : bordure latérale colorée,

@@ -25,9 +25,10 @@
     }
     .header-inner {
         max-width: 800px; margin: 0 auto;
-        display: flex; align-items: center; gap: 12px;
+        display: flex; align-items: center; gap: 14px;
     }
-    .header img { height: 38px; }
+    .header img { height: 56px; }
+    @media (max-width: 480px) { .header img { height: 48px; } }
     .header-meta { flex: 1; min-width: 0; }
     .header-meta .badge {
         display: inline-block;
@@ -646,9 +647,59 @@ window.PigeCollect = (function () {
         });
     });
 
+    // ── Compression côté client ──
+    // Les photos smartphone modernes font 8-30 MB en mode HQ — uploader tel
+    // quel = très lent en 4G. On compresse en JPEG 0.85 redimensionné à
+    // max 2400px sur le côté le plus long avant envoi : passe de ~12 MB à
+    // ~800 KB-1.5 MB sans perte visible. Garde l'EXIF GPS si présent
+    // (orientation gérée nativement par les navigateurs récents).
+    let compressedFile = null;
+
+    async function compressImage(file) {
+        // Laisse passer les très petits fichiers tels quels
+        if (file.size < 500 * 1024) return file;
+
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    const MAX = 2400;
+                    let { width, height } = img;
+                    if (width > MAX || height > MAX) {
+                        if (width >= height) {
+                            height = Math.round((MAX / width) * height);
+                            width = MAX;
+                        } else {
+                            width = Math.round((MAX / height) * width);
+                            height = MAX;
+                        }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                    canvas.toBlob(
+                        (blob) => {
+                            if (!blob) return resolve(file); // fallback original
+                            const newName = (file.name || 'photo.jpg').replace(/\.(heic|heif|png|webp)$/i, '.jpg');
+                            resolve(new File([blob], newName, { type: 'image/jpeg', lastModified: Date.now() }));
+                        },
+                        'image/jpeg',
+                        0.85,
+                    );
+                };
+                img.onerror = () => resolve(file);
+                img.src = ev.target.result;
+            };
+            reader.onerror = () => resolve(file);
+            reader.readAsDataURL(file);
+        });
+    }
+
     // ── Preview ─ scale image to fill modal nicely ──
     const fileInput = document.getElementById('upload-photo');
-    fileInput?.addEventListener('change', (e) => {
+    fileInput?.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const url = URL.createObjectURL(file);
@@ -656,11 +707,23 @@ window.PigeCollect = (function () {
         img.src = url;
         document.getElementById('preview-empty').style.display = 'none';
         document.getElementById('preview-wrap').classList.add('shown');
+
+        // Compresse en arrière-plan pendant que l'utilisateur tape ses notes
+        try {
+            compressedFile = await compressImage(file);
+            const sizeKb = Math.round(compressedFile.size / 1024);
+            const orig   = Math.round(file.size / 1024);
+            console.log(`[pige] compressed ${orig} KB → ${sizeKb} KB`);
+        } catch (err) {
+            compressedFile = file; // fallback
+            console.warn('[pige] compression failed, sending original:', err);
+        }
     });
 
     return {
         openUpload(panelId, ref, name) {
             currentPanelId = panelId;
+            compressedFile = null;
             document.getElementById('upload-modal-title').textContent = `Photo — ${ref}`;
             document.getElementById('upload-photo').value = '';
             document.getElementById('upload-notes').value = '';
@@ -683,8 +746,8 @@ window.PigeCollect = (function () {
             document.getElementById('lightbox-img').src = '';
         },
         async submit() {
-            const file = document.getElementById('upload-photo').files[0];
-            if (!file) {
+            const original = document.getElementById('upload-photo').files[0];
+            if (!original) {
                 showToast('Sélectionnez une photo.', 'error');
                 return;
             }
@@ -692,12 +755,20 @@ window.PigeCollect = (function () {
 
             const btn = document.getElementById('upload-submit');
             btn.disabled = true;
+            btn.textContent = 'Compression…';
+
+            // Si la compression n'est pas encore finie (timing), on l'attend
+            // ici en synchrone — sinon on prend le fichier déjà compressé.
+            const fileToSend = compressedFile && compressedFile.size > 0
+                ? compressedFile
+                : await compressImage(original);
+
             btn.textContent = 'Envoi…';
 
             const fd = new FormData();
             fd.append('_token',   csrf);
             fd.append('panel_id', String(currentPanelId));
-            fd.append('photo',    file);
+            fd.append('photo',    fileToSend);
             fd.append('notes',    document.getElementById('upload-notes').value);
             fd.append('tech_name', techInput?.value || '');
             if (currentGps.lat !== null) {

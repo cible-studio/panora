@@ -75,10 +75,11 @@ class PublicPigeController extends Controller
 
         $data = $request->validate([
             'panel_id' => ['required', 'integer', 'exists:panels,id'],
-            // Smartphone moderne = 4-12 MB par photo : on monte à 16 MB pour
-            // accepter les photos brutes haute résolution sans demander au
-            // technicien de réduire avant envoi.
-            'photo'    => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:16384'], // 16 MB
+            // Plafond serveur à 50 MB pour couvrir les photos brutes
+            // smartphone (jusqu'à 30-40 MB en HEIC/PRO mode). Le client
+            // compresse à ~1-2 MB en JPEG avant upload (cf. canvas resize
+            // côté JS) → l'upload reste rapide même en 4G faible.
+            'photo'    => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:51200'], // 50 MB
             'gps_lat'  => 'nullable|numeric|between:-90,90',
             'gps_lng'  => 'nullable|numeric|between:-180,180',
             'notes'    => 'nullable|string|max:500',
