@@ -273,8 +273,10 @@
                     <tr>
                         <td class="lbl">Tarif mensuel</td>
                         <td class="val">
-                            @if($panel['monthly_rate'] > 0)
+                            @if(($panel['monthly_rate'] ?? null) > 0)
                                 <strong style="color:#e8a020;">{{ number_format($panel['monthly_rate'], 0, ',', ' ') }} FCFA</strong>
+                            @elseif(($panel['monthly_rate'] ?? null) === 0 || ($panel['monthly_rate'] ?? null) === 0.0)
+                                <strong style="color:#16a34a;">0 FCFA</strong>
                             @else
                                 <span style="color:#9ca3af;">Sur devis</span>
                             @endif

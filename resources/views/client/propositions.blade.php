@@ -73,12 +73,14 @@
 {{-- ══ LISTE PROPOSITIONS ══ --}}
 @forelse($propositions as $res)
 @php
-    // Compte unifié interne + externe (le total_amount fait foi côté finance,
-    // mais on garde la somme monthly_rate ici pour l'affichage rapide quand
-    // total_amount n'est pas renseigné).
+    // Compte unifié interne + externe. total_amount fait foi côté finance —
+    // y compris quand il vaut 0 (campagne offerte / package gratuit). On ne
+    // tombe sur la somme catalogue QUE si total_amount est null (pas
+    // renseigné), sinon le client voit les tarifs catalogue alors que la
+    // proposition est à 0.
     $totalInternal = $res->panels->sum(fn($p) => (float)($p->monthly_rate ?? 0));
     $totalExternal = $res->externalPanels->sum(fn($p) => (float)($p->monthly_rate ?? 0));
-    $total    = (float) ($res->total_amount ?? 0) > 0
+    $total    = $res->total_amount !== null
                 ? (float) $res->total_amount
                 : $totalInternal + $totalExternal;
     $panelCount = $res->panels->count() + $res->externalPanels->count();
@@ -127,6 +129,9 @@
                     <span>{{ $panelCount }} panneau(x)</span>
                     @if($total > 0)
                         <span>{{ number_format($total, 0, ',', ' ') }} FCFA</span>
+                    @elseif($res->total_amount !== null)
+                        {{-- 0 FCFA explicitement saisi (campagne offerte) --}}
+                        <span style="color:#16a34a;font-weight:600;">0 FCFA · Offert</span>
                     @endif
                     @if($res->proposition_sent_at)
                         <span>Reçue {{ $res->proposition_sent_at->diffForHumans() }}</span>

@@ -548,6 +548,39 @@ function onBillStatusChange() {
     }
 }
 
+// Toast réutilisable pour la page campagnes (succès / erreur, avec lien optionnel)
+function showCampaignToast(message, type = 'success', linkUrl = null, linkLabel = null) {
+    let host = document.getElementById('campaign-toast-host');
+    if (!host) {
+        host = document.createElement('div');
+        host.id = 'campaign-toast-host';
+        host.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;';
+        document.body.appendChild(host);
+    }
+    const colors = type === 'error'
+        ? { bg: '#fee2e2', fg: '#991b1b', bd: '#fca5a5' }
+        : { bg: '#dcfce7', fg: '#166534', bd: '#86efac' };
+
+    const t = document.createElement('div');
+    t.style.cssText = `padding:12px 16px;background:${colors.bg};color:${colors.fg};border:1px solid ${colors.bd};border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 6px 16px rgba(0,0,0,.1);min-width:260px;max-width:420px;display:flex;flex-direction:column;gap:6px;`;
+
+    const msg = document.createElement('div');
+    msg.textContent = message;
+    t.appendChild(msg);
+
+    if (linkUrl && linkLabel) {
+        const a = document.createElement('a');
+        a.href = linkUrl;
+        a.textContent = linkLabel + ' →';
+        a.style.cssText = `color:${colors.fg};text-decoration:underline;font-size:12px;font-weight:700;`;
+        t.appendChild(a);
+    }
+
+    host.appendChild(t);
+    setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; }, 4500);
+    setTimeout(() => t.remove(), 4900);
+}
+
 async function submitBilling() {
     if (!_billCampaignId) return;
     const btn = document.getElementById('bill-submit-btn');
@@ -568,17 +601,53 @@ async function submitBilling() {
             headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
             body,
         });
+
+        // Erreurs de validation (422) — Laravel renvoie {message, errors:{field:[...]}}
+        if (res.status === 422) {
+            const data = await res.json().catch(() => ({}));
+            const firstError = data.errors
+                ? Object.values(data.errors).flat()[0]
+                : (data.message || 'Données invalides.');
+            showCampaignToast(firstError, 'error');
+            return;
+        }
+
         const data = await res.json();
-        if (data.ok) {
-            closeBillingModal();
-            // Rafraîchir silencieusement le tableau
-            if (typeof fetchDataSilent === 'function') fetchDataSilent();
-            else if (typeof fetchData === 'function') fetchData();
-        } else {
-            alert('Erreur lors de la mise à jour.');
+        if (!data.ok) {
+            showCampaignToast(data.message || 'Erreur lors de la mise à jour.', 'error');
+            return;
+        }
+
+        closeBillingModal();
+
+        // Toast avec lien direct vers la fiche facture
+        showCampaignToast(
+            data.message || 'Facture mise à jour.',
+            'success',
+            data.invoice_url || null,
+            'Voir la facture'
+        );
+
+        // Mise à jour in-place de la ligne — pas de fetchData() ni de
+        // spinner, le bouton facturation reflète instantanément le nouveau
+        // statut. Fallback sur fetchData() si le serveur n'a pas renvoyé
+        // de row_html (compat anciennes réponses).
+        if (data.row_html && data.campaign_id) {
+            const oldRow = document.querySelector(`tr[data-campaign-row="${data.campaign_id}"]`);
+            if (oldRow) {
+                const wrapper = document.createElement('tbody');
+                wrapper.innerHTML = data.row_html.trim();
+                const newRow = wrapper.firstElementChild;
+                if (newRow) oldRow.replaceWith(newRow);
+            } else if (typeof fetchData === 'function') {
+                fetchData();
+            }
+        } else if (typeof fetchData === 'function') {
+            fetchData();
         }
     } catch(e) {
-        alert('Erreur réseau.');
+        console.error(e);
+        showCampaignToast('Erreur réseau. Réessayez.', 'error');
     } finally {
         btn.disabled = false;
         btn.textContent = '✅ Enregistrer';

@@ -126,12 +126,13 @@
 <body>
 
 @php
-    $totalAmount = (float) ($reservation->total_amount ?? 0);
-    // Si total_amount n'est pas renseigné (ancienne réservation), on
-    // recompose depuis la projection unifiée pour ne pas afficher 0 FCFA.
-    if ($totalAmount <= 0) {
-        $totalAmount = $panels->sum(fn($p) => (float) ($p['total'] ?? 0));
-    }
+    // total_amount === null → ancienne réservation, on recompose depuis
+    // la projection unifiée. total_amount === 0 → choix explicite
+    // (campagne offerte) → on respecte 0, pas de fallback.
+    $totalAmount = $reservation->total_amount === null
+        ? $panels->sum(fn($p) => (float) ($p['total'] ?? 0))
+        : (float) $reservation->total_amount;
+    $isOffert = $reservation->total_amount !== null && (float) $reservation->total_amount === 0.0;
 @endphp
 
 <div class="header">
@@ -282,7 +283,12 @@
         </tr>
         <tr class="grand-total">
             <td class="lbl" style="color:#cbd5e1;">TOTAL HT</td>
-            <td class="val">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</td>
+            <td class="val">
+                {{ number_format($totalAmount, 0, ',', ' ') }} FCFA
+                @if($isOffert)
+                    <span style="display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:9px;background:rgba(34,197,94,0.2);color:#bbf7d0;letter-spacing:.4px;margin-left:6px;">OFFERT</span>
+                @endif
+            </td>
         </tr>
     </table>
 

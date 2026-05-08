@@ -198,8 +198,10 @@ class CampaignController extends Controller
         ]);
 
         $invoice = $campaign->invoices()->latest()->first();
+        $previousStatus = $invoice?->status;
+        $isCreation = !$invoice;
 
-        if (!$invoice) {
+        if ($isCreation) {
             $year = (int) date('Y');
             $seq  = Invoice::whereYear('created_at', $year)->count() + 1;
             $ref  = 'FAC-' . $year . '-' . str_pad($seq, 3, '0', STR_PAD_LEFT);
@@ -232,6 +234,36 @@ class CampaignController extends Controller
             $invoice->update($update);
         }
 
+        // ── Alerte in-app + message UI ──────────────────────────────
+        // Crée une alerte (bell icon) seulement si le statut a changé,
+        // sinon on évite le bruit pour les ajustements de montant.
+        $statusChanged = $isCreation || $previousStatus !== $invoice->status;
+        $clientName    = $campaign->client?->name ?? 'Client';
+
+        if ($statusChanged) {
+            $alertCode = $isCreation
+                ? 'facture_creee'
+                : match ($invoice->status) {
+                    'envoyee' => 'facture_envoyee',
+                    'payee'   => 'facture_payee',
+                    'annulee' => 'facture_annulee',
+                    default   => 'facture_creee', // retour brouillon
+                };
+
+            \App\Services\AlertService::notify(
+                $alertCode,
+                sprintf('Facture %s — %s', $invoice->reference, $clientName),
+                sprintf(
+                    'Facture %s pour la campagne « %s » : statut %s · montant %s FCFA.',
+                    $invoice->reference,
+                    $campaign->name,
+                    $invoice->status,
+                    number_format((float) $invoice->amount_ttc, 0, ',', ' ')
+                ),
+                $invoice
+            );
+        }
+
         $cfg = [
             'brouillon' => ['icon' => '📝', 'label' => 'Brouillon', 'color' => '#6b7280'],
             'envoyee'   => ['icon' => '📤', 'label' => 'Envoyée',   'color' => '#3b82f6'],
@@ -239,16 +271,44 @@ class CampaignController extends Controller
             'annulee'   => ['icon' => '🚫', 'label' => 'Annulée',   'color' => '#ef4444'],
         ][$invoice->status] ?? ['icon' => '', 'label' => $invoice->status, 'color' => ''];
 
+        // Message contextualisé pour le toast côté UI
+        $message = match (true) {
+            $isCreation                                  => "Facture {$invoice->reference} créée ({$cfg['label']}).",
+            $statusChanged && $invoice->status === 'payee'   => "Facture {$invoice->reference} marquée comme payée. ✅",
+            $statusChanged && $invoice->status === 'envoyee' => "Facture {$invoice->reference} envoyée. 📤",
+            $statusChanged && $invoice->status === 'annulee' => "Facture {$invoice->reference} annulée.",
+            $statusChanged                                   => "Statut de la facture {$invoice->reference} mis à jour.",
+            default                                          => "Facture {$invoice->reference} mise à jour.",
+        };
+
+        // Re-render la ligne campagne avec les mêmes eager-loads que index()
+        // pour que le frontend puisse remplacer la <tr> en place — pas
+        // besoin de fetchData() qui rejoue tout le listing avec un spinner.
+        $campaign->load([
+            'client', 'user',
+            'invoices' => fn($q) => $q->select(['id','campaign_id','status','amount_ttc','paid_at','reference'])->latest(),
+        ]);
+        $campaign->loadCount(['panels', 'externalPanels', 'invoices']);
+        $rowHtml = view('admin.campaigns.partials.row', ['campaign' => $campaign])->render();
+
         return response()->json([
-            'ok'      => true,
-            'status'  => $invoice->status,
-            'label'   => $cfg['label'],
-            'icon'    => $cfg['icon'],
-            'color'   => $cfg['color'],
-            'paid_at' => $invoice->paid_at?->format('d/m/Y'),
-            'amount'  => number_format((float) $invoice->amount_ttc, 0, ',', ' '),
-            'ref'     => $invoice->reference,
-            'count'   => $campaign->invoices()->count(),
+            'ok'              => true,
+            'status'          => $invoice->status,
+            'previous_status' => $previousStatus,
+            'status_changed'  => $statusChanged,
+            'is_creation'     => $isCreation,
+            'message'         => $message,
+            'label'           => $cfg['label'],
+            'icon'            => $cfg['icon'],
+            'color'           => $cfg['color'],
+            'paid_at'         => $invoice->paid_at?->format('d/m/Y'),
+            'amount'          => number_format((float) $invoice->amount_ttc, 0, ',', ' '),
+            'ref'             => $invoice->reference,
+            'invoice_id'      => $invoice->id,
+            'invoice_url'     => route('admin.invoices.show', $invoice),
+            'count'           => $campaign->invoices()->count(),
+            'row_html'        => $rowHtml,
+            'campaign_id'     => $campaign->id,
         ]);
     }
 

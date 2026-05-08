@@ -311,11 +311,20 @@
                     @if($campaign->invoices->isNotEmpty())
                         <div class="space-y-3">
                             @foreach($campaign->invoices as $inv)
-                                <div class="flex justify-between items-center py-3 px-4 rounded-xl border"
-                                     style="background:var(--surface2);border-color:var(--border)">
-                                    <span class="font-mono text-sm" style="color:var(--accent)">{{ $inv->reference ?? '#'.$inv->id }}</span>
-                                    <span class="font-bold" style="color:var(--text)">{{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA</span>
-                                </div>
+                                <a href="{{ route('admin.invoices.show', $inv) }}"
+                                   class="flex justify-between items-center py-3 px-4 rounded-xl border transition hover:border-[#e8a020]/60 hover:bg-[#e8a020]/5 group"
+                                   style="background:var(--surface2);border-color:var(--border);text-decoration:none;"
+                                   title="Ouvrir la facture {{ $inv->reference ?? '#'.$inv->id }}">
+                                    <span class="font-mono text-sm group-hover:underline" style="color:var(--accent)">
+                                        {{ $inv->reference ?? '#'.$inv->id }}
+                                    </span>
+                                    <div class="flex items-center gap-3">
+                                        <span class="font-bold" style="color:var(--text)">
+                                            {{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA
+                                        </span>
+                                        <span style="color:var(--text3);font-size:14px;" class="group-hover:translate-x-0.5 transition-transform">→</span>
+                                    </div>
+                                </a>
                             @endforeach
                         </div>
                     @else

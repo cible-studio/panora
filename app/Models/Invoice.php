@@ -25,7 +25,10 @@ class Invoice extends Model
 
     public function client()
     {
-        return $this->belongsTo(Client::class);
+        // withTrashed() : on garde la relation lisible même si le client a été
+        // soft-deleted, pour que les vues facture (show, listing, PDF) ne
+        // plantent pas — la facture reste un document fiscal valide.
+        return $this->belongsTo(Client::class)->withTrashed();
     }
 
     public function campaign()

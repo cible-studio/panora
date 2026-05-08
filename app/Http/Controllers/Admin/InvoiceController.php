@@ -20,6 +20,12 @@ class InvoiceController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
+        if ($request->filled('date_from')) {
+            $query->where('issued_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->where('issued_at', '<=', $request->date_to);
+        }
 
         $invoices = $query->latest()->paginate(15)->withQueryString();
         $clients  = Client::orderBy('name')->get();
@@ -226,5 +232,71 @@ class InvoiceController extends Controller
         $pdf->setPaper('A4', 'portrait');
 
         return $pdf->download("facture-{$invoice->reference}.pdf");
+    }
+
+    /**
+     * Export PDF du listing complet (filtres index appliqués).
+     * A4 paysage pour caser les 10 colonnes sans tronquer.
+     */
+    public function exportListPdf(Request $request)
+    {
+        $invoices = $this->filteredQuery($request)->get();
+
+        // Récupère le nom du client filtré pour l'afficher dans le bandeau
+        $clientName = null;
+        if ($request->filled('client_id')) {
+            $clientName = Client::where('id', $request->client_id)->value('name');
+        }
+
+        $filters = [
+            'client_id'   => $request->client_id,
+            'client_name' => $clientName,
+            'status'      => $request->status,
+            'date_from'   => $request->date_from,
+            'date_to'     => $request->date_to,
+        ];
+
+        $pdf = Pdf::loadView('pdf.invoices-list', compact('invoices', 'filters'))
+            ->setPaper('A4', 'landscape');
+
+        $stamp = now()->format('Ymd-Hi');
+        return $pdf->download("factures-{$stamp}.pdf");
+    }
+
+    /**
+     * Export Excel du listing (filtres index appliqués). Streaming via
+     * FromQuery pour gérer les gros volumes sans saturer la RAM.
+     */
+    public function exportListExcel(Request $request)
+    {
+        $filters = $request->only(['client_id', 'status', 'date_from', 'date_to']);
+        $stamp = now()->format('Ymd-Hi');
+        return (new \App\Exports\InvoicesExport($filters))
+            ->download("factures-{$stamp}.xlsx");
+    }
+
+    /**
+     * Construit la query partagée par les exports : reprend les filtres
+     * client_id / status / date_from / date_to qu'on retrouve sur l'index.
+     * Centralisé ici pour éviter la divergence index ↔ export.
+     */
+    private function filteredQuery(Request $request)
+    {
+        $q = Invoice::with(['client', 'campaign', 'creator']);
+
+        if ($request->filled('client_id')) {
+            $q->where('client_id', $request->client_id);
+        }
+        if ($request->filled('status')) {
+            $q->where('status', $request->status);
+        }
+        if ($request->filled('date_from')) {
+            $q->where('issued_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $q->where('issued_at', '<=', $request->date_to);
+        }
+
+        return $q->orderByDesc('issued_at')->orderByDesc('id');
     }
 }

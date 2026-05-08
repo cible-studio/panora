@@ -69,11 +69,15 @@ $coverageColor = $coveragePercent >= 80 ? '#22c55e' : ($coveragePercent >= 50 ? 
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
                     <strong style="color:var(--text2);">{{ $totalPanneaux }}</strong> panneau(x)
                 </span>
-                @if($campaign->total_amount > 0)
+                @if($campaign->total_amount !== null)
                 <span>·</span>
                 <span style="display:flex;align-items:center;gap:5px;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                    <strong style="color:#e20613;">{{ number_format($campaign->total_amount, 0, ',', ' ') }} FCFA</strong>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="{{ (float) $campaign->total_amount > 0 ? '#e20613' : '#16a34a' }}" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    @if((float) $campaign->total_amount > 0)
+                        <strong style="color:#e20613;">{{ number_format($campaign->total_amount, 0, ',', ' ') }} FCFA</strong>
+                    @else
+                        <strong style="color:#16a34a;">0 FCFA · Offert</strong>
+                    @endif
                 </span>
                 @endif
             </div>

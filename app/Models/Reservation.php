@@ -255,7 +255,31 @@ class Reservation extends Model
     {
         $months = $months ?? 1.0;
 
-        $internal = $this->panels->map(function ($panel) use ($months) {
+        // ── Réconciliation prix réservation ↔ pivot ───────────────────────
+        // Si l'admin a fixé total_amount à 0 (campagne offerte) ou à un
+        // montant négocié différent de la somme des prix pivot, on prorate
+        // chaque ligne pour rester cohérent dans toutes les vues client
+        // (proposition, mail, PDF, espace client). Sans ça, le client voit
+        // les tarifs catalogue alors que la réservation est à 0.
+        $reservationTotal = (float) ($this->total_amount ?? 0);
+        $pivotSum = $this->panels->sum(fn($p)
+                        => (float) ($p->pivot->total_price ?? (($p->monthly_rate ?? 0) * $months)))
+                  + $this->externalPanels->sum(fn($p)
+                        => (float) ($p->pivot->total_price ?? (($p->monthly_rate ?? 0) * $months)));
+
+        $ratio = 1.0;
+        if ($this->total_amount !== null && abs($reservationTotal - $pivotSum) > 0.01) {
+            // total_amount est explicitement renseigné et diffère :
+            //   - 0  → tout à 0 (offert)
+            //   - X autre → prorater proportionnellement aux prix catalogue
+            $ratio = $pivotSum > 0 ? ($reservationTotal / $pivotSum) : 0.0;
+        }
+
+        $applyRatio = static function (float $value) use ($ratio): float {
+            return $ratio === 1.0 ? $value : round($value * $ratio, 2);
+        };
+
+        $internal = $this->panels->map(function ($panel) use ($months, $applyRatio) {
             $photo = $panel->photos->sortBy('ordre')->first();
             return [
                 'id'           => $panel->id,
@@ -269,8 +293,8 @@ class Reservation extends Model
                 'surface'      => $panel->format?->surface_label,
                 'category'     => $panel->category?->name ?? '—',
                 'is_lit'       => (bool) $panel->is_lit,
-                'monthly_rate' => (float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0),
-                'total'        => (float) ($panel->pivot->total_price ?? ($panel->monthly_rate ?? 0) * $months),
+                'monthly_rate' => $applyRatio((float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0)),
+                'total'        => $applyRatio((float) ($panel->pivot->total_price ?? ($panel->monthly_rate ?? 0) * $months)),
                 'photo_url'    => $photo
                     ? asset('storage/' . ltrim($photo->path, '/'))
                     : null,
@@ -282,7 +306,7 @@ class Reservation extends Model
             ];
         });
 
-        $external = $this->externalPanels->map(function ($panel) use ($months) {
+        $external = $this->externalPanels->map(function ($panel) use ($months, $applyRatio) {
             return [
                 'id'           => $panel->id,
                 'source'       => 'externe',
@@ -295,8 +319,8 @@ class Reservation extends Model
                 'surface'      => $panel->format?->surface_label,
                 'category'     => $panel->category?->name ?? '—',
                 'is_lit'       => (bool) $panel->is_lit,
-                'monthly_rate' => (float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0),
-                'total'        => (float) ($panel->pivot->total_price ?? ($panel->monthly_rate ?? 0) * $months),
+                'monthly_rate' => $applyRatio((float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0)),
+                'total'        => $applyRatio((float) ($panel->pivot->total_price ?? ($panel->monthly_rate ?? 0) * $months)),
                 'photo_url'    => $panel->photo_url,
                 'photos'       => $panel->photo_url
                     ? [['url' => $panel->photo_url]]

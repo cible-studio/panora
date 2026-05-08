@@ -143,6 +143,28 @@ class AlertService
             'group' => 'Poses',
         ],
 
+        // ── Factures ──────────────────────────────────────────────
+        'facture_creee' => [
+            'icon' => '🧾', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Facture créée',
+            'group' => 'Factures',
+        ],
+        'facture_envoyee' => [
+            'icon' => '📤', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Facture envoyée',
+            'group' => 'Factures',
+        ],
+        'facture_payee' => [
+            'icon' => '💵', 'niveau' => 'info',    'color' => '#22c55e',
+            'label' => 'Facture payée',
+            'group' => 'Factures',
+        ],
+        'facture_annulee' => [
+            'icon' => '🚫', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Facture annulée',
+            'group' => 'Factures',
+        ],
+
         // ── Système ───────────────────────────────────────────────
         'taxe_echeance' => [
             'icon' => '💰', 'niveau' => 'warning', 'color' => '#f97316',
