@@ -53,6 +53,16 @@ class Client extends Authenticatable  // ← était "extends Model"
         'updated_at' => 'datetime',
     ];
 
+    public function contacts()
+    {
+        return $this->hasMany(ClientContact::class)->orderByDesc('is_primary')->orderBy('name');
+    }
+
+    public function primaryContact()
+    {
+        return $this->hasOne(ClientContact::class)->where('is_primary', true);
+    }
+
     // ── Liste fixe des secteurs métier ────────────────────────────
     // Source unique de vérité — utilisée partout (validation, vues, filtres)
     public const SECTORS = [

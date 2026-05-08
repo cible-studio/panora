@@ -34,7 +34,10 @@
                         <label>Code agent</label>
                         <input type="text" name="agent_code"
                                value="{{ old('agent_code') }}"
-                               placeholder="Ex: AGT-001">
+                               placeholder="Auto-généré si vide (ex: AGT-{{ date('Y') }}-001)">
+                        <small style="display:block;color:var(--text3);font-size:11px;margin-top:4px;">
+                            Laissez vide pour génération automatique au format AGT-{{ date('Y') }}-XXX
+                        </small>
                     </div>
                 </div>
 

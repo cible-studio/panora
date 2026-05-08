@@ -34,6 +34,32 @@ class User extends Authenticatable
         'reservations_last_seen_at' => 'datetime',
     ];
 
+    /**
+     * Génère un code agent unique au format "AGT-{YEAR}-{SEQ}".
+     * Pris à la création d'un utilisateur quand l'admin n'en saisit pas
+     * (le champ reste libre pour les codes hérités d'un autre système).
+     *
+     * Le compteur SEQ est calé sur le nombre d'utilisateurs créés cette
+     * année + une marge à la collision (max 50 essais avant fallback
+     * timestamp pour rester strictement unique).
+     */
+    public static function generateAgentCode(): string
+    {
+        $year = (int) date('Y');
+        $base = static::whereYear('created_at', $year)->count() + 1;
+
+        for ($i = 0; $i < 50; $i++) {
+            $candidate = sprintf('AGT-%d-%03d', $year, $base + $i);
+            if (!static::where('agent_code', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        // Fallback peu probable : tous les slots de l'année occupés.
+        // Suffixe avec timestamp court pour garantir l'unicité.
+        return sprintf('AGT-%d-%s', $year, substr((string) microtime(true) * 1000, -5));
+    }
+
     public function panelsCreated()
     {
         return $this->hasMany(Panel::class, 'created_by');

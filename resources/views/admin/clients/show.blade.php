@@ -82,6 +82,27 @@
             @endforeach
         </div>
 
+        {{-- ── INTERLOCUTEURS ─────────────────────────────────── --}}
+        <div style="padding:14px 20px;border-top:1px solid var(--border);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);">
+                    Interlocuteurs ({{ $client->contacts->count() }})
+                </span>
+                <button type="button" onclick="ClientContacts.openCreate()" class="btn btn-ghost btn-sm" title="Ajouter un interlocuteur" style="padding:3px 10px;font-size:11px;">
+                    + Ajouter
+                </button>
+            </div>
+            <div id="contacts-list" style="display:flex;flex-direction:column;gap:6px;">
+                @forelse($client->contacts as $contact)
+                    @include('admin.clients.partials.contact-item', ['contact' => $contact, 'client' => $client])
+                @empty
+                    <div id="contacts-empty" style="font-size:12px;color:var(--text3);font-style:italic;padding:8px 0;">
+                        Aucun interlocuteur enregistré.
+                    </div>
+                @endforelse
+            </div>
+        </div>
+
         {{-- Lien nouvelle réservation --}}
         <div style="padding:16px 20px;border-top:1px solid var(--border);">
             <a href="{{ route('admin.reservations.disponibilites') }}"
@@ -415,6 +436,70 @@
     </div>
 </div>
 
+{{-- ────────── MODAL INTERLOCUTEUR ────────── --}}
+<div id="contact-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center;padding:16px;"
+     onclick="if(event.target===this)ClientContacts.close()">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;"
+         onclick="event.stopPropagation()">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+            <h3 id="contact-modal-title" style="font-size:15px;font-weight:700;">Nouvel interlocuteur</h3>
+            <button type="button" onclick="ClientContacts.close()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);">✕</button>
+        </div>
+        <form id="contact-form" onsubmit="return ClientContacts.submit(event)" style="padding:18px 20px;overflow-y:auto;flex:1;">
+            <input type="hidden" name="contact_id" id="contact_id" value="">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div style="grid-column:1/3;">
+                    <label class="filter-label">Nom *</label>
+                    <input type="text" name="name" id="contact-name-input" required maxlength="120"
+                        class="filter-input" style="width:100%;" placeholder="Ex: Jean Kouassi">
+                </div>
+                <div>
+                    <label class="filter-label">Email</label>
+                    <input type="email" name="email" id="contact-email" maxlength="150"
+                        class="filter-input" style="width:100%;" placeholder="email@exemple.com">
+                </div>
+                <div>
+                    <label class="filter-label">Téléphone</label>
+                    <input type="text" name="phone" id="contact-phone" maxlength="30"
+                        class="filter-input" style="width:100%;" placeholder="07 07 07 07 07">
+                </div>
+                <div>
+                    <label class="filter-label">Rôle</label>
+                    <select name="role" id="contact-role" class="filter-select" style="width:100%;">
+                        @foreach(\App\Models\ClientContact::ROLES as $code => $label)
+                            <option value="{{ $code }}" @if($code === 'autre') selected @endif>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="filter-label">Fonction (libre)</label>
+                    <input type="text" name="position" id="contact-position" maxlength="100"
+                        class="filter-input" style="width:100%;" placeholder="Ex: Directeur marketing">
+                </div>
+                <div style="grid-column:1/3;">
+                    <label class="filter-label">Notes</label>
+                    <textarea name="notes" id="contact-notes" maxlength="1000" rows="2"
+                        class="filter-input" style="width:100%;resize:vertical;font-family:inherit;" placeholder="Préférences de contact, dispo, langue…"></textarea>
+                </div>
+                <div style="grid-column:1/3;display:flex;gap:18px;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;">
+                        <input type="checkbox" name="is_primary" id="contact-primary" value="1">
+                        Contact principal
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;">
+                        <input type="checkbox" name="receives_notifications" id="contact-notif" value="1" checked>
+                        Reçoit les notifications
+                    </label>
+                </div>
+            </div>
+        </form>
+        <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;background:var(--surface2);">
+            <button type="button" onclick="ClientContacts.close()" class="btn btn-ghost btn-sm">Annuler</button>
+            <button type="button" id="contact-submit-btn" onclick="document.getElementById('contact-form').requestSubmit()" class="btn btn-primary btn-sm">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 function openDeleteClient(id, name, activeCampaigns) {
@@ -428,8 +513,194 @@ function closeDeleteClient() {
     document.getElementById('modal-delete-client').style.display = 'none';
 }
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeDeleteClient();
+    if (e.key === 'Escape') {
+        closeDeleteClient();
+        if (document.getElementById('contact-modal')?.style.display === 'flex') {
+            ClientContacts.close();
+        }
+    }
 });
+
+// ══════════════════════════════
+// CLIENT CONTACTS (multi-interlocuteurs)
+// ══════════════════════════════
+window.ClientContacts = (function () {
+    const clientId = {{ $client->id }};
+    const csrf     = '{{ csrf_token() }}';
+    const modal    = document.getElementById('contact-modal');
+    const list     = document.getElementById('contacts-list');
+
+    function showToast(message, type = 'success') {
+        let host = document.getElementById('client-toast-host');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'client-toast-host';
+            host.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;';
+            document.body.appendChild(host);
+        }
+        const colors = type === 'error'
+            ? { bg: '#fee2e2', fg: '#991b1b', bd: '#fca5a5' }
+            : { bg: '#dcfce7', fg: '#166534', bd: '#86efac' };
+        const t = document.createElement('div');
+        t.textContent = message;
+        t.style.cssText = `padding:10px 14px;background:${colors.bg};color:${colors.fg};border:1px solid ${colors.bd};border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.08);min-width:240px;max-width:380px;`;
+        host.appendChild(t);
+        setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; }, 2700);
+        setTimeout(() => t.remove(), 3100);
+    }
+
+    function resetForm() {
+        document.getElementById('contact_id').value = '';
+        document.getElementById('contact-name-input').value = '';
+        document.getElementById('contact-email').value = '';
+        document.getElementById('contact-phone').value = '';
+        document.getElementById('contact-role').value = 'autre';
+        document.getElementById('contact-position').value = '';
+        document.getElementById('contact-notes').value = '';
+        document.getElementById('contact-primary').checked = false;
+        document.getElementById('contact-notif').checked = true;
+    }
+
+    function fillForm(row) {
+        document.getElementById('contact_id').value = row.dataset.contactId;
+        const card = row;
+        // On lit depuis le DOM rendu pour ne pas avoir à conserver un cache JS
+        document.getElementById('contact-name-input').value = card.querySelector('span[style*="font-weight:700"]')?.textContent.trim() || '';
+        // Pour l'édition complète on charge les champs depuis l'API ? Non, on
+        // recharge plus tard. Pour cette première version, on demande à l'admin
+        // de re-saisir les champs via l'edit (suffisant pour MVP).
+    }
+
+    return {
+        openCreate() {
+            resetForm();
+            document.getElementById('contact-modal-title').textContent = 'Nouvel interlocuteur';
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => document.getElementById('contact-name-input').focus(), 50);
+        },
+        openEdit(contactId) {
+            const row = list.querySelector(`[data-contact-id="${contactId}"]`);
+            if (!row) return;
+            resetForm();
+            document.getElementById('contact_id').value = contactId;
+            // Pré-remplir depuis le DOM
+            const name = row.querySelector('span[style*="font-weight:700"]')?.textContent.trim() || '';
+            document.getElementById('contact-name-input').value = name;
+            const emailLink = row.querySelector('a[href^="mailto:"]');
+            if (emailLink) document.getElementById('contact-email').value = emailLink.getAttribute('href').replace('mailto:', '');
+            // Phone : extrait du span après "📞"
+            const phoneSpan = Array.from(row.querySelectorAll('span')).find(s => s.textContent.includes('📞'));
+            if (phoneSpan) document.getElementById('contact-phone').value = phoneSpan.textContent.replace('📞', '').trim();
+            // Primary actuel
+            document.getElementById('contact-primary').checked = !!row.querySelector('span[style*="rgba(232,160,32"]');
+
+            document.getElementById('contact-modal-title').textContent = 'Modifier l\'interlocuteur';
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => document.getElementById('contact-name-input').focus(), 50);
+        },
+        close() {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        },
+        async submit(event) {
+            event.preventDefault();
+            const btn = document.getElementById('contact-submit-btn');
+            btn.disabled = true;
+            btn.textContent = '...';
+
+            const id = document.getElementById('contact_id').value;
+            const isUpdate = !!id;
+            const url = isUpdate
+                ? `/admin/clients/${clientId}/contacts/${id}`
+                : `/admin/clients/${clientId}/contacts`;
+
+            const fd = new FormData();
+            fd.append('_token', csrf);
+            if (isUpdate) fd.append('_method', 'PUT');
+            fd.append('name',     document.getElementById('contact-name-input').value);
+            fd.append('email',    document.getElementById('contact-email').value);
+            fd.append('phone',    document.getElementById('contact-phone').value);
+            fd.append('role',     document.getElementById('contact-role').value);
+            fd.append('position', document.getElementById('contact-position').value);
+            fd.append('notes',    document.getElementById('contact-notes').value);
+            fd.append('is_primary', document.getElementById('contact-primary').checked ? '1' : '0');
+            fd.append('receives_notifications', document.getElementById('contact-notif').checked ? '1' : '0');
+
+            try {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    body: fd,
+                });
+
+                if (r.status === 422) {
+                    const data = await r.json().catch(() => ({}));
+                    const first = data.errors ? Object.values(data.errors).flat()[0] : (data.message || 'Données invalides.');
+                    showToast(first, 'error');
+                    return false;
+                }
+
+                const data = await r.json();
+                if (!data.ok) {
+                    showToast(data.message || 'Erreur.', 'error');
+                    return false;
+                }
+
+                this.close();
+                showToast(data.message);
+                // Recharger la fiche pour avoir le HTML serveur à jour avec
+                // toutes les variantes (badge primary, ordre alphabétique).
+                window.location.reload();
+            } catch (e) {
+                console.error(e);
+                showToast('Erreur réseau.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Enregistrer';
+            }
+            return false;
+        },
+        async setPrimary(contactId) {
+            try {
+                const r = await fetch(`/admin/clients/${clientId}/contacts/${contactId}/primary`, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    body: new URLSearchParams({ _method: 'PATCH', _token: csrf }),
+                });
+                const data = await r.json();
+                if (!r.ok || !data.ok) {
+                    showToast(data.message || 'Erreur.', 'error');
+                    return;
+                }
+                showToast(data.message);
+                window.location.reload();
+            } catch (e) {
+                showToast('Erreur réseau.', 'error');
+            }
+        },
+        async remove(contactId, name) {
+            if (!confirm(`Supprimer l'interlocuteur « ${name} » ?`)) return;
+            try {
+                const r = await fetch(`/admin/clients/${clientId}/contacts/${contactId}`, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    body: new URLSearchParams({ _method: 'DELETE', _token: csrf }),
+                });
+                const data = await r.json();
+                if (!r.ok || !data.ok) {
+                    showToast(data.message || 'Erreur.', 'error');
+                    return;
+                }
+                document.querySelector(`.contact-item[data-contact-id="${contactId}"]`)?.remove();
+                showToast(data.message);
+            } catch (e) {
+                showToast('Erreur réseau.', 'error');
+            }
+        },
+    };
+})();
 </script>
 @endpush
 

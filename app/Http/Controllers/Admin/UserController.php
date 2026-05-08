@@ -55,12 +55,21 @@ class UserController extends Controller
             }
         }
 
+        // Code agent : si l'admin n'en saisit pas, on génère AGT-{YEAR}-{SEQ}
+        // pour les rôles concernés (commercial, mediaplanner, technique).
+        // Les admins n'en ont pas besoin par défaut, mais on respecte l'input
+        // si fourni (cohérence avec rôle admin qui veut tracker des actions).
+        $agentCode = $request->agent_code
+            ?: (in_array($request->role, ['commercial', 'mediaplanner', 'technique'])
+                ? User::generateAgentCode()
+                : null);
+
         $user = User::create([
             'name'            => $request->name,
             'email'           => $request->email,
             'password'        => Hash::make($plainPassword),
             'role'            => $request->role,
-            'agent_code'      => $request->agent_code,
+            'agent_code'      => $agentCode,
             'whatsapp_number' => $whatsapp,
             'is_active'       => true,
         ]);
