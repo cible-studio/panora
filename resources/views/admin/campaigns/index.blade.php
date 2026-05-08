@@ -27,30 +27,39 @@
     </div>
     @endif
 
-    {{-- ══ STATS AVEC FILTRES DYNAMIQUES ══ --}}
-    <div class="stats-grid">
-        @php
-        $statCards = [
-            ['key'=>'all',      'label'=>'Total',      'icon'=>'📋', 'color'=>'var(--text)', 'bg'=>'var(--surface)'],
-            ['key'=>'planifie', 'label'=>'Planifiées', 'icon'=>'📅', 'color'=>'#f97316',    'bg'=>'rgba(249,115,22,0.08)'],
-            ['key'=>'actif',    'label'=>'En cours',   'icon'=>'📡', 'color'=>'#22c55e',    'bg'=>'rgba(34,197,94,0.08)'],
-            ['key'=>'pause',    'label'=>'En pause',   'icon'=>'⏸',  'color'=>'#f59e0b',    'bg'=>'rgba(245,158,11,0.08)'],
-            ['key'=>'termine',  'label'=>'Terminées',  'icon'=>'✅', 'color'=>'#6b7280',    'bg'=>'rgba(107,114,128,0.08)'],
-            ['key'=>'annule',   'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'#ef4444',    'bg'=>'rgba(239,68,68,0.08)'],
-        ];
-        @endphp
-
+    {{-- ══ KPI cards (pattern unifié projet : bordure latérale colorée,
+         toggle, état actif, counts qui suivent les filtres) ══ --}}
+    @php
+    $statCards = [
+        ['key'=>'all',      'label'=>'Total',      'icon'=>'📋', 'color'=>'var(--accent)'],
+        ['key'=>'planifie', 'label'=>'Planifiées', 'icon'=>'📅', 'color'=>'#f97316'],
+        ['key'=>'actif',    'label'=>'En cours',   'icon'=>'📡', 'color'=>'#22c55e'],
+        ['key'=>'pause',    'label'=>'En pause',   'icon'=>'⏸',  'color'=>'#f59e0b'],
+        ['key'=>'termine',  'label'=>'Terminées',  'icon'=>'✅', 'color'=>'#3b82f6'],
+        ['key'=>'annule',   'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'#ef4444'],
+    ];
+    $activeStatus = request('status');
+    $hasAnyFilter = request('search') || request('status') || request('client_id')
+                  || request('date_from') || request('date_to') || request('date_debut')
+                  || request('date_fin') || request('non_facturee')
+                  || request('commune_id') || request('zone_id');
+    @endphp
+    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px">
         @foreach($statCards as $sc)
-        <a href="#" 
-           class="stat-card" 
-           data-filter="status" 
-           data-value="{{ $sc['key'] !== 'all' ? $sc['key'] : '' }}"
-           style="background:{{ $sc['bg'] }};border:1px solid var(--border);">
-            <div class="stat-icon">{{ $sc['icon'] }}</div>
-            <div class="stat-number" style="color:{{ $sc['color'] }}">
-                {{ $sc['key'] === 'all' ? $campaigns->total() : ($counts[$sc['key']] ?? 0) }}
-            </div>
-            <div class="stat-label">{{ strtoupper($sc['label']) }}</div>
+        @php
+            $isAll    = $sc['key'] === 'all';
+            $isActive = $isAll ? !$hasAnyFilter : ($activeStatus === $sc['key']);
+            $val      = $isAll ? $campaigns->total() : ($counts[$sc['key']] ?? 0);
+        @endphp
+        <a href="#"
+           class="stat-card {{ $isActive ? 'active' : '' }}"
+           data-filter="status"
+           data-kpi="{{ $sc['key'] }}"
+           data-value="{{ $isAll ? '' : $sc['key'] }}"
+           style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $sc['color'] }};border-radius:14px;padding:14px 18px;text-decoration:none;display:block;transition:all .15s;{{ $isActive ? 'box-shadow:0 0 0 2px '.$sc['color'].'33;' : '' }}">
+            <div class="stat-icon" style="font-size:18px;color:{{ $sc['color'] }};margin-bottom:4px">{{ $sc['icon'] }}</div>
+            <div class="stat-number" data-kpi-value="{{ $sc['key'] }}" style="font-size:26px;font-weight:800;color:{{ $sc['color'] }};line-height:1;margin-bottom:6px">{{ number_format($val) }}</div>
+            <div class="stat-label" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">{{ $sc['label'] }}</div>
         </a>
         @endforeach
     </div>
