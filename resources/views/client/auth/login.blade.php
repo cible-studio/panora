@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
-        * { box-sizing:border-box; margin:0; padding:0; }
+        *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
 
         [data-theme="dark"] {
             --bg:       #080a12;
@@ -19,7 +19,6 @@
             --text:     #f1f5f9;
             --text2:    #94a3b8;
             --text3:    #4b5563;
-            --logo-src: url('{{ asset("images/logob.png") }}');
         }
         [data-theme="light"] {
             --bg:       #f1f3f7;
@@ -30,26 +29,82 @@
             --text:     #0f172a;
             --text2:    #475569;
             --text3:    #94a3b8;
-            --logo-src: url('{{ asset("images/logol.png") }}');
         }
 
+        html, body { height:100%; overflow:hidden; }
+
         body {
-            background:var(--bg); color:var(--text);
-            font-family:'DM Sans',sans-serif; min-height:100vh;
-            display:grid; place-items:center; padding:20px;
+            background:var(--bg);
+            color:var(--text);
+            font-family:'DM Sans',sans-serif;
+            display:flex;
             transition:background .2s, color .2s;
         }
 
-        body::before {
-            content:''; position:fixed; inset:0; pointer-events:none;
-            background:radial-gradient(ellipse 70% 50% at 50% -10%, rgba(226,6,19,0.06) 0%, transparent 70%);
+        /* ══ LEFT — image ══ */
+        .auth-image-panel {
+            flex:1;
+            position:relative;
+            overflow:hidden;
+        }
+
+        .auth-bg-img {
+            position:absolute;
+            inset:0;
+            width:100%;
+            height:100%;
+            object-fit:cover;
+            object-position:center;
+        }
+
+        .auth-image-overlay {
+            position:absolute;
+            inset:0;
+            background:linear-gradient(160deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.55) 100%);
+            display:flex;
+            flex-direction:column;
+            justify-content:flex-end;
+            padding:48px;
+        }
+
+        .auth-image-tagline {
+            color:rgba(255,255,255,0.92);
+            font-family:'Syne',sans-serif;
+            font-size:28px;
+            font-weight:700;
+            line-height:1.25;
+            text-shadow:0 2px 12px rgba(0,0,0,0.4);
+            margin-bottom:10px;
+        }
+
+        .auth-image-sub {
+            color:rgba(255,255,255,0.6);
+            font-size:13px;
+            letter-spacing:1.5px;
+            text-transform:uppercase;
+            font-weight:500;
+        }
+
+        /* ══ RIGHT — form panel ══ */
+        .auth-form-panel {
+            width:500px;
+            flex-shrink:0;
+            height:100vh;
+            overflow-y:auto;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:48px 40px;
+            background:var(--bg);
+            box-shadow:-8px 0 40px rgba(0,0,0,0.18);
+            position:relative;
         }
 
         .wrap { width:100%; max-width:420px; }
 
         /* ── Logo ── */
         .logo-section { text-align:center; margin-bottom:28px; }
-        .logo-section img { width: 150px; margin-bottom:16px; }
+        .logo-section img { width:150px; margin-bottom:16px; }
         .logo-badge {
             display:inline-flex; align-items:center; gap:6px;
             background:rgba(226,6,19,.08); border:1px solid rgba(226,6,19,.2);
@@ -74,9 +129,9 @@
 
         /* ── Alerts ── */
         .alert { display:flex; align-items:flex-start; gap:8px; padding:11px 14px; border-radius:10px; font-size:13px; margin-bottom:18px; }
-        .alert-error   { background:rgba(239,68,68,.08);   border:1px solid rgba(239,68,68,.25);   color:#fca5a5; }
-        .alert-success { background:rgba(34,197,94,.08);   border:1px solid rgba(34,197,94,.25);   color:#86efac; }
-        .alert-warning { background:rgba(250,184,11,.08);  border:1px solid rgba(250,184,11,.25);  color:#fde68a; }
+        .alert-error   { background:rgba(239,68,68,.08);  border:1px solid rgba(239,68,68,.25);  color:#fca5a5; }
+        .alert-success { background:rgba(34,197,94,.08);  border:1px solid rgba(34,197,94,.25);  color:#86efac; }
+        .alert-warning { background:rgba(250,184,11,.08); border:1px solid rgba(250,184,11,.25); color:#fde68a; }
 
         /* ── Form ── */
         .fg { margin-bottom:16px; }
@@ -116,12 +171,22 @@
 
         /* ── Theme toggle ── */
         .theme-toggle {
-            position:fixed; top:16px; right:16px;
+            position:absolute; top:16px; right:16px;
             padding:7px 10px; background:var(--surface); border:1px solid var(--border2);
             border-radius:9px; cursor:pointer; font-size:15px;
             transition:all .15s; color:var(--text2);
         }
         .theme-toggle:hover { border-color:#e20613; }
+
+        /* ── Responsive ── */
+        @media (max-width:900px) {
+            html, body { overflow:auto; }
+            body { flex-direction:column; }
+            .auth-image-panel { height:220px; flex:none; }
+            .auth-image-tagline { font-size:20px; }
+            .auth-image-overlay { padding:28px; }
+            .auth-form-panel { width:100%; height:auto; padding:40px 24px; box-shadow:none; }
+        }
     </style>
 </head>
 <body>
@@ -133,84 +198,103 @@
     })();
 </script>
 
-<button class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
-
-<div class="wrap">
-
-    {{-- Logo --}}
-    <div class="logo-section flex flex-col items-center gap-2">
-        <img id="logo-img" src="{{ asset('images/logob.png') }}" alt="CIBLE CI">
-        <div>
-            <span class="logo-badge">Espace Client</span>
+{{-- ══ LEFT — image ══ --}}
+<div class="auth-image-panel">
+    <img src="{{ asset('images/peroquet.jpg') }}"
+         alt="CIBLE CI"
+         class="auth-bg-img"
+         onerror="this.closest('.auth-image-panel').style.background='linear-gradient(135deg,#e20613,#7c000a)'">
+    <div class="auth-image-overlay">
+        <div class="auth-image-tagline">
+            Votre espace client<br>en un seul endroit.
         </div>
+        <div class="auth-image-sub">CIBLE CI · Côte d'Ivoire</div>
     </div>
+</div>
 
-    {{-- Barre couleurs + Card --}}
-    <div class="color-bar"></div>
-    <div class="card">
-        <div class="card-title">Connexion</div>
-        <div class="card-sub">Accédez à vos propositions, campagnes et factures.</div>
+{{-- ══ RIGHT — form ══ --}}
+<div class="auth-form-panel">
 
-        @if(session('error'))
-            <div class="alert alert-error">⚠️ {{ session('error') }}</div>
-        @endif
-        @if(session('success'))
-            <div class="alert alert-success">✅ {{ session('success') }}</div>
-        @endif
-        @if(session('warning'))
-            <div class="alert alert-warning">⚠️ {{ session('warning') }}</div>
-        @endif
+    <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
 
-        <form method="POST" action="{{ route('client.login.post') }}">
-            @csrf
+    <div class="wrap">
 
-            <div class="fg">
-                <label for="email">Email professionnel</label>
-                <input type="email" id="email" name="email"
-                       value="{{ old('email') }}"
-                       placeholder="contact@votresociete.com"
-                       autocomplete="email" autofocus
-                       class="{{ $errors->has('email') ? 'is-error' : '' }}">
-                @error('email')<div class="field-error">{{ $message }}</div>@enderror
+        {{-- Logo --}}
+        <div class="logo-section flex flex-col items-center gap-2">
+            <img id="logo-img" src="{{ asset('images/logob.png') }}" alt="CIBLE CI">
+            <div>
+                <span class="logo-badge">Espace Client</span>
             </div>
+        </div>
 
-            <div class="fg">
-                <label for="password">Mot de passe</label>
-                <div style="position:relative;">
-                    <input type="password" id="password" name="password"
-                           placeholder="••••••••"
-                           autocomplete="current-password"
-                           style="padding-right:42px;"
-                           class="{{ $errors->has('password') ? 'is-error' : '' }}">
-                    <button type="button"
-                            onclick="const i=document.getElementById('password');i.type=i.type==='password'?'text':'password';this.style.opacity=i.type==='text'?'1':'.4'"
-                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;opacity:.4;padding:0;">
-                        👁
-                    </button>
+        {{-- Barre couleurs + Card --}}
+        <div class="color-bar"></div>
+        <div class="card">
+            <div class="card-title">Connexion</div>
+            <div class="card-sub">Accédez à vos propositions, campagnes et factures.</div>
+
+            @if(session('error'))
+                <div class="alert alert-error">⚠️ {{ session('error') }}</div>
+            @endif
+            @if(session('success'))
+                <div class="alert alert-success">✅ {{ session('success') }}</div>
+            @endif
+            @if(session('warning'))
+                <div class="alert alert-warning">⚠️ {{ session('warning') }}</div>
+            @endif
+
+            <form method="POST" action="{{ route('client.login.post') }}">
+                @csrf
+
+                <div class="fg">
+                    <label for="email">Email professionnel</label>
+                    <input type="email" id="email" name="email"
+                           value="{{ old('email') }}"
+                           placeholder="contact@votresociete.com"
+                           autocomplete="email" autofocus
+                           class="{{ $errors->has('email') ? 'is-error' : '' }}">
+                    @error('email')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
-                @error('password')<div class="field-error">{{ $message }}</div>@enderror
+
+                <div class="fg">
+                    <label for="password">Mot de passe</label>
+                    <div style="position:relative;">
+                        <input type="password" id="password" name="password"
+                               placeholder="••••••••"
+                               autocomplete="current-password"
+                               style="padding-right:42px;"
+                               class="{{ $errors->has('password') ? 'is-error' : '' }}">
+                        <button type="button"
+                                onclick="const i=document.getElementById('password');i.type=i.type==='password'?'text':'password';this.style.opacity=i.type==='text'?'1':'.4'"
+                                style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;opacity:.4;padding:0;">
+                            👁
+                        </button>
+                    </div>
+                    @error('password')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="remember-row">
+                    <input type="checkbox" id="remember" name="remember" {{ old('remember') ? 'checked' : '' }}>
+                    <label for="remember" style="cursor:pointer;">Se souvenir de moi</label>
+                </div>
+
+                <button type="submit" class="btn-submit">
+                    Accéder à mon espace
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+            </form>
+
+            <div class="card-footer">
+                Pas encore d'accès ?<br>
+                Contactez votre commercial <strong style="color:var(--text2);">CIBLE CI</strong>.
             </div>
-
-            <div class="remember-row">
-                <input type="checkbox" id="remember" name="remember" {{ old('remember') ? 'checked' : '' }}>
-                <label for="remember" style="cursor:pointer;">Se souvenir de moi</label>
-            </div>
-
-            <button type="submit" class="btn-submit">
-                Accéder à mon espace
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </button>
-        </form>
-
-        <div class="card-footer">
-            Pas encore d'accès ?<br>
-            Contactez votre commercial <strong style="color:var(--text2);">CIBLE CI</strong>.
         </div>
-    </div>
 
-    <div class="page-footer">
-        © {{ date('Y') }} CIBLE CI · Régie OOH · Abidjan, Côte d'Ivoire<br>
-        <a href="{{ route('login') }}">Accès équipe →</a>
+        <div class="page-footer">
+            © {{ date('Y') }} CIBLE CI · Régie OOH · Abidjan, Côte d'Ivoire<br>
+            <a href="{{ route('login') }}">Accès équipe →</a>
+        </div>
+
     </div>
 </div>
 
@@ -227,7 +311,6 @@ function toggleTheme() {
         : '{{ asset("images/logol.png") }}';
 }
 
-// Appliquer le bon état au chargement
 (function(){
     const t = localStorage.getItem('client-theme') || 'dark';
     document.getElementById('theme-btn').textContent = t === 'dark' ? '🌙' : '☀️';
