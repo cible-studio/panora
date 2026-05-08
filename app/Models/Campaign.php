@@ -17,6 +17,7 @@ class Campaign extends Model
         'start_date', 'end_date', 'status',
         'total_panels', 'total_amount', 'notes',
         'cancellation_reason', 'cancellation_notes',
+        'pige_token', 'pige_token_created_at',
     ];
 
     protected $casts = [
@@ -25,6 +26,7 @@ class Campaign extends Model
         'total_amount' => 'decimal:2',
         'total_panels' => 'integer',
         'status'       => CampaignStatus::class,
+        'pige_token_created_at' => 'datetime',
     ];
 
     /** Cache mémoire pour les helpers de progression (évite les recalculs répétés en Blade) */

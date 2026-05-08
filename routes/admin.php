@@ -54,6 +54,17 @@ Route::prefix('satisfaction')->middleware('throttle:10,1')->group(function () {
         ->name('satisfaction.submit');
 });
 
+// ── Route PUBLIQUE Pige campagne (Lot 5) ────────────────────────────
+// Le commercial génère un token sur la fiche campagne et le partage au
+// technicien terrain. Throttle plus large (60 req/min) car upload de
+// photos sur plusieurs panneaux en suivant — éviter le throttle agressif.
+Route::prefix('pige')->middleware('throttle:60,1')->group(function () {
+    Route::get('/{token}',          [\App\Http\Controllers\PublicPigeController::class, 'show'])
+        ->name('pige.public.show');
+    Route::post('/{token}/upload',  [\App\Http\Controllers\PublicPigeController::class, 'upload'])
+        ->name('pige.public.upload');
+});
+
 Route::prefix('proposition')->name('proposition.')->group(function () {
 
     // Ancienne URL (token 64 chars) — rétrocompatibilité
@@ -461,6 +472,9 @@ Route::prefix('admin')
         Route::patch('campaigns/{campaign}/status', [CampaignController::class, 'updateStatus'])->name('campaigns.update-status');
         Route::patch('campaigns/{campaign}/billing-quick', [CampaignController::class, 'billingQuick'])->name('campaigns.billing-quick');
         Route::patch('campaigns/{campaign}/prolonger', [CampaignController::class, 'prolonger'])->name('campaigns.prolonger');
+        // Lot 5 — Lien pige public (token partageable)
+        Route::post  ('campaigns/{campaign}/pige-token', [CampaignController::class, 'generatePigeToken'])->name('campaigns.pige-token.generate');
+        Route::delete('campaigns/{campaign}/pige-token', [CampaignController::class, 'revokePigeToken'])  ->name('campaigns.pige-token.revoke');
         Route::post('campaigns/{campaign}/panels', [CampaignController::class, 'addPanel'])->name('campaigns.panels.add');
         Route::delete('campaigns/{campaign}/panels/{panel}', [CampaignController::class, 'removePanel'])->name('campaigns.panels.remove');
         // Endpoints AJAX (rafraîchissement progression + chargement panneaux disponibles)

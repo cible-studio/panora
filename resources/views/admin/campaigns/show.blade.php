@@ -272,6 +272,60 @@
                         <p class="text-center text-sm py-3" style="color:var(--text3)">Aucune transition disponible</p>
                     @endif
 
+                    {{-- Lien pige public (Lot 5) — partageable au technicien terrain --}}
+                    @if($can['update'] && $campaign->status->value !== 'annule')
+                    <div class="mt-5 pt-5 border-t" style="border-color:var(--border)" x-data="{ show: {{ $campaign->pige_token ? 'true' : 'false' }}, copied: false }">
+                        @if($campaign->pige_token)
+                            @php $pigeUrl = route('pige.public.show', $campaign->pige_token); @endphp
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-bold uppercase tracking-wider" style="color:var(--text3)">📷 Lien pige terrain</span>
+                                <span class="text-xs" style="color:var(--text3)">Créé {{ $campaign->pige_token_created_at?->diffForHumans() }}</span>
+                            </div>
+                            <div class="rounded-lg p-3 mb-2" style="background:var(--surface2);border:1px solid var(--border)">
+                                <div class="flex items-center gap-2">
+                                    <input type="text" id="pige-url-input" value="{{ $pigeUrl }}" readonly
+                                           class="flex-1 px-2 py-2 rounded-md text-xs font-mono focus:outline-none"
+                                           style="background:var(--surface);border:1px solid var(--border);color:var(--text)"
+                                           onclick="this.select()">
+                                    <button type="button"
+                                            onclick="navigator.clipboard.writeText('{{ $pigeUrl }}').then(()=>{ this.textContent='✓ Copié'; setTimeout(()=>this.textContent='📋 Copier', 1500); })"
+                                            class="px-3 py-2 rounded-md text-xs font-semibold"
+                                            style="background:var(--accent);color:#0a0c10;border:none;cursor:pointer">
+                                        📋 Copier
+                                    </button>
+                                    <a href="{{ $pigeUrl }}" target="_blank" rel="noopener"
+                                       class="px-3 py-2 rounded-md text-xs font-semibold"
+                                       style="background:var(--surface);color:var(--text);border:1px solid var(--border);cursor:pointer;text-decoration:none">
+                                        ↗ Ouvrir
+                                    </a>
+                                </div>
+                                <div class="text-xs mt-2" style="color:var(--text3)">
+                                    Partagez ce lien (WhatsApp, SMS, QR) au technicien — il pourra prendre les piges
+                                    directement depuis son téléphone, sans login.
+                                </div>
+                            </div>
+                            <form method="POST" action="{{ route('admin.campaigns.pige-token.revoke', $campaign) }}"
+                                  onsubmit="return confirm('Révoquer le lien actuel ? L\'ancien lien ne fonctionnera plus.')">
+                                @csrf @method('DELETE')
+                                <button type="submit"
+                                        class="w-full px-4 py-2 rounded-lg text-xs font-semibold"
+                                        style="background:transparent;color:#ef4444;border:1px solid rgba(239,68,68,.3);cursor:pointer">
+                                    🚫 Révoquer le lien
+                                </button>
+                            </form>
+                        @else
+                            <form method="POST" action="{{ route('admin.campaigns.pige-token.generate', $campaign) }}">
+                                @csrf
+                                <button type="submit"
+                                        class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold"
+                                        style="background:var(--surface2);color:var(--text);border:1px solid var(--border);cursor:pointer">
+                                    📷 Générer le lien pige terrain
+                                </button>
+                            </form>
+                        @endif
+                    </div>
+                    @endif
+
                     {{-- Prolonger --}}
                     @if($can['update'] && in_array($campaign->status->value, ['actif', 'pose', 'termine']))
                     <div class="mt-5 pt-5 border-t" id="section-prolonger" style="border-color:var(--border)" x-data="{ show: false }">

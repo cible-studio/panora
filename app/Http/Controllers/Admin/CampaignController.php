@@ -778,6 +778,50 @@ class CampaignController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // LIEN PIGE PUBLIC (token partageable au technicien)
+    // ══════════════════════════════════════════════════════════════
+    /**
+     * Génère ou ré-utilise un token unique pour la campagne. Le commercial
+     * partage le lien (WhatsApp/SMS/QR) au technicien terrain pour qu'il
+     * uploade les photos via une page publique sans login.
+     */
+    public function generatePigeToken(Request $request, Campaign $campaign)
+    {
+        $this->authorize('update', $campaign);
+
+        if ($campaign->status->value === 'annule') {
+            return back()->with('error', 'Impossible de générer un lien pour une campagne annulée.');
+        }
+
+        // Si un token existe déjà on le réutilise (idempotent) — l'admin
+        // peut explicitement le réinitialiser via revokePigeToken si besoin.
+        if (empty($campaign->pige_token)) {
+            $campaign->update([
+                'pige_token'            => \Illuminate\Support\Str::random(48),
+                'pige_token_created_at' => now(),
+            ]);
+        }
+
+        return back()->with('success', 'Lien pige actif. Partagez-le au technicien.');
+    }
+
+    /**
+     * Révoque le token actuel — l'ancien lien ne fonctionne plus.
+     * Un nouveau token sera généré au prochain appel à generate.
+     */
+    public function revokePigeToken(Request $request, Campaign $campaign)
+    {
+        $this->authorize('update', $campaign);
+
+        $campaign->update([
+            'pige_token'            => null,
+            'pige_token_created_at' => null,
+        ]);
+
+        return back()->with('success', 'Lien pige révoqué. L\'ancien lien ne fonctionne plus.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // PROLONGER
     // ══════════════════════════════════════════════════════════════
     public function prolonger(Request $request, Campaign $campaign)
