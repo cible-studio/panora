@@ -23,11 +23,54 @@
     <td style="vertical-align:middle;"><span style="font-family:monospace;color:var(--accent);font-weight:700;">{{ $panel->reference }}</span></td>
     <td style="vertical-align:middle;"><div style="font-weight:500;">{{ $panel->name }}</div><div style="font-size:11px;color:var(--text3);">{{ $panel->category?->name ?? '—' }} @if($panel->is_lit) · 💡 @endif</div></td>
     <td style="vertical-align:middle;">{{ $panel->commune->name }}</td>
-    <td style="vertical-align:middle;"><div>{{ $panel->format->name }}</div>@if($panel->format->surface)<div style="font-size:11px;color:var(--text3);">{{ $panel->format->surface }}m²</div>@endif</td>
+    {{-- Format : nom commercial / dimensions (3×2) / surface (6 m²) sur 3 lignes --}}
+    <td style="vertical-align:middle;">
+        <div style="font-weight:500;">{{ $panel->format?->name ?? '—' }}</div>
+        @php
+            $w = $panel->format?->width;
+            $h = $panel->format?->height;
+            $surface = $panel->format?->surface ?? ($w && $h ? round($w * $h, 2) : null);
+        @endphp
+        @if($w && $h)
+            <div style="font-size:11px;color:var(--text2);">
+                {{ rtrim(rtrim(number_format($w, 2, '.', ''), '0'), '.') }}×{{ rtrim(rtrim(number_format($h, 2, '.', ''), '0'), '.') }} m
+            </div>
+        @endif
+        @if($surface)
+            <div style="font-size:11px;color:var(--text3);">{{ rtrim(rtrim(number_format($surface, 2, '.', ''), '0'), '.') }} m²</div>
+        @endif
+    </td>
     <td style="text-align:center;vertical-align:middle;"><span style="font-weight:700;color:var(--text2);">{{ $panel->nombre_faces ?? 1 }}</span></td>
     <td style="vertical-align:middle;">@if($panel->quartier)<div style="font-weight:500;font-size:12px;">{{ $panel->quartier }}</div>@endif @if($panel->adresse)<div style="font-size:11px;color:var(--text3);">{{ $panel->adresse }}</div>@endif @if(!$panel->quartier && !$panel->adresse)<span style="color:var(--text3);">—</span>@endif</td>
     <td style="color:var(--accent);font-weight:600;vertical-align:middle;">{{ number_format($panel->monthly_rate, 0, ',', ' ') }} FCFA</td>
-    <td style="vertical-align:middle;">@if($panel->status->value === 'libre')<span class="badge badge-green">Libre</span>@elseif($panel->status->value === 'option')<span class="badge badge-orange">Option</span>@elseif($panel->status->value === 'confirme')<span class="badge badge-blue">Confirmé</span>@elseif($panel->status->value === 'occupe')<span class="badge badge-purple">Occupé</span>@else<span class="badge badge-red">Maintenance</span>@endif</td>
+    {{-- Statut + occupant si non libre : nom client + campagne en cours --}}
+    <td style="vertical-align:middle;">
+        @php
+            $st = $panel->status->value;
+            $activeCampaign = $panel->relationLoaded('campaigns') ? $panel->campaigns->first() : null;
+        @endphp
+        @if($st === 'libre')<span class="badge badge-green">Libre</span>
+        @elseif($st === 'option')<span class="badge badge-orange">Option</span>
+        @elseif($st === 'confirme')<span class="badge badge-blue">Confirmé</span>
+        @elseif($st === 'occupe')<span class="badge badge-purple">Occupé</span>
+        @else<span class="badge badge-red">Maintenance</span>
+        @endif
+        @if(in_array($st, ['option', 'confirme', 'occupe']) && $activeCampaign)
+            <div style="margin-top:6px;font-size:11px;color:var(--text2);line-height:1.3">
+                <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px" title="{{ $activeCampaign->client?->name }}">
+                    👤 {{ $activeCampaign->client?->name ?? '—' }}
+                </div>
+                <div style="color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px" title="{{ $activeCampaign->name }}">
+                    📋 {{ $activeCampaign->name }}
+                </div>
+                @if($activeCampaign->end_date)
+                    <div style="color:var(--text3);font-size:10px">
+                        → {{ \Carbon\Carbon::parse($activeCampaign->end_date)->format('d/m/Y') }}
+                    </div>
+                @endif
+            </div>
+        @endif
+    </td>
     <td style="vertical-align:middle;"><div style="display:flex;gap:6px;"><a href="{{ route('admin.panels.show', $panel) }}" class="btn btn-ghost btn-sm" title="Voir">👁️</a><a href="{{ route('admin.panels.edit', $panel) }}" class="btn btn-ghost btn-sm" title="Modifier">✏️</a><a href="{{ route('admin.panels.pdf', $panel) }}" class="btn btn-ghost btn-sm" title="PDF">📄</a><form method="POST" action="{{ route('admin.panels.destroy', $panel) }}" onsubmit="return confirm('Supprimer ce panneau ?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm" title="Supprimer">🗑️</button></form></div></td>
 </tr>
 @empty
@@ -64,7 +107,22 @@
     </td>
     <td style="vertical-align:middle;"><div style="font-weight:500;">{{ $ext->designation }}</div><div style="font-size:11px;color:var(--text3);">{{ $ext->category?->name ?? '—' }} @if($ext->is_lit) · 💡 @endif</div></td>
     <td style="vertical-align:middle;">{{ $ext->commune?->name ?? '—' }}</td>
-    <td style="vertical-align:middle;"><div>{{ $ext->format?->name ?? '—' }}</div>@if($ext->format?->surface)<div style="font-size:11px;color:var(--text3);">{{ $ext->format->surface }}m²</div>@endif</td>
+    <td style="vertical-align:middle;">
+        <div style="font-weight:500;">{{ $ext->format?->name ?? '—' }}</div>
+        @php
+            $extW = $ext->format?->width;
+            $extH = $ext->format?->height;
+            $extSurface = $ext->format?->surface ?? ($extW && $extH ? round($extW * $extH, 2) : null);
+        @endphp
+        @if($extW && $extH)
+            <div style="font-size:11px;color:var(--text2);">
+                {{ rtrim(rtrim(number_format($extW, 2, '.', ''), '0'), '.') }}×{{ rtrim(rtrim(number_format($extH, 2, '.', ''), '0'), '.') }} m
+            </div>
+        @endif
+        @if($extSurface)
+            <div style="font-size:11px;color:var(--text3);">{{ rtrim(rtrim(number_format($extSurface, 2, '.', ''), '0'), '.') }} m²</div>
+        @endif
+    </td>
     <td style="text-align:center;vertical-align:middle;"><span style="font-weight:700;color:var(--text2);">{{ $ext->nombre_faces ?? 1 }}</span></td>
     <td style="vertical-align:middle;">@if($ext->quartier)<div style="font-weight:500;font-size:12px;">{{ $ext->quartier }}</div>@endif @if($ext->adresse)<div style="font-size:11px;color:var(--text3);">{{ $ext->adresse }}</div>@endif @if(!$ext->quartier && !$ext->adresse)<span style="color:var(--text3);">—</span>@endif @if($ext->orientation)<span class="badge badge-gray mt-1">{{ ucfirst($ext->orientation) }}</span>@endif</td>
     <td style="color:var(--purple);font-weight:600;vertical-align:middle;">@if($ext->monthly_rate > 0){{ number_format($ext->monthly_rate, 0, ',', ' ') }} FCFA @else<span style="color:var(--text3);">—</span>@endif</td>

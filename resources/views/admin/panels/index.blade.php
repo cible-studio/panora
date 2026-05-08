@@ -32,27 +32,94 @@
         <a href="{{ route('admin.panels.create') }}" class="btn btn-primary btn-sm">＋ Nouveau panneau</a>
     </x-slot>
 
-    {{-- STATS --}}
-    <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
-        <a href="#" data-source="all" class="stat-card filter-stat">
-            <div class="stat-label">Total CIBLE CI</div>
-            <div class="stat-value">{{ $totalPanneaux }}</div>
+    {{-- ══ KPI CARDS — cliquables avec bordure latérale colorée
+         (style Alertes). Chaque carte applique son filtre (status ou
+         source) et bascule l'état "active" pour feedback visuel. ══ --}}
+    <style>
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .kpi-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px 18px;
+            cursor: pointer;
+            transition: all .15s;
+            text-decoration: none;
+            display: block;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,.06);
+        }
+        .kpi-card.active {
+            box-shadow: 0 0 0 2px var(--accent-strong, var(--accent));
+        }
+        .kpi-card .kpi-icon { color: var(--accent); margin-bottom: 6px; }
+        .kpi-card .kpi-num { font-size: 28px; font-weight: 800; line-height: 1; }
+        .kpi-card .kpi-label {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .6px; color: var(--text3); margin-top: 6px;
+        }
+    </style>
+    <div class="kpi-grid">
+        {{-- TOTAL → reset filtres --}}
+        <a href="#" data-kpi="total" data-filter-action="reset"
+           class="kpi-card active"
+           style="border-left:4px solid var(--accent);">
+            <div class="kpi-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            </div>
+            <div class="kpi-num" data-kpi-value="total" style="color:var(--accent);">{{ $totalPanneaux + $totalExternes }}</div>
+            <div class="kpi-label">Total inventaire</div>
         </a>
-        <a href="#" data-status="libre" class="stat-card filter-stat">
-            <div class="stat-label">Libres</div>
-            <div class="stat-value" style="color:var(--green);">{{ $panneauxLibres }}</div>
+
+        {{-- LIBRES (vert) --}}
+        <a href="#" data-kpi="libres" data-filter-status="libre"
+           class="kpi-card"
+           style="border-left:4px solid #22c55e;">
+            <div class="kpi-icon" style="color:#22c55e;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="kpi-num" data-kpi-value="libres" style="color:#22c55e;">{{ $panneauxLibres }}</div>
+            <div class="kpi-label">Libres</div>
         </a>
-        <a href="#" data-status="occupe" class="stat-card filter-stat">
-            <div class="stat-label">Occupés</div>
-            <div class="stat-value" style="color:var(--accent);">{{ $panneauxOccupes }}</div>
+
+        {{-- OCCUPÉS (orange) --}}
+        <a href="#" data-kpi="occupes" data-filter-status="occupe"
+           class="kpi-card"
+           style="border-left:4px solid #f97316;">
+            <div class="kpi-icon" style="color:#f97316;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="kpi-num" data-kpi-value="occupes" style="color:#f97316;">{{ $panneauxOccupes }}</div>
+            <div class="kpi-label">Occupés</div>
         </a>
-        <a href="#" data-status="maintenance" class="stat-card filter-stat">
-            <div class="stat-label">Maintenance</div>
-            <div class="stat-value" style="color:var(--red);">{{ $enMaintenance }}</div>
+
+        {{-- MAINTENANCE (rouge) --}}
+        <a href="#" data-kpi="maintenance" data-filter-status="maintenance"
+           class="kpi-card"
+           style="border-left:4px solid #ef4444;">
+            <div class="kpi-icon" style="color:#ef4444;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            </div>
+            <div class="kpi-num" data-kpi-value="maintenance" style="color:#ef4444;">{{ $enMaintenance }}</div>
+            <div class="kpi-label">Maintenance</div>
         </a>
-        <a href="#" data-source="externe" class="stat-card filter-stat">
-            <div class="stat-label" style="color:var(--purple);">Régies externes</div>
-            <div class="stat-value" style="color:var(--purple);">{{ $totalExternes }}</div>
+
+        {{-- RÉGIES EXTERNES (violet) --}}
+        <a href="#" data-kpi="externes" data-filter-source="externe"
+           class="kpi-card"
+           style="border-left:4px solid #a855f7;">
+            <div class="kpi-icon" style="color:#a855f7;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 12h.01M9 15h.01M9 18h.01M15 9h.01M15 12h.01M15 15h.01M15 18h.01"/></svg>
+            </div>
+            <div class="kpi-num" data-kpi-value="externes" style="color:#a855f7;">{{ $totalExternes }}</div>
+            <div class="kpi-label">Régies externes</div>
         </a>
     </div>
 
@@ -206,8 +273,36 @@
                     resetBtn: document.getElementById('btn-reset'),
                     resetWrapper: document.getElementById('reset-wrapper'),
                     sourceBtns: document.querySelectorAll('.filter-source-btn'),
-                    statLinks: document.querySelectorAll('.filter-stat')
+                    statLinks: document.querySelectorAll('.filter-stat'),
+                    kpiCards: document.querySelectorAll('.kpi-card'),
                 };
+
+                // Met à jour les valeurs des KPI cards selon la réponse AJAX
+                function updateKpiCards(counts) {
+                    if (!counts) return;
+                    const totalAll = (counts.total || 0) + (counts.externes || 0);
+                    document.querySelectorAll('[data-kpi-value]').forEach(el => {
+                        const k = el.dataset.kpiValue;
+                        const v = k === 'total' ? totalAll : (counts[k] ?? 0);
+                        el.textContent = new Intl.NumberFormat('fr-FR').format(v);
+                    });
+                }
+
+                // Met à jour l'état actif des cards (bordure accent)
+                function updateActiveKpi() {
+                    const noFilter = !currentFilters.status
+                        && currentFilters.source === 'all';
+                    elements.kpiCards.forEach(c => {
+                        const action = c.dataset.filterAction;
+                        const status = c.dataset.filterStatus;
+                        const source = c.dataset.filterSource;
+                        let active = false;
+                        if (action === 'reset') active = noFilter;
+                        else if (status) active = currentFilters.status === status;
+                        else if (source) active = currentFilters.source === source;
+                        c.classList.toggle('active', active);
+                    });
+                }
 
                 function updateResetButton() {
                     const hasFilters = currentFilters.search ||
@@ -250,6 +345,8 @@
 
                         document.getElementById('table-body').innerHTML = data.html;
                         document.getElementById('result-count').innerHTML = data.stats_html;
+                        updateKpiCards(data.counts);
+                        updateActiveKpi();
 
                         const pagContainer = document.getElementById('pagination-links');
                         if (pagContainer) pagContainer.innerHTML = data.pagination || '';
@@ -298,9 +395,48 @@
                             currentFilters.category_id = elements.category?.value || '';
                             currentFilters.client_id = elements.client?.value || '';
                             updateResetButton();
+                            updateActiveKpi();
                             applyFilters();
                         });
                     }
+                });
+
+                // KPI cards (nouvelles) — chaque clic applique un filtre rapide
+                elements.kpiCards.forEach(card => {
+                    card.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const action = card.dataset.filterAction;
+                        const status = card.dataset.filterStatus;
+                        const source = card.dataset.filterSource;
+
+                        if (action === 'reset') {
+                            // Reset tous les filtres
+                            currentFilters = {
+                                source: 'all', search: '', commune_id: '',
+                                zone_id: '', status: '', category_id: '', client_id: ''
+                            };
+                            if (elements.search) elements.search.value = '';
+                            if (elements.commune) elements.commune.value = '';
+                            if (elements.zone) elements.zone.value = '';
+                            if (elements.status) elements.status.value = '';
+                            if (elements.category) elements.category.value = '';
+                            if (elements.client) elements.client.value = '';
+                        } else if (status) {
+                            // Toggle filter status — re-cliquer enlève le filtre
+                            const isActive = currentFilters.status === status;
+                            currentFilters.status = isActive ? '' : status;
+                            currentFilters.source = 'cible'; // statut = panneau interne
+                            if (elements.status) elements.status.value = currentFilters.status;
+                        } else if (source) {
+                            const isActive = currentFilters.source === source;
+                            currentFilters.source = isActive ? 'all' : source;
+                            currentFilters.status = ''; // reset status quand on bascule source
+                            if (elements.status) elements.status.value = '';
+                        }
+                        updateResetButton();
+                        updateActiveKpi();
+                        applyFilters();
+                    });
                 });
 
                 // Boutons source

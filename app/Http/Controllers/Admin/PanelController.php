@@ -45,9 +45,15 @@ class PanelController extends Controller
             $query = Panel::with([
                 'commune:id,name',
                 'zone:id,name',
-                'format:id,name,width,height',
+                'format:id,name,width,height,surface',
                 'category:id,name',
                 'photos' => fn($q) => $q->orderBy('ordre')->limit(1),
+                // Client/campagne occupant — affichés dans la table pour
+                // les panneaux non-libres (vue inventaire).
+                'campaigns' => fn($q) => $q
+                    ->whereIn('campaigns.status', ['actif', 'pose', 'planifie'])
+                    ->with('client:id,name')
+                    ->orderBy('campaigns.start_date'),
             ]);
 
             // 🔍 RECHERCHE EXACTE SUR MOT ENTIER
@@ -89,11 +95,26 @@ class PanelController extends Controller
                 });
             }
 
+            // Compteurs SUR LA QUERY FILTRÉE (search/commune/zone/status/category/client)
+            // pour que les KPI cards reflètent le périmètre courant. Les
+            // colonnes individuelles (libres/occupés/maintenance) sont
+            // calculées en GROUP BY status — quel que soit le filtre status,
+            // on garde le détail pour permettre à l'admin de voir la répartition.
+            $countsRaw = (clone $query)
+                ->setEagerLoads([])
+                ->reorder()
+                ->select('status', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total'))
+                ->groupBy('status')
+                ->pluck('total', 'status');
+
+            $totalPanneaux   = (int) $countsRaw->sum();
+            $panneauxLibres  = (int) ($countsRaw['libre'] ?? 0);
+            $panneauxOccupes = (int) ($countsRaw['occupe'] ?? 0)
+                             + (int) ($countsRaw['option'] ?? 0)
+                             + (int) ($countsRaw['confirme'] ?? 0);
+            $enMaintenance   = (int) ($countsRaw['maintenance'] ?? 0);
+
             $panels = $query->latest()->paginate(15)->withQueryString();
-            $totalPanneaux = Panel::count();
-            $panneauxLibres = Panel::where('status', 'libre')->count();
-            $panneauxOccupes = Panel::whereIn('status', ['occupe', 'option', 'confirme'])->count();
-            $enMaintenance = Panel::where('status', 'maintenance')->count();
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -119,7 +140,8 @@ class PanelController extends Controller
         }
 
         $externalPanels = $externalQuery->get();
-        $totalExternes = \App\Models\ExternalPanel::count();
+        // Compteur externe SUR LA QUERY FILTRÉE
+        $totalExternes = (clone $externalQuery)->count();
 
         // ═══════════════════════════════════════════════════════════════
         // RÉPONSE AJAX
@@ -129,10 +151,18 @@ class PanelController extends Controller
             $paginationHtml = ($source !== 'externe' && $panels->hasPages()) ? $panels->links()->render() : '';
 
             return response()->json([
-                'html' => $html,
+                'html'       => $html,
                 'pagination' => $paginationHtml,
-                'total' => ($source === 'externe') ? $externalPanels->count() : $panels->total(),
+                'total'      => ($source === 'externe') ? $externalPanels->count() : $panels->total(),
                 'stats_html' => $this->getStatsHtml($source, $panels, $externalPanels),
+                // KPI cards : valeurs filtrées pour rafraîchir les 5 cartes
+                'counts'     => [
+                    'total'       => $totalPanneaux,
+                    'libres'      => $panneauxLibres,
+                    'occupes'     => $panneauxOccupes,
+                    'maintenance' => $enMaintenance,
+                    'externes'    => $totalExternes,
+                ],
             ]);
         }
 
