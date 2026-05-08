@@ -143,7 +143,7 @@
 
             <div class="auth-image-overlay">
                 <div class="auth-image-tagline">
-                    PANORA
+                    Votre régie OOH<br>en un seul espace.
                 </div>
                 <div class="auth-image-sub">CIBLE CI · Côte d'Ivoire</div>
             </div>
