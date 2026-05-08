@@ -770,6 +770,19 @@ document.addEventListener('keydown', e => {
             
             if (data.stats && data.stats.total !== undefined) {
                 document.getElementById('total-count').textContent = data.stats.total + ' résultat(s)';
+
+                // Met à jour le KPI "Total" (carte data-value vide = 'all')
+                document.querySelectorAll('.stat-card').forEach(card => {
+                    const numEl = card.querySelector('.stat-number');
+                    if (!numEl) return;
+                    const v = card.dataset.value;
+                    if (!v) {
+                        // Carte 'all' = total filtré
+                        numEl.textContent = data.stats.total;
+                    } else if (data.stats.counts && data.stats.counts[v] !== undefined) {
+                        numEl.textContent = data.stats.counts[v];
+                    }
+                });
             }
             
             // Mettre à jour l'URL sans recharger

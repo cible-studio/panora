@@ -62,27 +62,39 @@ class CampaignController extends Controller
             ->when($request->zone_id,     fn($q, $id) => $q->whereHas('panels', fn($p) => $p->where('zone_id', $id)))
             ->orderByDesc('created_at');
 
+        // Compteurs par statut SUR LA QUERY FILTRÉE — sinon les KPI cards
+        // restent figées sur les totaux globaux quand l'admin filtre.
+        // On clone, on retire les eager-loads/withCount inutiles + l'orderBy
+        // (qui casse le GROUP BY en mode MySQL strict), puis GROUP BY status.
+        // ⚠ "actif" inclut désormais "pose" (sous-état d'actif) pour que la
+        // somme des cards = total affiché.
+        $countsRaw = (clone $query)
+            ->setEagerLoads([])      // pas besoin des relations pour un GROUP BY
+            ->reorder()              // efface l'orderBy sans toucher aux WHERE
+            ->select('status', DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $counts = [
+            'planifie' => (int) ($countsRaw['planifie'] ?? 0),
+            'actif'    => (int) ($countsRaw['actif']    ?? 0) + (int) ($countsRaw['pose'] ?? 0),
+            'pause'    => (int) ($countsRaw['pause']    ?? 0),
+            'termine'  => (int) ($countsRaw['termine']  ?? 0),
+            'annule'   => (int) ($countsRaw['annule']   ?? 0),
+        ];
+
         $campaigns = $query->paginate(20)->withQueryString();
 
         if ($request->ajax()) {
             return response()->json([
                 'html'       => view('admin.campaigns.partials.table-rows', compact('campaigns'))->render(),
                 'pagination' => $campaigns->links('pagination::bootstrap-4')->render(),
-                'stats'      => ['total' => $campaigns->total()],
+                'stats'      => [
+                    'total'  => $campaigns->total(),
+                    'counts' => $counts, // 5.x : pour rafraîchir les KPI cards en AJAX
+                ],
             ]);
         }
-
-        $rawCounts = Campaign::selectRaw('status, count(*) as total')
-            ->groupBy('status')->pluck('total', 'status');
-
-        $counts = [
-            'planifie' => $rawCounts['planifie'] ?? 0,
-            'actif'    => $rawCounts['actif']    ?? 0,
-            'pose'     => $rawCounts['pose']     ?? 0,
-            'pause'    => $rawCounts['pause']    ?? 0,
-            'termine'  => $rawCounts['termine']  ?? 0,
-            'annule'   => $rawCounts['annule']   ?? 0,
-        ];
 
         $nonFactureesCount = Campaign::nonFacturees()->count();
         $endingSoonCount   = Campaign::endingSoon(14)->count();
