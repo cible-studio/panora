@@ -435,8 +435,11 @@
                     <td class="p-3 text-sm text-gray-400">{{ $panel->commune?->name ?? '—' }}</td>
                     <td class="p-3 text-sm text-gray-500">
                         {{ $panel->format?->name ?? '—' }}
-                        @if($panel->format?->width && $panel->format?->height)
-                        <div class="text-xs text-gray-600">{{ $panel->format->width }}×{{ $panel->format->height }}m</div>
+                        @if($panel->format?->dimensions_label)
+                        <div class="text-xs text-gray-600">{{ $panel->format->dimensions_label }}</div>
+                        @endif
+                        @if($panel->format?->surface_label)
+                        <div class="text-xs text-gray-600">{{ $panel->format->surface_label }}</div>
                         @endif
                     </td>
                     <td class="p-3 text-right">
@@ -562,8 +565,11 @@
                     <td class="p-3 text-sm text-gray-400">{{ $ext->commune?->name ?? '—' }}</td>
                     <td class="p-3 text-sm text-gray-500">
                         {{ $ext->format?->name ?? '—' }}
-                        @if($ext->format?->width && $ext->format?->height)
-                            <div class="text-xs text-gray-600">{{ $ext->format->width }}×{{ $ext->format->height }}m</div>
+                        @if($ext->format?->dimensions_label)
+                            <div class="text-xs text-gray-600">{{ $ext->format->dimensions_label }}</div>
+                        @endif
+                        @if($ext->format?->surface_label)
+                            <div class="text-xs text-gray-600">{{ $ext->format->surface_label }}</div>
                         @endif
                     </td>
                     <td class="p-3 text-right">

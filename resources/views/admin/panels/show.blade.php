@@ -97,18 +97,16 @@
                                 <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">TYPE SUPPORT</div>
                                 <div style="font-weight:600;">{{ $panel->type_support ?? '—' }}</div>
                             </div>
-                            @if ($panel->format->width && $panel->format->height)
+                            @if ($panel->format->dimensions_label)
                                 <div>
                                     <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">DIMENSIONS</div>
-                                    <div style="font-weight:600;">
-                                        {{ $panel->format->width }}m × {{ $panel->format->height }}m
-                                    </div>
+                                    <div style="font-weight:600;">{{ $panel->format->dimensions_label }}</div>
                                 </div>
                             @endif
-                            @if ($panel->format->surface)
+                            @if ($panel->format->surface_label)
                                 <div>
                                     <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">SURFACE</div>
-                                    <div style="font-weight:600;">{{ $panel->format->surface }} m²</div>
+                                    <div style="font-weight:600;">{{ $panel->format->surface_label }}</div>
                                 </div>
                             @endif
                             @if ($panel->daily_traffic)

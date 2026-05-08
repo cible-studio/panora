@@ -294,8 +294,8 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
                     <div style="display:flex;align-items:center;gap:5px;">
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/></svg>
                         {{ $panel->format->name }}
-                        @if($panel->format->width && $panel->format->height)
-                        <span style="opacity:.6;">· {{ rtrim(rtrim(number_format($panel->format->width,2,'.','.'), '0'), '.') }}×{{ rtrim(rtrim(number_format($panel->format->height,2,'.','.'), '0'), '.') }}m</span>
+                        @if($panel->format->dimensions_label)
+                        <span style="opacity:.6;">· {{ $panel->format->dimensions_label }}@if($panel->format->surface_label) · {{ $panel->format->surface_label }}@endif</span>
                         @endif
                     </div>
                     @endif
@@ -411,8 +411,8 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
                     <div style="display:flex;align-items:center;gap:5px;">
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/></svg>
                         {{ $panel->format->name }}
-                        @if($panel->format->width && $panel->format->height)
-                        <span style="opacity:.6;">· {{ rtrim(rtrim(number_format($panel->format->width,2,'.','.'), '0'), '.') }}×{{ rtrim(rtrim(number_format($panel->format->height,2,'.','.'), '0'), '.') }}m</span>
+                        @if($panel->format->dimensions_label)
+                        <span style="opacity:.6;">· {{ $panel->format->dimensions_label }}@if($panel->format->surface_label) · {{ $panel->format->surface_label }}@endif</span>
                         @endif
                     </div>
                     @endif

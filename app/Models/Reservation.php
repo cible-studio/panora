@@ -265,7 +265,8 @@ class Reservation extends Model
                 'commune'      => $panel->commune?->name ?? '—',
                 'zone'         => $panel->zone?->name    ?? '—',
                 'format'       => $panel->format?->name  ?? '—',
-                'dimensions'   => $this->formatPanelDims($panel->format),
+                'dimensions'   => $panel->format?->dimensions_label,
+                'surface'      => $panel->format?->surface_label,
                 'category'     => $panel->category?->name ?? '—',
                 'is_lit'       => (bool) $panel->is_lit,
                 'monthly_rate' => (float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0),
@@ -290,7 +291,8 @@ class Reservation extends Model
                 'commune'      => $panel->commune?->name ?? '—',
                 'zone'         => $panel->zone?->name    ?? '—',
                 'format'       => $panel->format?->name  ?? '—',
-                'dimensions'   => $this->formatPanelDims($panel->format),
+                'dimensions'   => $panel->format?->dimensions_label,
+                'surface'      => $panel->format?->surface_label,
                 'category'     => $panel->category?->name ?? '—',
                 'is_lit'       => (bool) $panel->is_lit,
                 'monthly_rate' => (float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0),
@@ -316,11 +318,12 @@ class Reservation extends Model
         return $this->panels->count() + $this->externalPanels->count();
     }
 
+    /**
+     * @deprecated Utiliser PanelFormat::dimensions_label désormais. Conservé
+     *             le temps que les éventuels callers externes migrent.
+     */
     private function formatPanelDims($format): ?string
     {
-        if (!$format?->width || !$format?->height) return null;
-        $w = rtrim(rtrim(number_format($format->width, 2, '.', ''), '0'), '.');
-        $h = rtrim(rtrim(number_format($format->height, 2, '.', ''), '0'), '.');
-        return "{$w}×{$h}m";
+        return $format?->dimensions_label;
     }
 }
