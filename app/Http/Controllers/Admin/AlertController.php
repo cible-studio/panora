@@ -32,31 +32,34 @@ class AlertController extends Controller
         // Liste paginée avec filtres
         $query = Alert::active()->latest('triggered_at');
 
-        if ($request->filled('niveau')) {
-            $query->ofNiveau($request->niveau);
-        }
+        // Filtres "neutres" appliqués au périmètre + au calcul des compteurs
         if ($request->filled('type')) {
             $query->ofType($request->type);
         }
         if ($request->boolean('non_lues')) {
-            // Subtilité : juste après le mark-all-as-read, "non_lues" = 0
-            // résultat. C'est cohérent (les alertes existantes deviennent
-            // historiques). Ce filtre devient utile pour les nouvelles
-            // alertes qui arriveront ensuite via les triggers.
             $query->where('is_read', false);
+        }
+
+        // ─── COMPTEURS KPI sur le périmètre AVANT filtre niveau ───
+        // On NE passe PAS le filtre niveau à activeSummary — sinon cliquer
+        // "Danger" ferait tomber les counts Avertissements/Informations à 0.
+        // Chaque carte garde sa vraie valeur dans le périmètre (type/non_lues).
+        $summary = $this->alertService->activeSummary([
+            'type'     => $request->input('type'),
+            'non_lues' => $request->boolean('non_lues'),
+        ]);
+
+        // Filtre niveau appliqué APRÈS le calcul des compteurs
+        if ($request->filled('niveau')) {
+            $query->ofNiveau($request->niveau);
         }
 
         $alertes = $query->paginate(25)->withQueryString();
 
-        // KPI : compteurs sur toutes les alertes actives selon les filtres.
-        // ⚠️ Pas `unreadSummary()` ici — ça vient juste d'être mis à 0 par
-        // markAllAsRead(). On utilise activeSummary() qui reste pertinent
-        // (lues ET non lues) pour que l'admin voie l'activité réelle.
-        $summary = $this->alertService->activeSummary([
-            'type'     => $request->input('type'),
-            'niveau'   => $request->input('niveau'),
-            'non_lues' => $request->boolean('non_lues'),
-        ]);
+        // Total de la carte "Total alertes" = ce qui est réellement affiché
+        // (avec tous les filtres y compris niveau). Permet à l'utilisateur
+        // de voir le périmètre courant sans que les autres cartes bougent.
+        $summary['total'] = $alertes->total();
 
         $types = collect(AlertService::TYPES)
             ->map(fn ($meta, $code) => ['code' => $code, ...$meta])
