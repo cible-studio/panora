@@ -21,7 +21,12 @@ Détails :
 @endif
 - Décision  : {{ now()->format('d/m/Y à H:i') }}
 
-@if(!$isAccepted && $reason)
+@if(!$isAccepted && ($reasonLabel ?? null))
+Motif du refus : {{ $reasonLabel }}
+@if($reason)Précisions client : {{ $reason }}
+@endif
+
+@elseif(!$isAccepted && $reason)
 Motif du refus :
 {{ $reason }}
 

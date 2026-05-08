@@ -746,12 +746,19 @@
     <div class="modal">
         <h3>Refuser la proposition</h3>
         <p>
-            Indiquez optionnellement un motif. Cela aide notre équipe à mieux adapter les futures
-            propositions à vos besoins.
+            Indiquez le motif principal — cela nous aide à mieux ajuster les prochaines propositions.
         </p>
         <form method="POST" action="{{ route('proposition.refuser', [$reference, $slug]) }}" id="form-refuser">
             @csrf
-            <textarea name="motif" placeholder="Motif (optionnel) — budget, zones, période, autre..."></textarea>
+            <div class="refus-options" role="radiogroup" aria-label="Motif du refus">
+                @foreach(\App\Models\Reservation::REFUS_REASONS as $code => $label)
+                    <label class="refus-option">
+                        <input type="radio" name="reason_code" value="{{ $code }}" required>
+                        <span>{{ $label }}</span>
+                    </label>
+                @endforeach
+            </div>
+            <textarea name="motif" rows="2" placeholder="Précisions optionnelles (commentaire libre)…"></textarea>
             <div class="modal-btns">
                 <button type="button" class="btn btn-secondary" onclick="closeRefusModal()">Annuler</button>
                 <button type="submit" class="btn btn-danger">Confirmer le refus</button>
@@ -759,6 +766,23 @@
         </form>
     </div>
 </div>
+
+<style>
+    .refus-options { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+    .refus-option {
+        display:flex; align-items:center; gap:10px;
+        padding:10px 12px;
+        border:1px solid var(--border, rgba(0,0,0,.12));
+        border-radius:9px;
+        cursor:pointer;
+        font-size:13px;
+        background:var(--surface2, #f7f7f7);
+        transition:border-color .15s, background .15s;
+    }
+    .refus-option input { accent-color:#e20613; cursor:pointer; flex-shrink:0; }
+    .refus-option:hover { border-color:rgba(226,6,19,.5); }
+    .refus-option:has(input:checked) { border-color:#e20613; background:rgba(226,6,19,.05); }
+</style>
 
 {{-- Form caché pour la confirmation --}}
 <form method="POST" action="{{ route('proposition.confirmer', [$reference, $slug]) }}" id="form-confirmer" style="display:none;">
