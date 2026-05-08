@@ -215,8 +215,6 @@
 {{-- ══ RIGHT — form ══ --}}
 <div class="auth-form-panel">
 
-    <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
-
     <div class="wrap">
 
         {{-- Logo --}}
