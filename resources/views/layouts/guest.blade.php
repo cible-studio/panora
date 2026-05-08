@@ -101,12 +101,6 @@
         .auth-wrap {
             width: 100%;
             max-width: 420px;
-            animation: fadeUp .45s ease;
-        }
-
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(18px); }
-            to   { opacity: 1; transform: translateY(0); }
         }
 
         /* ── Responsive: mobile stacks vertically ── */
@@ -149,7 +143,7 @@
 
             <div class="auth-image-overlay">
                 <div class="auth-image-tagline">
-                    Votre régie OOH<br>en un seul espace.
+                    PANORA
                 </div>
                 <div class="auth-image-sub">CIBLE CI · Côte d'Ivoire</div>
             </div>
