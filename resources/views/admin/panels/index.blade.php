@@ -12,7 +12,9 @@
                 background:var(--surface);border:1px solid var(--border2);
                 border-radius:10px;padding:14px;min-width:220px;
                 box-shadow:0 8px 24px rgba(0,0,0,.15);">
-                <form method="GET" action="{{ route('admin.panels.export.list') }}" target="_blank">
+                {{-- Pas de target="_blank" : téléchargement / preview dans
+                     l'onglet courant (le navigateur gère le content-type PDF). --}}
+                <form method="GET" action="{{ route('admin.panels.export.list') }}">
                     <input type="hidden" name="commune_id" value="{{ request('commune_id') }}">
                     <input type="hidden" name="status" value="{{ request('status') }}">
                     <input type="hidden" name="zone_id" value="{{ request('zone_id') }}">

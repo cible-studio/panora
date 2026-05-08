@@ -231,10 +231,10 @@
                 {{ $reservation->panels->count() }} panneau(x)
             </span>
 
-            {{-- ✅ PDF images avec référence réservation --}}
+            {{-- ✅ PDF images avec référence réservation
+                 Pas de target="_blank" : téléchargement dans l'onglet courant. --}}
             <form method="POST"
-                  action="{{ route('admin.reservations.disponibilites.pdf-images') }}"
-                  target="_blank">
+                  action="{{ route('admin.reservations.disponibilites.pdf-images') }}">
                 @csrf
                 @foreach($reservation->panels as $p)
                     <input type="hidden" name="panel_ids[]" value="{{ $p->id }}">
@@ -250,10 +250,10 @@
                 </button>
             </form>
 
-            {{-- ✅ PDF liste avec référence réservation --}}
+            {{-- ✅ PDF liste avec référence réservation
+                 Pas de target="_blank" : téléchargement dans l'onglet courant. --}}
             <form method="POST"
-                  action="{{ route('admin.reservations.disponibilites.pdf-liste') }}"
-                  target="_blank">
+                  action="{{ route('admin.reservations.disponibilites.pdf-liste') }}">
                 @csrf
                 @foreach($reservation->panels as $p)
                     <input type="hidden" name="panel_ids[]" value="{{ $p->id }}">
