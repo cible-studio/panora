@@ -60,24 +60,35 @@
 </div>
 @endif
 
-{{-- ════ KPI avec filtres dynamiques ════ --}}
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px" class="stats-grid">
+{{-- ════ KPI cards (pattern unifié projet : bordure latérale colorée,
+     toggle, état actif, counts qui gardent leur valeur indépendamment
+     du filtre KPI courant). ════ --}}
 @php
 $kpis = [
-    ['s'=>'planifiee','l'=>'Planifiées','v'=>$stats['planifiee']??0,'c'=>'#e8a020','bg'=>'rgba(232,160,32,.08)'],
-    ['s'=>'en_cours', 'l'=>'En cours',  'v'=>$stats['en_cours'] ??0,'c'=>'#3b82f6','bg'=>'rgba(59,130,246,.08)'],
-    ['s'=>'realisee', 'l'=>'Réalisées', 'v'=>$stats['realisee'] ??0,'c'=>'#22c55e','bg'=>'rgba(34,197,94,.08)'],
-    ['s'=>'annulee',  'l'=>'Annulées',  'v'=>$stats['annulee']  ??0,'c'=>'#ef4444','bg'=>'rgba(239,68,68,.08)'],
+    ['s'=>'total',     'l'=>'Total',      'c'=>'var(--accent)', 'icon'=>'📋'],
+    ['s'=>'planifiee', 'l'=>'Planifiées', 'c'=>'#f97316',       'icon'=>'📅'],
+    ['s'=>'en_cours',  'l'=>'En cours',   'c'=>'#3b82f6',       'icon'=>'🔧'],
+    ['s'=>'realisee',  'l'=>'Réalisées',  'c'=>'#22c55e',       'icon'=>'✅'],
+    ['s'=>'annulee',   'l'=>'Annulées',   'c'=>'#ef4444',       'icon'=>'🚫'],
 ];
+$activeStatus = request('status');
+$hasAnyFilter = request('q') || request('status') || request('technicien_id')
+              || request('campaign_id') || request('date_from') || request('date_to');
 @endphp
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px" class="stats-grid">
 @foreach($kpis as $k)
-@php $active = request('status') === $k['s']; @endphp
-<a href="#" data-status="{{ $k['s'] }}"
-   class="stat-card filter-stat {{ $active ? 'active' : '' }}"
-   style="background:{{ $k['bg'] }};border:1px solid {{ $active ? $k['c'] : 'var(--border)' }};border-radius:14px;padding:16px 18px;text-decoration:none;display:block;transition:all .15s;{{ $active ? 'box-shadow:0 0 0 2px '.$k['c'].'30;' : '' }}">
-    <div style="font-size:26px;font-weight:800;color:{{ $k['c'] }};line-height:1;margin-bottom:6px">{{ number_format($k['v']) }}</div>
+@php
+    $isTotal  = $k['s'] === 'total';
+    $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $k['s']);
+@endphp
+<a href="#"
+   data-kpi="{{ $k['s'] }}"
+   data-status="{{ $isTotal ? '' : $k['s'] }}"
+   class="stat-card filter-stat {{ $isActive ? 'active' : '' }}"
+   style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['c'] }};border-radius:14px;padding:14px 18px;text-decoration:none;display:block;transition:all .15s;{{ $isActive ? 'box-shadow:0 0 0 2px '.$k['c'].'33;' : '' }}">
+    <div style="font-size:18px;color:{{ $k['c'] }};margin-bottom:4px">{{ $k['icon'] }}</div>
+    <div data-kpi-value="{{ $k['s'] }}" style="font-size:26px;font-weight:800;color:{{ $k['c'] }};line-height:1;margin-bottom:6px">{{ number_format($stats[$k['s']] ?? 0) }}</div>
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">{{ $k['l'] }}</div>
-    @if($active)<div style="font-size:9px;color:{{ $k['c'] }};margin-top:3px;font-weight:600">Filtre actif ✓</div>@endif
 </a>
 @endforeach
 </div>
@@ -407,13 +418,19 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
                 elements.tableContainer.innerHTML = data.html;
                 elements.tableContainer.style.opacity = '1';
             }
-            
-            if (elements.resultCount && data.total) {
-                elements.resultCount.textContent = data.total;
+
+            if (elements.resultCount && data.total !== undefined) {
+                elements.resultCount.textContent = new Intl.NumberFormat('fr-FR').format(data.total);
             }
-            
+
             if (elements.paginationContainer && data.pagination) {
                 elements.paginationContainer.innerHTML = data.pagination;
+            }
+
+            // Met à jour les KPI cards (counts par statut + total)
+            if (data.stats) {
+                updateKpiCards(data.stats);
+                updateActiveKpi();
             }
 
             // Mettre à jour l'URL sans recharger
@@ -491,27 +508,48 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         }
     });
 
-    // Cartes KPI
+    // Cartes KPI — toggle (re-cliquer = retire le filtre).
+    // La carte "total" reset le filtre status.
     document.querySelectorAll('.stat-card').forEach(card => {
         card.addEventListener('click', (e) => {
             e.preventDefault();
+            const kpi    = card.dataset.kpi;
             const status = card.dataset.status;
-            if (status && elements.status) {
-                elements.status.value = status;
-                currentFilters.status = status;
-                updateResetButton();
-                applyFilters();
-                
-                document.querySelectorAll('.stat-card').forEach(c => {
-                    if (c.dataset.status === status) {
-                        c.classList.add('active');
-                    } else {
-                        c.classList.remove('active');
-                    }
-                });
+
+            if (kpi === 'total') {
+                currentFilters.status = '';
+                if (elements.status) elements.status.value = '';
+            } else if (status && elements.status) {
+                const isActive = currentFilters.status === status;
+                currentFilters.status = isActive ? '' : status;
+                elements.status.value = currentFilters.status;
             }
+            updateResetButton();
+            applyFilters();
+            updateActiveKpi();
         });
     });
+
+    function updateActiveKpi() {
+        const noStatus = !currentFilters.status;
+        document.querySelectorAll('.stat-card').forEach(c => {
+            const k = c.dataset.kpi;
+            const s = c.dataset.status;
+            const active = k === 'total' ? noStatus : (currentFilters.status === s);
+            c.classList.toggle('active', active);
+        });
+    }
+
+    // Met à jour les valeurs des KPI après un fetch AJAX
+    function updateKpiCards(stats) {
+        if (!stats) return;
+        document.querySelectorAll('[data-kpi-value]').forEach(el => {
+            const k = el.dataset.kpiValue;
+            if (stats[k] !== undefined) {
+                el.textContent = new Intl.NumberFormat('fr-FR').format(stats[k]);
+            }
+        });
+    }
 
     // Reset button
     if (elements.resetBtn) {

@@ -1302,6 +1302,8 @@ class ReservationController extends Controller
         $query = Reservation::with(['client', 'user'])
             ->withCount(['panels', 'externalPanels']);
 
+        // Filtres "neutres" appliqués à la liste ET au calcul des compteurs.
+        // Ils définissent le périmètre courant (search/type/client/période).
         if ($request->search) {
             $query->where(
                 fn($q) =>
@@ -1309,33 +1311,46 @@ class ReservationController extends Controller
                     ->orWhereHas('client', fn($q) => $q->withTrashed()->where('name', 'like', "%{$request->search}%"))
             );
         }
-        if ($request->status)
-            $query->where('status', $request->status);
-        if ($request->type)
-            $query->where('type', $request->type);
-        if ($request->client_id)
-            $query->where('client_id', $request->client_id);
+        if ($request->type)      $query->where('type', $request->type);
+        if ($request->client_id) $query->where('client_id', $request->client_id);
 
         if ($request->periode) {
             match ($request->periode) {
-                'this_month' => $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year),
-                'last_month' => $query->whereMonth('created_at', now()->subMonth()->month)->whereYear('created_at', now()->subMonth()->year),
+                'this_month'   => $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year),
+                'last_month'   => $query->whereMonth('created_at', now()->subMonth()->month)->whereYear('created_at', now()->subMonth()->year),
                 'this_quarter' => $query->whereBetween('created_at', [now()->startOfQuarter(), now()->endOfQuarter()]),
-                'this_year' => $query->whereYear('created_at', now()->year),
-                default => null,
+                'this_year'    => $query->whereYear('created_at', now()->year),
+                default        => null,
             };
+        }
+
+        // ─── COMPTEURS KPI sur le PÉRIMÈTRE (avant status/kpi) ───
+        // Permet aux 5 cartes de garder leur valeur réelle quand on clique
+        // sur l'une d'elles (sinon les autres tombent à 0).
+        $countsRaw = (clone $query)
+            ->setEagerLoads([])
+            ->reorder()
+            ->select('status', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $counts = [
+            'en_attente' => (int) ($countsRaw['en_attente'] ?? 0),
+            'confirme'   => (int) ($countsRaw['confirme']   ?? 0),
+            'refuse'     => (int) ($countsRaw['refuse']     ?? 0),
+            'annule'     => (int) ($countsRaw['annule']     ?? 0),
+            'termine'    => (int) ($countsRaw['termine']    ?? 0),
+        ];
+
+        // ─── Filtre status (carte cliquée OU select) appliqué APRÈS ───
+        if ($request->status) {
+            $query->where('status', $request->status);
         }
 
         $reservations = $query->orderByDesc('created_at')->paginate(15)->withQueryString();
 
-        $rawCounts = Reservation::selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
-        $counts = [
-            'total' => $rawCounts->sum(),
-            'en_attente' => $rawCounts['en_attente'] ?? 0,
-            'confirme' => $rawCounts['confirme'] ?? 0,
-            'refuse' => $rawCounts['refuse'] ?? 0,
-            'annule' => $rawCounts['annule'] ?? 0,
-        ];
+        // Total = ce qui est réellement affiché dans la liste
+        $counts['total'] = $reservations->total();
 
         $lastSeenAt = auth()->user()->reservations_last_seen_at;
         $newCount = $lastSeenAt ? Reservation::where('created_at', '>', $lastSeenAt)->count() : 0;
@@ -1344,10 +1359,10 @@ class ReservationController extends Controller
 
         if ($request->ajax()) {
             return response()->json([
-                'html' => view('admin.reservations.partials.table-rows', compact('reservations', 'lastSeenAt'))->render(),
+                'html'       => view('admin.reservations.partials.table-rows', compact('reservations', 'lastSeenAt'))->render(),
                 'pagination' => $reservations->links()->render(),
-                'stats' => $counts,
-                'has_more' => $reservations->hasMorePages(),
+                'stats'      => $counts,
+                'has_more'   => $reservations->hasMorePages(),
             ]);
         }
 

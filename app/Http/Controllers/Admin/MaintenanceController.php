@@ -14,13 +14,7 @@ class MaintenanceController extends Controller
     {
         $query = Maintenance::with('panel', 'technicien', 'signaledBy');
 
-        // Filtres
-        if ($request->filled('statut')) {
-            $query->where('statut', $request->statut);
-        }
-        if ($request->filled('priorite')) {
-            $query->where('priorite', $request->priorite);
-        }
+        // Filtres "neutres" appliqués au périmètre (et donc aux compteurs)
         if ($request->filled('search')) {
             $query->whereHas('panel', function ($q) use ($request) {
                 $q->where('reference', 'like', '%' . $request->search . '%')
@@ -28,18 +22,33 @@ class MaintenanceController extends Controller
             });
         }
 
+        // ─── COMPTEURS sur le périmètre AVANT filtre statut/priorite ───
+        // Permet aux 4 cartes de garder leur valeur réelle quand on en clique une.
+        $countsRaw = (clone $query)
+            ->setEagerLoads([])
+            ->reorder()
+            ->select('statut', 'priorite', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total'))
+            ->groupBy('statut', 'priorite')
+            ->get();
+
+        $totalSignales = (int) $countsRaw->where('statut', 'signale')->sum('total');
+        $totalEnCours  = (int) $countsRaw->where('statut', 'en_cours')->sum('total');
+        $totalResolus  = (int) $countsRaw->where('statut', 'resolu')->sum('total');
+        // Urgentes = priorité urgente ET statut non résolu/annulé (pour signaler les vraies urgences)
+        $totalUrgentes = (int) $countsRaw
+            ->where('priorite', 'urgente')
+            ->whereNotIn('statut', ['resolu', 'annule'])
+            ->sum('total');
+
+        // ─── Filtres KPI/select appliqués APRÈS le calcul des compteurs ───
+        if ($request->filled('statut'))   $query->where('statut', $request->statut);
+        if ($request->filled('priorite')) $query->where('priorite', $request->priorite);
+
         $maintenances = $query
             ->orderByRaw("FIELD(priorite, 'urgente','haute','normale','faible')")
             ->orderByRaw("FIELD(statut, 'signale','en_cours','resolu','annule')")
             ->paginate(15)
             ->withQueryString();
-
-        // Stats
-        $totalSignales = Maintenance::where('statut', 'signale')->count();
-        $totalEnCours = Maintenance::where('statut', 'en_cours')->count();
-        $totalUrgentes = Maintenance::where('priorite', 'urgente')
-            ->whereNotIn('statut', ['resolu', 'annule'])->count();
-        $totalResolus = Maintenance::where('statut', 'resolu')->count();
 
         return view('admin.maintenances.index', compact(
             'maintenances',

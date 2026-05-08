@@ -8,22 +8,31 @@
     {{-- ══ STATS AVEC FILTRES DYNAMIQUES ══ --}}
     <div class="stats-grid">
         @php
+        // Pattern unifié style Alertes/Inventaire : carte cliquable avec
+        // bordure latérale colorée, état actif (toggle), couleurs distinctes.
         $statCards = [
-            ['key'=>'total', 'label'=>'Total', 'icon'=>'📋', 'color'=>'var(--text)', 'bg'=>'var(--surface)'],
-            ['key'=>'en_attente', 'label'=>'En attente', 'icon'=>'⏳', 'color'=>'#e8a020', 'bg'=>'rgba(232,160,32,0.08)'],
-            ['key'=>'confirme', 'label'=>'Confirmées', 'icon'=>'✅', 'color'=>'#22c55e', 'bg'=>'rgba(34,197,94,0.08)'],
-            ['key'=>'refuse', 'label'=>'Refusées', 'icon'=>'❌', 'color'=>'#ef4444', 'bg'=>'rgba(239,68,68,0.08)'],
-            ['key'=>'annule', 'label'=>'Annulées', 'icon'=>'🚫', 'color'=>'#6b7280', 'bg'=>'rgba(107,114,128,0.08)'],
+            ['key'=>'total',      'label'=>'Total',      'icon'=>'📋', 'color'=>'var(--accent)'],
+            ['key'=>'en_attente', 'label'=>'En option',  'icon'=>'⏳', 'color'=>'#f97316'],
+            ['key'=>'confirme',   'label'=>'Confirmées', 'icon'=>'✅', 'color'=>'#22c55e'],
+            ['key'=>'termine',    'label'=>'Terminées',  'icon'=>'🏁', 'color'=>'#3b82f6'],
+            ['key'=>'refuse',     'label'=>'Refusées',   'icon'=>'❌', 'color'=>'#ef4444'],
+            ['key'=>'annule',     'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'#6b7280'],
         ];
+        $activeStatus = request('status');
+        $hasAnyFilter = request('search') || request('status') || request('type') || request('client_id') || request('periode');
         @endphp
         @foreach($statCards as $sc)
-        <a href="#" 
-           class="stat-card" 
-           data-filter="status" 
-           data-value="{{ $sc['key'] !== 'total' ? $sc['key'] : '' }}"
-           style="background:{{ $sc['bg'] }};border:1px solid rgba(0,0,0,0.1);">
-            <div class="stat-icon">{{ $sc['icon'] }}</div>
-            <div class="stat-number" style="color:{{ $sc['color'] }}">{{ $counts[$sc['key']] ?? 0 }}</div>
+        @php
+            $isTotal  = $sc['key'] === 'total';
+            $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $sc['key']);
+        @endphp
+        <a href="#"
+           class="stat-card {{ $isActive ? 'active' : '' }}"
+           data-kpi="{{ $sc['key'] }}"
+           data-value="{{ $isTotal ? '' : $sc['key'] }}"
+           style="border-left:4px solid {{ $sc['color'] }};">
+            <div class="stat-icon" style="color:{{ $sc['color'] }}">{{ $sc['icon'] }}</div>
+            <div class="stat-number" data-kpi-value="{{ $sc['key'] }}" style="color:{{ $sc['color'] }}">{{ $counts[$sc['key']] ?? 0 }}</div>
             <div class="stat-label">{{ strtoupper($sc['label']) }}</div>
             @if($sc['key'] === 'en_attente' && ($newCount ?? 0) > 0)
             <div class="stat-badge">✦ {{ $newCount }} nouvelle(s)</div>
@@ -1059,12 +1068,13 @@
         }
 
         function updateStats(stats) {
-            document.getElementById('total-count').textContent = stats.total + ' résultat(s)';
-            const statElements = { total: stats.total, en_attente: stats.en_attente, confirme: stats.confirme, refuse: stats.refuse, annule: stats.annule };
-            document.querySelectorAll('.stat-card').forEach(card => {
-                const key = card.dataset.value === '' ? 'total' : card.dataset.value;
-                const numberSpan = card.querySelector('.stat-number');
-                if (numberSpan && statElements[key] !== undefined) numberSpan.textContent = statElements[key];
+            document.getElementById('total-count').textContent = (stats.total ?? 0) + ' résultat(s)';
+            // Met à jour chaque card via data-kpi-value (pattern unifié projet)
+            document.querySelectorAll('[data-kpi-value]').forEach(el => {
+                const k = el.dataset.kpiValue;
+                if (stats[k] !== undefined) {
+                    el.textContent = new Intl.NumberFormat('fr-FR').format(stats[k]);
+                }
             });
         }
 
