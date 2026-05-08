@@ -28,36 +28,43 @@ class PanelController extends Controller
     public function index(Request $request)
     {
         $source = $request->input('source', 'all');
+        // Filtre KPI rapide envoyé par les cartes du haut. Indépendant du
+        // filtre 'status' (select) — permet d'avoir des règles métier
+        // (ex. 'occupes' = whereIn occupe/option/confirme) sans contaminer
+        // la valeur du select status.
+        //   kpi=libres       → status=libre
+        //   kpi=occupes      → status IN occupe,option,confirme
+        //   kpi=maintenance  → status=maintenance
+        //   (kpi=externes est traité via source=externe)
+        $kpi = $request->input('kpi');
 
         // ═══════════════════════════════════════════════════════════════
         // PANNEAUX INTERNES (CIBLE CI)
         // ═══════════════════════════════════════════════════════════════
         if ($source === 'externe') {
             $panels = collect();
-            $totalPanneaux = 0;
             $panneauxLibres = 0;
             $panneauxOccupes = 0;
             $enMaintenance = 0;
+            $totalPanneaux = 0;
         } else {
-            // Eager loading optimisé : on ne charge que la photo principale (ordre=0/1)
-            // pour éviter de tirer toutes les photos sur l'index (réduit drastiquement
-            // la taille du payload et le N+1 photos).
             $query = Panel::with([
                 'commune:id,name',
                 'zone:id,name',
                 'format:id,name,width,height,surface',
                 'category:id,name',
                 'photos' => fn($q) => $q->orderBy('ordre')->limit(1),
-                // Client/campagne occupant — affichés dans la table pour
-                // les panneaux non-libres (vue inventaire).
                 'campaigns' => fn($q) => $q
                     ->whereIn('campaigns.status', ['actif', 'pose', 'planifie'])
                     ->with('client:id,name')
                     ->orderBy('campaigns.start_date'),
             ]);
 
-            // 🔍 RECHERCHE EXACTE SUR MOT ENTIER
-            // Exemple : "ABG" trouve "ABG-002" mais pas "CABG-001"
+            // 🔍 Filtres "neutres" — ils s'appliquent à la fois à la liste
+            // ET au calcul des compteurs KPI (search/commune/zone/category/
+            // client). Les filtres "status/kpi" sont traités séparément pour
+            // que les autres cartes gardent leur valeur réelle quand on
+            // clique sur l'une d'elles.
            if ($request->filled('search')) {
                 $search = strtolower(trim($request->search));
                 $escapedSearch = preg_quote($search, '/');
@@ -73,19 +80,10 @@ class PanelController extends Controller
                     });
                 });
             }
-            
-            if ($request->filled('commune_id')) {
-                $query->where('commune_id', $request->commune_id);
-            }
-            if ($request->filled('zone_id')) {
-                $query->where('zone_id', $request->zone_id);
-            }
-            if ($request->filled('status')) {
-                $query->where('status', $request->status);
-            }
-            if ($request->filled('category_id')) {
-                $query->where('category_id', $request->category_id);
-            }
+
+            if ($request->filled('commune_id'))  $query->where('commune_id', $request->commune_id);
+            if ($request->filled('zone_id'))     $query->where('zone_id', $request->zone_id);
+            if ($request->filled('category_id')) $query->where('category_id', $request->category_id);
             if ($request->filled('client_id')) {
                 $query->where(function ($q) use ($request) {
                     $q->whereHas('reservations', fn($r) => $r->where('client_id', $request->client_id)
@@ -95,11 +93,11 @@ class PanelController extends Controller
                 });
             }
 
-            // Compteurs SUR LA QUERY FILTRÉE (search/commune/zone/status/category/client)
-            // pour que les KPI cards reflètent le périmètre courant. Les
-            // colonnes individuelles (libres/occupés/maintenance) sont
-            // calculées en GROUP BY status — quel que soit le filtre status,
-            // on garde le détail pour permettre à l'admin de voir la répartition.
+            // ─── COMPTEURS KPI ───
+            // Calculés à ce stade, AVANT d'appliquer status/kpi. Les autres
+            // KPI cards gardent ainsi leur vraie valeur quand l'admin clique
+            // sur l'une d'elles (le périmètre réagit aux filtres "neutres"
+            // déjà appliqués mais pas au filtre KPI courant).
             $countsRaw = (clone $query)
                 ->setEagerLoads([])
                 ->reorder()
@@ -107,12 +105,30 @@ class PanelController extends Controller
                 ->groupBy('status')
                 ->pluck('total', 'status');
 
-            $totalPanneaux   = (int) $countsRaw->sum();
             $panneauxLibres  = (int) ($countsRaw['libre'] ?? 0);
             $panneauxOccupes = (int) ($countsRaw['occupe'] ?? 0)
                              + (int) ($countsRaw['option'] ?? 0)
                              + (int) ($countsRaw['confirme'] ?? 0);
             $enMaintenance   = (int) ($countsRaw['maintenance'] ?? 0);
+
+            // ─── FILTRES KPI / STATUS appliqués SEULEMENT sur la liste ───
+            // Le kpi est traduit en whereIn pour 'occupes' (sinon on raterait
+            // option et confirme). Le select status reste prioritaire si l'admin
+            // l'utilise explicitement.
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            } elseif ($kpi === 'libres') {
+                $query->where('status', 'libre');
+            } elseif ($kpi === 'occupes') {
+                $query->whereIn('status', ['occupe', 'option', 'confirme']);
+            } elseif ($kpi === 'maintenance') {
+                $query->where('status', 'maintenance');
+            }
+
+            // Total = nb de panneaux qui apparaissent réellement dans la liste
+            // (donc kpi/status appliqués). C'est cette valeur que le user
+            // attend dans la carte "Total inventaire" quand un filtre est posé.
+            $totalPanneaux = (clone $query)->setEagerLoads([])->reorder()->count();
 
             $panels = $query->latest()->paginate(15)->withQueryString();
         }
@@ -150,14 +166,22 @@ class PanelController extends Controller
             $html = view('admin.panels.partials.table-rows', compact('panels', 'source', 'externalPanels', 'request'))->render();
             $paginationHtml = ($source !== 'externe' && $panels->hasPages()) ? $panels->links()->render() : '';
 
+            // Total ACTUELLEMENT AFFICHÉ dans la liste = ce qui apparaît à
+            // l'écran (interne + externes selon source).
+            $totalShown = match ($source) {
+                'externe' => $externalPanels->count(),
+                'cible'   => $totalPanneaux,
+                default   => $totalPanneaux + $externalPanels->count(),
+            };
+
             return response()->json([
                 'html'       => $html,
                 'pagination' => $paginationHtml,
-                'total'      => ($source === 'externe') ? $externalPanels->count() : $panels->total(),
+                'total'      => $totalShown,
                 'stats_html' => $this->getStatsHtml($source, $panels, $externalPanels),
-                // KPI cards : valeurs filtrées pour rafraîchir les 5 cartes
+                // KPI cards : valeurs réelles par catégorie + total affiché
                 'counts'     => [
-                    'total'       => $totalPanneaux,
+                    'total'       => $totalShown,
                     'libres'      => $panneauxLibres,
                     'occupes'     => $panneauxOccupes,
                     'maintenance' => $enMaintenance,

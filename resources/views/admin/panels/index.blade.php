@@ -67,19 +67,32 @@
         }
     </style>
     <div class="kpi-grid">
-        {{-- TOTAL → reset filtres --}}
+        @php
+            // Total affiché = exactement ce qui apparaît dans la liste,
+            // selon la source courante (cohérent avec le calcul backend).
+            $totalShown = match($source ?? 'all') {
+                'externe' => $totalExternes,
+                'cible'   => $totalPanneaux,
+                default   => $totalPanneaux + $totalExternes,
+            };
+            $hasActiveFilter = request('search') || request('commune_id') || request('zone_id')
+                || request('status') || request('kpi') || request('category_id')
+                || request('client_id') || (request('source') && request('source') !== 'all');
+        @endphp
+
+        {{-- TOTAL → reset filtres. État actif quand AUCUN filtre n'est posé. --}}
         <a href="#" data-kpi="total" data-filter-action="reset"
-           class="kpi-card active"
+           class="kpi-card {{ $hasActiveFilter ? '' : 'active' }}"
            style="border-left:4px solid var(--accent);">
             <div class="kpi-icon">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
             </div>
-            <div class="kpi-num" data-kpi-value="total" style="color:var(--accent);">{{ $totalPanneaux + $totalExternes }}</div>
+            <div class="kpi-num" data-kpi-value="total" style="color:var(--accent);">{{ $totalShown }}</div>
             <div class="kpi-label">Total inventaire</div>
         </a>
 
-        {{-- LIBRES (vert) --}}
-        <a href="#" data-kpi="libres" data-filter-status="libre"
+        {{-- LIBRES (vert) — kpi=libres → status=libre côté backend --}}
+        <a href="#" data-kpi="libres"
            class="kpi-card"
            style="border-left:4px solid #22c55e;">
             <div class="kpi-icon" style="color:#22c55e;">
@@ -89,8 +102,8 @@
             <div class="kpi-label">Libres</div>
         </a>
 
-        {{-- OCCUPÉS (orange) --}}
-        <a href="#" data-kpi="occupes" data-filter-status="occupe"
+        {{-- OCCUPÉS (orange) — kpi=occupes → whereIn occupe/option/confirme --}}
+        <a href="#" data-kpi="occupes"
            class="kpi-card"
            style="border-left:4px solid #f97316;">
             <div class="kpi-icon" style="color:#f97316;">
@@ -101,7 +114,7 @@
         </a>
 
         {{-- MAINTENANCE (rouge) --}}
-        <a href="#" data-kpi="maintenance" data-filter-status="maintenance"
+        <a href="#" data-kpi="maintenance"
            class="kpi-card"
            style="border-left:4px solid #ef4444;">
             <div class="kpi-icon" style="color:#ef4444;">
@@ -111,7 +124,7 @@
             <div class="kpi-label">Maintenance</div>
         </a>
 
-        {{-- RÉGIES EXTERNES (violet) --}}
+        {{-- RÉGIES EXTERNES (violet) — bascule source=externe --}}
         <a href="#" data-kpi="externes" data-filter-source="externe"
            class="kpi-card"
            style="border-left:4px solid #a855f7;">
@@ -259,7 +272,10 @@
                     zone_id: '',
                     status: '',
                     category_id: '',
-                    client_id: ''
+                    client_id: '',
+                    // KPI rapide : 'libres' | 'occupes' | 'maintenance'
+                    // (le kpi 'externes' bascule plutôt source=externe)
+                    kpi: '{{ request('kpi', '') }}',
                 };
                 let debounceTimer = null;
 
@@ -277,29 +293,37 @@
                     kpiCards: document.querySelectorAll('.kpi-card'),
                 };
 
-                // Met à jour les valeurs des KPI cards selon la réponse AJAX
+                // Met à jour les valeurs des KPI cards selon la réponse AJAX.
+                //   - "total" : nb réellement affiché dans la liste (suit kpi/source/filtres)
+                //   - libres/occupes/maintenance/externes : valeurs réelles HORS
+                //     filtre KPI (les autres cartes gardent leur sens quand on
+                //     clique sur l'une d'elles).
                 function updateKpiCards(counts) {
                     if (!counts) return;
-                    const totalAll = (counts.total || 0) + (counts.externes || 0);
                     document.querySelectorAll('[data-kpi-value]').forEach(el => {
                         const k = el.dataset.kpiValue;
-                        const v = k === 'total' ? totalAll : (counts[k] ?? 0);
+                        const v = counts[k] ?? 0;
                         el.textContent = new Intl.NumberFormat('fr-FR').format(v);
                     });
                 }
 
                 // Met à jour l'état actif des cards (bordure accent)
                 function updateActiveKpi() {
-                    const noFilter = !currentFilters.status
+                    const noFilter = !currentFilters.kpi
+                        && !currentFilters.status
                         && currentFilters.source === 'all';
                     elements.kpiCards.forEach(c => {
                         const action = c.dataset.filterAction;
-                        const status = c.dataset.filterStatus;
+                        const kpi    = c.dataset.kpi;
                         const source = c.dataset.filterSource;
                         let active = false;
-                        if (action === 'reset') active = noFilter;
-                        else if (status) active = currentFilters.status === status;
-                        else if (source) active = currentFilters.source === source;
+                        if (action === 'reset') {
+                            active = noFilter;
+                        } else if (source === 'externe') {
+                            active = currentFilters.source === 'externe';
+                        } else if (kpi && kpi !== 'total') {
+                            active = currentFilters.kpi === kpi;
+                        }
                         c.classList.toggle('active', active);
                     });
                 }
@@ -309,6 +333,7 @@
                         currentFilters.commune_id ||
                         currentFilters.zone_id ||
                         currentFilters.status ||
+                        currentFilters.kpi ||
                         currentFilters.category_id ||
                         currentFilters.client_id ||
                         currentFilters.source !== 'all';
@@ -325,6 +350,7 @@
                     if (currentFilters.commune_id) params.set('commune_id', currentFilters.commune_id);
                     if (currentFilters.zone_id) params.set('zone_id', currentFilters.zone_id);
                     if (currentFilters.status) params.set('status', currentFilters.status);
+                    if (currentFilters.kpi) params.set('kpi', currentFilters.kpi);
                     if (currentFilters.category_id) params.set('category_id', currentFilters.category_id);
                     if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
                     params.set('ajax', '1');
@@ -401,19 +427,25 @@
                     }
                 });
 
-                // KPI cards (nouvelles) — chaque clic applique un filtre rapide
+                // KPI cards — chaque clic applique un filtre rapide.
+                //   - "total"      : reset complet
+                //   - "libres"     : kpi=libres (whereIn status=libre côté backend)
+                //   - "occupes"    : kpi=occupes (whereIn occupe/option/confirme)
+                //   - "maintenance": kpi=maintenance
+                //   - "externes"   : bascule source=externe
+                // Re-cliquer la même carte la désactive (toggle).
                 elements.kpiCards.forEach(card => {
                     card.addEventListener('click', (e) => {
                         e.preventDefault();
                         const action = card.dataset.filterAction;
-                        const status = card.dataset.filterStatus;
+                        const kpi    = card.dataset.kpi;
                         const source = card.dataset.filterSource;
 
                         if (action === 'reset') {
-                            // Reset tous les filtres
                             currentFilters = {
                                 source: 'all', search: '', commune_id: '',
-                                zone_id: '', status: '', category_id: '', client_id: ''
+                                zone_id: '', status: '', category_id: '', client_id: '',
+                                kpi: '',
                             };
                             if (elements.search) elements.search.value = '';
                             if (elements.commune) elements.commune.value = '';
@@ -421,16 +453,17 @@
                             if (elements.status) elements.status.value = '';
                             if (elements.category) elements.category.value = '';
                             if (elements.client) elements.client.value = '';
-                        } else if (status) {
-                            // Toggle filter status — re-cliquer enlève le filtre
-                            const isActive = currentFilters.status === status;
-                            currentFilters.status = isActive ? '' : status;
-                            currentFilters.source = 'cible'; // statut = panneau interne
-                            if (elements.status) elements.status.value = currentFilters.status;
-                        } else if (source) {
-                            const isActive = currentFilters.source === source;
-                            currentFilters.source = isActive ? 'all' : source;
-                            currentFilters.status = ''; // reset status quand on bascule source
+                        } else if (source === 'externe') {
+                            const isActive = currentFilters.source === 'externe';
+                            currentFilters.source = isActive ? 'all' : 'externe';
+                            currentFilters.kpi    = '';
+                            currentFilters.status = '';
+                            if (elements.status) elements.status.value = '';
+                        } else if (kpi && kpi !== 'total') {
+                            const isActive = currentFilters.kpi === kpi;
+                            currentFilters.kpi    = isActive ? '' : kpi;
+                            currentFilters.status = ''; // le KPI gère, pas le select
+                            currentFilters.source = 'cible'; // forcer panneaux internes
                             if (elements.status) elements.status.value = '';
                         }
                         updateResetButton();
@@ -511,7 +544,8 @@
                             zone_id: '',
                             status: '',
                             category_id: '',
-                            client_id: ''
+                            client_id: '',
+                            kpi: '',
                         };
 
                         // Réinitialiser tous les champs
