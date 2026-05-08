@@ -132,19 +132,90 @@ class InvoiceController extends Controller
             ->with('success', 'Facture supprimée !');
     }
 
-    public function markSent(Invoice $invoice)
+    public function markSent(Request $request, Invoice $invoice)
     {
+        if ($invoice->status !== 'brouillon') {
+            return $this->statusResponse($request, $invoice, false,
+                "Seules les factures en brouillon peuvent être envoyées (statut actuel : {$invoice->status}).");
+        }
+
         $invoice->update(['status' => 'envoyee']);
-        return back()->with('success', 'Facture marquée comme envoyée !');
+        return $this->statusResponse($request, $invoice, true, 'Facture marquée comme envoyée.');
     }
 
-    public function markPaid(Invoice $invoice)
+    public function markPaid(Request $request, Invoice $invoice)
     {
+        if (!in_array($invoice->status, ['envoyee', 'brouillon'])) {
+            return $this->statusResponse($request, $invoice, false,
+                "Cette facture est déjà {$invoice->status}.");
+        }
+
         $invoice->update([
             'status'  => 'payee',
             'paid_at' => now(),
         ]);
-        return back()->with('success', 'Facture marquée comme payée ! ✅');
+        return $this->statusResponse($request, $invoice, true, 'Facture marquée comme payée. ✅');
+    }
+
+    /**
+     * Annule une facture (équivalent "remboursée / abandonnée").
+     * Conserve la trace pour l'historique fiscal.
+     */
+    public function markCancelled(Request $request, Invoice $invoice)
+    {
+        if ($invoice->status === 'annulee') {
+            return $this->statusResponse($request, $invoice, false, 'Facture déjà annulée.');
+        }
+
+        $invoice->update([
+            'status'  => 'annulee',
+            'paid_at' => null,
+        ]);
+        return $this->statusResponse($request, $invoice, true, 'Facture annulée.');
+    }
+
+    /**
+     * Bascule la facture vers brouillon — utile en cas d'erreur de saisie
+     * (ex: marquée payée par erreur, à corriger avant pagination comptable).
+     * Réinitialise paid_at pour rester cohérent avec le statut.
+     */
+    public function revertDraft(Request $request, Invoice $invoice)
+    {
+        if ($invoice->status === 'brouillon') {
+            return $this->statusResponse($request, $invoice, false, 'Facture déjà en brouillon.');
+        }
+
+        $invoice->update([
+            'status'  => 'brouillon',
+            'paid_at' => null,
+        ]);
+        return $this->statusResponse($request, $invoice, true, 'Facture rebasculée en brouillon.');
+    }
+
+    /**
+     * Réponse unifiée pour les actions de changement de statut.
+     * En AJAX : renvoie le HTML de la ligne + les compteurs KPI rafraîchis,
+     * pour permettre la mise à jour sans full page reload.
+     */
+    private function statusResponse(Request $request, Invoice $invoice, bool $ok, string $message)
+    {
+        if (!$request->expectsJson() && !$request->ajax()) {
+            return back()->with($ok ? 'success' : 'error', $message);
+        }
+
+        $invoice->load('client', 'campaign', 'creator');
+
+        return response()->json([
+            'success'  => $ok,
+            'message'  => $message,
+            'row_html' => view('admin.invoices.partials.row', ['invoice' => $invoice])->render(),
+            'counts'   => [
+                'brouillon' => Invoice::where('status', 'brouillon')->count(),
+                'envoyee'   => Invoice::where('status', 'envoyee')->count(),
+                'payee'     => Invoice::where('status', 'payee')->count(),
+                'ca'        => (float) Invoice::where('status', 'payee')->sum('amount_ttc'),
+            ],
+        ], $ok ? 200 : 422);
     }
 
     public function exportPdf(Invoice $invoice)
