@@ -50,6 +50,42 @@
         </div>
     </div>
 
+    {{-- ── BANDEAU MOTIF D'ANNULATION ── (si campagne annulée) --}}
+    @if($campaign->status->value === 'annule' && ($campaign->cancellation_reason || $campaign->cancellation_notes))
+        @php
+            $reasonLabels = [
+                'budget'     => '💰 Budget insuffisant',
+                'zone'       => '📍 Zone non pertinente',
+                'strategie'  => '🎯 Changement de stratégie',
+                'report'     => '📅 Report de campagne',
+                'concurrent' => '⚔️ Choix concurrent',
+                'autre'      => '📝 Autre motif',
+            ];
+            $reasonLabel = $reasonLabels[$campaign->cancellation_reason] ?? '📝 ' . ucfirst($campaign->cancellation_reason ?? 'Non précisé');
+        @endphp
+        <div class="mb-6 rounded-xl border p-4 flex items-start gap-4"
+             style="background:rgba(239,68,68,0.06);border-color:rgba(239,68,68,0.25)">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center text-2xl flex-shrink-0"
+                 style="background:rgba(239,68,68,0.15)">🚫</div>
+            <div class="flex-1 min-w-0">
+                <div class="font-bold text-sm" style="color:#ef4444">
+                    Campagne annulée — {{ $reasonLabel }}
+                </div>
+                @if($campaign->cancellation_notes)
+                    <div class="text-sm mt-1" style="color:var(--text2);white-space:pre-wrap">
+                        {{ $campaign->cancellation_notes }}
+                    </div>
+                @endif
+                @if($campaign->updated_at)
+                    <div class="text-xs mt-2" style="color:var(--text3)">
+                        Annulée le {{ $campaign->updated_at->format('d/m/Y à H:i') }}
+                        @if($campaign->updatedBy) · par {{ $campaign->updatedBy->name }}@endif
+                    </div>
+                @endif
+            </div>
+        </div>
+    @endif
+
     {{-- ── ALERTE FIN PROCHE ── --}}
     <div id="campaign-ending-alert" class="mb-6 rounded-xl border p-4 flex items-center gap-4 {{ $endingSoon ? '' : 'hidden' }}"
          style="background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.3)">

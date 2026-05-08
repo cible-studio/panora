@@ -185,10 +185,16 @@
                         <input type="checkbox" id="theme-toggle" onchange="toggleThemeSwitch()">
                         <span class="slider"></span>
                     </label>
+                    @php
+                        // Source unique de vérité pour le badge cloche : on
+                        // demande au service le count exact (non lues, actives).
+                        // Évite les écarts entre rendu HTML initial et polling JS.
+                        $unreadCount = app(\App\Services\AlertService::class)->unreadCount();
+                    @endphp
                     <a href="{{ route('admin.alerts.index') }}" class="btn btn-ghost btn-sm" style="position:relative;" title="Alertes non lues">
                         🔔
-                        <span id="alert-badge" class="nav-badge red" style="position:relative;{{ App\Models\Alert::where('is_read', false)->count() === 0 ? 'display:none;' : '' }}">
-                            {{ App\Models\Alert::where('is_read', false)->count() }}
+                        <span id="alert-badge" class="nav-badge red" style="position:relative;{{ $unreadCount === 0 ? 'display:none;' : '' }}">
+                            {{ $unreadCount > 99 ? '99+' : $unreadCount }}
                         </span>
                     </a>
                     {{ $topbarActions ?? '' }}
@@ -341,49 +347,74 @@
             localStorage.setItem('shownAlertIds', JSON.stringify(arr));
         }
 
-        async function checkAlerts() {
+        // Polling unifié — UNE source pour le badge (count exact), UNE
+        // source pour les toasts (latest). On les sépare pour éviter le
+        // bug historique "badge = alerts.length limité à 5" alors que la BD
+        // a des dizaines d'alertes non lues.
+        async function refreshAlertBadge() {
+            const badge = document.getElementById('alert-badge');
+            if (!badge) return;
+
+            // Sur /admin/alerts, mark-all-as-read est fait côté serveur à
+            // l'ouverture → le badge reste à 0 tant qu'on est sur la page.
+            if (window.location.pathname.includes('/admin/alerts')) {
+                badge.style.display = 'none';
+                return;
+            }
+
             try {
-                const res = await fetch('/api/alerts/latest', {
+                const res = await fetch('/api/alerts/count', {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (!res.ok) return;
+                const { count } = await res.json();
+                badge.textContent   = count > 99 ? '99+' : String(count);
+                badge.style.display = count > 0 ? 'inline-block' : 'none';
+            } catch (e) {}
+        }
+
+        async function pollLatestForToasts() {
+            // Pas de toasts sur la page alerts (l'utilisateur les voit déjà)
+            if (window.location.pathname.includes('/admin/alerts')) return;
+
+            try {
+                const res = await fetch('/api/alerts/latest?limit=8', {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
                 });
                 if (!res.ok) return;
                 const alerts = await res.json();
-
-                const badge = document.getElementById('alert-badge');
-                if (badge) {
-                    if (window.location.pathname.includes('/alerts')) {
-                        badge.style.display = 'none';
-                    } else {
-                        badge.textContent   = alerts.length;
-                        badge.style.display = alerts.length > 0 ? 'inline-block' : 'none';
-                    }
-                }
 
                 alerts.forEach(alert => {
                     if (_shownAlertIds.has(String(alert.id))) return;
                     _shownAlertIds.add(String(alert.id));
                     localStorage.setItem('shownAlertIds', JSON.stringify([..._shownAlertIds]));
 
-                    const typeLabels = {
-                        maintenance: 'Maintenance', reservation: 'Réservation',
-                        campagne: 'Campagne', panneau: 'Panneau', client: 'Client'
-                    };
                     const level = alert.niveau === 'danger'  ? 'error'   :
                                   alert.niveau === 'warning' ? 'warning' : 'info';
+                    const groupLabel = alert.meta?.group || 'Alerte';
+                    const link = alert.lien || '/admin/alerts';
 
                     showToast(
                         level,
                         `${alert.title}<br><span style="font-size:11px;opacity:0.7;">${alert.message}</span><br>` +
-                        `<a href="/admin/alerts" style="font-size:11px;opacity:0.8;text-decoration:underline;">Voir toutes les alertes →</a>`,
+                        `<a href="${link}" style="font-size:11px;opacity:0.8;text-decoration:underline;">Voir →</a>`,
                         8000,
-                        typeLabels[alert.type] || 'Alerte'
+                        groupLabel
                     );
                 });
             } catch (e) {}
         }
 
-        document.addEventListener('DOMContentLoaded', () => setTimeout(checkAlerts, 2000));
+        async function checkAlerts() {
+            await refreshAlertBadge();
+            await pollLatestForToasts();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => setTimeout(checkAlerts, 1500));
         setInterval(checkAlerts, 30000);
+
+        // Mise à jour instantanée du badge au focus (retour d'onglet)
+        window.addEventListener('focus', refreshAlertBadge);
     </script>
 
     @stack('scripts')

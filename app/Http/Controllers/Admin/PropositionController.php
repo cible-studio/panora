@@ -47,13 +47,19 @@ class PropositionController extends Controller
             return redirect()->route('admin.reservations.index')->with('error', $e->getMessage());
         }
 
+        $reservation->loadMissing([
+            'panels.photos', 'panels.commune', 'panels.zone', 'panels.format', 'panels.category',
+            'externalPanels.commune', 'externalPanels.zone', 'externalPanels.format', 'externalPanels.category',
+        ]);
+
         $this->propositionService->marquerVue($reservation);
         $months    = $this->monthsBetween($reservation->start_date, $reservation->end_date);
         $expiresIn = $reservation->proposition_expires_at
             ? now()->diffInHours($reservation->proposition_expires_at, false)
             : null;
 
-        $panels = $this->buildPanels($reservation, $months);
+        // proposalPanels() : projection unifiée internes + externes (cf. modèle).
+        $panels = $reservation->proposalPanels($months);
 
         $joursRestants = now()->startOfDay()->diffInDays(
             $reservation->end_date->startOfDay(), false
@@ -76,9 +82,13 @@ class PropositionController extends Controller
 
     public function exportPdf(Reservation $proposition)
     {
-        $proposition->load(['client', 'panels.photos', 'panels.commune', 'panels.format', 'panels.category']);
+        $proposition->load([
+            'client',
+            'panels.photos', 'panels.commune', 'panels.zone', 'panels.format', 'panels.category',
+            'externalPanels.commune', 'externalPanels.zone', 'externalPanels.format', 'externalPanels.category',
+        ]);
         $months = $this->monthsBetween($proposition->start_date, $proposition->end_date);
-        $panels = $this->buildPanels($proposition, $months);
+        $panels = $proposition->proposalPanels($months);
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.propositions.pdf', [
             'reservation' => $proposition,
@@ -126,10 +136,14 @@ class PropositionController extends Controller
         $slug  = $reservation->proposition_slug  ?? Str::random(8);
 
         $reservation->update([
-            'proposition_token'      => $token,
-            'proposition_slug'       => $slug,
-            'proposition_sent_at'    => now(),
-            'proposition_expires_at' => now()->addDays(7),
+            'proposition_token'           => $token,
+            'proposition_slug'            => $slug,
+            'proposition_sent_at'         => now(),
+            'proposition_expires_at'      => $this->computeExpirationDate($reservation),
+            // Reset des flags rappels — un nouvel envoi redémarre le cycle
+            // 7 jours, donc on doit pouvoir re-déclencher les rappels J+2/J+5
+            'proposition_reminded_j2_at'  => null,
+            'proposition_reminded_j5_at'  => null,
         ]);
 
         // Envoi via NotificationMailer.
@@ -168,11 +182,13 @@ class PropositionController extends Controller
             return back()->with('error', 'Aucune proposition active.');
 
         $reservation->update([
-            'proposition_token'      => null,
-            'proposition_slug'       => null,
-            'proposition_sent_at'    => null,
-            'proposition_expires_at' => null,
-            'proposition_viewed_at'  => null,
+            'proposition_token'           => null,
+            'proposition_slug'            => null,
+            'proposition_sent_at'         => null,
+            'proposition_expires_at'      => null,
+            'proposition_viewed_at'       => null,
+            'proposition_reminded_j2_at'  => null,
+            'proposition_reminded_j5_at'  => null,
         ]);
 
         return back()->with('success', 'Proposition réinitialisée. Le lien précédent ne fonctionne plus.');
@@ -188,8 +204,9 @@ class PropositionController extends Controller
         $reservation = Reservation::where('reference', $reference)
             ->where('proposition_slug', $slug)
             ->whereNotNull('proposition_token')
-            ->with(['client', 'panels.photos', 'panels.commune',
-                    'panels.zone', 'panels.format', 'panels.category'])
+            ->with(['client',
+                    'panels.photos', 'panels.commune', 'panels.zone', 'panels.format', 'panels.category',
+                    'externalPanels.commune', 'externalPanels.zone', 'externalPanels.format', 'externalPanels.category'])
             ->first();
 
         if (!$reservation) {
@@ -199,7 +216,7 @@ class PropositionController extends Controller
         $this->propositionService->marquerVue($reservation);
 
         $months = $this->monthsBetween($reservation->start_date, $reservation->end_date);
-        $panels = $this->buildPanels($reservation, $months);
+        $panels = $reservation->proposalPanels($months);
 
         $expiresIn = null;
         if ($reservation->proposition_expires_at) {
@@ -464,28 +481,22 @@ class PropositionController extends Controller
             ->first();
     }
 
-    private function buildPanels(Reservation $reservation, float $months): \Illuminate\Support\Collection
+    /**
+     * Calcule la date d'expiration d'une proposition.
+     *
+     * Règle métier CIBLE CI : 7 jours de validité par défaut, capés à
+     * `end_date` (la propal ne peut jamais survivre à la fin de la
+     * réservation — sinon le client clique sur un lien obsolète).
+     *
+     * Les rappels J+2 et J+5 sont envoyés par la commande
+     * `propositions:send-reminders` (cron daily 09:00).
+     */
+    private function computeExpirationDate(Reservation $reservation): Carbon
     {
-        return $reservation->panels->map(function ($panel) use ($months) {
-            $photo = $panel->photos->sortBy('ordre')->first();
-            return [
-                'id'           => $panel->id,
-                'reference'    => $panel->reference,
-                'name'         => $panel->name,
-                'commune'      => $panel->commune?->name ?? '—',
-                'zone'         => $panel->zone?->name    ?? '—',
-                'format'       => $panel->format?->name  ?? '—',
-                'dimensions'   => $this->formatDims($panel->format),
-                'category'     => $panel->category?->name ?? '—',
-                'is_lit'       => (bool) $panel->is_lit,
-                // ← Utiliser le prix pivot (négocié) si disponible
-                'monthly_rate' => (float) ($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0),
-                'total'        => (float) ($panel->pivot->total_price ?? ($panel->monthly_rate ?? 0) * $months),
-                'photo_url'    => $photo
-                    ? asset('storage/' . ltrim($photo->path, '/'))
-                    : null,
-            ];
-        });
+        $defaultExpiration = now()->addDays(7);
+        $endOfPeriod       = $reservation->end_date->copy()->endOfDay();
+
+        return $defaultExpiration->lt($endOfPeriod) ? $defaultExpiration : $endOfPeriod;
     }
 
     private function monthsBetween($start, $end): float
@@ -520,11 +531,4 @@ class PropositionController extends Controller
         return max($result, 0.5);
     }
 
-    private function formatDims($format): ?string
-    {
-        if (!$format?->width || !$format?->height) return null;
-        $w = rtrim(rtrim(number_format($format->width, 2, '.', ''), '0'), '.');
-        $h = rtrim(rtrim(number_format($format->height, 2, '.', ''), '0'), '.');
-        return "{$w}×{$h}m";
-    }
 }

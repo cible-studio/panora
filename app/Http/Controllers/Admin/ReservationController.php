@@ -409,9 +409,15 @@ class ReservationController extends Controller
                 : null,
             'status_db' => $panel->status->value,
             'display_status' => $displayStatus,
-            'is_selectable' => $displayStatus === 'libre',
-            'is_future_selectable' => $selectableFrom !== null,
-            'selectable_from' => $selectableFrom,
+            // Règle : libre + option_periode sont sélectionnables (un panneau
+            // en option peut être inclus dans une autre proposition — distingué
+            // côté UI par une bordure dashed orange + badge "EN OPTION").
+            'is_selectable' => in_array($displayStatus, ['libre', 'option_periode'], true),
+            // Feature 2.2 — le panneau se libère AVANT la fin de la période
+            // demandée. L'admin peut l'inclure dans la résa avec une date de
+            // début automatique au lendemain de sa libération.
+            'is_future_selectable'  => $selectableFrom !== null,
+            'selectable_from'       => $selectableFrom,
             'selectable_from_label' => $selectableFrom ? Carbon::parse($selectableFrom)->format('d/m/Y') : null,
             'release_info' => $releaseInfo,
             'card_color_idx' => abs(crc32($panel->reference)) % 6,
@@ -496,9 +502,9 @@ class ReservationController extends Controller
             'photo_url' => $photoUrl,
             'status_db' => $rawStatus,
             'display_status' => $displayStatus,
-            'is_selectable' => $displayStatus === 'libre',
-            'is_future_selectable' => $selectableFrom !== null,
-            'selectable_from' => $selectableFrom,
+            'is_selectable' => in_array($displayStatus, ['libre', 'option_periode'], true),
+            'is_future_selectable'  => $selectableFrom !== null,
+            'selectable_from'       => $selectableFrom,
             'selectable_from_label' => $selectableFrom ? Carbon::parse($selectableFrom)->format('d/m/Y') : null,
             'release_info' => $releaseInfo,
             'card_color_idx' => abs(crc32($panel->code_panneau)) % 6,
@@ -685,15 +691,45 @@ class ReservationController extends Controller
         $request->validate([
             'panel_ids'    => 'required|array|min:1',
             'show_pricing' => 'nullable|boolean',
-            // Compat ascendante : ancien paramètre "hide_status" toujours accepté
+            'start_date'   => 'nullable|date',
+            'end_date'     => 'nullable|date',
             'hide_status'  => 'nullable|boolean',
         ]);
 
         [$internalIds, $externalIds] = $this->validateMixedPanelIds($request);
 
-        // Charge les internes en Eloquent (la vue lit les relations) puis on
-        // adapte les externes en stdClass avec les mêmes clés (reference/name/
-        // status->value) pour ne PAS toucher la vue partagée.
+        $startDate = $request->input('start_date');
+        $endDate   = $request->input('end_date');
+
+        // Pré-calcul du blocage interne+externe sur la période demandée pour
+        // retrouver le `display_status` réel de chaque panneau (libre /
+        // option_periode / occupe / maintenance). Sans ça, la colonne Statut
+        // afficherait toujours "libre" alors que des panneaux peuvent être
+        // En option pour cette période — qui est précisément ce qu'on veut
+        // distinguer dans le PDF.
+        $internalBlocking = collect();
+        $externalBlocking = collect();
+        if ($internalIds && $startDate && $endDate) {
+            $internalBlocking = $this->availability
+                ->getInternalPanelBookingMap($internalIds, $startDate, $endDate)
+                ->keyBy('panel_id');
+        }
+        if ($externalIds && $startDate && $endDate) {
+            $externalBlocking = $this->availability
+                ->getExternalPanelBookingMap($externalIds, $startDate, $endDate)
+                ->keyBy('id');
+        }
+
+        $resolveDisplay = function ($rawStatus, $blocking) {
+            $rawStatus = $rawStatus ?: 'libre';
+            if ($rawStatus === 'maintenance') return 'maintenance';
+            if ($blocking) {
+                if (!empty($blocking->has_confirmed)) return 'occupe';
+                if (!empty($blocking->has_option))   return 'option_periode';
+            }
+            return in_array($rawStatus, ['libre', 'disponible'], true) ? 'libre' : $rawStatus;
+        };
+
         $panels = collect();
 
         if ($internalIds) {
@@ -701,7 +737,16 @@ class ReservationController extends Controller
                 ->whereIn('id', $internalIds)
                 ->orderBy('reference')
                 ->get();
-            $panels = $panels->merge($internals);
+
+            $panels = $panels->merge($internals->map(function ($p) use ($internalBlocking, $resolveDisplay) {
+                // On garde le model original mais on attache display_status
+                // en attribut dynamique — la vue le lit via `$p->display_status`.
+                $p->display_status = $resolveDisplay(
+                    $p->status->value ?? 'libre',
+                    $internalBlocking->get($p->id)
+                );
+                return $p;
+            }));
         }
 
         if ($externalIds) {
@@ -710,20 +755,28 @@ class ReservationController extends Controller
                 ->orderBy('code_panneau')
                 ->get();
 
-            $panels = $panels->merge($externals->map(fn($p) => (object) [
-                'reference'      => $p->code_panneau,
-                'name'           => $p->designation,
-                'commune'        => $p->commune,
-                'zone'           => $p->zone,
-                'format'         => $p->format,
-                'category'       => $p->category,
-                'monthly_rate'   => $p->monthly_rate,
-                'daily_traffic'  => $p->daily_traffic,
-                'is_lit'         => (bool) $p->is_lit,
-                'status'         => (object) ['value' => $p->availability_status ?? 'libre'],
-                'agency_name'    => $p->agency?->name,
-                '_external'      => true,
-            ]));
+            $panels = $panels->merge($externals->map(function ($p) use ($externalBlocking, $resolveDisplay) {
+                $displayStatus = $resolveDisplay(
+                    $p->availability_status ?? 'disponible',
+                    $externalBlocking->get($p->id)
+                );
+
+                return (object) [
+                    'reference'      => $p->code_panneau,
+                    'name'           => $p->designation,
+                    'commune'        => $p->commune,
+                    'zone'           => $p->zone,
+                    'format'         => $p->format,
+                    'category'       => $p->category,
+                    'monthly_rate'   => $p->monthly_rate,
+                    'daily_traffic'  => $p->daily_traffic,
+                    'is_lit'         => (bool) $p->is_lit,
+                    'status'         => (object) ['value' => $p->availability_status ?? 'libre'],
+                    'display_status' => $displayStatus,
+                    'agency_name'    => $p->agency?->name,
+                    '_external'      => true,
+                ];
+            }));
         }
 
         $startDate    = $request->start_date;
@@ -989,19 +1042,21 @@ class ReservationController extends Controller
                     }
                 }
 
-                // Tâche 6.1 / 2.3 : montant personnalisé éventuel (0 = valide = sans prix).
-                // filled() retourne false pour chaîne vide, true pour "0" → distingue intention.
+                // Montant personnalisé éventuel — 0 explicite = valide (campagne
+                // offerte / package gratuit). filled() distingue "" / null
+                // (fallback autoTotal) de "0" (persiste 0).
                 $hasCustomAmount = $request->filled('amount');
                 $customAmount    = $hasCustomAmount ? (float) $request->input('amount') : null;
                 $total           = $hasCustomAmount ? $customAmount : $autoTotal;
 
                 if ($hasCustomAmount && abs($customAmount - $autoTotal) > 0.01) {
                     Log::info('reservation.custom_amount', [
-                        'reference'    => $reference,
-                        'auto'         => $autoTotal,
-                        'custom'       => $customAmount,
-                        'delta'        => round($customAmount - $autoTotal, 2),
-                        'user_id'      => auth()->id(),
+                        'reference' => $reference,
+                        'auto'      => $autoTotal,
+                        'custom'    => $customAmount,
+                        'delta'     => round($customAmount - $autoTotal, 2),
+                        'is_zero'   => $customAmount === 0.0,
+                        'user_id'   => auth()->id(),
                     ]);
                 }
 
@@ -1144,6 +1199,41 @@ class ReservationController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // STATUS SNAPSHOT — endpoint AJAX léger pour le polling temps réel.
+    //
+    // Renvoie l'état courant de la réservation pour que la fiche admin
+    // puisse réagir à une décision client (acceptation/refus/vue) sans
+    // avoir à recharger toute la page. Si le JS détecte un changement
+    // sur les valeurs critiques, il déclenche un refresh ciblé.
+    // ══════════════════════════════════════════════════════════════
+    public function statusSnapshot(Reservation $reservation): \Illuminate\Http\JsonResponse
+    {
+        $this->authorize('view', $reservation);
+
+        $reservation->loadMissing(['campaign:id,reservation_id,status,name']);
+
+        return response()->json([
+            'status'                       => $reservation->status->value,
+            'status_label'                 => $reservation->status->label(),
+            'total_amount'                 => (float) ($reservation->total_amount ?? 0),
+            'proposition_token'            => $reservation->proposition_token !== null,
+            'proposition_sent_at'          => $reservation->proposition_sent_at?->toIso8601String(),
+            'proposition_viewed_at'        => $reservation->proposition_viewed_at?->toIso8601String(),
+            'proposition_expires_at'       => $reservation->proposition_expires_at?->toIso8601String(),
+            'proposition_reminded_j2_at'   => $reservation->proposition_reminded_j2_at?->toIso8601String(),
+            'proposition_reminded_j5_at'   => $reservation->proposition_reminded_j5_at?->toIso8601String(),
+            'campaign'                     => $reservation->campaign ? [
+                'id'     => $reservation->campaign->id,
+                'name'   => $reservation->campaign->name,
+                'status' => is_object($reservation->campaign->status)
+                    ? $reservation->campaign->status->value
+                    : $reservation->campaign->status,
+            ] : null,
+            'fetched_at'                   => now()->toIso8601String(),
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // GET PANELS — JSON pour modale "Voir les panneaux" depuis la liste
     // (tâche 5 — visualiser panneaux d'une réservation en option)
     // ══════════════════════════════════════════════════════════════
@@ -1212,6 +1302,8 @@ class ReservationController extends Controller
         $query = Reservation::with(['client', 'user'])
             ->withCount(['panels', 'externalPanels']);
 
+        // Filtres "neutres" appliqués à la liste ET au calcul des compteurs.
+        // Ils définissent le périmètre courant (search/type/client/période).
         if ($request->search) {
             $query->where(
                 fn($q) =>
@@ -1219,33 +1311,46 @@ class ReservationController extends Controller
                     ->orWhereHas('client', fn($q) => $q->withTrashed()->where('name', 'like', "%{$request->search}%"))
             );
         }
-        if ($request->status)
-            $query->where('status', $request->status);
-        if ($request->type)
-            $query->where('type', $request->type);
-        if ($request->client_id)
-            $query->where('client_id', $request->client_id);
+        if ($request->type)      $query->where('type', $request->type);
+        if ($request->client_id) $query->where('client_id', $request->client_id);
 
         if ($request->periode) {
             match ($request->periode) {
-                'this_month' => $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year),
-                'last_month' => $query->whereMonth('created_at', now()->subMonth()->month)->whereYear('created_at', now()->subMonth()->year),
+                'this_month'   => $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year),
+                'last_month'   => $query->whereMonth('created_at', now()->subMonth()->month)->whereYear('created_at', now()->subMonth()->year),
                 'this_quarter' => $query->whereBetween('created_at', [now()->startOfQuarter(), now()->endOfQuarter()]),
-                'this_year' => $query->whereYear('created_at', now()->year),
-                default => null,
+                'this_year'    => $query->whereYear('created_at', now()->year),
+                default        => null,
             };
+        }
+
+        // ─── COMPTEURS KPI sur le PÉRIMÈTRE (avant status/kpi) ───
+        // Permet aux 5 cartes de garder leur valeur réelle quand on clique
+        // sur l'une d'elles (sinon les autres tombent à 0).
+        $countsRaw = (clone $query)
+            ->setEagerLoads([])
+            ->reorder()
+            ->select('status', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $counts = [
+            'en_attente' => (int) ($countsRaw['en_attente'] ?? 0),
+            'confirme'   => (int) ($countsRaw['confirme']   ?? 0),
+            'refuse'     => (int) ($countsRaw['refuse']     ?? 0),
+            'annule'     => (int) ($countsRaw['annule']     ?? 0),
+            'termine'    => (int) ($countsRaw['termine']    ?? 0),
+        ];
+
+        // ─── Filtre status (carte cliquée OU select) appliqué APRÈS ───
+        if ($request->status) {
+            $query->where('status', $request->status);
         }
 
         $reservations = $query->orderByDesc('created_at')->paginate(15)->withQueryString();
 
-        $rawCounts = Reservation::selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
-        $counts = [
-            'total' => $rawCounts->sum(),
-            'en_attente' => $rawCounts['en_attente'] ?? 0,
-            'confirme' => $rawCounts['confirme'] ?? 0,
-            'refuse' => $rawCounts['refuse'] ?? 0,
-            'annule' => $rawCounts['annule'] ?? 0,
-        ];
+        // Total = ce qui est réellement affiché dans la liste
+        $counts['total'] = $reservations->total();
 
         $lastSeenAt = auth()->user()->reservations_last_seen_at;
         $newCount = $lastSeenAt ? Reservation::where('created_at', '>', $lastSeenAt)->count() : 0;
@@ -1254,10 +1359,10 @@ class ReservationController extends Controller
 
         if ($request->ajax()) {
             return response()->json([
-                'html' => view('admin.reservations.partials.table-rows', compact('reservations', 'lastSeenAt'))->render(),
+                'html'       => view('admin.reservations.partials.table-rows', compact('reservations', 'lastSeenAt'))->render(),
                 'pagination' => $reservations->links()->render(),
-                'stats' => $counts,
-                'has_more' => $reservations->hasMorePages(),
+                'stats'      => $counts,
+                'has_more'   => $reservations->hasMorePages(),
             ]);
         }
 

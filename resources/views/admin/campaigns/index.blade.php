@@ -27,33 +27,61 @@
     </div>
     @endif
 
-    {{-- ══ STATS AVEC FILTRES DYNAMIQUES ══ --}}
-    <div class="stats-grid">
-        @php
-        $statCards = [
-            ['key'=>'all',      'label'=>'Total',      'icon'=>'📋', 'color'=>'var(--text)', 'bg'=>'var(--surface)'],
-            ['key'=>'planifie', 'label'=>'Planifiées', 'icon'=>'📅', 'color'=>'#f97316',    'bg'=>'rgba(249,115,22,0.08)'],
-            ['key'=>'actif',    'label'=>'En cours',   'icon'=>'📡', 'color'=>'#22c55e',    'bg'=>'rgba(34,197,94,0.08)'],
-            ['key'=>'pause',    'label'=>'En pause',   'icon'=>'⏸',  'color'=>'#f59e0b',    'bg'=>'rgba(245,158,11,0.08)'],
-            ['key'=>'termine',  'label'=>'Terminées',  'icon'=>'✅', 'color'=>'#6b7280',    'bg'=>'rgba(107,114,128,0.08)'],
-            ['key'=>'annule',   'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'#ef4444',    'bg'=>'rgba(239,68,68,0.08)'],
-        ];
-        @endphp
-
+    {{-- ══ KPI cards (pattern unifié projet : bordure latérale colorée,
+         toggle, état actif, counts qui suivent les filtres) ══ --}}
+    @php
+    $statCards = [
+        ['key'=>'all',      'label'=>'Total',      'icon'=>'📋', 'color'=>'var(--accent)'],
+        ['key'=>'planifie', 'label'=>'Planifiées', 'icon'=>'📅', 'color'=>'#f97316'],
+        ['key'=>'actif',    'label'=>'En cours',   'icon'=>'📡', 'color'=>'#22c55e'],
+        ['key'=>'pause',    'label'=>'En pause',   'icon'=>'⏸',  'color'=>'#f59e0b'],
+        ['key'=>'termine',  'label'=>'Terminées',  'icon'=>'✅', 'color'=>'#3b82f6'],
+        ['key'=>'annule',   'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'#ef4444'],
+    ];
+    $activeStatus = request('status');
+    $hasAnyFilter = request('search') || request('status') || request('client_id')
+                  || request('date_from') || request('date_to') || request('date_debut')
+                  || request('date_fin') || request('non_facturee')
+                  || request('commune_id') || request('zone_id');
+    @endphp
+    {{-- Compact : icone à gauche, chiffre + label à droite, sur 1 seule ligne.
+         6 cartes alignées sans étirement excessif. --}}
+    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-bottom:18px">
         @foreach($statCards as $sc)
-        <a href="#" 
-           class="stat-card" 
-           data-filter="status" 
-           data-value="{{ $sc['key'] !== 'all' ? $sc['key'] : '' }}"
-           style="background:{{ $sc['bg'] }};border:1px solid var(--border);">
-            <div class="stat-icon">{{ $sc['icon'] }}</div>
-            <div class="stat-number" style="color:{{ $sc['color'] }}">
-                {{ $sc['key'] === 'all' ? $campaigns->total() : ($counts[$sc['key']] ?? 0) }}
+        @php
+            $isAll    = $sc['key'] === 'all';
+            $isActive = $isAll ? !$hasAnyFilter : ($activeStatus === $sc['key']);
+            $val      = $isAll ? $campaigns->total() : ($counts[$sc['key']] ?? 0);
+        @endphp
+        <a href="#"
+           class="stat-card {{ $isActive ? 'active' : '' }}"
+           data-filter="status"
+           data-kpi="{{ $sc['key'] }}"
+           data-value="{{ $isAll ? '' : $sc['key'] }}"
+           title="{{ $sc['label'] }}"
+           style="background:var(--surface);border:1px solid var(--border);border-left:3px solid {{ $sc['color'] }};border-radius:10px;padding:10px 12px;text-decoration:none;display:flex;align-items:center;gap:10px;transition:all .15s;min-width:0;{{ $isActive ? 'box-shadow:0 0 0 2px '.$sc['color'].'33;' : '' }}">
+            <div class="stat-icon" style="font-size:18px;color:{{ $sc['color'] }};flex-shrink:0;line-height:1">{{ $sc['icon'] }}</div>
+            <div style="min-width:0;line-height:1.1">
+                <div class="stat-number" data-kpi-value="{{ $sc['key'] }}" style="font-size:20px;font-weight:800;color:{{ $sc['color'] }}">{{ number_format($val) }}</div>
+                <div class="stat-label" style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ $sc['label'] }}</div>
             </div>
-            <div class="stat-label">{{ strtoupper($sc['label']) }}</div>
         </a>
         @endforeach
     </div>
+
+    {{-- Responsive : sur petits écrans, 3 cartes par ligne au lieu de 6 --}}
+    <style>
+        @media (max-width: 900px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            }
+        }
+        @media (max-width: 540px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+    </style>
 
     {{-- ══ FILTRES DYNAMIQUES (sans bouton) ══ --}}
     <div class="filters-card">
@@ -770,6 +798,19 @@ document.addEventListener('keydown', e => {
             
             if (data.stats && data.stats.total !== undefined) {
                 document.getElementById('total-count').textContent = data.stats.total + ' résultat(s)';
+
+                // Met à jour le KPI "Total" (carte data-value vide = 'all')
+                document.querySelectorAll('.stat-card').forEach(card => {
+                    const numEl = card.querySelector('.stat-number');
+                    if (!numEl) return;
+                    const v = card.dataset.value;
+                    if (!v) {
+                        // Carte 'all' = total filtré
+                        numEl.textContent = data.stats.total;
+                    } else if (data.stats.counts && data.stats.counts[v] !== undefined) {
+                        numEl.textContent = data.stats.counts[v];
+                    }
+                });
             }
             
             // Mettre à jour l'URL sans recharger

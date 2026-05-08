@@ -46,45 +46,57 @@ class PoseController extends Controller
             'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
         ]);
 
+        // Filtres "neutres" appliqués à la query (et au calcul des compteurs)
         if ($request->filled('q')) {
             $q = $request->q;
-            $query->where(fn($sq) => 
+            $query->where(fn($sq) =>
                 $sq->whereHas('panel', fn($p) => $p->where('reference', 'like', "%{$q}%")->orWhere('name', 'like', "%{$q}%"))
                 ->orWhereHas('campaign', fn($c) => $c->where('name', 'like', "%{$q}%"))
                 ->orWhereHas('technicien', fn($u) => $u->where('name', 'like', "%{$q}%"))
             );
         }
+        if ($request->filled('technicien_id')) $query->where('assigned_user_id', $request->technicien_id);
+        if ($request->filled('campaign_id'))   $query->where('campaign_id', $request->campaign_id);
+        if ($request->filled('date_from'))     $query->whereDate('scheduled_at', '>=', $request->date_from);
+        if ($request->filled('date_to'))       $query->whereDate('scheduled_at', '<=', $request->date_to);
+
+        // ─── COMPTEURS KPI sur le périmètre AVANT filtre status ───
+        // (chaque carte garde sa vraie valeur quand on en clique une)
+        $countsRaw = (clone $query)
+            ->setEagerLoads([])
+            ->reorder()
+            ->select('status', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $stats = [
+            'planifiee' => (int) ($countsRaw['planifiee'] ?? 0),
+            'en_cours'  => (int) ($countsRaw['en_cours']  ?? 0),
+            'realisee'  => (int) ($countsRaw['realisee']  ?? 0),
+            'annulee'   => (int) ($countsRaw['annulee']   ?? 0),
+        ];
+
+        // Filtre status appliqué APRÈS le calcul des compteurs
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
-        if ($request->filled('technicien_id')) {
-            $query->where('assigned_user_id', $request->technicien_id);
-        }
-        if ($request->filled('campaign_id')) {
-            $query->where('campaign_id', $request->campaign_id);
-        }
-        if ($request->filled('date_from')) {
-            $query->whereDate('scheduled_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('scheduled_at', '<=', $request->date_to);
-        }
 
         $poseTasks = $query->latest('scheduled_at')->paginate(20)->withQueryString();
-        $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
-        $campaigns = Campaign::whereIn('status', [CampaignStatus::ACTIF->value, CampaignStatus::POSE->value])->orderBy('name')->get(['id', 'name', 'status']);
-        $stats = $this->poseService->getStats();
-        $overdueTasks = $this->poseService->getOverdueTasks();
+        $stats['total'] = $poseTasks->total();
+
+        $techniciens   = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
+        $campaigns     = Campaign::whereIn('status', [CampaignStatus::ACTIF->value, CampaignStatus::POSE->value])->orderBy('name')->get(['id', 'name', 'status']);
+        $overdueTasks  = $this->poseService->getOverdueTasks();
         $posesSansPige = PoseTask::where('status', PoseTaskStatus::COMPLETED->value)->whereNotNull('campaign_id')->whereDoesntHave('piges', fn($q) => $q->where('status', '!=', 'rejete'))->count();
 
-        // ✅ AJAX response
         if ($request->ajax() || $request->input('ajax')) {
             $html = view('admin.poses.partials.table-rows', compact('poseTasks'))->render();
             $paginationHtml = $poseTasks->hasPages() ? $poseTasks->links()->render() : '';
             return response()->json([
-                'html' => $html,
+                'html'       => $html,
                 'pagination' => $paginationHtml,
-                'total' => number_format($poseTasks->total()),
+                'total'      => $poseTasks->total(),
+                'stats'      => $stats, // pour rafraîchir les KPI cards en AJAX
             ]);
         }
 

@@ -5,111 +5,186 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Alert;
+use App\Services\AlertService;
 use Illuminate\Http\Request;
 
 class AlertController extends Controller
 {
-    // ══════════════════════════════════════════════════════════════
-    // INDEX — avec filtres et stats
-    // ══════════════════════════════════════════════════════════════
+    public function __construct(protected AlertService $alertService) {}
+
+    // ══════════════════════════════════════════════════════════════════
+    // INDEX — page principale.
+    //
+    // Comportement clé : à l'ouverture, on marque TOUTES les alertes non
+    // lues comme lues atomiquement (1 UPDATE), pour que le badge cloche
+    // tombe à 0 instantanément. La liste reste visible (les alertes ne
+    // disparaissent pas, juste leur état "lu" change).
+    // ══════════════════════════════════════════════════════════════════
     public function index(Request $request)
     {
-        $query = Alert::latest();
-
-        if ($request->filled('niveau')) {
-            $query->where('niveau', $request->niveau);
+        // Mark-all-as-read seulement sur le rendu HTML initial (pas sur
+        // chaque AJAX paginate / filtre — sinon on tape la BD pour rien).
+        $markedCount = 0;
+        if (!$request->ajax() && !$request->boolean('ajax')) {
+            $markedCount = $this->alertService->markAllAsRead();
         }
+
+        // Liste paginée avec filtres
+        $query = Alert::active()->latest('triggered_at');
+
+        // Filtres "neutres" appliqués au périmètre + au calcul des compteurs
         if ($request->filled('type')) {
-            $query->where('type', $request->type);
+            $query->ofType($request->type);
         }
         if ($request->boolean('non_lues')) {
             $query->where('is_read', false);
         }
 
+        // ─── COMPTEURS KPI sur le périmètre AVANT filtre niveau ───
+        // On NE passe PAS le filtre niveau à activeSummary — sinon cliquer
+        // "Danger" ferait tomber les counts Avertissements/Informations à 0.
+        // Chaque carte garde sa vraie valeur dans le périmètre (type/non_lues).
+        $summary = $this->alertService->activeSummary([
+            'type'     => $request->input('type'),
+            'non_lues' => $request->boolean('non_lues'),
+        ]);
+
+        // Filtre niveau appliqué APRÈS le calcul des compteurs
+        if ($request->filled('niveau')) {
+            $query->ofNiveau($request->niveau);
+        }
+
         $alertes = $query->paginate(25)->withQueryString();
 
-        // Stats globales
-        $raw = Alert::selectRaw("
-            COUNT(*) as total,
-            SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) as non_lues,
-            SUM(CASE WHEN niveau = 'danger'  AND is_read = 0 THEN 1 ELSE 0 END) as danger,
-            SUM(CASE WHEN niveau = 'warning' AND is_read = 0 THEN 1 ELSE 0 END) as warning,
-            SUM(CASE WHEN niveau = 'info'    AND is_read = 0 THEN 1 ELSE 0 END) as info
-        ")->first();
+        // Total de la carte "Total alertes" = ce qui est réellement affiché
+        // (avec tous les filtres y compris niveau). Permet à l'utilisateur
+        // de voir le périmètre courant sans que les autres cartes bougent.
+        $summary['total'] = $alertes->total();
 
-        session(['alerts_last_seen' => now()]);
+        $types = collect(AlertService::TYPES)
+            ->map(fn ($meta, $code) => ['code' => $code, ...$meta])
+            ->values();
 
-        $totalNonLues = (int) ($raw->non_lues ?? 0);
-        $totalDanger = (int) ($raw->danger ?? 0);
-        $totalWarning = (int) ($raw->warning ?? 0);
-        $totalInfo = (int) ($raw->info ?? 0);
-        $types = Alert::distinct()->pluck('type')->sort()->values();
+        // Réponse AJAX (filtre/pagination dynamique)
+        if ($request->ajax() || $request->boolean('ajax')) {
+            $html = view('admin.alertes.partials.alerts-list', [
+                'alertes' => $alertes,
+            ])->render();
 
-        // ✅ AJAX response
-        if ($request->ajax() || $request->input('ajax')) {
-            $html = view('admin.alertes.partials.alerts-list', compact('alertes', 'totalNonLues'))->render();
             return response()->json([
-                'html' => $html,
-                'total' => $alertes->total(),
-                'non_lues' => $totalNonLues,
+                'html'    => $html,
+                'total'   => $alertes->total(),
+                'summary' => $summary, // pour rafraîchir les KPI sans reload
             ]);
         }
 
-        return view('admin.alertes.index', compact('alertes', 'totalNonLues', 'totalDanger', 'totalWarning', 'totalInfo', 'types'));
+        return view('admin.alertes.index', [
+            'alertes' => $alertes,
+            'summary' => $summary,
+            'types'   => $types,
+        ]);
     }
 
-    public function deleteSeen(Request $request)
-    {
-        $data = json_decode($request->getContent(), true);
-        $ids = $data['ids'] ?? [];
+    // ══════════════════════════════════════════════════════════════════
+    // ACTIONS UNITAIRES
+    // ══════════════════════════════════════════════════════════════════
 
-        if (!empty($ids)) {
-            Alert::whereIn('id', $ids)->delete();
-        }
-
-        return response()->json(['success' => true]);
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    // MARQUER UNE ALERTE LUE
-    // ══════════════════════════════════════════════════════════════
     public function markRead(Alert $alert)
     {
-        $alert->update(['is_read' => true]);
-        if (request()->wantsJson()) {
-            return response()->json(['success' => true]);
-        }
-        return back()->with('success', 'Alerte marquée comme lue.');
+        $alert->markRead();
+        return request()->wantsJson() || request()->ajax()
+            ? response()->json(['success' => true, 'unread_count' => $this->alertService->unreadCount()])
+            : back()->with('success', 'Alerte marquée comme lue.');
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // TOUT MARQUER LU
-    // ══════════════════════════════════════════════════════════════
     public function markAllRead()
     {
-        Alert::where('is_read', false)->update(['is_read' => true]);
-        return back()->with('success', 'Toutes les alertes ont été marquées comme lues.');
+        $count = $this->alertService->markAllAsRead();
+
+        return request()->wantsJson() || request()->ajax()
+            ? response()->json(['success' => true, 'marked' => $count, 'unread_count' => 0])
+            : back()->with('success', "{$count} alerte(s) marquée(s) comme lues.");
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // SUPPRIMER
-    // ══════════════════════════════════════════════════════════════
     public function destroy(Alert $alert)
     {
         $alert->delete();
-        if (request()->wantsJson()) {
-            return response()->json(['success' => true]);
-        }
-        return back()->with('success', 'Alerte supprimée.');
+        return request()->wantsJson() || request()->ajax()
+            ? response()->json(['success' => true, 'unread_count' => $this->alertService->unreadCount()])
+            : back()->with('success', 'Alerte supprimée.');
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // API — badge sidebar (non lues par module)
-    // GET /admin/alerts/summary
-    // ══════════════════════════════════════════════════════════════
+    /**
+     * Archive l'alerte (soft hide) — alternative au delete dur.
+     * L'alerte reste en BD mais n'apparaît plus dans la liste active.
+     */
+    public function archive(Alert $alert)
+    {
+        $alert->archive();
+        return request()->wantsJson() || request()->ajax()
+            ? response()->json(['success' => true])
+            : back()->with('success', 'Alerte archivée.');
+    }
+
+    /**
+     * Purge toutes les alertes lues (vidage rapide). Garde les non lues.
+     */
+    public function clearRead()
+    {
+        $count = Alert::read()->delete();
+        return request()->wantsJson() || request()->ajax()
+            ? response()->json(['success' => true, 'deleted' => $count])
+            : back()->with('success', "{$count} alerte(s) lue(s) supprimée(s).");
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // API — endpoints AJAX pour le polling navigation
+    // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * GET /api/alerts/count → JSON léger { count, by_niveau }.
+     * Utilisé par le polling badge cloche (toutes les 30s).
+     */
+    public function apiCount()
+    {
+        $summary = $this->alertService->unreadSummary();
+        return response()->json([
+            'count'     => $summary['total'],
+            'by_niveau' => [
+                'danger'  => $summary['danger'],
+                'warning' => $summary['warning'],
+                'info'    => $summary['info'],
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/alerts/latest → JSON liste pour les toasts.
+     * Bornée à 8 par défaut.
+     */
+    public function apiLatest(Request $request)
+    {
+        $limit  = max(1, min(20, (int) $request->input('limit', 8)));
+        $alerts = $this->alertService->latest($limit)->map(fn ($a) => [
+            'id'           => $a->id,
+            'type'         => $a->type,
+            'niveau'       => $a->niveau,
+            'title'        => $a->title,
+            'message'      => $a->message,
+            'lien'         => $a->lien,
+            'triggered_at' => $a->triggered_at?->toIso8601String(),
+            'meta'         => AlertService::TYPES[$a->type] ?? AlertService::DEFAULT_META,
+        ]);
+
+        return response()->json($alerts);
+    }
+
+    /**
+     * Résumé global par module/niveau (déjà existant, gardé pour rétrocompat).
+     */
     public function summary()
     {
-        $data = Alert::where('is_read', false)
+        $data = Alert::unread()
             ->selectRaw('type, niveau, COUNT(*) as count')
             ->groupBy('type', 'niveau')
             ->get();
@@ -118,7 +193,7 @@ class AlertController extends Controller
         foreach ($data as $row) {
             $result[$row->type][$row->niveau] = $row->count;
         }
-        $result['_total'] = Alert::where('is_read', false)->count();
+        $result['_total'] = $this->alertService->unreadCount();
 
         return response()->json($result);
     }

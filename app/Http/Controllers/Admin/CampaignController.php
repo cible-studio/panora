@@ -42,6 +42,9 @@ class CampaignController extends Controller
     {
         $this->authorize('viewAny', Campaign::class);
 
+        // Filtres "neutres" appliqués au périmètre + au calcul des compteurs.
+        // Le filtre status est traité APRÈS le clone — sinon cliquer "Planifiées"
+        // fait tomber les autres cartes (Actif/Pause/Terminées/Annulées) à 0.
         $query = Campaign::with([
                 'client',
                 'user',
@@ -50,7 +53,6 @@ class CampaignController extends Controller
             ->withCount(['panels', 'externalPanels', 'invoices'])
             ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
             ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
-            ->when($request->status,      fn($q, $s)  => $q->where('status', $s))
             // Filtres date originaux : date_from (start) / date_to (end)
             ->when($request->date_from,   fn($q, $d)  => $q->where('start_date', '>=', $d))
             ->when($request->date_to,     fn($q, $d)  => $q->where('end_date', '<=', $d))
@@ -62,27 +64,48 @@ class CampaignController extends Controller
             ->when($request->zone_id,     fn($q, $id) => $q->whereHas('panels', fn($p) => $p->where('zone_id', $id)))
             ->orderByDesc('created_at');
 
+        // ─── COMPTEURS KPI sur le périmètre AVANT filtre status ───
+        // Permet à chaque carte de garder sa vraie valeur quand on en clique
+        // une (sinon les autres tombent à 0).
+        // ⚠ "actif" inclut "pose" (sous-état d'actif) pour que la somme des
+        // cards = total affiché.
+        $countsRaw = (clone $query)
+            ->setEagerLoads([])
+            ->reorder()
+            ->select('status', DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $counts = [
+            'planifie' => (int) ($countsRaw['planifie'] ?? 0),
+            'actif'    => (int) ($countsRaw['actif']    ?? 0) + (int) ($countsRaw['pose'] ?? 0),
+            'pause'    => (int) ($countsRaw['pause']    ?? 0),
+            'termine'  => (int) ($countsRaw['termine']  ?? 0),
+            'annule'   => (int) ($countsRaw['annule']   ?? 0),
+        ];
+
+        // ─── Filtre status (carte cliquée OU select) appliqué APRÈS ───
+        // "actif" inclut "pose" côté filtre aussi (cohérent avec le compteur)
+        if ($request->filled('status')) {
+            if ($request->status === 'actif') {
+                $query->whereIn('status', ['actif', 'pose']);
+            } else {
+                $query->where('status', $request->status);
+            }
+        }
+
         $campaigns = $query->paginate(20)->withQueryString();
 
         if ($request->ajax()) {
             return response()->json([
                 'html'       => view('admin.campaigns.partials.table-rows', compact('campaigns'))->render(),
                 'pagination' => $campaigns->links('pagination::bootstrap-4')->render(),
-                'stats'      => ['total' => $campaigns->total()],
+                'stats'      => [
+                    'total'  => $campaigns->total(),
+                    'counts' => $counts, // 5.x : pour rafraîchir les KPI cards en AJAX
+                ],
             ]);
         }
-
-        $rawCounts = Campaign::selectRaw('status, count(*) as total')
-            ->groupBy('status')->pluck('total', 'status');
-
-        $counts = [
-            'planifie' => $rawCounts['planifie'] ?? 0,
-            'actif'    => $rawCounts['actif']    ?? 0,
-            'pose'     => $rawCounts['pose']     ?? 0,
-            'pause'    => $rawCounts['pause']    ?? 0,
-            'termine'  => $rawCounts['termine']  ?? 0,
-            'annule'   => $rawCounts['annule']   ?? 0,
-        ];
 
         $nonFactureesCount = Campaign::nonFacturees()->count();
         $endingSoonCount   = Campaign::endingSoon(14)->count();

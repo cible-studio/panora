@@ -16,6 +16,9 @@ Détails :
 @if($reservation->total_amount > 0)
 - Montant   : {{ number_format((float) $reservation->total_amount, 0, ',', ' ') }} FCFA
 @endif
+@if(!empty($campaignName))
+- Campagne  : {{ $campaignName }}
+@endif
 - Décision  : {{ now()->format('d/m/Y à H:i') }}
 
 @if(!$isAccepted && $reason)
@@ -35,6 +38,9 @@ Motif du refus :
 @endif
 
 Ouvrir la fiche réservation : {{ $showLink }}
+@if(!empty($campaignLink))
+Voir la campagne « {{ $campaignName }} » : {{ $campaignLink }}
+@endif
 
 —
 Notification automatique — décision prise par le client.

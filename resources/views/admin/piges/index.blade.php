@@ -22,25 +22,38 @@
 </div>
 @endif
 
-{{-- ════ KPI ════ --}}
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+{{-- ════ KPI cards (pattern unifié projet : bordure latérale colorée,
+     toggle, état actif, counts qui gardent leur valeur indépendamment
+     du filtre KPI courant). ════ --}}
 @php
 $kpis = [
-    ['s'=>'','l'=>'Total',      'v'=>$stats['total']      ,'c'=>'#e8a020','bg'=>'rgba(232,160,32,.08)'],
-    ['s'=>'en_attente','l'=>'En attente','v'=>$stats['en_attente'],'c'=>'#f97316','bg'=>'rgba(249,115,22,.08)'],
-    ['s'=>'verifie',   'l'=>'Vérifiées', 'v'=>$stats['verifie']   ,'c'=>'#22c55e','bg'=>'rgba(34,197,94,.08)'],
-    ['s'=>'rejete',    'l'=>'Rejetées',  'v'=>$stats['rejete']    ,'c'=>'#ef4444','bg'=>'rgba(239,68,68,.08)'],
+    ['s'=>'',           'k'=>'total',      'l'=>'Total',      'v'=>$stats['total']      ?? 0, 'c'=>'var(--accent)', 'icon'=>'📋'],
+    ['s'=>'en_attente', 'k'=>'en_attente', 'l'=>'En attente', 'v'=>$stats['en_attente'] ?? 0, 'c'=>'#f97316',       'icon'=>'⏳'],
+    ['s'=>'verifie',    'k'=>'verifie',    'l'=>'Vérifiées',  'v'=>$stats['verifie']    ?? 0, 'c'=>'#22c55e',       'icon'=>'✅'],
+    ['s'=>'rejete',     'k'=>'rejete',     'l'=>'Rejetées',   'v'=>$stats['rejete']     ?? 0, 'c'=>'#ef4444',       'icon'=>'🚫'],
 ];
+$activeStatus = request('status');
+$hasAnyFilter = request('q') || request('status') || request('campaign_id') || request('panel_id')
+              || request('technicien_id') || request('date_from') || request('date_to');
 @endphp
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px">
 @foreach($kpis as $k)
-@php $active = request('status') === $k['s'] && $k['s'] !== ''; @endphp
-<a href="{{ $k['s'] ? route('admin.piges.index', array_merge(request()->except(['status','page']), ['status'=>$k['s']])) : route('admin.piges.index', request()->except(['status','page'])) }}"
-   style="background:{{ $k['bg'] }};border:1px solid {{ $active ? $k['c'] : 'var(--border)' }};border-radius:14px;padding:16px 18px;text-decoration:none;display:block;transition:all .15s"
-   onmouseover="this.style.borderColor='{{ $k['c'] }}';this.style.transform='translateY(-2px)'"
-   onmouseout="this.style.borderColor='{{ $active ? $k['c'] : 'var(--border)' }}';this.style.transform=''">
-    <div style="font-size:26px;font-weight:800;color:{{ $k['c'] }};line-height:1;margin-bottom:6px">{{ number_format($k['v']) }}</div>
+@php
+    $isTotal  = $k['s'] === '';
+    $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $k['s']);
+    $url = $isTotal
+        ? route('admin.piges.index', request()->except(['status','page']))
+        : ($isActive
+            ? route('admin.piges.index', request()->except(['status','page'])) // toggle off
+            : route('admin.piges.index', array_merge(request()->except(['status','page']), ['status'=>$k['s']])));
+@endphp
+<a href="{{ $url }}"
+   data-kpi="{{ $k['k'] }}"
+   class="stat-card {{ $isActive ? 'active' : '' }}"
+   style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['c'] }};border-radius:14px;padding:14px 18px;text-decoration:none;display:block;transition:all .15s;{{ $isActive ? 'box-shadow:0 0 0 2px '.$k['c'].'33;' : '' }}">
+    <div style="font-size:18px;color:{{ $k['c'] }};margin-bottom:4px">{{ $k['icon'] }}</div>
+    <div data-kpi-value="{{ $k['k'] }}" style="font-size:26px;font-weight:800;color:{{ $k['c'] }};line-height:1;margin-bottom:6px">{{ number_format($k['v']) }}</div>
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">{{ $k['l'] }}</div>
-    @if($active)<div style="font-size:9px;color:{{ $k['c'] }};margin-top:3px;font-weight:600">Filtre actif ✓</div>@endif
 </a>
 @endforeach
 </div>
@@ -507,15 +520,13 @@ window.PigeActions = {
             else if (status === 'rejete') stats.rejete++;
         });
         
-        // Mettre à jour l'affichage des KPI
-        const kpiElements = document.querySelectorAll('[style*="display:grid;grid-template-columns:repeat(4,1fr)"] a');
-        if (kpiElements.length >= 4) {
-            const totals = [stats.total, stats.en_attente, stats.verifie, stats.rejete];
-            kpiElements.forEach((el, idx) => {
-                const div = el.querySelector('div[style*="font-size:26px"]');
-                if (div) div.textContent = totals[idx].toLocaleString();
-            });
-        }
+        // Mettre à jour l'affichage des KPI via le pattern unifié data-kpi-value
+        document.querySelectorAll('[data-kpi-value]').forEach(el => {
+            const k = el.dataset.kpiValue;
+            if (stats[k] !== undefined) {
+                el.textContent = new Intl.NumberFormat('fr-FR').format(stats[k]);
+            }
+        });
         
         // Mettre à jour le compteur total en bas
         const resultSpan = document.querySelector('.result-badge strong, [style*="margin-left:auto"] strong');

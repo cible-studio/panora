@@ -9,27 +9,37 @@
         </a>
     </x-slot:topbarActions>
 
-    {{-- ══ STATS (sans CA total — déplacé dans la fiche client) ══ --}}
+    {{-- ══ STATS — KPI cliquables qui pilotent le filtre actif ════════ --}}
     <div class="ci-stats-grid">
-        <div class="ci-stat">
+        <button type="button"
+                class="ci-stat ci-stat-clickable {{ !request()->boolean('active_only') ? 'ci-stat-active' : '' }}"
+                data-active-filter="0"
+                title="Afficher tous les clients">
             <div class="ci-stat-icon">👥</div>
             <div class="ci-stat-body">
                 <div class="ci-stat-num">{{ $stats['total'] }}</div>
                 <div class="ci-stat-label">Total clients</div>
             </div>
-        </div>
-        <div class="ci-stat">
+        </button>
+        <button type="button"
+                class="ci-stat ci-stat-clickable {{ request()->boolean('active_only') ? 'ci-stat-active' : '' }}"
+                data-active-filter="1"
+                title="Filtrer sur clients ayant au moins une campagne active ou en pose">
             <div class="ci-stat-icon">📡</div>
             <div class="ci-stat-body">
                 <div class="ci-stat-num">{{ $stats['actifs'] }}</div>
                 <div class="ci-stat-label">Avec campagne active</div>
             </div>
-        </div>
+        </button>
         <div class="ci-stat ci-stat-actions">
             <div class="ci-stat-label" style="margin-bottom:10px">Exports & Import</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="ci-export-btn" onclick="document.getElementById('modal-import-clients').style.display='flex'">📥 Import Excel</button>
-                <a class="ci-export-btn" href="{{ route('admin.clients.import.template') }}" style="text-decoration:none">📋 Modèle CSV</a>
+                {{-- Les exports respectent les filtres courants — la fonction
+                     buildExportUrl() en JS injecte search/sector/active_only. --}}
+                <a class="ci-export-btn" href="#" id="export-csv" style="text-decoration:none" title="Export CSV (Excel-friendly, UTF-8)">📊 CSV</a>
+                <a class="ci-export-btn" href="#" id="export-pdf" style="text-decoration:none" title="Export PDF (paysage A4)">📄 PDF</a>
+                <button class="ci-export-btn" onclick="document.getElementById('modal-import-clients').style.display='flex'">📥 Import</button>
+                <a class="ci-export-btn" href="{{ route('admin.clients.import.template') }}" style="text-decoration:none">📋 Modèle</a>
             </div>
         </div>
     </div>
@@ -171,11 +181,27 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            transition: border-color .2s
+            transition: all .2s;
+            font-family: inherit;
+            text-align: left;
         }
 
         .ci-stat:hover {
             border-color: var(--accent)
+        }
+
+        /* KPI cliquables — feedback visuel */
+        .ci-stat-clickable {
+            cursor: pointer;
+            color: inherit;
+        }
+        .ci-stat-clickable:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,.05);
+        }
+        .ci-stat-active {
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 0 2px rgba(232,160,32,.15);
         }
 
         .ci-stat-gold {
@@ -988,10 +1014,13 @@
                     search: '{{ request('search') }}',
                     sector: '{{ request('sector') }}',
                     sort: '{{ request('sort', 'name') }}',
+                    active_only: {{ request()->boolean('active_only') ? 'true' : 'false' }},
                 };
                 let isLoading = false;
                 let debTimer = null;
                 const baseUrl = '{{ route('admin.clients.index') }}';
+                const csvUrl  = '{{ route('admin.clients.export.csv') }}';
+                const pdfUrl  = '{{ route('admin.clients.export.pdf') }}';
 
                 function init() {
                     const s = document.getElementById('filter-search');
@@ -1012,6 +1041,35 @@
                     srt.addEventListener('change', applyFilters);
                     rst.addEventListener('click', resetFilters);
 
+                    // Cartes KPI cliquables — bascule du filtre "active_only"
+                    document.querySelectorAll('.ci-stat-clickable').forEach(card => {
+                        card.addEventListener('click', () => {
+                            const wantActive = card.dataset.activeFilter === '1';
+                            if (filters.active_only === wantActive) return;
+                            filters.active_only = wantActive;
+                            // Visuel actif/inactif sans attendre le fetch
+                            document.querySelectorAll('.ci-stat-clickable').forEach(c => {
+                                c.classList.toggle('ci-stat-active',
+                                    (c.dataset.activeFilter === '1') === filters.active_only);
+                            });
+                            filters.page = 1;
+                            updateReset();
+                            updateExportLinks();
+                            fetchData();
+                        });
+                    });
+
+                    // Liens d'export — réinitialisés à chaque applyFilters
+                    updateExportLinks();
+                    document.getElementById('export-csv').addEventListener('click', e => {
+                        e.preventDefault();
+                        window.location.href = buildExportUrl(csvUrl);
+                    });
+                    document.getElementById('export-pdf').addEventListener('click', e => {
+                        e.preventDefault();
+                        window.location.href = buildExportUrl(pdfUrl);
+                    });
+
                     // Pagination dynamique
                     document.getElementById('pagination-container').addEventListener('click', e => {
                         const link = e.target.closest('a[href]');
@@ -1025,12 +1083,30 @@
                     });
                 }
 
+                // Construit l'URL d'export en propageant les filtres courants.
+                function buildExportUrl(base) {
+                    const params = new URLSearchParams();
+                    if (filters.search)      params.set('search', filters.search);
+                    if (filters.sector)      params.set('sector', filters.sector);
+                    if (filters.sort && filters.sort !== 'name') params.set('sort', filters.sort);
+                    if (filters.active_only) params.set('active_only', '1');
+                    return params.toString() ? `${base}?${params}` : base;
+                }
+
+                function updateExportLinks() {
+                    const csv = document.getElementById('export-csv');
+                    const pdf = document.getElementById('export-pdf');
+                    if (csv) csv.href = buildExportUrl(csvUrl);
+                    if (pdf) pdf.href = buildExportUrl(pdfUrl);
+                }
+
                 function applyFilters() {
                     filters.search = document.getElementById('filter-search').value;
                     filters.sector = document.getElementById('filter-sector').value;
                     filters.sort = document.getElementById('filter-sort').value;
                     filters.page = 1;
                     updateReset();
+                    updateExportLinks();
                     fetchData();
                 }
 
@@ -1039,17 +1115,23 @@
                         search: '',
                         sector: '',
                         sort: 'name',
-                        page: 1
+                        page: 1,
+                        active_only: false,
                     };
                     document.getElementById('filter-search').value = '';
                     document.getElementById('filter-sector').value = '';
                     document.getElementById('filter-sort').value = 'name';
+                    document.querySelectorAll('.ci-stat-clickable').forEach(c => {
+                        c.classList.toggle('ci-stat-active', c.dataset.activeFilter === '0');
+                    });
                     updateReset();
+                    updateExportLinks();
                     fetchData();
                 }
 
                 function updateReset() {
-                    const hasFilter = filters.search || filters.sector || filters.sort !== 'name';
+                    const hasFilter = filters.search || filters.sector
+                        || filters.sort !== 'name' || filters.active_only;
                     document.getElementById('reset-wrapper').style.display = hasFilter ? 'flex' : 'none';
                 }
 
@@ -1062,6 +1144,7 @@
                     if (filters.search) params.set('search', filters.search);
                     if (filters.sector) params.set('sector', filters.sector);
                     if (filters.sort && filters.sort !== 'name') params.set('sort', filters.sort);
+                    if (filters.active_only) params.set('active_only', '1');
                     if (filters.page && filters.page > 1) params.set('page', filters.page);
                     params.set('ajax', '1');
 

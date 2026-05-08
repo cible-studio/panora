@@ -227,34 +227,46 @@
         <thead>
             <tr>
                 <th style="width:9%">Réf.</th>
-                <th style="width:22%">Emplacement</th>
-                <th style="width:11%">Commune</th>
-                <th style="width:9%">Zone</th>
-                <th style="width:11%">Format</th>
-                <th style="width:9%">Dimensions</th>
-                <th style="width:11%">Catégorie</th>
-                <th style="width:6%">Éclair.</th>
+                <th style="width:20%">Emplacement</th>
+                <th style="width:10%">Commune</th>
+                <th style="width:8%">Zone</th>
+                <th style="width:10%">Format</th>
+                <th style="width:8%">Dimensions</th>
+                <th style="width:10%">Catégorie</th>
+                <th style="width:5%">Éclair.</th>
                 <th class="num" style="width:7%">Trafic/j</th>
+                {{-- Statut TOUJOURS affiché — l'admin doit pouvoir distinguer
+                     un panneau Disponible d'un panneau En option dans le doc. --}}
+                <th style="width:8%">Statut</th>
                 @if($showPricing)
                     <th class="num" style="width:9%">Prix HT/mois</th>
-                    <th style="width:8%">Statut</th>
                 @endif
             </tr>
         </thead>
         <tbody>
+            @php $hasOptionInList = false; @endphp
             @foreach($panels as $p)
                 @php
-                    // $p is always a stdClass from ExternalAgencyController::pdfListe()
-                    $statusObj   = $p->status ?? null;
-                    $statusValue = is_object($statusObj) ? ($statusObj->value ?? 'libre') : ($statusObj ?? 'libre');
+                    // Le contrôleur passe désormais display_status pour les
+                    // internes (libre/option_periode/...). Pour les externes,
+                    // on retombe sur availability_status. Mapping unifié vers
+                    // un libellé propre + une classe de badge.
+                    $statusValue = $p->display_status
+                        ?? (is_object($p->status ?? null) ? ($p->status->value ?? null) : ($p->status ?? null))
+                        ?? 'libre';
+
                     $statusMeta  = match($statusValue) {
-                        'libre'       => ['label' => 'Disponible', 'class' => 'badge-libre'],
-                        'occupe'      => ['label' => 'Occupé',     'class' => 'badge-occupe'],
-                        'option'      => ['label' => 'En option',  'class' => 'badge-option'],
-                        'confirme'    => ['label' => 'Confirmé',   'class' => 'badge-confirme'],
-                        'maintenance' => ['label' => 'Maintenance','class' => 'badge-maintenance'],
-                        default       => ['label' => ucfirst($statusValue), 'class' => 'badge-libre'],
+                        'libre', 'disponible'        => ['label' => 'Disponible', 'class' => 'badge-libre'],
+                        'occupe', 'occupé'           => ['label' => 'Occupé',     'class' => 'badge-occupe'],
+                        'option', 'option_periode'   => ['label' => 'En option',  'class' => 'badge-option'],
+                        'confirme'                   => ['label' => 'Confirmé',   'class' => 'badge-confirme'],
+                        'maintenance'                => ['label' => 'Maintenance','class' => 'badge-maintenance'],
+                        default                      => ['label' => ucfirst((string) $statusValue), 'class' => 'badge-libre'],
                     };
+
+                    if (in_array($statusValue, ['option', 'option_periode'], true)) {
+                        $hasOptionInList = true;
+                    }
                     $traffic   = (int) ($p->daily_traffic ?? 0);
                     $isLit     = (bool) ($p->is_lit ?? false);
                     $reference = $p->reference ?? '—';
@@ -294,16 +306,31 @@
                         @endif
                     </td>
                     <td class="num">{{ $traffic > 0 ? number_format($traffic, 0, ',', ' ') : '—' }}</td>
+                    {{-- Statut toujours dans le tableau --}}
+                    <td><span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span></td>
                     @if($showPricing)
                         <td class="num" style="font-weight:600;color:#c2570d">
                             {{ $rate > 0 ? number_format($rate, 0, ',', ' ') : '—' }}
                         </td>
-                        <td><span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span></td>
                     @endif
                 </tr>
             @endforeach
         </tbody>
     </table>
+
+    {{-- ── NOTE LÉGALE OPTIONS — affichée seulement si la liste contient
+         au moins un panneau "En option". L'admin sait que ces lignes ne
+         sont PAS des réservations fermes et qu'elles peuvent être proposées
+         à un autre client en parallèle. --}}
+    @if($hasOptionInList)
+        <div style="margin-top:12px;padding:9px 14px;background:#fffbeb;border-left:3px solid #f97316;border-radius:4px;font-size:9px;color:#9a3412;line-height:1.5">
+            <strong>⚠ Mention importante :</strong>
+            Les panneaux marqués <span class="badge badge-option" style="margin:0 2px">En option</span>
+            font l'objet d'une réservation provisoire non confirmée. Ils restent
+            mobilisables pour une autre proposition tant que le client en option
+            n'a pas validé son devis.
+        </div>
+    @endif
 
     {{-- ── TOTAUX (uniquement si showPricing activé) ── --}}
     @if($showPricing && isset($totalMensuel) && $totalMensuel > 0)

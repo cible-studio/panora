@@ -7,32 +7,27 @@
     </a>
 </x-slot>
 
-{{-- STATS CLIQUABLES --}}
-<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
-    <a href="{{ route('admin.maintenances.index') }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;
-              {{ !request('statut') && !request('priorite') ? 'border-color:var(--accent);' : '' }}">
-        <div class="stat-label">Signalées</div>
-        <div class="stat-value" style="color:var(--accent);">{{ $totalSignales }}</div>
+{{-- ════ KPI cards (pattern unifié : bordure latérale colorée, état actif) ══ --}}
+@php
+    $hasAnyMaintFilter = request('statut') || request('priorite') || request('search');
+    $kpis = [
+        ['key'=>'all',      'label'=>'Total signalées', 'icon'=>'🔔', 'color'=>'var(--accent)', 'value'=>$totalSignales + $totalEnCours + $totalResolus, 'url'=>route('admin.maintenances.index'), 'active'=>!$hasAnyMaintFilter],
+        ['key'=>'signale',  'label'=>'Signalées',       'icon'=>'⚠️', 'color'=>'#f97316',       'value'=>$totalSignales, 'url'=>route('admin.maintenances.index', ['statut'=>'signale']), 'active'=>request('statut')==='signale'],
+        ['key'=>'en_cours', 'label'=>'En cours',        'icon'=>'🔧', 'color'=>'#3b82f6',       'value'=>$totalEnCours,  'url'=>route('admin.maintenances.index', ['statut'=>'en_cours']), 'active'=>request('statut')==='en_cours'],
+        ['key'=>'urgentes', 'label'=>'Urgentes',        'icon'=>'🚨', 'color'=>'#ef4444',       'value'=>$totalUrgentes, 'url'=>route('admin.maintenances.index', ['priorite'=>'urgente']), 'active'=>request('priorite')==='urgente'],
+        ['key'=>'resolu',   'label'=>'Résolues',        'icon'=>'✅', 'color'=>'#22c55e',       'value'=>$totalResolus,  'url'=>route('admin.maintenances.index', ['statut'=>'resolu']), 'active'=>request('statut')==='resolu'],
+    ];
+@endphp
+<div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px">
+    @foreach($kpis as $k)
+    <a href="{{ $k['url'] }}"
+       class="stat-card {{ $k['active'] ? 'active' : '' }}"
+       style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['color'] }};border-radius:14px;padding:14px 18px;text-decoration:none;display:block;transition:all .15s;{{ $k['active'] ? 'box-shadow:0 0 0 2px '.$k['color'].'33;' : '' }}">
+        <div style="font-size:18px;color:{{ $k['color'] }};margin-bottom:4px">{{ $k['icon'] }}</div>
+        <div style="font-size:26px;font-weight:800;color:{{ $k['color'] }};line-height:1;margin-bottom:6px">{{ number_format($k['value']) }}</div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">{{ $k['label'] }}</div>
     </a>
-    <a href="{{ route('admin.maintenances.index', ['statut' => 'en_cours']) }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;
-              {{ request('statut') === 'en_cours' ? 'border-color:var(--blue);' : '' }}">
-        <div class="stat-label">En cours</div>
-        <div class="stat-value" style="color:var(--blue);">{{ $totalEnCours }}</div>
-    </a>
-    <a href="{{ route('admin.maintenances.index', ['priorite' => 'urgente']) }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;
-              {{ request('priorite') === 'urgente' ? 'border-color:var(--red);' : '' }}">
-        <div class="stat-label">Urgentes</div>
-        <div class="stat-value" style="color:var(--red);">{{ $totalUrgentes }}</div>
-    </a>
-    <a href="{{ route('admin.maintenances.index', ['statut' => 'resolu']) }}"
-       class="stat-card" style="text-decoration:none;cursor:pointer;
-              {{ request('statut') === 'resolu' ? 'border-color:var(--green);' : '' }}">
-        <div class="stat-label">Résolues</div>
-        <div class="stat-value" style="color:var(--green);">{{ $totalResolus }}</div>
-    </a>
+    @endforeach
 </div>
 
 {{-- FILTRES AUTO --}}
