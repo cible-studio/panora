@@ -481,18 +481,44 @@ class PanelController extends Controller
     // ── CHANGER STATUT ──
     public function updateStatus(Request $request, Panel $panel)
     {
+        // Côté UI on n'autorise que libre↔maintenance (les autres statuts
+        // sont dérivés des réservations/campagnes via AvailabilityService).
+        // On garde la validation large pour rétro-compat des anciens scripts.
         $request->validate([
             'status' => 'required|in:libre,occupe,option,confirme,maintenance'
         ]);
 
+        $previousStatus = $panel->status->value;
         $panel->update(['status' => $request->status]);
+
         AlertService::create(
             'panneau',
             'info',
             'Statut panneau mis à jour — ' . $panel->reference,
-            auth()->user()->name . ' a changé le statut du panneau ' . $panel->reference . ' en "' . $request->status . '".',
+            auth()->user()->name . ' a changé le statut du panneau ' . $panel->reference . ' : ' . $previousStatus . ' → ' . $request->status,
             $panel
         );
+
+        if ($request->expectsJson() || $request->ajax()) {
+            $statusCfg = match ($panel->status->value) {
+                'libre'       => ['label' => 'Libre',       'class' => 'badge-green',  'color' => '#22c55e'],
+                'option'      => ['label' => 'Option',      'class' => 'badge-orange', 'color' => '#f59e0b'],
+                'confirme'    => ['label' => 'Confirmé',    'class' => 'badge-blue',   'color' => '#3b82f6'],
+                'occupe'      => ['label' => 'Occupé',      'class' => 'badge-purple', 'color' => '#a855f7'],
+                'maintenance' => ['label' => 'Maintenance', 'class' => 'badge-red',    'color' => '#ef4444'],
+                default       => ['label' => $panel->status->value, 'class' => '', 'color' => '#6b7280'],
+            };
+
+            return response()->json([
+                'ok'              => true,
+                'message'         => "Statut mis à jour : {$statusCfg['label']}.",
+                'status'          => $panel->status->value,
+                'previous_status' => $previousStatus,
+                'label'           => $statusCfg['label'],
+                'class'           => $statusCfg['class'],
+                'color'           => $statusCfg['color'],
+            ]);
+        }
 
         return back()->with('success', 'Statut mis à jour !');
     }

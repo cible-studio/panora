@@ -130,14 +130,14 @@ class AvailabilityService
         return $query->orderBy('reference')->get();
     }    
 
-    // ── 5. Sync statuts — transaction atomique, 3 UPDATE max ──────
+    // ── 5. Sync statuts — transaction atomique, 4 UPDATE max ──────
     public function syncPanelStatuses(array $panelIds): void
     {
         if (empty($panelIds)) return;
 
         $today = now()->toDateString();
 
-        // Une requête pour tous les statuts actifs
+        // Réservations actives (en_attente / confirme) qui couvrent today
         $activeBookings = DB::table('reservation_panels')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->whereIn('reservation_panels.panel_id', $panelIds)
@@ -152,18 +152,40 @@ class AvailabilityService
             ->get()
             ->keyBy('panel_id');
 
-        // Panneau maintenance → intouchable
+        // Lot 6 : campagnes actuellement EN COURS (actif / pose) couvrant today.
+        // Un panneau réellement affiché = statut "occupé" (≠ "confirme" qui
+        // signifie booké mais pas encore en pose). Cette nouvelle requête
+        // permet de propager l'occupation effective dans l'inventaire.
+        $occupiedByCampaign = DB::table('campaign_panels')
+            ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+            ->whereIn('campaign_panels.panel_id', $panelIds)
+            ->where('campaign_panels.type', 'interne')
+            ->whereIn('campaigns.status', ['actif', 'pose'])
+            ->where('campaigns.start_date', '<=', $today)
+            ->where('campaigns.end_date',   '>=', $today)
+            ->pluck('campaign_panels.panel_id')
+            ->flip();
+
+        // Maintenance → intouchable par la sync (l'admin contrôle manuellement)
         $maintenanceIds = Panel::whereIn('id', $panelIds)
             ->where('status', PanelStatus::MAINTENANCE->value)
             ->pluck('id')
             ->flip();
 
+        $toOccupe   = [];
         $toConfirme = [];
         $toOption   = [];
         $toLibre    = [];
 
+        // Priorité : maintenance > occupe (campagne en cours) > confirme
+        // (réservation confirmée pour plus tard) > option > libre.
         foreach ($panelIds as $id) {
             if (isset($maintenanceIds[$id])) continue;
+
+            if (isset($occupiedByCampaign[$id])) {
+                $toOccupe[] = $id;
+                continue;
+            }
 
             $booking = $activeBookings->get($id);
             if ($booking?->has_confirmed) {
@@ -175,8 +197,12 @@ class AvailabilityService
             }
         }
 
-        // 3 UPDATE groupés max — atomique
-        DB::transaction(function () use ($toConfirme, $toOption, $toLibre) {
+        // 4 UPDATE groupés max — atomique
+        DB::transaction(function () use ($toOccupe, $toConfirme, $toOption, $toLibre) {
+            if (!empty($toOccupe)) {
+                Panel::whereIn('id', $toOccupe)
+                    ->update(['status' => PanelStatus::OCCUPE->value]);
+            }
             if (!empty($toConfirme)) {
                 Panel::whereIn('id', $toConfirme)
                     ->update(['status' => PanelStatus::CONFIRME->value]);
@@ -192,6 +218,7 @@ class AvailabilityService
         });
 
         Log::debug('availability.sync_done', [
+            'occupe'   => count($toOccupe),
             'confirme' => count($toConfirme),
             'option'   => count($toOption),
             'libre'    => count($toLibre),

@@ -187,7 +187,101 @@
                 if (wrap && !wrap.contains(e.target)) {
                     document.getElementById('export-dropdown').classList.add('hidden');
                 }
+
+                // Lot 6 : ferme tout menu de statut panneau ouvert hors clic
+                document.querySelectorAll('.panel-status-menu').forEach(menu => {
+                    if (!menu.parentElement.contains(e.target)) {
+                        menu.style.display = 'none';
+                    }
+                });
             });
+
+            // ══════════════════════════════
+            // PANEL STATUS — toggle maintenance inline (Lot 6)
+            // ══════════════════════════════
+            window.PanelStatus = (function () {
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+                function showToast(message, type = 'success') {
+                    let host = document.getElementById('panel-toast-host');
+                    if (!host) {
+                        host = document.createElement('div');
+                        host.id = 'panel-toast-host';
+                        host.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;';
+                        document.body.appendChild(host);
+                    }
+                    const colors = type === 'error'
+                        ? { bg: '#fee2e2', fg: '#991b1b', bd: '#fca5a5' }
+                        : { bg: '#dcfce7', fg: '#166534', bd: '#86efac' };
+                    const t = document.createElement('div');
+                    t.textContent = message;
+                    t.style.cssText = `padding:10px 14px;background:${colors.bg};color:${colors.fg};border:1px solid ${colors.bd};border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.08);min-width:240px;max-width:380px;`;
+                    host.appendChild(t);
+                    setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; }, 2700);
+                    setTimeout(() => t.remove(), 3100);
+                }
+
+                return {
+                    toggleMenu(panelId) {
+                        // Ferme tous les autres avant d'ouvrir le mien
+                        document.querySelectorAll('.panel-status-menu').forEach(m => {
+                            if (m.id !== `panel-menu-${panelId}`) m.style.display = 'none';
+                        });
+                        const menu = document.getElementById(`panel-menu-${panelId}`);
+                        if (!menu) return;
+                        menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+                    },
+                    async set(panelId, newStatus) {
+                        document.getElementById(`panel-menu-${panelId}`).style.display = 'none';
+
+                        try {
+                            const r = await fetch(`/admin/panels/${panelId}/status`, {
+                                method: 'POST',
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': csrf,
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                },
+                                body: new URLSearchParams({ status: newStatus, _token: csrf }),
+                            });
+                            const data = await r.json();
+                            if (!r.ok || !data.ok) {
+                                showToast(data.message || 'Erreur lors du changement de statut.', 'error');
+                                return;
+                            }
+
+                            // MAJ in-place du badge + reconstruction du menu adapté
+                            const wrap = document.querySelector(`.panel-status-wrap[data-panel-id="${panelId}"]`);
+                            if (wrap) {
+                                const trigger = wrap.querySelector('.panel-status-trigger');
+                                trigger.className = 'badge ' + data.class + ' panel-status-trigger';
+                                wrap.querySelector('.panel-status-label').textContent = data.label;
+
+                                // Reconstruit le menu avec l'action inverse
+                                const menu = document.getElementById(`panel-menu-${panelId}`);
+                                menu.innerHTML = newStatus === 'maintenance'
+                                    ? `<button type="button" class="panel-status-action" data-status="libre"
+                                              onclick="PanelStatus.set(${panelId}, 'libre')"
+                                              style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:none;border:none;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text);text-align:left;"
+                                              onmouseenter="this.style.background='rgba(34,197,94,.1)'" onmouseleave="this.style.background='none'">
+                                          ✅ Sortir de maintenance
+                                       </button>`
+                                    : `<button type="button" class="panel-status-action" data-status="maintenance"
+                                              onclick="PanelStatus.set(${panelId}, 'maintenance')"
+                                              style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:none;border:none;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text);text-align:left;"
+                                              onmouseenter="this.style.background='rgba(239,68,68,.1)'" onmouseleave="this.style.background='none'">
+                                          🛠 Mettre en maintenance
+                                       </button>`;
+                            }
+                            showToast(data.message);
+                        } catch (e) {
+                            console.error(e);
+                            showToast('Erreur réseau.', 'error');
+                        }
+                    },
+                };
+            })();
             (function() {
                 let currentFilters = {
                     source: '{{ $source ?? 'all' }}',
