@@ -57,7 +57,7 @@ class RapportController extends Controller
                 ->whereIn('status', ['occupe', 'option', 'confirme'])->count();
             $taux = $total > 0 ? round(($occ / $total) * 100) : 0;
             $color = $taux >= 75 ? '#ef4444' : ($taux >= 50 ? '#f97316' : ($taux >= 25 ? '#e8a020' : '#22c55e'));
-            return ['commune' => $commune->name, 'total' => $total, 'occupes' => $occ, 'taux' => $taux, 'color' => $color];
+            return ['id' => $commune->id, 'commune' => $commune->name, 'total' => $total, 'occupes' => $occ, 'taux' => $taux, 'color' => $color];
         })->sortByDesc('taux')->values();
 
         // ── Évolution mensuelle (12 derniers mois) ──────────────
@@ -129,6 +129,7 @@ class RapportController extends Controller
                 ->whereHas('panels', fn($q) => $q->where('commune_id', $commune->id))
                 ->sum('total_amount');
             return [
+                'id' => $commune->id, // utilisé pour le drilldown AJAX
                 'commune' => $commune->name,
                 'total' => $total,
                 'occupes' => $occ,
@@ -219,6 +220,117 @@ class RapportController extends Controller
     public function ajax(Request $request)
     {
         return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * Drilldown commune (AJAX) — appelé depuis le tableau / la heatmap des
+     * rapports quand l'admin clique sur une commune. Renvoie un détail
+     * exploitable sans rechargement de la page rapports :
+     *   - stats résumées (occ/libre/maint/CA/tarif moyen)
+     *   - panneaux de la commune (réf, statut, prix)
+     *   - campagnes actives et planifiées impliquant cette commune
+     *   - top 5 clients sur l'année (par CA généré sur cette commune)
+     */
+    public function communeDetail(Request $request, Commune $commune)
+    {
+        $annee = (int) ($request->annee ?? date('Y'));
+
+        $panels = Panel::where('commune_id', $commune->id)
+            ->with(['format:id,name', 'zone:id,name'])
+            ->orderBy('reference')
+            ->get(['id','reference','name','status','monthly_rate','format_id','zone_id','is_lit']);
+
+        // Eloquent\Collection::only() prend des clés de modèle ; pour compter
+        // par status on filtre directement (pas de groupBy + only).
+        $total = $panels->count();
+        $occ   = $panels->whereIn('status', ['occupe', 'option', 'confirme'])->count();
+        $libre = $panels->where('status', 'libre')->count();
+        $maint = $panels->where('status', 'maintenance')->count();
+        $taux  = $total > 0 ? round(($occ / $total) * 100) : 0;
+
+        // Campagnes touchant la commune (via panels) + externalPanels
+        $campagnes = Campaign::query()
+            ->whereYear('start_date', '<=', $annee)
+            ->whereYear('end_date', '>=', $annee)
+            ->where(function ($q) use ($commune) {
+                $q->whereHas('panels', fn($p) => $p->where('commune_id', $commune->id))
+                  ->orWhereHas('externalPanels', fn($p) => $p->where('commune_id', $commune->id));
+            })
+            ->with('client:id,name')
+            ->orderByDesc('start_date')
+            ->limit(20)
+            ->get(['id','name','client_id','status','start_date','end_date','total_amount']);
+
+        // Top 5 clients : CA cumulé sur l'année pour cette commune.
+        // On regroupe à partir des campagnes ci-dessus pour rester cohérent
+        // avec ce qu'affiche le tableau drilldown.
+        $topClients = Campaign::query()
+            ->whereYear('start_date', $annee)
+            ->where(function ($q) use ($commune) {
+                $q->whereHas('panels', fn($p) => $p->where('commune_id', $commune->id))
+                  ->orWhereHas('externalPanels', fn($p) => $p->where('commune_id', $commune->id));
+            })
+            ->select('client_id', DB::raw('SUM(total_amount) as ca'), DB::raw('COUNT(*) as nb'))
+            ->groupBy('client_id')
+            ->orderByDesc('ca')
+            ->limit(5)
+            ->with('client:id,name')
+            ->get();
+
+        // Tarif moyen + CA total commune (toutes campagnes confondues sur l'année)
+        $tarifMoyen = (float) Panel::where('commune_id', $commune->id)->avg('monthly_rate') ?? 0;
+        $caAnnee = Campaign::whereYear('start_date', $annee)
+            ->where(function ($q) use ($commune) {
+                $q->whereHas('panels', fn($p) => $p->where('commune_id', $commune->id))
+                  ->orWhereHas('externalPanels', fn($p) => $p->where('commune_id', $commune->id));
+            })
+            ->sum('total_amount');
+
+        return response()->json([
+            'commune' => [
+                'id'         => $commune->id,
+                'name'       => $commune->name,
+                'odp_rate'   => (float) ($commune->odp_rate ?? 0),
+                'tm_rate'    => (float) ($commune->tm_rate  ?? 0),
+            ],
+            'stats' => [
+                'total'       => $total,
+                'occupes'     => $occ,
+                'libres'      => $libre,
+                'maintenance' => $maint,
+                'taux'        => $taux,
+                'tarif_moyen' => round($tarifMoyen),
+                'ca_annee'    => (float) $caAnnee,
+            ],
+            'panels' => $panels->map(fn($p) => [
+                'id'        => $p->id,
+                'reference' => $p->reference,
+                'name'      => $p->name,
+                'format'    => $p->format?->name ?? '—',
+                'zone'      => $p->zone?->name ?? '—',
+                'status'    => $p->status,
+                'is_lit'    => (bool) $p->is_lit,
+                'rate'      => (float) ($p->monthly_rate ?? 0),
+                'url'       => route('admin.panels.show', $p->id),
+            ]),
+            'campagnes' => $campagnes->map(fn($c) => [
+                'id'         => $c->id,
+                'name'       => $c->name,
+                'client'     => $c->client?->name ?? '—',
+                'status'     => $c->status?->value ?? (string) $c->status,
+                'start_date' => $c->start_date?->format('d/m/Y'),
+                'end_date'   => $c->end_date?->format('d/m/Y'),
+                'amount'     => (float) ($c->total_amount ?? 0),
+                'url'        => route('admin.campaigns.show', $c->id),
+            ]),
+            'top_clients' => $topClients->map(fn($r) => [
+                'name' => $r->client?->name ?? '—',
+                'id'   => $r->client_id,
+                'ca'   => (float) $r->ca,
+                'nb'   => (int) $r->nb,
+                'url'  => $r->client_id ? route('admin.clients.show', $r->client_id) : null,
+            ]),
+        ]);
     }
 
     // ── Rapport motifs d'annulation ────────────────────────────
