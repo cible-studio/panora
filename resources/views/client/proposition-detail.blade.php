@@ -141,6 +141,7 @@
                     ['label'=>'Zone', 'val'=>($panel['zone'] ?? '') !== '—' ? ($panel['zone'] ?? '') : ''],
                     ['label'=>'Format', 'val'=>$panel['format'] ?? ''],
                     ['label'=>'Dimensions', 'val'=>$panel['dimensions'] ?? ''],
+                    ['label'=>'Surface', 'val'=>$panel['surface'] ?? ''],
                 ] as $row)
                 @if(!empty($row['val']))
                 <div style="display:flex;justify-content:space-between;font-size:11px;">
@@ -506,6 +507,7 @@ function openPanelModal(index) {
     document.getElementById('modal-specs').innerHTML =
         row('Format', panel.format) +
         row('Dimensions', panel.dimensions) +
+        row('Surface', panel.surface) +
         row('Éclairage', panel.is_lit ? 'Éclairé' : 'Non éclairé', panel.is_lit ? '#fab80b' : null) +
         row('Orientation', panel.orientation) +
         row('Hauteur', panel.height) +

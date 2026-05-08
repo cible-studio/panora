@@ -635,6 +635,9 @@
                         @if($panel['dimensions'])
                             <span class="panel-tag">{{ $panel['dimensions'] }}</span>
                         @endif
+                        @if($panel['surface'] ?? null)
+                            <span class="panel-tag">{{ $panel['surface'] }}</span>
+                        @endif
                         @if($panel['category'] !== '—')
                             <span class="panel-tag">{{ $panel['category'] }}</span>
                         @endif

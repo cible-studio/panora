@@ -142,17 +142,19 @@
                     <div style="font-size:10px;color:var(--text3);margin-top:4px;">Le propriétaire peut gérer l'équipe.</div>
                 </div>
                 <div style="margin-bottom:12px;">
-                    <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Mot de passe *</label>
-                    <input type="password" name="password" required minlength="8"
-                           style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
-                           onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'"
-                           placeholder="Min. 8 caractères">
+                    <label for="equipe_password" style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Mot de passe *</label>
+                    <x-password-input id="equipe_password" name="password" required minlength="8"
+                                      autocomplete="new-password"
+                                      placeholder="Min. 8 caractères"
+                                      style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
+                                      onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'" />
                 </div>
                 <div style="margin-bottom:16px;">
-                    <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Confirmer le mot de passe *</label>
-                    <input type="password" name="password_confirmation" required
-                           style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
-                           onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'">
+                    <label for="equipe_password_confirmation" style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;">Confirmer le mot de passe *</label>
+                    <x-password-input id="equipe_password_confirmation" name="password_confirmation" required
+                                      autocomplete="new-password"
+                                      style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
+                                      onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'" />
                 </div>
                 <button type="submit"
                         style="width:100%;padding:10px;background:#e20613;color:#fff;font-weight:700;border-radius:9px;font-size:13px;border:none;cursor:pointer;transition:opacity .15s;"

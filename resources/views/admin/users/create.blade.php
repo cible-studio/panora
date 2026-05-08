@@ -77,15 +77,12 @@
 
                 <div class="form-2col">
                     <div class="mfg">
-                        <label>Mot de passe *</label>
-                        <input type="password" name="password"
-                               placeholder="Min. 8 caractères"
-                               class="{{ $errors->has('password') ? 'error' : '' }}">
+                        <label for="user_password">Mot de passe *</label>
+                        <x-password-input id="user_password" name="password" placeholder="Min. 8 caractères" autocomplete="new-password" />
                     </div>
                     <div class="mfg">
-                        <label>Confirmer *</label>
-                        <input type="password" name="password_confirmation"
-                               placeholder="Répéter le mot de passe">
+                        <label for="user_password_confirmation">Confirmer *</label>
+                        <x-password-input id="user_password_confirmation" name="password_confirmation" placeholder="Répéter le mot de passe" autocomplete="new-password" />
                     </div>
                 </div>
 

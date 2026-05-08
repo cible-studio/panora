@@ -134,14 +134,10 @@
                     <tr>
                         <td><strong>{{ $format->name }}</strong></td>
                         <td style="font-size:12px;color:var(--text2);">
-                            @if($format->width && $format->height)
-                                {{ $format->width }}m × {{ $format->height }}m
-                            @else
-                                —
-                            @endif
+                            {{ $format->dimensions_label ?? '—' }}
                         </td>
                         <td style="font-size:12px;">
-                            {{ $format->surface ? $format->surface . ' m²' : '—' }}
+                            {{ $format->surface_label ?? '—' }}
                         </td>
                         <td>
                             <div style="display:flex;gap:4px;">
