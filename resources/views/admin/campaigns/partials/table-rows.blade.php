@@ -18,6 +18,17 @@
 
     $barColor = $pct >= 90 ? '#ef4444' : ($pct >= 70 ? '#e8a020' : '#22c55e');
 @endphp
+@php
+    $isCancelled = $campaign->status->value === 'annule';
+    $cancelLabels = [
+        'budget' => 'Budget insuffisant', 'zone' => 'Zone non pertinente',
+        'strategie' => 'Changement de stratégie', 'report' => 'Report de campagne',
+        'concurrent' => 'Choix concurrent', 'autre' => 'Autre',
+    ];
+    $cancelTip = $isCancelled
+        ? trim(($cancelLabels[$campaign->cancellation_reason] ?? '') . ($campaign->cancellation_notes ? ' — ' . $campaign->cancellation_notes : ''))
+        : null;
+@endphp
 <tr style="{{ $endingSoon ? 'background:rgba(232,160,32,0.03);' : '' }}">
     <td>
         <a href="{{ route('admin.campaigns.show', $campaign) }}" class="campaign-name">
@@ -25,6 +36,11 @@
         </a>
         @if($endingSoon)
         <div class="days-left" style="color:var(--accent);">⚠️ Dans {{ $daysLeft }} jour(s)</div>
+        @endif
+        @if($isCancelled && $cancelTip)
+        <div title="{{ $cancelTip }}" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:#ef4444;cursor:help;">
+            🚫 {{ $cancelLabels[$campaign->cancellation_reason] ?? 'Annulée' }}
+        </div>
         @endif
     </td>
     <td>
