@@ -1058,6 +1058,21 @@ class ReservationController extends Controller
                         'is_zero'   => $customAmount === 0.0,
                         'user_id'   => auth()->id(),
                     ]);
+
+                    // Prorate les prix pivot pour rester cohérent avec le
+                    // total négocié — sinon le client verrait les tarifs
+                    // catalogue dans la proposition / le mail / l'espace
+                    // client alors que la facturation est différente.
+                    // Cas spécial customAmount=0 → toutes les lignes à 0.
+                    $ratio = $autoTotal > 0 ? ($customAmount / $autoTotal) : 0.0;
+                    foreach ($attach as $pid => $cols) {
+                        $attach[$pid]['unit_price']  = round($cols['unit_price']  * $ratio, 2);
+                        $attach[$pid]['total_price'] = round($cols['total_price'] * $ratio, 2);
+                    }
+                    foreach ($externalAttach as $eid => $cols) {
+                        $externalAttach[$eid]['unit_price']  = round($cols['unit_price']  * $ratio, 2);
+                        $externalAttach[$eid]['total_price'] = round($cols['total_price'] * $ratio, 2);
+                    }
                 }
 
                 $reservation = Reservation::create([
