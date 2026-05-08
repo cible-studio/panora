@@ -219,7 +219,7 @@
 
         {{-- Logo --}}
         <div class="logo-section flex flex-col items-center gap-2">
-            <img id="logo-img" src="{{ asset('images/logob.png') }}" alt="CIBLE CI">
+            <img id="logo-img" src="{{ asset('images/logol.png') }}" alt="CIBLE CI">
             <div>
                 <span class="logo-badge">Espace Client</span>
             </div>
