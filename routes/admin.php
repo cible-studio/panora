@@ -287,6 +287,8 @@ Route::prefix('admin')
         });
 
         // ── Taxes Communes ────────────────────────────────────────
+        Route::get('taxes/auto/preview',  [TaxController::class, 'previewAuto'])->name('taxes.auto.preview');
+        Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
         Route::resource('taxes', TaxController::class);
         Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
         Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
@@ -462,6 +464,8 @@ Route::prefix('admin')
             ->name('campaigns.external-panels.remove');
 
         // ── Taxes Communes ────────────────────────────────────────
+        Route::get('taxes/auto/preview',  [TaxController::class, 'previewAuto'])->name('taxes.auto.preview');
+        Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
         Route::resource('taxes', TaxController::class);
         Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
         Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
