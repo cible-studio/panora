@@ -44,7 +44,9 @@
                   || request('date_fin') || request('non_facturee')
                   || request('commune_id') || request('zone_id');
     @endphp
-    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px">
+    {{-- Compact : icone à gauche, chiffre + label à droite, sur 1 seule ligne.
+         6 cartes alignées sans étirement excessif. --}}
+    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-bottom:18px">
         @foreach($statCards as $sc)
         @php
             $isAll    = $sc['key'] === 'all';
@@ -56,13 +58,30 @@
            data-filter="status"
            data-kpi="{{ $sc['key'] }}"
            data-value="{{ $isAll ? '' : $sc['key'] }}"
-           style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $sc['color'] }};border-radius:14px;padding:14px 18px;text-decoration:none;display:block;transition:all .15s;{{ $isActive ? 'box-shadow:0 0 0 2px '.$sc['color'].'33;' : '' }}">
-            <div class="stat-icon" style="font-size:18px;color:{{ $sc['color'] }};margin-bottom:4px">{{ $sc['icon'] }}</div>
-            <div class="stat-number" data-kpi-value="{{ $sc['key'] }}" style="font-size:26px;font-weight:800;color:{{ $sc['color'] }};line-height:1;margin-bottom:6px">{{ number_format($val) }}</div>
-            <div class="stat-label" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">{{ $sc['label'] }}</div>
+           title="{{ $sc['label'] }}"
+           style="background:var(--surface);border:1px solid var(--border);border-left:3px solid {{ $sc['color'] }};border-radius:10px;padding:10px 12px;text-decoration:none;display:flex;align-items:center;gap:10px;transition:all .15s;min-width:0;{{ $isActive ? 'box-shadow:0 0 0 2px '.$sc['color'].'33;' : '' }}">
+            <div class="stat-icon" style="font-size:18px;color:{{ $sc['color'] }};flex-shrink:0;line-height:1">{{ $sc['icon'] }}</div>
+            <div style="min-width:0;line-height:1.1">
+                <div class="stat-number" data-kpi-value="{{ $sc['key'] }}" style="font-size:20px;font-weight:800;color:{{ $sc['color'] }}">{{ number_format($val) }}</div>
+                <div class="stat-label" style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ $sc['label'] }}</div>
+            </div>
         </a>
         @endforeach
     </div>
+
+    {{-- Responsive : sur petits écrans, 3 cartes par ligne au lieu de 6 --}}
+    <style>
+        @media (max-width: 900px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            }
+        }
+        @media (max-width: 540px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+    </style>
 
     {{-- ══ FILTRES DYNAMIQUES (sans bouton) ══ --}}
     <div class="filters-card">
