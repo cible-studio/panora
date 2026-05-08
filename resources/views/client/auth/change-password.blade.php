@@ -35,27 +35,30 @@
 
             @if(!auth('client')->user()?->must_change_password)
             <div style="margin-bottom:14px;">
-                <label style="display:block;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;">Mot de passe actuel</label>
-                <input type="password" name="current_password"
-                       style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
-                       onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'">
+                <label for="cli_current_password" style="display:block;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;">Mot de passe actuel</label>
+                <x-password-input id="cli_current_password" name="current_password"
+                                  autocomplete="current-password"
+                                  style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
+                                  onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'" />
                 @error('current_password')<div style="color:#ef4444;font-size:11px;margin-top:3px;">{{ $message }}</div>@enderror
             </div>
             @endif
 
             <div style="margin-bottom:14px;">
-                <label style="display:block;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;">Nouveau mot de passe</label>
-                <input type="password" name="password"
-                       style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
-                       onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'">
+                <label for="cli_password" style="display:block;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;">Nouveau mot de passe</label>
+                <x-password-input id="cli_password" name="password"
+                                  autocomplete="new-password"
+                                  style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
+                                  onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'" />
                 @error('password')<div style="color:#ef4444;font-size:11px;margin-top:3px;">{{ $message }}</div>@enderror
             </div>
 
             <div style="margin-bottom:20px;">
-                <label style="display:block;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;">Confirmer le mot de passe</label>
-                <input type="password" name="password_confirmation"
-                       style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
-                       onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'">
+                <label for="cli_password_confirmation" style="display:block;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;">Confirmer le mot de passe</label>
+                <x-password-input id="cli_password_confirmation" name="password_confirmation"
+                                  autocomplete="new-password"
+                                  style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
+                                  onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'" />
             </div>
 
             {{-- Règles --}}

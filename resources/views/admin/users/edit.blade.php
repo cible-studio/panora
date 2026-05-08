@@ -63,13 +63,12 @@
 
                 <div class="form-2col">
                     <div class="mfg">
-                        <label>Mot de passe</label>
-                        <input type="password" name="password"
-                               placeholder="Laisser vide = inchangé">
+                        <label for="user_password">Mot de passe</label>
+                        <x-password-input id="user_password" name="password" placeholder="Laisser vide = inchangé" autocomplete="new-password" />
                     </div>
                     <div class="mfg">
-                        <label>Confirmer</label>
-                        <input type="password" name="password_confirmation">
+                        <label for="user_password_confirmation">Confirmer</label>
+                        <x-password-input id="user_password_confirmation" name="password_confirmation" autocomplete="new-password" />
                     </div>
                 </div>
 
