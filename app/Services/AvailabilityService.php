@@ -298,6 +298,42 @@ class AvailabilityService
             ->keyBy('id');
     }
 
+    /**
+     * Pendant interne de getExternalPanelBookingMap — renvoie pour chaque
+     * panel_id : has_confirmed, has_option, release_date (dernière fin de
+     * réservation bloquante). Utilisé par les vues d'export pour rétablir
+     * le `display_status` réel sur la période demandée (sinon on perd
+     * l'info "En option" entre la sélection et le PDF).
+     */
+    public function getInternalPanelBookingMap(
+        array  $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null
+    ): Collection {
+        if (empty($panelIds)) return collect();
+
+        return DB::table('reservation_panels')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->where('reservation_panels.source', 'interne')
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.start_date', '<', $endDate)
+            ->where('reservations.end_date',   '>', $startDate)
+            ->when($excludeReservationId, fn($q) =>
+                $q->where('reservations.id', '!=', $excludeReservationId)
+            )
+            ->select(
+                'reservation_panels.panel_id',
+                DB::raw('MAX(CASE WHEN reservations.status = "confirme"   THEN 1 ELSE 0 END) as has_confirmed'),
+                DB::raw('MAX(CASE WHEN reservations.status = "en_attente" THEN 1 ELSE 0 END) as has_option'),
+                DB::raw('MAX(reservations.end_date) as release_date')
+            )
+            ->groupBy('reservation_panels.panel_id')
+            ->get()
+            ->keyBy('panel_id');
+    }
+
     // ── 6. Vérification rapide sans chargement modèle ────────────
     public function quickCheck(int $panelId, string $start, string $end): bool
     {

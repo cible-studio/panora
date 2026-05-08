@@ -52,20 +52,30 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
-        // S'assure que les compteurs panels/externalPanels sont disponibles
-        // pour les vues — idempotent si déjà chargés.
-        $this->reservation->loadMissing(['panels', 'externalPanels']);
+        // Eager-load tout ce que la vue va consommer (évite N+1 + assure
+        // la dispo de campaign et de son lien direct).
+        $this->reservation->loadMissing([
+            'panels', 'externalPanels',
+            'client', 'user',
+            'campaign:id,reservation_id,name,start_date,end_date,status',
+        ]);
+
+        $isAccepted = $this->decision === self::DECISION_ACCEPTED;
+        $campaign   = $this->reservation->campaign;
 
         return new Content(
             view: 'emails.proposition-decision',
             text: 'emails.plain.proposition-decision',  // Version texte (anti-spam)
             with: [
-                'reservation' => $this->reservation,
-                'client'      => $this->reservation->client,
-                'decision'    => $this->decision,
-                'reason'      => $this->reason,
-                'isAccepted'  => $this->decision === self::DECISION_ACCEPTED,
-                'showLink'    => route('admin.reservations.show', $this->reservation),
+                'reservation'   => $this->reservation,
+                'client'        => $this->reservation->client,
+                'decision'      => $this->decision,
+                'reason'        => $this->reason,
+                'isAccepted'    => $isAccepted,
+                'showLink'      => route('admin.reservations.show', $this->reservation),
+                'campaign'      => $campaign,
+                'campaignName'  => $campaign?->name,
+                'campaignLink'  => $campaign ? route('admin.campaigns.show', $campaign) : null,
             ],
         );
     }

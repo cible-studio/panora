@@ -198,7 +198,7 @@
             📤 Exporter cette sélection en PDF pour le client
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <form method="POST" action="{{ route('admin.reservations.disponibilites.pdf-images') }}" target="_blank" style="display:inline">
+            <form method="POST" action="{{ route('admin.reservations.disponibilites.pdf-images') }}" style="display:inline">
                 @csrf
                 @foreach($pdfPanelIds as $pid)<input type="hidden" name="panel_ids[]" value="{{ $pid }}">@endforeach
                 <input type="hidden" name="start_date" value="{{ $reservation->start_date->format('Y-m-d') }}">
@@ -207,7 +207,7 @@
                 <input type="hidden" name="client_name" value="{{ $reservation->client?->name }}">
                 <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(239,68,68,.3)">📋 PDF images</button>
             </form>
-            <form method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}" target="_blank" style="display:inline">
+            <form method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}" style="display:inline">
                 @csrf
                 @foreach($pdfPanelIds as $pid)<input type="hidden" name="panel_ids[]" value="{{ $pid }}">@endforeach
                 <input type="hidden" name="start_date" value="{{ $reservation->start_date->format('Y-m-d') }}">
@@ -1098,6 +1098,81 @@ document.addEventListener('keydown', function(e) {
     };
 })();
 @endif
+
+// ════════════════════════════════════════════════════════════════════
+// POLLING TEMPS RÉEL — la fiche admin reflète immédiatement les
+// actions client (confirmation/refus/vue de la proposition).
+//
+// On poll toutes les 10 secondes l'endpoint léger status-snapshot.
+// Si une valeur critique change, on rafraîchit la page (la solution
+// la plus simple et fiable pour une fiche dense). On peut affiner
+// plus tard avec un refresh ciblé par section si besoin.
+// ════════════════════════════════════════════════════════════════════
+(function () {
+    const reservationId = {{ $reservation->id }};
+    const url = `/admin/reservations/${reservationId}/status-snapshot`;
+    let initial = null;
+    let inflight = false;
+
+    // Champs surveillés : si l'un change, on rafraîchit.
+    const TRACKED = [
+        'status', 'total_amount',
+        'proposition_token', 'proposition_sent_at', 'proposition_viewed_at',
+        'proposition_expires_at', 'proposition_reminded_j2_at', 'proposition_reminded_j5_at',
+    ];
+
+    async function poll() {
+        if (inflight || document.hidden) return;
+        inflight = true;
+        try {
+            const res = await fetch(url, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+
+            if (!initial) {
+                initial = data;
+                return;
+            }
+
+            // Détection de changement sur un champ tracké
+            const changedField = TRACKED.find(k => JSON.stringify(initial[k]) !== JSON.stringify(data[k]));
+
+            // Campagne : on regarde la création (null → object) ou changement de statut
+            const campChanged = JSON.stringify(initial.campaign) !== JSON.stringify(data.campaign);
+
+            if (changedField || campChanged) {
+                // Toast d'info avant reload pour ne pas surprendre l'admin
+                if (typeof showToast === 'function') {
+                    let msg = 'Mise à jour détectée — rafraîchissement…';
+                    if (changedField === 'status' && data.status === 'confirme') {
+                        msg = '✅ Le client a confirmé la proposition.';
+                    } else if (changedField === 'status' && data.status === 'annule') {
+                        msg = '❌ Le client a refusé la proposition.';
+                    } else if (changedField === 'proposition_viewed_at' && !initial.proposition_viewed_at) {
+                        msg = '👁 Le client a ouvert la proposition.';
+                    }
+                    showToast('info', msg, 3000, 'Réservation');
+                }
+                setTimeout(() => location.reload(), 800);
+            }
+        } catch (e) {
+            // Silencieux : pas la peine d'inonder de toasts d'erreur réseau
+        } finally {
+            inflight = false;
+        }
+    }
+
+    // Premier appel après 1s (laisse la page se rendre), puis toutes les 10s.
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(poll, 1000);
+        setInterval(poll, 10000);
+    });
+
+    // Refresh actif quand l'onglet revient au premier plan
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+})();
 </script>
 @endpush
 

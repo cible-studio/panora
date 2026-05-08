@@ -17,15 +17,18 @@
     $months     = max(0.5, $fullMonths + $fraction);
     $monthsLabel = rtrim(rtrim(number_format($months, 1, ',', ''), '0'), ',');
 
-    // ── Montant total : on PRIVILÉGIE total_amount (négocié, fait foi),
-    //    sinon on retombe sur somme(monthly_rate × mois).
-    $totalAmount = (float) ($reservation->total_amount ?? 0);
-    if ($totalAmount <= 0) {
-        $totalAmount = $panels->sum(fn($p) => (float) ($p['monthly_rate'] ?? 0) * $months);
-    }
+    // ── Montant total : total_amount fait foi.
+    //    NULL = pas encore fixé → on calcule à partir des panneaux.
+    //    0   = saisi explicitement par le commercial (campagne offerte par
+    //          ex.) → on respecte 0, pas de fallback calculé.
+    $totalAmount = $reservation->total_amount === null
+        ? $panels->sum(fn($p) => (float) ($p['monthly_rate'] ?? 0) * $months)
+        : (float) $reservation->total_amount;
+
+    $hasAmount = $totalAmount > 0;
 
     $preheader = "{$panelCount} emplacements · {$totalDays} jour" . ($totalDays > 1 ? 's' : '')
-        . ' · ' . number_format($totalAmount, 0, ',', ' ') . ' FCFA';
+        . ($hasAmount ? ' · ' . number_format($totalAmount, 0, ',', ' ') . ' FCFA' : '');
 @endphp
 
 <x-mail.layout title="Proposition commerciale" :preheader="$preheader">

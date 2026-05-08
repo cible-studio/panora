@@ -401,7 +401,11 @@ class ReservationController extends Controller
                 : null,
             'status_db' => $panel->status->value,
             'display_status' => $displayStatus,
-            'is_selectable' => $displayStatus === 'libre',
+            // Règle : libre + option_periode sont sélectionnables.
+            // Une option n'est pas une réservation ferme — un autre commercial
+            // peut vouloir la proposer en parallèle. UI distingue avec
+            // bordure orange dashed + badge "EN OPTION".
+            'is_selectable' => in_array($displayStatus, ['libre', 'option_periode'], true),
             'release_info' => $releaseInfo,
             'card_color_idx' => abs(crc32($panel->reference)) % 6,
         ];
@@ -478,7 +482,7 @@ class ReservationController extends Controller
             'photo_url' => $photoUrl,
             'status_db' => $rawStatus,
             'display_status' => $displayStatus,
-            'is_selectable' => $displayStatus === 'libre',
+            'is_selectable' => in_array($displayStatus, ['libre', 'option_periode'], true),
             'release_info' => $releaseInfo,
             'card_color_idx' => abs(crc32($panel->code_panneau)) % 6,
         ];
@@ -664,15 +668,45 @@ class ReservationController extends Controller
         $request->validate([
             'panel_ids'    => 'required|array|min:1',
             'show_pricing' => 'nullable|boolean',
-            // Compat ascendante : ancien paramètre "hide_status" toujours accepté
+            'start_date'   => 'nullable|date',
+            'end_date'     => 'nullable|date',
             'hide_status'  => 'nullable|boolean',
         ]);
 
         [$internalIds, $externalIds] = $this->validateMixedPanelIds($request);
 
-        // Charge les internes en Eloquent (la vue lit les relations) puis on
-        // adapte les externes en stdClass avec les mêmes clés (reference/name/
-        // status->value) pour ne PAS toucher la vue partagée.
+        $startDate = $request->input('start_date');
+        $endDate   = $request->input('end_date');
+
+        // Pré-calcul du blocage interne+externe sur la période demandée pour
+        // retrouver le `display_status` réel de chaque panneau (libre /
+        // option_periode / occupe / maintenance). Sans ça, la colonne Statut
+        // afficherait toujours "libre" alors que des panneaux peuvent être
+        // En option pour cette période — qui est précisément ce qu'on veut
+        // distinguer dans le PDF.
+        $internalBlocking = collect();
+        $externalBlocking = collect();
+        if ($internalIds && $startDate && $endDate) {
+            $internalBlocking = $this->availability
+                ->getInternalPanelBookingMap($internalIds, $startDate, $endDate)
+                ->keyBy('panel_id');
+        }
+        if ($externalIds && $startDate && $endDate) {
+            $externalBlocking = $this->availability
+                ->getExternalPanelBookingMap($externalIds, $startDate, $endDate)
+                ->keyBy('id');
+        }
+
+        $resolveDisplay = function ($rawStatus, $blocking) {
+            $rawStatus = $rawStatus ?: 'libre';
+            if ($rawStatus === 'maintenance') return 'maintenance';
+            if ($blocking) {
+                if (!empty($blocking->has_confirmed)) return 'occupe';
+                if (!empty($blocking->has_option))   return 'option_periode';
+            }
+            return in_array($rawStatus, ['libre', 'disponible'], true) ? 'libre' : $rawStatus;
+        };
+
         $panels = collect();
 
         if ($internalIds) {
@@ -680,7 +714,16 @@ class ReservationController extends Controller
                 ->whereIn('id', $internalIds)
                 ->orderBy('reference')
                 ->get();
-            $panels = $panels->merge($internals);
+
+            $panels = $panels->merge($internals->map(function ($p) use ($internalBlocking, $resolveDisplay) {
+                // On garde le model original mais on attache display_status
+                // en attribut dynamique — la vue le lit via `$p->display_status`.
+                $p->display_status = $resolveDisplay(
+                    $p->status->value ?? 'libre',
+                    $internalBlocking->get($p->id)
+                );
+                return $p;
+            }));
         }
 
         if ($externalIds) {
@@ -689,20 +732,28 @@ class ReservationController extends Controller
                 ->orderBy('code_panneau')
                 ->get();
 
-            $panels = $panels->merge($externals->map(fn($p) => (object) [
-                'reference'      => $p->code_panneau,
-                'name'           => $p->designation,
-                'commune'        => $p->commune,
-                'zone'           => $p->zone,
-                'format'         => $p->format,
-                'category'       => $p->category,
-                'monthly_rate'   => $p->monthly_rate,
-                'daily_traffic'  => $p->daily_traffic,
-                'is_lit'         => (bool) $p->is_lit,
-                'status'         => (object) ['value' => $p->availability_status ?? 'libre'],
-                'agency_name'    => $p->agency?->name,
-                '_external'      => true,
-            ]));
+            $panels = $panels->merge($externals->map(function ($p) use ($externalBlocking, $resolveDisplay) {
+                $displayStatus = $resolveDisplay(
+                    $p->availability_status ?? 'disponible',
+                    $externalBlocking->get($p->id)
+                );
+
+                return (object) [
+                    'reference'      => $p->code_panneau,
+                    'name'           => $p->designation,
+                    'commune'        => $p->commune,
+                    'zone'           => $p->zone,
+                    'format'         => $p->format,
+                    'category'       => $p->category,
+                    'monthly_rate'   => $p->monthly_rate,
+                    'daily_traffic'  => $p->daily_traffic,
+                    'is_lit'         => (bool) $p->is_lit,
+                    'status'         => (object) ['value' => $p->availability_status ?? 'libre'],
+                    'display_status' => $displayStatus,
+                    'agency_name'    => $p->agency?->name,
+                    '_external'      => true,
+                ];
+            }));
         }
 
         $startDate    = $request->start_date;
@@ -931,17 +982,24 @@ class ReservationController extends Controller
                     }
                 }
 
-                // Tâche 6.1 : montant personnalisé éventuel.
-                $customAmount = (float) $request->input('amount', 0);
-                $total        = $customAmount > 0 ? $customAmount : $autoTotal;
+                // Montant personnalisé éventuel.
+                // ⚠️ Important : le commercial peut saisir 0 explicitement
+                //    (ex. campagne offerte, package gratuit). On distingue
+                //    "champ vide / non présent" (fallback autoTotal) de
+                //    "champ saisi à 0" (on persiste 0).
+                $rawAmount         = $request->input('amount');
+                $hasCustomAmount   = $rawAmount !== null && $rawAmount !== '';
+                $customAmount      = $hasCustomAmount ? (float) $rawAmount : null;
+                $total             = $customAmount !== null ? $customAmount : $autoTotal;
 
-                if ($customAmount > 0 && abs($customAmount - $autoTotal) > 0.01) {
+                if ($hasCustomAmount && abs($customAmount - $autoTotal) > 0.01) {
                     Log::info('reservation.custom_amount', [
-                        'reference'    => $reference,
-                        'auto'         => $autoTotal,
-                        'custom'       => $customAmount,
-                        'delta'        => round($customAmount - $autoTotal, 2),
-                        'user_id'      => auth()->id(),
+                        'reference' => $reference,
+                        'auto'      => $autoTotal,
+                        'custom'    => $customAmount,
+                        'delta'     => round($customAmount - $autoTotal, 2),
+                        'is_zero'   => $customAmount === 0.0,
+                        'user_id'   => auth()->id(),
                     ]);
                 }
 
@@ -1079,6 +1137,41 @@ class ReservationController extends Controller
             ->with('success', $request->type === 'ferme'
                 ? 'Réservation ferme créée. Panneaux confirmés. ✅'
                 : 'Panneaux mis sous option. ⏳');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // STATUS SNAPSHOT — endpoint AJAX léger pour le polling temps réel.
+    //
+    // Renvoie l'état courant de la réservation pour que la fiche admin
+    // puisse réagir à une décision client (acceptation/refus/vue) sans
+    // avoir à recharger toute la page. Si le JS détecte un changement
+    // sur les valeurs critiques, il déclenche un refresh ciblé.
+    // ══════════════════════════════════════════════════════════════
+    public function statusSnapshot(Reservation $reservation): \Illuminate\Http\JsonResponse
+    {
+        $this->authorize('view', $reservation);
+
+        $reservation->loadMissing(['campaign:id,reservation_id,status,name']);
+
+        return response()->json([
+            'status'                       => $reservation->status->value,
+            'status_label'                 => $reservation->status->label(),
+            'total_amount'                 => (float) ($reservation->total_amount ?? 0),
+            'proposition_token'            => $reservation->proposition_token !== null,
+            'proposition_sent_at'          => $reservation->proposition_sent_at?->toIso8601String(),
+            'proposition_viewed_at'        => $reservation->proposition_viewed_at?->toIso8601String(),
+            'proposition_expires_at'       => $reservation->proposition_expires_at?->toIso8601String(),
+            'proposition_reminded_j2_at'   => $reservation->proposition_reminded_j2_at?->toIso8601String(),
+            'proposition_reminded_j5_at'   => $reservation->proposition_reminded_j5_at?->toIso8601String(),
+            'campaign'                     => $reservation->campaign ? [
+                'id'     => $reservation->campaign->id,
+                'name'   => $reservation->campaign->name,
+                'status' => is_object($reservation->campaign->status)
+                    ? $reservation->campaign->status->value
+                    : $reservation->campaign->status,
+            ] : null,
+            'fetched_at'                   => now()->toIso8601String(),
+        ]);
     }
 
     // ══════════════════════════════════════════════════════════════

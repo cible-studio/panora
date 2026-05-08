@@ -44,6 +44,27 @@
                 </strong>
             </div>
             @endif
+
+            {{-- Rappels J+2 / J+5 — affichés seulement quand renseignés.
+                 Permet à l'admin de voir où en est le cycle de relance. --}}
+            @if($reservation->proposition_reminded_j2_at)
+            <div class="info-item">
+                <span class="info-label">Rappel J+2</span>
+                <strong class="info-value" style="color:#f59e0b">
+                    📤 {{ $reservation->proposition_reminded_j2_at->format('d/m/Y') }}
+                    <span class="info-sub">({{ $reservation->proposition_reminded_j2_at->diffForHumans() }})</span>
+                </strong>
+            </div>
+            @endif
+            @if($reservation->proposition_reminded_j5_at)
+            <div class="info-item">
+                <span class="info-label">Rappel J+5</span>
+                <strong class="info-value" style="color:#ef4444">
+                    📤 {{ $reservation->proposition_reminded_j5_at->format('d/m/Y') }}
+                    <span class="info-sub">({{ $reservation->proposition_reminded_j5_at->diffForHumans() }})</span>
+                </strong>
+            </div>
+            @endif
         </div>
 
         {{-- Lien client --}}
@@ -477,7 +498,7 @@ window.PropositionActions = {
         this._showModal({
             title: 'Envoyer la proposition',
             message: 'Un email sera envoyé au client avec un lien sécurisé pour consulter et valider la proposition.',
-            details: 'Le lien sera valable jusqu\'à la fin de la réservation (max 30 jours) et accessible uniquement au client.',
+            details: 'Le lien sera valable 7 jours (capé à la fin de la réservation). Des rappels automatiques seront envoyés au client à J+2 et J+5 si la proposition n\'est pas traitée.',
             recipient: this._currentRecipient(),
             type: 'confirm',
             confirmText: 'Envoyer',

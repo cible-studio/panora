@@ -42,6 +42,17 @@
                 <div class="val"><strong style="color:#c2570d;">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</strong></div>
             </div>
         @endif
+        @if($campaignName)
+            <div class="info-row">
+                <div class="lbl">Campagne</div>
+                <div class="val">
+                    <strong>{{ $campaignName }}</strong>
+                    @if($campaign?->status?->value)
+                        <span style="font-size:11px;color:#6b7280;margin-left:6px;">· {{ ucfirst($campaign->status->value) }}</span>
+                    @endif
+                </div>
+            </div>
+        @endif
         <div class="info-row">
             <div class="lbl">Décision</div>
             <div class="val">{{ now()->format('d/m/Y à H:i') }}</div>
@@ -73,6 +84,13 @@
 
     <div class="cta-wrap">
         <a href="{{ $showLink }}" class="cta">Ouvrir la fiche réservation</a>
+        @if($campaignLink)
+            <div style="margin-top:12px;">
+                <a href="{{ $campaignLink }}" style="font-size:13px;color:#c2570d;text-decoration:none;font-weight:600">
+                    → Voir la campagne « {{ $campaignName }} »
+                </a>
+            </div>
+        @endif
         <div class="cta-fallback">
             Si le bouton ne fonctionne pas, copiez ce lien :<br>
             <a href="{{ $showLink }}">{{ $showLink }}</a>

@@ -21,23 +21,17 @@ Route::middleware('auth')->group(function () {
 });
 
 
-// ── API interne : alertes (polling) ───────────────────────────
-Route::middleware('auth')->get('/api/alerts/count', function () {
-    return response()->json([
-        'count' => \App\Models\Alert::where('is_read', false)->count()
-    ]);
-})->name('api.alerts.count');
+// ── API interne : alertes (polling cloche + toasts) ──────────────
+// Source : AlertController. Délégué au controller pour bénéficier du
+// summary par niveau (badge couleur), du dedup, et du logging centralisé.
+Route::middleware('auth')->prefix('api/alerts')->name('api.alerts.')->group(function () {
+    Route::get('count',  [AlertController::class, 'apiCount'])->name('count');
+    Route::get('latest', [AlertController::class, 'apiLatest'])->name('latest');
+});
 
-Route::middleware('auth')->get('/api/alerts/latest', function () {
-    $alerts = \App\Models\Alert::where('is_read', false)
-        ->latest()
-        ->limit(5)
-        ->get(['id', 'type', 'niveau', 'title', 'message', 'created_at']);
-    return response()->json($alerts);
-})->name('api.alerts.latest');
-
-Route::post('alerts/delete-seen', [AlertController::class, 'deleteSeen'])
-    ->name('admin.alerts.delete-seen');
+// ❌ Suppression de la route POST alerts/delete-seen — elle SUPPRIMAIT les
+//    alertes au beforeunload (perte de données silencieuse). Remplacée par
+//    le mark-all-as-read côté AlertController::index().
 
 
 

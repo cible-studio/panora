@@ -218,14 +218,15 @@ Route::prefix('admin')
         Route::post('maintenances/{maintenance}/resolve', [MaintenanceController::class, 'resolve'])->name('maintenances.resolve');
 
         // ── Alertes ───────────────────────────────────────────────
-        Route::get('alerts', [AlertController::class, 'index'])
-            ->name('alerts.index');
-        Route::post('alerts/read-all', [AlertController::class, 'markAllRead'])
-            ->name('alerts.read-all');
-        Route::post('alerts/{alert}/read', [AlertController::class, 'markRead'])
-            ->name('alerts.read');
-        Route::delete('alerts/{alert}', [AlertController::class, 'destroy'])
-            ->name('alerts.destroy');
+        Route::prefix('alerts')->name('alerts.')->group(function () {
+            Route::get('/',                       [AlertController::class, 'index'])     ->name('index');
+            Route::post('read-all',               [AlertController::class, 'markAllRead'])->name('read-all');
+            Route::post('clear-read',             [AlertController::class, 'clearRead'])  ->name('clear-read');
+            Route::get('summary',                 [AlertController::class, 'summary'])    ->name('summary');
+            Route::post('{alert}/read',           [AlertController::class, 'markRead'])   ->name('read');
+            Route::post('{alert}/archive',        [AlertController::class, 'archive'])    ->name('archive');
+            Route::delete('{alert}',              [AlertController::class, 'destroy'])    ->name('destroy');
+        });
 
         // Paramètres (admin uniquement)
         Route::middleware('role:admin')
@@ -388,6 +389,12 @@ Route::prefix('admin')
         // JSON — liste des panneaux d'une réservation (modale "Voir les panneaux" depuis l'index)
         Route::get('reservations/{reservation}/panels-list', [ReservationController::class, 'getPanels'])
             ->name('reservations.panels.list');
+
+        // JSON — snapshot du statut courant (polling 10s côté admin pour
+        // refléter en temps réel les actions client : confirmation,
+        // refus, vue de la proposition…). Endpoint léger.
+        Route::get('reservations/{reservation}/status-snapshot', [ReservationController::class, 'statusSnapshot'])
+            ->name('reservations.status-snapshot');
 
         Route::resource('reservations', ReservationController::class)->except(['create', 'store']);
         Route::patch('reservations/{reservation}/status', [ReservationController::class, 'updateStatus'])->name('reservations.update-status');

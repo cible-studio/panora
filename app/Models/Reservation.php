@@ -29,6 +29,8 @@ class Reservation extends Model
         'proposition_sent_at',
         'proposition_viewed_at',
         'proposition_expires_at',
+        'proposition_reminded_j2_at',
+        'proposition_reminded_j5_at',
         // Motif annulation
         'cancel_type',            // client_demande|budget|concurrent|report|autre
         'cancel_reason',
@@ -44,9 +46,11 @@ class Reservation extends Model
         'total_amount'           => 'decimal:2',
         'status'                 => ReservationStatus::class,
         'is_technical'           => 'boolean',
-        'proposition_sent_at'    => 'datetime',
-        'proposition_viewed_at'  => 'datetime',
-        'proposition_expires_at' => 'datetime',
+        'proposition_sent_at'         => 'datetime',
+        'proposition_viewed_at'       => 'datetime',
+        'proposition_expires_at'      => 'datetime',
+        'proposition_reminded_j2_at'  => 'datetime',
+        'proposition_reminded_j5_at'  => 'datetime',
     ];
 
     // Matrice des transitions autorisées

@@ -132,10 +132,14 @@ class PropositionController extends Controller
         $slug  = $reservation->proposition_slug  ?? Str::random(8);
 
         $reservation->update([
-            'proposition_token'      => $token,
-            'proposition_slug'       => $slug,
-            'proposition_sent_at'    => now(),
-            'proposition_expires_at' => $this->computeExpirationDate($reservation),
+            'proposition_token'           => $token,
+            'proposition_slug'            => $slug,
+            'proposition_sent_at'         => now(),
+            'proposition_expires_at'      => $this->computeExpirationDate($reservation),
+            // Reset des flags rappels — un nouvel envoi redémarre le cycle
+            // 7 jours, donc on doit pouvoir re-déclencher les rappels J+2/J+5
+            'proposition_reminded_j2_at'  => null,
+            'proposition_reminded_j5_at'  => null,
         ]);
 
         // Envoi via NotificationMailer.
@@ -174,11 +178,13 @@ class PropositionController extends Controller
             return back()->with('error', 'Aucune proposition active.');
 
         $reservation->update([
-            'proposition_token'      => null,
-            'proposition_slug'       => null,
-            'proposition_sent_at'    => null,
-            'proposition_expires_at' => null,
-            'proposition_viewed_at'  => null,
+            'proposition_token'           => null,
+            'proposition_slug'            => null,
+            'proposition_sent_at'         => null,
+            'proposition_expires_at'      => null,
+            'proposition_viewed_at'       => null,
+            'proposition_reminded_j2_at'  => null,
+            'proposition_reminded_j5_at'  => null,
         ]);
 
         return back()->with('success', 'Proposition réinitialisée. Le lien précédent ne fonctionne plus.');
@@ -477,15 +483,16 @@ class PropositionController extends Controller
     /**
      * Calcule la date d'expiration d'une proposition.
      *
-     * Règle : la proposition ne peut pas rester valide après la fin de la
-     * réservation — sinon le client clique sur le lien alors que la période
-     * est déjà passée. On cap donc à `end_date` (fin de journée).
-     * Plafond par ailleurs à 30 jours pour ne pas laisser un lien actif des
-     * mois sur des longues réservations.
+     * Règle métier CIBLE CI : 7 jours de validité par défaut, capés à
+     * `end_date` (la propal ne peut jamais survivre à la fin de la
+     * réservation — sinon le client clique sur un lien obsolète).
+     *
+     * Les rappels J+2 et J+5 sont envoyés par la commande
+     * `propositions:send-reminders` (cron daily 09:00).
      */
     private function computeExpirationDate(Reservation $reservation): Carbon
     {
-        $defaultExpiration = now()->addDays(30);
+        $defaultExpiration = now()->addDays(7);
         $endOfPeriod       = $reservation->end_date->copy()->endOfDay();
 
         return $defaultExpiration->lt($endOfPeriod) ? $defaultExpiration : $endOfPeriod;
