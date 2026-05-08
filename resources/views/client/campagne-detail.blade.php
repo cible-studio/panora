@@ -17,13 +17,7 @@
 use Illuminate\Support\Facades\Storage;
 
 $s = $campaign->status->value;
-$badge = match($s) {
-    'actif'   => ['bg'=>'rgba(34,197,94,.1)',  'color'=>'#22c55e',  'label'=>'Actif',    'bd'=>'rgba(34,197,94,.25)'],
-    'pose'    => ['bg'=>'rgba(139,92,246,.1)', 'color'=>'#8b5cf6',  'label'=>'En pose',  'bd'=>'rgba(139,92,246,.25)'],
-    'termine' => ['bg'=>'rgba(250,184,11,.1)', 'color'=>'#fab80b',  'label'=>'Terminé',  'bd'=>'rgba(250,184,11,.25)'],
-    'annule'  => ['bg'=>'rgba(239,68,68,.1)',  'color'=>'#ef4444',  'label'=>'Annulé',   'bd'=>'rgba(239,68,68,.25)'],
-    default   => ['bg'=>'rgba(148,163,184,.1)','color'=>'#94a3b8',  'label'=>ucfirst($s),'bd'=>'rgba(148,163,184,.25)'],
-};
+// Lot 12.4 — badge unifié 4 couleurs (cf. _status-badge.blade.php)
 $today    = now()->startOfDay();
 $start    = $campaign->start_date->copy()->startOfDay();
 $end      = $campaign->end_date->copy()->startOfDay();
@@ -55,8 +49,8 @@ $coverageColor = $coveragePercent >= 80 ? '#22c55e' : ($coveragePercent >= 50 ? 
         <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
                 <h1 style="font-size:20px;font-weight:700;color:var(--text);">{{ $campaign->name }}</h1>
-                <span style="font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;background:{{ $badge['bg'] }};color:{{ $badge['color'] }};border:1px solid {{ $badge['bd'] }};flex-shrink:0;">
-                    {{ $badge['label'] }}
+                <span style="flex-shrink:0;">
+                    @include('client.partials._status-badge', ['status' => $s, 'size' => 'lg'])
                 </span>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--text3);">

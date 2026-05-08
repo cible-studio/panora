@@ -1,15 +1,5 @@
 @forelse($campagnes as $camp)
-@php
-    $s = $camp->status->value;
-    $badge = match($s) {
-        'actif'    => ['bg'=>'rgba(34,197,94,.1)',  'color'=>'#22c55e',  'label'=>'Actif'],
-        'pose'     => ['bg'=>'rgba(59,130,246,.1)', 'color'=>'#60a5fa',  'label'=>'En pose'],
-        'planifie' => ['bg'=>'rgba(63,127,192,.1)', 'color'=>'#3f7fc0',  'label'=>'Planifiée'],
-        'termine'  => ['bg'=>'rgba(250,184,11,.1)', 'color'=>'#fab80b',  'label'=>'Terminée'],
-        'annule'   => ['bg'=>'rgba(239,68,68,.1)',  'color'=>'#ef4444',  'label'=>'Annulée'],
-        default    => ['bg'=>'rgba(148,163,184,.1)','color'=>'#94a3b8',  'label'=>ucfirst($s)],
-    };
-@endphp
+@php $s = $camp->status->value; @endphp
 <tr style="border-bottom:1px solid var(--border);transition:background .1s;"
     onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
     <td style="padding:14px 16px;">
@@ -25,9 +15,7 @@
         {{ number_format($camp->total_amount ?? 0, 0, ',', ' ') }} FCFA
     </td>
     <td style="padding:14px 16px;">
-        <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:{{ $badge['bg'] }};color:{{ $badge['color'] }};">
-            {{ $badge['label'] }}
-        </span>
+        @include('client.partials._status-badge', ['status' => $s])
     </td>
     <td style="padding:14px 16px;white-space:nowrap;">
         <a href="{{ route('client.campagne.detail', $camp) }}"

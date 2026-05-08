@@ -101,16 +101,16 @@
                 <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
                     <span style="font-family:monospace;font-size:12px;font-weight:700;color:#e20613;background:rgba(226,6,19,.08);padding:3px 10px;border-radius:6px;">{{ $res->reference }}</span>
 
+                    {{-- Lot 12.4 — badge statut unifié 4 couleurs --}}
                     @if($isNew)
-                        <span style="font-size:10px;font-weight:700;background:rgba(250,184,11,.1);color:#fab80b;padding:2px 8px;border-radius:20px;">Nouvelle</span>
-                    @elseif($expired)
-                        <span style="font-size:10px;font-weight:700;background:rgba(148,163,184,.1);color:#94a3b8;padding:2px 8px;border-radius:20px;">Expirée</span>
-                    @elseif($status === 'confirme')
-                        <span style="font-size:10px;font-weight:700;background:rgba(34,197,94,.1);color:#22c55e;padding:2px 8px;border-radius:20px;">Confirmée</span>
-                    @elseif(in_array($status, ['annule','refuse']))
-                        <span style="font-size:10px;font-weight:700;background:rgba(239,68,68,.1);color:#ef4444;padding:2px 8px;border-radius:20px;">Refusée</span>
-                    @elseif($viewed)
-                        <span style="font-size:10px;font-weight:700;background:rgba(59,130,246,.1);color:#60a5fa;padding:2px 8px;border-radius:20px;">Consultée</span>
+                        <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:14px;background:rgba(250,184,11,.12);color:#c2570d;border:1px solid rgba(250,184,11,.3);">Nouvelle</span>
+                    @elseif($expired && $status === 'en_attente')
+                        <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:14px;background:rgba(148,163,184,.12);color:#64748b;border:1px solid rgba(148,163,184,.25);">Expirée</span>
+                    @else
+                        @include('client.partials._status-badge', ['status' => $status])
+                        @if($viewed && $status === 'en_attente')
+                            <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:14px;background:rgba(59,130,246,.12);color:#1d4ed8;border:1px solid rgba(59,130,246,.3);">Consultée</span>
+                        @endif
                     @endif
                 </div>
 

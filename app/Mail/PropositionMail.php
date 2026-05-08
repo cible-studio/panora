@@ -30,11 +30,11 @@ class PropositionMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        $clientName = $this->reservation->client?->name ?? 'client';
-        // Subject sobre — pas d'emoji, pas de majuscules agressives, pas de "!"
-        // (réduit le score spam Gmail / SpamAssassin)
+        // Subject orienté action client + ID lisible — sobre (pas d'emoji,
+        // pas de majuscules agressives) pour minimiser le score spam.
+        // Lot 12.2 : reformulation "Votre réservation de panneaux".
         return new Envelope(
-            subject:  "Proposition commerciale CIBLE CI - Réf. {$this->reservation->reference}",
+            subject:  "Votre réservation de panneaux — Réf. {$this->reservation->reference} — À confirmer",
             tags:     ['proposition', 'commercial'],
             metadata: [
                 'reservation_id' => (string) $this->reservation->id,

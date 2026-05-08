@@ -104,10 +104,25 @@ class ClientDashboardController extends Controller
             'piges_verifiees'    => (int) ($pigeStats->total ?? 0),
             'panneaux_couverts'  => (int) ($pigeStats->panneaux_couverts ?? 0),
         ];
-        
+
+        // Lot 12.4 — Commercial principal du compte client : le créateur
+        // de la réservation/campagne la plus récente (heuristique : c'est
+        // l'interlocuteur courant). On affiche son nom + email + WhatsApp
+        // dans un widget dédié sur le dashboard.
+        $commercial = $client->reservations()
+            ->whereNotNull('user_id')
+            ->with(['user:id,name,email,whatsapp_number,role,agent_code'])
+            ->latest()
+            ->first()?->user
+            ?? $client->campaigns()
+                ->whereNotNull('user_id')
+                ->with(['user:id,name,email,whatsapp_number,role,agent_code'])
+                ->latest()
+                ->first()?->user;
+
         return view('client.dashboard', compact(
             'client', 'propositions', 'campagnesActives', 'stats',
-            'recentPoses', 'recentPiges'
+            'recentPoses', 'recentPiges', 'commercial'
         ));
     }
 

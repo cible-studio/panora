@@ -55,14 +55,11 @@ class UserController extends Controller
             }
         }
 
-        // Code agent : si l'admin n'en saisit pas, on génère AGT-{YEAR}-{SEQ}
-        // pour les rôles concernés (commercial, mediaplanner, technique).
-        // Les admins n'en ont pas besoin par défaut, mais on respecte l'input
-        // si fourni (cohérence avec rôle admin qui veut tracker des actions).
-        $agentCode = $request->agent_code
-            ?: (in_array($request->role, ['commercial', 'mediaplanner', 'technique'])
-                ? User::generateAgentCode()
-                : null);
+        // Code agent : si l'admin n'en saisit pas, on génère un code par
+        // rôle (Lot 10.1) au format SC-001 (commercial), TT-001 (technique),
+        // MP-001 (mediaplanner), AD-001 (admin). Si l'admin saisit un code
+        // manuellement, on respecte tel quel.
+        $agentCode = $request->agent_code ?: User::generateAgentCode($request->role);
 
         $user = User::create([
             'name'            => $request->name,

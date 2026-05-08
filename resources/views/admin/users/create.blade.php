@@ -34,9 +34,13 @@
                         <label>Code agent</label>
                         <input type="text" name="agent_code"
                                value="{{ old('agent_code') }}"
-                               placeholder="Auto-généré si vide (ex: AGT-{{ date('Y') }}-001)">
+                               placeholder="Auto-généré selon le rôle (ex: SC-001, TT-001)">
                         <small style="display:block;color:var(--text3);font-size:11px;margin-top:4px;">
-                            Laissez vide pour génération automatique au format AGT-{{ date('Y') }}-XXX
+                            Laissez vide pour génération auto :
+                            💼&nbsp;Commercial&nbsp;→&nbsp;<strong>SC-XXX</strong> ·
+                            🔧&nbsp;Technicien&nbsp;→&nbsp;<strong>TT-XXX</strong> ·
+                            🗓️&nbsp;Media Planner&nbsp;→&nbsp;<strong>MP-XXX</strong> ·
+                            🛡️&nbsp;Admin&nbsp;→&nbsp;<strong>AD-XXX</strong>
                         </small>
                     </div>
                 </div>

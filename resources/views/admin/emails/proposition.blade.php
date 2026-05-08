@@ -153,8 +153,37 @@
         </div>
     @endif
 
+    {{-- Lot 12.3 — Bloc interlocuteur commercial pour que le client
+         sache qui contacter directement (nom + email + téléphone). --}}
+    @if($reservation->user)
+        @php $com = $reservation->user; @endphp
+        <h2 style="font-size:14px;font-weight:700;color:#0f172a;margin:20px 0 10px;">Votre interlocuteur commercial</h2>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+               style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #c2570d;border-radius:8px;margin-bottom:14px;">
+            <tr>
+                <td style="padding:14px 16px;">
+                    <div style="font-size:14px;font-weight:700;color:#0f172a;">{{ $com->name }}</div>
+                    @if($com->role?->label())
+                        <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ $com->role->label() }}</div>
+                    @endif
+                    @if($com->agent_code)
+                        <div style="font-size:10px;color:#94a3b8;margin-top:2px;font-family:ui-monospace,Menlo,Consolas,monospace;">Code agent : {{ $com->agent_code }}</div>
+                    @endif
+                    <div style="margin-top:10px;font-size:12px;color:#475569;line-height:1.7;">
+                        @if($com->email)
+                            📧 <a href="mailto:{{ $com->email }}" style="color:#c2570d;text-decoration:none;">{{ $com->email }}</a><br>
+                        @endif
+                        @if($com->whatsapp_number)
+                            📱 <a href="https://wa.me/{{ preg_replace('/\D/', '', $com->whatsapp_number) }}" style="color:#c2570d;text-decoration:none;">{{ $com->whatsapp_number }}</a> (WhatsApp)
+                        @endif
+                    </div>
+                </td>
+            </tr>
+        </table>
+    @endif
+
     <p style="color:#6b7280;font-size:13px;margin-top:24px;">
-        Vous pouvez également nous appeler ou répondre directement à cet email pour toute question.
+        Vous pouvez également répondre directement à cet email pour toute question.
         Notre équipe commerciale est à votre disposition.
     </p>
 

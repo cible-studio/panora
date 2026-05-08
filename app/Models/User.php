@@ -35,29 +35,49 @@ class User extends Authenticatable
     ];
 
     /**
-     * Génère un code agent unique au format "AGT-{YEAR}-{SEQ}".
-     * Pris à la création d'un utilisateur quand l'admin n'en saisit pas
-     * (le champ reste libre pour les codes hérités d'un autre système).
-     *
-     * Le compteur SEQ est calé sur le nombre d'utilisateurs créés cette
-     * année + une marge à la collision (max 50 essais avant fallback
-     * timestamp pour rester strictement unique).
+     * Préfixe code agent par rôle métier (Lot 10.1).
+     * Convention CIBLE CI :
+     *   commercial   → SC  (Sales Commercial)
+     *   technique    → TT  (Technicien Terrain)
+     *   mediaplanner → MP  (Media Planner)
+     *   admin        → AD  (Administrateur)
      */
-    public static function generateAgentCode(): string
+    public const AGENT_CODE_PREFIXES = [
+        'commercial'   => 'SC',
+        'technique'    => 'TT',
+        'mediaplanner' => 'MP',
+        'admin'        => 'AD',
+    ];
+
+    /**
+     * Génère un code agent unique au format "{PREFIXE}-{SEQ}" selon le
+     * rôle (ex: SC-001, TT-014). Séquentiel global par préfixe (pas par
+     * année) pour rester court et lisible — un même collaborateur garde
+     * son code à vie.
+     *
+     * Si un rôle inconnu est fourni, retourne null (l'admin saisit
+     * manuellement le code dans ce cas).
+     *
+     * Idempotent côté collisions : 50 essais avant fallback timestamp.
+     */
+    public static function generateAgentCode(?string $role = null): ?string
     {
-        $year = (int) date('Y');
-        $base = static::whereYear('created_at', $year)->count() + 1;
+        $prefix = self::AGENT_CODE_PREFIXES[$role] ?? null;
+        if (!$prefix) return null;
+
+        // Compte les agents existants avec ce préfixe (ignore casse pour
+        // tolérer les codes saisis manuellement avec une autre forme).
+        $base = static::where('agent_code', 'LIKE', $prefix . '-%')->count() + 1;
 
         for ($i = 0; $i < 50; $i++) {
-            $candidate = sprintf('AGT-%d-%03d', $year, $base + $i);
+            $candidate = sprintf('%s-%03d', $prefix, $base + $i);
             if (!static::where('agent_code', $candidate)->exists()) {
                 return $candidate;
             }
         }
 
-        // Fallback peu probable : tous les slots de l'année occupés.
-        // Suffixe avec timestamp court pour garantir l'unicité.
-        return sprintf('AGT-%d-%s', $year, substr((string) microtime(true) * 1000, -5));
+        // Fallback : timestamp court pour garantir l'unicité.
+        return sprintf('%s-%s', $prefix, substr((string) (microtime(true) * 1000), -5));
     }
 
     public function panelsCreated()

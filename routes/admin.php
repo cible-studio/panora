@@ -47,7 +47,8 @@ Route::prefix('pose')->name('pose.public.')->middleware('throttle:30,1')->group(
 
 // ── Route PUBLIQUE Satisfaction client (T9) ─────────────────────────
 // Accès direct via token 64 chars sans authentification.
-Route::prefix('satisfaction')->middleware('throttle:10,1')->group(function () {
+// Locale forcée 'fr' (Lot 12.1).
+Route::prefix('satisfaction')->middleware(['throttle:10,1', \App\Http\Middleware\SetFrenchLocale::class])->group(function () {
     Route::get('/{token}',  [\App\Http\Controllers\SatisfactionController::class, 'show'])
         ->name('satisfaction.show');
     Route::post('/{token}', [\App\Http\Controllers\SatisfactionController::class, 'submit'])
@@ -58,7 +59,8 @@ Route::prefix('satisfaction')->middleware('throttle:10,1')->group(function () {
 // Le commercial génère un token sur la fiche campagne et le partage au
 // technicien terrain. Throttle plus large (60 req/min) car upload de
 // photos sur plusieurs panneaux en suivant — éviter le throttle agressif.
-Route::prefix('pige')->middleware('throttle:60,1')->group(function () {
+// Locale forcée 'fr' (Lot 12.1) — public client.
+Route::prefix('pige')->middleware(['throttle:60,1', \App\Http\Middleware\SetFrenchLocale::class])->group(function () {
     Route::get('/{token}',           [\App\Http\Controllers\PublicPigeController::class, 'show'])
         ->name('pige.public.show');
     Route::post('/{token}/upload',   [\App\Http\Controllers\PublicPigeController::class, 'upload'])
@@ -68,7 +70,7 @@ Route::prefix('pige')->middleware('throttle:60,1')->group(function () {
         ->name('pige.public.posed');
 });
 
-Route::prefix('proposition')->name('proposition.')->group(function () {
+Route::prefix('proposition')->name('proposition.')->middleware(\App\Http\Middleware\SetFrenchLocale::class)->group(function () {
 
     // Ancienne URL (token 64 chars) — rétrocompatibilité
     Route::get('/{token}', function ($token) {
@@ -102,7 +104,10 @@ Route::prefix('proposition')->name('proposition.')->group(function () {
 });
 
 // ── Routes espace client (sans auth) ──────────────────────────
-Route::prefix('client')->name('client.')->group(function () {
+// Lot 12.1 — locale forcée à 'fr' sur tout le scope client (auth +
+// dashboard) pour que validation/auth.failed/mot de passe oublié
+// soient en français même si APP_LOCALE est 'en' côté env.
+Route::prefix('client')->name('client.')->middleware(\App\Http\Middleware\SetFrenchLocale::class)->group(function () {
     // Auth
     Route::get('/login', [ClientAuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [ClientAuthController::class, 'login'])

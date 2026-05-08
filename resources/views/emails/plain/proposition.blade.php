@@ -42,7 +42,17 @@ Consulter et répondre : {{ $lien }}
 Cette proposition expire le {{ $expiresAt->format('d/m/Y à H:i') }}.
 @endif
 
-Vous pouvez également nous appeler ou répondre à cet email pour toute question.
+@if($reservation->user)
+Votre interlocuteur commercial :
+- {{ $reservation->user->name }}@if($reservation->user->role?->label()) ({{ $reservation->user->role->label() }})@endif
+
+@if($reservation->user->email)- Email : {{ $reservation->user->email }}
+@endif
+@if($reservation->user->whatsapp_number)- WhatsApp : {{ $reservation->user->whatsapp_number }}
+@endif
+@endif
+
+Vous pouvez également répondre à cet email pour toute question.
 Notre équipe commerciale est à votre disposition.
 
 —

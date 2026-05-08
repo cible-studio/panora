@@ -44,6 +44,44 @@
     </a>
 </div>
 
+{{-- ══ INTERLOCUTEUR COMMERCIAL (Lot 12.4) ══ --}}
+@if($commercial ?? null)
+@php
+    $com = $commercial;
+    $initials = collect(explode(' ', $com->name ?? ''))
+        ->map(fn($w) => strtoupper($w[0] ?? ''))->filter()->take(2)->implode('');
+@endphp
+<div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid #e20613;border-radius:12px;padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#e20613,#fab80b);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:#fff;flex-shrink:0;letter-spacing:-.5px;">
+        {{ $initials ?: '?' }}
+    </div>
+    <div style="flex:1;min-width:160px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">👋 Votre interlocuteur</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">{{ $com->name }}</div>
+        @if($com->role?->label())
+            <div style="font-size:11px;color:var(--text3);margin-top:1px;">{{ $com->role->label() }}@if($com->agent_code) · <span style="font-family:monospace;">{{ $com->agent_code }}</span>@endif</div>
+        @endif
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        @if($com->email)
+        <a href="mailto:{{ $com->email }}"
+           style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#e20613;text-decoration:none;padding:6px 12px;border:1px solid rgba(226,6,19,.25);border-radius:8px;transition:all .15s;"
+           onmouseover="this.style.background='rgba(226,6,19,.06)'" onmouseout="this.style.background='transparent'">
+            📧 Email
+        </a>
+        @endif
+        @if($com->whatsapp_number)
+        <a href="https://wa.me/{{ preg_replace('/\D/', '', $com->whatsapp_number) }}"
+           target="_blank" rel="noopener"
+           style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#22c55e;text-decoration:none;padding:6px 12px;border:1px solid rgba(34,197,94,.25);border-radius:8px;transition:all .15s;"
+           onmouseover="this.style.background='rgba(34,197,94,.06)'" onmouseout="this.style.background='transparent'">
+            💬 WhatsApp
+        </a>
+        @endif
+    </div>
+</div>
+@endif
+
 {{-- ══ ACTIVITÉ RÉCENTE (2 colonnes sur mobile, 3 sur desktop) ══ --}}
 <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
 
