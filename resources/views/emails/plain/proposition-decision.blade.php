@@ -8,6 +8,8 @@ CIBLE CI — Notification commerciale
 Détails :
 - Référence : {{ $reservation->reference }}
 - Client    : {{ $client?->name ?? '—' }}
+@if($campaignName ?? null)- Campagne  : {{ $campaignName }}
+@endif
 - Période   : {{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}
 @php $panelCount = $reservation->panels->count() + $reservation->externalPanels->count(); @endphp
 - Panneaux  : {{ $panelCount }} emplacement{{ $panelCount > 1 ? 's' : '' }}

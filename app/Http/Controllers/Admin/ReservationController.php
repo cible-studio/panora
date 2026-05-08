@@ -358,6 +358,7 @@ class ReservationController extends Controller
         };
 
         $releaseInfo = null;
+        $selectableFrom = null;
         if ($isOccupied || $isOption) {
             $rdRaw = $releaseDates->get($panel->id);
             if ($rdRaw) {
@@ -374,6 +375,13 @@ class ReservationController extends Controller
                     },
                     'color' => $daysLeft <= 0 ? 'green' : ($daysLeft <= 7 ? 'orange' : 'default'),
                 ];
+                // Feature 2.2 — le panneau se libère avant la fin de la période demandée
+                if ($endDate) {
+                    $nextDay = $rd->copy()->addDay();
+                    if ($nextDay->lte(Carbon::parse($endDate)->startOfDay())) {
+                        $selectableFrom = $nextDay->format('Y-m-d');
+                    }
+                }
             }
         }
 
@@ -401,11 +409,16 @@ class ReservationController extends Controller
                 : null,
             'status_db' => $panel->status->value,
             'display_status' => $displayStatus,
-            // Règle : libre + option_periode sont sélectionnables.
-            // Une option n'est pas une réservation ferme — un autre commercial
-            // peut vouloir la proposer en parallèle. UI distingue avec
-            // bordure orange dashed + badge "EN OPTION".
+            // Règle : libre + option_periode sont sélectionnables (un panneau
+            // en option peut être inclus dans une autre proposition — distingué
+            // côté UI par une bordure dashed orange + badge "EN OPTION").
             'is_selectable' => in_array($displayStatus, ['libre', 'option_periode'], true),
+            // Feature 2.2 — le panneau se libère AVANT la fin de la période
+            // demandée. L'admin peut l'inclure dans la résa avec une date de
+            // début automatique au lendemain de sa libération.
+            'is_future_selectable'  => $selectableFrom !== null,
+            'selectable_from'       => $selectableFrom,
+            'selectable_from_label' => $selectableFrom ? Carbon::parse($selectableFrom)->format('d/m/Y') : null,
             'release_info' => $releaseInfo,
             'card_color_idx' => abs(crc32($panel->reference)) % 6,
         ];
@@ -436,6 +449,7 @@ class ReservationController extends Controller
         };
 
         $releaseInfo = null;
+        $selectableFrom = null;
         $rdRaw = $booking->release_date ?? ($panel->available_from ?? null);
         if (in_array($displayStatus, ['occupe', 'option_periode']) && $rdRaw) {
             $rd = Carbon::parse($rdRaw)->startOfDay();
@@ -451,6 +465,12 @@ class ReservationController extends Controller
                 },
                 'color' => $daysLeft <= 0 ? 'green' : ($daysLeft <= 7 ? 'orange' : 'default'),
             ];
+            if ($endDate) {
+                $nextDay = $rd->copy()->addDay();
+                if ($nextDay->lte(Carbon::parse($endDate)->startOfDay())) {
+                    $selectableFrom = $nextDay->format('Y-m-d');
+                }
+            }
         }
 
         // Photo : storage public (asset URL) si présente — DomPDF utilise un
@@ -483,6 +503,9 @@ class ReservationController extends Controller
             'status_db' => $rawStatus,
             'display_status' => $displayStatus,
             'is_selectable' => in_array($displayStatus, ['libre', 'option_periode'], true),
+            'is_future_selectable'  => $selectableFrom !== null,
+            'selectable_from'       => $selectableFrom,
+            'selectable_from_label' => $selectableFrom ? Carbon::parse($selectableFrom)->format('d/m/Y') : null,
             'release_info' => $releaseInfo,
             'card_color_idx' => abs(crc32($panel->code_panneau)) % 6,
         ];
@@ -875,6 +898,21 @@ class ReservationController extends Controller
             (array) $request->input('panel_ids', [])
         );
 
+        // Feature 2.2 — dates de début décalées par panneau
+        $rawStartDates = (array) $request->input('panel_start_dates', []);
+        $internalStartDates = [];
+        $externalStartDates = [];
+        foreach ($rawStartDates as $key => $date) {
+            if (!is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
+            if (str_starts_with((string) $key, 'ext_')) {
+                $extId = (int) substr((string) $key, 4);
+                if ($extId > 0) $externalStartDates[$extId] = $date;
+            } else {
+                $intId = (int) $key;
+                if ($intId > 0) $internalStartDates[$intId] = $date;
+            }
+        }
+
         // 2) Au moins UN panneau (interne ou externe)
         if (empty($internalIds) && empty($externalIds)) {
             return back()->withErrors([
@@ -932,19 +970,34 @@ class ReservationController extends Controller
         $reservation = null;
 
         try {
-            DB::transaction(function () use ($request, $internalIds, $externalIds, &$createdCampaignId, &$reservation) {
+            DB::transaction(function () use ($request, $internalIds, $externalIds, $internalStartDates, $externalStartDates, &$createdCampaignId, &$reservation) {
                 // Lock + check conflits UNIQUEMENT pour les internes (l'antidouble-booking
                 // s'applique au catalogue CIBLE, les externes restent gérés par leur régie).
                 if ($internalIds) {
                     Panel::whereIn('id', $internalIds)->lockForUpdate()->get();
-                    $conflicts = $this->availability->getUnavailablePanelIds(
-                        $internalIds,
-                        $request->start_date,
-                        $request->end_date
-                    );
-                    if (!empty($conflicts)) {
-                        $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
-                        throw new \RuntimeException("CONFLICT:$refs");
+
+                    // Panneaux sans date décalée — vérification standard depuis start_date global
+                    $standardIds = array_values(array_filter($internalIds, fn($id) => !isset($internalStartDates[$id])));
+                    if ($standardIds) {
+                        $conflicts = $this->availability->getUnavailablePanelIds(
+                            $standardIds, $request->start_date, $request->end_date
+                        );
+                        if (!empty($conflicts)) {
+                            $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
+                            throw new \RuntimeException("CONFLICT:$refs");
+                        }
+                    }
+
+                    // Panneaux à démarrage décalé — vérification depuis leur date effective
+                    foreach ($internalIds as $panelId) {
+                        if (!isset($internalStartDates[$panelId])) continue;
+                        $conflicts = $this->availability->getUnavailablePanelIds(
+                            [$panelId], $internalStartDates[$panelId], $request->end_date
+                        );
+                        if (!empty($conflicts)) {
+                            $ref = Panel::find($panelId)?->reference ?? "#{$panelId}";
+                            throw new \RuntimeException("CONFLICT:{$ref}");
+                        }
                     }
                 }
 
@@ -959,9 +1012,14 @@ class ReservationController extends Controller
                     $panelData = Panel::whereIn('id', $internalIds)->get()->keyBy('id');
                     foreach ($internalIds as $panelId) {
                         $unit = (float) ($panelData[$panelId]->monthly_rate ?? 0);
-                        $tot  = $unit * $months;
+                        $effectiveStart = $internalStartDates[$panelId] ?? $request->start_date;
+                        $tot  = $unit * $this->monthsBetween($effectiveStart, $request->end_date);
                         $autoTotal += $tot;
-                        $attach[$panelId] = ['unit_price' => $unit, 'total_price' => $tot];
+                        $attach[$panelId] = [
+                            'unit_price'       => $unit,
+                            'total_price'      => $tot,
+                            'panel_start_date' => $internalStartDates[$panelId] ?? null,
+                        ];
                     }
                 }
 
@@ -973,24 +1031,23 @@ class ReservationController extends Controller
                         ->whereIn('id', $externalIds)->get();
                     foreach ($extData as $ext) {
                         $unit = (float) ($ext->monthly_rate ?? 0);
-                        $tot  = $unit * $months;
+                        $effectiveStart = $externalStartDates[$ext->id] ?? $request->start_date;
+                        $tot  = $unit * $this->monthsBetween($effectiveStart, $request->end_date);
                         $autoTotal += $tot;
                         $externalAttach[$ext->id] = [
-                            'unit_price'  => $unit,
-                            'total_price' => $tot,
+                            'unit_price'       => $unit,
+                            'total_price'      => $tot,
+                            'panel_start_date' => $externalStartDates[$ext->id] ?? null,
                         ];
                     }
                 }
 
-                // Montant personnalisé éventuel.
-                // ⚠️ Important : le commercial peut saisir 0 explicitement
-                //    (ex. campagne offerte, package gratuit). On distingue
-                //    "champ vide / non présent" (fallback autoTotal) de
-                //    "champ saisi à 0" (on persiste 0).
-                $rawAmount         = $request->input('amount');
-                $hasCustomAmount   = $rawAmount !== null && $rawAmount !== '';
-                $customAmount      = $hasCustomAmount ? (float) $rawAmount : null;
-                $total             = $customAmount !== null ? $customAmount : $autoTotal;
+                // Montant personnalisé éventuel — 0 explicite = valide (campagne
+                // offerte / package gratuit). filled() distingue "" / null
+                // (fallback autoTotal) de "0" (persiste 0).
+                $hasCustomAmount = $request->filled('amount');
+                $customAmount    = $hasCustomAmount ? (float) $request->input('amount') : null;
+                $total           = $hasCustomAmount ? $customAmount : $autoTotal;
 
                 if ($hasCustomAmount && abs($customAmount - $autoTotal) > 0.01) {
                     Log::info('reservation.custom_amount', [
@@ -1023,13 +1080,14 @@ class ReservationController extends Controller
                     $rows = [];
                     foreach ($attach as $pid => $cols) {
                         $rows[] = [
-                            'reservation_id' => $reservation->id,
-                            'panel_id'       => $pid,
-                            'source'         => 'interne',
-                            'unit_price'     => $cols['unit_price'],
-                            'total_price'    => $cols['total_price'],
-                            'created_at'     => now(),
-                            'updated_at'     => now(),
+                            'reservation_id'   => $reservation->id,
+                            'panel_id'         => $pid,
+                            'source'           => 'interne',
+                            'unit_price'       => $cols['unit_price'],
+                            'total_price'      => $cols['total_price'],
+                            'panel_start_date' => $cols['panel_start_date'] ?? null,
+                            'created_at'       => now(),
+                            'updated_at'       => now(),
                         ];
                     }
                     DB::table('reservation_panels')->insert($rows);
@@ -1045,6 +1103,7 @@ class ReservationController extends Controller
                             'source'            => 'externe',
                             'unit_price'        => $cols['unit_price'],
                             'total_price'       => $cols['total_price'],
+                            'panel_start_date'  => $cols['panel_start_date'] ?? null,
                             'created_at'        => now(),
                             'updated_at'        => now(),
                         ];

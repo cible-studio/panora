@@ -7,6 +7,15 @@
     $endingSoon    = $campaign->isEndingSoon();
     $isNonFacturee = in_array($campaign->status->value, ['actif','pose','termine']) && ($campaign->invoices_count ?? 0) === 0;
 
+    $latestInvoice = $campaign->invoices->first();
+    $invoiceCfg = $latestInvoice ? match($latestInvoice->status) {
+        'brouillon' => ['icon'=>'📝','label'=>'Brouillon','color'=>'#6b7280','bg'=>'rgba(107,114,128,0.1)'],
+        'envoyee'   => ['icon'=>'📤','label'=>'Envoyée','color'=>'#3b82f6','bg'=>'rgba(59,130,246,0.1)'],
+        'payee'     => ['icon'=>'✅','label'=>'Payée','color'=>'#22c55e','bg'=>'rgba(34,197,94,0.1)'],
+        'annulee'   => ['icon'=>'🚫','label'=>'Annulée','color'=>'#ef4444','bg'=>'rgba(239,68,68,0.1)'],
+        default     => ['icon'=>'','label'=>$latestInvoice->status,'color'=>'var(--text2)','bg'=>'var(--surface2)'],
+    } : null;
+
     $barColor = $pct >= 90 ? '#ef4444' : ($pct >= 70 ? '#e8a020' : '#22c55e');
 @endphp
 <tr style="{{ $endingSoon ? 'background:rgba(232,160,32,0.03);' : '' }}">
@@ -52,12 +61,24 @@
         @endif
     </td>
     <td>
-        @if($isNonFacturee)
-        <span class="badge-warning">💰 À facturer</span>
-        @elseif(($campaign->invoices_count ?? 0) > 0)
-        <span class="badge-success">✅ {{ $campaign->invoices_count }} facture(s)</span>
+        @if($latestInvoice)
+            <button type="button"
+                    class="billing-btn"
+                    style="background:{{ $invoiceCfg['bg'] }};color:{{ $invoiceCfg['color'] }};border:1px solid {{ $invoiceCfg['color'] }}22;"
+                    onclick="openBillingModal({{ $campaign->id }}, '{{ addslashes($campaign->name) }}', {{ $campaign->total_amount }}, '{{ $latestInvoice->status }}', '{{ number_format((float)$latestInvoice->amount_ttc,0,',','') }}', '{{ $latestInvoice->paid_at?->format('Y-m-d') ?? '' }}')"
+                    title="Gérer la facturation">
+                {{ $invoiceCfg['icon'] }} {{ $invoiceCfg['label'] }}
+                @if($latestInvoice->paid_at) <span style="font-size:9px;opacity:0.7;display:block;">{{ $latestInvoice->paid_at->format('d/m/Y') }}</span> @endif
+            </button>
+        @elseif($isNonFacturee)
+            <button type="button"
+                    class="billing-btn billing-btn--new"
+                    onclick="openBillingModal({{ $campaign->id }}, '{{ addslashes($campaign->name) }}', {{ $campaign->total_amount }}, '', '', '')"
+                    title="Créer une facture">
+                💰 À facturer
+            </button>
         @else
-        <span class="badge-muted">—</span>
+            <span class="badge-muted">—</span>
         @endif
     </td>
     <td>
@@ -157,5 +178,23 @@
 .empty-action a {
     color: var(--accent);
     text-decoration: none;
+}
+.billing-btn {
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-block;
+    transition: opacity 0.15s, transform 0.1s;
+    white-space: nowrap;
+    text-align: left;
+    line-height: 1.4;
+}
+.billing-btn:hover { opacity: 0.82; transform: scale(1.03); }
+.billing-btn--new {
+    background: rgba(249,115,22,0.08);
+    color: #f97316;
+    border: 1px solid rgba(249,115,22,0.25);
 }
 </style>

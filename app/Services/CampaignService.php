@@ -125,11 +125,11 @@ class CampaignService
     // ⚠️ updateWithoutObservers() sur Reservation = obligatoire pour
     //    éviter ReservationObserver → CampaignService::cancel() → boucle.
     // ══════════════════════════════════════════════════════════════
-    public function cancel(Campaign $campaign, string $reason = ''): void
+    public function cancel(Campaign $campaign, string $reason = '', ?string $cancellationReason = null, ?string $cancellationNotes = null): void
     {
         if ($campaign->status->isTerminal()) return;
 
-        DB::transaction(function () use ($campaign, $reason) {
+        DB::transaction(function () use ($campaign, $reason, $cancellationReason, $cancellationNotes) {
             $internalIds = $this->collectAllPanelIds($campaign);
             $externalIds = $this->collectAllExternalPanelIds($campaign);
 
@@ -153,9 +153,11 @@ class CampaignService
             }
 
             $campaign->update([
-                'status'     => CampaignStatus::ANNULE->value,
-                'notes'      => $this->appendNote($campaign->notes, $reason ? "[Auto] {$reason}" : null),
-                'updated_by' => auth()->id(),
+                'status'               => CampaignStatus::ANNULE->value,
+                'cancellation_reason'  => $cancellationReason,
+                'cancellation_notes'   => $cancellationNotes ?: null,
+                'notes'                => $this->appendNote($campaign->notes, $reason ? "[Auto] {$reason}" : null),
+                'updated_by'           => auth()->id(),
             ]);
 
             $this->syncAllPanels($internalIds, $externalIds);

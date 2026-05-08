@@ -25,8 +25,9 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
 
     public function __construct(
         public readonly Reservation $reservation,
-        public readonly string      $decision,    // 'accepted' | 'refused'
-        public readonly ?string     $reason = null, // motif de refus éventuel
+        public readonly string      $decision,        // 'accepted' | 'refused'
+        public readonly ?string     $reason = null,   // motif de refus éventuel
+        public readonly ?string     $campaignName = null, // nom de la campagne créée à la confirmation
     ) {}
 
     public function envelope(): Envelope
@@ -67,15 +68,18 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
             view: 'emails.proposition-decision',
             text: 'emails.plain.proposition-decision',  // Version texte (anti-spam)
             with: [
-                'reservation'   => $this->reservation,
-                'client'        => $this->reservation->client,
-                'decision'      => $this->decision,
-                'reason'        => $this->reason,
-                'isAccepted'    => $isAccepted,
-                'showLink'      => route('admin.reservations.show', $this->reservation),
-                'campaign'      => $campaign,
-                'campaignName'  => $campaign?->name,
-                'campaignLink'  => $campaign ? route('admin.campaigns.show', $campaign) : null,
+                'reservation'  => $this->reservation,
+                'client'       => $this->reservation->client,
+                'decision'     => $this->decision,
+                'reason'       => $this->reason,
+                'isAccepted'   => $isAccepted,
+                'showLink'     => route('admin.reservations.show', $this->reservation),
+                // campaignName : priorité au constructeur (rétro-compat avec
+                // les appelants qui le fournissent explicitement), sinon on
+                // déduit depuis la campagne liée à la réservation.
+                'campaign'     => $campaign,
+                'campaignName' => $this->campaignName ?? $campaign?->name,
+                'campaignLink' => $campaign ? route('admin.campaigns.show', $campaign) : null,
             ],
         );
     }

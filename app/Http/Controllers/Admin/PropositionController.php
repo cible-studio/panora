@@ -47,7 +47,10 @@ class PropositionController extends Controller
             return redirect()->route('admin.reservations.index')->with('error', $e->getMessage());
         }
 
-        $reservation->loadMissing(['externalPanels.commune', 'externalPanels.zone', 'externalPanels.format', 'externalPanels.category']);
+        $reservation->loadMissing([
+            'panels.photos', 'panels.commune', 'panels.zone', 'panels.format', 'panels.category',
+            'externalPanels.commune', 'externalPanels.zone', 'externalPanels.format', 'externalPanels.category',
+        ]);
 
         $this->propositionService->marquerVue($reservation);
         $months    = $this->monthsBetween($reservation->start_date, $reservation->end_date);
@@ -55,6 +58,7 @@ class PropositionController extends Controller
             ? now()->diffInHours($reservation->proposition_expires_at, false)
             : null;
 
+        // proposalPanels() : projection unifiée internes + externes (cf. modèle).
         $panels = $reservation->proposalPanels($months);
 
         $joursRestants = now()->startOfDay()->diffInDays(
@@ -80,7 +84,7 @@ class PropositionController extends Controller
     {
         $proposition->load([
             'client',
-            'panels.photos', 'panels.commune', 'panels.format', 'panels.category',
+            'panels.photos', 'panels.commune', 'panels.zone', 'panels.format', 'panels.category',
             'externalPanels.commune', 'externalPanels.zone', 'externalPanels.format', 'externalPanels.category',
         ]);
         $months = $this->monthsBetween($proposition->start_date, $proposition->end_date);
@@ -253,8 +257,8 @@ class PropositionController extends Controller
                 ->with('error', 'Erreur lors de la confirmation. Contactez votre commercial.');
         }
 
-        $reservation = $reservation->fresh(['client', 'panels', 'externalPanels', 'user']);
-        $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_ACCEPTED);
+        $reservation = $reservation->fresh(['client', 'panels', 'user']);
+        $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_ACCEPTED, null, $campaign?->name);
 
         // Alerte in-app pour le commercial concerné (en plus du mail)
         \App\Services\AlertService::create(
@@ -292,7 +296,7 @@ class PropositionController extends Controller
         $motif = $request->input('motif');
         $this->propositionService->refuser($reservation, $motif);
 
-        $reservation = $reservation->fresh(['client', 'panels', 'externalPanels', 'user']);
+        $reservation = $reservation->fresh(['client', 'panels', 'user']);
         $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_REFUSED, $motif);
 
         // Alerte in-app pour le commercial — niveau "warning" car action de
@@ -382,7 +386,7 @@ class PropositionController extends Controller
      * Si pas de user_id sur la réservation → fallback : tous les admins actifs.
      * Échec d'envoi silencieux (le client a déjà fait sa décision, on ne casse rien).
      */
-    private function notifyDecision(\App\Models\Reservation $reservation, string $decision, ?string $reason = null): void
+    private function notifyDecision(\App\Models\Reservation $reservation, string $decision, ?string $reason = null, ?string $campaignName = null): void
     {
         $mailer = app(\App\Services\NotificationMailer::class);
 
@@ -411,7 +415,7 @@ class PropositionController extends Controller
 
         $mailer->sendSilently(
             $recipients,
-            new \App\Mail\PropositionDecisionMail($reservation, $decision, $reason),
+            new \App\Mail\PropositionDecisionMail($reservation, $decision, $reason, $campaignName),
             context: [
                 'action'         => 'proposition.decision',
                 'reservation_id' => $reservation->id,
@@ -435,13 +439,11 @@ class PropositionController extends Controller
         }
 
         // Vérifier que le panneau appartient bien à cette réservation
-        // (uniquement les internes — les externes ne sont pas retirables ici)
         if (!$reservation->panels->contains('id', $panelId))
             abort(403, 'Panneau non trouvé dans cette proposition.');
 
-        // Empêcher de vider la proposition (compte interne + externe)
-        $totalPanels = $reservation->panels->count() + $reservation->externalPanels->count();
-        if ($totalPanels <= 1)
+        // Empêcher de retirer le dernier panneau
+        if ($reservation->panels->count() <= 1)
             return redirect()->route('proposition.show', [$reference, $slug])
                 ->with('error', 'Impossible de retirer le dernier panneau.');
 
@@ -474,9 +476,8 @@ class PropositionController extends Controller
         return Reservation::where('reference', $reference)
             ->where('proposition_slug', $slug)
             ->whereNotNull('proposition_token')
-            ->with(['client',
-                    'panels.photos', 'panels.commune', 'panels.zone', 'panels.format', 'panels.category',
-                    'externalPanels.commune', 'externalPanels.zone', 'externalPanels.format', 'externalPanels.category'])
+            ->with(['client', 'panels.photos', 'panels.commune',
+                    'panels.zone', 'panels.format', 'panels.category'])
             ->first();
     }
 

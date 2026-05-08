@@ -16,6 +16,7 @@ class Campaign extends Model
         'user_id', 'updated_by',
         'start_date', 'end_date', 'status',
         'total_panels', 'total_amount', 'notes',
+        'cancellation_reason', 'cancellation_notes',
     ];
 
     protected $casts = [
