@@ -42,6 +42,9 @@ class CampaignController extends Controller
     {
         $this->authorize('viewAny', Campaign::class);
 
+        // Filtres "neutres" appliqués au périmètre + au calcul des compteurs.
+        // Le filtre status est traité APRÈS le clone — sinon cliquer "Planifiées"
+        // fait tomber les autres cartes (Actif/Pause/Terminées/Annulées) à 0.
         $query = Campaign::with([
                 'client',
                 'user',
@@ -50,7 +53,6 @@ class CampaignController extends Controller
             ->withCount(['panels', 'externalPanels', 'invoices'])
             ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
             ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
-            ->when($request->status,      fn($q, $s)  => $q->where('status', $s))
             // Filtres date originaux : date_from (start) / date_to (end)
             ->when($request->date_from,   fn($q, $d)  => $q->where('start_date', '>=', $d))
             ->when($request->date_to,     fn($q, $d)  => $q->where('end_date', '<=', $d))
@@ -62,15 +64,14 @@ class CampaignController extends Controller
             ->when($request->zone_id,     fn($q, $id) => $q->whereHas('panels', fn($p) => $p->where('zone_id', $id)))
             ->orderByDesc('created_at');
 
-        // Compteurs par statut SUR LA QUERY FILTRÉE — sinon les KPI cards
-        // restent figées sur les totaux globaux quand l'admin filtre.
-        // On clone, on retire les eager-loads/withCount inutiles + l'orderBy
-        // (qui casse le GROUP BY en mode MySQL strict), puis GROUP BY status.
-        // ⚠ "actif" inclut désormais "pose" (sous-état d'actif) pour que la
-        // somme des cards = total affiché.
+        // ─── COMPTEURS KPI sur le périmètre AVANT filtre status ───
+        // Permet à chaque carte de garder sa vraie valeur quand on en clique
+        // une (sinon les autres tombent à 0).
+        // ⚠ "actif" inclut "pose" (sous-état d'actif) pour que la somme des
+        // cards = total affiché.
         $countsRaw = (clone $query)
-            ->setEagerLoads([])      // pas besoin des relations pour un GROUP BY
-            ->reorder()              // efface l'orderBy sans toucher aux WHERE
+            ->setEagerLoads([])
+            ->reorder()
             ->select('status', DB::raw('COUNT(*) as total'))
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -82,6 +83,16 @@ class CampaignController extends Controller
             'termine'  => (int) ($countsRaw['termine']  ?? 0),
             'annule'   => (int) ($countsRaw['annule']   ?? 0),
         ];
+
+        // ─── Filtre status (carte cliquée OU select) appliqué APRÈS ───
+        // "actif" inclut "pose" côté filtre aussi (cohérent avec le compteur)
+        if ($request->filled('status')) {
+            if ($request->status === 'actif') {
+                $query->whereIn('status', ['actif', 'pose']);
+            } else {
+                $query->where('status', $request->status);
+            }
+        }
 
         $campaigns = $query->paginate(20)->withQueryString();
 
