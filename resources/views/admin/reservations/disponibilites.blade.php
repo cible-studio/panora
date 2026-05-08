@@ -175,7 +175,7 @@
 
         {{-- ══ BARRE OUTILS ══ --}}
         <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-            <div class="flex items-center gap-2 flex-wrap">
+            <div class="flex items-center gap-3">
                 <div class="flex items-center gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1">
                     <button id="btn-view-grid" onclick="DISPO.setView('grid')"
                         class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-[var(--accent)] text-white">⊞
@@ -184,17 +184,10 @@
                         class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-[var(--text3)] hover:text-[var(--text)]">☰
                         Liste</button>
                 </div>
-
-                {{-- Tout sélectionner — bascule entre "Tout sélectionner" et
-                     "Tout désélectionner" selon l'état courant. Cible tous
-                     les panneaux is_selectable du résultat AJAX courant. --}}
-                <button id="btn-select-all"
-                        type="button"
-                        onclick="DISPO.toggleSelectAll()"
-                        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[var(--accent)]/5 transition-all"
-                        title="Sélectionner tous les panneaux disponibles + en option (toutes pages)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                    <span id="btn-select-all-label">Tout sélectionner</span>
+                <button id="btn-select-all" type="button" onclick="DISPO.selectAll()"
+                        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--text2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
+                        title="Sélectionner tous les panneaux disponibles + en option">
+                    ☑ <span id="btn-select-all-label">Tout sélectionner</span>
                 </button>
             </div>
 
@@ -283,9 +276,9 @@
                         <span class="text-sm text-[var(--text2)] ml-2">panneau(x) — </span>
                         <span id="sel-amount" class="text-base font-bold text-[var(--accent)]">0 FCFA/mois</span>
                     </div>
-                    {{-- Décomposition libres / options pour clarté de la sélection.
-                         Les options nécessitent confirmation client (pas une réservation ferme),
-                         d'où la séparation visuelle. --}}
+                    {{-- Décomposition libres / options : visible seulement si la
+                         sélection contient des panneaux en option (sinon bruit
+                         visuel inutile : "5 libres + 0 en option"). --}}
                     <div id="sel-breakdown" class="hidden text-xs flex items-center gap-3" style="line-height:1.3">
                         <span style="color:#22c55e">
                             <strong id="sel-libre-n">0</strong> libre(s)
@@ -1229,57 +1222,31 @@
                         this._syncUI();
                     },
 
-        // Reporte la période demandée AU LENDEMAIN d'une date donnée (format
-        // d/m/Y français). Utilisé quand l'admin clique sur la pastille
-        // "Libre le 31/05" d'un panneau occupé : on bascule du=01/06.
-        scheduleAfter(dateFr) {
-            if (!dateFr) return;
-            const m = String(dateFr).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-            if (!m) return;
-            const [_, dd, mm, yyyy] = m;
-            const d = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
-            d.setDate(d.getDate() + 1);
-            const newDu = d.toISOString().split('T')[0];
-
-            // Durée par défaut : 30 jours après la nouvelle date de début.
-            let newAu = S.f.au;
-            if (!newAu || newAu <= newDu) {
-                const e = new Date(d); e.setDate(e.getDate() + 30);
-                newAu = e.toISOString().split('T')[0];
-            }
-
-            S.f.du = newDu;
-            S.f.au = newAu;
-            const elDu = _el('f-du'); if (elDu) elDu.value = newDu;
-            const elAu = _el('f-au'); if (elAu) elAu.value = newAu;
-            S.page = 1;
-            this._fetch();
-            this._syncUI();
-
-            if (typeof showToast === 'function') {
-                showToast('info',
-                    `Période ajustée à partir du ${newDu.split('-').reverse().join('/')} pour intégrer ce panneau.`,
-                    4000, 'Disponibilités');
-            }
-        },
-
-        onDateChange(which, val) {
-            if (which === 'du') {
-                S.f.du = val;
-                const next = new Date(val); next.setDate(next.getDate() + 1);
-                const auEl = _el('f-au');
-                auEl.min = next.toISOString().split('T')[0];
-                if (S.f.au && S.f.au <= val) { S.f.au = ''; auEl.value = ''; }
-            } else {
-                S.f.au = val;
-            }
-            _hideDateErr();
-            if (S.f.du && S.f.au && S.f.au <= S.f.du) {
-                _showDateErr('La date de fin doit être après la date de début.');
-                S.f.au = ''; _el('f-au').value = ''; return;
-            }
-            S.page = 1; this._fetch(); this._syncUI();
-        },
+                    onDateChange(which, val) {
+                        if (which === 'du') {
+                            S.f.du = val;
+                            const next = new Date(val);
+                            next.setDate(next.getDate() + 1);
+                            const auEl = _el('f-au');
+                            auEl.min = next.toISOString().split('T')[0];
+                            if (S.f.au && S.f.au <= val) {
+                                S.f.au = '';
+                                auEl.value = '';
+                            }
+                        } else {
+                            S.f.au = val;
+                        }
+                        _hideDateErr();
+                        if (S.f.du && S.f.au && S.f.au <= S.f.du) {
+                            _showDateErr('La date de fin doit être après la date de début.');
+                            S.f.au = '';
+                            _el('f-au').value = '';
+                            return;
+                        }
+                        S.page = 1;
+                        this._fetch();
+                        this._syncUI();
+                    },
 
                     reset() {
                         S.f = {
@@ -1408,28 +1375,32 @@
                         this._submitExcelForm(ids);
                     },
 
-        _submitExcelForm(ids) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '{{ route("admin.reservations.disponibilites.export-excel") }}';
-            // Pas de target=_blank : on déclenche un download dans l'onglet
-            // courant (le navigateur garde la page derrière le download).
-            form.style.display = 'none';
-            const addInput = (name, value) => {
-                const i = document.createElement('input');
-                i.type = 'hidden'; i.name = name; i.value = value;
-                form.appendChild(i);
-            };
-            addInput('_token', D.csrf);
-            ids.forEach(id => addInput('panel_ids[]', id));
-            if (S.f.du) addInput('start_date', S.f.du);
-            if (S.f.au) addInput('end_date',   S.f.au);
-            const showP = document.getElementById('pdf-show-pricing')?.checked;
-            if (showP) addInput('show_pricing', '1');
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
-        },
+                    _submitExcelForm(ids) {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '{{ route('admin.reservations.disponibilites.export-excel') }}';
+                        // Pas de target=_blank : download dans l'onglet courant
+                        form.style.display = 'none';
+                        const addInput = (name, value) => {
+                            const i = document.createElement('input');
+                            i.type = 'hidden';
+                            i.name = name;
+                            i.value = value;
+                            form.appendChild(i);
+                        };
+                        addInput('_token', D.csrf);
+                        ids.forEach(id => addInput('panel_ids[]', id));
+                        if (S.f.du) addInput('start_date', S.f.du);
+                        if (S.f.au) addInput('end_date', S.f.au);
+                        // Cohérence avec PDF : si la checkbox "Inclure prix + statut" est cochée,
+                        // on transmet show_pricing=1 à l'Excel aussi (le backend Excel peut l'ignorer
+                        // ou l'utiliser selon le besoin métier).
+                        const showP = document.getElementById('pdf-show-pricing')?.checked;
+                        if (showP) addInput('show_pricing', '1');
+                        document.body.appendChild(form);
+                        form.submit();
+                        document.body.removeChild(form);
+                    },
 
                     // ── PAGINATION ────────────────────────────────────────
                     prevPage() {
@@ -1449,98 +1420,107 @@
                         }
                     },
 
-        // ── SÉLECTION ─────────────────────────────────────────
-        // displayStatus : 'libre' (défaut) ou 'option_periode' — détermine
-        // l'affichage UI (bordure dashed orange) et le compteur récap.
-        toggle(id, rate, source, displayStatus) {
-            id = String(id);
-            const idx = S.sel.ids.indexOf(id);
-            if (idx === -1) {
-                S.sel.ids.push(id);
-                S.sel.rates[id]    = parseFloat(rate) || 0;
-                S.sel.sources[id]  = source || 'internal';
-                S.sel.statuses     = S.sel.statuses || {};
-                S.sel.statuses[id] = displayStatus || 'libre';
-            } else {
-                S.sel.ids.splice(idx, 1);
-                delete S.sel.rates[id];
-                delete S.sel.sources[id];
-                if (S.sel.statuses) delete S.sel.statuses[id];
-            }
-            const sel  = S.sel.ids.includes(id);
-            const card = document.querySelector(`.panel-card[data-id="${id}"]`);
-            if (card) {
-                card.classList.toggle('selected', sel);
-                const btn = card.querySelector('.btn-sel');
-                if (btn) { btn.textContent = sel ? '✓ Sélectionné' : '+ Sélectionner'; btn.style.background = sel ? 'var(--accent)' : 'var(--surface3)'; btn.style.color = sel ? '#fff' : 'var(--text)'; }
-                const chk = card.querySelector('.card-chk');
-                if (chk) chk.checked = sel;
-            }
-            const row = document.querySelector(`.list-row[data-id="${id}"]`);
-            if (row) {
-                row.classList.toggle('selected', sel);
-                const chk = row.querySelector('.card-chk');
-                if (chk) chk.checked = sel;
-            }
-            this._syncSelBar();
-        },
+                    // ── SÉLECTION ─────────────────────────────────────────
+                    // 4e arg displayStatus : 'libre' | 'option_periode' —
+                    // utilisé pour la décompo libres/options + bordure dashed
+                    // côté UI, et pour traquer le statut au moment de la sélection.
+                    toggle(id, rate, source, displayStatus) {
+                        id = String(id);
+                        const idx = S.sel.ids.indexOf(id);
+                        if (idx === -1) {
+                            S.sel.ids.push(id);
+                            S.sel.rates[id]    = parseFloat(rate) || 0;
+                            S.sel.sources[id]  = source || 'internal';
+                            S.sel.statuses     = S.sel.statuses || {};
+                            S.sel.statuses[id] = displayStatus || 'libre';
+                        } else {
+                            S.sel.ids.splice(idx, 1);
+                            delete S.sel.rates[id];
+                            delete S.sel.sources[id];
+                            if (S.sel.statuses) delete S.sel.statuses[id];
+                        }
+                        const sel = S.sel.ids.includes(id);
+                        const isOption = displayStatus === 'option_periode'
+                            || (S.sel.statuses && S.sel.statuses[id] === 'option_periode');
+                        const card = document.querySelector(`.panel-card[data-id="${id}"]`);
+                        if (card) {
+                            card.classList.toggle('selected', sel);
+                            card.classList.toggle('selected-option', sel && isOption);
+                            // Bordure dashed orange si option sélectionnée
+                            if (sel && isOption) {
+                                card.style.border = '2px dashed #f97316';
+                            } else {
+                                card.style.border = '';
+                            }
+                            const btn = card.querySelector('.btn-sel');
+                            if (btn) {
+                                btn.textContent = sel ? '✓ Sélectionné' : '+ Sélectionner';
+                                btn.style.background = sel ? (isOption ? '#f97316' : 'var(--accent)') : 'var(--surface3)';
+                                btn.style.color = sel ? '#fff' : 'var(--text)';
+                            }
+                            const chk = card.querySelector('.card-chk');
+                            if (chk) chk.checked = sel;
+                        }
+                        const row = document.querySelector(`.list-row[data-id="${id}"]`);
+                        if (row) {
+                            row.classList.toggle('selected', sel);
+                            const chk = row.querySelector('.card-chk');
+                            if (chk) chk.checked = sel;
+                        }
+                        this._syncSelBar();
+                    },
 
-        clearSelection() {
-            S.sel = { ids:[], rates:{}, sources:{}, statuses:{} };
-            document.querySelectorAll('.panel-card.selected,.list-row.selected').forEach(el => {
-                el.classList.remove('selected', 'selected-option');
-                el.style.border = '';
-                const btn = el.querySelector('.btn-sel');
-                if (btn) { btn.textContent='+ Sélectionner'; btn.style.background='var(--surface3)'; btn.style.color='var(--text)'; }
-                const chk = el.querySelector('.card-chk');
-                if (chk) chk.checked = false;
-            });
-            this._syncSelBar();
-        },
+                    clearSelection() {
+                        S.sel = { ids: [], rates: {}, sources: {}, statuses: {} };
+                        document.querySelectorAll('.panel-card.selected,.list-row.selected').forEach(el => {
+                            el.classList.remove('selected', 'selected-option');
+                            el.style.border = '';
+                            const btn = el.querySelector('.btn-sel');
+                            if (btn) {
+                                btn.textContent = '+ Sélectionner';
+                                btn.style.background = 'var(--surface3)';
+                                btn.style.color = 'var(--text)';
+                            }
+                            const chk = el.querySelector('.card-chk');
+                            if (chk) chk.checked = false;
+                        });
+                        this._syncSelBar();
+                    },
 
-        // ── SÉLECTION DE MASSE ─────────────────────────────────
-        // Bascule entre "Tout sélectionner" (panneaux is_selectable du
-        // résultat AJAX courant) et "Tout désélectionner". On opère sur
-        // S._lastPanels et on bascule chaque panneau via toggle() pour
-        // garder le state cohérent.
-        toggleSelectAll() {
-            const all = (S._lastPanels || []).filter(p => p.is_selectable);
-            if (all.length === 0) {
-                this.showError(['Aucun panneau sélectionnable dans la liste actuelle.']);
-                return;
-            }
+                    // Toggle "Tout sélectionner" / "Tout désélectionner".
+                    // Cible tous les panneaux is_selectable du résultat AJAX
+                    // courant (S._lastPanels). Bascule via toggle() pour
+                    // garder le state cohérent (statuses inclus).
+                    selectAll() {
+                        const all = (S._lastPanels || []).filter(p => p.is_selectable);
+                        if (all.length === 0) return;
+                        const allSelected = all.every(p => S.sel.ids.includes(String(p.id)));
 
-            const allIds = all.map(p => String(p.id));
-            const allSelected = allIds.every(id => S.sel.ids.includes(id));
+                        if (allSelected) {
+                            // Tout déjà coché → décocher tout
+                            all.forEach(p => {
+                                if (S.sel.ids.includes(String(p.id))) {
+                                    this.toggle(p.id, p.monthly_rate, p.source, p.display_status);
+                                }
+                            });
+                        } else {
+                            all.forEach(p => {
+                                if (!S.sel.ids.includes(String(p.id))) {
+                                    this.toggle(p.id, p.monthly_rate, p.source, p.display_status);
+                                }
+                            });
+                        }
+                        this._syncSelectAllLabel();
+                    },
 
-            if (allSelected) {
-                all.forEach(p => {
-                    if (S.sel.ids.includes(String(p.id))) {
-                        this.toggle(p.id, p.monthly_rate, p.source, p.display_status);
-                    }
-                });
-            } else {
-                all.forEach(p => {
-                    if (!S.sel.ids.includes(String(p.id))) {
-                        this.toggle(p.id, p.monthly_rate, p.source, p.display_status);
-                    }
-                });
-            }
-            this._syncSelectAllLabel();
-        },
-
-        // Alias rétro-compat : certains points d'entrée historiques appelaient
-        // `selectAll()` directement. On délègue au toggle moderne.
-        selectAll() { return this.toggleSelectAll(); },
-
-        _syncSelectAllLabel() {
-            const all = (S._lastPanels || []).filter(p => p.is_selectable);
-            const lbl = _el('btn-select-all-label');
-            if (!lbl) return;
-            if (all.length === 0) { lbl.textContent = 'Tout sélectionner'; return; }
-            const allSelected = all.every(p => S.sel.ids.includes(String(p.id)));
-            lbl.textContent = allSelected ? 'Tout désélectionner' : 'Tout sélectionner';
-        },
+                    _syncSelectAllLabel() {
+                        const all = (S._lastPanels || []).filter(p => p.is_selectable);
+                        const lbl = _el('btn-select-all-label');
+                        if (!lbl) return;
+                        if (all.length === 0) { lbl.textContent = 'Tout sélectionner'; return; }
+                        const allSelected = all.every(p => S.sel.ids.includes(String(p.id)));
+                        lbl.textContent = allSelected ? 'Tout désélectionner' : 'Tout sélectionner';
+                    },
 
                     // ── MODAL CONFIRMATION ────────────────────────────────
                     openConfirmModal() {
@@ -1972,6 +1952,7 @@
                         const sc = STATUS_CFG[p.display_status] || STATUS_CFG.libre;
                         const bg = D.colors[p.card_color_idx || 0] || '#3b82f6';
                         const isSel = S.sel.ids.includes(String(p.id));
+                        const isOption = p.display_status === 'option_periode';
                         const thumbSt = p.photo_url ? `background:url('${p.photo_url}') center/cover no-repeat;` :
                             `background:${bg};`;
                         const tags = [
@@ -1979,14 +1960,28 @@
                             p.dimensions ? `<span class="tag">${p.dimensions}</span>` : '',
                             p.is_lit ? `<span class="tag" style="color:var(--accent)">💡</span>` : '',
                         ].filter(Boolean).join('');
+                        // release_info cliquable (feature 2.2) : caler la
+                        // période sur la libération du panneau occupé.
                         const releaseHtml = p.release_info ?
-                            `<div style="margin-top:4px;padding:4px 8px;border-radius:6px;font-size:10px;background:rgba(226,6,19,.06);border:1px solid rgba(226,6,19,.15);"><span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'var(--accent)':'var(--text3)'}">📅 ${p.release_info.label}</span></div>` :
+                            `<div onclick="event.stopPropagation();DISPO.scheduleAfter('${p.release_info.date}')" title="Cliquer pour caler la période sur la libération" style="margin-top:4px;padding:4px 8px;border-radius:6px;font-size:10px;background:rgba(226,6,19,.06);border:1px solid rgba(226,6,19,.15);cursor:pointer;"><span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'var(--accent)':'var(--text3)'}">📅 ${p.release_info.label}</span></div>` :
                             '';
                         const selBtn = p.is_selectable ?
-                            `<button type="button" class="btn-sel" style="flex:1.2;font-size:11px;padding:6px 10px;border-radius:7px;background:${isSel?'var(--accent)':'var(--surface3)'};color:${isSel?'#fff':'var(--text)'};border:1px solid ${isSel?'transparent':'var(--border2)'};cursor:pointer;transition:all .15s;" onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">${isSel?'✓ Sélectionné':'+ Sélectionner'}</button>` :
+                            `<button type="button" class="btn-sel" style="flex:1.2;font-size:11px;padding:6px 10px;border-radius:7px;background:${isSel?(isOption?'#f97316':'var(--accent)'):'var(--surface3)'};color:${isSel?'#fff':'var(--text)'};border:1px solid ${isSel?'transparent':'var(--border2)'};cursor:pointer;transition:all .15s;" onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')">${isSel?'✓ Sélectionné':'+ Sélectionner'}</button>` :
                             `<div style="flex:1.2;padding:6px 10px;background:var(--surface3);border-radius:7px;font-size:11px;color:var(--text3);text-align:center;border:1px solid var(--border);">${sc.l}</div>`;
                         const safeP = encodeURIComponent(JSON.stringify(p));
-                        return `<div class="panel-card${p.is_selectable?' selectable':''}${isSel?' selected':''}" data-id="${p.id}" ${p.is_selectable?`onclick="DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')"`:''}>${p.source==='external'?`<div style="position:absolute;top:8px;left:8px;z-index:2;font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)">🤝 ${p.agency_name}</div>`:''} ${p.is_selectable?`<div style="position:absolute;top:10px;left:10px;z-index:2;"><input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')"></div>`:''}<div style="position:absolute;top:8px;right:8px;z-index:2;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${sc.c};color:white;text-transform:uppercase;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.3);">${sc.l}</div><div style="height:96px;flex-shrink:0;position:relative;overflow:hidden;${thumbSt}"><div style="position:absolute;inset:0;background:${p.photo_url?'linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.65))':'rgba(0,0,0,.15)'}"></div><div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border-radius:7px;padding:4px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#fff;letter-spacing:1.5px;white-space:nowrap;backdrop-filter:blur(4px);">${p.reference}</div></div><div style="padding:12px 14px;flex:1;display:flex;flex-direction:column;"><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div><div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.name}">${p.name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">${tags}</div>${p.zone_description?`<div style="font-size:11px;color:var(--text2);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.zone_description}">📍 ${p.zone_description}</div>`:''}<div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);"><div style="font-size:17px;font-weight:800;color:var(--accent);margin-bottom:6px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K <span style="font-size:11px;font-weight:400;color:var(--text3)">FCFA/mois</span>':'<span style="font-size:13px;color:var(--text3)">Tarif non défini</span>'}</div>${releaseHtml}<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" style="flex:none;font-size:10px;padding:6px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button>${selBtn}</div></div></div></div>`;
+
+                        // Bordure dashed orange si option sélectionnée
+                        const cardCls = `panel-card${p.is_selectable?' selectable':''}${isSel?' selected':''}${isOption&&isSel?' selected-option':''}`;
+                        const inlineStyle = isOption && isSel
+                            ? 'style="border:2px dashed #f97316 !important;"'
+                            : '';
+
+                        // Badge "EN OPTION" en superposition
+                        const optionBadge = isOption
+                            ? `<span style="position:absolute;${p.source==='external'?'top:32px':'top:8px'};left:8px;z-index:2;background:#f97316;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.5px;box-shadow:0 1px 4px rgba(0,0,0,.2);">EN OPTION</span>`
+                            : '';
+
+                        return `<div class="${cardCls}" ${inlineStyle} data-id="${p.id}" ${p.is_selectable?`onclick="DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')"`:''}>${p.source==='external'?`<div style="position:absolute;top:8px;left:8px;z-index:2;font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)">🤝 ${p.agency_name}</div>`:''}${optionBadge} ${p.is_selectable?`<div style="position:absolute;top:10px;${isOption?'left:90px':'left:10px'};z-index:2;"><input type="checkbox" class="card-chk" style="accent-color:${isOption?'#f97316':'var(--accent)'};width:16px;height:16px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')"></div>`:''}<div style="position:absolute;top:8px;right:8px;z-index:2;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${sc.c};color:white;text-transform:uppercase;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.3);">${sc.l}</div><div style="height:96px;flex-shrink:0;position:relative;overflow:hidden;${thumbSt}"><div style="position:absolute;inset:0;background:${p.photo_url?'linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.65))':'rgba(0,0,0,.15)'}"></div><div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border-radius:7px;padding:4px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#fff;letter-spacing:1.5px;white-space:nowrap;backdrop-filter:blur(4px);">${p.reference}</div></div><div style="padding:12px 14px;flex:1;display:flex;flex-direction:column;"><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div><div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.name}">${p.name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">${tags}</div>${p.zone_description?`<div style="font-size:11px;color:var(--text2);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.zone_description}">📍 ${p.zone_description}</div>`:''}<div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);"><div style="font-size:17px;font-weight:800;color:var(--accent);margin-bottom:6px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K <span style="font-size:11px;font-weight:400;color:var(--text3)">FCFA/mois</span>':'<span style="font-size:13px;color:var(--text3)">Tarif non défini</span>'}</div>${releaseHtml}<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" style="flex:none;font-size:10px;padding:6px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button>${selBtn}</div></div></div>`;
                     },
 
                     _renderList(panels) {
@@ -1999,11 +1994,10 @@
                             const tr = document.createElement('tr');
                             tr.className = `list-row${isSel?' selected':''}`;
                             tr.dataset.id = p.id;
-                            if (p.is_selectable) tr.onclick = () => DISPO.toggle(p.id, p.monthly_rate, p
-                            .source);
+                            if (p.is_selectable) tr.onclick = () => DISPO.toggle(p.id, p.monthly_rate, p.source, p.display_status);
                             const safeP = encodeURIComponent(JSON.stringify(p));
                             tr.innerHTML =
-                                `<td style="padding:10px 8px;width:36px;text-align:center;">${p.is_selectable?`<input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">`:`<span style="font-size:12px;opacity:.4;">🔒</span>`}</td><td style="padding:10px 8px;"><span style="font-family:monospace;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;background:${sc.b};color:${sc.c}">${p.reference}</span>${p.source==='external'?`<span style="display:block;font-size:9px;color:#60a5fa;margin-top:2px;">🤝 ${p.agency_name}</span>`:''}</td><td style="padding:10px 8px;"><div style="font-weight:600;font-size:13px;color:var(--text);">${p.name}</div><div style="font-size:11px;color:var(--text3);">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div></td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.format||'—'}</td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.dimensions||'—'}${p.is_lit?' 💡':''}</td><td style="padding:10px 8px;"><div style="font-weight:700;color:var(--accent);font-size:13px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K':'—'} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></div></td><td style="padding:10px 8px;"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">${sc.l}</span>${p.release_info?`<div style="font-size:10px;color:var(--text3);margin-top:3px;">📅 ${p.release_info.label}</div>`:''}</td><td style="padding:10px 8px;"><button type="button" style="font-size:10px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button></td>`;
+                                `<td style="padding:10px 8px;width:36px;text-align:center;">${p.is_selectable?`<input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')">`:`<span style="font-size:12px;opacity:.4;">🔒</span>`}</td><td style="padding:10px 8px;"><span style="font-family:monospace;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;background:${sc.b};color:${sc.c}">${p.reference}</span>${p.source==='external'?`<span style="display:block;font-size:9px;color:#60a5fa;margin-top:2px;">🤝 ${p.agency_name}</span>`:''}</td><td style="padding:10px 8px;"><div style="font-weight:600;font-size:13px;color:var(--text);">${p.name}</div><div style="font-size:11px;color:var(--text3);">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div></td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.format||'—'}</td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.dimensions||'—'}${p.is_lit?' 💡':''}</td><td style="padding:10px 8px;"><div style="font-weight:700;color:var(--accent);font-size:13px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K':'—'} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></div></td><td style="padding:10px 8px;"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">${sc.l}</span>${p.release_info?`<div style="font-size:10px;color:var(--text3);margin-top:3px;">📅 ${p.release_info.label}</div>`:''}</td><td style="padding:10px 8px;"><button type="button" style="font-size:10px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button></td>`;
                             frag.appendChild(tr);
                         });
                         tbody.innerHTML = '';
@@ -2057,6 +2051,12 @@
                         const n = S.sel.ids.length;
                         const total = Object.values(S.sel.rates).reduce((s, r) => s + r, 0);
                         const nExt = Object.values(S.sel.sources).filter(s => s === 'external').length;
+
+                        // Décomposition libres/options pour clarté de la sélection
+                        const statuses = S.sel.statuses || {};
+                        const nOption  = Object.values(statuses).filter(s => s === 'option_periode').length;
+                        const nLibre   = n - nOption;
+
                         _el('sel-bar').style.display = n > 0 ? 'block' : 'none';
                         const tw = _el('topbar-confirm-wrapper');
                         if (tw) tw.style.display = n > 0 ? 'block' : 'none';
@@ -2068,11 +2068,49 @@
                             eb.classList.toggle('hidden', nExt === 0);
                             _el('sel-ext-n').textContent = nExt;
                         }
-                        const btnSA = document.getElementById('btn-select-all');
-                        if (btnSA) {
-                            const panels = S._lastPanels;
-                            const allSel = panels.length > 0 && panels.every(p => S.sel.ids.includes(String(p.id)));
-                            btnSA.textContent = allSel ? '☐ Tout désélectionner' : '☑ Tout sélectionner';
+
+                        // Affichage breakdown libre/option (caché si 0 option)
+                        const bd = _el('sel-breakdown');
+                        if (bd) {
+                            bd.classList.toggle('hidden', nOption === 0);
+                            const elL = _el('sel-libre-n');  if (elL) elL.textContent = nLibre;
+                            const elO = _el('sel-option-n'); if (elO) elO.textContent = nOption;
+                        }
+
+                        // Label dynamique du bouton "Tout sélectionner / désélectionner"
+                        this._syncSelectAllLabel();
+                    },
+
+                    // Reporte la période demandée AU LENDEMAIN d'une date donnée
+                    // (format d/m/Y français). Utilisé quand l'admin clique sur
+                    // la pastille "Libre le 31/05" d'un panneau occupé.
+                    scheduleAfter(dateFr) {
+                        if (!dateFr) return;
+                        const m = String(dateFr).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+                        if (!m) return;
+                        const [_, dd, mm, yyyy] = m;
+                        const d = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+                        d.setDate(d.getDate() + 1);
+                        const newDu = d.toISOString().split('T')[0];
+
+                        let newAu = S.f.au;
+                        if (!newAu || newAu <= newDu) {
+                            const e = new Date(d); e.setDate(e.getDate() + 30);
+                            newAu = e.toISOString().split('T')[0];
+                        }
+
+                        S.f.du = newDu;
+                        S.f.au = newAu;
+                        const elDu = _el('f-du'); if (elDu) elDu.value = newDu;
+                        const elAu = _el('f-au'); if (elAu) elAu.value = newAu;
+                        S.page = 1;
+                        this._fetch();
+                        this._syncUI();
+
+                        if (typeof showToast === 'function') {
+                            showToast('info',
+                                `Période ajustée à partir du ${newDu.split('-').reverse().join('/')} pour intégrer ce panneau.`,
+                                4000, 'Disponibilités');
                         }
                     },
 
@@ -2389,272 +2427,6 @@
                     if (dd) dd.classList.add('hidden');
                 }
             });
-            grid.innerHTML = ''; grid.appendChild(frag);
-            if (S.view === 'list') this._renderList(panels);
-            // Restaurer état sélection après rechargement
-            S.sel.ids.forEach(id => {
-                const card = grid.querySelector(`.panel-card[data-id="${id}"]`);
-                if (!card) return;
-                card.classList.add('selected');
-                const btn = card.querySelector('.btn-sel');
-                if (btn) { btn.textContent='✓ Sélectionné'; btn.style.background='var(--accent)'; btn.style.color='#fff'; }
-                const chk = card.querySelector('.card-chk');
-                if (chk) chk.checked = true;
-            });
-        },
-
-        _cardHtml(p) {
-            const sc       = STATUS_CFG[p.display_status] || STATUS_CFG.libre;
-            const bg       = D.colors[p.card_color_idx || 0] || '#3b82f6';
-            const isSel    = S.sel.ids.includes(String(p.id));
-            const isOption = p.display_status === 'option_periode';
-            const thumbSt  = p.photo_url ? `background:url('${p.photo_url}') center/cover no-repeat;` : `background:${bg};`;
-            const tags     = [
-                p.format     ? `<span class="tag">${p.format}</span>` : '',
-                p.dimensions ? `<span class="tag">${p.dimensions}</span>` : '',
-                p.is_lit     ? `<span class="tag" style="color:var(--accent)">💡</span>` : '',
-            ].filter(Boolean).join('');
-            // release_info : panneau occupé/option avec date de libération.
-            // On rend le bloc cliquable pour basculer la période demandée
-            // au lendemain (ainsi l'admin peut intégrer le panneau dans la
-            // résa avec la bonne start_date — "Disponible à partir du …").
-            const releaseHtml = p.release_info
-                ? `<div onclick="event.stopPropagation();DISPO.scheduleAfter('${p.release_info.date}')" title="Cliquer pour caler la période sur la libération" style="margin-top:4px;padding:4px 8px;border-radius:6px;font-size:10px;background:rgba(226,6,19,.06);border:1px solid rgba(226,6,19,.15);cursor:pointer;"><span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'var(--accent)':'var(--text3)'}">📅 ${p.release_info.label}</span></div>` : '';
-            const selBtn = p.is_selectable
-                ? `<button type="button" class="btn-sel" style="flex:1.2;font-size:11px;padding:6px 10px;border-radius:7px;background:${isSel?(isOption?'#f97316':'var(--accent)'):'var(--surface3)'};color:${isSel?'#fff':'var(--text)'};border:1px solid ${isSel?'transparent':'var(--border2)'};cursor:pointer;transition:all .15s;" onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')">${isSel?'✓ Sélectionné':'+ Sélectionner'}</button>`
-                : `<div style="flex:1.2;padding:6px 10px;background:var(--surface3);border-radius:7px;font-size:11px;color:var(--text3);text-align:center;border:1px solid var(--border);">${sc.l}</div>`;
-            const safeP = encodeURIComponent(JSON.stringify(p));
-
-            // Bordure dashed orange pour option sélectionnée, pleine accent
-            // pour libre sélectionnée. La classe 'selected-option' est ajoutée
-            // pour cibler la card en CSS si besoin.
-            const cardCls = `panel-card${p.is_selectable?' selectable':''}${isSel?' selected':''}${isOption&&isSel?' selected-option':''}`;
-            const inlineStyle = isOption && isSel
-                ? 'style="border:2px dashed #f97316 !important;"'
-                : '';
-
-            // Badge "EN OPTION" en superposition (gauche, sous le badge agence
-            // si externe). Visible peu importe la sélection.
-            const optionBadge = isOption
-                ? `<span style="position:absolute;${p.source==='external'?'top:32px':'top:8px'};left:8px;z-index:2;background:#f97316;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.5px;box-shadow:0 1px 4px rgba(0,0,0,.2);">EN OPTION</span>`
-                : '';
-
-            return `<div class="${cardCls}" ${inlineStyle} data-id="${p.id}" ${p.is_selectable?`onclick="DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')"`:''}>${p.source==='external'?`<div style="position:absolute;top:8px;left:8px;z-index:2;font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)">🤝 ${p.agency_name}</div>`:''}${optionBadge} ${p.is_selectable?`<div style="position:absolute;top:10px;${isOption?'left:90px':'left:10px'};z-index:2;"><input type="checkbox" class="card-chk" style="accent-color:${isOption?'#f97316':'var(--accent)'};width:16px;height:16px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')"></div>`:''}<div style="position:absolute;top:8px;right:8px;z-index:2;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${sc.c};color:white;text-transform:uppercase;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.3);">${sc.l}</div><div style="height:96px;flex-shrink:0;position:relative;overflow:hidden;${thumbSt}"><div style="position:absolute;inset:0;background:${p.photo_url?'linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.65))':'rgba(0,0,0,.15)'}"></div><div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border-radius:7px;padding:4px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#fff;letter-spacing:1.5px;white-space:nowrap;backdrop-filter:blur(4px);">${p.reference}</div></div><div style="padding:12px 14px;flex:1;display:flex;flex-direction:column;"><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div><div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.name}">${p.name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">${tags}</div>${p.zone_description?`<div style="font-size:11px;color:var(--text2);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.zone_description}">📍 ${p.zone_description}</div>`:''}<div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);"><div style="font-size:17px;font-weight:800;color:var(--accent);margin-bottom:6px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K <span style="font-size:11px;font-weight:400;color:var(--text3)">FCFA/mois</span>':'<span style="font-size:13px;color:var(--text3)">Tarif non défini</span>'}</div>${releaseHtml}<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" style="flex:none;font-size:10px;padding:6px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button>${selBtn}</div></div></div>`;
-        },
-
-        _renderList(panels) {
-            const tbody = _el('panels-list-body'); if (!tbody) return;
-            const frag = document.createDocumentFragment();
-            panels.forEach(p => {
-                const sc    = STATUS_CFG[p.display_status] || STATUS_CFG.libre;
-                const isSel = S.sel.ids.includes(String(p.id));
-                const tr    = document.createElement('tr');
-                tr.className  = `list-row${isSel?' selected':''}`;
-                tr.dataset.id = p.id;
-                if (p.is_selectable) tr.onclick = () => DISPO.toggle(p.id, p.monthly_rate, p.source, p.display_status);
-                const safeP = encodeURIComponent(JSON.stringify(p));
-                tr.innerHTML = `<td style="padding:10px 8px;width:36px;text-align:center;">${p.is_selectable?`<input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')">`:`<span style="font-size:12px;opacity:.4;">🔒</span>`}</td><td style="padding:10px 8px;"><span style="font-family:monospace;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;background:${sc.b};color:${sc.c}">${p.reference}</span>${p.source==='external'?`<span style="display:block;font-size:9px;color:#60a5fa;margin-top:2px;">🤝 ${p.agency_name}</span>`:''}</td><td style="padding:10px 8px;"><div style="font-weight:600;font-size:13px;color:var(--text);">${p.name}</div><div style="font-size:11px;color:var(--text3);">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div></td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.format||'—'}</td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.dimensions||'—'}${p.is_lit?' 💡':''}</td><td style="padding:10px 8px;"><div style="font-weight:700;color:var(--accent);font-size:13px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K':'—'} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></div></td><td style="padding:10px 8px;"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">${sc.l}</span>${p.release_info?`<div style="font-size:10px;color:var(--text3);margin-top:3px;">📅 ${p.release_info.label}</div>`:''}</td><td style="padding:10px 8px;"><button type="button" style="font-size:10px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button></td>`;
-                frag.appendChild(tr);
-            });
-            tbody.innerHTML = ''; tbody.appendChild(frag);
-            S.sel.ids.forEach(id => {
-                const row = tbody.querySelector(`.list-row[data-id="${id}"]`);
-                if (row) { row.classList.add('selected'); const chk=row.querySelector('.card-chk'); if(chk) chk.checked=true; }
-            });
-        },
-
-        _renderStats(stats, hasPeriod) {
-            const set = (id, html, show=true) => {
-                const el=_el(id); if(!el) return;
-                el.style.display = show ? 'inline-flex' : 'none';
-                if (show) el.innerHTML = html;
-            };
-            set('stat-total',  `📊 <strong>${stats.total}</strong> panneau(x)`);
-            set('stat-dispo',  `✅ <strong>${stats.disponibles}</strong> disponible(s)`,  hasPeriod && stats.disponibles > 0);
-            set('stat-occupes',`🔒 <strong>${stats.occupes}</strong> occupé(s)`,          hasPeriod && stats.occupes > 0);
-            set('stat-options',`⏳ <strong>${stats.options||0}</strong> en option`,        hasPeriod && (stats.options||0) > 0);
-            set('stat-ext',    `🤝 <strong>${stats.externes}</strong> externe(s)`,         stats.externes > 0);
-        },
-
-        _renderPagination(stats) {
-            const bar=_el('pagination-bar'), info=_el('pag-info'), prev=_el('btn-prev'), next=_el('btn-next');
-            if (!bar) return;
-            if (stats.pages <= 1) { bar.classList.add('hidden'); return; }
-            bar.classList.remove('hidden');
-            const from=(S.page-1)*S.perPage+1, to=Math.min(S.page*S.perPage, stats.total);
-            if (info) info.textContent = `${from}–${to} sur ${stats.total}`;
-            if (prev) prev.disabled = S.page <= 1;
-            if (next) next.disabled = S.page >= stats.pages;
-        },
-
-        _syncSelBar() {
-            const n     = S.sel.ids.length;
-            const total = Object.values(S.sel.rates).reduce((s,r) => s+r, 0);
-            const nExt  = Object.values(S.sel.sources).filter(s => s==='external').length;
-
-            // Décomposition libres/options pour l'admin (clarté de la sélection)
-            const statuses = S.sel.statuses || {};
-            const nOption  = Object.values(statuses).filter(s => s === 'option_periode').length;
-            const nLibre   = n - nOption;
-
-            _el('sel-bar').style.display = n > 0 ? 'block' : 'none';
-            const tw = _el('topbar-confirm-wrapper');
-            if (tw) tw.style.display = n > 0 ? 'block' : 'none';
-            _el('sel-count').textContent  = n;
-            _el('sel-amount').textContent = Math.round(total).toLocaleString('fr-FR') + ' FCFA/mois';
-            _el('topbar-count').textContent = n;
-            const eb = _el('sel-ext-badge');
-            if (eb) { eb.classList.toggle('hidden', nExt===0); _el('sel-ext-n').textContent = nExt; }
-
-            // Affichage breakdown UNIQUEMENT s'il y a des options (sinon
-            // visuellement bruyant : "5 libres + 0 en option" inutile).
-            const bd = _el('sel-breakdown');
-            if (bd) {
-                bd.classList.toggle('hidden', nOption === 0);
-                const elL = _el('sel-libre-n');  if (elL) elL.textContent  = nLibre;
-                const elO = _el('sel-option-n'); if (elO) elO.textContent = nOption;
-            }
-
-            // Label "Tout sélectionner / désélectionner" reflète l'état courant
-            this._syncSelectAllLabel();
-        },
-
-        _syncUI() {
-            const f = S.f;
-            const active = f.commune_ids.length || f.zone_ids.length || f.format_ids.length || f.agency_ids.length || f.dimensions || f.is_lit!=='' || f.statut!=='tous' || f.du || f.au || f.source!=='all' || f.q;
-            _el('btn-reset').classList.toggle('hidden', !active);
-            this._renderTags();
-        },
-
-        _renderTags() {
-            const f=S.f, tags=[];
-            const addMS=(ids, key, data) => ids.forEach(id => {
-                const it=data.find(x=>x.id===id||x.id===parseInt(id));
-                if(it) tags.push({ l:it.name, rm:()=>{ const i=S.f[key].indexOf(id); if(i>-1) S.f[key].splice(i,1); S.page=1; _syncMs(key); this._fetch(); this._syncUI(); }});
-            });
-            addMS(f.commune_ids,'commune_ids',D.communes);
-            addMS(f.zone_ids,'zone_ids',D.zones);
-            addMS(f.format_ids,'format_ids',D.formats);
-            addMS(f.agency_ids,'agency_ids',D.agencies);
-            if(f.dimensions) tags.push({ l:f.dimensions, rm:()=>{ S.f.dimensions=''; _el('f-dimensions').value=''; S.page=1; this._fetch(); this._syncUI(); }});
-            if(f.is_lit==='1') tags.push({ l:'💡 Éclairé', rm:()=>{ S.f.is_lit=''; _el('f-is_lit').value=''; S.page=1; this._fetch(); this._syncUI(); }});
-            if(f.is_lit==='0') tags.push({ l:'Non éclairé', rm:()=>{ S.f.is_lit=''; _el('f-is_lit').value=''; S.page=1; this._fetch(); this._syncUI(); }});
-            if(f.statut!=='tous') tags.push({ l:'Statut: '+f.statut, rm:()=>{ S.f.statut='tous'; _el('f-statut').value='tous'; S.page=1; this._fetch(); this._syncUI(); }});
-            if(f.q) tags.push({ l:'🔍 '+f.q, rm:()=>{ S.f.q=''; _el('f-search').value=''; _el('btn-clear-search').classList.add('hidden'); S.page=1; this._fetch(); this._syncUI(); }});
-            const bar=_el('tags-bar'), list=_el('tags-list');
-            if(!bar||!list) return;
-            bar.classList.toggle('hidden', tags.length===0);
-            bar.classList.toggle('flex',   tags.length>0);
-            list.innerHTML = tags.map((t,i) => `<span class="ms-chip">${t.l}<button type="button" onclick="__tagRm(${i})" title="Retirer">✕</button></span>`).join('');
-            window.__tagCbs = tags.map(t => t.rm);
-        },
-    }; // fin window.DISPO
-
-    // ══ MULTI-SELECT ══════════════════════════════════════════
-    const MS = {};
-
-    function buildMs(wrapper) {
-        const key=wrapper.dataset.key, ph=wrapper.dataset.placeholder||'Sélectionner', data=MS_DATA[key]||[];
-        const btn=document.createElement('button'); btn.type='button'; btn.className='ms-btn';
-        btn.innerHTML=`<span class="ms-tags-inner"><span class="ms-placeholder">${ph}</span></span>`;
-        const drop=document.createElement('div'); drop.className='ms-drop'; drop.style.display='none';
-        const srch=document.createElement('div'); srch.className='ms-search';
-        const si=document.createElement('input'); si.type='text'; si.placeholder='Rechercher…'; si.autocomplete='off';
-        srch.appendChild(si); drop.appendChild(srch);
-        const listEl=document.createElement('div'); listEl.className='ms-list'; drop.appendChild(listEl);
-        const foot=document.createElement('div'); foot.className='ms-foot';
-        foot.innerHTML=`<span id="ms-foot-${key}">0 sélectionné(s)</span><div><button type="button" onclick="__msAll('${key}')">Tout</button><button type="button" onclick="__msClear('${key}')">Aucun</button></div>`;
-        drop.appendChild(foot); wrapper.appendChild(btn); wrapper.appendChild(drop);
-
-        function render(q='') {
-            const sel=S.f[key], filtered=q ? data.filter(i=>i.name.toLowerCase().includes(q.toLowerCase())) : data;
-            if(!filtered.length) { listEl.innerHTML='<div class="ms-opt" style="justify-content:center;font-style:italic">Aucun résultat</div>'; return; }
-            const frag=document.createDocumentFragment();
-            filtered.forEach(item => {
-                const isSel=sel.includes(item.id)||sel.includes(String(item.id));
-                const lbl=document.createElement('label');
-                lbl.className='ms-opt'+(isSel?' selected':''); lbl.dataset.id=item.id;
-                const dim=(key==='format_ids'&&item.width&&item.height)?` <small style="color:var(--text3)">(${Math.round(item.width)}×${Math.round(item.height)}m)</small>`:'';
-                lbl.innerHTML=`<input type="checkbox" ${isSel?'checked':''}> ${item.name}${dim}`;
-                lbl.querySelector('input').addEventListener('change', () => {
-                    const arr=S.f[key], idx=arr.indexOf(item.id);
-                    if(idx===-1) arr.push(item.id); else arr.splice(idx,1);
-                    lbl.classList.toggle('selected', arr.includes(item.id));
-                    updateTrigger(); updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI();
-                });
-                frag.appendChild(lbl);
-            });
-            listEl.innerHTML=''; listEl.appendChild(frag);
-        }
-
-        function updateTrigger() {
-            const sel=S.f[key], inner=btn.querySelector('.ms-tags-inner'); if(!inner) return;
-            if(!sel.length) { inner.innerHTML=`<span class="ms-placeholder">${ph}</span>`; }
-            else { inner.innerHTML=sel.map(id => { const it=data.find(x=>x.id===id||x.id===parseInt(id)); return it?`<span class="ms-chip">${it.name}<button type="button" onclick="event.preventDefault();event.stopPropagation();__msRemove('${key}',${id})" title="Retirer">✕</button></span>`:''; }).join(''); }
-            const badge=_el(`badge-${key}`);
-            if(badge) { badge.textContent=sel.length; badge.classList.toggle('hidden', sel.length===0); }
-            listEl.querySelectorAll('label.ms-opt').forEach(l => {
-                const id=parseInt(l.dataset.id), c=l.querySelector('input'), s=sel.includes(id)||sel.includes(String(id));
-                if(c) c.checked=s; l.classList.toggle('selected', s);
-            });
-        }
-
-        function updateFoot() { const el=_el(`ms-foot-${key}`); if(el) el.textContent=S.f[key].length+' sélectionné(s)'; }
-
-        let stimer;
-        si.addEventListener('input', () => { clearTimeout(stimer); stimer=setTimeout(()=>render(si.value),150); });
-        btn.addEventListener('click', e => {
-            e.stopPropagation();
-            const isOpen=drop.style.display!=='none'; _closeAllMs();
-            if(!isOpen) { drop.style.display='flex'; btn.classList.add('open'); render(''); si.value=''; si.focus(); updateFoot(); }
-        });
-        MS[key]={ el:wrapper, btn, drop, listEl, render, updateTrigger, updateFoot };
-    }
-
-    function _syncMs(key)    { MS[key]?.updateTrigger(); }
-    function _closeAllMs()   { Object.values(MS).forEach(m=>{ m.drop.style.display='none'; m.btn.classList.remove('open'); }); }
-
-    window.__msAll    = k => { const d=MS_DATA[k]||[]; const q=MS[k]?.drop?.querySelector('.ms-search input')?.value?.toLowerCase()||''; const vis=q?d.filter(i=>i.name.toLowerCase().includes(q)):d; vis.forEach(i=>{ if(!S.f[k].includes(i.id)&&!S.f[k].includes(String(i.id))) S.f[k].push(i.id); }); MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
-    window.__msClear  = k => { S.f[k]=[]; MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
-    window.__msRemove = (k,id) => { const i=S.f[k].indexOf(id), i2=S.f[k].indexOf(String(id)); if(i>-1) S.f[k].splice(i,1); else if(i2>-1) S.f[k].splice(i2,1); MS[k]?.updateTrigger(); MS[k]?.updateFoot(); S.page=1; DISPO._fetch(); DISPO._syncUI(); };
-    window.__tagRm    = i => { window.__tagCbs?.[i]?.(); };
-
-    document.addEventListener('click', _closeAllMs);
-
-    // ══ INIT ═════════════════════════════════════════════════
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.ms-wrapper').forEach(buildMs);
-
-        // Remplir dimensions
-        const dimSel = _el('f-dimensions');
-        if (dimSel) D.dimensions.forEach(d => {
-            const o=document.createElement('option'); o.value=d; o.textContent=d; dimSel.appendChild(o);
-        });
-
-        // Fermer avec Escape
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') {
-                DISPO.closeConfirmModal(); DISPO.closeFiche(); DISPO.closeError(); _closeAllMs();
-            }
-        });
-
-        // Afficher erreurs flash
-        if (D.hasErrors && D.flashErrors.length > 0) DISPO.showError(D.flashErrors);
-
-        DISPO._fetch(0);
-        DISPO._syncSelBar();
-    });
-
-})();
-
-// Fermer dropdown export PDF liste
-document.addEventListener('click', function(e) {
-    const wrap = document.getElementById('dispo-export-wrap');
-    if (wrap && !wrap.contains(e.target)) {
-        const dd = document.getElementById('dispo-export-dropdown');
-        if (dd) dd.classList.add('hidden');
-    }
-});
-</script>
+        </script>
     @endpush
 </x-admin-layout>
