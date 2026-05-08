@@ -281,6 +281,16 @@ class CampaignController extends Controller
             default                                          => "Facture {$invoice->reference} mise à jour.",
         };
 
+        // Re-render la ligne campagne avec les mêmes eager-loads que index()
+        // pour que le frontend puisse remplacer la <tr> en place — pas
+        // besoin de fetchData() qui rejoue tout le listing avec un spinner.
+        $campaign->load([
+            'client', 'user',
+            'invoices' => fn($q) => $q->select(['id','campaign_id','status','amount_ttc','paid_at','reference'])->latest(),
+        ]);
+        $campaign->loadCount(['panels', 'externalPanels', 'invoices']);
+        $rowHtml = view('admin.campaigns.partials.row', ['campaign' => $campaign])->render();
+
         return response()->json([
             'ok'              => true,
             'status'          => $invoice->status,
@@ -297,6 +307,8 @@ class CampaignController extends Controller
             'invoice_id'      => $invoice->id,
             'invoice_url'     => route('admin.invoices.show', $invoice),
             'count'           => $campaign->invoices()->count(),
+            'row_html'        => $rowHtml,
+            'campaign_id'     => $campaign->id,
         ]);
     }
 

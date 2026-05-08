@@ -628,9 +628,23 @@ async function submitBilling() {
             'Voir la facture'
         );
 
-        // Rafraîchir silencieusement le tableau pour refléter le nouveau statut
-        if (typeof fetchDataSilent === 'function') fetchDataSilent();
-        else if (typeof fetchData === 'function') fetchData();
+        // Mise à jour in-place de la ligne — pas de fetchData() ni de
+        // spinner, le bouton facturation reflète instantanément le nouveau
+        // statut. Fallback sur fetchData() si le serveur n'a pas renvoyé
+        // de row_html (compat anciennes réponses).
+        if (data.row_html && data.campaign_id) {
+            const oldRow = document.querySelector(`tr[data-campaign-row="${data.campaign_id}"]`);
+            if (oldRow) {
+                const wrapper = document.createElement('tbody');
+                wrapper.innerHTML = data.row_html.trim();
+                const newRow = wrapper.firstElementChild;
+                if (newRow) oldRow.replaceWith(newRow);
+            } else if (typeof fetchData === 'function') {
+                fetchData();
+            }
+        } else if (typeof fetchData === 'function') {
+            fetchData();
+        }
     } catch(e) {
         console.error(e);
         showCampaignToast('Erreur réseau. Réessayez.', 'error');

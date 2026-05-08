@@ -2,6 +2,17 @@
 <x-slot name="title">Facturation</x-slot>
 
 <x-slot name="topbarActions">
+    {{-- Les exports reprennent les filtres en cours pour ne pas avoir à
+         refiltrer côté Excel/PDF — utile pour transmettre un sous-ensemble
+         (1 client, 1 mois, 1 statut) au comptable. --}}
+    <a href="{{ route('admin.invoices.export.pdf', request()->only(['client_id','status','date_from','date_to'])) }}"
+       class="btn btn-ghost btn-sm" title="Export PDF du listing filtré">
+        📄 PDF
+    </a>
+    <a href="{{ route('admin.invoices.export.excel', request()->only(['client_id','status','date_from','date_to'])) }}"
+       class="btn btn-ghost btn-sm" title="Export Excel (.xlsx) du listing filtré">
+        📊 Excel
+    </a>
     <a href="{{ route('admin.invoices.create') }}" class="btn btn-primary btn-sm">＋ Nouvelle facture</a>
 </x-slot>
 

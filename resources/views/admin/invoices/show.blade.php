@@ -2,6 +2,12 @@
 <x-slot name="title">{{ $invoice->reference }}</x-slot>
 
 <x-slot name="topbarActions">
+    {{-- Bouton retour : back() si referer, sinon liste des factures (fallback fiable) --}}
+    <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('admin.invoices.index') }}"
+       class="btn btn-ghost btn-sm" title="Retour"
+       style="display:inline-flex;align-items:center;gap:4px;">
+        ← Retour
+    </a>
     <a href="{{ route('admin.invoices.pdf', $invoice) }}" class="btn btn-ghost btn-sm">
         📄 Export PDF
     </a>
@@ -34,7 +40,7 @@
                     <div class="card-title">{{ $invoice->reference }}</div>
                     <div style="font-size:12px; color:var(--text3); margin-top:3px;">
                         Émise le {{ $invoice->issued_at->format('d/m/Y') }}
-                        par {{ $invoice->creator->name }}
+                        par {{ $invoice->creator?->name ?? '—' }}
                     </div>
                 </div>
                 @if($invoice->status === 'brouillon')
@@ -51,7 +57,7 @@
                 <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
                     <div>
                         <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">CLIENT</div>
-                        <div style="font-weight:600;">{{ $invoice->client->name }}</div>
+                        <div style="font-weight:600;">{{ $invoice->client?->name ?? '—' }}</div>
                     </div>
                     <div>
                         <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">CAMPAGNE</div>
@@ -109,15 +115,15 @@
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     <div>
                         <div style="font-size:11px; color:var(--text3);">NOM</div>
-                        <div style="font-weight:600;">{{ $invoice->client->name }}</div>
+                        <div style="font-weight:600;">{{ $invoice->client?->name ?? '—' }}</div>
                     </div>
-                    @if($invoice->client->email)
+                    @if($invoice->client?->email)
                     <div>
                         <div style="font-size:11px; color:var(--text3);">EMAIL</div>
                         <div>{{ $invoice->client->email }}</div>
                     </div>
                     @endif
-                    @if($invoice->client->phone)
+                    @if($invoice->client?->phone)
                     <div>
                         <div style="font-size:11px; color:var(--text3);">TÉLÉPHONE</div>
                         <div>{{ $invoice->client->phone }}</div>
