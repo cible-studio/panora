@@ -2,37 +2,6 @@
     <x-slot name="title">Connexion</x-slot>
 
     <style>
-        /* ===== PAGE BLANCHE SANS CARREAUX ===== */
-        html,
-        body {
-            margin: 0;
-            padding: 0;
-            min-height: 100%;
-            background: #ffffff !important;
-            background-image: none !important;
-        }
-
-        /* Supprime tous patterns possibles du layout */
-        body::before,
-        body::after,
-        main::before,
-        main::after,
-        .min-h-screen::before,
-        .min-h-screen::after {
-            display: none !important;
-            content: none !important;
-            background: none !important;
-        }
-
-        /* Conteneur layout */
-        .min-h-screen,
-        .auth-wrapper,
-        .auth-container,
-        main {
-            background: #ffffff !important;
-            background-image: none !important;
-        }
-
         /* ===== VARIABLES ===== */
         :root {
             --surface: #ffffff;
