@@ -254,10 +254,14 @@
                 <span class="lbl">Emplacements</span>
                 <span class="val">{{ $panelCount }} panneau{{ $panelCount > 1 ? 'x' : '' }}</span>
             </div>
-            @if($reservation->total_amount > 0)
+            @if($reservation->total_amount !== null)
                 <div class="row">
                     <span class="lbl">Montant estimé</span>
-                    <span class="val accent">{{ number_format((float) $reservation->total_amount, 0, ',', ' ') }} FCFA</span>
+                    @if((float) $reservation->total_amount > 0)
+                        <span class="val accent">{{ number_format((float) $reservation->total_amount, 0, ',', ' ') }} FCFA</span>
+                    @else
+                        <span class="val accent" style="color:#16a34a;">0 FCFA · Offert</span>
+                    @endif
                 </div>
             @endif
             @if($campaign)

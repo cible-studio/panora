@@ -156,14 +156,22 @@
                 </div>
                 <div style="display:flex;justify-content:space-between;font-size:13px;border-top:1px dashed var(--border);padding-top:8px;margin-top:2px;">
                     <span style="color:var(--text2);font-weight:500;">Prix mensuel</span>
-                    <span style="color:var(--text2);font-weight:600;">{{ number_format($panel['monthly_rate'], 0, ',', ' ') }} FCFA</span>
+                    <span style="color:var(--text2);font-weight:600;">
+                        @if(($panel['monthly_rate'] ?? 0) > 0)
+                            {{ number_format($panel['monthly_rate'], 0, ',', ' ') }} FCFA
+                        @else
+                            0 FCFA <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:rgba(34,197,94,0.12);color:#16a34a;margin-left:4px;">OFFERT</span>
+                        @endif
+                    </span>
                 </div>
-                @if(!empty($panel['total']) && $panel['total'] > 0)
                 <div style="display:flex;justify-content:space-between;font-size:13px;padding-top:6px;">
                     <span style="color:var(--text);font-weight:600;">Total ({{ $monthsLabel }} mois)</span>
-                    <span style="color:#e20613;font-weight:800;">{{ number_format($panel['total'], 0, ',', ' ') }} FCFA</span>
+                    @if(($panel['total'] ?? 0) > 0)
+                        <span style="color:#e20613;font-weight:800;">{{ number_format($panel['total'], 0, ',', ' ') }} FCFA</span>
+                    @else
+                        <span style="color:#16a34a;font-weight:800;">0 FCFA</span>
+                    @endif
                 </div>
-                @endif
             </div>
 
             <button onclick="openPanelModal({{ $index }})"
@@ -177,24 +185,37 @@
 </div>
 
 {{-- ══ TOTAL ══ --}}
-@php $totalAmount = (float) $reservation->total_amount; @endphp
-@if($totalAmount > 0)
-<div style="background:linear-gradient(135deg,rgba(226,6,19,.08),transparent);border:1px solid rgba(226,6,19,.2);border-radius:14px;padding:24px;margin-bottom:20px;">
+@php
+    $totalAmount = (float) $reservation->total_amount;
+    $isOffert = $totalAmount === 0.0;
+    $accent = $isOffert ? '#16a34a' : '#e20613';
+@endphp
+{{-- Toujours afficher le total (même 0 FCFA) — c'est un récap client
+     attendu même quand la campagne est offerte. --}}
+<div style="background:linear-gradient(135deg,{{ $isOffert ? 'rgba(34,197,94,.08)' : 'rgba(226,6,19,.08)' }},transparent);border:1px solid {{ $isOffert ? 'rgba(34,197,94,.2)' : 'rgba(226,6,19,.2)' }};border-radius:14px;padding:24px;margin-bottom:20px;">
     <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;margin-bottom:12px;">
         <div>
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Montant total estimé (HT)</div>
-            <div style="font-size:28px;font-weight:800;color:#e20613;line-height:1;">
-                {{ number_format($totalAmount, 0, ',', ' ') }}
-                <span style="font-size:14px;font-weight:400;color:var(--text3);"> FCFA</span>
+            <div style="font-size:28px;font-weight:800;color:{{ $accent }};line-height:1;display:inline-flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+                <span>
+                    {{ number_format($totalAmount, 0, ',', ' ') }}
+                    <span style="font-size:14px;font-weight:400;color:var(--text3);"> FCFA</span>
+                </span>
+                @if($isOffert)
+                    <span style="font-size:11px;font-weight:800;padding:3px 10px;border-radius:12px;background:rgba(34,197,94,0.15);color:#16a34a;letter-spacing:.5px;">OFFERT</span>
+                @endif
             </div>
             <div style="font-size:11px;color:var(--text3);margin-top:4px;">Pour {{ $days }} jour{{ $days > 1 ? 's' : '' }} ({{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }}) · {{ count($panels) }} emplacement(s)</div>
         </div>
     </div>
-    <div style="font-size:11px;color:var(--text3);padding-top:12px;border-top:1px solid rgba(226,6,19,.15);">
-        Devis définitif établi lors de la confirmation. Tarifs nets hors taxes et frais techniques.
+    <div style="font-size:11px;color:var(--text3);padding-top:12px;border-top:1px solid {{ $isOffert ? 'rgba(34,197,94,.15)' : 'rgba(226,6,19,.15)' }};">
+        @if($isOffert)
+            Campagne offerte — aucun montant à régler. Détails contractuels lors de la confirmation.
+        @else
+            Devis définitif établi lors de la confirmation. Tarifs nets hors taxes et frais techniques.
+        @endif
     </div>
 </div>
-@endif
 
 {{-- ══ INTERLOCUTEUR ══ --}}
 @if($reservation->user)
@@ -406,12 +427,17 @@
                 <span style="color:var(--text3)">Emplacements</span>
                 <span style="color:var(--text);font-weight:600">{{ count($panels) }} panneau{{ count($panels) > 1 ? 'x' : '' }}</span>
             </div>
-            @if($totalAmount > 0)
             <div style="display:flex;justify-content:space-between;align-items:center;font-size:14px;padding-top:8px;border-top:1px solid var(--border);margin-top:6px;">
-                <span style="color:var(--text);font-weight:700">Total à payer (HT)</span>
-                <span style="color:#e20613;font-weight:800;font-size:16px">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</span>
+                <span style="color:var(--text);font-weight:700">{{ $totalAmount > 0 ? 'Total à payer (HT)' : 'Total' }}</span>
+                @if($totalAmount > 0)
+                    <span style="color:#e20613;font-weight:800;font-size:16px">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</span>
+                @else
+                    <span style="display:inline-flex;align-items:baseline;gap:6px;">
+                        <span style="color:#16a34a;font-weight:800;font-size:16px">0 FCFA</span>
+                        <span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;background:rgba(34,197,94,0.15);color:#16a34a;">OFFERT</span>
+                    </span>
+                @endif
             </div>
-            @endif
         </div>
 
         <div style="background:rgba(250,184,11,.08);border:1px solid rgba(250,184,11,.2);border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:#fab80b;">

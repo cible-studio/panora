@@ -129,6 +129,9 @@
                     <span>{{ $panelCount }} panneau(x)</span>
                     @if($total > 0)
                         <span>{{ number_format($total, 0, ',', ' ') }} FCFA</span>
+                    @elseif($res->total_amount !== null)
+                        {{-- 0 FCFA explicitement saisi (campagne offerte) --}}
+                        <span style="color:#16a34a;font-weight:600;">0 FCFA · Offert</span>
                     @endif
                     @if($res->proposition_sent_at)
                         <span>Reçue {{ $res->proposition_sent_at->diffForHumans() }}</span>

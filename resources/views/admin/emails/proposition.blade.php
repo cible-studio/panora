@@ -25,10 +25,15 @@
         ? $panels->sum(fn($p) => (float) ($p['monthly_rate'] ?? 0) * $months)
         : (float) $reservation->total_amount;
 
-    $hasAmount = $totalAmount > 0;
+    // hasAmount = montant non null (0 inclus, c'est une décision business
+    // valable). On affiche systématiquement le total — y compris 0 FCFA.
+    $hasAmount = $reservation->total_amount !== null;
+    $isOffert  = $hasAmount && $totalAmount === 0.0;
 
     $preheader = "{$panelCount} emplacements · {$totalDays} jour" . ($totalDays > 1 ? 's' : '')
-        . ($hasAmount ? ' · ' . number_format($totalAmount, 0, ',', ' ') . ' FCFA' : '');
+        . ($hasAmount
+            ? ' · ' . ($isOffert ? 'Offert' : number_format($totalAmount, 0, ',', ' ') . ' FCFA')
+            : '');
 @endphp
 
 <x-mail.layout title="Proposition commerciale" :preheader="$preheader">
@@ -60,14 +65,22 @@
             <div class="lbl">Emplacements</div>
             <div class="val">{{ $panelCount }} panneau{{ $panelCount > 1 ? 'x' : '' }}</div>
         </div>
-        @if($totalAmount > 0)
+        @if($hasAmount)
             <div class="info-row">
-                <div class="lbl">Montant total à payer</div>
+                <div class="lbl">{{ $isOffert ? 'Montant total' : 'Montant total à payer' }}</div>
                 <div class="val">
-                    <strong style="color:#c2570d;font-size:16px">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</strong>
-                    <div style="font-size:11px;color:#6b7280;margin-top:2px">
-                        Pour la totalité de la campagne ({{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }})
-                    </div>
+                    @if($isOffert)
+                        <strong style="color:#16a34a;font-size:16px">0 FCFA</strong>
+                        <span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#dcfce7;color:#16a34a;letter-spacing:.4px;margin-left:6px;">OFFERT</span>
+                        <div style="font-size:11px;color:#6b7280;margin-top:2px">
+                            Campagne offerte par CIBLE CI ({{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }})
+                        </div>
+                    @else
+                        <strong style="color:#c2570d;font-size:16px">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</strong>
+                        <div style="font-size:11px;color:#6b7280;margin-top:2px">
+                            Pour la totalité de la campagne ({{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }})
+                        </div>
+                    @endif
                 </div>
             </div>
         @endif
@@ -105,7 +118,8 @@
                                 </div>
                             @endif
                         @else
-                            <div style="font-size:12px;color:#6b7280;">Sur devis</div>
+                            <div style="font-size:14px;color:#16a34a;font-weight:700;">0 FCFA</div>
+                            <div style="font-size:11px;color:#16a34a;font-weight:600;letter-spacing:.4px;">OFFERT</div>
                         @endif
                     </td>
                 </tr>

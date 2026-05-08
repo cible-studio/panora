@@ -651,7 +651,14 @@
                         @if($panel['total'] > 0)
                             <span class="val">{{ number_format($panel['total'], 0, ',', ' ') }} FCFA</span>
                         @else
-                            <span class="val" style="font-size:12px;color:var(--text3);font-weight:500">Sur devis</span>
+                            {{-- 0 FCFA est un tarif valide (campagne offerte / package
+                                 inclus). On l'affiche tel quel avec un badge "Offert"
+                                 plutôt que "Sur devis" qui suggérait à tort une donnée
+                                 manquante. --}}
+                            <span class="val" style="display:inline-flex;align-items:baseline;gap:8px;">
+                                <span>0 FCFA</span>
+                                <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(34,197,94,0.12);color:#16a34a;letter-spacing:.4px;">OFFERT</span>
+                            </span>
                         @endif
                     </div>
                 </div>
@@ -676,22 +683,28 @@
         $panelCount  = $panels->count();
     @endphp
 
-    @if($totalAmount > 0)
-        <div class="total">
-            <div>
-                <div class="lbl">Montant total estimé HT</div>
-                <div class="amount">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</div>
-                <div class="sub">Hors taxes — devis définitif sur confirmation</div>
+    {{-- Le total est toujours affiché : 0 FCFA reste un montant valide
+         (campagne offerte). Pas de "@if > 0" qui ferait disparaître le bloc
+         et laisserait le client sans récap visuel. --}}
+    <div class="total">
+        <div>
+            <div class="lbl">Montant total estimé HT</div>
+            <div class="amount">
+                {{ number_format($totalAmount, 0, ',', ' ') }} FCFA
+                @if($totalAmount === 0.0 || $totalAmount === 0)
+                    <span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:12px;background:rgba(34,197,94,0.12);color:#16a34a;letter-spacing:.4px;margin-left:8px;vertical-align:middle;">OFFERT</span>
+                @endif
             </div>
-            <div class="total-right">
-                <div class="stat"><strong>{{ $panelCount }}</strong> emplacement{{ $panelCount > 1 ? 's' : '' }}</div>
-                <div class="stat" style="margin-top:4px">
-                    <strong>{{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }}</strong>
-                    ({{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }})
-                </div>
+            <div class="sub">Hors taxes — devis définitif sur confirmation</div>
+        </div>
+        <div class="total-right">
+            <div class="stat"><strong>{{ $panelCount }}</strong> emplacement{{ $panelCount > 1 ? 's' : '' }}</div>
+            <div class="stat" style="margin-top:4px">
+                <strong>{{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }}</strong>
+                ({{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }})
             </div>
         </div>
-    @endif
+    </div>
 
     {{-- ────────── CTA ────────── --}}
     @if($expiresIn === null || $expiresIn > 0)

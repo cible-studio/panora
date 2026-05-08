@@ -377,6 +377,8 @@
                                 <td class="val">
                                     @if($rate > 0)
                                         <strong style="color:#c2570d;">{{ number_format($rate, 0, ',', ' ') }} FCFA</strong>
+                                    @elseif($rate === 0 || $rate === 0.0)
+                                        <strong style="color:#16a34a;">0 FCFA</strong>
                                     @else
                                         <span style="color:#9ca3af">Sur devis</span>
                                     @endif
