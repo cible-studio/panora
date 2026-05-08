@@ -98,13 +98,26 @@ class PoseService
 
             // Envoi WhatsApp (best-effort, après commit pour ne pas bloquer la trans)
             // — fait en dehors de la transaction pour ne pas la garder ouverte le
-            //   temps des appels HTTP externes
+            //   temps des appels HTTP externes.
+            //
+            // Stratégie digest : si 2+ tâches sont créées en lot pour le même
+            // (technicien, campagne), on envoie UN seul message récapitulatif
+            // avec un lien unique (page pige terrain de la campagne) plutôt que
+            // 100 messages séparés. Pour 1 seule tâche, on garde le message
+            // détaillé classique avec le lien public dédié.
             if (!empty($created)) {
                 $tasks = PoseTask::with(['panel:id,reference,name,adresse,quartier,commune_id', 'panel.commune:id,name', 'technicien:id,name,whatsapp_number'])
                     ->whereIn('id', $created)
                     ->get();
-                foreach ($tasks as $t) {
-                    $this->notifyTechnicianOnWhatsApp($t);
+
+                $groups = $tasks->groupBy(fn($t) => ($t->assigned_user_id ?? 'none') . ':' . ($t->campaign_id ?? 'none'));
+
+                foreach ($groups as $group) {
+                    if ($group->count() === 1) {
+                        $this->notifyTechnicianOnWhatsApp($group->first());
+                    } else {
+                        $this->notifyTechnicianBatch($group);
+                    }
                 }
             }
 
@@ -294,6 +307,109 @@ class PoseService
 
         if ($sent) {
             $task->forceFill(['whatsapp_sent_at' => now()])->saveQuietly();
+        }
+
+        return $sent;
+    }
+
+    /**
+     * Envoie 1 seul message digest pour un lot de tâches pose assignées au
+     * même technicien et concernant la même campagne. Le lien pointe vers
+     * la page pige terrain de la campagne (génération automatique du token
+     * si pas encore créé) — le technicien y voit tous les panneaux d'un
+     * coup, photos, GPS, statuts pose, sans avoir 100 URLs distinctes.
+     *
+     * Si pas de campagne (poses ad-hoc), on envoie quand même un récap
+     * sans lien — l'admin recevra du feedback côté UI sur quels panneaux.
+     */
+    public function notifyTechnicianBatch(\Illuminate\Support\Collection $tasks): bool
+    {
+        if (!config('services.whatsapp.enabled', true) || $tasks->isEmpty()) {
+            return false;
+        }
+
+        $first = $tasks->first();
+        $tech  = $first->technicien;
+
+        if (!$tech || empty($tech->whatsapp_number)) {
+            Log::info('pose_task.whatsapp.batch.skipped_no_number', [
+                'count'   => $tasks->count(),
+                'tech_id' => $tech?->id,
+            ]);
+            return false;
+        }
+
+        $campaign = $first->campaign;
+        $count    = $tasks->count();
+        $earliest = $tasks->min('scheduled_at');
+        $latest   = $tasks->max('scheduled_at');
+        $period   = $earliest && $latest && $earliest->ne($latest)
+            ? $earliest->format('d/m') . ' → ' . $latest->format('d/m/Y')
+            : ($earliest?->format('d/m/Y à H:i') ?? '—');
+
+        // Aperçu des 3 premiers panneaux (référence + commune) — assez
+        // pour donner du contexte sans surcharger le message WhatsApp.
+        $preview = $tasks->take(3)
+            ->map(fn($t) => '• ' . ($t->panel?->reference ?? '?')
+                . ' — ' . ($t->panel?->commune?->name ?? '—'))
+            ->join("\n");
+        $rest = $count > 3 ? "\n• … et " . ($count - 3) . " autre" . ($count - 3 > 1 ? 's' : '') : '';
+
+        // Lien unique : page pige campagne (génère le token à la volée si
+        // pas encore créé, idempotent).
+        $url = null;
+        if ($campaign) {
+            if (empty($campaign->pige_token)) {
+                $campaign->update([
+                    'pige_token'            => \Illuminate\Support\Str::random(48),
+                    'pige_token_created_at' => now(),
+                ]);
+            }
+            $url = route('pige.public.show', $campaign->pige_token);
+        }
+
+        $message = "Bonjour {$tech->name},\n\n"
+                 . "CIBLE CI vous assigne {$count} pose" . ($count > 1 ? 's' : '') . " :\n"
+                 . ($campaign ? "• Campagne : {$campaign->name}\n" : '')
+                 . "• Période : {$period}\n\n"
+                 . "Aperçu :\n{$preview}{$rest}\n\n"
+                 . ($url
+                    ? "Toutes les tâches + photos sur :\n{$url}\n\n"
+                    : "Détails à venir par votre superviseur.\n\n")
+                 . "Merci.\nCIBLE CI";
+
+        $context = [
+            'action'   => 'pose.assignment.batch',
+            'count'    => $count,
+            'tech_id'  => $tech->id,
+            'campaign' => $campaign?->id,
+        ];
+
+        // Template Meta dédié batch — fallback free-form si pas configuré.
+        // Variables :
+        //   {{1}} = nom technicien
+        //   {{2}} = nombre tâches
+        //   {{3}} = nom campagne (ou "—")
+        //   {{4}} = période
+        //   {{5}} = URL unique
+        $contentSid = config('services.twilio.content_sid_pose_batch');
+        if (!empty($contentSid) && $url !== null) {
+            $context['twilio_content_sid']  = $contentSid;
+            $context['twilio_content_vars'] = [
+                '1' => $tech->name,
+                '2' => (string) $count,
+                '3' => $campaign?->name ?? '—',
+                '4' => $period,
+                '5' => $url,
+            ];
+        }
+
+        $sent = app(WhatsAppService::class)->send($tech->whatsapp_number, $message, $context);
+
+        if ($sent) {
+            // Marque toutes les tâches du lot comme notifiées en une UPDATE
+            PoseTask::whereIn('id', $tasks->pluck('id'))
+                ->update(['whatsapp_sent_at' => now()]);
         }
 
         return $sent;

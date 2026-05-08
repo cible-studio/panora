@@ -230,7 +230,7 @@
 <div class="wrap">
 
     <div class="brand">
-        <div class="brand-name">CIBLE CI</div>
+        <img src="{{ asset('images/logol.png') }}" alt="CIBLE CI" style="height:36px;display:block;margin:0 auto 8px;" onerror="this.style.display='none'">
         <div class="brand-sub">Enquête de satisfaction</div>
     </div>
 

@@ -12,32 +12,41 @@
         background: #f1f5f9; color: #0f172a;
         font-size: 14px; line-height: 1.5;
         -webkit-font-smoothing: antialiased;
+        padding-bottom: 80px;
     }
 
-    .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px 80px; }
+    .wrap { max-width: 800px; margin: 0 auto; padding: 0 14px; }
 
-    /* HEADER */
+    /* HEADER avec logo CIBLE */
     .header {
         background: #0a0c10; color: #fff;
-        padding: 18px 16px; margin-bottom: 14px;
+        padding: 14px 16px; margin-bottom: 14px;
+        border-bottom: 3px solid #e8a020;
     }
-    .header-inner { max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
-    .logo {
-        font-size: 20px; font-weight: 800; color: #e8a020;
-        letter-spacing: -.5px;
+    .header-inner {
+        max-width: 800px; margin: 0 auto;
+        display: flex; align-items: center; gap: 12px;
     }
-    .logo-sub {
-        font-size: 9px; color: #8a90a2;
+    .header img { height: 38px; }
+    .header-meta { flex: 1; min-width: 0; }
+    .header-meta .badge {
+        display: inline-block;
+        font-size: 9px; font-weight: 700; color: #e8a020;
         text-transform: uppercase; letter-spacing: 1.5px;
-        margin-top: 2px;
+        background: rgba(232,160,32,.1);
+        padding: 2px 8px; border-radius: 10px;
     }
-    .header h1 { font-size: 14px; font-weight: 600; color: #fff; margin-top: 6px; }
+    .header-meta h1 {
+        font-size: 13px; font-weight: 600; color: #fff;
+        margin-top: 4px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
 
-    /* CAMPAGNE INFO */
+    /* CAMPAGNE INFO COMPACT */
     .campaign-card {
         background: #fff; border: 1px solid #e2e8f0;
-        border-radius: 12px; padding: 16px;
-        margin-bottom: 14px;
+        border-radius: 12px; padding: 14px 16px;
+        margin-bottom: 12px;
         border-left: 4px solid #e8a020;
     }
     .campaign-card .lbl {
@@ -45,12 +54,12 @@
         text-transform: uppercase; letter-spacing: 1.5px;
     }
     .campaign-card h2 {
-        font-size: 17px; font-weight: 800; color: #0f172a;
+        font-size: 16px; font-weight: 800; color: #0f172a;
         margin: 4px 0 6px;
     }
     .campaign-card .meta {
-        font-size: 12px; color: #64748b;
-        display: flex; flex-wrap: wrap; gap: 12px;
+        font-size: 11.5px; color: #64748b;
+        display: flex; flex-wrap: wrap; gap: 10px;
     }
 
     .closed-banner {
@@ -59,49 +68,112 @@
         margin-bottom: 14px; font-size: 13px; font-weight: 600;
     }
 
-    /* TECH NAME (saisie 1 fois, mémorisée localStorage) */
-    .tech-card {
-        background: #fff; border: 1px solid #e2e8f0;
-        border-radius: 12px; padding: 14px 16px;
-        margin-bottom: 14px;
-        display: flex; align-items: center; gap: 10px;
+    /* STICKY TOOLBAR : tech + filtres + recherche */
+    .toolbar-sticky {
+        position: sticky; top: 0; z-index: 50;
+        background: #f1f5f9;
+        padding: 8px 0; margin: 0 -14px 12px;
+        padding-left: 14px; padding-right: 14px;
+        border-bottom: 1px solid #e2e8f0;
     }
-    .tech-card label {
-        font-size: 11px; font-weight: 700; color: #64748b;
+    .tech-row, .search-row, .filter-row {
+        display: flex; align-items: center; gap: 8px;
+        margin-bottom: 8px;
+    }
+    .tech-row label, .search-row label {
+        font-size: 10px; font-weight: 700; color: #64748b;
         text-transform: uppercase; letter-spacing: 1px;
         flex-shrink: 0;
     }
-    .tech-card input {
-        flex: 1; padding: 8px 12px;
-        background: #f8fafc; border: 1px solid #e2e8f0;
+    .tech-row input, .search-row input {
+        flex: 1; padding: 9px 12px;
+        background: #fff; border: 1px solid #e2e8f0;
         border-radius: 8px; font-size: 13px; color: #0f172a;
         outline: none;
     }
-    .tech-card input:focus { border-color: #e8a020; }
+    .tech-row input:focus, .search-row input:focus { border-color: #e8a020; }
 
-    /* PROGRESS GLOBALE */
+    .filter-row { flex-wrap: wrap; gap: 6px; margin-bottom: 0; }
+    .filter-chip {
+        padding: 6px 10px;
+        background: #fff; border: 1px solid #e2e8f0;
+        border-radius: 16px; font-size: 11.5px; font-weight: 600;
+        color: #475569; cursor: pointer;
+        white-space: nowrap;
+        transition: all .15s;
+    }
+    .filter-chip:hover { border-color: #cbd5e1; }
+    .filter-chip.active {
+        background: #e8a020; color: #0a0c10;
+        border-color: #e8a020;
+    }
+    .filter-chip .count {
+        display: inline-block; padding: 0 6px;
+        background: rgba(0,0,0,.08); border-radius: 8px;
+        margin-left: 4px; font-size: 10px;
+    }
+    .filter-chip.active .count { background: rgba(0,0,0,.15); }
+
+    /* PROGRESS GLOBAL */
     .progress-card {
         background: #fff; border: 1px solid #e2e8f0;
-        border-radius: 12px; padding: 14px 16px;
-        margin-bottom: 14px;
+        border-radius: 12px; padding: 12px 16px;
+        margin-bottom: 12px;
     }
-    .progress-card .head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
+    .progress-card .head {
+        display: flex; justify-content: space-between;
+        font-size: 12px; margin-bottom: 6px;
+    }
     .progress-bar {
-        height: 8px; background: #f1f5f9; border-radius: 6px; overflow: hidden;
+        height: 7px; background: #f1f5f9; border-radius: 6px; overflow: hidden;
     }
     .progress-bar > div {
         height: 100%; background: linear-gradient(90deg, #e8a020, #f97316);
         transition: width .4s ease;
     }
 
+    /* COMMUNE GROUP */
+    .commune-group {
+        margin-bottom: 14px;
+    }
+    .commune-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px;
+        background: #fff; border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        cursor: pointer; user-select: none;
+        margin-bottom: 6px;
+        transition: background .15s;
+    }
+    .commune-header:hover { background: #f8fafc; }
+    .commune-header h3 {
+        font-size: 13px; font-weight: 700; color: #0f172a;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .commune-header .count-pill {
+        font-size: 10px; padding: 2px 8px;
+        background: rgba(232,160,32,.12); color: #c2570d;
+        border-radius: 10px; font-weight: 700;
+    }
+    .commune-header .arrow {
+        font-size: 14px; color: #64748b;
+        transition: transform .2s;
+    }
+    .commune-group.collapsed .arrow { transform: rotate(-90deg); }
+    .commune-group.collapsed .commune-body { display: none; }
+    .commune-body { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+
     /* PANEL CARD */
     .panel-card {
         background: #fff; border: 1px solid #e2e8f0;
-        border-radius: 12px; margin-bottom: 12px;
-        overflow: hidden;
+        border-radius: 10px; overflow: hidden;
     }
+    .panel-card.is-done { border-left: 3px solid #22c55e; }
+    .panel-card.is-pending { border-left: 3px solid #3b82f6; }
+    .panel-card.is-rejected { border-left: 3px solid #ef4444; }
+
     .panel-head {
-        padding: 12px 14px; border-bottom: 1px solid #f1f5f9;
+        padding: 10px 14px;
         display: flex; align-items: center; justify-content: space-between; gap: 8px;
     }
     .panel-ref {
@@ -110,106 +182,157 @@
     }
     .panel-name {
         font-weight: 600; color: #0f172a; font-size: 13px;
-        margin-top: 2px;
+        margin-top: 1px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .panel-meta { font-size: 11px; color: #64748b; }
-
-    .pige-status {
-        display: inline-block; padding: 2px 8px;
+    .panel-status {
+        display: inline-block; padding: 3px 9px;
         border-radius: 12px; font-size: 10px; font-weight: 700;
+        flex-shrink: 0;
     }
-    .pige-status-todo    { background: #fef3c7; color: #b45309; }
-    .pige-status-pending { background: #dbeafe; color: #1d4ed8; }
-    .pige-status-done    { background: #dcfce7; color: #166534; }
-    .pige-status-rejected{ background: #fee2e2; color: #b91c1c; }
+    .panel-status-todo    { background: #fef3c7; color: #b45309; }
+    .panel-status-pending { background: #dbeafe; color: #1d4ed8; }
+    .panel-status-done    { background: #dcfce7; color: #166534; }
+    .panel-status-rejected{ background: #fee2e2; color: #b91c1c; }
 
-    .panel-body { padding: 14px; }
+    .panel-body { padding: 0 14px 12px; }
 
     .upload-btn {
         display: block; width: 100%;
-        padding: 12px 14px;
+        padding: 11px 14px;
         background: #e8a020; color: #0a0c10;
-        font-weight: 700; font-size: 14px;
+        font-weight: 700; font-size: 13.5px;
         border: none; border-radius: 10px;
         cursor: pointer; text-align: center;
         transition: background .15s;
     }
     .upload-btn:hover { background: #d4910f; }
     .upload-btn:disabled { background: #cbd5e1; color: #fff; cursor: not-allowed; }
-    .upload-btn-secondary {
-        background: transparent; color: #64748b;
-        border: 1px solid #e2e8f0;
-    }
-    .upload-btn-secondary:hover { background: #f8fafc; color: #0f172a; }
 
-    /* PIGES déjà prises */
+    /* PIGE TILES déjà prises */
     .pige-list {
-        display: flex; gap: 8px; overflow-x: auto;
-        padding: 4px 0; margin-top: 10px;
+        display: flex; gap: 6px; overflow-x: auto;
+        padding: 4px 0; margin-top: 8px;
     }
     .pige-thumb {
         position: relative; flex-shrink: 0;
-        width: 72px; height: 72px; border-radius: 8px;
+        width: 64px; height: 64px; border-radius: 6px;
         overflow: hidden; background: #f1f5f9;
         border: 1px solid #e2e8f0;
+        cursor: pointer;
     }
     .pige-thumb img { width: 100%; height: 100%; object-fit: cover; }
     .pige-thumb .badge {
-        position: absolute; top: 4px; right: 4px;
+        position: absolute; top: 3px; right: 3px;
         font-size: 9px; padding: 1px 5px; border-radius: 6px;
         background: rgba(255,255,255,.95); color: #0f172a;
         font-weight: 700;
     }
 
-    /* MODAL UPLOAD */
+    /* MODAL UPLOAD — photo GRANDE */
     .modal {
         display: none; position: fixed; inset: 0;
-        background: rgba(0,0,0,.7); z-index: 1000;
-        align-items: center; justify-content: center; padding: 16px;
+        background: rgba(0,0,0,.85); z-index: 1000;
+        align-items: flex-start; justify-content: center;
+        padding: 0;
     }
     .modal.open { display: flex; }
     .modal-content {
-        background: #fff; border-radius: 14px; max-width: 460px; width: 100%;
-        padding: 20px; max-height: 92vh; overflow-y: auto;
+        background: #fff; max-width: 720px; width: 100%;
+        min-height: 100vh;
+        padding: 20px;
+        display: flex; flex-direction: column;
     }
-    .modal h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
-    .modal .field { margin-bottom: 12px; }
-    .modal .field label {
+    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; padding-right: 30px; }
+    .modal-close {
+        position: absolute; top: 16px; right: 16px;
+        background: rgba(0,0,0,.05); border: none;
+        width: 32px; height: 32px; border-radius: 16px;
+        cursor: pointer; font-size: 16px; color: #64748b;
+    }
+
+    .field { margin-bottom: 14px; }
+    .field label {
         display: block; font-size: 11px; font-weight: 700;
         color: #64748b; text-transform: uppercase;
-        letter-spacing: .8px; margin-bottom: 4px;
+        letter-spacing: .8px; margin-bottom: 5px;
     }
-    .modal .field input,
-    .modal .field textarea {
-        width: 100%; padding: 10px 12px;
+    .field input,
+    .field textarea {
+        width: 100%; padding: 11px 13px;
         background: #f8fafc; border: 1px solid #e2e8f0;
-        border-radius: 8px; font-size: 13px; color: #0f172a;
+        border-radius: 8px; font-size: 14px; color: #0f172a;
         outline: none; font-family: inherit;
     }
-    .modal .field input:focus,
-    .modal .field textarea:focus { border-color: #e8a020; }
-
-    .preview {
-        width: 100%; max-height: 220px; object-fit: contain;
-        background: #f8fafc; border-radius: 8px;
-        margin-bottom: 10px; display: none;
+    .field input:focus,
+    .field textarea:focus { border-color: #e8a020; }
+    .field input[type="file"] {
+        padding: 14px; cursor: pointer;
+        background: #fefce8; border: 2px dashed #facc15;
+        font-weight: 600; color: #854d0e;
     }
-    .preview.shown { display: block; }
+
+    /* PREVIEW PHOTO LARGE */
+    .preview-wrap {
+        position: relative;
+        width: 100%; min-height: 200px; max-height: 70vh;
+        background: #f8fafc; border-radius: 10px;
+        margin-bottom: 14px;
+        display: none;
+        overflow: hidden;
+    }
+    .preview-wrap.shown { display: block; }
+    .preview-wrap img {
+        width: 100%; height: auto; max-height: 70vh;
+        object-fit: contain;
+        display: block;
+    }
+    .preview-empty {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        padding: 60px 20px; color: #94a3b8;
+        background: #f8fafc; border: 2px dashed #e2e8f0;
+        border-radius: 10px; margin-bottom: 14px;
+        font-size: 13px; text-align: center;
+    }
+    .preview-empty .icon { font-size: 38px; margin-bottom: 8px; }
 
     .gps-info {
-        font-size: 11px; color: #64748b;
-        background: #f8fafc; padding: 6px 10px;
-        border-radius: 6px; margin-bottom: 10px;
+        font-size: 12px; color: #64748b;
+        background: #f8fafc; padding: 8px 12px;
+        border-radius: 6px; margin-bottom: 12px;
+        display: flex; align-items: center; gap: 6px;
     }
-    .gps-info.ok { color: #16a34a; }
+    .gps-info.ok { color: #16a34a; background: #dcfce7; }
 
-    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+    .modal-actions {
+        display: flex; gap: 8px; justify-content: flex-end;
+        margin-top: auto; padding-top: 14px;
+        border-top: 1px solid #f1f5f9;
+        position: sticky; bottom: 0; background: #fff;
+    }
     .btn-cancel {
-        padding: 10px 16px; background: #f1f5f9; color: #475569;
+        padding: 11px 18px; background: #f1f5f9; color: #475569;
         border: 1px solid #e2e8f0; border-radius: 8px;
         cursor: pointer; font-size: 13px; font-weight: 600;
     }
 
+    /* LIGHTBOX pour zoomer une miniature */
+    .lightbox {
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,.92); z-index: 2000;
+        align-items: center; justify-content: center; padding: 16px;
+    }
+    .lightbox.open { display: flex; }
+    .lightbox img { max-width: 100%; max-height: 95vh; object-fit: contain; }
+    .lightbox-close {
+        position: absolute; top: 14px; right: 14px;
+        background: rgba(255,255,255,.15); color: #fff;
+        border: none; width: 36px; height: 36px; border-radius: 18px;
+        cursor: pointer; font-size: 18px;
+    }
+
+    /* TOAST */
     .toast-host {
         position: fixed; top: 16px; left: 16px; right: 16px;
         z-index: 9999; pointer-events: none;
@@ -218,11 +341,19 @@
         background: #dcfce7; color: #166534; border: 1px solid #86efac;
         padding: 12px 16px; border-radius: 10px;
         font-size: 13px; font-weight: 600; margin-bottom: 8px;
-        max-width: 760px; margin-left: auto; margin-right: auto;
+        max-width: 800px; margin-left: auto; margin-right: auto;
         box-shadow: 0 4px 12px rgba(0,0,0,.1);
         pointer-events: auto;
     }
     .toast.error { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+
+    /* EMPTY STATE filtré */
+    .empty-filtered {
+        text-align: center; padding: 40px 20px;
+        color: #94a3b8; background: #fff;
+        border: 1px dashed #e2e8f0; border-radius: 12px;
+        font-size: 13px;
+    }
 
     .footer {
         text-align: center; font-size: 11px; color: #94a3b8;
@@ -234,9 +365,10 @@
 
 <div class="header">
     <div class="header-inner">
-        <div>
-            <div class="logo">CIBLE CI</div>
-            <div class="logo-sub">Régie OOH · Pige terrain</div>
+        <img src="{{ asset('images/logon.png') }}" alt="CIBLE CI" onerror="this.style.display='none'">
+        <div class="header-meta">
+            <span class="badge">📷 Pige terrain</span>
+            <h1>{{ $campaign->name }}</h1>
         </div>
     </div>
 </div>
@@ -258,87 +390,153 @@
             La prise de pige est désactivée.
         </div>
     @else
-        <div class="tech-card">
-            <label for="tech-name">Technicien</label>
+
+    @php
+        $panelsByCommune = $campaign->panels->groupBy(fn($p) => $p->commune?->name ?? 'Sans commune')->sortKeys();
+        $totalPiges     = $existingPiges->flatten()->count();
+        $totalPanels    = $campaign->panels->count();
+        $countDone      = $campaign->panels->filter(fn($p) => ($existingPiges[$p->id] ?? collect())->contains(fn($x) => $x->status === 'verifie'))->count();
+        $countPending   = $campaign->panels->filter(fn($p) => !($existingPiges[$p->id] ?? collect())->contains(fn($x) => $x->status === 'verifie') && ($existingPiges[$p->id] ?? collect())->isNotEmpty())->count();
+        $countTodo      = $totalPanels - $countDone - $countPending;
+        $progressPct    = $totalPanels > 0 ? round((($countDone + $countPending) / $totalPanels) * 100) : 0;
+    @endphp
+
+    <div class="progress-card">
+        <div class="head">
+            <span><strong>{{ $countDone + $countPending }}</strong> / {{ $totalPanels }} pigés</span>
+            <span style="color:#e8a020;font-weight:700;">{{ $progressPct }}%</span>
+        </div>
+        <div class="progress-bar"><div style="width:{{ $progressPct }}%"></div></div>
+    </div>
+
+    {{-- ─── TOOLBAR STICKY (tech, recherche, filtres) ─── --}}
+    <div class="toolbar-sticky">
+        <div class="tech-row">
+            <label for="tech-name">Tech.</label>
             <input type="text" id="tech-name" placeholder="Votre prénom et nom" maxlength="100">
         </div>
-
-        @php
-            $totalPiges = $existingPiges->flatten()->count();
-            $panelsWithPige = $existingPiges->keys()->count();
-            $totalPanels = $campaign->panels->count();
-            $progressPct = $totalPanels > 0 ? round(($panelsWithPige / $totalPanels) * 100) : 0;
-        @endphp
-        <div class="progress-card">
-            <div class="head">
-                <span><strong>{{ $panelsWithPige }}</strong> / {{ $totalPanels }} panneaux pigés</span>
-                <span style="color:#e8a020;font-weight:700;">{{ $progressPct }}%</span>
-            </div>
-            <div class="progress-bar"><div style="width:{{ $progressPct }}%"></div></div>
+        <div class="search-row">
+            <label for="search-input">🔍</label>
+            <input type="text" id="search-input" placeholder="Rechercher (réf., nom, commune…)" autocomplete="off">
         </div>
-    @endif
+        <div class="filter-row">
+            <button type="button" class="filter-chip active" data-filter="all">
+                Tous <span class="count">{{ $totalPanels }}</span>
+            </button>
+            <button type="button" class="filter-chip" data-filter="todo">
+                📷 À piger <span class="count">{{ $countTodo }}</span>
+            </button>
+            <button type="button" class="filter-chip" data-filter="pending">
+                ⏳ En attente <span class="count">{{ $countPending }}</span>
+            </button>
+            <button type="button" class="filter-chip" data-filter="done">
+                ✓ Pigé <span class="count">{{ $countDone }}</span>
+            </button>
+        </div>
+    </div>
 
-    @forelse($campaign->panels as $panel)
-        @php
-            $panelPiges = $existingPiges[$panel->id] ?? collect();
-            $hasVerified = $panelPiges->contains(fn($p) => $p->status === 'verifie');
-            $hasPending  = $panelPiges->contains(fn($p) => $p->status === 'en_attente');
-            $statusClass = $hasVerified ? 'pige-status-done' : ($hasPending ? 'pige-status-pending' : 'pige-status-todo');
-            $statusLabel = $hasVerified ? '✓ Pigé' : ($hasPending ? '⏳ En attente' : '📷 À piger');
-        @endphp
-        <div class="panel-card" data-panel-id="{{ $panel->id }}">
-            <div class="panel-head">
-                <div style="min-width:0;">
-                    <div class="panel-ref">{{ $panel->reference }}</div>
-                    <div class="panel-name">{{ \Illuminate\Support\Str::limit($panel->name, 60) }}</div>
-                    <div class="panel-meta">
-                        {{ $panel->commune?->name ?? '—' }}
-                        @if($panel->format?->name) · {{ $panel->format->name }}@endif
-                    </div>
+    {{-- ─── LISTE GROUPÉE PAR COMMUNE ─── --}}
+    <div id="panels-container">
+        @foreach($panelsByCommune as $communeName => $panels)
+            <div class="commune-group" data-commune="{{ \Illuminate\Support\Str::slug($communeName) }}">
+                <div class="commune-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                    <h3>📍 {{ $communeName }} <span class="count-pill">{{ $panels->count() }}</span></h3>
+                    <span class="arrow">▾</span>
                 </div>
-                <span class="pige-status {{ $statusClass }}">{{ $statusLabel }}</span>
-            </div>
-
-            <div class="panel-body">
-                @if(!$isClosed)
-                    <button type="button" class="upload-btn"
-                            onclick="PigeCollect.openUpload({{ $panel->id }}, '{{ addslashes($panel->reference) }}', '{{ addslashes(\Illuminate\Support\Str::limit($panel->name, 50)) }}')">
-                        📷 Prendre une photo
-                    </button>
-                @endif
-
-                @if($panelPiges->isNotEmpty())
-                    <div class="pige-list" data-panel-piges="{{ $panel->id }}">
-                        @foreach($panelPiges as $p)
-                            <div class="pige-thumb">
-                                <img src="{{ \Illuminate\Support\Facades\Storage::url($p->photo_path) }}" alt="">
-                                <span class="badge">
-                                    @if($p->status === 'verifie') ✓
-                                    @elseif($p->status === 'rejete') ✕
-                                    @else ⏳
-                                    @endif
-                                </span>
+                <div class="commune-body">
+                    @foreach($panels as $panel)
+                        @php
+                            $panelPiges = $existingPiges[$panel->id] ?? collect();
+                            $hasVerified = $panelPiges->contains(fn($p) => $p->status === 'verifie');
+                            $hasPending  = $panelPiges->contains(fn($p) => $p->status === 'en_attente');
+                            $hasRejected = $panelPiges->isNotEmpty() && $panelPiges->every(fn($p) => $p->status === 'rejete');
+                            $statusKey   = $hasVerified ? 'done' : ($hasPending ? 'pending' : ($hasRejected ? 'rejected' : 'todo'));
+                            $statusClass = "panel-status-{$statusKey}";
+                            $statusLabel = match($statusKey) {
+                                'done'     => '✓ Pigé',
+                                'pending'  => '⏳ En attente',
+                                'rejected' => '✕ Rejetée',
+                                default    => '📷 À piger',
+                            };
+                            $cardClass = match($statusKey) {
+                                'done'     => 'is-done',
+                                'pending'  => 'is-pending',
+                                'rejected' => 'is-rejected',
+                                default    => '',
+                            };
+                            $haystack = mb_strtolower(($panel->reference ?? '') . ' ' . ($panel->name ?? '') . ' ' . $communeName);
+                        @endphp
+                        <div class="panel-card {{ $cardClass }}"
+                             data-panel-id="{{ $panel->id }}"
+                             data-status="{{ $statusKey }}"
+                             data-search="{{ $haystack }}">
+                            <div class="panel-head">
+                                <div style="min-width:0;">
+                                    <div class="panel-ref">{{ $panel->reference }}</div>
+                                    <div class="panel-name">{{ \Illuminate\Support\Str::limit($panel->name, 60) }}</div>
+                                    <div class="panel-meta">
+                                        @if($panel->format?->name){{ $panel->format->name }}@endif
+                                        @if($panel->is_lit) · 💡 Éclairé @endif
+                                    </div>
+                                </div>
+                                <span class="panel-status {{ $statusClass }}">{{ $statusLabel }}</span>
                             </div>
-                        @endforeach
-                    </div>
-                @endif
+
+                            <div class="panel-body">
+                                <button type="button" class="upload-btn"
+                                        onclick="PigeCollect.openUpload({{ $panel->id }}, '{{ addslashes($panel->reference) }}', '{{ addslashes(\Illuminate\Support\Str::limit($panel->name, 50)) }}')">
+                                    📷 Prendre une photo
+                                </button>
+
+                                @if($panelPiges->isNotEmpty())
+                                    <div class="pige-list">
+                                        @foreach($panelPiges as $p)
+                                            <div class="pige-thumb"
+                                                 onclick="PigeCollect.zoom('{{ \Illuminate\Support\Facades\Storage::url($p->photo_path) }}')">
+                                                <img src="{{ \Illuminate\Support\Facades\Storage::url($p->photo_path) }}" alt="" loading="lazy">
+                                                <span class="badge">
+                                                    @if($p->status === 'verifie') ✓
+                                                    @elseif($p->status === 'rejete') ✕
+                                                    @else ⏳
+                                                    @endif
+                                                </span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
             </div>
+        @endforeach
+
+        <div id="empty-filtered" class="empty-filtered" style="display:none;">
+            Aucun panneau ne correspond à votre recherche / filtre.
         </div>
-    @empty
-        <div style="text-align:center;padding:30px;color:#94a3b8;">Aucun panneau associé à cette campagne.</div>
-    @endforelse
+    </div>
+
+    @endif
 
     <div class="footer">
         <strong>CIBLE CI</strong> — Lien sécurisé attribué à cette campagne.
     </div>
 </div>
 
-{{-- ─── MODAL UPLOAD ─── --}}
+{{-- ─── MODAL UPLOAD avec photo grande ─── --}}
 <div class="modal" id="upload-modal" onclick="if(event.target===this)PigeCollect.close()">
     <div class="modal-content" onclick="event.stopPropagation()">
+        <button type="button" class="modal-close" onclick="PigeCollect.close()">✕</button>
         <h3 id="upload-modal-title">Prendre une photo</h3>
 
-        <img id="upload-preview" class="preview">
+        <div id="preview-empty" class="preview-empty">
+            <div class="icon">📷</div>
+            <div>Sélectionnez ou prenez une photo<br>pour la prévisualiser ici.</div>
+        </div>
+        <div id="preview-wrap" class="preview-wrap">
+            <img id="upload-preview-img" alt="">
+        </div>
+
         <div id="upload-gps" class="gps-info">📍 GPS désactivé — la photo sera envoyée sans coordonnées.</div>
 
         <div class="field">
@@ -359,6 +557,12 @@
     </div>
 </div>
 
+{{-- ─── LIGHTBOX zoom ─── --}}
+<div class="lightbox" id="lightbox" onclick="PigeCollect.closeZoom()">
+    <button type="button" class="lightbox-close">✕</button>
+    <img id="lightbox-img" alt="">
+</div>
+
 <div id="toast-host" class="toast-host"></div>
 
 <script>
@@ -366,10 +570,10 @@ window.PigeCollect = (function () {
     const token = '{{ $token }}';
     const csrf  = document.querySelector('meta[name="csrf-token"]').content;
     const modal = document.getElementById('upload-modal');
+    const lightbox = document.getElementById('lightbox');
     let currentPanelId = null;
     let currentGps = { lat: null, lng: null };
 
-    // Demande GPS dès l'arrivée sur la page (avec consentement implicite navigateur)
     function requestGps() {
         if (!('geolocation' in navigator)) return;
         navigator.geolocation.getCurrentPosition(
@@ -393,11 +597,11 @@ window.PigeCollect = (function () {
         t.className = 'toast ' + (type === 'error' ? 'error' : '');
         t.textContent = message;
         host.appendChild(t);
-        setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; }, 2700);
-        setTimeout(() => t.remove(), 3100);
+        setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; }, 3000);
+        setTimeout(() => t.remove(), 3400);
     }
 
-    // Mémorise le nom du technicien dans localStorage pour ne pas avoir à le retaper
+    // ── Tech name persisté ──
     const techInput = document.getElementById('tech-name');
     if (techInput) {
         techInput.value = localStorage.getItem('pige_tech_name') || '';
@@ -406,14 +610,52 @@ window.PigeCollect = (function () {
         });
     }
 
-    // Auto-preview à la sélection du fichier
+    // ── Recherche live ──
+    const searchInput = document.getElementById('search-input');
+    let activeFilter = 'all';
+
+    function applyFiltersAndSearch() {
+        const term = (searchInput?.value || '').trim().toLowerCase();
+        let visibleCount = 0;
+
+        document.querySelectorAll('.panel-card').forEach(card => {
+            const matchesSearch = !term || card.dataset.search.includes(term);
+            const matchesFilter = activeFilter === 'all' || card.dataset.status === activeFilter;
+            const visible = matchesSearch && matchesFilter;
+            card.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+
+        // Cacher les groupes commune qui n'ont plus aucun panneau visible
+        document.querySelectorAll('.commune-group').forEach(group => {
+            const visiblePanels = group.querySelectorAll('.panel-card:not([style*="display: none"])').length;
+            group.style.display = visiblePanels > 0 ? '' : 'none';
+        });
+
+        document.getElementById('empty-filtered').style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+
+    searchInput?.addEventListener('input', applyFiltersAndSearch);
+
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            activeFilter = chip.dataset.filter;
+            applyFiltersAndSearch();
+        });
+    });
+
+    // ── Preview ─ scale image to fill modal nicely ──
     const fileInput = document.getElementById('upload-photo');
     fileInput?.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        const preview = document.getElementById('upload-preview');
-        preview.src = URL.createObjectURL(file);
-        preview.classList.add('shown');
+        const url = URL.createObjectURL(file);
+        const img = document.getElementById('upload-preview-img');
+        img.src = url;
+        document.getElementById('preview-empty').style.display = 'none';
+        document.getElementById('preview-wrap').classList.add('shown');
     });
 
     return {
@@ -422,16 +664,23 @@ window.PigeCollect = (function () {
             document.getElementById('upload-modal-title').textContent = `Photo — ${ref}`;
             document.getElementById('upload-photo').value = '';
             document.getElementById('upload-notes').value = '';
-            document.getElementById('upload-preview').classList.remove('shown');
-            document.getElementById('upload-preview').src = '';
+            document.getElementById('preview-wrap').classList.remove('shown');
+            document.getElementById('upload-preview-img').src = '';
+            document.getElementById('preview-empty').style.display = 'flex';
             modal.classList.add('open');
-
-            // Demande GPS à l'ouverture si pas encore obtenu
             if (currentGps.lat === null) requestGps();
         },
         close() {
             modal.classList.remove('open');
             currentPanelId = null;
+        },
+        zoom(url) {
+            document.getElementById('lightbox-img').src = url;
+            lightbox.classList.add('open');
+        },
+        closeZoom() {
+            lightbox.classList.remove('open');
+            document.getElementById('lightbox-img').src = '';
         },
         async submit() {
             const file = document.getElementById('upload-photo').files[0];
@@ -450,7 +699,7 @@ window.PigeCollect = (function () {
             fd.append('panel_id', String(currentPanelId));
             fd.append('photo',    file);
             fd.append('notes',    document.getElementById('upload-notes').value);
-            fd.append('tech_name',techInput?.value || '');
+            fd.append('tech_name', techInput?.value || '');
             if (currentGps.lat !== null) {
                 fd.append('gps_lat', currentGps.lat);
                 fd.append('gps_lng', currentGps.lng);
@@ -479,27 +728,33 @@ window.PigeCollect = (function () {
                 this.close();
                 showToast(data.message || 'Pige envoyée.');
 
-                // Mise à jour visuelle in-place : ajoute une miniature dans la
-                // pige-list du panneau et passe le statut à "en attente".
+                // MAJ in-place : ajout thumb + statut → en attente
                 const card = document.querySelector(`.panel-card[data-panel-id="${currentPanelId}"]`);
                 if (card) {
-                    let list = card.querySelector('[data-panel-piges]');
+                    let list = card.querySelector('.pige-list');
                     if (!list) {
                         list = document.createElement('div');
                         list.className = 'pige-list';
-                        list.dataset.panelPiges = currentPanelId;
                         card.querySelector('.panel-body').appendChild(list);
                     }
                     const thumb = document.createElement('div');
                     thumb.className = 'pige-thumb';
+                    thumb.onclick = () => PigeCollect.zoom(data.photo_url);
                     thumb.innerHTML = `<img src="${data.photo_url}" alt=""><span class="badge">⏳</span>`;
                     list.appendChild(thumb);
 
-                    const statusEl = card.querySelector('.pige-status');
-                    if (statusEl) {
-                        statusEl.className = 'pige-status pige-status-pending';
-                        statusEl.textContent = '⏳ En attente';
+                    const oldStatus = card.dataset.status;
+                    if (oldStatus !== 'done') {
+                        card.dataset.status = 'pending';
+                        card.classList.remove('is-done', 'is-rejected');
+                        card.classList.add('is-pending');
+                        const statusEl = card.querySelector('.panel-status');
+                        if (statusEl) {
+                            statusEl.className = 'panel-status panel-status-pending';
+                            statusEl.textContent = '⏳ En attente';
+                        }
                     }
+                    applyFiltersAndSearch();
                 }
             } catch (e) {
                 console.error(e);
@@ -511,6 +766,16 @@ window.PigeCollect = (function () {
         },
     };
 })();
+
+// Échap = fermer modale ou lightbox
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (document.getElementById('lightbox').classList.contains('open')) {
+        PigeCollect.closeZoom();
+    } else if (document.getElementById('upload-modal').classList.contains('open')) {
+        PigeCollect.close();
+    }
+});
 </script>
 </body>
 </html>

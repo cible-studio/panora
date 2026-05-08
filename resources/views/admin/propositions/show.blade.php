@@ -524,10 +524,9 @@
 <header class="header">
     <div class="header-inner">
         <div class="brand">
-            <div>
-                <div class="brand-logo">CIBLE <span class="accent">CI</span></div>
-                <div class="brand-sub">Régie Publicitaire</div>
-            </div>
+            <img src="{{ asset('images/logol.png') }}" alt="CIBLE CI"
+                 style="height:42px;display:block;"
+                 onerror="this.outerHTML='<div class=&quot;brand-logo&quot;>CIBLE <span class=&quot;accent&quot;>CI</span></div><div class=&quot;brand-sub&quot;>Régie Publicitaire</div>';">
         </div>
         <div class="header-meta">
             <div>Proposition <span class="ref">{{ $reservation->reference }}</span></div>

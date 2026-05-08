@@ -75,7 +75,10 @@ class PublicPigeController extends Controller
 
         $data = $request->validate([
             'panel_id' => ['required', 'integer', 'exists:panels,id'],
-            'photo'    => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:8192'], // 8 MB
+            // Smartphone moderne = 4-12 MB par photo : on monte à 16 MB pour
+            // accepter les photos brutes haute résolution sans demander au
+            // technicien de réduire avant envoi.
+            'photo'    => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:16384'], // 16 MB
             'gps_lat'  => 'nullable|numeric|between:-90,90',
             'gps_lng'  => 'nullable|numeric|between:-180,180',
             'notes'    => 'nullable|string|max:500',
