@@ -197,18 +197,49 @@
     .panel-status-done    { background: #dcfce7; color: #166534; }
     .panel-status-rejected{ background: #fee2e2; color: #b91c1c; }
 
-    .panel-body { padding: 0 14px 12px; }
+    /* Status stack (pose + pige côte à côte) */
+    .status-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+    .pose-pill {
+        display: inline-block; padding: 2px 8px;
+        border-radius: 11px; font-size: 9.5px; font-weight: 700;
+        white-space: nowrap;
+    }
+    .pose-todo { background: #fef3c7; color: #92400e; }
+    .pose-done { background: #dcfce7; color: #15803d; }
 
-    .upload-btn {
-        display: block; width: 100%;
-        padding: 11px 14px;
-        background: #e8a020; color: #0a0c10;
-        font-weight: 700; font-size: 13.5px;
+    /* Action row : 2 boutons côte à côte (pose + photo) */
+    .action-row {
+        display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .action-btn {
+        flex: 1; min-width: 130px;
+        padding: 11px 12px;
+        font-weight: 700; font-size: 13px;
         border: none; border-radius: 10px;
         cursor: pointer; text-align: center;
-        transition: background .15s;
+        transition: all .15s;
+    }
+    .action-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .pose-btn {
+        background: #22c55e; color: #fff;
+    }
+    .pose-btn:hover { background: #16a34a; }
+    .upload-btn {
+        background: #e8a020; color: #0a0c10;
     }
     .upload-btn:hover { background: #d4910f; }
+    .pose-done-tag {
+        flex: 1; min-width: 130px;
+        padding: 11px 12px;
+        font-weight: 700; font-size: 13px;
+        text-align: center;
+        background: rgba(34,197,94,.12); color: #15803d;
+        border: 1px solid rgba(34,197,94,.3);
+        border-radius: 10px;
+    }
+
+    .panel-body { padding: 0 14px 12px; }
+    /* .upload-btn déjà défini plus haut dans .action-btn / .upload-btn */
     .upload-btn:disabled { background: #cbd5e1; color: #fff; cursor: not-allowed; }
 
     /* PIGE TILES déjà prises */
@@ -451,14 +482,24 @@
                             $hasVerified = $panelPiges->contains(fn($p) => $p->status === 'verifie');
                             $hasPending  = $panelPiges->contains(fn($p) => $p->status === 'en_attente');
                             $hasRejected = $panelPiges->isNotEmpty() && $panelPiges->every(fn($p) => $p->status === 'rejete');
-                            $statusKey   = $hasVerified ? 'done' : ($hasPending ? 'pending' : ($hasRejected ? 'rejected' : 'todo'));
-                            $statusClass = "panel-status-{$statusKey}";
-                            $statusLabel = match($statusKey) {
+                            $pigeKey     = $hasVerified ? 'done' : ($hasPending ? 'pending' : ($hasRejected ? 'rejected' : 'todo'));
+                            $pigeClass   = "panel-status-{$pigeKey}";
+                            $pigeLabel   = match($pigeKey) {
                                 'done'     => '✓ Pigé',
                                 'pending'  => '⏳ En attente',
                                 'rejected' => '✕ Rejetée',
                                 default    => '📷 À piger',
                             };
+
+                            // Lot 9.3 — État pose par panneau
+                            $poseTask  = $poseTasks[$panel->id] ?? null;
+                            $isPosed   = $poseTask?->status === 'realisee';
+                            $poseLabel = $isPosed ? '🪧 Posé' : '🛠 À poser';
+
+                            // Statut combiné pour filtrage (todo/pending/done/rejected)
+                            $statusKey = $isPosed && $hasVerified ? 'done'
+                                       : ($pigeKey === 'pending' ? 'pending'
+                                       : ($pigeKey === 'rejected' ? 'rejected' : 'todo'));
                             $cardClass = match($statusKey) {
                                 'done'     => 'is-done',
                                 'pending'  => 'is-pending',
@@ -470,6 +511,7 @@
                         <div class="panel-card {{ $cardClass }}"
                              data-panel-id="{{ $panel->id }}"
                              data-status="{{ $statusKey }}"
+                             data-pose-status="{{ $isPosed ? 'done' : 'todo' }}"
                              data-search="{{ $haystack }}">
                             <div class="panel-head">
                                 <div style="min-width:0;">
@@ -480,14 +522,31 @@
                                         @if($panel->is_lit) · 💡 Éclairé @endif
                                     </div>
                                 </div>
-                                <span class="panel-status {{ $statusClass }}">{{ $statusLabel }}</span>
+                                <div class="status-stack">
+                                    @if($poseTask)
+                                        <span class="pose-pill pose-{{ $isPosed ? 'done' : 'todo' }}">{{ $poseLabel }}</span>
+                                    @endif
+                                    <span class="panel-status {{ $pigeClass }}">{{ $pigeLabel }}</span>
+                                </div>
                             </div>
 
                             <div class="panel-body">
-                                <button type="button" class="upload-btn"
-                                        onclick="PigeCollect.openUpload({{ $panel->id }}, '{{ addslashes($panel->reference) }}', '{{ addslashes(\Illuminate\Support\Str::limit($panel->name, 50)) }}')">
-                                    📷 Prendre une photo
-                                </button>
+                                <div class="action-row">
+                                    @if($poseTask && !$isPosed)
+                                        <button type="button" class="action-btn pose-btn"
+                                                onclick="PigeCollect.markPosed({{ $panel->id }}, '{{ addslashes($panel->reference) }}')">
+                                            ✓ Pose effectuée
+                                        </button>
+                                    @elseif($isPosed)
+                                        <span class="pose-done-tag" title="Pose validée le {{ $poseTask->done_at?->format('d/m/Y H:i') }}">
+                                            🪧 Pose validée
+                                        </span>
+                                    @endif
+                                    <button type="button" class="action-btn upload-btn"
+                                            onclick="PigeCollect.openUpload({{ $panel->id }}, '{{ addslashes($panel->reference) }}', '{{ addslashes(\Illuminate\Support\Str::limit($panel->name, 50)) }}')">
+                                        📷 Photo de pige
+                                    </button>
+                                </div>
 
                                 @if($panelPiges->isNotEmpty())
                                     <div class="pige-list">
@@ -744,6 +803,62 @@ window.PigeCollect = (function () {
         closeZoom() {
             lightbox.classList.remove('open');
             document.getElementById('lightbox-img').src = '';
+        },
+        async markPosed(panelId, ref) {
+            if (!confirm(`Confirmer la pose effectuée pour le panneau ${ref} ?`)) return;
+
+            try {
+                const r = await fetch(`/pige/${token}/posed`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        _token: csrf,
+                        panel_id: String(panelId),
+                        tech_name: techInput?.value || '',
+                    }),
+                });
+
+                if (r.status === 422) {
+                    const data = await r.json().catch(() => ({}));
+                    showToast(data.message || 'Données invalides.', 'error');
+                    return;
+                }
+
+                const data = await r.json();
+                if (!r.ok || !data.ok) {
+                    showToast(data.message || 'Erreur.', 'error');
+                    return;
+                }
+
+                showToast(data.message || 'Pose validée.');
+
+                // MAJ in-place : remplacer bouton par tag + pill pose → done
+                const card = document.querySelector(`.panel-card[data-panel-id="${panelId}"]`);
+                if (card) {
+                    card.dataset.poseStatus = 'done';
+                    const posePill = card.querySelector('.pose-pill');
+                    if (posePill) {
+                        posePill.classList.remove('pose-todo');
+                        posePill.classList.add('pose-done');
+                        posePill.textContent = '🪧 Posé';
+                    }
+                    const poseBtn = card.querySelector('.pose-btn');
+                    if (poseBtn) {
+                        const tag = document.createElement('span');
+                        tag.className = 'pose-done-tag';
+                        tag.textContent = '🪧 Pose validée';
+                        tag.title = `Validée le ${data.done_at}`;
+                        poseBtn.replaceWith(tag);
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+                showToast('Erreur réseau. Réessayez.', 'error');
+            }
         },
         async submit() {
             const original = document.getElementById('upload-photo').files[0];

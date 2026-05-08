@@ -308,6 +308,10 @@ class ReservationService
 
         $campaign->panels()->sync($panelIds);
 
+        // Lot 9.1 — Auto-créer les tâches de pose dès la création
+        // (l'observer `created` est trop tôt avant le sync ci-dessus).
+        $campaign->ensurePoseTasksAutoCreated();
+
         Log::info('campaign.auto_created', [
             'campaign_id'    => $campaign->id,
             'reservation_id' => $reservation->id,

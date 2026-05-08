@@ -59,10 +59,13 @@ Route::prefix('satisfaction')->middleware('throttle:10,1')->group(function () {
 // technicien terrain. Throttle plus large (60 req/min) car upload de
 // photos sur plusieurs panneaux en suivant — éviter le throttle agressif.
 Route::prefix('pige')->middleware('throttle:60,1')->group(function () {
-    Route::get('/{token}',          [\App\Http\Controllers\PublicPigeController::class, 'show'])
+    Route::get('/{token}',           [\App\Http\Controllers\PublicPigeController::class, 'show'])
         ->name('pige.public.show');
-    Route::post('/{token}/upload',  [\App\Http\Controllers\PublicPigeController::class, 'upload'])
+    Route::post('/{token}/upload',   [\App\Http\Controllers\PublicPigeController::class, 'upload'])
         ->name('pige.public.upload');
+    // Lot 9.3 — Validation "Pose effectuée" par panneau depuis la page publique
+    Route::post('/{token}/posed',    [\App\Http\Controllers\PublicPigeController::class, 'markPosed'])
+        ->name('pige.public.posed');
 });
 
 Route::prefix('proposition')->name('proposition.')->group(function () {

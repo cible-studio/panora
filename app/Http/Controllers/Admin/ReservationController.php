@@ -1172,6 +1172,12 @@ class ReservationController extends Controller
                         DB::table('campaign_panels')->insert($campaignPanelsRows);
                     }
 
+                    // Lot 9.1 — Auto-créer les tâches de pose pour cette
+                    // nouvelle campagne (réservation type="ferme"). L'observer
+                    // `created` ne pouvait pas le faire car les panneaux ne
+                    // sont liés qu'après l'INSERT.
+                    $campaign->ensurePoseTasksAutoCreated();
+
                     $createdCampaignId = $campaign->id;
                 }
 

@@ -163,6 +163,18 @@ class Campaign extends Model
     }
 
     /**
+     * Lot 9.1 — S'assure qu'une PoseTask existe pour chaque panneau
+     * interne de la campagne. Idempotent. À appeler par les orchestrateurs
+     * APRÈS le sync des panneaux (l'observer `created` est trop tôt).
+     *
+     * Retourne le nombre de tâches créées (0 si toutes existent déjà).
+     */
+    public function ensurePoseTasksAutoCreated(): int
+    {
+        return \App\Observers\CampaignObserver::createPoseTasksForCampaign($this);
+    }
+
+    /**
      * Durée lisible : "3 mois", "15 jours", "2 mois 5 j"
      */
     public function durationHuman(): string

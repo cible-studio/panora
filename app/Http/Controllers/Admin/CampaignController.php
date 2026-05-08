@@ -449,6 +449,9 @@ class CampaignController extends Controller
                     }
                 }
 
+                // Lot 9.1 — Auto-création tâches de pose après sync panneaux
+                $campaign->ensurePoseTasksAutoCreated();
+
                 Log::info('campaign.created', [
                     'campaign_id'      => $campaign->id,
                     'user_id'          => auth()->id(),

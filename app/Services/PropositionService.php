@@ -122,6 +122,11 @@ class PropositionService
                     ], $externalIds);
                     DB::table('campaign_panels')->insert($rows);
                 }
+
+                // Lot 9.1 — Auto-création des tâches de pose APRÈS le sync
+                // des panneaux (l'observer `created` est trop tôt, panneaux
+                // pas encore liés à ce moment-là).
+                $campaign->ensurePoseTasksAutoCreated();
             } else {
                 $campaign = $reservation->campaign;
             }

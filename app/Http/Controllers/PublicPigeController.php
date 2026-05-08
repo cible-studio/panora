@@ -43,18 +43,104 @@ class PublicPigeController extends Controller
         $isClosed = in_array($campaign->status->value, ['termine', 'annule']);
 
         // Charge les piges existantes pour afficher l'état panneau par panneau.
-        // On ne récupère que le minimum (id, panel_id, status, taken_at,
-        // photo_path) pour rester léger sur smartphone.
         $existingPiges = Pige::where('campaign_id', $campaign->id)
             ->latest('taken_at')
             ->get(['id', 'panel_id', 'status', 'taken_at', 'photo_path', 'gps_lat', 'gps_lng', 'notes'])
             ->groupBy('panel_id');
+
+        // Lot 9.3 — Statut pose par panneau : index PoseTask par panel_id
+        // pour afficher "À poser" / "Posé" et l'action "Pose effectuée".
+        $poseTasks = \App\Models\PoseTask::where('campaign_id', $campaign->id)
+            ->get(['id', 'panel_id', 'status', 'done_at'])
+            ->keyBy('panel_id');
 
         return view('public.pige-collect', [
             'campaign'      => $campaign,
             'token'         => $token,
             'isClosed'      => $isClosed,
             'existingPiges' => $existingPiges,
+            'poseTasks'     => $poseTasks,
+        ]);
+    }
+
+    /**
+     * Lot 9.3 — Marque une tâche de pose comme effectuée depuis le lien
+     * public. Utilisé par le bouton "✓ Pose effectuée" de la page pige
+     * terrain. Idempotent : si la tâche est déjà completed, retourne ok
+     * sans erreur (le tech peut re-cliquer sans risque).
+     */
+    public function markPosed(Request $request, string $token)
+    {
+        $campaign = Campaign::where('pige_token', $token)->first();
+
+        if (!$campaign) {
+            return response()->json(['ok' => false, 'message' => 'Lien invalide.'], 404);
+        }
+
+        if (in_array($campaign->status->value, ['termine', 'annule'])) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Cette campagne est ' . $campaign->status->label() . " — pose ne peut plus être validée.",
+            ], 403);
+        }
+
+        $data = $request->validate([
+            'panel_id' => ['required', 'integer', 'exists:panels,id'],
+            'tech_name'=> 'nullable|string|max:100',
+        ]);
+
+        $task = \App\Models\PoseTask::where('campaign_id', $campaign->id)
+            ->where('panel_id', $data['panel_id'])
+            ->whereNotIn('status', ['annulee'])
+            ->first();
+
+        if (!$task) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Aucune tâche de pose trouvée pour ce panneau.',
+            ], 404);
+        }
+
+        // Idempotent : si déjà réalisée, on retourne ok mais on log pour info
+        if ($task->status === 'realisee') {
+            return response()->json([
+                'ok'      => true,
+                'message' => 'Pose déjà validée.',
+                'task_id' => $task->id,
+                'status'  => 'realisee',
+                'done_at' => $task->done_at?->format('d/m/Y H:i'),
+            ]);
+        }
+
+        $oldNotes = $task->notes ?: '';
+        $newNotes = trim(
+            $oldNotes
+            . ($oldNotes ? "\n" : '')
+            . '[via lien public] Validation pose'
+            . (!empty($data['tech_name']) ? ' par ' . $data['tech_name'] : '')
+            . ' le ' . now()->format('d/m/Y H:i')
+        );
+
+        $task->update([
+            'status'  => 'realisee',
+            'done_at' => now(),
+            'notes'   => $newNotes,
+        ]);
+
+        Log::info('pose_task.public.completed', [
+            'task_id'     => $task->id,
+            'panel_id'    => $data['panel_id'],
+            'campaign_id' => $campaign->id,
+            'tech_name'   => $data['tech_name'] ?? null,
+            'ip'          => $request->ip(),
+        ]);
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Pose validée. Le superviseur en est notifié.',
+            'task_id' => $task->id,
+            'status'  => 'realisee',
+            'done_at' => now()->format('d/m/Y H:i'),
         ]);
     }
 
