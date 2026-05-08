@@ -42,9 +42,9 @@
             <div class="stat-label">Libres</div>
             <div class="stat-value" style="color:var(--green);">{{ $panneauxLibres }}</div>
         </a>
-        <a href="#" data-status="occupe" class="stat-card filter-stat">
+        <a href="#" data-source="occupes" class="stat-card filter-stat">
             <div class="stat-label">Occupés</div>
-            <div class="stat-value" style="color:var(--accent);">{{ $panneauxOccupes }}</div>
+            <div class="stat-value" style="color:#ef4444;">{{ $panneauxOccupes }}</div>
         </a>
         <a href="#" data-status="maintenance" class="stat-card filter-stat">
             <div class="stat-label">Maintenance</div>
@@ -62,6 +62,9 @@
             ({{ $totalPanneaux + $totalExternes }})</button>
         <button type="button" data-source="cible" class="filter-source-btn btn btn-ghost btn-sm">✅ CIBLE CI
             ({{ $totalPanneaux }})</button>
+        <button type="button" data-source="occupes" class="filter-source-btn btn btn-ghost btn-sm"
+            style="color:#ef4444;border-color:rgba(239,68,68,0.3);">🔴 Occupés
+            ({{ $panneauxOccupes }})</button>
         <button type="button" data-source="externe" class="filter-source-btn btn btn-ghost btn-sm"
             style="color:var(--purple);border-color:rgba(168,85,247,0.3);">🏢 Régies externes
             ({{ $totalExternes }})</button>
@@ -165,6 +168,7 @@
                         'panels' => $panels,
                         'source' => $source ?? 'all',
                         'externalPanels' => $externalPanels,
+                        'showOccupants' => $showOccupants ?? false,
                     ])
                 </tbody>
             </table>
@@ -313,12 +317,20 @@
                             if (b.dataset.source === source) {
                                 b.classList.remove('btn-ghost');
                                 b.classList.add('btn-primary');
+                                b.style.color = '';
+                                b.style.borderColor = '';
                             } else {
                                 b.classList.remove('btn-primary');
                                 b.classList.add('btn-ghost');
                                 if (b.dataset.source === 'externe') {
                                     b.style.color = 'var(--purple)';
                                     b.style.borderColor = 'rgba(168,85,247,0.3)';
+                                } else if (b.dataset.source === 'occupes') {
+                                    b.style.color = '#ef4444';
+                                    b.style.borderColor = 'rgba(239,68,68,0.3)';
+                                } else {
+                                    b.style.color = '';
+                                    b.style.borderColor = '';
                                 }
                             }
                         });
@@ -346,12 +358,20 @@
                             if (btn.dataset.source === currentFilters.source) {
                                 btn.classList.remove('btn-ghost');
                                 btn.classList.add('btn-primary');
+                                btn.style.color = '';
+                                btn.style.borderColor = '';
                             } else {
                                 btn.classList.remove('btn-primary');
                                 btn.classList.add('btn-ghost');
                                 if (btn.dataset.source === 'externe') {
                                     btn.style.color = 'var(--purple)';
                                     btn.style.borderColor = 'rgba(168,85,247,0.3)';
+                                } else if (btn.dataset.source === 'occupes') {
+                                    btn.style.color = '#ef4444';
+                                    btn.style.borderColor = 'rgba(239,68,68,0.3)';
+                                } else {
+                                    btn.style.color = '';
+                                    btn.style.borderColor = '';
                                 }
                             }
                         });
@@ -391,12 +411,20 @@
                             if (btn.dataset.source === 'all') {
                                 btn.classList.remove('btn-ghost');
                                 btn.classList.add('btn-primary');
+                                btn.style.color = '';
+                                btn.style.borderColor = '';
                             } else {
                                 btn.classList.remove('btn-primary');
                                 btn.classList.add('btn-ghost');
                                 if (btn.dataset.source === 'externe') {
                                     btn.style.color = 'var(--purple)';
                                     btn.style.borderColor = 'rgba(168,85,247,0.3)';
+                                } else if (btn.dataset.source === 'occupes') {
+                                    btn.style.color = '#ef4444';
+                                    btn.style.borderColor = 'rgba(239,68,68,0.3)';
+                                } else {
+                                    btn.style.color = '';
+                                    btn.style.borderColor = '';
                                 }
                             }
                         });

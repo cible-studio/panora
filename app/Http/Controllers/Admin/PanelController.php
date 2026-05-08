@@ -28,6 +28,7 @@ class PanelController extends Controller
     public function index(Request $request)
     {
         $source = $request->input('source', 'all');
+        $showOccupants = false;
 
         // ═══════════════════════════════════════════════════════════════
         // PANNEAUX INTERNES (CIBLE CI)
@@ -42,13 +43,27 @@ class PanelController extends Controller
             // Eager loading optimisé : on ne charge que la photo principale (ordre=0/1)
             // pour éviter de tirer toutes les photos sur l'index (réduit drastiquement
             // la taille du payload et le N+1 photos).
-            $query = Panel::with([
+            $showOccupants = $source === 'occupes'
+                          || in_array($request->status, ['occupe', 'option', 'confirme']);
+
+            $eagerLoad = [
                 'commune:id,name',
                 'zone:id,name',
                 'format:id,name,width,height',
                 'category:id,name',
                 'photos' => fn($q) => $q->orderBy('ordre')->limit(1),
-            ]);
+            ];
+            if ($showOccupants) {
+                $eagerLoad['campaigns'] = fn($q) => $q
+                    ->whereNotIn('campaigns.status', ['annule', 'termine'])
+                    ->with('client:id,name');
+            }
+
+            $query = Panel::with($eagerLoad);
+
+            if ($source === 'occupes') {
+                $query->whereIn('status', ['occupe', 'option', 'confirme']);
+            }
 
             // 🔍 RECHERCHE EXACTE SUR MOT ENTIER
             // Exemple : "ABG" trouve "ABG-002" mais pas "CABG-001"
@@ -125,7 +140,7 @@ class PanelController extends Controller
         // RÉPONSE AJAX
         // ═══════════════════════════════════════════════════════════════
         if ($request->ajax() || $request->input('ajax')) {
-            $html = view('admin.panels.partials.table-rows', compact('panels', 'source', 'externalPanels', 'request'))->render();
+            $html = view('admin.panels.partials.table-rows', compact('panels', 'source', 'externalPanels', 'request', 'showOccupants'))->render();
             $paginationHtml = ($source !== 'externe' && $panels->hasPages()) ? $panels->links()->render() : '';
 
             return response()->json([
@@ -153,7 +168,8 @@ class PanelController extends Controller
             'enMaintenance',
             'externalPanels',
             'totalExternes',
-            'source'
+            'source',
+            'showOccupants'
         ));
     }
 
@@ -161,6 +177,9 @@ class PanelController extends Controller
     {
         if ($source === 'externe') {
             return '🏢 Panneaux Régies externes (' . $externalPanels->count() . ')';
+        }
+        if ($source === 'occupes') {
+            return '🔴 Panneaux occupés (' . $panels->total() . ')';
         }
         return '🪧 Panneaux CIBLE CI (' . $panels->total() . ')';
     }

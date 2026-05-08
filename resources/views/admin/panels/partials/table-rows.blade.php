@@ -27,7 +27,23 @@
     <td style="text-align:center;vertical-align:middle;"><span style="font-weight:700;color:var(--text2);">{{ $panel->nombre_faces ?? 1 }}</span></td>
     <td style="vertical-align:middle;">@if($panel->quartier)<div style="font-weight:500;font-size:12px;">{{ $panel->quartier }}</div>@endif @if($panel->adresse)<div style="font-size:11px;color:var(--text3);">{{ $panel->adresse }}</div>@endif @if(!$panel->quartier && !$panel->adresse)<span style="color:var(--text3);">—</span>@endif</td>
     <td style="color:var(--accent);font-weight:600;vertical-align:middle;">{{ number_format($panel->monthly_rate, 0, ',', ' ') }} FCFA</td>
-    <td style="vertical-align:middle;">@if($panel->status->value === 'libre')<span class="badge badge-green">Libre</span>@elseif($panel->status->value === 'option')<span class="badge badge-orange">Option</span>@elseif($panel->status->value === 'confirme')<span class="badge badge-blue">Confirmé</span>@elseif($panel->status->value === 'occupe')<span class="badge badge-purple">Occupé</span>@else<span class="badge badge-red">Maintenance</span>@endif</td>
+    <td style="vertical-align:middle;">
+        @if($panel->status->value === 'libre')<span class="badge badge-green">Libre</span>
+        @elseif($panel->status->value === 'option')<span class="badge badge-orange">Option</span>
+        @elseif($panel->status->value === 'confirme')<span class="badge badge-blue">Confirmé</span>
+        @elseif($panel->status->value === 'occupe')<span class="badge badge-purple">Occupé</span>
+        @else<span class="badge badge-red">Maintenance</span>@endif
+        @if(($showOccupants ?? false) && $panel->relationLoaded('campaigns') && $panel->campaigns->isNotEmpty())
+            @php $occ = $panel->campaigns->first(); @endphp
+            <div style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border);font-size:11px;line-height:1.5;">
+                <div style="font-weight:600;color:var(--text2);">{{ $occ->client?->name ?? '—' }}</div>
+                <a href="{{ route('admin.campaigns.show', $occ->id) }}"
+                   style="color:var(--accent);text-decoration:none;display:block;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                   title="{{ $occ->name }}">{{ $occ->name }}</a>
+                <div style="color:var(--text3);">→ {{ $occ->end_date->format('d/m/Y') }}</div>
+            </div>
+        @endif
+    </td>
     <td style="vertical-align:middle;"><div style="display:flex;gap:6px;"><a href="{{ route('admin.panels.show', $panel) }}" class="btn btn-ghost btn-sm" title="Voir">👁️</a><a href="{{ route('admin.panels.edit', $panel) }}" class="btn btn-ghost btn-sm" title="Modifier">✏️</a><a href="{{ route('admin.panels.pdf', $panel) }}" class="btn btn-ghost btn-sm" title="PDF">📄</a><form method="POST" action="{{ route('admin.panels.destroy', $panel) }}" onsubmit="return confirm('Supprimer ce panneau ?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm" title="Supprimer">🗑️</button></form></div></td>
 </tr>
 @empty
