@@ -190,8 +190,17 @@
             <div class="card-header">
                 <div class="card-title">⏳ Confirmations</div>
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <span class="badge badge-orange">{{ $reservationsEnAttente }} en attente</span>
-                    <a href="{{ route('admin.reservations.index') }}" class="btn btn-ghost btn-sm">Voir tout</a>
+                    {{-- Le badge et "Voir tout" pointent vers le listing
+                         filtré sur en_attente — sinon le clic montre toutes
+                         les réservations et l'admin ne retrouve pas la
+                         "1 réservation en attente" affichée ici. --}}
+                    <a href="{{ route('admin.reservations.index', ['status' => 'en_attente']) }}"
+                       class="badge badge-orange"
+                       style="text-decoration:none;cursor:pointer;"
+                       title="Voir les réservations en attente">
+                        {{ $reservationsEnAttente }} en attente
+                    </a>
+                    <a href="{{ route('admin.reservations.index', ['status' => 'en_attente']) }}" class="btn btn-ghost btn-sm">Voir tout</a>
                 </div>
             </div>
             <div class="card-body">

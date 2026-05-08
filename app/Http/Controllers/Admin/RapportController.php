@@ -223,6 +223,54 @@ class RapportController extends Controller
     }
 
     /**
+     * Rapport taxes communales (Lot 7) — auto-calculé depuis les
+     * campagnes effectivement actives sur l'année. Affiche :
+     *   - matrice mensuelle (mois × commune)
+     *   - synthèse trimestrielle par commune (Q1/Q2/Q3/Q4)
+     *   - synthèse annuelle (par commune + total général)
+     */
+    public function taxes(Request $request, \App\Services\TaxReportService $service)
+    {
+        $year = (int) ($request->annee ?? date('Y'));
+        if ($year < 2000 || $year > 2099) $year = (int) date('Y');
+
+        $monthly  = $service->monthlyMatrix($year);
+        $annual   = $service->annualByCommune($year);
+        $totals   = $service->totals($year);
+
+        // Matrice 12 colonnes × N lignes (commune)
+        $months = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+        $byCommune = $monthly->groupBy('commune_id');
+        $matrix = $annual->map(function ($row) use ($byCommune) {
+            $cells = [];
+            $rows  = $byCommune[$row['commune_id']] ?? collect();
+            for ($m = 1; $m <= 12; $m++) {
+                $cell = $rows->firstWhere('month', $m);
+                $cells[$m] = $cell ? (float) $cell['total'] : 0;
+            }
+            return [
+                'commune'     => $row['commune'],
+                'commune_id'  => $row['commune_id'],
+                'cells'       => $cells,
+                'odp'         => $row['odp'],
+                'tm'          => $row['tm'],
+                'total'       => $row['total'],
+                'q1'          => $row['q1'],
+                'q2'          => $row['q2'],
+                'q3'          => $row['q3'],
+                'q4'          => $row['q4'],
+                'panel_max'   => $row['panel_max'],
+            ];
+        });
+
+        $anneesDisponibles = range(date('Y') + 1, max(2020, date('Y') - 5));
+
+        return view('admin.rapports.taxes', compact(
+            'year', 'months', 'matrix', 'totals', 'anneesDisponibles'
+        ));
+    }
+
+    /**
      * Drilldown commune (AJAX) — appelé depuis le tableau / la heatmap des
      * rapports quand l'admin clique sur une commune. Renvoie un détail
      * exploitable sans rechargement de la page rapports :

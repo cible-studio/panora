@@ -1368,7 +1368,15 @@ class ReservationController extends Controller
         $counts['total'] = $reservations->total();
 
         $lastSeenAt = auth()->user()->reservations_last_seen_at;
-        $newCount = $lastSeenAt ? Reservation::where('created_at', '>', $lastSeenAt)->count() : 0;
+        // newCount = uniquement les nouvelles réservations EN ATTENTE depuis
+        // la dernière visite. Sinon une réservation déjà confirmée/refusée
+        // déclenchait quand même un "✦ X nouvelle(s)" sur la carte
+        // "EN ATTENTE", incohérent avec son compteur réel.
+        $newCount = $lastSeenAt
+            ? Reservation::where('status', 'en_attente')
+                ->where('created_at', '>', $lastSeenAt)
+                ->count()
+            : 0;
         $clients = Client::orderBy('name')->get();
         $statuses = ReservationStatus::cases();
 

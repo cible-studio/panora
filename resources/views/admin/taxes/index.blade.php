@@ -2,7 +2,10 @@
 <x-slot name="title">Taxes Communes</x-slot>
 
 <x-slot name="topbarActions">
-    <button type="button" class="btn btn-ghost btn-sm" onclick="openAutoTaxModal()" title="Générer automatiquement les taxes annuelles à partir du parc et des tarifs des communes">
+    <a href="{{ route('admin.rapports.taxes') }}" class="btn btn-ghost btn-sm" title="Calcul automatique des taxes dues mois/commune/trimestre/année">
+        📊 Rapport auto
+    </a>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="openAutoTaxModal()" title="Générer les écritures de taxes pour suivi des paiements">
         🪄 Auto-générer
     </button>
     <a href="{{ route('admin.taxes.export.pdf') }}" class="btn btn-ghost btn-sm">📄 Export PDF</a>
