@@ -36,6 +36,21 @@ class Reservation extends Model
         'cancel_reason',
         'cancelled_at',
         'cancelled_by',
+        // Motif refus client (proposition)
+        'refus_reason_code',      // budget|zones|periode|concurrent|delais|autre
+    ];
+
+    /**
+     * Codes prédéfinis pour le motif de refus d'une proposition.
+     * Sert à alimenter la modale UI client + à valider l'input.
+     */
+    public const REFUS_REASONS = [
+        'budget'     => '💰 Budget trop élevé',
+        'zones'      => '📍 Zones non adaptées',
+        'periode'    => '📅 Période ne convient pas',
+        'concurrent' => '⚔️ Choix d\'un autre prestataire',
+        'delais'     => '⏱ Délais trop courts',
+        'autre'      => '📝 Autre raison',
     ];
 
     protected $casts = [

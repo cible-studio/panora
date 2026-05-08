@@ -26,8 +26,9 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
     public function __construct(
         public readonly Reservation $reservation,
         public readonly string      $decision,        // 'accepted' | 'refused'
-        public readonly ?string     $reason = null,   // motif de refus éventuel
+        public readonly ?string     $reason = null,   // motif libre éventuel saisi par le client
         public readonly ?string     $campaignName = null, // nom de la campagne créée à la confirmation
+        public readonly ?string     $reasonCode = null,   // code prédéfini Reservation::REFUS_REASONS
     ) {}
 
     public function envelope(): Envelope
@@ -64,6 +65,12 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
         $isAccepted = $this->decision === self::DECISION_ACCEPTED;
         $campaign   = $this->reservation->campaign;
 
+        // Label lisible si on a un code prédéfini (l'admin voit immédiatement
+        // « 💰 Budget trop élevé » sans devoir consulter la liste des codes).
+        $reasonLabel = $this->reasonCode
+            ? (Reservation::REFUS_REASONS[$this->reasonCode] ?? null)
+            : null;
+
         return new Content(
             view: 'emails.proposition-decision',
             text: 'emails.plain.proposition-decision',  // Version texte (anti-spam)
@@ -72,6 +79,8 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
                 'client'       => $this->reservation->client,
                 'decision'     => $this->decision,
                 'reason'       => $this->reason,
+                'reasonCode'   => $this->reasonCode,
+                'reasonLabel'  => $reasonLabel,
                 'isAccepted'   => $isAccepted,
                 'showLink'     => route('admin.reservations.show', $this->reservation),
                 // campaignName : priorité au constructeur (rétro-compat avec

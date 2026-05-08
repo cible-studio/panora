@@ -140,13 +140,30 @@ class PropositionService
 
     // ── REFUSER ─────────────────────────────────────────────────────
 
-    public function refuser(Reservation $reservation, ?string $motif = null): void
+    /**
+     * Refus client d'une proposition.
+     *
+     * @param  string|null  $reasonCode  Code prédéfini (cf. Reservation::REFUS_REASONS).
+     *                                   Permet des stats fiables sans parser le texte libre.
+     * @param  string|null  $motif       Texte libre éventuel saisi par le client.
+     */
+    public function refuser(Reservation $reservation, ?string $motif = null, ?string $reasonCode = null): void
     {
+        // Ne persiste un code que s'il est dans la liste blanche.
+        $validCode = $reasonCode && array_key_exists($reasonCode, Reservation::REFUS_REASONS)
+            ? $reasonCode : null;
+
+        // Construit la note historique avec le label du motif + le texte libre.
+        $reasonLabel = $validCode ? Reservation::REFUS_REASONS[$validCode] : null;
+        $noteLine = trim(($reasonLabel ? $reasonLabel : '') . ($motif ? ' — ' . $motif : ''));
+        $newNotes = $noteLine !== ''
+            ? ($reservation->notes ? $reservation->notes . "\n\nRefus client : " . $noteLine : "Refus client : " . $noteLine)
+            : $reservation->notes;
+
         $reservation->update([
-            'status' => ReservationStatus::REFUSE,
-            'notes'  => $motif
-                ? ($reservation->notes ? $reservation->notes . "\n\nRefus client : " . $motif : "Refus client : " . $motif)
-                : $reservation->notes,
+            'status'            => ReservationStatus::REFUSE,
+            'refus_reason_code' => $validCode,
+            'notes'             => $newNotes,
         ]);
 
         // Libérer les panneaux (internes + externes) — le statut de la
@@ -167,6 +184,7 @@ class PropositionService
 
         Log::info('proposition.refused', [
             'reservation_id' => $reservation->id,
+            'reason_code'    => $validCode,
             'motif'          => $motif,
             'client_id'      => $reservation->client_id,
             'panels_freed'   => count($panelIds),

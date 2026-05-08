@@ -65,10 +65,14 @@
         </div>
     </div>
 
-    @if(!$isAccepted && $reason)
+    @if(!$isAccepted && ($reasonLabel || $reason))
         <h2>Motif du refus</h2>
         <div class="alert alert-danger">
-            {{ $reason }}
+            @if($reasonLabel)<strong>{{ $reasonLabel }}</strong>@endif
+            @if($reason)
+                @if($reasonLabel)<br>@endif
+                {{ $reason }}
+            @endif
         </div>
     @endif
 

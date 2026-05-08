@@ -293,22 +293,38 @@ class PropositionController extends Controller
             return $block;
         }
 
-        $motif = $request->input('motif');
-        $this->propositionService->refuser($reservation, $motif);
+        $motif      = trim((string) $request->input('motif', '')) ?: null;
+        // reason_code n'est persisté que s'il est dans la liste blanche
+        // (validation finale dans PropositionService::refuser pour rester
+        // tolérant aux formulaires legacy qui n'envoient pas ce champ).
+        $reasonCode = $request->input('reason_code') ?: null;
+
+        $this->propositionService->refuser($reservation, $motif, $reasonCode);
 
         $reservation = $reservation->fresh(['client', 'panels', 'user']);
-        $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_REFUSED, $motif);
+        $this->notifyDecision(
+            $reservation,
+            \App\Mail\PropositionDecisionMail::DECISION_REFUSED,
+            $motif,
+            null,
+            $reservation->refus_reason_code
+        );
 
         // Alerte in-app pour le commercial — niveau "warning" car action de
         // suivi possible (relance, ajustement, replanification…).
+        $reasonLabel = $reservation->refus_reason_code
+            ? (Reservation::REFUS_REASONS[$reservation->refus_reason_code] ?? null)
+            : null;
+
         \App\Services\AlertService::create(
             'reservation',
             'warning',
             '❌ Proposition refusée — ' . ($reservation->client?->name ?? 'Client'),
             sprintf(
-                'Le client a refusé la proposition %s%s. Consultez votre boîte mail pour le message du client et envisagez une relance.',
+                'Le client a refusé la proposition %s%s%s. Consultez votre boîte mail et envisagez une relance.',
                 $reservation->reference,
-                $motif ? ' (motif transmis)' : ''
+                $reasonLabel ? ' (' . $reasonLabel . ')' : '',
+                $motif ? ' — message client joint' : ''
             ),
             $reservation
         );
@@ -386,7 +402,7 @@ class PropositionController extends Controller
      * Si pas de user_id sur la réservation → fallback : tous les admins actifs.
      * Échec d'envoi silencieux (le client a déjà fait sa décision, on ne casse rien).
      */
-    private function notifyDecision(\App\Models\Reservation $reservation, string $decision, ?string $reason = null, ?string $campaignName = null): void
+    private function notifyDecision(\App\Models\Reservation $reservation, string $decision, ?string $reason = null, ?string $campaignName = null, ?string $reasonCode = null): void
     {
         $mailer = app(\App\Services\NotificationMailer::class);
 
@@ -415,11 +431,12 @@ class PropositionController extends Controller
 
         $mailer->sendSilently(
             $recipients,
-            new \App\Mail\PropositionDecisionMail($reservation, $decision, $reason, $campaignName),
+            new \App\Mail\PropositionDecisionMail($reservation, $decision, $reason, $campaignName, $reasonCode),
             context: [
                 'action'         => 'proposition.decision',
                 'reservation_id' => $reservation->id,
                 'decision'       => $decision,
+                'reason_code'    => $reasonCode,
             ]
         );
     }
