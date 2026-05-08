@@ -308,6 +308,12 @@ Route::prefix('admin')
             ->name('clients.import.template');
         Route::post('clients/import',         [ClientController::class, 'import'])
             ->name('clients.import');
+        // Exports liste clients (5.2) — placés AVANT /clients/{client} pour
+        // ne pas être avalés par le route model binding.
+        Route::get('clients/export/csv', [ClientController::class, 'exportCsv'])
+            ->name('clients.export.csv');
+        Route::get('clients/export/pdf', [ClientController::class, 'exportPdf'])
+            ->name('clients.export.pdf');
         Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
         Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');
         Route::get('clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');

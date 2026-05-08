@@ -23,6 +23,43 @@ class ClientController extends Controller
 
     public function index(Request $request)
     {
+        $query = $this->buildClientsQuery($request);
+
+        $stats = [
+            'total'    => Client::count(),
+            'actifs'   => Client::whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'pose']))->count(),
+            'ca_total' => \App\Models\Campaign::sum('total_amount'),
+        ];
+
+        $clients = $query->paginate(20)->withQueryString();
+        $sectors = Client::SECTORS;
+
+        if ($request->ajax()) {
+            return response()->json([
+                'html'       => view('admin.clients.partials.table-rows', compact('clients'))->render(),
+                'pagination' => $clients->links()->render(),
+                'total'      => $clients->total(),
+            ]);
+        }
+
+        return view('admin.clients.index', compact('clients', 'stats', 'sectors'));
+    }
+
+    /**
+     * Source unique de vérité pour la query "liste clients" — utilisée par
+     * index(), exportCsv(), exportPdf(). Garantit que les exports reflètent
+     * exactement le filtrage actif côté UI.
+     *
+     * Filtres supportés :
+     *   - search (nom/ncc/email/contact/téléphone)
+     *   - sector
+     *   - sort (name|created_at|campaigns_count)
+     *   - active_only=1 → ne garder que les clients ayant au moins 1
+     *     campagne en statut actif|pose. C'est ce filtre qui résout le
+     *     bug 5.1 où "Avec campagne active" ne produisait aucun delta.
+     */
+    private function buildClientsQuery(Request $request): \Illuminate\Database\Eloquent\Builder
+    {
         $query = Client::withCount(['campaigns', 'reservations'])
             ->withCount([
                 'campaigns as active_campaigns_count' => function ($q) {
@@ -35,13 +72,18 @@ class ClientController extends Controller
                 }
             ]);
 
+        // Bug 5.1 — filtre "Clients avec campagne active"
+        if ($request->boolean('active_only')) {
+            $query->whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'pose']));
+        }
+
         if ($request->search) {
             $query->where(function ($q) use ($request) {
-                $q->where('name', 'like', "%{$request->search}%")
-                    ->orWhere('ncc', 'like', "%{$request->search}%")
-                    ->orWhere('email', 'like', "%{$request->search}%")
-                    ->orWhere('contact_name', 'like', "%{$request->search}%")
-                    ->orWhere('phone', 'like', "%{$request->search}%");
+                $q->where('name',         'like', "%{$request->search}%")
+                  ->orWhere('ncc',          'like', "%{$request->search}%")
+                  ->orWhere('email',        'like', "%{$request->search}%")
+                  ->orWhere('contact_name', 'like', "%{$request->search}%")
+                  ->orWhere('phone',        'like', "%{$request->search}%");
             });
         }
 
@@ -49,27 +91,97 @@ class ClientController extends Controller
             $query->where('sector', $request->sector);
         }
 
-        $sort = $request->sort ?? 'name';
+        $sort = in_array($request->sort, ['name', 'created_at', 'campaigns_count'], true)
+            ? $request->sort : 'name';
         $query->orderBy($sort, $sort === 'name' ? 'asc' : 'desc');
 
-        $stats = [
-            'total' => Client::count(),
-            'actifs' => Client::whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'pose']))->count(),
-            'ca_total' => \App\Models\Campaign::sum('total_amount'),
+        return $query;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // EXPORTS — CSV + PDF (5.2)
+    //
+    // Les deux respectent les filtres appliqués sur la liste : on
+    // récupère les MÊMES IDs que ceux affichés (toutes pages), pas
+    // seulement la page courante. Logique commune via buildClientsQuery.
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Export CSV (UTF-8 + BOM pour ouverture propre dans Excel FR).
+     * Streamé pour supporter de gros volumes sans saturer la mémoire.
+     */
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $clients = $this->buildClientsQuery($request)->get();
+        $filename = 'clients-' . now()->format('Ymd_His') . '.csv';
+
+        return new StreamedResponse(function () use ($clients) {
+            $out = fopen('php://output', 'w');
+            // BOM UTF-8 pour Excel/LibreOffice → accents OK
+            fwrite($out, "\xEF\xBB\xBF");
+
+            fputcsv($out, [
+                'Nom', 'NCC', 'Secteur', 'Contact', 'Email', 'Téléphone',
+                'Adresse', 'Campagnes', 'Campagnes actives', 'Réservations',
+                'Compte client', 'Créé le',
+            ], ';');
+
+            foreach ($clients as $c) {
+                fputcsv($out, [
+                    $c->name,
+                    $c->ncc            ?? '',
+                    $c->sector         ?? '',
+                    $c->contact_name   ?? '',
+                    $c->email          ?? '',
+                    $c->phone          ?? '',
+                    $c->address        ?? '',
+                    (int) ($c->campaigns_count ?? 0),
+                    (int) ($c->active_campaigns_count ?? 0),
+                    (int) ($c->reservations_count ?? 0),
+                    method_exists($c, 'hasAccount') && $c->hasAccount() ? 'Oui' : 'Non',
+                    $c->created_at?->format('d/m/Y') ?? '',
+                ], ';');
+            }
+            fclose($out);
+        }, 200, [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Cache-Control'       => 'no-store, no-cache',
+        ]);
+    }
+
+    /**
+     * Export PDF (paysage A4 — 12 colonnes, lisible).
+     */
+    public function exportPdf(Request $request)
+    {
+        $clients = $this->buildClientsQuery($request)->get();
+
+        $logoSrc = (new class {
+            use \App\Support\PdfAssets;
+            public function go(): string { return $this->getLogoPdf(); }
+        })->go();
+
+        $filters = [
+            'search'      => $request->input('search'),
+            'sector'      => $request->input('sector'),
+            'active_only' => $request->boolean('active_only'),
         ];
 
-        $clients = $query->paginate(20)->withQueryString();
-        $sectors = Client::SECTORS;
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.clients.pdf.list', [
+            'clients'   => $clients,
+            'filters'   => $filters,
+            'generated' => now()->format('d/m/Y à H:i'),
+            'logoSrc'   => $logoSrc,
+        ])->setPaper('A4', 'landscape')
+          ->setOptions([
+              'isHtml5ParserEnabled' => true,
+              'isRemoteEnabled'      => false,
+              'defaultFont'          => 'DejaVu Sans',
+              'dpi'                  => 96,
+          ]);
 
-        if ($request->ajax()) {
-            return response()->json([
-                'html' => view('admin.clients.partials.table-rows', compact('clients'))->render(),
-                'pagination' => $clients->links()->render(),
-                'total' => $clients->total(),
-            ]);
-        }
-
-        return view('admin.clients.index', compact('clients', 'stats', 'sectors'));
+        return $pdf->download('clients-' . now()->format('Ymd_His') . '.pdf');
     }
 
     public function create()
