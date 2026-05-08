@@ -226,6 +226,7 @@ class ClientController extends Controller
             'reservations' => fn($q) => $q->withCount('panels')->latest()->limit(5),
             'campaigns' => fn($q) => $q->latest()->limit(8),
             'invoices' => fn($q) => $q->latest()->limit(5),
+            'contacts',
         ]);
 
         $totalFacture = $client->invoices()->sum('amount_ttc');
