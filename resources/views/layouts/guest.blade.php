@@ -86,14 +86,14 @@
 
         /* ── Right: form panel ── */
         .auth-form-panel {
-            width: 500px;
+            width: 440px;
             flex-shrink: 0;
             height: 100vh;
             overflow-y: auto;
             display: flex;
             align-items: center;
-            justify-content: center;
-            padding: 48px 40px;
+            justify-content: flex-start;
+            padding: 48px 28px 48px 40px;
             background: #ffffff;
             box-shadow: -8px 0 40px rgba(0, 0, 0, 0.06);
         }
