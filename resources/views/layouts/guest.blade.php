@@ -37,7 +37,7 @@
 
         /* ── Left: image panel ── */
         .auth-image-panel {
-            flex: 1;
+            flex: 0 0 55%;
             position: relative;
             overflow: hidden;
         }
@@ -86,14 +86,13 @@
 
         /* ── Right: form panel ── */
         .auth-form-panel {
-            width: 440px;
-            flex-shrink: 0;
+            flex: 1;
             height: 100vh;
             overflow-y: auto;
             display: flex;
             align-items: center;
-            justify-content: flex-start;
-            padding: 48px 28px 48px 40px;
+            justify-content: center;
+            padding: 48px 40px;
             background: #ffffff;
             box-shadow: -8px 0 40px rgba(0, 0, 0, 0.06);
         }
@@ -136,7 +135,7 @@
 
         {{-- ══ LEFT — image ══ --}}
         <div class="auth-image-panel">
-            <img src="{{ asset('images/peroquet2.jpg') }}"
+            <img src="{{ asset('images/peroquet.jpg') }}"
                  alt="CIBLE CI"
                  class="auth-bg-img"
                  onerror="this.closest('.auth-image-panel').style.background='linear-gradient(135deg,#e20613,#7c000a)'">

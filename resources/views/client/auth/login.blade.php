@@ -43,7 +43,7 @@
 
         /* ══ LEFT — image ══ */
         .auth-image-panel {
-            flex:1;
+            flex:0 0 55%;
             position:relative;
             overflow:hidden;
         }
@@ -87,14 +87,13 @@
 
         /* ══ RIGHT — form panel ══ */
         .auth-form-panel {
-            width:440px;
-            flex-shrink:0;
+            flex:1;
             height:100vh;
             overflow-y:auto;
             display:flex;
             align-items:center;
-            justify-content:flex-start;
-            padding:48px 28px 48px 40px;
+            justify-content:center;
+            padding:48px 40px;
             background:var(--bg);
             box-shadow:-8px 0 40px rgba(0,0,0,0.18);
             position:relative;
