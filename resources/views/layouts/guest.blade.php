@@ -37,7 +37,7 @@
 
         /* ── Left: image panel ── */
         .auth-image-panel {
-            flex: 0 0 55%;
+            flex: 0 0 60%;
             position: relative;
             overflow: hidden;
         }
