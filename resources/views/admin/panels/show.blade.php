@@ -62,10 +62,7 @@
                         </div>
                         <div>
                             <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">FORMAT</div>
-                            <div style="font-weight:600;">{{ $panel->format->dimensions_label ?? $panel->format->name }}</div>
-                            @if($panel->format->dimensions_label && $panel->format->surface_label)
-                                <div style="font-size:11px;color:var(--text3);">{{ $panel->format->surface_label }}</div>
-                            @endif
+                            <div style="font-weight:600;">{{ $panel->format->surface_label ?? $panel->format->name }}</div>
                         </div>
                         <div>
                             <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">CATÉGORIE</div>

@@ -1075,7 +1075,7 @@ document.addEventListener('keydown', function(e) {
                         'Accept':       'application/json',
                     },
                     // panel_id reste tel quel (string "ext_X" ou nombre) — le backend split
-                    body: JSON.stringify({ panel_id: panelId, unit_price: price ? parseFloat(price) : null }),
+                    body: JSON.stringify({ panel_id: panelId, unit_price: price !== '' && price !== null ? parseFloat(price) : null }),
                 });
 
                 const data = await res.json();

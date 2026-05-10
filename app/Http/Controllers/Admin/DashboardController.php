@@ -60,6 +60,7 @@ class DashboardController extends Controller
         ->take(6)
         ->get()
         ->map(fn($c) => [
+            'id'   => $c->id,
             'nom'  => $c->name,
             'taux' => $c->panels_count > 0
                 ? round(($c->panels_occupes_count / $c->panels_count) * 100)
