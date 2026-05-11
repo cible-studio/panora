@@ -36,15 +36,32 @@ class PoseController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function index(Request $request)
     {
+        // On charge withTrashed sur la campagne pour pouvoir afficher
+        // "campagne supprimée" sur les poses orphelines (la campagne
+        // est en soft-delete mais la pose, elle, est toujours là).
         $query = PoseTask::with([
             'panel:id,reference,name,commune_id',
             'panel.commune:id,name',
-            'campaign:id,name,status',
+            'campaign' => fn($q) => $q->withTrashed()->select('id', 'name', 'status', 'deleted_at'),
             'technicien:id,name',
         ])->withCount([
             'piges as pige_count',
             'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
         ]);
+
+        // Filtre "Masquer poses orphelines" (par défaut activé) : cache
+        // celles dont la campagne est supprimée, annulée ou terminée.
+        // L'utilisateur peut décocher pour les voir (debug / audit).
+        $hideOrphan = !$request->has('show_orphan') || !$request->boolean('show_orphan');
+        if ($hideOrphan) {
+            $query->whereHas('campaign', fn($q) =>
+                $q->whereNotIn('status', [
+                    \App\Enums\CampaignStatus::ANNULE->value,
+                    \App\Enums\CampaignStatus::TERMINE->value,
+                ])
+                ->whereNull('deleted_at')
+            );
+        }
 
         // Filtres "neutres" appliqués à la query (et au calcul des compteurs)
         if ($request->filled('q')) {

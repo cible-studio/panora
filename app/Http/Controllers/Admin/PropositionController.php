@@ -251,6 +251,10 @@ class PropositionController extends Controller
         try {
             $token    = $reservation->proposition_token;
             $campaign = $this->propositionService->confirmer($reservation);
+        } catch (\RuntimeException $e) {
+            Log::warning('admin.propositions.conflict', ['reservation' => $reference, 'error' => $e->getMessage()]);
+            return redirect()->route('proposition.show', [$reference, $slug])
+                ->with('error', 'Ce panneau a déjà été confirmé par une autre proposition. Veuillez contacter votre commercial pour trouver une alternative.');
         } catch (\Exception $e) {
             Log::error('admin.propositions.error', ['error' => $e->getMessage()]);
             return redirect()->route('proposition.show', [$reference, $slug])

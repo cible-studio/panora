@@ -61,14 +61,56 @@ class PropositionService
 
         DB::transaction(function () use ($reservation, &$campaign) {
 
+            $availability = app(AvailabilityService::class);
+
+            // Vérification anti-double-booking avant confirmation :
+            // une autre proposition confirmée en parallèle aurait pu prendre le panneau.
+            $panelIds    = $reservation->panels->pluck('id')->toArray();
+            $extIds      = $reservation->externalPanels->pluck('id')->toArray();
+            $start       = $reservation->start_date instanceof \Carbon\Carbon
+                ? $reservation->start_date->toDateString()
+                : (string) $reservation->start_date;
+            $end         = $reservation->end_date instanceof \Carbon\Carbon
+                ? $reservation->end_date->toDateString()
+                : (string) $reservation->end_date;
+
+            // On bloque uniquement si une autre réservation est déjà CONFIRMÉE
+            // (pas EN_ATTENTE — plusieurs options peuvent coexister, la première
+            // confirmée gagne ; la lockForUpdate garantit l'atomicité).
+            if (!empty($panelIds)) {
+                \App\Models\Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
+                $conflicts = DB::table('reservation_panels')
+                    ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                    ->whereIn('reservation_panels.panel_id', $panelIds)
+                    ->where('reservations.status', ReservationStatus::CONFIRME->value)
+                    ->where('reservations.start_date', '<', $end)
+                    ->where('reservations.end_date',   '>', $start)
+                    ->where('reservations.id', '!=', $reservation->id)
+                    ->distinct()
+                    ->pluck('reservation_panels.panel_id')
+                    ->toArray();
+                if (!empty($conflicts)) {
+                    $refs = \App\Models\Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
+                    throw new \RuntimeException("Ce panneau est déjà confirmé pour cette période : {$refs}.");
+                }
+            }
+
+            if (!empty($extIds)) {
+                \App\Models\ExternalPanel::whereIn('id', $extIds)->lockForUpdate()->get();
+                $extMap = $availability->getExternalPanelBookingMap($extIds, $start, $end, $reservation->id);
+                $conflictIds = $extMap->filter(fn($b) => $b->has_confirmed)->keys()->toArray();
+                if (!empty($conflictIds)) {
+                    $refs = \App\Models\ExternalPanel::whereIn('id', $conflictIds)->pluck('reference')->join(', ');
+                    throw new \RuntimeException("Ce panneau est déjà confirmé pour cette période : {$refs}.");
+                }
+            }
+
             // Changer statut → confirmé + promouvoir type option → ferme
             $reservation->update([
                 'status'       => ReservationStatus::CONFIRME,
                 'type'         => 'ferme',
                 'confirmed_at' => now(),
             ]);
-
-            $availability = app(AvailabilityService::class);
 
             // Sync panneaux internes
             $panelIds = $reservation->panels->pluck('id')->toArray();

@@ -230,6 +230,17 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
             <input type="date" id="filter-date-to" class="filter-input" style="width:130px">
         </div>
 
+        {{-- Toggle orphelines (campagnes supprimées / annulées / terminées) --}}
+        <div class="filter-group">
+            <label class="filter-label">Orphelines</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--text2);height:36px;">
+                <input type="checkbox" id="filter-show-orphan"
+                       {{ request()->boolean('show_orphan') ? 'checked' : '' }}
+                       style="accent-color:var(--accent);width:14px;height:14px;">
+                Afficher
+            </label>
+        </div>
+
         {{-- Actions --}}
         <div class="filter-group" id="reset-wrapper" style="display:none;">
             <label class="filter-label" style="visibility:hidden;">Actions</label>
@@ -438,7 +449,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         technicien_id: '',
         campaign_id: '',
         date_from: '',
-        date_to: ''
+        date_to: '',
+        show_orphan: false
     };
     let debounceTimer = null;
     let isUpdating = false;
@@ -450,6 +462,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         campaign: document.getElementById('filter-campaign'),
         dateFrom: document.getElementById('filter-date-from'),
         dateTo: document.getElementById('filter-date-to'),
+        showOrphan: document.getElementById('filter-show-orphan'),
         resetBtn: document.getElementById('btn-reset'),
         resetWrapper: document.getElementById('reset-wrapper'),
         resultCount: document.getElementById('result-count'),
@@ -480,6 +493,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         if (currentFilters.campaign_id) params.set('campaign_id', currentFilters.campaign_id);
         if (currentFilters.date_from) params.set('date_from', currentFilters.date_from);
         if (currentFilters.date_to) params.set('date_to', currentFilters.date_to);
+        if (currentFilters.show_orphan) params.set('show_orphan', '1');
         params.set('ajax', '1');
 
         // Afficher le loader
@@ -588,6 +602,13 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         }
     });
 
+    if (elements.showOrphan) {
+        elements.showOrphan.addEventListener('change', () => {
+            currentFilters.show_orphan = elements.showOrphan.checked;
+            applyFilters();
+        });
+    }
+
     // Cartes KPI — toggle (re-cliquer = retire le filtre).
     // La carte "total" reset le filtre status.
     document.querySelectorAll('.stat-card').forEach(card => {
@@ -640,18 +661,20 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
                 technicien_id: '',
                 campaign_id: '',
                 date_from: '',
-                date_to: ''
+                date_to: '',
+                show_orphan: false
             };
-            
+
             if (elements.search) elements.search.value = '';
             if (elements.status) elements.status.value = '';
             if (elements.technicien) elements.technicien.value = '';
             if (elements.campaign) elements.campaign.value = '';
             if (elements.dateFrom) elements.dateFrom.value = '';
             if (elements.dateTo) elements.dateTo.value = '';
-            
+            if (elements.showOrphan) elements.showOrphan.checked = false;
+
             document.querySelectorAll('.stat-card').forEach(card => card.classList.remove('active'));
-            
+
             updateResetButton();
             applyFilters();
         });
@@ -665,13 +688,15 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
     if (urlParams.has('campaign_id')) currentFilters.campaign_id = urlParams.get('campaign_id');
     if (urlParams.has('date_from')) currentFilters.date_from = urlParams.get('date_from');
     if (urlParams.has('date_to')) currentFilters.date_to = urlParams.get('date_to');
-    
+    if (urlParams.has('show_orphan')) currentFilters.show_orphan = ['1','true','on'].includes(urlParams.get('show_orphan'));
+
     if (elements.search && currentFilters.search) elements.search.value = currentFilters.search;
     if (elements.status && currentFilters.status) elements.status.value = currentFilters.status;
     if (elements.technicien && currentFilters.technicien_id) elements.technicien.value = currentFilters.technicien_id;
     if (elements.campaign && currentFilters.campaign_id) elements.campaign.value = currentFilters.campaign_id;
     if (elements.dateFrom && currentFilters.date_from) elements.dateFrom.value = currentFilters.date_from;
     if (elements.dateTo && currentFilters.date_to) elements.dateTo.value = currentFilters.date_to;
+    if (elements.showOrphan) elements.showOrphan.checked = currentFilters.show_orphan;
     
     updateResetButton();
 })();
