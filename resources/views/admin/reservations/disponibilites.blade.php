@@ -1424,20 +1424,23 @@
                     // 4e arg displayStatus : 'libre' | 'option_periode' —
                     // utilisé pour la décompo libres/options + bordure dashed
                     // côté UI, et pour traquer le statut au moment de la sélection.
-                    toggle(id, rate, source, displayStatus) {
+                    toggle(id, rate, source, displayStatus, selectableFrom) {
                         id = String(id);
                         const idx = S.sel.ids.indexOf(id);
+                        S.sel.start_dates = S.sel.start_dates || {};
                         if (idx === -1) {
                             S.sel.ids.push(id);
                             S.sel.rates[id]    = parseFloat(rate) || 0;
                             S.sel.sources[id]  = source || 'internal';
                             S.sel.statuses     = S.sel.statuses || {};
                             S.sel.statuses[id] = displayStatus || 'libre';
+                            if (selectableFrom) S.sel.start_dates[id] = selectableFrom;
                         } else {
                             S.sel.ids.splice(idx, 1);
                             delete S.sel.rates[id];
                             delete S.sel.sources[id];
                             if (S.sel.statuses) delete S.sel.statuses[id];
+                            delete S.sel.start_dates[id];
                         }
                         const sel = S.sel.ids.includes(id);
                         const isOption = displayStatus === 'option_periode'
@@ -1471,7 +1474,7 @@
                     },
 
                     clearSelection() {
-                        S.sel = { ids: [], rates: {}, sources: {}, statuses: {} };
+                        S.sel = { ids: [], rates: {}, sources: {}, statuses: {}, start_dates: {} };
                         document.querySelectorAll('.panel-card.selected,.list-row.selected').forEach(el => {
                             el.classList.remove('selected', 'selected-option');
                             el.style.border = '';
@@ -1500,13 +1503,13 @@
                             // Tout déjà coché → décocher tout
                             all.forEach(p => {
                                 if (S.sel.ids.includes(String(p.id))) {
-                                    this.toggle(p.id, p.monthly_rate, p.source, p.display_status);
+                                    this.toggle(p.id, p.monthly_rate, p.source, p.display_status, p.selectable_from || null);
                                 }
                             });
                         } else {
                             all.forEach(p => {
                                 if (!S.sel.ids.includes(String(p.id))) {
-                                    this.toggle(p.id, p.monthly_rate, p.source, p.display_status);
+                                    this.toggle(p.id, p.monthly_rate, p.source, p.display_status, p.selectable_from || null);
                                 }
                             });
                         }
@@ -1534,7 +1537,10 @@
                         // ✅ FIX — utiliser S.sel.ids directement (closure)
                         _el('hidden-panels').innerHTML = S.sel.ids
                             .map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`)
-                            .join('');
+                            .join('')
+                            + Object.entries(S.sel.start_dates || {})
+                                .map(([id, date]) => `<input type="hidden" name="panel_start_dates[${id}]" value="${date}">`)
+                                .join('');
 
                         const hasExt = Object.values(S.sel.sources).includes('external');
                         _el('modal-ext-warn').classList.toggle('hidden', !hasExt);
@@ -1692,7 +1698,10 @@
                         // ✅ FIX — injecter les panel_ids depuis S.sel.ids (closure directe)
                         _el('hidden-panels').innerHTML = S.sel.ids
                             .map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`)
-                            .join('');
+                            .join('')
+                            + Object.entries(S.sel.start_dates || {})
+                                .map(([id, date]) => `<input type="hidden" name="panel_start_dates[${id}]" value="${date}">`)
+                                .join('');
 
                         // Montant personnalisé (0 est valide = sans prix)
                         if (this._customAmount !== null) {
@@ -1965,8 +1974,11 @@
                         const releaseHtml = p.release_info ?
                             `<div onclick="event.stopPropagation();DISPO.scheduleAfter('${p.release_info.date}')" title="Cliquer pour caler la période sur la libération" style="margin-top:4px;padding:4px 8px;border-radius:6px;font-size:10px;background:rgba(226,6,19,.06);border:1px solid rgba(226,6,19,.15);cursor:pointer;"><span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'var(--accent)':'var(--text3)'}">📅 ${p.release_info.label}</span></div>` :
                             '';
+                        const _sf = (p.is_future_selectable && p.selectable_from) ? p.selectable_from : '';
+                        const _sfLabel = p.selectable_from_label || (_sf ? _sf.split('-').reverse().join('/') : '');
+                        const _selLabel = isSel ? '✓ Sélectionné' : (_sf ? `📅 Dès le ${_sfLabel}` : '+ Sélectionner');
                         const selBtn = p.is_selectable ?
-                            `<button type="button" class="btn-sel" style="flex:1.2;font-size:11px;padding:6px 10px;border-radius:7px;background:${isSel?(isOption?'#f97316':'var(--accent)'):'var(--surface3)'};color:${isSel?'#fff':'var(--text)'};border:1px solid ${isSel?'transparent':'var(--border2)'};cursor:pointer;transition:all .15s;" onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')">${isSel?'✓ Sélectionné':'+ Sélectionner'}</button>` :
+                            `<button type="button" class="btn-sel" style="flex:1.2;font-size:11px;padding:6px 10px;border-radius:7px;background:${isSel?(isOption?'#f97316':'var(--accent)'):'var(--surface3)'};color:${isSel?'#fff':'var(--text)'};border:1px solid ${isSel?'transparent':'var(--border2)'};cursor:pointer;transition:all .15s;" onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}','${_sf}')">${_selLabel}</button>` :
                             `<div style="flex:1.2;padding:6px 10px;background:var(--surface3);border-radius:7px;font-size:11px;color:var(--text3);text-align:center;border:1px solid var(--border);">${sc.l}</div>`;
                         const safeP = encodeURIComponent(JSON.stringify(p));
 
@@ -1981,7 +1993,7 @@
                             ? `<span style="position:absolute;${p.source==='external'?'top:32px':'top:8px'};left:8px;z-index:2;background:#f97316;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.5px;box-shadow:0 1px 4px rgba(0,0,0,.2);">EN OPTION</span>`
                             : '';
 
-                        return `<div class="${cardCls}" ${inlineStyle} data-id="${p.id}" ${p.is_selectable?`onclick="DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')"`:''}>${p.source==='external'?`<div style="position:absolute;top:8px;left:8px;z-index:2;font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)">🤝 ${p.agency_name}</div>`:''}${optionBadge} ${p.is_selectable?`<div style="position:absolute;top:10px;${isOption?'left:90px':'left:10px'};z-index:2;"><input type="checkbox" class="card-chk" style="accent-color:${isOption?'#f97316':'var(--accent)'};width:16px;height:16px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')"></div>`:''}<div style="position:absolute;top:8px;right:8px;z-index:2;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${sc.c};color:white;text-transform:uppercase;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.3);">${sc.l}</div><div style="height:96px;flex-shrink:0;position:relative;overflow:hidden;${thumbSt}"><div style="position:absolute;inset:0;background:${p.photo_url?'linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.65))':'rgba(0,0,0,.15)'}"></div><div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border-radius:7px;padding:4px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#fff;letter-spacing:1.5px;white-space:nowrap;backdrop-filter:blur(4px);">${p.reference}</div></div><div style="padding:12px 14px;flex:1;display:flex;flex-direction:column;"><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div><div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.name}">${p.name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">${tags}</div>${p.zone_description?`<div style="font-size:11px;color:var(--text2);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.zone_description}">📍 ${p.zone_description}</div>`:''}<div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);"><div style="font-size:17px;font-weight:800;color:var(--accent);margin-bottom:6px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K <span style="font-size:11px;font-weight:400;color:var(--text3)">FCFA/mois</span>':'<span style="font-size:13px;color:var(--text3)">Tarif non défini</span>'}</div>${releaseHtml}<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" style="flex:none;font-size:10px;padding:6px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button>${selBtn}</div></div></div>`;
+                        return `<div class="${cardCls}" ${inlineStyle} data-id="${p.id}" ${p.is_selectable?`onclick="DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}','${_sf}')"`:''}>${p.source==='external'?`<div style="position:absolute;top:8px;left:8px;z-index:2;font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)">🤝 ${p.agency_name}</div>`:''}${optionBadge} ${p.is_selectable?`<div style="position:absolute;top:10px;${isOption?'left:90px':'left:10px'};z-index:2;"><input type="checkbox" class="card-chk" style="accent-color:${isOption?'#f97316':'var(--accent)'};width:16px;height:16px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}','${_sf}')"></div>`:''}<div style="position:absolute;top:8px;right:8px;z-index:2;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${sc.c};color:white;text-transform:uppercase;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.3);">${sc.l}</div><div style="height:96px;flex-shrink:0;position:relative;overflow:hidden;${thumbSt}"><div style="position:absolute;inset:0;background:${p.photo_url?'linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.65))':'rgba(0,0,0,.15)'}"></div><div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border-radius:7px;padding:4px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#fff;letter-spacing:1.5px;white-space:nowrap;backdrop-filter:blur(4px);">${p.reference}</div></div><div style="padding:12px 14px;flex:1;display:flex;flex-direction:column;"><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div><div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.name}">${p.name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">${tags}</div>${p.zone_description?`<div style="font-size:11px;color:var(--text2);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.zone_description}">📍 ${p.zone_description}</div>`:''}<div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);"><div style="font-size:17px;font-weight:800;color:var(--accent);margin-bottom:6px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K <span style="font-size:11px;font-weight:400;color:var(--text3)">FCFA/mois</span>':'<span style="font-size:13px;color:var(--text3)">Tarif non défini</span>'}</div>${releaseHtml}<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" style="flex:none;font-size:10px;padding:6px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button>${selBtn}</div></div></div>`;
                     },
 
                     _renderList(panels) {
@@ -1994,7 +2006,7 @@
                             const tr = document.createElement('tr');
                             tr.className = `list-row${isSel?' selected':''}`;
                             tr.dataset.id = p.id;
-                            if (p.is_selectable) tr.onclick = () => DISPO.toggle(p.id, p.monthly_rate, p.source, p.display_status);
+                            if (p.is_selectable) tr.onclick = () => DISPO.toggle(p.id, p.monthly_rate, p.source, p.display_status, (p.is_future_selectable ? p.selectable_from : null));
                             const safeP = encodeURIComponent(JSON.stringify(p));
                             tr.innerHTML =
                                 `<td style="padding:10px 8px;width:36px;text-align:center;">${p.is_selectable?`<input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')">`:`<span style="font-size:12px;opacity:.4;">🔒</span>`}</td><td style="padding:10px 8px;"><span style="font-family:monospace;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;background:${sc.b};color:${sc.c}">${p.reference}</span>${p.source==='external'?`<span style="display:block;font-size:9px;color:#60a5fa;margin-top:2px;">🤝 ${p.agency_name}</span>`:''}</td><td style="padding:10px 8px;"><div style="font-weight:600;font-size:13px;color:var(--text);">${p.name}</div><div style="font-size:11px;color:var(--text3);">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div></td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.format||'—'}</td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.dimensions||'—'}${p.is_lit?' 💡':''}</td><td style="padding:10px 8px;"><div style="font-weight:700;color:var(--accent);font-size:13px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K':'—'} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></div></td><td style="padding:10px 8px;"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">${sc.l}</span>${p.release_info?`<div style="font-size:10px;color:var(--text3);margin-top:3px;">📅 ${p.release_info.label}</div>`:''}</td><td style="padding:10px 8px;"><button type="button" style="font-size:10px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button></td>`;

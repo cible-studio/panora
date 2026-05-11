@@ -413,8 +413,10 @@ class ReservationController extends Controller
             // (un panneau en option peut être inclus dans une autre proposition,
             // un panneau "à vérifier" reste exploitable sous réserve de
             // confirmation par le superviseur — distingués côté UI par une
-            // bordure dashed orange + badge "EN OPTION" pour option_periode).
-            'is_selectable' => in_array($displayStatus, ['libre', 'option_periode', 'a_verifier'], true),
+            // bordure dashed orange + badge "EN OPTION" pour option_periode.
+            // Panneau futur : is_future_selectable = vrai quand le panneau se
+            // libère avant la fin de la période → sélectionnable avec date décalée.
+            'is_selectable' => in_array($displayStatus, ['libre', 'option_periode', 'a_verifier'], true) || $selectableFrom !== null,
             // Feature 2.2 — le panneau se libère AVANT la fin de la période
             // demandée. L'admin peut l'inclure dans la résa avec une date de
             // début automatique au lendemain de sa libération.
@@ -507,7 +509,8 @@ class ReservationController extends Controller
             // Externes : libre + option_periode + a_verifier sélectionnables
             // (a_verifier = synchro régie tierce en attente de confirmation,
             // exploitable mais clairement marqué côté UI).
-            'is_selectable' => in_array($displayStatus, ['libre', 'option_periode', 'a_verifier'], true),
+            // is_future_selectable : panneau occupé mais libéré avant la fin → sélectionnable avec date décalée.
+            'is_selectable' => in_array($displayStatus, ['libre', 'option_periode', 'a_verifier'], true) || $selectableFrom !== null,
             'is_future_selectable'  => $selectableFrom !== null,
             'selectable_from'       => $selectableFrom,
             'selectable_from_label' => $selectableFrom ? Carbon::parse($selectableFrom)->format('d/m/Y') : null,
