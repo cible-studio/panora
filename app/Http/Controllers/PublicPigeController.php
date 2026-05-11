@@ -27,6 +27,20 @@ class PublicPigeController extends Controller
 {
     public function show(string $token)
     {
+        // ─── DISPATCH UNIFIÉ ────────────────────────────────────────
+        // Un seul format d'URL côté technicien : /pige/{token}. Le token
+        // peut représenter soit une intervention unique (PoseTask, 32
+        // chars), soit une campagne complète multi-panneaux (Campaign
+        // pige_token, 48 chars). On essaie pose_task d'abord (cas le
+        // plus courant), fallback campagne.
+        if (strlen($token) === 32 && preg_match('/^[A-Za-z0-9]{32}$/', $token)) {
+            $task = \App\Models\PoseTask::where('public_token', $token)->first();
+            if ($task) {
+                return app(PoseTaskPublicController::class)->show($token);
+            }
+        }
+
+        // Cas multi-panneaux campagne (legacy / lien commercial→tech général).
         $campaign = Campaign::where('pige_token', $token)
             ->with([
                 'client:id,name',
@@ -37,7 +51,7 @@ class PublicPigeController extends Controller
             ->first();
 
         if (!$campaign) {
-            abort(404, 'Lien de pige invalide ou révoqué.');
+            abort(404, 'Lien invalide ou révoqué.');
         }
 
         $isClosed = in_array($campaign->status->value, ['termine', 'annule']);

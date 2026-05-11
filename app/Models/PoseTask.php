@@ -187,11 +187,12 @@ class PoseTask extends Model
         return $this->public_token;
     }
 
-    /** URL publique de mise à jour pour le technicien */
+    /** URL publique de mise à jour pour le technicien.
+     *  Spec Évolution 3 : format unifié /pige/{token}. */
     public function publicUrl(): ?string
     {
         $token = $this->public_token;
-        return $token ? route('pose.public.show', $token) : null;
+        return $token ? route('pige.public.show', $token) : null;
     }
 
     /**
