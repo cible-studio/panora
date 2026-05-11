@@ -213,6 +213,8 @@ Route::prefix('admin')
             Route::get('search-panels',    [PoseController::class, 'searchPanels'])   ->name('search-panels');
             // Polling progression temps réel (vue admin index)
             Route::get('progress',         [PoseController::class, 'progress'])       ->name('progress');
+            // Actions groupées (sélection multiple)
+            Route::post('bulk-update',     [PoseController::class, 'bulkUpdate'])     ->name('bulk-update');
 
             // ── CRUD standard ─────────────────────────────────────────
             Route::get('/',         [PoseController::class, 'index'])  ->name('index');

@@ -10,6 +10,11 @@
     <table style="width:100%;border-collapse:collapse;min-width:900px">
         <thead>
             <tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
+                <th style="padding:9px 6px 9px 14px;width:32px;text-align:left">
+                    <input type="checkbox" id="pose-check-all"
+                           style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer;"
+                           title="Tout sélectionner sur cette page">
+                </th>
                 <th style="padding:9px 12px;text-align:left;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;white-space:nowrap">Panneau</th>
                 <th style="padding:9px 12px;text-align:left;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;white-space:nowrap">Campagne</th>
                 <th style="padding:9px 12px;text-align:left;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;white-space:nowrap">Technicien</th>
@@ -43,7 +48,15 @@
             $needsPige = $task->status === 'realisee' && $task->campaign_id && $pigeCount === 0;
             $rowStyle = $isLate ? 'border-left:3px solid rgba(239,68,68,.5);background:rgba(239,68,68,.02)' : ($needsPige ? 'border-left:3px solid rgba(249,115,22,.4);background:rgba(249,115,22,.015)' : '');
         @endphp
+        @php $isFinal = in_array($task->status, ['realisee', 'annulee']); @endphp
         <tr class="trow" data-pose-id="{{ $task->id }}" style="{{ $rowStyle }}">
+            <td style="padding:10px 6px 10px 14px;width:32px">
+                <input type="checkbox" class="pose-check"
+                       value="{{ $task->id }}"
+                       {{ $isFinal ? 'disabled' : '' }}
+                       title="{{ $isFinal ? 'Tâche terminée — non modifiable en masse' : 'Sélectionner' }}"
+                       style="accent-color:var(--accent);width:14px;height:14px;cursor:{{ $isFinal ? 'not-allowed' : 'pointer' }};opacity:{{ $isFinal ? '.35' : '1' }};">
+            </td>
             <td style="padding:10px 12px">
                 <a href="{{ route('admin.pose-tasks.show', $task) }}" style="font-family:monospace;font-size:12px;font-weight:700;color:var(--accent);text-decoration:none;display:block">{{ $task->panel?->reference ?? '—' }}</a>
                 <div style="font-size:11px;color:var(--text2);margin-top:1px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ $task->panel?->name }}">{{ $task->panel?->name ?? '—' }}</div>

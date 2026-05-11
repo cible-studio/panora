@@ -284,6 +284,57 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
     @endif
 </div>
 
+{{-- ════ BARRE D'ACTIONS GROUPÉES (apparaît si >= 1 ligne sélectionnée) ════ --}}
+<div id="bulk-bar"
+     style="display:none;position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+            background:var(--surface);border:1px solid var(--border);border-radius:14px;
+            box-shadow:0 8px 28px rgba(0,0,0,.4);padding:12px 16px;z-index:60;
+            display:none;align-items:center;gap:14px;flex-wrap:wrap;max-width:96vw;">
+    <div style="display:flex;align-items:center;gap:10px;">
+        <span id="bulk-count-badge"
+              style="background:var(--accent);color:#000;font-weight:800;font-size:13px;
+                     padding:5px 12px;border-radius:999px;line-height:1;">0</span>
+        <span style="font-size:13px;color:var(--text2);">tâche(s) sélectionnée(s)</span>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        {{-- Assigner technicien --}}
+        <select id="bulk-tech" class="filter-select" style="min-width:170px;">
+            <option value="">— Assigner un technicien —</option>
+            <option value="__unset__">(retirer l'assignation)</option>
+            @foreach($techniciens as $tech)
+                <option value="{{ $tech->id }}">{{ $tech->name }}</option>
+            @endforeach
+        </select>
+        <button type="button" id="bulk-tech-apply" class="btn btn-sm btn-ghost">Appliquer</button>
+
+        {{-- Nom équipe --}}
+        <input type="text" id="bulk-team" class="filter-input"
+               placeholder="Nom d'équipe" maxlength="100"
+               style="min-width:130px;">
+        <button type="button" id="bulk-team-apply" class="btn btn-sm btn-ghost">Appliquer</button>
+
+        {{-- Statut --}}
+        <select id="bulk-status" class="filter-select" style="min-width:140px;">
+            <option value="">— Changer statut —</option>
+            <option value="planifiee">Planifiée</option>
+            <option value="en_cours">En cours</option>
+            <option value="annulee">Annuler</option>
+        </select>
+        <button type="button" id="bulk-status-apply" class="btn btn-sm btn-ghost">Appliquer</button>
+
+        {{-- Date planifiée --}}
+        <input type="datetime-local" id="bulk-date" class="filter-input" style="min-width:160px;">
+        <button type="button" id="bulk-date-apply" class="btn btn-sm btn-ghost">Replanifier</button>
+    </div>
+
+    <button type="button" id="bulk-clear" class="btn btn-sm"
+            style="background:transparent;border:1px solid var(--border);color:var(--text2);
+                   margin-left:auto;">
+        ✕ Effacer
+    </button>
+</div>
+
 {{-- ════ POLLING TEMPS RÉEL : progression des poses ════ --}}
 <script>
 (function () {
@@ -342,6 +393,183 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
     // Démarre le polling après 5s (pour ne pas charger la page initiale + polling en concurrence)
     setTimeout(poll, 5000);
     setInterval(poll, POLL_INTERVAL);
+})();
+</script>
+
+{{-- ════ SÉLECTION MULTIPLE + ACTIONS GROUPÉES ════ --}}
+<script>
+(function () {
+    'use strict';
+    const ENDPOINT = "{{ route('admin.pose-tasks.bulk-update') }}";
+    const CSRF     = document.querySelector('meta[name=csrf-token]')?.content || '';
+
+    const bar       = document.getElementById('bulk-bar');
+    const badge     = document.getElementById('bulk-count-badge');
+    const checkAll  = document.getElementById('pose-check-all');
+    const clearBtn  = document.getElementById('bulk-clear');
+
+    // Set des IDs sélectionnés — persisté en mémoire JS (perd au reload, OK).
+    const selected = new Set();
+
+    function syncBar() {
+        const n = selected.size;
+        if (badge) badge.textContent = String(n);
+        if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
+        syncCheckAllState();
+    }
+
+    function syncCheckAllState() {
+        if (!checkAll) return;
+        const enabledBoxes = Array.from(document.querySelectorAll('.pose-check:not([disabled])'));
+        if (enabledBoxes.length === 0) {
+            checkAll.checked = false;
+            checkAll.indeterminate = false;
+            return;
+        }
+        const checkedCount = enabledBoxes.filter(b => b.checked).length;
+        checkAll.checked       = checkedCount === enabledBoxes.length;
+        checkAll.indeterminate = checkedCount > 0 && checkedCount < enabledBoxes.length;
+    }
+
+    // Délégation : les checkbox sont régénérées au filtre AJAX, on capture
+    // au niveau du container parent.
+    document.addEventListener('change', (e) => {
+        const t = e.target;
+        if (t.classList.contains('pose-check') && !t.disabled) {
+            const id = Number(t.value);
+            if (t.checked) selected.add(id);
+            else           selected.delete(id);
+            syncBar();
+        }
+        if (t.id === 'pose-check-all') {
+            document.querySelectorAll('.pose-check:not([disabled])').forEach(box => {
+                box.checked = t.checked;
+                const id = Number(box.value);
+                if (t.checked) selected.add(id);
+                else           selected.delete(id);
+            });
+            syncBar();
+        }
+    });
+
+    // Quand la table est rechargée en AJAX (filtre / pagination), on
+    // restaure l'état coché des checkboxes encore présentes.
+    const tableEl = document.getElementById('table-container');
+    if (tableEl) {
+        const obs = new MutationObserver(() => {
+            document.querySelectorAll('.pose-check').forEach(box => {
+                if (selected.has(Number(box.value))) box.checked = true;
+            });
+            syncCheckAllState();
+        });
+        obs.observe(tableEl, { childList: true, subtree: true });
+    }
+
+    // Bouton effacer rapide
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            selected.clear();
+            document.querySelectorAll('.pose-check').forEach(b => { b.checked = false; });
+            syncBar();
+        });
+    }
+
+    // ── Helpers bulk submit ────────────────────────────────────────
+    function showFeedback(result) {
+        if (typeof window.showToast !== 'function') {
+            alert(result.error || (`${result.updated} mise(s) à jour, ${result.skipped} ignorée(s)`));
+            return;
+        }
+        if (!result.ok) {
+            showToast('error', result.error || 'Action impossible.', 4000, 'Action groupée');
+            return;
+        }
+        let msg = `${result.updated} tâche(s) mise(s) à jour`;
+        if (result.skipped) msg += ` · ${result.skipped} ignorée(s)`;
+        showToast('success', msg, 3500, 'Action groupée');
+    }
+
+    async function postBulk(action, value, confirmMsg) {
+        if (selected.size === 0) {
+            showToast('warning', 'Aucune tâche sélectionnée.', 2500, 'Action groupée');
+            return;
+        }
+        if (confirmMsg && !confirm(confirmMsg)) return;
+
+        const fd = new FormData();
+        selected.forEach(id => fd.append('task_ids[]', id));
+        fd.append('action', action);
+        if (value !== null && value !== undefined) fd.append('value', value);
+
+        try {
+            const r = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN':    CSRF,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept':          'application/json',
+                },
+                body: fd,
+            });
+            const data = await r.json().catch(() => ({ ok: false, error: 'Réponse invalide.' }));
+            showFeedback(data);
+
+            if (data.ok && data.updated > 0) {
+                // Recharge la table en réutilisant le filtre AJAX existant.
+                // window.S est exposé par le bloc filtres ; sinon reload.
+                if (typeof window._reloadPosesTable === 'function') {
+                    window._reloadPosesTable();
+                } else {
+                    // Fallback : reload douce
+                    setTimeout(() => location.reload(), 1200);
+                }
+                // Garder la sélection des IDs encore présents après le
+                // reload table — le MutationObserver s'en charge.
+            }
+        } catch (e) {
+            showToast('error', 'Échec réseau : ' + e.message, 4000, 'Action groupée');
+        }
+    }
+
+    // ── Wiring boutons ────────────────────────────────────────────
+    document.getElementById('bulk-tech-apply')?.addEventListener('click', () => {
+        const sel = document.getElementById('bulk-tech');
+        const val = sel.value;
+        if (!val) { showToast('warning', 'Choisissez un technicien.', 2500, 'Action groupée'); return; }
+        const apiVal = val === '__unset__' ? '' : val;
+        const label  = val === '__unset__' ? 'retirer l\'assignation'
+                       : 'assigner ' + (sel.options[sel.selectedIndex]?.text || 'ce technicien');
+        postBulk('assign_tech', apiVal,
+            `Confirmer : ${label} sur ${selected.size} tâche(s) ?`);
+    });
+
+    document.getElementById('bulk-team-apply')?.addEventListener('click', () => {
+        const input = document.getElementById('bulk-team');
+        const val   = (input.value || '').trim();
+        const label = val ? `équipe "${val}"` : 'retirer le nom d\'équipe';
+        postBulk('rename_team', val,
+            `Confirmer : ${label} sur ${selected.size} tâche(s) ?`);
+    });
+
+    document.getElementById('bulk-status-apply')?.addEventListener('click', () => {
+        const sel = document.getElementById('bulk-status');
+        const val = sel.value;
+        if (!val) { showToast('warning', 'Choisissez un statut.', 2500, 'Action groupée'); return; }
+        const label = sel.options[sel.selectedIndex]?.text || val;
+        postBulk('change_status', val,
+            `Confirmer : passer ${selected.size} tâche(s) en « ${label} » ?`);
+    });
+
+    document.getElementById('bulk-date-apply')?.addEventListener('click', () => {
+        const input = document.getElementById('bulk-date');
+        const val   = input.value;
+        if (!val) { showToast('warning', 'Choisissez une date.', 2500, 'Action groupée'); return; }
+        postBulk('reschedule', val,
+            `Confirmer : replanifier ${selected.size} tâche(s) au ${val.replace('T', ' à ')} ?`);
+    });
+
+    // Init initial
+    syncBar();
 })();
 </script>
 
@@ -481,6 +709,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
             elements.resetWrapper.style.display = hasFilters ? 'flex' : 'none';
         }
     }
+
+    // Exposé pour permettre au bloc "actions groupées" de recharger la
+    // table après un bulk update sans dupliquer la logique de fetch.
+    window._reloadPosesTable = () => applyFilters();
 
     async function applyFilters() {
         if (isUpdating) return;
