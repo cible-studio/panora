@@ -135,7 +135,7 @@
 
         {{-- ══ LEFT — image ══ --}}
         <div class="auth-image-panel">
-            <img src="{{ asset('images/peroquet3.jpg') }}"
+            <img src="{{ asset('images/peroquet3.png') }}"
                  alt="CIBLE CI"
                  class="auth-bg-img"
                  onerror="this.closest('.auth-image-panel').style.background='linear-gradient(135deg,#e20613,#7c000a)'">
