@@ -400,6 +400,41 @@ class PoseController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // BULK UPDATE — actions groupées (assigner tech / équipe / statut / date)
+    //
+    // Endpoint AJAX POST → renvoie JSON {ok, updated, skipped, error?}.
+    // Le front affiche un toast et recharge la table.
+    // ══════════════════════════════════════════════════════════════
+    public function bulkUpdate(Request $request)
+    {
+        $data = $request->validate([
+            'task_ids'   => 'required|array|min:1|max:200',
+            'task_ids.*' => 'integer|exists:pose_tasks,id',
+            'action'     => 'required|in:assign_tech,rename_team,change_status,reschedule',
+            'value'      => 'nullable',
+        ]);
+
+        $result = $this->poseService->bulkUpdate(
+            $data['task_ids'],
+            $data['action'],
+            $data['value'] ?? null,
+            auth()->user()
+        );
+
+        // AJAX (le front utilise toujours fetch sur cet endpoint).
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json($result);
+        }
+
+        // Fallback non-JS : flash session.
+        if (!$result['ok']) {
+            return back()->with('error', $result['error'] ?? 'Action impossible.');
+        }
+        return back()->with('success', $result['updated'] . ' tâche(s) mise(s) à jour.'
+            . ($result['skipped'] ? ' ' . $result['skipped'] . ' ignorée(s).' : ''));
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // MARK COMPLETE — lock optimiste + alerte instantanée
     // ══════════════════════════════════════════════════════════════
     public function markComplete(Request $request, PoseTask $poseTask)

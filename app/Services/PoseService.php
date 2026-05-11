@@ -229,6 +229,118 @@ class PoseService
     }
 
     // ══════════════════════════════════════════════════════════════
+    // BULK UPDATE — actions groupées depuis la liste poses
+    //
+    // Action acceptées :
+    //   - assign_tech     : value = user_id (technicien) | null
+    //   - rename_team     : value = string (nom équipe) | null
+    //   - change_status   : value = 'planifiee'|'en_cours'|'realisee'|'annulee'
+    //   - reschedule      : value = date (Y-m-d ou Y-m-d H:i)
+    //
+    // Garde : on ignore silencieusement les tâches déjà terminées
+    // (réalisée/annulée) pour rester idempotent et éviter de défaire
+    // des résolutions. Le compte renvoyé permet d'afficher à l'admin
+    // ce qui a effectivement été appliqué.
+    //
+    // @return array{ok:bool, updated:int, skipped:int, error?:string}
+    // ══════════════════════════════════════════════════════════════
+    public function bulkUpdate(array $taskIds, string $action, $value, User $actor): array
+    {
+        $taskIds = array_values(array_filter(array_map('intval', $taskIds)));
+        if (empty($taskIds)) {
+            return ['ok' => false, 'updated' => 0, 'skipped' => 0, 'error' => 'Aucune tâche sélectionnée.'];
+        }
+
+        // Normalisation / validation du payload selon l'action.
+        $payload = [];
+        switch ($action) {
+            case 'assign_tech':
+                $payload['assigned_user_id'] = $value === null || $value === '' ? null : (int) $value;
+                if ($payload['assigned_user_id'] !== null
+                    && !\App\Models\User::where('id', $payload['assigned_user_id'])
+                        ->where('role', 'technique')->exists()) {
+                    return $this->bulkError('Le technicien sélectionné est introuvable ou n\'a pas le bon rôle.');
+                }
+                break;
+
+            case 'rename_team':
+                $payload['team_name'] = $value === null || $value === '' ? null : mb_substr((string) $value, 0, 100);
+                break;
+
+            case 'change_status':
+                $allowed = [
+                    PoseTaskStatus::PLANNED->value,
+                    PoseTaskStatus::IN_PROGRESS->value,
+                    PoseTaskStatus::CANCELLED->value,
+                    // COMPLETED interdit en bulk : la pose terrain doit passer
+                    // par le flow normal (photo / pige / lien public). Sinon
+                    // on contournerait tous les contrôles métier.
+                ];
+                if (!in_array($value, $allowed, true)) {
+                    return $this->bulkError('Statut invalide pour une action groupée (réalisée se fait à l\'unité).');
+                }
+                $payload['status'] = $value;
+                break;
+
+            case 'reschedule':
+                try {
+                    $d = \Carbon\Carbon::parse($value);
+                    $payload['scheduled_at'] = $d->toDateTimeString();
+                } catch (\Throwable) {
+                    return $this->bulkError('Date invalide.');
+                }
+                break;
+
+            default:
+                return $this->bulkError('Action inconnue : ' . $action);
+        }
+
+        // Récupération + filtre des tâches non-terminales. On charge la
+        // campagne pour vérifier la garde campagne (PAUSE / supprimée) sur
+        // les passages vers en_cours.
+        $tasks = PoseTask::whereIn('id', $taskIds)
+            ->whereNotIn('status', [
+                PoseTaskStatus::COMPLETED->value,
+                PoseTaskStatus::CANCELLED->value,
+            ])
+            ->get();
+
+        $updated = 0;
+        $skipped = count($taskIds) - $tasks->count(); // pré-filtre déjà terminées
+
+        foreach ($tasks as $task) {
+            // Garde campagne pour passage à IN_PROGRESS.
+            if ($action === 'change_status'
+                && $value === PoseTaskStatus::IN_PROGRESS->value
+                && $task->status === PoseTaskStatus::PLANNED->value) {
+                $campaign = $task->campaign_id ? Campaign::withTrashed()->find($task->campaign_id) : null;
+                if ($this->resolveCampaignBlocker($campaign)) {
+                    $skipped++;
+                    continue;
+                }
+            }
+
+            $task->update($payload);
+            $updated++;
+        }
+
+        Log::info('pose_task.bulk_updated', [
+            'action'  => $action,
+            'value'   => $value,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'by'      => $actor->id,
+        ]);
+
+        return ['ok' => true, 'updated' => $updated, 'skipped' => $skipped];
+    }
+
+    private function bulkError(string $msg): array
+    {
+        return ['ok' => false, 'updated' => 0, 'skipped' => 0, 'error' => $msg];
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // STATS
     // ══════════════════════════════════════════════════════════════
     public function getStats(): array
