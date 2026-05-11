@@ -233,6 +233,10 @@ Route::prefix('admin')
             ->name('pose-tasks.notify');
 
         // Maintenance
+        // Endpoints AJAX recherche panneaux + création rapide technicien
+        // (à placer AVANT Route::resource sinon /search-panels matche {maintenance})
+        Route::get ('maintenances/search-panels',  [MaintenanceController::class, 'searchPanels'])->name('maintenances.search-panels');
+        Route::post('maintenances/quick-tech',     [MaintenanceController::class, 'quickCreateTechnician'])->name('maintenances.quick-tech');
         Route::resource('maintenances', MaintenanceController::class);
         Route::post('maintenances/{maintenance}/resolve', [MaintenanceController::class, 'resolve'])->name('maintenances.resolve');
 
