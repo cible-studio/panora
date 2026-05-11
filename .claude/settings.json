@@ -6,7 +6,19 @@
       "Bash(awk 'NR==487' resources/views/admin/reservations/show.blade.php)",
       "Bash(grep -nE '^@endif|@if\\\\\\(\\\\$reservation->externalPanels|<div class=\"card mt-4\" id=\"add-panel-card\"|note: confirmation modal' resources/views/admin/reservations/show.blade.php)",
       "Bash(grep -nE '@if\\\\\\(false\\\\\\)|@endif.*FIN|@endif.*totalCount|@endif.*extCount|<div class=\"card|^</div>|^@endif$' resources/views/admin/reservations/show.blade.php)",
-      "Bash(php -l app/Http/Controllers/Client/ClientDashboardController.php)"
+      "Bash(php -l app/Http/Controllers/Client/ClientDashboardController.php)",
+      "Bash(git commit -m ' *)",
+      "Bash(grep -n '$badge\\\\[' resources/views/client/campagne-detail.blade.php)",
+      "Bash(grep -n '{{ $badge\\\\['\\\\''label'\\\\''\\\\] }}\\\\|{{ $badge\\\\['\\\\''' resources/views/client/campagne-detail.blade.php)",
+      "Bash(php -l app/Models/ClientContact.php)",
+      "Bash(git -c stash.showUntracked=false stash push -m \"settings\" -- .claude/)",
+      "Bash(git stash *)",
+      "Bash(findstr /i \"format panel commune\")",
+      "Bash(not exist *)",
+      "PowerShell($env:DRY_RUN=\"1\"; php artisan db:seed --class=PanelImportSeeder --no-interaction 2>&1 | Select-Object -Last 200)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "PowerShell(php artisan panora:wipe-test-data --dry-run 2>&1)"
     ]
   }
 }

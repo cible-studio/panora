@@ -1911,14 +1911,6 @@
                             this._renderPanels(data.panels);
                             this._renderStats(data.stats, data.has_period);
                             this._renderPagination(data.stats);
-                            if (S._autoSelect) {
-                                const as = S._autoSelect;
-                                S._autoSelect = null;
-                                const found = (data.panels || []).find(p => String(p.id) === as.id);
-                                if (found && found.is_selectable && !S.sel.ids.includes(as.id)) {
-                                    this.toggle(as.id, found.monthly_rate, found.source, found.display_status, as.selectableFrom);
-                                }
-                            }
                         } catch (err) {
                             if (rid !== S.reqId) return;
                             S.loading = false;
@@ -2125,16 +2117,16 @@
                         const elAu = _el('f-au'); if (elAu) elAu.value = newAu;
                         S.page = 1;
 
-                        if (panelId) {
-                            S._autoSelect = { id: String(panelId), rate: parseFloat(rate) || 0, source: source || 'internal', displayStatus: displayStatus || 'libre', selectableFrom: newDu };
+                        if (panelId && !S.sel.ids.includes(String(panelId))) {
+                            this.toggle(String(panelId), parseFloat(rate) || 0, source || 'internal', 'libre', newDu);
                         }
 
                         this._fetch();
                         this._syncUI();
 
                         if (typeof showToast === 'function') {
-                            showToast('info',
-                                `Période ajustée — le panneau sera sélectionné automatiquement.`,
+                            showToast('success',
+                                `Panneau ajouté à la sélection · Période décalée au ${newDu.split('-').reverse().join('/')}`,
                                 3500, 'Disponibilités');
                         }
                     },
