@@ -53,6 +53,16 @@ class Client extends Authenticatable  // ← était "extends Model"
         'updated_at' => 'datetime',
     ];
 
+    public function contacts()
+    {
+        return $this->hasMany(ClientContact::class)->orderByDesc('is_primary')->orderBy('name');
+    }
+
+    public function primaryContact()
+    {
+        return $this->hasOne(ClientContact::class)->where('is_primary', true);
+    }
+
     // ── Liste fixe des secteurs métier ────────────────────────────
     // Source unique de vérité — utilisée partout (validation, vues, filtres)
     public const SECTORS = [
@@ -88,21 +98,21 @@ class Client extends Authenticatable  // ← était "extends Model"
 
     // ── Génération automatique NCC ────────────────────────────────
     // Format : CLT-2026-0001
-    // public static function generateNcc(): string
-    // {
-    //     $year    = now()->year;
-    //     $prefix  = "CLT-{$year}-";
-    //     $last    = static::withTrashed()
-    //         ->where('ncc', 'like', "{$prefix}%")
-    //         ->orderByDesc('ncc')
-    //         ->value('ncc');
+    public static function generateNcc(): string
+    {
+        $year   = now()->year;
+        $prefix = "CLT-{$year}-";
+        $last   = static::withTrashed()
+            ->where('ncc', 'like', "{$prefix}%")
+            ->orderByDesc('ncc')
+            ->value('ncc');
 
-    //     $next = $last
-    //         ? (int)substr($last, strlen($prefix)) + 1
-    //         : 1;
+        $next = $last
+            ? (int)substr($last, strlen($prefix)) + 1
+            : 1;
 
-    //     return $prefix . str_pad($next, 4, '0', STR_PAD_LEFT);
-    // }
+        return $prefix . str_pad($next, 4, '0', STR_PAD_LEFT);
+    }
 
 
 

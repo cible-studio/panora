@@ -37,7 +37,20 @@
                             <div style="font-weight:500;">{{ $user->name }}</div>
                         </div>
                     </td>
-                    <td style="color:var(--text2);">{{ $user->email }}</td>
+                    <td style="color:var(--text2);">
+                        <div>{{ $user->email }}</div>
+                        @if($user->whatsapp_number)
+                            @php
+                                $waFormatted = app(\App\Services\WhatsAppService::class)->format($user->whatsapp_number);
+                            @endphp
+                            <div style="display:inline-flex;align-items:center;gap:4px;margin-top:3px;font-size:11px;color:#22c55e;font-weight:500;" title="{{ $waFormatted }}">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M20.5 3.5C18.2 1.2 15.2 0 12 0 5.4 0 0 5.4 0 12c0 2.1.6 4.2 1.6 6L0 24l6.2-1.6c1.7.9 3.7 1.5 5.7 1.5 6.6 0 12-5.4 12-12 0-3.2-1.2-6.2-3.4-8.4z"/>
+                                </svg>
+                                <span style="font-family:monospace;">{{ $waFormatted }}</span>
+                            </div>
+                        @endif
+                    </td>
                     <td>
                         @if($user->role->value === 'admin')
                             <span class="badge badge-red">🛡️ Admin</span>

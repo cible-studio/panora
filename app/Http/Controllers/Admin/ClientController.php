@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Client\StoreClientRequest;
 use App\Http\Requests\Client\UpdateClientRequest;
+use App\Imports\ClientsImport;
 use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use App\Services\AlertService;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 
 class ClientController extends Controller
@@ -19,6 +22,43 @@ class ClientController extends Controller
     // ══════════════════════════════════════════════════════════════
 
     public function index(Request $request)
+    {
+        $query = $this->buildClientsQuery($request);
+
+        $stats = [
+            'total'    => Client::count(),
+            'actifs'   => Client::whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'pose']))->count(),
+            'ca_total' => \App\Models\Campaign::sum('total_amount'),
+        ];
+
+        $clients = $query->paginate(20)->withQueryString();
+        $sectors = Client::SECTORS;
+
+        if ($request->ajax()) {
+            return response()->json([
+                'html'       => view('admin.clients.partials.table-rows', compact('clients'))->render(),
+                'pagination' => $clients->links()->render(),
+                'total'      => $clients->total(),
+            ]);
+        }
+
+        return view('admin.clients.index', compact('clients', 'stats', 'sectors'));
+    }
+
+    /**
+     * Source unique de vérité pour la query "liste clients" — utilisée par
+     * index(), exportCsv(), exportPdf(). Garantit que les exports reflètent
+     * exactement le filtrage actif côté UI.
+     *
+     * Filtres supportés :
+     *   - search (nom/ncc/email/contact/téléphone)
+     *   - sector
+     *   - sort (name|created_at|campaigns_count)
+     *   - active_only=1 → ne garder que les clients ayant au moins 1
+     *     campagne en statut actif|pose. C'est ce filtre qui résout le
+     *     bug 5.1 où "Avec campagne active" ne produisait aucun delta.
+     */
+    private function buildClientsQuery(Request $request): \Illuminate\Database\Eloquent\Builder
     {
         $query = Client::withCount(['campaigns', 'reservations'])
             ->withCount([
@@ -32,13 +72,18 @@ class ClientController extends Controller
                 }
             ]);
 
+        // Bug 5.1 — filtre "Clients avec campagne active"
+        if ($request->boolean('active_only')) {
+            $query->whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'pose']));
+        }
+
         if ($request->search) {
             $query->where(function ($q) use ($request) {
-                $q->where('name', 'like', "%{$request->search}%")
-                    ->orWhere('ncc', 'like', "%{$request->search}%")
-                    ->orWhere('email', 'like', "%{$request->search}%")
-                    ->orWhere('contact_name', 'like', "%{$request->search}%")
-                    ->orWhere('phone', 'like', "%{$request->search}%");
+                $q->where('name',         'like', "%{$request->search}%")
+                  ->orWhere('ncc',          'like', "%{$request->search}%")
+                  ->orWhere('email',        'like', "%{$request->search}%")
+                  ->orWhere('contact_name', 'like', "%{$request->search}%")
+                  ->orWhere('phone',        'like', "%{$request->search}%");
             });
         }
 
@@ -46,27 +91,97 @@ class ClientController extends Controller
             $query->where('sector', $request->sector);
         }
 
-        $sort = $request->sort ?? 'name';
+        $sort = in_array($request->sort, ['name', 'created_at', 'campaigns_count'], true)
+            ? $request->sort : 'name';
         $query->orderBy($sort, $sort === 'name' ? 'asc' : 'desc');
 
-        $stats = [
-            'total' => Client::count(),
-            'actifs' => Client::whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'pose']))->count(),
-            'ca_total' => \App\Models\Campaign::sum('total_amount'),
+        return $query;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // EXPORTS — CSV + PDF (5.2)
+    //
+    // Les deux respectent les filtres appliqués sur la liste : on
+    // récupère les MÊMES IDs que ceux affichés (toutes pages), pas
+    // seulement la page courante. Logique commune via buildClientsQuery.
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Export CSV (UTF-8 + BOM pour ouverture propre dans Excel FR).
+     * Streamé pour supporter de gros volumes sans saturer la mémoire.
+     */
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $clients = $this->buildClientsQuery($request)->get();
+        $filename = 'clients-' . now()->format('Ymd_His') . '.csv';
+
+        return new StreamedResponse(function () use ($clients) {
+            $out = fopen('php://output', 'w');
+            // BOM UTF-8 pour Excel/LibreOffice → accents OK
+            fwrite($out, "\xEF\xBB\xBF");
+
+            fputcsv($out, [
+                'Nom', 'NCC', 'Secteur', 'Contact', 'Email', 'Téléphone',
+                'Adresse', 'Campagnes', 'Campagnes actives', 'Réservations',
+                'Compte client', 'Créé le',
+            ], ';');
+
+            foreach ($clients as $c) {
+                fputcsv($out, [
+                    $c->name,
+                    $c->ncc            ?? '',
+                    $c->sector         ?? '',
+                    $c->contact_name   ?? '',
+                    $c->email          ?? '',
+                    $c->phone          ?? '',
+                    $c->address        ?? '',
+                    (int) ($c->campaigns_count ?? 0),
+                    (int) ($c->active_campaigns_count ?? 0),
+                    (int) ($c->reservations_count ?? 0),
+                    method_exists($c, 'hasAccount') && $c->hasAccount() ? 'Oui' : 'Non',
+                    $c->created_at?->format('d/m/Y') ?? '',
+                ], ';');
+            }
+            fclose($out);
+        }, 200, [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Cache-Control'       => 'no-store, no-cache',
+        ]);
+    }
+
+    /**
+     * Export PDF (paysage A4 — 12 colonnes, lisible).
+     */
+    public function exportPdf(Request $request)
+    {
+        $clients = $this->buildClientsQuery($request)->get();
+
+        $logoSrc = (new class {
+            use \App\Support\PdfAssets;
+            public function go(): string { return $this->getLogoPdf(); }
+        })->go();
+
+        $filters = [
+            'search'      => $request->input('search'),
+            'sector'      => $request->input('sector'),
+            'active_only' => $request->boolean('active_only'),
         ];
 
-        $clients = $query->paginate(20)->withQueryString();
-        $sectors = Client::SECTORS;
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.clients.pdf.list', [
+            'clients'   => $clients,
+            'filters'   => $filters,
+            'generated' => now()->format('d/m/Y à H:i'),
+            'logoSrc'   => $logoSrc,
+        ])->setPaper('A4', 'landscape')
+          ->setOptions([
+              'isHtml5ParserEnabled' => true,
+              'isRemoteEnabled'      => false,
+              'defaultFont'          => 'DejaVu Sans',
+              'dpi'                  => 96,
+          ]);
 
-        if ($request->ajax()) {
-            return response()->json([
-                'html' => view('admin.clients.partials.table-rows', compact('clients'))->render(),
-                'pagination' => $clients->links()->render(),
-                'total' => $clients->total(),
-            ]);
-        }
-
-        return view('admin.clients.index', compact('clients', 'stats', 'sectors'));
+        return $pdf->download('clients-' . now()->format('Ymd_His') . '.pdf');
     }
 
     public function create()
@@ -111,6 +226,7 @@ class ClientController extends Controller
             'reservations' => fn($q) => $q->withCount('panels')->latest()->limit(5),
             'campaigns' => fn($q) => $q->latest()->limit(8),
             'invoices' => fn($q) => $q->latest()->limit(5),
+            'contacts',
         ]);
 
         $totalFacture = $client->invoices()->sum('amount_ttc');
@@ -178,6 +294,7 @@ class ClientController extends Controller
 
     public function update(UpdateClientRequest $request, Client $client)
     {
+        $oldName = $client->name;
         $client->update($request->validated());
 
         Log::info('client.updated', [
@@ -185,11 +302,19 @@ class ClientController extends Controller
             'user_id' => auth()->id(),
         ]);
 
+        // Alerte modification client
+        AlertService::create(
+            'client',
+            'info',
+            '✏️ Client modifié — ' . $client->name,
+            auth()->user()->name . ' a modifié le client ' . $oldName . '.',
+            $client
+        );
+
         return redirect()
             ->route('admin.clients.show', $client)
             ->with('success', 'Client mis à jour avec succès.');
     }
-
     // ══════════════════════════════════════════════════════════════
     // DESTROY
     // ══════════════════════════════════════════════════════════════
@@ -211,6 +336,15 @@ class ClientController extends Controller
             'client_name' => $name,
             'user_id' => auth()->id(),
         ]);
+
+        // Alerte suppression client
+        AlertService::create(
+            'client',
+            'danger',
+            '🗑 Client supprimé — ' . $name,
+            auth()->user()->name . ' a supprimé le client ' . $name . '.',
+            null
+        );
 
         return redirect()
             ->route('admin.clients.index')
@@ -369,6 +503,86 @@ class ClientController extends Controller
             'text' => $client->name,
             'ncc' => $client->ncc,
 
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // IMPORT EXCEL — admin/clients/import
+    // ══════════════════════════════════════════════════════════════════
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:5120', // 5 Mo
+        ], [
+            'file.required' => 'Veuillez sélectionner un fichier.',
+            'file.mimes'    => 'Format invalide. Acceptés : .xlsx, .xls, .csv',
+            'file.max'      => 'Fichier trop volumineux (max 5 Mo).',
+        ]);
+
+        $importer = new ClientsImport();
+
+        try {
+            Excel::import($importer, $request->file('file'));
+        } catch (\Throwable $e) {
+            Log::error('clients.import.failed', ['error' => $e->getMessage()]);
+            return back()->with('error',
+                '❌ Erreur d\'import : ' . mb_substr($e->getMessage(), 0, 200));
+        }
+
+        $errors = method_exists($importer, 'errors') ? $importer->errors() : collect();
+        $errorCount = $errors->count();
+
+        $msg = "✅ {$importer->imported} client(s) importé(s).";
+        if ($importer->skipped > 0) {
+            $msg .= " {$importer->skipped} ignoré(s) (doublons ou lignes vides).";
+        }
+        if ($errorCount > 0) {
+            $msg .= " ⚠️ {$errorCount} ligne(s) en erreur.";
+        }
+
+        Log::info('clients.import.success', [
+            'imported' => $importer->imported,
+            'skipped'  => $importer->skipped,
+            'errors'   => $errorCount,
+            'user_id'  => auth()->id(),
+        ]);
+
+        AlertService::create(
+            'client',
+            'info',
+            '📥 Import clients — ' . $importer->imported . ' nouveau(x)',
+            auth()->user()?->name . ' a importé ' . $importer->imported . ' client(s) depuis un fichier Excel/CSV.',
+            null
+        );
+
+        return redirect()->route('admin.clients.index')
+            ->with($importer->imported > 0 ? 'success' : 'warning', $msg);
+    }
+
+    /**
+     * Modèle CSV téléchargeable pour l'import.
+     * GET admin/clients/import/template
+     */
+    public function importTemplate(): StreamedResponse
+    {
+        $headers = ['nom', 'email', 'telephone', 'entreprise', 'ncc', 'contact', 'secteur', 'adresse'];
+        $sample  = [
+            ['EXEMPLE SARL', 'contact@exemple.ci', '0707070707', 'EXEMPLE GROUP', 'NCC-2026-001', 'Mr KOFFI', 'Telecom', 'Plateau, Abidjan'],
+            ['CIBLE TEST',   'test@cible.ci',     '0102030405', '',                '',           '',          '',         ''],
+        ];
+
+        $callback = function () use ($headers, $sample) {
+            $out = fopen('php://output', 'w');
+            // BOM UTF-8 pour Excel français
+            fputs($out, "\xEF\xBB\xBF");
+            fputcsv($out, $headers, ';');
+            foreach ($sample as $row) fputcsv($out, $row, ';');
+            fclose($out);
+        };
+
+        return response()->streamDownload($callback, 'modele-import-clients.csv', [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="modele-import-clients.csv"',
         ]);
     }
 

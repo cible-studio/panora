@@ -149,9 +149,9 @@
                 </td>
                 <td>
                     {{ $panel->format?->name ?? '—' }}
-                    @if($panel->format?->width && $panel->format?->height)
+                    @if($panel->format?->dimensions_label)
                     <div style="font-size:9px;color:#94a3b8;">
-                        {{ $panel->format->width }}×{{ $panel->format->height }}m
+                        {{ $panel->format->dimensions_label }}@if($panel->format->surface_label) · {{ $panel->format->surface_label }}@endif
                     </div>
                     @endif
                 </td>

@@ -9,64 +9,493 @@ use App\Models\Panel;
 use App\Models\Pige;
 use App\Models\PoseTask;
 use App\Models\Reservation;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
+/**
+ * AlertService — création et gestion des alertes système.
+ *
+ * Catalogue des 20 motifs supportés (TYPES) avec icon, couleur, niveau par
+ * défaut. Le code `type` est la clé canonique : on s'en sert dans toute la
+ * stack (filtre, dedup, trigger).
+ *
+ * Création d'une alerte : ::notify(type, model, ['title', 'message', 'lien'])
+ * — la dedup est automatique sur (type + related_*).
+ *
+ * Bumping : si une alerte non lue identique existe, on rafraîchit son
+ * triggered_at au lieu d'en créer une nouvelle (le badge ne s'envole pas).
+ */
 class AlertService
-{   
-    // ok
-    // ══════════════════════════════════════════════════════════════
-    // GÉNÉRATION GLOBALE — appelée par artisan alerts:generate
-    // ══════════════════════════════════════════════════════════════
-    public function generateAll(): array
+{
+    // ══════════════════════════════════════════════════════════════════
+    // CATALOGUE DES 20 MOTIFS
+    //
+    // Format : 'code' => ['icon', 'niveau', 'color', 'label', 'group']
+    //   - icon    : SVG path id ou emoji (utilisé par le composant blade)
+    //   - niveau  : 'info' | 'warning' | 'danger' (défaut quand on appelle notify)
+    //   - color   : couleur principale (mappe au design system)
+    //   - label   : libellé court FR pour les filtres et la liste
+    //   - group   : regroupement métier (Réservations, Campagnes, ...)
+    //
+    // ══════════════════════════════════════════════════════════════════
+    public const TYPES = [
+        // ── Réservations ──────────────────────────────────────────
+        'reservation_nouvelle' => [
+            'icon' => '📋', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Nouvelle réservation',
+            'group' => 'Réservations',
+        ],
+        'reservation_confirmee' => [
+            'icon' => '✅', 'niveau' => 'info',    'color' => '#22c55e',
+            'label' => 'Réservation confirmée',
+            'group' => 'Réservations',
+        ],
+        'reservation_annulee' => [
+            'icon' => '❌', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Réservation annulée',
+            'group' => 'Réservations',
+        ],
+        'reservation_expiree' => [
+            'icon' => '⏱', 'niveau' => 'warning', 'color' => '#f97316',
+            'label' => 'Réservation expirée',
+            'group' => 'Réservations',
+        ],
+        'reservation_en_attente_longue' => [
+            'icon' => '⌛', 'niveau' => 'warning', 'color' => '#eab308',
+            'label' => 'Réservation en attente > 48h',
+            'group' => 'Réservations',
+        ],
+
+        // ── Campagnes ─────────────────────────────────────────────
+        'campagne_creee' => [
+            'icon' => '🎯', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Campagne créée',
+            'group' => 'Campagnes',
+        ],
+        'campagne_active' => [
+            'icon' => '🚀', 'niveau' => 'info',    'color' => '#22c55e',
+            'label' => 'Campagne active',
+            'group' => 'Campagnes',
+        ],
+        'campagne_terminee' => [
+            'icon' => '🏁', 'niveau' => 'info',    'color' => '#6b7280',
+            'label' => 'Campagne terminée',
+            'group' => 'Campagnes',
+        ],
+        'fin_campagne_j7' => [
+            'icon' => '📅', 'niveau' => 'warning', 'color' => '#eab308',
+            'label' => 'Fin campagne dans 7 jours',
+            'group' => 'Campagnes',
+        ],
+        'fin_campagne_j3' => [
+            'icon' => '⚠️', 'niveau' => 'warning', 'color' => '#f97316',
+            'label' => 'Fin campagne dans 3 jours',
+            'group' => 'Campagnes',
+        ],
+        'fin_campagne_j0' => [
+            'icon' => '🔥', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Campagne expirée aujourd\'hui',
+            'group' => 'Campagnes',
+        ],
+
+        // ── Panneaux ──────────────────────────────────────────────
+        'panneau_libre' => [
+            'icon' => '🟢', 'niveau' => 'info',    'color' => '#22c55e',
+            'label' => 'Panneau libéré',
+            'group' => 'Panneaux',
+        ],
+        'panneau_occupe' => [
+            'icon' => '🔴', 'niveau' => 'info',    'color' => '#ef4444',
+            'label' => 'Panneau occupé',
+            'group' => 'Panneaux',
+        ],
+        'panneau_maintenance' => [
+            'icon' => '🛠', 'niveau' => 'warning', 'color' => '#6b7280',
+            'label' => 'Panneau en maintenance',
+            'group' => 'Panneaux',
+        ],
+        'conflit_reservation' => [
+            'icon' => '⚡', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Conflit de réservation',
+            'group' => 'Panneaux',
+        ],
+
+        // ── Poses ─────────────────────────────────────────────────
+        'pose_planifiee' => [
+            'icon' => '📌', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Pose planifiée',
+            'group' => 'Poses',
+        ],
+        'pose_en_cours' => [
+            'icon' => '⏳', 'niveau' => 'info',    'color' => '#eab308',
+            'label' => 'Pose en cours',
+            'group' => 'Poses',
+        ],
+        'pose_terminee' => [
+            'icon' => '✅', 'niveau' => 'info',    'color' => '#22c55e',
+            'label' => 'Pose terminée',
+            'group' => 'Poses',
+        ],
+        'avancement_pose' => [
+            'icon' => '📊', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Mise à jour avancement',
+            'group' => 'Poses',
+        ],
+
+        // ── Factures ──────────────────────────────────────────────
+        'facture_creee' => [
+            'icon' => '🧾', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Facture créée',
+            'group' => 'Factures',
+        ],
+        'facture_envoyee' => [
+            'icon' => '📤', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Facture envoyée',
+            'group' => 'Factures',
+        ],
+        'facture_payee' => [
+            'icon' => '💵', 'niveau' => 'info',    'color' => '#22c55e',
+            'label' => 'Facture payée',
+            'group' => 'Factures',
+        ],
+        'facture_annulee' => [
+            'icon' => '🚫', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Facture annulée',
+            'group' => 'Factures',
+        ],
+
+        // ── Système ───────────────────────────────────────────────
+        'taxe_echeance' => [
+            'icon' => '💰', 'niveau' => 'warning', 'color' => '#f97316',
+            'label' => 'Échéance taxe communale',
+            'group' => 'Système',
+        ],
+        'nouveau_client' => [
+            'icon' => '👤', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Nouveau client créé',
+            'group' => 'Système',
+        ],
+    ];
+
+    public const DEFAULT_META = [
+        'icon'   => '🔔',
+        'niveau' => 'info',
+        'color'  => '#6b7280',
+        'label'  => 'Notification',
+        'group'  => 'Autre',
+    ];
+
+    // ══════════════════════════════════════════════════════════════════
+    // API PUBLIQUE — création
+    // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * Crée (ou bump) une alerte. Source unique de création.
+     *
+     * @param  string      $type     Code de TYPES (ex: 'reservation_confirmee')
+     * @param  string      $title    Libellé court
+     * @param  string      $message  Message détaillé
+     * @param  Model|null  $related  Modèle lié (Reservation, Campaign, …)
+     * @param  array       $opts     [niveau?, lien?, user_id?, dedup_extra?]
+     */
+    public static function notify(
+        string  $type,
+        string  $title,
+        string  $message,
+        ?Model  $related = null,
+        array   $opts = []
+    ): ?Alert {
+        $meta   = self::TYPES[$type] ?? self::DEFAULT_META;
+        $niveau = $opts['niveau'] ?? $meta['niveau'];
+
+        $relatedType = $related ? class_basename($related) : null;
+        $relatedId   = $related?->getKey();
+
+        // dedup_key : par défaut type+model+id, surchargeable via opts['dedup_extra']
+        // (utile pour différencier "fin_campagne_j7" de "fin_campagne_j3" sur la même campagne).
+        $dedupKey = sprintf(
+            '%s:%s:%s:%s',
+            $type,
+            $relatedType ?? '-',
+            $relatedId ?? '-',
+            $opts['dedup_extra'] ?? '-'
+        );
+
+        try {
+            // Bump si une alerte non lue existe déjà avec ce dedup_key
+            $existing = Alert::query()
+                ->where('dedup_key', $dedupKey)
+                ->where('is_read', false)
+                ->whereNull('archived_at')
+                ->first();
+
+            if ($existing) {
+                $existing->forceFill([
+                    'title'        => $title,
+                    'message'      => $message,
+                    'niveau'       => $niveau,
+                    'lien'         => $opts['lien'] ?? $existing->lien,
+                    'triggered_at' => now(),
+                ])->save();
+                return $existing;
+            }
+
+            return Alert::create([
+                'type'         => $type,
+                'niveau'       => $niveau,
+                'title'        => $title,
+                'message'      => $message,
+                'related_type' => $relatedType,
+                'related_id'   => $relatedId,
+                'dedup_key'    => $dedupKey,
+                'user_id'      => $opts['user_id'] ?? null,
+                'lien'         => $opts['lien'] ?? null,
+                'is_read'      => false,
+                'triggered_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('alert.notify.failed', [
+                'type'    => $type,
+                'error'   => $e->getMessage(),
+                'related' => $relatedType.'#'.$relatedId,
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Helper rétro-compat : signature ancienne ::create($type, $niveau, …)
+     * encore utilisée par 30+ controllers. On mappe (type+niveau) vers un
+     * code du catalogue TYPES pour bénéficier de l'icon/couleur uniformes,
+     * sinon fallback générique.
+     */
+    public static function create(
+        string $type,
+        string $niveau,
+        string $title,
+        string $message,
+        $model = null
+    ): ?Alert {
+        $code = self::resolveLegacyCode($type, $niveau, $title);
+
+        return self::notify($code, $title, $message, $model, [
+            'niveau' => $niveau,
+        ]);
+    }
+
+    /**
+     * Mappe (type historique, niveau, indices dans le titre) vers un code
+     * du catalogue TYPES. Heuristique simple, suffisante pour 95% des cas.
+     */
+    private static function resolveLegacyCode(string $type, string $niveau, string $title): string
     {
+        // Si le type est déjà un code catalogué, on l'utilise tel quel
+        if (isset(self::TYPES[$type])) return $type;
+
+        $titleLc = mb_strtolower($title);
+
+        return match ($type) {
+            'reservation' => match (true) {
+                str_contains($titleLc, 'confirm')                          => 'reservation_confirmee',
+                str_contains($titleLc, 'annul')                            => 'reservation_annulee',
+                str_contains($titleLc, 'expir')                            => 'reservation_expiree',
+                str_contains($titleLc, 'attente')                          => 'reservation_en_attente_longue',
+                $niveau === 'success'                                      => 'reservation_confirmee',
+                $niveau === 'danger'                                       => 'reservation_annulee',
+                $niveau === 'warning'                                      => 'reservation_en_attente_longue',
+                default                                                    => 'reservation_nouvelle',
+            },
+
+            'campagne', 'campaign' => match (true) {
+                str_contains($titleLc, 'expire') || str_contains($titleLc, 'fin')
+                    => match (true) {
+                        $niveau === 'danger'  => 'fin_campagne_j0',
+                        $niveau === 'warning' => 'fin_campagne_j3',
+                        default               => 'fin_campagne_j7',
+                    },
+                str_contains($titleLc, 'termin')                           => 'campagne_terminee',
+                str_contains($titleLc, 'activ') || $niveau === 'success'   => 'campagne_active',
+                default                                                    => 'campagne_creee',
+            },
+
+            'panneau', 'panel' => match (true) {
+                str_contains($titleLc, 'maintenance')                      => 'panneau_maintenance',
+                str_contains($titleLc, 'conflit') || $niveau === 'danger'  => 'conflit_reservation',
+                $niveau === 'success'                                      => 'panneau_libre',
+                default                                                    => 'panneau_occupe',
+            },
+
+            'maintenance' => 'panneau_maintenance',
+
+            'pose' => match (true) {
+                str_contains($titleLc, 'termin') || str_contains($titleLc, 'réalis') || $niveau === 'success'
+                    => 'pose_terminee',
+                str_contains($titleLc, 'cours') || str_contains($titleLc, 'avance')
+                    => 'pose_en_cours',
+                default                                                    => 'pose_planifiee',
+            },
+
+            'pige' => 'avancement_pose',
+
+            'client' => 'nouveau_client',
+
+            'taxe' => 'taxe_echeance',
+
+            // Fallback : on garde le type tel quel mais on saura via meta
+            // qu'il sort du catalogue.
+            default => $type,
+        };
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // STATS / READ — lecture optimisée
+    // ══════════════════════════════════════════════════════════════════
+
+    public function unreadCount(): int
+    {
+        return Alert::unread()->count();
+    }
+
+    /**
+     * Résumé par niveau pour le badge cloche (compte les NON LUES).
+     * Utilisé uniquement par /api/alerts/count (polling navigation).
+     */
+    public function unreadSummary(): array
+    {
+        $row = Alert::unread()
+            ->selectRaw("
+                COUNT(*) as total,
+                SUM(CASE WHEN niveau = 'danger'  THEN 1 ELSE 0 END) as danger,
+                SUM(CASE WHEN niveau = 'warning' THEN 1 ELSE 0 END) as warning,
+                SUM(CASE WHEN niveau = 'info'    THEN 1 ELSE 0 END) as info
+            ")->first();
+
         return [
-            'reservations' => $this->alertesReservationsEnAttente(),
-            'maintenances' => $this->alertesMaintenancesUrgentes(),
-            'campagnes'    => $this->alertesCampagnesExpirantBientot(),
-            'panneaux'     => $this->alertesPanneauxEnMaintenance(),
-            'poses'        => $this->alertesPosesEnRetard(),
-            'piges'        => $this->alertesPosesSansPige(),
+            'total'   => (int) ($row->total   ?? 0),
+            'danger'  => (int) ($row->danger  ?? 0),
+            'warning' => (int) ($row->warning ?? 0),
+            'info'    => (int) ($row->info    ?? 0),
         ];
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // MODULE : RÉSERVATIONS en attente > 48h
-    // ══════════════════════════════════════════════════════════════
-    public function alertesReservationsEnAttente(): int
+    /**
+     * Résumé par niveau sur toutes les alertes actives (lues OU non lues,
+     * non archivées). C'est cette stat qu'on affiche dans les KPI de la
+     * page index — elles restent significatives après le mark-all-as-read
+     * automatique à l'ouverture.
+     *
+     * Accepte des filtres optionnels (type, niveau, non_lues) pour rester
+     * cohérent avec la liste affichée juste en dessous.
+     */
+    public function activeSummary(array $filters = []): array
+    {
+        $q = Alert::active();
+
+        if (!empty($filters['type']))   $q->ofType($filters['type']);
+        if (!empty($filters['niveau'])) $q->ofNiveau($filters['niveau']);
+        if (!empty($filters['non_lues'])) $q->where('is_read', false);
+
+        $row = $q->selectRaw("
+                COUNT(*) as total,
+                SUM(CASE WHEN niveau = 'danger'  THEN 1 ELSE 0 END) as danger,
+                SUM(CASE WHEN niveau = 'warning' THEN 1 ELSE 0 END) as warning,
+                SUM(CASE WHEN niveau = 'info'    THEN 1 ELSE 0 END) as info
+            ")->first();
+
+        return [
+            'total'   => (int) ($row->total   ?? 0),
+            'danger'  => (int) ($row->danger  ?? 0),
+            'warning' => (int) ($row->warning ?? 0),
+            'info'    => (int) ($row->info    ?? 0),
+        ];
+    }
+
+    public function latest(int $limit = 8)
+    {
+        return Alert::unread()
+            ->latest('triggered_at')
+            ->limit($limit)
+            ->get(['id', 'type', 'niveau', 'title', 'message', 'lien', 'triggered_at']);
+    }
+
+    /**
+     * Marque toutes les alertes non lues comme lues — atomique.
+     * Retourne le nombre de lignes affectées.
+     */
+    public function markAllAsRead(): int
+    {
+        return Alert::unread()->update(['is_read' => true]);
+    }
+
+    /**
+     * Archivage de masse des alertes lues > N jours — pour purge périodique.
+     */
+    public function archiveOldRead(int $olderThanDays = 30): int
+    {
+        return Alert::read()
+            ->whereNull('archived_at')
+            ->where('updated_at', '<', now()->subDays($olderThanDays))
+            ->update(['archived_at' => now()]);
+    }
+
+    public function getForModel(string $modelClass, int $modelId, int $limit = 5)
+    {
+        return Alert::unread()
+            ->where('related_type', class_basename($modelClass))
+            ->where('related_id', $modelId)
+            ->orderByDesc('triggered_at')
+            ->limit($limit)
+            ->get();
+    }
+
+    public function countForModule(string $type): int
+    {
+        return Alert::unread()->ofType($type)->count();
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // GÉNÉRATION BATCH — appelée par artisan alerts:generate (cron)
+    // ══════════════════════════════════════════════════════════════════
+
+    public function generateAll(): array
+    {
+        return [
+            'reservations_attente' => $this->triggerReservationsEnAttenteLongue(),
+            'maintenances'         => $this->triggerMaintenancesUrgentes(),
+            'campagnes_fin'        => $this->triggerFinDeCampagne(),
+            'panneaux_maintenance' => $this->triggerPanneauxMaintenancePourLongtemps(),
+            'poses_retard'         => $this->triggerPosesEnRetard(),
+            'piges_manquantes'     => $this->triggerPosesSansPige(),
+        ];
+    }
+
+    public function triggerReservationsEnAttenteLongue(): int
     {
         $count = 0;
-
         $reservations = Reservation::with('client')
             ->where('status', 'en_attente')
             ->where('created_at', '<=', now()->subHours(48))
             ->get();
 
-        foreach ($reservations as $reservation) {
-            if ($this->_exists('reservation', 'reservation', $reservation->id, 'en_attente_48h')) continue;
-
-            $this->_create([
-                'type'         => 'reservation',
-                'niveau'       => 'warning',
-                'title'        => "Réservation en attente — {$reservation->client?->name}",
-                'message'      => "La réservation {$reservation->reference} est en attente de confirmation depuis plus de 48h.",
-                'related_type' => 'reservation',
-                'related_id'   => $reservation->id,
-            ]);
-            $count++;
+        foreach ($reservations as $r) {
+            $alert = self::notify(
+                'reservation_en_attente_longue',
+                "Réservation en attente — {$r->client?->name}",
+                "La réservation {$r->reference} est en attente de confirmation depuis plus de 48h.",
+                $r,
+                ['lien' => route('admin.reservations.show', $r)]
+            );
+            if ($alert) $count++;
         }
-
         return $count;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // MODULE : MAINTENANCES urgentes non résolues > 24h
-    // ══════════════════════════════════════════════════════════════
-    public function alertesMaintenancesUrgentes(): int
+    public function triggerMaintenancesUrgentes(): int
     {
-        $count = 0;
-
-        // Vérifier si le modèle Maintenance existe dans ce projet
         if (!class_exists(\App\Models\Maintenance::class)) return 0;
 
+        $count = 0;
         $maintenances = \App\Models\Maintenance::with('panel')
             ->where('priorite', 'urgente')
             ->where('statut', '!=', 'resolu')
@@ -74,124 +503,112 @@ class AlertService
             ->get();
 
         foreach ($maintenances as $m) {
-            if ($this->_exists('maintenance', 'maintenance', $m->id, 'urgente_24h')) continue;
-
-            $this->_create([
-                'type'         => 'maintenance',
-                'niveau'       => 'danger',
-                'title'        => "Maintenance urgente — {$m->panel?->reference}",
-                'message'      => "Panne urgente non résolue : {$m->type_panne}. Panneau {$m->panel?->reference} hors service.",
-                'related_type' => 'maintenance',
-                'related_id'   => $m->id,
-            ]);
-            $count++;
+            $alert = self::notify(
+                'panneau_maintenance',
+                "Maintenance urgente — {$m->panel?->reference}",
+                "Panne urgente non résolue : {$m->type_panne}. Panneau {$m->panel?->reference} hors service.",
+                $m,
+                ['niveau' => 'danger']
+            );
+            if ($alert) $count++;
         }
-
         return $count;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // MODULE : CAMPAGNES expirant dans <= 14 jours
-    // ══════════════════════════════════════════════════════════════
-    public function alertesCampagnesExpirantBientot(): int
+    public function triggerFinDeCampagne(): int
     {
         $count = 0;
-
-        $campagnes = Campaign::with('client')
+        $today = now()->startOfDay();
+        $campaigns = Campaign::with('client')
             ->where('status', 'actif')
-            ->whereBetween('end_date', [now(), now()->addDays(14)])
+            ->whereBetween('end_date', [$today, $today->copy()->addDays(8)])
             ->get();
 
-        foreach ($campagnes as $c) {
-            $jours = (int) now()->startOfDay()->diffInDays($c->end_date->startOfDay());
-            $key   = "expire_{$jours}j";
-            if ($this->_exists('campagne', 'campaign', $c->id, $key)) continue;
+        foreach ($campaigns as $c) {
+            $jours = (int) $today->diffInDays($c->end_date->copy()->startOfDay());
+            $type  = match (true) {
+                $jours <= 0 => 'fin_campagne_j0',
+                $jours <= 3 => 'fin_campagne_j3',
+                $jours <= 7 => 'fin_campagne_j7',
+                default     => null,
+            };
+            if (!$type) continue;
 
-            $this->_create([
-                'type'         => 'campagne',
-                'niveau'       => $jours <= 7 ? 'danger' : 'warning',
-                'title'        => "Campagne expire bientôt — {$c->name}",
-                'message'      => "La campagne \"{$c->name}\" se termine dans {$jours} jour(s) ({$c->end_date->format('d/m/Y')}). Pensez au renouvellement.",
-                'related_type' => 'campaign',
-                'related_id'   => $c->id,
-            ]);
-            $count++;
+            $alert = self::notify(
+                $type,
+                "Fin de campagne — {$c->name}",
+                $jours <= 0
+                    ? "La campagne « {$c->name} » se termine aujourd'hui."
+                    : "La campagne « {$c->name} » se termine dans {$jours} jour(s) (le {$c->end_date->format('d/m/Y')}).",
+                $c,
+                [
+                    'lien'        => route('admin.campaigns.show', $c),
+                    'dedup_extra' => $type, // dedup différent par seuil j7/j3/j0
+                ]
+            );
+            if ($alert) $count++;
         }
-
         return $count;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // MODULE : PANNEAUX en maintenance > 7 jours
-    // ══════════════════════════════════════════════════════════════
-    public function alertesPanneauxEnMaintenance(): int
+    public function triggerPanneauxMaintenancePourLongtemps(): int
     {
         $count = 0;
-
-        $panneaux = Panel::where('status', 'maintenance')
+        $panels = Panel::where('status', 'maintenance')
             ->where('updated_at', '<=', now()->subDays(7))
             ->get(['id', 'reference', 'name', 'updated_at']);
 
-        foreach ($panneaux as $p) {
-            if ($this->_exists('panneau', 'panel', $p->id, 'maintenance_7j')) continue;
-
+        foreach ($panels as $p) {
             $jours = (int) $p->updated_at->diffInDays(now());
-            $this->_create([
-                'type'         => 'panneau',
-                'niveau'       => 'warning',
-                'title'        => "Panneau en maintenance prolongée — {$p->reference}",
-                'message'      => "Le panneau {$p->reference} ({$p->name}) est en maintenance depuis {$jours} jours.",
-                'related_type' => 'panel',
-                'related_id'   => $p->id,
-            ]);
-            $count++;
+            $alert = self::notify(
+                'panneau_maintenance',
+                "Maintenance prolongée — {$p->reference}",
+                "Le panneau {$p->reference} ({$p->name}) est en maintenance depuis {$jours} jours.",
+                $p,
+                [
+                    'niveau' => 'warning',
+                    'lien'   => route('admin.panels.show', $p),
+                ]
+            );
+            if ($alert) $count++;
         }
-
         return $count;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // MODULE : POSES en retard (date planifiée passée)
-    // ══════════════════════════════════════════════════════════════
-    public function alertesPosesEnRetard(): int
+    public function triggerPosesEnRetard(): int
     {
         $count = 0;
-
         $tasks = PoseTask::where('status', 'planifiee')
             ->where('scheduled_at', '<', now())
             ->with(['panel:id,reference', 'campaign:id,name'])
             ->get(['id', 'panel_id', 'campaign_id', 'scheduled_at']);
 
         foreach ($tasks as $t) {
-            if ($this->_exists('pose', 'PoseTask', $t->id, 'en_retard')) continue;
-
             $ref = $t->panel?->reference ?? "#{$t->panel_id}";
-            $this->_create([
-                'type'         => 'pose',
-                'niveau'       => 'warning',
-                'title'        => "Pose OOH en retard — {$ref}",
-                'message'      => "La tâche de pose du panneau {$ref}"
+            $alert = self::notify(
+                'pose_planifiee',
+                "Pose en retard — {$ref}",
+                "La pose du panneau {$ref}"
                     . ($t->campaign ? " (campagne « {$t->campaign->name} »)" : '')
-                    . " était planifiée le {$t->scheduled_at->format('d/m/Y à H:i')} et n'a pas encore été réalisée.",
-                'related_type' => 'PoseTask',
-                'related_id'   => $t->id,
-            ]);
-            $count++;
+                    . " était planifiée le {$t->scheduled_at->format('d/m/Y à H:i')} et n'a pas été réalisée.",
+                $t,
+                [
+                    'niveau' => 'warning',
+                    'lien'   => route('admin.pose-tasks.show', $t),
+                ]
+            );
+            if ($alert) $count++;
         }
-
         return $count;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // MODULE : POSES réalisées sans pige > 24h
-    // ══════════════════════════════════════════════════════════════
-    public function alertesPosesSansPige(): int
+    public function triggerPosesSansPige(): int
     {
         $count = 0;
-
         $tasks = PoseTask::where('status', 'realisee')
             ->whereNotNull('campaign_id')
             ->where('done_at', '<', now()->subHours(24))
+            ->with(['panel:id,reference', 'campaign:id,name'])
             ->get(['id', 'panel_id', 'campaign_id', 'done_at']);
 
         foreach ($tasks as $t) {
@@ -201,179 +618,70 @@ class AlertService
                 ->exists();
 
             if ($hasPige) continue;
-            if ($this->_exists('pige', 'PoseTask', $t->id, 'sans_pige_24h')) continue;
 
-            $task = $t->load(['panel:id,reference', 'campaign:id,name']);
-            $ref  = $task->panel?->reference ?? "#{$t->panel_id}";
-
-            $this->_create([
-                'type'         => 'pige',
-                'niveau'       => 'warning',
-                'title'        => "Pose réalisée sans pige — {$ref}",
-                'message'      => "Le panneau {$ref}"
-                    . ($task->campaign ? " (campagne « {$task->campaign->name} »)" : '')
-                    . " a été posé le {$t->done_at->format('d/m/Y')} mais aucune pige photo n'a été enregistrée.",
-                'related_type' => 'PoseTask',
-                'related_id'   => $t->id,
-            ]);
-            $count++;
+            $ref = $t->panel?->reference ?? "#{$t->panel_id}";
+            $alert = self::notify(
+                'pose_terminee',
+                "Pose sans pige — {$ref}",
+                "Le panneau {$ref}"
+                    . ($t->campaign ? " (campagne « {$t->campaign->name} »)" : '')
+                    . " a été posé le {$t->done_at->format('d/m/Y')} mais aucune pige n'a été enregistrée.",
+                $t,
+                [
+                    'niveau'      => 'warning',
+                    'lien'        => route('admin.pose-tasks.show', $t),
+                    'dedup_extra' => 'sans_pige_24h',
+                ]
+            );
+            if ($alert) $count++;
         }
-
         return $count;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // ALERTES INSTANTANÉES — appelées depuis les controllers
-    // ══════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════════
+    // ALERTES INSTANTANÉES — appelées depuis les controllers / observers
+    // ══════════════════════════════════════════════════════════════════
 
-    /**
-     * Appelée dans PoseController::markComplete()
-     * Alerte si la pose est réalisée sans pige photo
-     */
     public function notifyPoseComplete(PoseTask $task, bool $hasPige): void
     {
-        if ($hasPige || !$task->campaign_id) return;
+        if (!$task->campaign_id) return;
 
         $ref = $task->panel?->reference ?? "#{$task->panel_id}";
 
-        // Ne pas créer de doublon si une alerte existe déjà pour cette tâche
-        if ($this->_exists('pige', 'PoseTask', $task->id, 'complete_sans_pige')) return;
+        if ($hasPige) {
+            self::notify(
+                'pose_terminee',
+                "Pose réalisée — {$ref}",
+                "Le panneau {$ref} a été posé avec succès. Pige photo enregistrée.",
+                $task,
+                ['lien' => route('admin.pose-tasks.show', $task)]
+            );
+            return;
+        }
 
-        $this->_create([
-            'type'         => 'pige',
-            'niveau'       => 'info',
-            'title'        => "Pose réalisée — pige manquante · {$ref}",
-            'message'      => "Panneau {$ref} posé avec succès. Aucune photo de pige enregistrée. Pensez à uploader la preuve d'affichage.",
-            'related_type' => 'PoseTask',
-            'related_id'   => $task->id,
-        ]);
+        self::notify(
+            'pose_terminee',
+            "Pose terminée — pige manquante · {$ref}",
+            "Panneau {$ref} posé avec succès, mais aucune photo de pige enregistrée. Pensez à uploader la preuve.",
+            $task,
+            [
+                'niveau'      => 'warning',
+                'lien'        => route('admin.pose-tasks.show', $task),
+                'dedup_extra' => 'complete_sans_pige',
+            ]
+        );
     }
 
-    /**
-     * Appelée dans PigeController::reject()
-     */
     public function notifyPigeRejected(Pige $pige, string $reason): void
     {
         $ref = $pige->panel?->reference ?? "#{$pige->panel_id}";
 
-        $this->_create([
-            'type'         => 'pige',
-            'niveau'       => 'warning',
-            'title'        => "Pige rejetée — {$ref}",
-            'message'      => "La pige du panneau {$ref} a été rejetée : {$reason}",
-            'related_type' => 'Pige',
-            'related_id'   => $pige->id,
-        ]);
-    }
-
-    /**
-     * Appelée depuis n'importe quel module pour créer une alerte manuelle
-     */
-    public static function create(
-        string $type,
-        string $niveau,
-        string $title,
-        string $message,
-        $model = null
-    ): Alert {
-        return Alert::create([
-            'type'         => $type,
-            'niveau'       => $niveau,
-            'title'        => $title,
-            'message'      => $message,
-            'related_type' => $model ? class_basename($model) : null,
-            'related_id'   => $model?->id,
-            'is_read'      => false,
-            'triggered_at' => now(),
-        ]);
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    // STATS — pour les badges sidebar et pages modules
-    // ══════════════════════════════════════════════════════════════
-
-    /**
-     * Alertes non lues pour un modèle précis
-     * Usage : $this->alertService->getForModel(PoseTask::class, $id)
-     */
-    public function getForModel(string $modelClass, int $modelId, int $limit = 5)
-    {
-        $basename = class_basename($modelClass);
-
-        return Alert::where('related_type', $basename)
-            ->where('related_id', $modelId)
-            ->where('is_read', false)
-            ->orderByDesc('created_at')
-            ->limit($limit)
-            ->get();
-    }
-
-    /**
-     * Count alertes non lues par module (pour les badges)
-     */
-    public function countForModule(string $type): int
-    {
-        return Alert::where('type', $type)->where('is_read', false)->count();
-    }
-
-    /**
-     * Résumé global par type + niveau
-     */
-    public function getModuleSummary(): array
-    {
-        $raw = Alert::where('is_read', false)
-            ->selectRaw('type, niveau, COUNT(*) as count')
-            ->groupBy('type', 'niveau')
-            ->get();
-
-        $summary = [];
-        foreach ($raw as $row) {
-            $summary[$row->type][$row->niveau] = $row->count;
-        }
-
-        return $summary;
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    // HELPERS PRIVÉS
-    // ══════════════════════════════════════════════════════════════
-
-    /**
-     * Vérifie si une alerte similaire (non lue) existe déjà
-     * pour éviter les doublons à chaque run de la commande
-     *
-     * @param string $alertType   → valeur de la colonne 'type'
-     * @param string $relatedType → valeur de la colonne 'related_type'
-     * @param int    $relatedId   → valeur de la colonne 'related_id'
-     * @param string $titleKey    → mot-clé présent dans le titre
-     */
-    private function _exists(
-        string $alertType,
-        string $relatedType,
-        int    $relatedId,
-        string $titleKey
-    ): bool {
-        return Alert::where('type', $alertType)
-            ->where('related_type', $relatedType)
-            ->where('related_id', $relatedId)
-            ->where('title', 'like', "%{$titleKey}%")
-            ->where('is_read', false)
-            ->exists();
-    }
-
-    private function _create(array $data): ?Alert
-    {
-        try {
-            return Alert::create(array_merge([
-                'is_read'      => false,
-                'triggered_at' => now(),
-            ], $data));
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('AlertService._create failed', [
-                'error' => $e->getMessage(),
-                'data'  => $data,
-            ]);
-            return null;
-        }
+        self::notify(
+            'avancement_pose',
+            "Pige rejetée — {$ref}",
+            "La pige du panneau {$ref} a été rejetée : {$reason}",
+            $pige,
+            ['niveau' => 'warning']
+        );
     }
 }

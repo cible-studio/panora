@@ -24,8 +24,16 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
+use App\Exports\PanelsExport;
+use App\Models\ExternalPanel;
+use App\Services\PdfExportService;
+use App\Support\PdfAssets;
+use Maatwebsite\Excel\Facades\Excel;
+
 class ReservationController extends Controller
 {
+    use PdfAssets;
+
     public function __construct(
         protected AvailabilityService $availability,
         protected ReservationService $reservationService
@@ -188,11 +196,15 @@ class ReservationController extends Controller
                 }
 
                 if (!$dateError && $startDate && $endDate) {
+                    // Règle métier : un panneau confirmé prime sur l'option.
+                    // → "occupe"  = uniquement réservations confirmées (rouge)
+                    // → "option"  = en attente sans confirmation parallèle (orange)
+                    // → "libre"   = ni l'un ni l'autre + pas en maintenance
                     $panels = match ($statut) {
-                        'occupe' => $panels->filter(fn($p) => $occupiedIds->contains($p->id) || $optionIds->contains($p->id))->values(),
-                        'option' => $panels->filter(fn($p) => $optionIds->contains($p->id) && !$occupiedIds->contains($p->id))->values(),                        
-                        'libre' => $panels->filter(fn($p) => !$occupiedIds->contains($p->id) && !$optionIds->contains($p->id) && $p->status->value !== 'maintenance')->values(),
-                        default => $panels,
+                        'occupe' => $panels->filter(fn($p) => $occupiedIds->contains($p->id))->values(),
+                        'option' => $panels->filter(fn($p) => $optionIds->contains($p->id) && !$occupiedIds->contains($p->id))->values(),
+                        'libre'  => $panels->filter(fn($p) => !$occupiedIds->contains($p->id) && !$optionIds->contains($p->id) && $p->status->value !== 'maintenance')->values(),
+                        default  => $panels,
                     };
                 }
 
@@ -205,38 +217,107 @@ class ReservationController extends Controller
         }
 
         // ══ PANNEAUX EXTERNES ════════════════════════════════════════
-        if (in_array($source, ['external', 'all']) && !$dateError) {
-            $extQuery = \App\Models\ExternalPanel::with(['agency:id,name', 'commune:id,name'])
-                ->whereHas('agency', fn($q) => $q->where('is_active', true)->whereNull('deleted_at'));
+        // Règle : les filtres communs (commune/zone/format/dimensions/is_lit/
+        // search) s'appliquent AUSSI aux externes. Les bookings (occupé/option)
+        // sont calculés depuis reservation_panels (source='externe') sur la
+        // période demandée — exactement comme pour les internes.
+        // Defensive : si une erreur SQL survient (donnée corrompue, colonne
+        // manquante…), on log et on continue avec les seuls internes — pas
+        // de 500 sur la grille entière.
+        if (in_array($source, ['external', 'all']) && !$dateError) try {
+            $extQuery = \App\Models\ExternalPanel::with([
+                'agency:id,name',
+                'commune:id,name',
+                'zone:id,name',
+                'format:id,name,width,height',
+                'category:id,name',
+            ])->whereHas('agency', fn($q) => $q->where('is_active', true)->whereNull('deleted_at'));
 
-            if (!empty($communeIds))
-                $extQuery->whereIn('commune_id', $communeIds);
-            // zone_id / format_id / is_lit / availability_status ne filtrent que si la colonne existe
-            if (!empty($agencyIds))
-                $extQuery->whereIn('agency_id', $agencyIds);
+            if (!empty($communeIds))  $extQuery->whereIn('commune_id', $communeIds);
+            if (!empty($zoneIds))     $extQuery->whereIn('zone_id', $zoneIds);
+            if (!empty($formatIds))   $extQuery->whereIn('format_id', $formatIds);
+            if (!empty($agencyIds))   $extQuery->whereIn('agency_id', $agencyIds);
+            if ($isLit === '1')       $extQuery->where('is_lit', true);
+            elseif ($isLit === '0')   $extQuery->where('is_lit', false);
 
             if ($search !== '') {
                 $like = '%' . $search . '%';
-                $extQuery->where(
-                    fn($q) =>
-                    $q->where('code_panneau', 'like', $like)->orWhere('designation', 'like', $like)
+                $extQuery->where(function ($q) use ($like) {
+                    $q->where('code_panneau', 'like', $like)
+                      ->orWhere('designation', 'like', $like)
+                      ->orWhere('zone_description', 'like', $like)
+                      ->orWhereHas('agency', fn($qa) => $qa->where('name', 'like', $like))
+                      ->orWhereHas('commune', fn($qc) => $qc->where('name', 'like', $like));
+                });
+            }
+
+            if ($request->filled('dimensions')) {
+                [$w, $h] = self::parseDimensions($request->dimensions);
+                if ($w !== null) {
+                    $extQuery->whereHas('format', fn($q) =>
+                        $q->whereBetween('width', [$w - 0.01, $w + 0.01])
+                          ->whereBetween('height', [$h - 0.01, $h + 0.01])
+                    );
+                }
+            }
+
+            // Pré-filtre statut "stable" (maintenance / confirme déjà figés
+            // dans availability_status — pas besoin de période).
+            if (!$dateError && in_array($statut, ['maintenance', 'confirme'])) {
+                $extQuery->where('availability_status', $statut);
+            }
+
+            // Statut occupe/option exigent une période — sinon erreur métier.
+            if (in_array($statut, ['occupe', 'option']) && (!$startDate || !$endDate)) {
+                // L'erreur a déjà été posée plus haut pour les internes.
+                $externalResult = collect();
+            } else {
+                $extPanels = $extQuery->orderBy('code_panneau')->get();
+
+                // Bookings sur la période (mêmes règles qu'internes)
+                $extBookings = collect();
+                if ($startDate && $endDate && $extPanels->isNotEmpty()) {
+                    $extBookings = $this->availability->getExternalPanelBookingMap(
+                        $extPanels->pluck('id')->all(),
+                        $startDate,
+                        $endDate
+                    );
+                }
+
+                // Filtre métier : occupe = a_confirmé ; option = a_attente sans confirmé ; libre = ni l'un ni l'autre + pas maintenance
+                if (!$dateError && $startDate && $endDate) {
+                    $extPanels = match ($statut) {
+                        'occupe' => $extPanels->filter(fn($p) =>
+                            ($extBookings->get($p->id)?->has_confirmed) ||
+                            in_array($p->availability_status, ['occupe', 'confirme'])
+                        )->values(),
+                        'option' => $extPanels->filter(function ($p) use ($extBookings) {
+                            $b = $extBookings->get($p->id);
+                            return $b && $b->has_option && !$b->has_confirmed;
+                        })->values(),
+                        'libre'  => $extPanels->filter(function ($p) use ($extBookings) {
+                            $b = $extBookings->get($p->id);
+                            $hasBlocking = $b && ($b->has_confirmed || $b->has_option);
+                            return !$hasBlocking
+                                && !in_array($p->availability_status, ['maintenance', 'confirme', 'occupe']);
+                        })->values(),
+                        default  => $extPanels,
+                    };
+                }
+
+                $externalResult = $extPanels->map(
+                    fn($p) => self::formatExternalPanel($p, $startDate, $endDate, $extBookings->get($p->id))
                 );
             }
-
-            // Filtres statut uniquement si colonne availability_status existe
-            try {
-                if ($statut === 'libre')
-                    $extQuery->where('availability_status', 'disponible');
-                elseif ($statut === 'occupe')
-                    $extQuery->where('availability_status', 'occupe');
-                elseif (in_array($statut, ['maintenance', 'confirme', 'option']))
-                    $extQuery->whereRaw('1=0');
-            } catch (\Exception $e) {
-                // colonne inexistante — on ignore le filtre statut pour les externes
-            }
-
-            $extPanels = $extQuery->orderBy('code_panneau')->get();
-            $externalResult = $extPanels->map(fn($p) => self::formatExternalPanel($p, $startDate, $endDate));
+        } catch (\Throwable $e) {
+            Log::error('disponibilites.external_query_failed', [
+                'message' => $e->getMessage(),
+                'file'    => $e->getFile() . ':' . $e->getLine(),
+                'search'  => $search,
+                'statut'  => $statut,
+                'source'  => $source,
+            ]);
+            $externalResult = collect();
         }
 
         // ══ FUSION + PAGINATION ══════════════════════════════════════
@@ -277,6 +358,7 @@ class ReservationController extends Controller
         };
 
         $releaseInfo = null;
+        $selectableFrom = null;
         if ($isOccupied || $isOption) {
             $rdRaw = $releaseDates->get($panel->id);
             if ($rdRaw) {
@@ -293,6 +375,13 @@ class ReservationController extends Controller
                     },
                     'color' => $daysLeft <= 0 ? 'green' : ($daysLeft <= 7 ? 'orange' : 'default'),
                 ];
+                // Feature 2.2 — le panneau se libère avant la fin de la période demandée
+                if ($endDate) {
+                    $nextDay = $rd->copy()->addDay();
+                    if ($nextDay->lte(Carbon::parse($endDate)->startOfDay())) {
+                        $selectableFrom = $nextDay->format('Y-m-d');
+                    }
+                }
             }
         }
 
@@ -320,47 +409,80 @@ class ReservationController extends Controller
                 : null,
             'status_db' => $panel->status->value,
             'display_status' => $displayStatus,
-            'is_selectable' => $displayStatus === 'libre',
+            // Règle : libre + option_periode + a_verifier sont sélectionnables
+            // (un panneau en option peut être inclus dans une autre proposition,
+            // un panneau "à vérifier" reste exploitable sous réserve de
+            // confirmation par le superviseur — distingués côté UI par une
+            // bordure dashed orange + badge "EN OPTION" pour option_periode.
+            // Panneau futur : is_future_selectable = vrai quand le panneau se
+            // libère avant la fin de la période → sélectionnable avec date décalée.
+            'is_selectable' => in_array($displayStatus, ['libre', 'option_periode', 'a_verifier'], true) || $selectableFrom !== null,
+            // Feature 2.2 — le panneau se libère AVANT la fin de la période
+            // demandée. L'admin peut l'inclure dans la résa avec une date de
+            // début automatique au lendemain de sa libération.
+            'is_future_selectable'  => $selectableFrom !== null,
+            'selectable_from'       => $selectableFrom,
+            'selectable_from_label' => $selectableFrom ? Carbon::parse($selectableFrom)->format('d/m/Y') : null,
             'release_info' => $releaseInfo,
             'card_color_idx' => abs(crc32($panel->reference)) % 6,
         ];
     }
 
-    private static function formatExternalPanel($panel, $startDate, $endDate): array
+    /**
+     * @param  object|null $booking  Ligne agrégée renvoyée par
+     *                               AvailabilityService::getExternalPanelBookingMap()
+     */
+    private static function formatExternalPanel($panel, $startDate, $endDate, $booking = null): array
     {
-        // La table external_panels peut avoir des colonnes limitées
-        // On utilise ?? pour éviter les erreurs sur colonnes manquantes
-        $availStatus = 'disponible';
-        if (method_exists($panel, 'getDisplayStatusForPeriod')) {
-            $availStatus = $panel->getDisplayStatusForPeriod($startDate, $endDate);
-        } elseif (isset($panel->availability_status)) {
-            $availStatus = $panel->availability_status;
-        }
+        // Calcul du display_status — exactement comme les internes :
+        //   confirmé sur période   → 'occupe'         (rouge)
+        //   en attente sur période → 'option_periode' (orange)
+        //   maintenance            → 'maintenance'
+        //   sinon                  → 'libre'
+        $rawStatus = $panel->availability_status ?? 'disponible';
+        $hasConfirmed = (bool) ($booking->has_confirmed ?? false);
+        $hasOption    = (bool) ($booking->has_option ?? false);
 
-        $displayStatus = match ($availStatus) {
-            'disponible' => 'libre',
-            'occupe' => 'occupe',
-            default => 'a_verifier',
+        $displayStatus = match (true) {
+            $rawStatus === 'maintenance' => 'maintenance',
+            $hasConfirmed && $startDate && $endDate => 'occupe',
+            $hasOption    && $startDate && $endDate => 'option_periode',
+            in_array($rawStatus, ['occupe', 'confirme']) => 'occupe',
+            $rawStatus === 'option'                      => 'option_periode',
+            default => 'libre',
         };
 
         $releaseInfo = null;
-        $availableFrom = $panel->available_from ?? null;
-        if ($displayStatus === 'occupe' && $availableFrom) {
-            $rd = Carbon::parse($availableFrom)->startOfDay();
+        $selectableFrom = null;
+        $rdRaw = $booking->release_date ?? ($panel->available_from ?? null);
+        if (in_array($displayStatus, ['occupe', 'option_periode']) && $rdRaw) {
+            $rd = Carbon::parse($rdRaw)->startOfDay();
             $daysLeft = (int) now()->startOfDay()->diffInDays($rd, false);
             $releaseInfo = [
                 'date' => $rd->format('d/m/Y'),
                 'days_left' => $daysLeft,
-                'label' => $daysLeft <= 0 ? 'Disponible bientôt'
-                    : ($daysLeft === 1 ? 'Libre demain'
-                        : "Libre le {$rd->format('d/m/Y')} ({$daysLeft}j)"),
+                'label' => match (true) {
+                    $daysLeft === 0 => "Libre aujourd'hui",
+                    $daysLeft === 1 => 'Libre demain',
+                    $daysLeft > 0   => "Libre le {$rd->format('d/m/Y')} ({$daysLeft}j)",
+                    default         => 'Date passée',
+                },
                 'color' => $daysLeft <= 0 ? 'green' : ($daysLeft <= 7 ? 'orange' : 'default'),
             ];
+            if ($endDate) {
+                $nextDay = $rd->copy()->addDay();
+                if ($nextDay->lte(Carbon::parse($endDate)->startOfDay())) {
+                    $selectableFrom = $nextDay->format('Y-m-d');
+                }
+            }
         }
 
-        // Relations optionnelles (zone et format peuvent ne pas exister)
-        $zone = method_exists($panel, 'zone') && $panel->relationLoaded('zone') ? $panel->zone : null;
-        $format = method_exists($panel, 'format') && $panel->relationLoaded('format') ? $panel->format : null;
+        // Photo : storage public (asset URL) si présente — DomPDF utilise un
+        // autre chemin (data-URI) géré côté enrichExternalPanel().
+        $photoUrl = null;
+        if (!empty($panel->photo_path)) {
+            $photoUrl = asset('storage/' . ltrim($panel->photo_path, '/'));
+        }
 
         return [
             'id' => 'ext_' . $panel->id,
@@ -369,22 +491,29 @@ class ReservationController extends Controller
             'name' => $panel->designation,
             'commune' => $panel->commune?->name ?? '—',
             'commune_id' => $panel->commune_id,
-            'zone' => $zone?->name ?? '—',
+            'zone' => $panel->zone?->name ?? '—',
             'zone_id' => $panel->zone_id ?? null,
-            'format' => $format?->name ?? '—',
+            'format' => $panel->format?->name ?? '—',
             'format_id' => $panel->format_id ?? null,
-            'dimensions' => $format ? self::buildDims($format) : null,
-            'category' => $panel->type ?? '—',
+            'dimensions' => self::buildDims($panel->format ?? null),
+            'category' => $panel->category?->name ?? ($panel->type ?? '—'),
             'agency_name' => $panel->agency?->name ?? '—',
             'agency_id' => $panel->agency_id,
             'is_lit' => (bool) ($panel->is_lit ?? false),
             'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
             'daily_traffic' => (int) ($panel->daily_traffic ?? 0),
             'zone_description' => $panel->zone_description ?? '',
-            'photo_url' => null,
-            'status_db' => $panel->availability_status ?? 'disponible',
+            'photo_url' => $photoUrl,
+            'status_db' => $rawStatus,
             'display_status' => $displayStatus,
-            'is_selectable' => in_array($displayStatus, ['libre', 'a_verifier']),
+            // Externes : libre + option_periode + a_verifier sélectionnables
+            // (a_verifier = synchro régie tierce en attente de confirmation,
+            // exploitable mais clairement marqué côté UI).
+            // is_future_selectable : panneau occupé mais libéré avant la fin → sélectionnable avec date décalée.
+            'is_selectable' => in_array($displayStatus, ['libre', 'option_periode', 'a_verifier'], true) || $selectableFrom !== null,
+            'is_future_selectable'  => $selectableFrom !== null,
+            'selectable_from'       => $selectableFrom,
+            'selectable_from_label' => $selectableFrom ? Carbon::parse($selectableFrom)->format('d/m/Y') : null,
             'release_info' => $releaseInfo,
             'card_color_idx' => abs(crc32($panel->code_panneau)) % 6,
         ];
@@ -414,99 +543,151 @@ class ReservationController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
-    // PDF — images
+    // HELPERS — parsing des panel_ids mixtes
+    //   Format accepté en entrée : entier (interne) ou "ext_<id>" (externe).
     // ══════════════════════════════════════════════════════════════
-    // Dans ReservationController.php
-    // Version finale optimisée et fonctionnelle
+
+    /**
+     * Sépare une liste mixte en deux tableaux d'entiers : internes / externes.
+     * Filtre les entrées invalides silencieusement (validation dédiée ci-dessous).
+     */
+    private function splitMixedPanelIds(array $rawIds): array
+    {
+        $internalIds = [];
+        $externalIds = [];
+        foreach ($rawIds as $id) {
+            if (is_string($id) && str_starts_with($id, 'ext_')) {
+                $n = (int) substr($id, 4);
+                if ($n > 0) $externalIds[] = $n;
+            } elseif (is_numeric($id)) {
+                $n = (int) $id;
+                if ($n > 0) $internalIds[] = $n;
+            }
+        }
+        return [array_values(array_unique($internalIds)), array_values(array_unique($externalIds))];
+    }
+
+    /**
+     * Validation dédiée pour les IDs mixtes : au moins un ID valide,
+     * existence vérifiée en base sur les deux tables.
+     * Retourne [internalIds, externalIds] ou jette ValidationException.
+     */
+    private function validateMixedPanelIds(Request $request): array
+    {
+        $raw = (array) $request->input('panel_ids', []);
+        if (empty($raw)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'panel_ids' => 'Aucun panneau sélectionné.',
+            ]);
+        }
+
+        [$internalIds, $externalIds] = $this->splitMixedPanelIds($raw);
+
+        if (empty($internalIds) && empty($externalIds)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'panel_ids' => 'Aucun panneau valide sélectionné.',
+            ]);
+        }
+
+        // Vérification d'existence (en deux requêtes count) — moins coûteux
+        // qu'un exists par ligne, et permet un message d'erreur clair.
+        if ($internalIds && Panel::whereIn('id', $internalIds)->count() !== count($internalIds)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'panel_ids' => 'Un ou plusieurs panneaux internes sont introuvables.',
+            ]);
+        }
+        if ($externalIds && ExternalPanel::whereIn('id', $externalIds)->count() !== count($externalIds)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'panel_ids' => 'Un ou plusieurs panneaux externes sont introuvables.',
+            ]);
+        }
+
+        return [$internalIds, $externalIds];
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // PDF — images (supporte sélection mixte interne + externe)
+    // ══════════════════════════════════════════════════════════════
     public function pdfImages(Request $request)
     {
         $request->validate([
-            'panel_ids' => 'required|array|min:1|max:200',
-            'panel_ids.*' => 'integer|exists:panels,id',
+            'panel_ids'    => 'required|array|min:1|max:200',
+            'start_date'   => 'nullable|date',
+            'end_date'     => 'nullable|date',
+            'show_pricing' => 'nullable|boolean',
+            'hide_status'  => 'nullable|boolean',
         ]);
 
-        $panelModels = Panel::with([
-            'commune:id,name',
-            'zone:id,name',
-            'format:id,name,width,height',
-            'category:id,name',
-            'photos' => fn($q) => $q->orderBy('ordre'),
-        ])
-            ->whereIn('id', $request->panel_ids)
-            ->orderByRaw('FIELD(id,' . implode(',', array_map('intval', $request->panel_ids)) . ')')
-            ->get();
+        [$internalIds, $externalIds] = $this->validateMixedPanelIds($request);
+
+        $reservationRef = $request->reservation_ref ?? null;
+        $clientName = $request->client_name ?? null;
+
+        $service = app(PdfExportService::class);
+        $enriched = collect();
+
+        if ($internalIds) {
+            $internals = Panel::with([
+                'commune:id,name',
+                'zone:id,name',
+                'format:id,name,width,height',
+                'category:id,name',
+                'photos' => fn($q) => $q->orderBy('ordre'),
+            ])
+                ->whereIn('id', $internalIds)
+                ->orderByRaw('FIELD(id,' . implode(',', $internalIds) . ')')
+                ->get();
+            $enriched = $enriched->merge($internals->map(fn($p) => $service->enrichPanel($p)));
+        }
+
+        if ($externalIds) {
+            $externals = ExternalPanel::with([
+                'commune:id,name',
+                'zone:id,name',
+                'format:id,name,width,height',
+                'category:id,name',
+                'agency:id,name',
+            ])
+                ->whereIn('id', $externalIds)
+                ->orderByRaw('FIELD(id,' . implode(',', $externalIds) . ')')
+                ->get();
+            $enriched = $enriched->merge($externals->map(fn($p) => $service->enrichExternalPanel($p)));
+        }
+
+        $panels = $enriched->values();
 
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
-        $panels = $panelModels->map(function ($panel) {
-
-            $photo = $panel->photos->first();
-            $photoPath = null;
-            $photoUrl = null;
-
-            if ($photo) {
-                $rel = ltrim($photo->path, '/');
-
-                foreach ([
-                    storage_path('app/public/' . $rel),
-                    public_path('storage/' . $rel),
-                ] as $candidate) {
-                    if (file_exists($candidate)) {
-                        $photoPath = $candidate;
-                        break;
-                    }
-                }
-
-                if (!$photoPath) {
-                    $photoUrl = asset('storage/' . $rel);
-                }
-            }
-
-            $dims = null;
-            if ($panel->format?->width && $panel->format?->height) {
-                $w = rtrim(rtrim(number_format($panel->format->width, 2, '.', ''), '0'), '.');
-                $h = rtrim(rtrim(number_format($panel->format->height, 2, '.', ''), '0'), '.');
-                $dims = "{$w}x{$h}m";
-            }
-
-            return [
-                'id' => $panel->id,
-                'reference' => $panel->reference,
-                'name' => $panel->name,
-                'commune' => $panel->commune?->name ?? '—',
-                'zone' => $panel->zone?->name ?? '—',
-                'format' => $panel->format?->name ?? '—',
-                'dimensions' => $dims,
-                'category' => $panel->category?->name ?? '—',
-                'is_lit' => (bool) $panel->is_lit,
-                'monthly_rate' => (float) ($panel->monthly_rate ?? 0),
-                'daily_traffic' => (int) ($panel->daily_traffic ?? 0),
-                'zone_description' => $panel->zone_description ?? '',
-                'display_status' => $panel->status->value,
-                'source' => 'internal',
-                'photo_path' => $photoPath,
-                'photo_url' => $photoUrl,
-            ];
-        });
-
         $filename = 'panneaux-' . now()->format('Ymd_His');
+
+        // Règle métier : par défaut on cache prix + statut (proposition propre).
+        // L'admin coche "show_pricing" pour afficher l'info commerciale.
+        $showPricing = $request->boolean('show_pricing');
+        $hideStatus  = $request->has('show_pricing')
+            ? !$showPricing
+            : (bool) $request->boolean('hide_status', true);
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView(
             'admin.reservations.pdf.disponibilites-images',
             [
-                'panels' => $panels,
-                'startDate' => $startDate,
-                'endDate' => $endDate,
-                'generated' => now()->format('d/m/Y'),
+                'panels'          => $panels,
+                'startDate'       => $startDate,
+                'endDate'         => $endDate,
+                'generated'       => now()->format('d/m/Y à H:i'),
+                'reservation_ref' => $reservationRef,
+                'client_name'     => $clientName,
+                'logoSrc'         => $this->getLogoPdf(),
+                'hideStatus'      => $hideStatus,
+                'showPricing'     => $showPricing,
             ]
         )
             ->setPaper('a4', 'portrait')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => false,
-                'defaultFont' => 'DejaVu Sans',
-                'dpi' => 96,
+                'isRemoteEnabled'      => false,
+                'defaultFont'          => 'DejaVu Sans',
+                'dpi'                  => 96,
             ]);
 
         return $pdf->download($filename . '.pdf');
@@ -516,25 +697,113 @@ class ReservationController extends Controller
     public function pdfListe(Request $request)
     {
         $request->validate([
-            'panel_ids' => 'required|array|min:1',
-            'panel_ids.*' => 'integer|exists:panels,id',
+            'panel_ids'    => 'required|array|min:1',
+            'show_pricing' => 'nullable|boolean',
+            'start_date'   => 'nullable|date',
+            'end_date'     => 'nullable|date',
+            'hide_status'  => 'nullable|boolean',
         ]);
 
-        $panels = Panel::with(['commune', 'format', 'category'])
-            ->whereIn('id', $request->panel_ids)
-            ->orderBy('reference')
-            ->get();
-        
-        $startDate = $request->start_date;
-        $endDate = $request->end_date;
-        $dureeEnMois = ($startDate && $endDate)
+        [$internalIds, $externalIds] = $this->validateMixedPanelIds($request);
+
+        $startDate = $request->input('start_date');
+        $endDate   = $request->input('end_date');
+
+        // Pré-calcul du blocage interne+externe sur la période demandée pour
+        // retrouver le `display_status` réel de chaque panneau (libre /
+        // option_periode / occupe / maintenance). Sans ça, la colonne Statut
+        // afficherait toujours "libre" alors que des panneaux peuvent être
+        // En option pour cette période — qui est précisément ce qu'on veut
+        // distinguer dans le PDF.
+        $internalBlocking = collect();
+        $externalBlocking = collect();
+        if ($internalIds && $startDate && $endDate) {
+            $internalBlocking = $this->availability
+                ->getInternalPanelBookingMap($internalIds, $startDate, $endDate)
+                ->keyBy('panel_id');
+        }
+        if ($externalIds && $startDate && $endDate) {
+            $externalBlocking = $this->availability
+                ->getExternalPanelBookingMap($externalIds, $startDate, $endDate)
+                ->keyBy('id');
+        }
+
+        $resolveDisplay = function ($rawStatus, $blocking) {
+            $rawStatus = $rawStatus ?: 'libre';
+            if ($rawStatus === 'maintenance') return 'maintenance';
+            if ($blocking) {
+                if (!empty($blocking->has_confirmed)) return 'occupe';
+                if (!empty($blocking->has_option))   return 'option_periode';
+            }
+            return in_array($rawStatus, ['libre', 'disponible'], true) ? 'libre' : $rawStatus;
+        };
+
+        $panels = collect();
+
+        if ($internalIds) {
+            $internals = Panel::with(['commune', 'zone', 'format', 'category'])
+                ->whereIn('id', $internalIds)
+                ->orderBy('reference')
+                ->get();
+
+            $panels = $panels->merge($internals->map(function ($p) use ($internalBlocking, $resolveDisplay) {
+                // On garde le model original mais on attache display_status
+                // en attribut dynamique — la vue le lit via `$p->display_status`.
+                $p->display_status = $resolveDisplay(
+                    $p->status->value ?? 'libre',
+                    $internalBlocking->get($p->id)
+                );
+                return $p;
+            }));
+        }
+
+        if ($externalIds) {
+            $externals = ExternalPanel::with(['commune', 'zone', 'format', 'category', 'agency:id,name'])
+                ->whereIn('id', $externalIds)
+                ->orderBy('code_panneau')
+                ->get();
+
+            $panels = $panels->merge($externals->map(function ($p) use ($externalBlocking, $resolveDisplay) {
+                $displayStatus = $resolveDisplay(
+                    $p->availability_status ?? 'disponible',
+                    $externalBlocking->get($p->id)
+                );
+
+                return (object) [
+                    'reference'      => $p->code_panneau,
+                    'name'           => $p->designation,
+                    'commune'        => $p->commune,
+                    'zone'           => $p->zone,
+                    'format'         => $p->format,
+                    'category'       => $p->category,
+                    'monthly_rate'   => $p->monthly_rate,
+                    'daily_traffic'  => $p->daily_traffic,
+                    'is_lit'         => (bool) $p->is_lit,
+                    'status'         => (object) ['value' => $p->availability_status ?? 'libre'],
+                    'display_status' => $displayStatus,
+                    'agency_name'    => $p->agency?->name,
+                    '_external'      => true,
+                ];
+            }));
+        }
+
+        $startDate    = $request->start_date;
+        $endDate      = $request->end_date;
+        $dureeEnMois  = ($startDate && $endDate)
             ? max(1, (int) ceil(Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) / 30))
             : 1;
-        $totalMensuel = $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0));
+        $totalMensuel = (float) $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0));
         $totalPeriode = $totalMensuel * $dureeEnMois;
-        
-        // ✅ Ajouter la variable manquante
-        $generated = now()->format('d/m/Y à H:i');
+        $generated    = now()->format('d/m/Y à H:i');
+
+        // Règle métier : par défaut PAS de prix ni de statut affichés (PDF =
+        // proposition commerciale propre). Coche pour révéler.
+        // Compat ascendante : si l'ancien hide_status=1 est envoyé, on respecte.
+        $showPricing  = $request->boolean('show_pricing');
+        $hideStatus   = $request->has('show_pricing')
+            ? !$showPricing
+            : (bool) $request->boolean('hide_status', true);
+        $logoSrc      = $this->getLogoPdf(); // via trait PdfAssets
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.reservations.pdf.disponibilites-list', compact(
             'panels',
@@ -543,39 +812,123 @@ class ReservationController extends Controller
             'dureeEnMois',
             'totalMensuel',
             'totalPeriode',
-            'generated'  // ✅ Ajouter ici
+            'generated',
+            'hideStatus',
+            'showPricing',
+            'logoSrc'
         ));
-        
+
         $pdf->setPaper('A4', 'landscape');
         $pdf->setOptions([
             'isHtml5ParserEnabled' => true,
-            'isRemoteEnabled' => false,
-            'defaultFont' => 'DejaVu Sans',
-            'dpi' => 96,
+            'isRemoteEnabled'      => false,
+            'defaultFont'          => 'DejaVu Sans',
+            'dpi'                  => 96,
         ]);
-        
-        return $pdf->download('selection-panneaux-liste-' . now()->format('Ymd') . '.pdf');
+
+        $suffix = $hideStatus ? '-proposition' : '';
+        return $pdf->download('selection-panneaux-liste' . $suffix . '-' . now()->format('Ymd') . '.pdf');
+    }
+
+    /**
+     * EXPORT EXCEL — Liste des panneaux disponibles (internes + externes)
+     */
+    public function exportExcel(Request $request)
+    {
+        $request->validate([
+            'panel_ids'    => 'required|array|min:1',
+            'start_date'   => 'nullable|date',
+            'end_date'     => 'nullable|date',
+            'show_pricing' => 'nullable|boolean',
+            'hide_status'  => 'nullable|boolean',
+        ]);
+
+        [$internalIds, $externalIds] = $this->validateMixedPanelIds($request);
+
+        $panels = collect();
+
+        if ($internalIds) {
+            $panels = $panels->merge(
+                Panel::with(['commune', 'zone', 'format', 'category'])
+                    ->whereIn('id', $internalIds)
+                    ->orderBy('reference')
+                    ->get()
+            );
+        }
+
+        if ($externalIds) {
+            // Adapter ExternalPanel -> stdClass aux clés attendues par PanelsExport.
+            // status->value = availability_status (mappé), reference = code_panneau,
+            // name = designation. PanelsExport::map() lit ces clés via $p->xxx.
+            $externals = ExternalPanel::with(['commune', 'zone', 'format', 'category', 'agency:id,name'])
+                ->whereIn('id', $externalIds)
+                ->orderBy('code_panneau')
+                ->get();
+
+            $panels = $panels->merge($externals->map(fn($p) => (object) [
+                'reference'     => $p->code_panneau,
+                'name'          => $p->designation,
+                'commune'       => $p->commune,
+                'zone'          => $p->zone,
+                'format'        => $p->format,
+                'category'      => $p->category,
+                'is_lit'        => (bool) $p->is_lit,
+                'daily_traffic' => $p->daily_traffic,
+                'monthly_rate'  => $p->monthly_rate,
+                'status'        => (object) ['value' => $p->availability_status ?? 'libre'],
+                'agency_name'   => $p->agency?->name,
+                '_external'     => true,
+            ]));
+        }
+
+        $startDate  = $request->start_date;
+        $endDate    = $request->end_date;
+        // Cohérence avec les PDF : show_pricing prioritaire, fallback hide_status (compat).
+        $hideStatus = $request->has('show_pricing')
+            ? !$request->boolean('show_pricing')
+            : (bool) $request->boolean('hide_status', false);
+
+        return Excel::download(
+            new PanelsExport($panels, $startDate, $endDate, $hideStatus),
+            'panneaux-disponibles-' . now()->format('Y-m-d') . '.xlsx'
+        );
     }
 
     // ══════════════════════════════════════════════════════════════
     // CONFIRMER SÉLECTION
     // ══════════════════════════════════════════════════════════════
+
+    // ajouter alerte création réservation
     public function confirmerSelection(Request $request)
     {
-        $rawIds = (array) $request->input('panel_ids', []);
-        $internalIds = [];
-        $externalIds = [];
+        // 1) Parse mixte (interne + ext_<id>)
+        [$internalIds, $externalIds] = $this->splitMixedPanelIds(
+            (array) $request->input('panel_ids', [])
+        );
 
-        foreach ($rawIds as $id) {
-            if (is_string($id) && str_starts_with($id, 'ext_')) {
-                $externalIds[] = (int) substr($id, 4);
-            } elseif (is_numeric($id)) {
-                $internalIds[] = (int) $id;
+        // Feature 2.2 — dates de début décalées par panneau
+        $rawStartDates = (array) $request->input('panel_start_dates', []);
+        $internalStartDates = [];
+        $externalStartDates = [];
+        foreach ($rawStartDates as $key => $date) {
+            if (!is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
+            if (str_starts_with((string) $key, 'ext_')) {
+                $extId = (int) substr((string) $key, 4);
+                if ($extId > 0) $externalStartDates[$extId] = $date;
+            } else {
+                $intId = (int) $key;
+                if ($intId > 0) $internalStartDates[$intId] = $date;
             }
         }
 
-        $request->merge(['panel_ids' => $internalIds]);
+        // 2) Au moins UN panneau (interne ou externe)
+        if (empty($internalIds) && empty($externalIds)) {
+            return back()->withErrors([
+                'panel_ids' => 'Aucun panneau sélectionné.',
+            ])->withInput();
+        }
 
+        // 3) Validation des autres champs (sans toucher panel_ids — on l'a déjà parsé)
         $request->validate([
             'client_id' => 'required|exists:clients,id',
             'start_date' => [
@@ -589,14 +942,32 @@ class ReservationController extends Controller
             ],
             'end_date' => ['required', 'date', 'date_format:Y-m-d', 'after:start_date'],
             'notes' => 'nullable|string|max:2000',
-            'panel_ids' => 'required|array|min:1|max:50',
-            'panel_ids.*' => 'required|integer|exists:panels,id',
             'type' => 'required|in:option,ferme',
             'campaign_name' => 'nullable|string|max:150',
+            // Tâche 6.1 — montant personnalisé optionnel (override du calcul auto)
+            'amount' => 'nullable|numeric|min:0|max:9999999999',
         ]);
 
-        $maintenancePanels = Panel::whereIn('id', $internalIds)
-            ->where('status', PanelStatus::MAINTENANCE->value)->pluck('reference');
+        // 4) Cap volume (50 internes + 50 externes max — symétrique)
+        if (count($internalIds) > 50 || count($externalIds) > 50) {
+            return back()->withErrors([
+                'panel_ids' => 'Trop de panneaux sélectionnés (max 50 internes + 50 externes).',
+            ])->withInput();
+        }
+
+        // 5) Existence base de données — interne et externe (en deux requêtes count)
+        if ($internalIds && Panel::whereIn('id', $internalIds)->count() !== count($internalIds)) {
+            return back()->withErrors(['panel_ids' => 'Un ou plusieurs panneaux internes sont introuvables.'])->withInput();
+        }
+        if ($externalIds && ExternalPanel::whereIn('id', $externalIds)->count() !== count($externalIds)) {
+            return back()->withErrors(['panel_ids' => 'Un ou plusieurs panneaux externes sont introuvables.'])->withInput();
+        }
+
+        // 6) Internes en maintenance ?
+        $maintenancePanels = $internalIds
+            ? Panel::whereIn('id', $internalIds)
+                ->where('status', PanelStatus::MAINTENANCE->value)->pluck('reference')
+            : collect();
 
         if ($maintenancePanels->isNotEmpty()) {
             return back()->withErrors(['panel_ids' => 'Panneaux en maintenance : ' . $maintenancePanels->join(', ')])->withInput();
@@ -607,31 +978,109 @@ class ReservationController extends Controller
         $reservation = null;
 
         try {
-            DB::transaction(function () use ($request, $internalIds, $externalIds, &$createdCampaignId, &$reservation) {
-                Panel::whereIn('id', $internalIds)->lockForUpdate()->get();
+            DB::transaction(function () use ($request, $internalIds, $externalIds, $internalStartDates, $externalStartDates, &$createdCampaignId, &$reservation) {
+                // Lock + check conflits UNIQUEMENT pour les internes (l'antidouble-booking
+                // s'applique au catalogue CIBLE, les externes restent gérés par leur régie).
+                if ($internalIds) {
+                    Panel::whereIn('id', $internalIds)->lockForUpdate()->get();
 
-                $conflicts = $this->availability->getUnavailablePanelIds(
-                    $internalIds,
-                    $request->start_date,
-                    $request->end_date
-                );
-                if (!empty($conflicts)) {
-                    $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
-                    throw new \RuntimeException("CONFLICT:$refs");
+                    // Panneaux sans date décalée — vérification standard depuis start_date global
+                    $standardIds = array_values(array_filter($internalIds, fn($id) => !isset($internalStartDates[$id])));
+                    if ($standardIds) {
+                        $conflicts = $this->availability->getUnavailablePanelIds(
+                            $standardIds, $request->start_date, $request->end_date
+                        );
+                        if (!empty($conflicts)) {
+                            $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
+                            throw new \RuntimeException("CONFLICT:$refs");
+                        }
+                    }
+
+                    // Panneaux à démarrage décalé — vérification depuis leur date effective
+                    foreach ($internalIds as $panelId) {
+                        if (!isset($internalStartDates[$panelId])) continue;
+                        $conflicts = $this->availability->getUnavailablePanelIds(
+                            [$panelId], $internalStartDates[$panelId], $request->end_date
+                        );
+                        if (!empty($conflicts)) {
+                            $ref = Panel::find($panelId)?->reference ?? "#{$panelId}";
+                            throw new \RuntimeException("CONFLICT:{$ref}");
+                        }
+                    }
                 }
 
                 $status = $request->type === 'ferme' ? ReservationStatus::CONFIRME : ReservationStatus::EN_ATTENTE;
                 $reference = $this->generateUniqueReference();
-                $panelData = Panel::whereIn('id', $internalIds)->get()->keyBy('id');
                 $months = $this->monthsBetween($request->start_date, $request->end_date);
-                $total = 0;
-                $attach = [];
 
-                foreach ($internalIds as $panelId) {
-                    $unit = (float) ($panelData[$panelId]->monthly_rate ?? 0);
-                    $tot = $unit * $months;
-                    $total += $tot;
-                    $attach[$panelId] = ['unit_price' => $unit, 'total_price' => $tot];
+                // Calcul du total — internes + externes (les deux ont monthly_rate)
+                $autoTotal = 0;
+                $attach = [];
+                if ($internalIds) {
+                    $panelData = Panel::whereIn('id', $internalIds)->get()->keyBy('id');
+                    foreach ($internalIds as $panelId) {
+                        $unit = (float) ($panelData[$panelId]->monthly_rate ?? 0);
+                        $effectiveStart = $internalStartDates[$panelId] ?? $request->start_date;
+                        $tot  = $unit * $this->monthsBetween($effectiveStart, $request->end_date);
+                        $autoTotal += $tot;
+                        $attach[$panelId] = [
+                            'unit_price'       => $unit,
+                            'total_price'      => $tot,
+                            'panel_start_date' => $internalStartDates[$panelId] ?? null,
+                        ];
+                    }
+                }
+
+                // Externes : on calcule le coût mais on les attache APRÈS création
+                // de la réservation (besoin de reservation_id).
+                $externalAttach = [];
+                if ($externalIds) {
+                    $extData = ExternalPanel::with('agency:id,name')
+                        ->whereIn('id', $externalIds)->get();
+                    foreach ($extData as $ext) {
+                        $unit = (float) ($ext->monthly_rate ?? 0);
+                        $effectiveStart = $externalStartDates[$ext->id] ?? $request->start_date;
+                        $tot  = $unit * $this->monthsBetween($effectiveStart, $request->end_date);
+                        $autoTotal += $tot;
+                        $externalAttach[$ext->id] = [
+                            'unit_price'       => $unit,
+                            'total_price'      => $tot,
+                            'panel_start_date' => $externalStartDates[$ext->id] ?? null,
+                        ];
+                    }
+                }
+
+                // Montant personnalisé éventuel — 0 explicite = valide (campagne
+                // offerte / package gratuit). filled() distingue "" / null
+                // (fallback autoTotal) de "0" (persiste 0).
+                $hasCustomAmount = $request->filled('amount');
+                $customAmount    = $hasCustomAmount ? (float) $request->input('amount') : null;
+                $total           = $hasCustomAmount ? $customAmount : $autoTotal;
+
+                if ($hasCustomAmount && abs($customAmount - $autoTotal) > 0.01) {
+                    Log::info('reservation.custom_amount', [
+                        'reference' => $reference,
+                        'auto'      => $autoTotal,
+                        'custom'    => $customAmount,
+                        'delta'     => round($customAmount - $autoTotal, 2),
+                        'is_zero'   => $customAmount === 0.0,
+                        'user_id'   => auth()->id(),
+                    ]);
+
+                    // Prorate les prix pivot pour rester cohérent avec le
+                    // total négocié — sinon le client verrait les tarifs
+                    // catalogue dans la proposition / le mail / l'espace
+                    // client alors que la facturation est différente.
+                    // Cas spécial customAmount=0 → toutes les lignes à 0.
+                    $ratio = $autoTotal > 0 ? ($customAmount / $autoTotal) : 0.0;
+                    foreach ($attach as $pid => $cols) {
+                        $attach[$pid]['unit_price']  = round($cols['unit_price']  * $ratio, 2);
+                        $attach[$pid]['total_price'] = round($cols['total_price'] * $ratio, 2);
+                    }
+                    foreach ($externalAttach as $eid => $cols) {
+                        $externalAttach[$eid]['unit_price']  = round($cols['unit_price']  * $ratio, 2);
+                        $externalAttach[$eid]['total_price'] = round($cols['total_price'] * $ratio, 2);
+                    }
                 }
 
                 $reservation = Reservation::create([
@@ -642,25 +1091,60 @@ class ReservationController extends Controller
                     'end_date' => $request->end_date,
                     'status' => $status,
                     'type' => $request->type,
-                    'notes' => $request->notes,
+                    'notes' => (string) $request->notes,
                     'total_amount' => $total,
                     'confirmed_at' => $request->type === 'ferme' ? now() : null,
                 ]);
 
-                $reservation->panels()->attach($attach);
-                $this->availability->syncPanelStatuses($internalIds);
+                if ($attach) {
+                    // Eloquent ne sait pas mettre 'source'='interne' via attach()
+                    // car la pivot n'est pas dans withPivot par défaut → on
+                    // insère directement les lignes pour garantir source.
+                    $rows = [];
+                    foreach ($attach as $pid => $cols) {
+                        $rows[] = [
+                            'reservation_id'   => $reservation->id,
+                            'panel_id'         => $pid,
+                            'source'           => 'interne',
+                            'unit_price'       => $cols['unit_price'],
+                            'total_price'      => $cols['total_price'],
+                            'panel_start_date' => $cols['panel_start_date'] ?? null,
+                            'created_at'       => now(),
+                            'updated_at'       => now(),
+                        ];
+                    }
+                    DB::table('reservation_panels')->insert($rows);
+                    $this->availability->syncPanelStatuses($internalIds);
+                }
+
+                if ($externalAttach) {
+                    $rows = [];
+                    foreach ($externalAttach as $extId => $cols) {
+                        $rows[] = [
+                            'reservation_id'    => $reservation->id,
+                            'external_panel_id' => $extId,
+                            'source'            => 'externe',
+                            'unit_price'        => $cols['unit_price'],
+                            'total_price'       => $cols['total_price'],
+                            'panel_start_date'  => $cols['panel_start_date'] ?? null,
+                            'created_at'        => now(),
+                            'updated_at'        => now(),
+                        ];
+                    }
+                    DB::table('reservation_panels')->insert($rows);
+                    $this->availability->syncExternalPanelStatuses(array_keys($externalAttach));
+                }
 
                 if ($request->type === 'ferme' && $request->filled('campaign_name')) {
                     if (Campaign::where('client_id', $request->client_id)->where('name', $request->campaign_name)->exists()) {
                         throw new \RuntimeException('CAMPAIGN_EXISTS:Une campagne avec ce nom existe déjà pour ce client.');
                     }
 
-                    // Statut correct selon la date de début
                     $campStatus = now()->startOfDay()->lt(
                         \Carbon\Carbon::parse($request->start_date)->startOfDay()
                     )
-                        ? CampaignStatus::PLANIFIE->value  // commence dans le futur
-                        : CampaignStatus::ACTIF->value;    // commence aujourd'hui ou avant
+                        ? CampaignStatus::PLANIFIE->value
+                        : CampaignStatus::ACTIF->value;
 
                     $campaign = Campaign::create([
                         'name'           => $request->campaign_name,
@@ -670,13 +1154,38 @@ class ReservationController extends Controller
                         'start_date'     => $request->start_date,
                         'end_date'       => $request->end_date,
                         'status'         => $campStatus,
-                        'total_panels'   => count($internalIds),
+                        'total_panels'   => count($internalIds) + count($externalIds),
                         'total_amount'   => $total,
-                        'notes'          => $request->notes,
+                        'notes'          => (string) $request->notes,
                     ]);
 
+                    if ($attach) {
+                        $campaign->panels()->sync(array_keys($attach));
+                    }
 
-                    $campaign->panels()->sync(array_keys($attach));
+                    // Le pivot campaign_panels supporte external_panel_id —
+                    // on attache aussi les externes pour pouvoir les retrouver
+                    // dans les vues campagne (pige, suivi, etc.).
+                    if ($externalAttach) {
+                        $campaignPanelsRows = [];
+                        foreach (array_keys($externalAttach) as $extId) {
+                            $campaignPanelsRows[] = [
+                                'campaign_id'       => $campaign->id,
+                                'external_panel_id' => $extId,
+                                'type'              => 'externe',
+                                'created_at'        => now(),
+                                'updated_at'        => now(),
+                            ];
+                        }
+                        DB::table('campaign_panels')->insert($campaignPanelsRows);
+                    }
+
+                    // Lot 9.1 — Auto-créer les tâches de pose pour cette
+                    // nouvelle campagne (réservation type="ferme"). L'observer
+                    // `created` ne pouvait pas le faire car les panneaux ne
+                    // sont liés qu'après l'INSERT.
+                    $campaign->ensurePoseTasksAutoCreated();
+
                     $createdCampaignId = $campaign->id;
                 }
 
@@ -687,6 +1196,15 @@ class ReservationController extends Controller
                     'ext' => count($externalIds),
                     'user_id' => auth()->id(),
                 ]);
+
+                $totalCount = count($internalIds) + count($externalIds);
+                AlertService::create(
+                    'reservation',
+                    $status === ReservationStatus::CONFIRME ? 'info' : 'warning',
+                    '📋 Nouvelle réservation — ' . ($reservation->client?->name ?? ''),
+                    auth()->user()->name . ' a créé la réservation ' . $reservation->reference . ' (' . $totalCount . ' panneau(x))',
+                    $reservation
+                );
             });
 
         } catch (\RuntimeException $e) {
@@ -710,12 +1228,111 @@ class ReservationController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // STATUS SNAPSHOT — endpoint AJAX léger pour le polling temps réel.
+    //
+    // Renvoie l'état courant de la réservation pour que la fiche admin
+    // puisse réagir à une décision client (acceptation/refus/vue) sans
+    // avoir à recharger toute la page. Si le JS détecte un changement
+    // sur les valeurs critiques, il déclenche un refresh ciblé.
+    // ══════════════════════════════════════════════════════════════
+    public function statusSnapshot(Reservation $reservation): \Illuminate\Http\JsonResponse
+    {
+        $this->authorize('view', $reservation);
+
+        $reservation->loadMissing(['campaign:id,reservation_id,status,name']);
+
+        return response()->json([
+            'status'                       => $reservation->status->value,
+            'status_label'                 => $reservation->status->label(),
+            'total_amount'                 => (float) ($reservation->total_amount ?? 0),
+            'proposition_token'            => $reservation->proposition_token !== null,
+            'proposition_sent_at'          => $reservation->proposition_sent_at?->toIso8601String(),
+            'proposition_viewed_at'        => $reservation->proposition_viewed_at?->toIso8601String(),
+            'proposition_expires_at'       => $reservation->proposition_expires_at?->toIso8601String(),
+            'proposition_reminded_j2_at'   => $reservation->proposition_reminded_j2_at?->toIso8601String(),
+            'proposition_reminded_j5_at'   => $reservation->proposition_reminded_j5_at?->toIso8601String(),
+            'campaign'                     => $reservation->campaign ? [
+                'id'     => $reservation->campaign->id,
+                'name'   => $reservation->campaign->name,
+                'status' => is_object($reservation->campaign->status)
+                    ? $reservation->campaign->status->value
+                    : $reservation->campaign->status,
+            ] : null,
+            'fetched_at'                   => now()->toIso8601String(),
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // GET PANELS — JSON pour modale "Voir les panneaux" depuis la liste
+    // (tâche 5 — visualiser panneaux d'une réservation en option)
+    // ══════════════════════════════════════════════════════════════
+    public function getPanels(Reservation $reservation): \Illuminate\Http\JsonResponse
+    {
+        $this->authorize('view', $reservation);
+
+        $reservation->load([
+            'panels:id,reference,name,commune_id,format_id,monthly_rate,is_lit',
+            'panels.commune:id,name',
+            'panels.format:id,name',
+            'panels.photos' => fn($q) => $q->orderBy('ordre')->limit(1),
+            'externalPanels:id,code_panneau,designation,commune_id,format_id,monthly_rate,is_lit,photo_path,agency_id',
+            'externalPanels.commune:id,name',
+            'externalPanels.format:id,name',
+            'externalPanels.agency:id,name',
+        ]);
+
+        $internalPanels = $reservation->panels->map(fn($p) => [
+            'id'           => $p->id,
+            'source'       => 'internal',
+            'reference'    => $p->reference,
+            'name'         => $p->name,
+            'commune'      => $p->commune?->name ?? '—',
+            'format'       => $p->format?->name  ?? '—',
+            'is_lit'       => (bool) $p->is_lit,
+            'agency_name'  => null,
+            'monthly_rate' => (float) ($p->pivot->unit_price ?? $p->monthly_rate ?? 0),
+            'photo_url'    => $p->photos->first()
+                ? asset('storage/' . $p->photos->first()->path)
+                : null,
+        ]);
+
+        $externalPanels = $reservation->externalPanels->map(fn($p) => [
+            'id'           => 'ext_' . $p->id,
+            'source'       => 'external',
+            'reference'    => $p->code_panneau,
+            'name'         => $p->designation,
+            'commune'      => $p->commune?->name ?? '—',
+            'format'       => $p->format?->name  ?? '—',
+            'is_lit'       => (bool) $p->is_lit,
+            'agency_name'  => $p->agency?->name,
+            'monthly_rate' => (float) ($p->pivot->unit_price ?? $p->monthly_rate ?? 0),
+            'photo_url'    => $p->photo_path ? asset('storage/' . ltrim($p->photo_path, '/')) : null,
+        ]);
+
+        $totalCount = $reservation->panels->count() + $reservation->externalPanels->count();
+
+        return response()->json([
+            'reservation' => [
+                'reference'  => $reservation->reference,
+                'start_date' => $reservation->start_date->format('d/m/Y'),
+                'end_date'   => $reservation->end_date->format('d/m/Y'),
+                'status'     => $reservation->status->value,
+                'count'      => $totalCount,
+            ],
+            'panels' => $internalPanels->concat($externalPanels)->values(),
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // INDEX
     // ══════════════════════════════════════════════════════════════
     public function index(Request $request)
     {
-        $query = Reservation::with(['client', 'user'])->withCount('panels');
+        $query = Reservation::with(['client', 'user'])
+            ->withCount(['panels', 'externalPanels']);
 
+        // Filtres "neutres" appliqués à la liste ET au calcul des compteurs.
+        // Ils définissent le périmètre courant (search/type/client/période).
         if ($request->search) {
             $query->where(
                 fn($q) =>
@@ -723,45 +1340,66 @@ class ReservationController extends Controller
                     ->orWhereHas('client', fn($q) => $q->withTrashed()->where('name', 'like', "%{$request->search}%"))
             );
         }
-        if ($request->status)
-            $query->where('status', $request->status);
-        if ($request->type)
-            $query->where('type', $request->type);
-        if ($request->client_id)
-            $query->where('client_id', $request->client_id);
+        if ($request->type)      $query->where('type', $request->type);
+        if ($request->client_id) $query->where('client_id', $request->client_id);
 
         if ($request->periode) {
             match ($request->periode) {
-                'this_month' => $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year),
-                'last_month' => $query->whereMonth('created_at', now()->subMonth()->month)->whereYear('created_at', now()->subMonth()->year),
+                'this_month'   => $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year),
+                'last_month'   => $query->whereMonth('created_at', now()->subMonth()->month)->whereYear('created_at', now()->subMonth()->year),
                 'this_quarter' => $query->whereBetween('created_at', [now()->startOfQuarter(), now()->endOfQuarter()]),
-                'this_year' => $query->whereYear('created_at', now()->year),
-                default => null,
+                'this_year'    => $query->whereYear('created_at', now()->year),
+                default        => null,
             };
+        }
+
+        // ─── COMPTEURS KPI sur le PÉRIMÈTRE (avant status/kpi) ───
+        // Permet aux 5 cartes de garder leur valeur réelle quand on clique
+        // sur l'une d'elles (sinon les autres tombent à 0).
+        $countsRaw = (clone $query)
+            ->setEagerLoads([])
+            ->reorder()
+            ->select('status', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $counts = [
+            'en_attente' => (int) ($countsRaw['en_attente'] ?? 0),
+            'confirme'   => (int) ($countsRaw['confirme']   ?? 0),
+            'refuse'     => (int) ($countsRaw['refuse']     ?? 0),
+            'annule'     => (int) ($countsRaw['annule']     ?? 0),
+            'termine'    => (int) ($countsRaw['termine']    ?? 0),
+        ];
+
+        // ─── Filtre status (carte cliquée OU select) appliqué APRÈS ───
+        if ($request->status) {
+            $query->where('status', $request->status);
         }
 
         $reservations = $query->orderByDesc('created_at')->paginate(15)->withQueryString();
 
-        $rawCounts = Reservation::selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
-        $counts = [
-            'total' => $rawCounts->sum(),
-            'en_attente' => $rawCounts['en_attente'] ?? 0,
-            'confirme' => $rawCounts['confirme'] ?? 0,
-            'refuse' => $rawCounts['refuse'] ?? 0,
-            'annule' => $rawCounts['annule'] ?? 0,
-        ];
+        // Total = ce qui est réellement affiché dans la liste
+        $counts['total'] = $reservations->total();
 
         $lastSeenAt = auth()->user()->reservations_last_seen_at;
-        $newCount = $lastSeenAt ? Reservation::where('created_at', '>', $lastSeenAt)->count() : 0;
+        // newCount = uniquement les nouvelles réservations EN ATTENTE depuis
+        // la dernière visite. Sinon une réservation déjà confirmée/refusée
+        // déclenchait quand même un "✦ X nouvelle(s)" sur la carte
+        // "EN ATTENTE", incohérent avec son compteur réel.
+        $newCount = $lastSeenAt
+            ? Reservation::where('status', 'en_attente')
+                ->where('created_at', '>', $lastSeenAt)
+                ->count()
+            : 0;
         $clients = Client::orderBy('name')->get();
         $statuses = ReservationStatus::cases();
 
         if ($request->ajax()) {
             return response()->json([
-                'html' => view('admin.reservations.partials.table-rows', compact('reservations', 'lastSeenAt'))->render(),
+                'html'       => view('admin.reservations.partials.table-rows', compact('reservations', 'lastSeenAt'))->render(),
                 'pagination' => $reservations->links()->render(),
-                'stats' => $counts,
-                'has_more' => $reservations->hasMorePages(),
+                'stats'      => $counts,
+                'has_more'   => $reservations->hasMorePages(),
             ]);
         }
 
@@ -782,7 +1420,13 @@ class ReservationController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function show(Reservation $reservation)
     {
-        $reservation->load(['client', 'user', 'panels.commune', 'panels.format', 'panels.photos', 'campaign']);
+        $reservation->load([
+            'client', 'user',
+            'panels.commune', 'panels.format', 'panels.photos',
+            'externalPanels.commune', 'externalPanels.format',
+            'externalPanels.agency:id,name',
+            'campaign',
+        ]);
         $user = auth()->user();
         $can = [
             'update' => $reservation->isEditable() && $user->can('update', $reservation),
@@ -790,7 +1434,70 @@ class ReservationController extends Controller
             'annuler' => $reservation->isCancellable() && $user->can('annuler', $reservation),
             'delete' => $reservation->isDeletable() && $user->can('delete', $reservation),
         ];
-        return view('admin.reservations.show', compact('reservation', 'can'));
+
+        // ─── Construction d'une vue unifiée des panneaux (internes + externes)
+        // Permet à la vue d'avoir UNE SEULE boucle propre. Chaque ligne contient
+        // tout ce dont la vue a besoin sans logique conditionnelle compliquée.
+        $months = $this->monthsBetween(
+            $reservation->start_date->format('Y-m-d'),
+            $reservation->end_date->format('Y-m-d')
+        );
+        $days = (int) abs($reservation->start_date->copy()->startOfDay()
+            ->diffInDays($reservation->end_date->copy()->startOfDay()));
+
+        $unifiedPanels = collect();
+
+        foreach ($reservation->panels as $p) {
+            $unifiedPanels->push([
+                'id'             => $p->id,
+                'source'         => 'internal',
+                'reference'      => $p->reference,
+                'name'           => $p->name,
+                'commune'        => $p->commune?->name ?? '—',
+                'format'         => $p->format?->name ?? '—',
+                'format_dim'     => ($p->format?->width && $p->format?->height)
+                    ? rtrim(rtrim(number_format($p->format->width, 2, '.', ''), '0'), '.')
+                      . '×' . rtrim(rtrim(number_format($p->format->height, 2, '.', ''), '0'), '.') . 'm'
+                    : null,
+                'agency'         => null,
+                'photo_url'      => $p->photos->sortBy('ordre')->first()
+                    ? asset('storage/' . $p->photos->sortBy('ordre')->first()->path)
+                    : null,
+                'unit_price'     => (float) ($p->pivot->unit_price  ?? $p->monthly_rate ?? 0),
+                'total_price'    => (float) ($p->pivot->total_price ?? 0),
+                'catalog_price'  => (float) ($p->monthly_rate ?? 0),
+                'edit_url'       => route('admin.reservations.panels.price', [$reservation, $p->id]),
+                'reset_url'      => route('admin.reservations.panels.price.reset', [$reservation, $p->id]),
+            ]);
+        }
+
+        foreach ($reservation->externalPanels as $p) {
+            $unifiedPanels->push([
+                'id'             => $p->id,
+                'source'         => 'external',
+                'reference'      => $p->code_panneau,
+                'name'           => $p->designation,
+                'commune'        => $p->commune?->name ?? '—',
+                'format'         => $p->format?->name ?? '—',
+                'format_dim'     => ($p->format?->width && $p->format?->height)
+                    ? rtrim(rtrim(number_format($p->format->width, 2, '.', ''), '0'), '.')
+                      . '×' . rtrim(rtrim(number_format($p->format->height, 2, '.', ''), '0'), '.') . 'm'
+                    : null,
+                'agency'         => $p->agency?->name,
+                'photo_url'      => $p->photo_path ? asset('storage/' . ltrim($p->photo_path, '/')) : null,
+                'unit_price'     => (float) ($p->pivot->unit_price  ?? $p->monthly_rate ?? 0),
+                'total_price'    => (float) ($p->pivot->total_price ?? 0),
+                'catalog_price'  => (float) ($p->monthly_rate ?? 0),
+                'edit_url'       => route('admin.reservations.external-panels.price', [$reservation, $p->id]),
+                'reset_url'      => route('admin.reservations.external-panels.price.reset', [$reservation, $p->id]),
+            ]);
+        }
+
+        $totalCount = $unifiedPanels->count();
+
+        return view('admin.reservations.show', compact(
+            'reservation', 'can', 'unifiedPanels', 'months', 'days', 'totalCount'
+        ));
     }
 
     public function edit(Reservation $reservation)
@@ -838,45 +1545,98 @@ class ReservationController extends Controller
     {
         if ($reservation->client?->trashed())
             return back()->with('error', 'Impossible : client supprimé.');
+        
         $request->validate(['status' => 'required|in:' . implode(',', array_column(ReservationStatus::cases(), 'value'))]);
+        
         if (!$reservation->canTransitionTo($request->status)) {
             return back()->with('error', "Transition interdite : {$reservation->status->value} → {$request->status}.");
         }
-        $this->reservationService->changeStatus($reservation, $request->status);
-
-        $statusLabels = ['confirme' => 'confirmée', 'refuse' => 'refusée', 'en_attente' => 'en attente', 'termine' => 'terminée'];
-        $label = $statusLabels[$request->status] ?? $request->status;
-        $niveau = $request->status === 'confirme' ? 'info' : ($request->status === 'refuse' ? 'danger' : 'info');
-
-        AlertService::create(
-            'reservation',
-            $niveau,
-            '📋 Réservation ' . $label . ' — ' . ($reservation->client?->name ?? ''),
-            auth()->user()->name . ' a mis à jour la réservation ' . $reservation->reference . ' → ' . $label . '.',
-            $reservation
-        );
-        return redirect()->route('admin.reservations.show', $reservation)->with('success', "Statut mis à jour : {$request->status}.");
+        
+        // Si on passe à "annule", on peut aussi passer le motif
+        if ($request->status === 'annule') {
+            $cancelData = [
+                'cancel_type' => $request->input('cancel_type', 'autre'),
+                'cancel_reason' => $request->input('cancel_reason', ''),
+                'cancelled_at' => now(),
+                'cancelled_by' => auth()->id(),
+            ];
+            $this->reservationService->cancel($reservation, $cancelData);
+            
+            AlertService::create(
+                'reservation',
+                'danger',
+                '🚫 Réservation annulée — ' . ($reservation->client?->name ?? ''),
+                auth()->user()->name . ' a annulé la réservation ' . $reservation->reference,
+                $reservation
+            );
+        } else {
+            $this->reservationService->changeStatus($reservation, $request->status);
+            
+            $statusLabels = ['confirme' => 'confirmée', 'refuse' => 'refusée', 'en_attente' => 'en attente', 'termine' => 'terminée'];
+            $label = $statusLabels[$request->status] ?? $request->status;
+            $niveau = $request->status === 'confirme' ? 'info' : ($request->status === 'refuse' ? 'danger' : 'info');
+            
+            AlertService::create(
+                'reservation',
+                $niveau,
+                '📋 Réservation ' . $label . ' — ' . ($reservation->client?->name ?? ''),
+                auth()->user()->name . ' a mis à jour la réservation ' . $reservation->reference . ' → ' . $label . '.',
+                $reservation
+            );
+        }
+        
+        return redirect()->route('admin.reservations.show', $reservation)
+            ->with('success', "Statut mis à jour : {$request->status}.");
     }
 
-    public function annuler(Reservation $reservation)
+    public function annuler(Request $request, Reservation $reservation)
     {
         if ($reservation->client?->trashed())
             abort(403, 'Impossible : client supprimé.');
         if (!$reservation->isCancellable())
             abort(403, 'Réservation non annulable.');
-        $panelCount = $reservation->panels->count();
-        $this->reservationService->cancel($reservation);
-        return redirect()->route('admin.reservations.index')->with('success', "Réservation annulée. {$panelCount} panneau(x) libéré(s).");
+        
+        $panelCount = $reservation->panels->count() + $reservation->externalPanels->count();
+
+        // Extraire les données d'annulation
+        $cancelData = [
+            'cancel_type' => $request->input('cancel_type', 'autre'),
+            'cancel_reason' => $request->input('cancel_reason', ''),
+            'cancelled_at' => now(),
+            'cancelled_by' => auth()->id(),
+        ];
+        
+        $this->reservationService->cancel($reservation, $cancelData);
+        
+        // Alerte annulation
+        AlertService::create(
+            'reservation',
+            'danger',
+            '🚫 Réservation annulée — ' . ($reservation->client?->name ?? ''),
+            auth()->user()->name . ' a annulé la réservation ' . $reservation->reference . ' (Motif: ' . ($cancelData['cancel_type'] ?? 'autre') . ')',
+            $reservation
+        );
+        
+        return redirect()->route('admin.reservations.index')
+            ->with('success', "Réservation annulée. {$panelCount} panneau(x) libéré(s).");
     }
 
     public function destroy(Reservation $reservation)
     {
         if (!$reservation->isDeletable())
             abort(403, 'Impossible : réservation active ou liée à une campagne.');
-        $panelCount = $reservation->panels()->count();
+        $panelCount = $reservation->panels()->count() + $reservation->externalPanels()->count();
         $hasCampaign = $reservation->campaign !== null;
         try {
             $this->reservationService->delete($reservation);
+            // Alerte suppression
+            AlertService::create(
+                'reservation',
+                'danger',
+                '🗑 Réservation supprimée — ' . ($reservation->client?->name ?? ''),
+                auth()->user()->name . ' a supprimé la réservation ' . $reservation->reference,
+                null
+            );
         } catch (\Exception $e) {
             Log::error('reservation.deletion_failed', ['id' => $reservation->id, 'error' => $e->getMessage()]);
             return back()->with('error', 'Erreur lors de la suppression : ' . $e->getMessage());
@@ -886,7 +1646,9 @@ class ReservationController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
-    // AJAX — panneaux disponibles (page edit)
+    // AJAX — panneaux disponibles (page edit / modale "Ajouter")
+    // Retourne internes + externes — discriminés via la clé 'source'.
+    // L'ID des externes est préfixé "ext_" comme sur disponibilites.
     // ══════════════════════════════════════════════════════════════
     public function availablePanels(Request $request): \Illuminate\Http\JsonResponse
     {
@@ -904,6 +1666,7 @@ class ReservationController extends Controller
 
             $excludeId = $request->exclude_reservation_id ? (int) $request->exclude_reservation_id : null;
 
+            // ─── INTERNES ───────────────────────────────────────────
             $query = Panel::with(['commune:id,name', 'format:id,name,width,height', 'zone:id,name'])
                 ->whereNull('deleted_at')
                 ->where('status', '!=', PanelStatus::MAINTENANCE->value)
@@ -933,32 +1696,83 @@ class ReservationController extends Controller
                 $excludeId
             );
 
-            return response()->json($panels->map(function ($p) use ($availabilityData) {
+            $internalRows = $panels->map(function ($p) use ($availabilityData) {
                 $avail = $availabilityData->get($p->id, ['available' => true, 'release_date' => null, 'blocking_status' => null]);
-                $releaseFmt = null;
-                if ($avail['release_date']) {
-                    $rd = Carbon::parse($avail['release_date']);
-                    $daysLeft = (int) now()->startOfDay()->diffInDays($rd->startOfDay(), false);
-                    $releaseFmt = $daysLeft <= 0 ? 'Libre maintenant'
-                        : ($daysLeft === 1 ? 'Libre demain'
-                            : 'Libre le ' . $rd->format('d/m/Y') . " ({$daysLeft}j)");
-                }
+                $releaseFmt = self::formatReleaseLabel($avail['release_date'] ?? null);
                 return [
-                    'id' => $p->id,
-                    'reference' => $p->reference,
-                    'name' => $p->name,
-                    'commune' => $p->commune?->name ?? '—',
-                    'zone' => $p->zone?->name ?? '—',
-                    'format' => $p->format?->name ?? '—',
-                    'dimensions' => self::buildDims($p->format),
-                    'is_lit' => (bool) $p->is_lit,
-                    'monthly_rate' => (float) ($p->monthly_rate ?? 0),
-                    'daily_traffic' => (int) ($p->daily_traffic ?? 0),
-                    'available' => $avail['available'],
-                    'release_date' => $releaseFmt,
+                    'id'              => $p->id,
+                    'source'          => 'internal',
+                    'reference'       => $p->reference,
+                    'name'            => $p->name,
+                    'commune'         => $p->commune?->name ?? '—',
+                    'zone'            => $p->zone?->name ?? '—',
+                    'format'          => $p->format?->name ?? '—',
+                    'dimensions'      => self::buildDims($p->format),
+                    'is_lit'          => (bool) $p->is_lit,
+                    'monthly_rate'    => (float) ($p->monthly_rate ?? 0),
+                    'daily_traffic'   => (int) ($p->daily_traffic ?? 0),
+                    'agency_name'     => null,
+                    'available'       => $avail['available'],
+                    'release_date'    => $releaseFmt,
                     'blocking_status' => $avail['blocking_status'],
                 ];
-            }));
+            });
+
+            // ─── EXTERNES ───────────────────────────────────────────
+            $extQuery = ExternalPanel::with([
+                'commune:id,name', 'zone:id,name',
+                'format:id,name,width,height', 'agency:id,name',
+            ])->whereHas('agency', fn($q) => $q->where('is_active', true)->whereNull('deleted_at'))
+              ->where(fn($q) => $q->whereNull('availability_status')->orWhere('availability_status', '!=', 'maintenance'));
+
+            if ($request->filled('commune_id'))
+                $extQuery->where('commune_id', (int) $request->commune_id);
+            if ($request->filled('zone_id'))
+                $extQuery->where('zone_id', (int) $request->zone_id);
+            if ($request->filled('format_id'))
+                $extQuery->where('format_id', (int) $request->format_id);
+            if ($request->filled('is_lit') && $request->is_lit !== '')
+                $extQuery->where('is_lit', $request->is_lit === '1');
+            if ($request->filled('dimensions')) {
+                [$w, $h] = self::parseDimensions($request->dimensions);
+                if ($w !== null)
+                    $extQuery->whereHas('format', fn($q) => $q->whereBetween('width', [$w - 0.01, $w + 0.01])->whereBetween('height', [$h - 0.01, $h + 0.01]));
+            }
+
+            $externals = $extQuery->orderBy('code_panneau')->get();
+            $extBookings = $this->availability->getExternalPanelBookingMap(
+                $externals->pluck('id')->all(),
+                $request->start_date,
+                $request->end_date,
+                $excludeId
+            );
+
+            $externalRows = $externals->map(function ($p) use ($extBookings) {
+                $b = $extBookings->get($p->id);
+                $hasConfirmed = (bool) ($b->has_confirmed ?? false);
+                $hasOption    = (bool) ($b->has_option ?? false);
+                $blocking = $hasConfirmed ? 'confirme' : ($hasOption ? 'en_attente' : null);
+                $releaseFmt = self::formatReleaseLabel($b->release_date ?? null);
+                return [
+                    'id'              => 'ext_' . $p->id,
+                    'source'          => 'external',
+                    'reference'       => $p->code_panneau,
+                    'name'            => $p->designation,
+                    'commune'         => $p->commune?->name ?? '—',
+                    'zone'            => $p->zone?->name ?? '—',
+                    'format'          => $p->format?->name ?? '—',
+                    'dimensions'      => self::buildDims($p->format),
+                    'is_lit'          => (bool) ($p->is_lit ?? false),
+                    'monthly_rate'    => (float) ($p->monthly_rate ?? 0),
+                    'daily_traffic'   => (int) ($p->daily_traffic ?? 0),
+                    'agency_name'     => $p->agency?->name,
+                    'available'       => !$blocking,
+                    'release_date'    => $releaseFmt,
+                    'blocking_status' => $blocking,
+                ];
+            });
+
+            return response()->json($internalRows->concat($externalRows)->values());
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json(['error' => $e->errors()], 422);
@@ -966,6 +1780,16 @@ class ReservationController extends Controller
             Log::error('availablePanels.error', ['message' => $e->getMessage()]);
             return response()->json(['error' => 'Erreur serveur'], 500);
         }
+    }
+
+    private static function formatReleaseLabel($rdRaw): ?string
+    {
+        if (!$rdRaw) return null;
+        $rd = Carbon::parse($rdRaw);
+        $daysLeft = (int) now()->startOfDay()->diffInDays($rd->startOfDay(), false);
+        return $daysLeft <= 0 ? 'Libre maintenant'
+            : ($daysLeft === 1 ? 'Libre demain'
+                : 'Libre le ' . $rd->format('d/m/Y') . " ({$daysLeft}j)");
     }
 
     // ══ UTILITAIRES ══════════════════════════════════════════════════
@@ -1056,11 +1880,304 @@ class ReservationController extends Controller
             'total_price' => $panel->monthly_rate * $months,
         ]);
 
-        $newTotal = $reservation->panels()->get()
-            ->sum(fn($p) => (float) ($p->pivot->total_price ?? 0));
-        $reservation->update(['total_amount' => $newTotal]);
+        $this->refreshReservationTotal($reservation);
 
         return back()->with('success', 'Prix remis au tarif catalogue.');
+    }
+
+    // ── EXTERNES : prix négocié + reset (mêmes endpoints que internes) ──
+    public function updateExternalPanelPrice(Request $request, Reservation $reservation, ExternalPanel $panel)
+    {
+        $request->validate(['unit_price' => 'required|numeric|min:0']);
+        if (!$reservation->isEditable()) abort(403, 'Réservation non modifiable.');
+
+        $months = $this->monthsBetween(
+            $reservation->start_date->format('Y-m-d'),
+            $reservation->end_date->format('Y-m-d')
+        );
+
+        DB::table('reservation_panels')
+            ->where('reservation_id', $reservation->id)
+            ->where('external_panel_id', $panel->id)
+            ->where('source', 'externe')
+            ->update([
+                'unit_price'  => $request->unit_price,
+                'total_price' => $request->unit_price * $months,
+                'updated_at'  => now(),
+            ]);
+
+        $this->refreshReservationTotal($reservation);
+        return back()->with('success', 'Prix du panneau externe mis à jour.');
+    }
+
+    public function resetExternalPanelPrice(Reservation $reservation, ExternalPanel $panel)
+    {
+        if (!$reservation->isEditable()) abort(403, 'Réservation non modifiable.');
+
+        $months = $this->monthsBetween(
+            $reservation->start_date->format('Y-m-d'),
+            $reservation->end_date->format('Y-m-d')
+        );
+        $catalogue = (float) ($panel->monthly_rate ?? 0);
+
+        DB::table('reservation_panels')
+            ->where('reservation_id', $reservation->id)
+            ->where('external_panel_id', $panel->id)
+            ->where('source', 'externe')
+            ->update([
+                'unit_price'  => $catalogue,
+                'total_price' => $catalogue * $months,
+                'updated_at'  => now(),
+            ]);
+
+        $this->refreshReservationTotal($reservation);
+        return back()->with('success', 'Prix remis au tarif catalogue.');
+    }
+
+    /** Recalcule total_amount = somme(total_price) sur reservation_panels (internes + externes). */
+    private function refreshReservationTotal(Reservation $reservation): void
+    {
+        $newTotal = (float) DB::table('reservation_panels')
+            ->where('reservation_id', $reservation->id)
+            ->sum('total_price');
+        $reservation->update(['total_amount' => round($newTotal, 2)]);
+    }
+
+    /**
+     * AJOUTER UN PANNEAU À UNE RÉSERVATION EXISTANTE
+     * POST /admin/reservations/{reservation}/panels/add
+     *
+     * Anti double-booking : la totalité de l'opération est entourée d'une
+     * DB::transaction + lockForUpdate sur le panneau cible. Le re-check de
+     * disponibilité se fait APRÈS le verrou pour avoir la source de vérité.
+     */
+    public function addPanel(Request $request, Reservation $reservation)
+    {
+        if (!$reservation->isEditable()) {
+            return response()->json(['success' => false, 'message' => 'Réservation non modifiable.'], 403);
+        }
+
+        $request->validate([
+            // Format accepté : entier (interne) OU "ext_<id>" (externe).
+            'panel_id'   => 'required',
+            'unit_price' => 'nullable|numeric|min:0',
+        ]);
+
+        $rawId = $request->panel_id;
+        $isExternal = is_string($rawId) && str_starts_with($rawId, 'ext_');
+        $panelId = $isExternal ? (int) substr($rawId, 4) : (int) $rawId;
+
+        if ($panelId <= 0) {
+            return response()->json(['success' => false, 'message' => 'Identifiant panneau invalide.'], 422);
+        }
+
+        if ($isExternal) {
+            return $this->addExternalPanel($reservation, $panelId, $request->unit_price !== null ? (float) $request->unit_price : null);
+        }
+
+        if (!Panel::whereKey($panelId)->exists()) {
+            return response()->json(['success' => false, 'message' => 'Panneau introuvable.'], 422);
+        }
+
+        $unitPrice = $request->unit_price !== null ? (float) $request->unit_price : null;
+
+        // Pré-check rapide hors transaction (gagne du temps sur le cas évident)
+        if ($reservation->panels()->where('panel_id', $panelId)->exists()) {
+            return response()->json(['success' => false, 'message' => 'Ce panneau est déjà dans la réservation.'], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($reservation, $panelId, &$unitPrice) {
+                // ── Verrou pessimiste ────────────────────────────────────────
+                // SELECT ... FOR UPDATE bloque les autres transactions qui
+                // tenteraient de prendre ce même panneau jusqu'au COMMIT/ROLLBACK.
+                $panel = Panel::whereKey($panelId)->lockForUpdate()->first();
+                if (!$panel) {
+                    throw new \RuntimeException('NOT_FOUND:Panneau introuvable.');
+                }
+
+                // ── Re-check disponibilité APRÈS verrou = source de vérité ──
+                $conflicts = $this->availability->getUnavailablePanelIds(
+                    [$panelId],
+                    $reservation->start_date->format('Y-m-d'),
+                    $reservation->end_date->format('Y-m-d'),
+                    $reservation->id
+                );
+                if (!empty($conflicts)) {
+                    throw new \RuntimeException("CONFLICT:{$panel->reference}");
+                }
+
+                // Re-check duplicate dans la transaction (au cas où une autre
+                // requête concurrente l'aurait ajouté entre le pré-check et ici)
+                if ($reservation->panels()->where('panel_id', $panelId)->exists()) {
+                    throw new \RuntimeException('DUPLICATE:Ce panneau a déjà été ajouté.');
+                }
+
+                $months    = $this->monthsBetween(
+                    $reservation->start_date->format('Y-m-d'),
+                    $reservation->end_date->format('Y-m-d')
+                );
+                if ($unitPrice === null) {
+                    $unitPrice = (float) ($panel->monthly_rate ?? 0);
+                }
+                $totalPrice = $unitPrice * $months;
+
+                $reservation->panels()->attach($panelId, [
+                    'unit_price'  => $unitPrice,
+                    'total_price' => $totalPrice,
+                ]);
+
+                // Recalcul total réservation (somme des total_price du pivot)
+                $newTotal = (float) DB::table('reservation_panels')
+                    ->where('reservation_id', $reservation->id)
+                    ->sum('total_price');
+                $reservation->update(['total_amount' => round($newTotal, 2)]);
+
+                $this->availability->syncPanelStatuses([$panelId]);
+
+                Log::info('reservation.panel_added', [
+                    'reservation_id' => $reservation->id,
+                    'panel_id'       => $panelId,
+                    'panel_ref'      => $panel->reference,
+                    'user_id'        => auth()->id(),
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            $msg = $e->getMessage();
+            if (str_starts_with($msg, 'CONFLICT:')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Conflit : le panneau ' . substr($msg, 9) . ' n\'est plus disponible (réservation concurrente).',
+                ], 409);
+            }
+            if (str_starts_with($msg, 'DUPLICATE:')) {
+                return response()->json(['success' => false, 'message' => substr($msg, 10)], 422);
+            }
+            if (str_starts_with($msg, 'NOT_FOUND:')) {
+                return response()->json(['success' => false, 'message' => substr($msg, 10)], 404);
+            }
+            throw $e;
+        }
+
+        AlertService::create(
+            'reservation',
+            'info',
+            '➕ Panneau ajouté — ' . $reservation->reference,
+            auth()->user()?->name . ' a ajouté un panneau à la réservation ' . $reservation->reference,
+            $reservation
+        );
+
+        return response()->json(['success' => true, 'message' => 'Panneau ajouté avec succès.']);
+    }
+
+    /**
+     * Variante de addPanel pour les panneaux externes — appelée par addPanel
+     * quand l'ID est préfixé "ext_". Verrou pessimiste sur l'external_panels
+     * + insertion dans reservation_panels (source='externe') + sync statut.
+     */
+    private function addExternalPanel(Reservation $reservation, int $externalPanelId, ?float $unitPrice)
+    {
+        // Pré-check rapide hors transaction
+        $alreadyAttached = DB::table('reservation_panels')
+            ->where('reservation_id', $reservation->id)
+            ->where('external_panel_id', $externalPanelId)
+            ->where('source', 'externe')
+            ->exists();
+        if ($alreadyAttached) {
+            return response()->json(['success' => false, 'message' => 'Ce panneau externe est déjà dans la réservation.'], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($reservation, $externalPanelId, &$unitPrice) {
+                $ext = ExternalPanel::with('agency:id,name')
+                    ->whereKey($externalPanelId)
+                    ->lockForUpdate()
+                    ->first();
+                if (!$ext) {
+                    throw new \RuntimeException('NOT_FOUND:Panneau externe introuvable.');
+                }
+
+                // Re-check conflit (anti double-booking côté externe)
+                $conflicts = $this->availability->getExternalPanelBookingMap(
+                    [$externalPanelId],
+                    $reservation->start_date->format('Y-m-d'),
+                    $reservation->end_date->format('Y-m-d'),
+                    $reservation->id
+                );
+                if ($conflicts->isNotEmpty()) {
+                    throw new \RuntimeException("CONFLICT:{$ext->code_panneau}");
+                }
+
+                // Re-check duplicate après verrou
+                $dup = DB::table('reservation_panels')
+                    ->where('reservation_id', $reservation->id)
+                    ->where('external_panel_id', $externalPanelId)
+                    ->where('source', 'externe')
+                    ->exists();
+                if ($dup) {
+                    throw new \RuntimeException('DUPLICATE:Ce panneau a déjà été ajouté.');
+                }
+
+                $months = $this->monthsBetween(
+                    $reservation->start_date->format('Y-m-d'),
+                    $reservation->end_date->format('Y-m-d')
+                );
+                if ($unitPrice === null) {
+                    $unitPrice = (float) ($ext->monthly_rate ?? 0);
+                }
+                $totalPrice = $unitPrice * $months;
+
+                DB::table('reservation_panels')->insert([
+                    'reservation_id'    => $reservation->id,
+                    'external_panel_id' => $externalPanelId,
+                    'source'            => 'externe',
+                    'unit_price'        => $unitPrice,
+                    'total_price'       => $totalPrice,
+                    'created_at'        => now(),
+                    'updated_at'        => now(),
+                ]);
+
+                // Recalcul total réservation (somme internes + externes)
+                $newTotal = (float) DB::table('reservation_panels')
+                    ->where('reservation_id', $reservation->id)
+                    ->sum('total_price');
+                $reservation->update(['total_amount' => round($newTotal, 2)]);
+
+                $this->availability->syncExternalPanelStatuses([$externalPanelId]);
+
+                Log::info('reservation.external_panel_added', [
+                    'reservation_id' => $reservation->id,
+                    'ext_panel_id'   => $externalPanelId,
+                    'ext_ref'        => $ext->code_panneau,
+                    'user_id'        => auth()->id(),
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            $msg = $e->getMessage();
+            if (str_starts_with($msg, 'CONFLICT:')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Conflit : le panneau externe ' . substr($msg, 9) . ' est déjà réservé sur cette période.',
+                ], 409);
+            }
+            if (str_starts_with($msg, 'DUPLICATE:')) {
+                return response()->json(['success' => false, 'message' => substr($msg, 10)], 422);
+            }
+            if (str_starts_with($msg, 'NOT_FOUND:')) {
+                return response()->json(['success' => false, 'message' => substr($msg, 10)], 404);
+            }
+            throw $e;
+        }
+
+        AlertService::create(
+            'reservation',
+            'info',
+            '➕ Panneau externe ajouté — ' . $reservation->reference,
+            auth()->user()?->name . ' a ajouté un panneau externe à la réservation ' . $reservation->reference,
+            $reservation
+        );
+
+        return response()->json(['success' => true, 'message' => 'Panneau externe ajouté avec succès.']);
     }
 
 }

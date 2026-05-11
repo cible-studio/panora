@@ -43,7 +43,7 @@
             $needsPige = $task->status === 'realisee' && $task->campaign_id && $pigeCount === 0;
             $rowStyle = $isLate ? 'border-left:3px solid rgba(239,68,68,.5);background:rgba(239,68,68,.02)' : ($needsPige ? 'border-left:3px solid rgba(249,115,22,.4);background:rgba(249,115,22,.015)' : '');
         @endphp
-        <tr class="trow" style="{{ $rowStyle }}">
+        <tr class="trow" data-pose-id="{{ $task->id }}" style="{{ $rowStyle }}">
             <td style="padding:10px 12px">
                 <a href="{{ route('admin.pose-tasks.show', $task) }}" style="font-family:monospace;font-size:12px;font-weight:700;color:var(--accent);text-decoration:none;display:block">{{ $task->panel?->reference ?? '—' }}</a>
                 <div style="font-size:11px;color:var(--text2);margin-top:1px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ $task->panel?->name }}">{{ $task->panel?->name ?? '—' }}</div>
@@ -75,8 +75,25 @@
                 @elseif($pigeCount > 0)<a href="{{ route('admin.piges.index', ['campaign_id'=>$task->campaign_id,'panel_id'=>$task->panel_id]) }}" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);color:#22c55e;border-radius:8px;font-size:10px;font-weight:700;text-decoration:none;white-space:nowrap"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> {{ $pigeCount }}@if($pigeVerif > 0)<span style="font-size:9px;opacity:.65;margin-left:2px">·{{ $pigeVerif }}✓</span>@endif</a>
                 @else<span style="font-size:10px;color:var(--text3)">—</span>@endif
             </td>
-            <td style="padding:10px 12px">
-                <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;background:{{ $sCfg['bg'] }};color:{{ $sCfg['c'] }};border:1px solid {{ $sCfg['bd'] }}">{!! $sIcon !!} {{ $sCfg['l'] }}</span>
+            <td style="padding:10px 12px;min-width:160px">
+                <span class="pose-status-pill" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;background:{{ $sCfg['bg'] }};color:{{ $sCfg['c'] }};border:1px solid {{ $sCfg['bd'] }}">{!! $sIcon !!} <span class="pose-status-label">{{ $sCfg['l'] }}</span></span>
+                @php $pct = (int) ($task->progress_percent ?? 0); @endphp
+                @if($task->status !== 'annulee')
+                    <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+                        <div style="flex:1;height:5px;background:#f1f5f9;border-radius:999px;overflow:hidden">
+                            <div class="pose-progress-fill"
+                                 data-pose-progress="{{ $task->id }}"
+                                 style="width:{{ $pct }}%;height:100%;background:{{ $task->progressColor() }};border-radius:999px;transition:width .35s ease, background .25s ease"></div>
+                        </div>
+                        <span class="pose-progress-text" style="font-family:ui-monospace,monospace;font-size:10px;color:var(--text2);font-weight:600;min-width:32px;text-align:right">{{ $pct }}%</span>
+                    </div>
+                @endif
+                @if($task->whatsapp_sent_at)
+                    <div style="font-size:9px;color:#22c55e;margin-top:2px;display:flex;align-items:center;gap:3px">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 3.5C18.2 1.2 15.2 0 12 0 5.4 0 0 5.4 0 12c0 2.1.6 4.2 1.6 6L0 24l6.2-1.6c1.7.9 3.7 1.5 5.7 1.5 6.6 0 12-5.4 12-12 0-3.2-1.2-6.2-3.4-8.4z"/></svg>
+                        WhatsApp envoyé
+                    </div>
+                @endif
             </td>
             <td style="padding:10px 12px">
                 <div style="display:flex;gap:4px;align-items:center">

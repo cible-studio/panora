@@ -26,7 +26,10 @@ class StoreClientRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:50',
-                Rule::unique('clients', 'ncc'),
+                // Unicité ignorée pour les clients soft-deleted ET les valeurs NULL/vides
+                Rule::unique('clients', 'ncc')
+                    ->whereNull('deleted_at')
+                    ->whereNotNull('ncc'),
             ],
             'sector' => [
                 'nullable',

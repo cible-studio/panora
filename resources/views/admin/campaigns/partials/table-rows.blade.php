@@ -1,80 +1,5 @@
 @forelse($campaigns as $campaign)
-@php
-    $statusCfg = $campaign->status->uiConfig();
-    $daysLeft = $campaign->daysRemaining();
-    $pct = $campaign->progressPercent();
-    $endingSoon = $campaign->isEndingSoon();
-    $isNonFacturee = in_array($campaign->status->value, ['actif','pose','termine']) && ($campaign->invoices_count ?? 0) === 0;
-    
-    $barColor = $pct >= 90 ? '#ef4444' : ($pct >= 70 ? '#e8a020' : '#22c55e');
-@endphp
-<tr style="{{ $endingSoon ? 'background:rgba(232,160,32,0.03);' : '' }}">
-    <td>
-        <a href="{{ route('admin.campaigns.show', $campaign) }}" class="campaign-name">
-            {{ $campaign->name }}
-        </a>
-        @if($endingSoon)
-        <div class="days-left" style="color:var(--accent);">⚠️ Dans {{ $daysLeft }} jour(s)</div>
-        @endif
-    </td>
-    <td>
-        @if($campaign->client?->trashed())
-        <span class="client-deleted">{{ $campaign->client->name ?? '—' }}</span>
-        <span class="deleted-badge">Supprimé</span>
-        @else
-        <a href="{{ route('admin.clients.show', $campaign->client) }}" class="client-link">
-            {{ $campaign->client?->name ?? '—' }}
-        </a>
-        @endif
-    </td>
-    <td class="date-range">
-        {{ $campaign->start_date->format('d/m/Y') }}
-        <span>→</span>
-        {{ $campaign->end_date->format('d/m/Y') }}
-    </td>
-    <td class="duration">{{ $campaign->durationHuman() }}</td>
-    <td class="text-center">
-        <span class="badge-panels">{{ $campaign->panels_count ?? 0 }} 🪧</span>
-    </td>
-    <td class="amount">
-        {{ number_format($campaign->total_amount, 0, ',', ' ') }} <span>FCFA</span>
-    </td>
-    <td>
-        <span class="status-badge" style="background:{{ $statusCfg['bg'] }};color:{{ $statusCfg['color'] }};border-color:{{ $statusCfg['border'] }}">
-            {{ $statusCfg['icon'] }} {{ $campaign->status->label() }}
-        </span>
-        @if($campaign->status->value === 'actif')
-        <div class="progress-bar">
-            <div class="progress-fill" style="background:{{ $barColor }}; width:{{ $pct }}%;"></div>
-        </div>
-        <div class="days-left">{{ $pct }}% écoulé · {{ $daysLeft }}j restants</div>
-        @endif
-    </td>
-    <td>
-        @if($isNonFacturee)
-        <span class="badge-warning">💰 À facturer</span>
-        @elseif(($campaign->invoices_count ?? 0) > 0)
-        <span class="badge-success">✅ {{ $campaign->invoices_count }} facture(s)</span>
-        @else
-        <span class="badge-muted">—</span>
-        @endif
-    </td>
-    <td>
-        <div>{{ $campaign->user?->name ?? '—' }}</div>
-        <div class="date-small">{{ $campaign->created_at->format('d/m/Y H:i') }}</div>
-    </td>
-    <td>
-        <div class="actions">
-            <a href="{{ route('admin.campaigns.show', $campaign) }}" class="btn-icon" title="Voir">👁</a>
-            @can('update', $campaign)
-            <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn-icon" title="Modifier">✏️</a>
-            @endcan
-            @can('delete', $campaign)
-            <button class="btn-icon btn-delete" onclick="openDeleteCampaign({{ $campaign->id }}, '{{ addslashes($campaign->name) }}')" title="Supprimer">🗑</button>
-            @endcan
-        </div>
-    </td>
-</tr>
+    @include('admin.campaigns.partials.row', ['campaign' => $campaign])
 @empty
 <tr>
     <td colspan="10" class="empty-state">
@@ -156,5 +81,23 @@
 .empty-action a {
     color: var(--accent);
     text-decoration: none;
+}
+.billing-btn {
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-block;
+    transition: opacity 0.15s, transform 0.1s;
+    white-space: nowrap;
+    text-align: left;
+    line-height: 1.4;
+}
+.billing-btn:hover { opacity: 0.82; transform: scale(1.03); }
+.billing-btn--new {
+    background: rgba(249,115,22,0.08);
+    color: #f97316;
+    border: 1px solid rgba(249,115,22,0.25);
 }
 </style>

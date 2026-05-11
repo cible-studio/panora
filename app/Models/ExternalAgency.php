@@ -12,6 +12,8 @@ class ExternalAgency extends Model
     protected $fillable = [
         'name', 'contact', 'phone', 'email',
         'address', 'city', 'notes', 'is_active',
+        // Module Contacts (T11)
+        'manager_name', 'commercial_name', 'commercial_email', 'commercial_phone',
     ];
 
     protected $casts = [

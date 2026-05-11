@@ -89,6 +89,14 @@ return [
     'uuid'                 => 'Le champ :attribute doit être un UUID valide.',
     'after'                => 'Le champ :attribute doit être une date postérieure au :date.',
 
+    'password' => [
+        'letters'        => 'Le champ :attribute doit contenir au moins une lettre.',
+        'mixed'          => 'Le champ :attribute doit contenir au moins une majuscule et une minuscule.',
+        'numbers'        => 'Le champ :attribute doit contenir au moins un chiffre.',
+        'symbols'        => 'Le champ :attribute doit contenir au moins un caractère spécial.',
+        'uncompromised'  => 'Ce :attribute est apparu dans une fuite de données. Veuillez en choisir un autre.',
+    ],
+
     'custom' => [
         'panel_ids' => [
             'required' => 'Aucun panneau sélectionné. Veuillez sélectionner au moins un panneau.',
@@ -116,7 +124,11 @@ return [
     ],
 
     'attributes' => [
-        'panel_ids'     => 'panneaux',
+        'password'              => 'mot de passe',
+        'password_confirmation' => 'confirmation du mot de passe',
+        'current_password'      => 'mot de passe actuel',
+        'email'                 => 'email',
+        'panel_ids'             => 'panneaux',
         'panel_ids.*'   => 'panneau',
         'client_id'     => 'client',
         'start_date'    => 'date de début',

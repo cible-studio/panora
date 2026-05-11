@@ -79,8 +79,7 @@
                                 @foreach($formats as $format)
                                 <option value="{{ $format->id }}"
                                     {{ old('format_id') == $format->id ? 'selected' : '' }}>
-                                    {{ $format->name }}
-                                    @if($format->surface) ({{ $format->surface }}m²) @endif
+                                    {{ $format->surface_label ?? $format->name }}@if($format->dimensions_label) — {{ $format->dimensions_label }}@endif
                                 </option>
                                 @endforeach
                             </select>

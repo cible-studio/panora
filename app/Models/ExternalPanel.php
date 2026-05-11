@@ -22,8 +22,10 @@ class ExternalPanel extends Model
         'quartier', 'adresse', 'axe_routier', 'zone_description',
         'nombre_faces', 'type_support', 'orientation', 'is_lit',
         'monthly_rate', 'daily_traffic',
-        'latitude', 'longitude',
+        'latitude', 'longitude', 'photo_path',
     ];
+
+    protected $appends = ['photo_url'];
 
     protected $casts = [
         'is_lit'       => 'boolean',
@@ -31,6 +33,11 @@ class ExternalPanel extends Model
         'latitude'     => 'decimal:7',
         'longitude'    => 'decimal:7',
     ];
+
+    public function getPhotoUrlAttribute(): ?string
+    {
+        return $this->photo_path ? asset('storage/' . $this->photo_path) : null;
+    }
 
     public function agency()    { return $this->belongsTo(ExternalAgency::class, 'agency_id'); }
     public function client()    { return $this->belongsTo(\App\Models\Client::class); }
@@ -43,5 +50,17 @@ class ExternalPanel extends Model
     public function campaigns()
     {
         return $this->belongsToMany(Campaign::class, 'campaign_panels')->withTimestamps();
+    }
+
+    /**
+     * Réservations qui bloquent ce panneau (en_attente OU confirme),
+     * via la pivot reservation_panels (source='externe').
+     */
+    public function reservations()
+    {
+        return $this->belongsToMany(\App\Models\Reservation::class, 'reservation_panels', 'external_panel_id', 'reservation_id')
+                    ->wherePivot('source', 'externe')
+                    ->withPivot('unit_price', 'total_price', 'source')
+                    ->withTimestamps();
     }
 }

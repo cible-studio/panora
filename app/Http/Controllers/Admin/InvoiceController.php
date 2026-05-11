@@ -20,6 +20,12 @@ class InvoiceController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
+        if ($request->filled('date_from')) {
+            $query->where('issued_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->where('issued_at', '<=', $request->date_to);
+        }
 
         $invoices = $query->latest()->paginate(15)->withQueryString();
         $clients  = Client::orderBy('name')->get();
@@ -132,19 +138,90 @@ class InvoiceController extends Controller
             ->with('success', 'Facture supprimée !');
     }
 
-    public function markSent(Invoice $invoice)
+    public function markSent(Request $request, Invoice $invoice)
     {
+        if ($invoice->status !== 'brouillon') {
+            return $this->statusResponse($request, $invoice, false,
+                "Seules les factures en brouillon peuvent être envoyées (statut actuel : {$invoice->status}).");
+        }
+
         $invoice->update(['status' => 'envoyee']);
-        return back()->with('success', 'Facture marquée comme envoyée !');
+        return $this->statusResponse($request, $invoice, true, 'Facture marquée comme envoyée.');
     }
 
-    public function markPaid(Invoice $invoice)
+    public function markPaid(Request $request, Invoice $invoice)
     {
+        if (!in_array($invoice->status, ['envoyee', 'brouillon'])) {
+            return $this->statusResponse($request, $invoice, false,
+                "Cette facture est déjà {$invoice->status}.");
+        }
+
         $invoice->update([
             'status'  => 'payee',
             'paid_at' => now(),
         ]);
-        return back()->with('success', 'Facture marquée comme payée ! ✅');
+        return $this->statusResponse($request, $invoice, true, 'Facture marquée comme payée. ✅');
+    }
+
+    /**
+     * Annule une facture (équivalent "remboursée / abandonnée").
+     * Conserve la trace pour l'historique fiscal.
+     */
+    public function markCancelled(Request $request, Invoice $invoice)
+    {
+        if ($invoice->status === 'annulee') {
+            return $this->statusResponse($request, $invoice, false, 'Facture déjà annulée.');
+        }
+
+        $invoice->update([
+            'status'  => 'annulee',
+            'paid_at' => null,
+        ]);
+        return $this->statusResponse($request, $invoice, true, 'Facture annulée.');
+    }
+
+    /**
+     * Bascule la facture vers brouillon — utile en cas d'erreur de saisie
+     * (ex: marquée payée par erreur, à corriger avant pagination comptable).
+     * Réinitialise paid_at pour rester cohérent avec le statut.
+     */
+    public function revertDraft(Request $request, Invoice $invoice)
+    {
+        if ($invoice->status === 'brouillon') {
+            return $this->statusResponse($request, $invoice, false, 'Facture déjà en brouillon.');
+        }
+
+        $invoice->update([
+            'status'  => 'brouillon',
+            'paid_at' => null,
+        ]);
+        return $this->statusResponse($request, $invoice, true, 'Facture rebasculée en brouillon.');
+    }
+
+    /**
+     * Réponse unifiée pour les actions de changement de statut.
+     * En AJAX : renvoie le HTML de la ligne + les compteurs KPI rafraîchis,
+     * pour permettre la mise à jour sans full page reload.
+     */
+    private function statusResponse(Request $request, Invoice $invoice, bool $ok, string $message)
+    {
+        if (!$request->expectsJson() && !$request->ajax()) {
+            return back()->with($ok ? 'success' : 'error', $message);
+        }
+
+        $invoice->load('client', 'campaign', 'creator');
+
+        return response()->json([
+            'success'  => $ok,
+            'message'  => $message,
+            'row_html' => view('admin.invoices.partials.row', ['invoice' => $invoice])->render(),
+            'counts'   => [
+                'brouillon' => Invoice::where('status', 'brouillon')->count(),
+                'envoyee'   => Invoice::where('status', 'envoyee')->count(),
+                'payee'     => Invoice::where('status', 'payee')->count(),
+                'ca'        => (float) Invoice::where('status', 'payee')->sum('amount_ttc'),
+            ],
+        ], $ok ? 200 : 422);
     }
 
     public function exportPdf(Invoice $invoice)
@@ -155,5 +232,71 @@ class InvoiceController extends Controller
         $pdf->setPaper('A4', 'portrait');
 
         return $pdf->download("facture-{$invoice->reference}.pdf");
+    }
+
+    /**
+     * Export PDF du listing complet (filtres index appliqués).
+     * A4 paysage pour caser les 10 colonnes sans tronquer.
+     */
+    public function exportListPdf(Request $request)
+    {
+        $invoices = $this->filteredQuery($request)->get();
+
+        // Récupère le nom du client filtré pour l'afficher dans le bandeau
+        $clientName = null;
+        if ($request->filled('client_id')) {
+            $clientName = Client::where('id', $request->client_id)->value('name');
+        }
+
+        $filters = [
+            'client_id'   => $request->client_id,
+            'client_name' => $clientName,
+            'status'      => $request->status,
+            'date_from'   => $request->date_from,
+            'date_to'     => $request->date_to,
+        ];
+
+        $pdf = Pdf::loadView('pdf.invoices-list', compact('invoices', 'filters'))
+            ->setPaper('A4', 'landscape');
+
+        $stamp = now()->format('Ymd-Hi');
+        return $pdf->download("factures-{$stamp}.pdf");
+    }
+
+    /**
+     * Export Excel du listing (filtres index appliqués). Streaming via
+     * FromQuery pour gérer les gros volumes sans saturer la RAM.
+     */
+    public function exportListExcel(Request $request)
+    {
+        $filters = $request->only(['client_id', 'status', 'date_from', 'date_to']);
+        $stamp = now()->format('Ymd-Hi');
+        return (new \App\Exports\InvoicesExport($filters))
+            ->download("factures-{$stamp}.xlsx");
+    }
+
+    /**
+     * Construit la query partagée par les exports : reprend les filtres
+     * client_id / status / date_from / date_to qu'on retrouve sur l'index.
+     * Centralisé ici pour éviter la divergence index ↔ export.
+     */
+    private function filteredQuery(Request $request)
+    {
+        $q = Invoice::with(['client', 'campaign', 'creator']);
+
+        if ($request->filled('client_id')) {
+            $q->where('client_id', $request->client_id);
+        }
+        if ($request->filled('status')) {
+            $q->where('status', $request->status);
+        }
+        if ($request->filled('date_from')) {
+            $q->where('issued_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $q->where('issued_at', '<=', $request->date_to);
+        }
+
+        return $q->orderByDesc('issued_at')->orderByDesc('id');
     }
 }

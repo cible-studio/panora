@@ -7,6 +7,8 @@ use App\Models\Panel;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Services\AlertService;
+use App\Services\AvailabilityService;
+use Illuminate\Support\Facades\Log;
 
 class MaintenanceController extends Controller
 {
@@ -14,32 +16,47 @@ class MaintenanceController extends Controller
     {
         $query = Maintenance::with('panel', 'technicien', 'signaledBy');
 
-        // Filtres
-        if ($request->filled('statut')) {
-            $query->where('statut', $request->statut);
-        }
-        if ($request->filled('priorite')) {
-            $query->where('priorite', $request->priorite);
-        }
+        // Filtres "neutres" appliqués au périmètre (et donc aux compteurs).
+        // Recherche full-text étendue à zone_description + commune.name
+        // (un fragment comme "ange" trouve "Boulv. de l'Angré" ou la
+        //  commune Adjamé via leur join).
         if ($request->filled('search')) {
-            $query->whereHas('panel', function ($q) use ($request) {
-                $q->where('reference', 'like', '%' . $request->search . '%')
-                    ->orWhere('name', 'like', '%' . $request->search . '%');
+            $like = '%' . $request->search . '%';
+            $query->whereHas('panel', function ($q) use ($like) {
+                $q->where('reference', 'LIKE', $like)
+                  ->orWhere('name', 'LIKE', $like)
+                  ->orWhere('zone_description', 'LIKE', $like)
+                  ->orWhereHas('commune', fn($qc) => $qc->where('name', 'LIKE', $like));
             });
         }
+
+        // ─── COMPTEURS sur le périmètre AVANT filtre statut/priorite ───
+        // Permet aux 4 cartes de garder leur valeur réelle quand on en clique une.
+        $countsRaw = (clone $query)
+            ->setEagerLoads([])
+            ->reorder()
+            ->select('statut', 'priorite', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total'))
+            ->groupBy('statut', 'priorite')
+            ->get();
+
+        $totalSignales = (int) $countsRaw->where('statut', 'signale')->sum('total');
+        $totalEnCours  = (int) $countsRaw->where('statut', 'en_cours')->sum('total');
+        $totalResolus  = (int) $countsRaw->where('statut', 'resolu')->sum('total');
+        // Urgentes = priorité urgente ET statut non résolu/annulé (pour signaler les vraies urgences)
+        $totalUrgentes = (int) $countsRaw
+            ->where('priorite', 'urgente')
+            ->whereNotIn('statut', ['resolu', 'annule'])
+            ->sum('total');
+
+        // ─── Filtres KPI/select appliqués APRÈS le calcul des compteurs ───
+        if ($request->filled('statut'))   $query->where('statut', $request->statut);
+        if ($request->filled('priorite')) $query->where('priorite', $request->priorite);
 
         $maintenances = $query
             ->orderByRaw("FIELD(priorite, 'urgente','haute','normale','faible')")
             ->orderByRaw("FIELD(statut, 'signale','en_cours','resolu','annule')")
             ->paginate(15)
             ->withQueryString();
-
-        // Stats
-        $totalSignales = Maintenance::where('statut', 'signale')->count();
-        $totalEnCours = Maintenance::where('statut', 'en_cours')->count();
-        $totalUrgentes = Maintenance::where('priorite', 'urgente')
-            ->whereNotIn('statut', ['resolu', 'annule'])->count();
-        $totalResolus = Maintenance::where('statut', 'resolu')->count();
 
         return view('admin.maintenances.index', compact(
             'maintenances',
@@ -52,9 +69,115 @@ class MaintenanceController extends Controller
 
     public function create()
     {
-        $panels = Panel::orderBy('reference')->get();
-        $techniciens = User::where('role', 'technique')->orderBy('name')->get();
-        return view('admin.maintenances.create', compact('panels', 'techniciens'));
+        // On ne charge plus tous les panneaux côté JS — la recherche se fait
+        // désormais via AJAX searchPanels() avec debounce. Permet de scaler
+        // sur des parcs de 1000+ panneaux sans charger un payload énorme.
+        $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name', 'whatsapp_number']);
+        return view('admin.maintenances.create', compact('techniciens'));
+    }
+
+    /**
+     * Recherche AJAX de panneaux pour le formulaire de création
+     * maintenance. Match full-text sur reference, name, zone_description,
+     * commune.name — fragments OK ("ange" trouve "Angré", "CDY" trouve
+     * "CDY-001A").
+     *
+     * Retourne max 15 résultats triés par référence — assez pour une
+     * dropdown utilisable sur mobile, et léger sur le réseau.
+     */
+    public function searchPanels(Request $request)
+    {
+        $q = trim((string) $request->get('q', ''));
+        if (mb_strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        $like = '%' . $q . '%';
+
+        $panels = Panel::with(['commune:id,name'])
+            ->where(function ($query) use ($like) {
+                $query->where('reference', 'LIKE', $like)
+                      ->orWhere('name', 'LIKE', $like)
+                      ->orWhere('zone_description', 'LIKE', $like)
+                      ->orWhereHas('commune', fn($q2) => $q2->where('name', 'LIKE', $like));
+            })
+            ->orderBy('reference')
+            ->limit(15)
+            ->get(['id', 'reference', 'name', 'commune_id', 'status'])
+            ->map(fn($p) => [
+                'id'       => $p->id,
+                'ref'      => $p->reference,
+                'name'     => $p->name,
+                'commune'  => $p->commune?->name ?? '—',
+                'status'   => $p->status->value,
+            ]);
+
+        return response()->json($panels);
+    }
+
+    /**
+     * Création rapide d'un technicien depuis la modale du formulaire
+     * maintenance — évite à l'admin d'aller dans le module Utilisateurs.
+     *
+     * Le technicien créé est immédiatement utilisable (rôle technique,
+     * actif). Le mot de passe est généré aléatoirement — l'admin le
+     * communique au tech via WhatsApp / SMS / appel. Le tech pourra le
+     * changer à sa première connexion s'il en a besoin.
+     */
+    public function quickCreateTechnician(Request $request)
+    {
+        $data = $request->validate([
+            'name'            => 'required|string|max:100',
+            'phone'           => 'nullable|string|max:30',
+            'whatsapp_number' => 'nullable|string|max:30',
+            'email'           => 'nullable|email|unique:users,email|max:150',
+        ], [
+            'email.unique' => 'Cet email est déjà utilisé.',
+        ]);
+
+        // Email auto-généré si non fourni — nécessaire car la table
+        // users a email NOT NULL. Format : prenom.nom@tech.local
+        if (empty($data['email'])) {
+            $slug = \Illuminate\Support\Str::slug($data['name'], '.');
+            $data['email'] = $slug . '.' . \Illuminate\Support\Str::random(4) . '@tech.local';
+        }
+
+        // Normalisation WhatsApp (idem UserController::store)
+        $whatsapp = null;
+        if (!empty($data['whatsapp_number'])) {
+            $whatsapp = app(\App\Services\WhatsAppService::class)->normalizeNumber($data['whatsapp_number']);
+        }
+
+        $plainPassword = \Illuminate\Support\Str::random(10);
+
+        $user = \App\Models\User::create([
+            'name'            => $data['name'],
+            'email'           => $data['email'],
+            'password'        => \Illuminate\Support\Facades\Hash::make($plainPassword),
+            'role'            => 'technique',
+            'whatsapp_number' => $whatsapp,
+            'agent_code'      => \App\Models\User::generateAgentCode('technique'),
+            'is_active'       => true,
+        ]);
+
+        Log::info('maintenance.technician.quick_created', [
+            'user_id'    => $user->id,
+            'agent_code' => $user->agent_code,
+            'created_by' => auth()->id(),
+        ]);
+
+        return response()->json([
+            'ok'              => true,
+            'message'         => "Technicien {$user->name} créé ({$user->agent_code}).",
+            'technician'      => [
+                'id'         => $user->id,
+                'name'       => $user->name,
+                'agent_code' => $user->agent_code,
+                'email'      => $user->email,
+                'whatsapp'   => $user->whatsapp_number,
+            ],
+            'plain_password'  => $plainPassword, // affiché 1 fois à l'admin pour transmission au tech
+        ]);
     }
 
     public function store(Request $request)
@@ -118,7 +241,26 @@ class MaintenanceController extends Controller
             'date_resolution' => 'nullable|date',
         ]);
 
+        $oldStatut = $maintenance->statut;
         $maintenance->update($request->all());
+
+        // BUG FIX — Si on bascule vers "resolu" ou "annule" depuis l'édit
+        // libre, on doit aussi remettre le panneau en service. Sinon le
+        // panneau garde son statut "maintenance" alors que la fiche dit
+        // que tout est résolu : il reste invisible dans dispos / inventaire.
+        if (in_array($maintenance->statut, ['resolu', 'annule'], true)
+            && $oldStatut !== $maintenance->statut) {
+            $this->releasePanelFromMaintenance($maintenance->panel);
+        }
+
+        // Alerte modification maintenance (uniquement si changements importants)
+        AlertService::create(
+            'maintenance',
+            'info',
+            '✏️ Maintenance modifiée — ' . $maintenance->panel->reference,
+            auth()->user()->name . ' a modifié la maintenance de ' . $maintenance->panel->reference . ' (statut: ' . $maintenance->statut . ', priorité: ' . $maintenance->priorite . ').',
+             $maintenance
+        );
 
         return redirect()->route('admin.maintenances.index')
             ->with('success', 'Maintenance mise à jour !');
@@ -126,7 +268,22 @@ class MaintenanceController extends Controller
 
     public function destroy(Maintenance $maintenance)
     {
+        // Sécurité : si le panneau était en maintenance à cause de CETTE
+        // maintenance précisément et qu'il n'y en a plus d'active, on
+        // libère le panneau pour qu'il redevienne disponible.
+        $panel = $maintenance->panel;
         $maintenance->delete();
+
+        if ($panel && $panel->status->value === 'maintenance') {
+            $hasOther = Maintenance::where('panel_id', $panel->id)
+                ->whereNotIn('statut', ['resolu', 'annule'])
+                ->whereKeyNot($maintenance->id)
+                ->exists();
+            if (!$hasOther) {
+                $this->releasePanelFromMaintenance($panel);
+            }
+        }
+
         return redirect()->route('admin.maintenances.index')
             ->with('success', 'Maintenance supprimée !');
     }
@@ -144,8 +301,10 @@ class MaintenanceController extends Controller
             'date_resolution' => $request->date_resolution,
         ]);
 
-        // Remettre panneau en libre
-        $maintenance->panel->update(['status' => 'libre']);
+        // Remet le panneau en service en respectant les éventuelles
+        // réservations / campagnes actives (libre / option / confirme /
+        // occupé) — pas forcé en "libre".
+        $this->releasePanelFromMaintenance($maintenance->panel);
 
         AlertService::create(
             'maintenance',
@@ -155,5 +314,48 @@ class MaintenanceController extends Controller
             $maintenance
         );
         return back()->with('success', 'Maintenance résolue ! Panneau remis en service. ✅');
+    }
+
+    /**
+     * Sort un panneau du statut "maintenance" et recalcule son statut
+     * réel via AvailabilityService (libre / option / confirme / occupé)
+     * en fonction des réservations et campagnes actives.
+     *
+     * Pourquoi pas un simple update(['status' => 'libre']) ?
+     *   Si le panneau a une réservation en cours ou une campagne actif,
+     *   il doit être marqué "confirme" / "occupe", pas "libre" → sinon
+     *   les vues dispos / inventaire mentent à l'admin.
+     *
+     * AvailabilityService::syncPanelStatuses skip les panneaux déjà en
+     * maintenance (sécurité côté lui), donc on passe d'abord à 'libre'
+     * pour débloquer la sync, puis on appelle sync qui dérive le bon
+     * statut depuis les bookings.
+     */
+    private function releasePanelFromMaintenance(?Panel $panel): void
+    {
+        if (!$panel) return;
+        if ($panel->status->value !== 'maintenance') return;
+
+        // Étape 1 : sortir le panneau de la maintenance (statut transitoire
+        // 'libre' qui sera réajusté ensuite par la sync).
+        $panel->update(['status' => 'libre']);
+
+        // Étape 2 : laisser AvailabilityService recalculer le bon statut
+        // en fonction des réservations / campagnes actives sur ce panneau.
+        try {
+            app(AvailabilityService::class)->syncPanelStatuses([$panel->id]);
+        } catch (\Throwable $e) {
+            Log::warning('maintenance.release.sync_failed', [
+                'panel_id' => $panel->id,
+                'error'    => $e->getMessage(),
+            ]);
+        }
+
+        Log::info('maintenance.panel_released', [
+            'panel_id'    => $panel->id,
+            'panel_ref'   => $panel->reference,
+            'new_status'  => $panel->fresh()?->status?->value,
+            'released_by' => auth()->id(),
+        ]);
     }
 }

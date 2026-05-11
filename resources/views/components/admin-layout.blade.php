@@ -5,5 +5,6 @@
 @include('layouts.admin', [
   'title' => $title,
   'slot'  => $slot,
-  'topbarActions' => $topbarActions ?? ''
+  'topbarActions' => $topbarActions ?? '',
+  'topbarLeft'    => $topbarLeft ?? '',
 ])

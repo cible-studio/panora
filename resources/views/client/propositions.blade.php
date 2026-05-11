@@ -73,7 +73,17 @@
 {{-- ══ LISTE PROPOSITIONS ══ --}}
 @forelse($propositions as $res)
 @php
-    $total    = $res->panels->sum(fn($p) => (float)($p->monthly_rate ?? 0));
+    // Compte unifié interne + externe. total_amount fait foi côté finance —
+    // y compris quand il vaut 0 (campagne offerte / package gratuit). On ne
+    // tombe sur la somme catalogue QUE si total_amount est null (pas
+    // renseigné), sinon le client voit les tarifs catalogue alors que la
+    // proposition est à 0.
+    $totalInternal = $res->panels->sum(fn($p) => (float)($p->monthly_rate ?? 0));
+    $totalExternal = $res->externalPanels->sum(fn($p) => (float)($p->monthly_rate ?? 0));
+    $total    = $res->total_amount !== null
+                ? (float) $res->total_amount
+                : $totalInternal + $totalExternal;
+    $panelCount = $res->panels->count() + $res->externalPanels->count();
     $expired  = $res->end_date < now();
     $viewed   = !is_null($res->proposition_viewed_at);
     $status   = $res->status->value;
@@ -91,16 +101,16 @@
                 <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
                     <span style="font-family:monospace;font-size:12px;font-weight:700;color:#e20613;background:rgba(226,6,19,.08);padding:3px 10px;border-radius:6px;">{{ $res->reference }}</span>
 
+                    {{-- Lot 12.4 — badge statut unifié 4 couleurs --}}
                     @if($isNew)
-                        <span style="font-size:10px;font-weight:700;background:rgba(250,184,11,.1);color:#fab80b;padding:2px 8px;border-radius:20px;">Nouvelle</span>
-                    @elseif($expired)
-                        <span style="font-size:10px;font-weight:700;background:rgba(148,163,184,.1);color:#94a3b8;padding:2px 8px;border-radius:20px;">Expirée</span>
-                    @elseif($status === 'confirme')
-                        <span style="font-size:10px;font-weight:700;background:rgba(34,197,94,.1);color:#22c55e;padding:2px 8px;border-radius:20px;">Confirmée</span>
-                    @elseif(in_array($status, ['annule','refuse']))
-                        <span style="font-size:10px;font-weight:700;background:rgba(239,68,68,.1);color:#ef4444;padding:2px 8px;border-radius:20px;">Refusée</span>
-                    @elseif($viewed)
-                        <span style="font-size:10px;font-weight:700;background:rgba(59,130,246,.1);color:#60a5fa;padding:2px 8px;border-radius:20px;">Consultée</span>
+                        <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:14px;background:rgba(250,184,11,.12);color:#c2570d;border:1px solid rgba(250,184,11,.3);">Nouvelle</span>
+                    @elseif($expired && $status === 'en_attente')
+                        <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:14px;background:rgba(148,163,184,.12);color:#64748b;border:1px solid rgba(148,163,184,.25);">Expirée</span>
+                    @else
+                        @include('client.partials._status-badge', ['status' => $status])
+                        @if($viewed && $status === 'en_attente')
+                            <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:14px;background:rgba(59,130,246,.12);color:#1d4ed8;border:1px solid rgba(59,130,246,.3);">Consultée</span>
+                        @endif
                     @endif
                 </div>
 
@@ -116,9 +126,12 @@
 
                 {{-- Infos --}}
                 <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text3);">
-                    <span>{{ $res->panels->count() }} panneau(x)</span>
+                    <span>{{ $panelCount }} panneau(x)</span>
                     @if($total > 0)
-                        <span>{{ number_format($total, 0, ',', ' ') }} FCFA/mois</span>
+                        <span>{{ number_format($total, 0, ',', ' ') }} FCFA</span>
+                    @elseif($res->total_amount !== null)
+                        {{-- 0 FCFA explicitement saisi (campagne offerte) --}}
+                        <span style="color:#16a34a;font-weight:600;">0 FCFA · Offert</span>
                     @endif
                     @if($res->proposition_sent_at)
                         <span>Reçue {{ $res->proposition_sent_at->diffForHumans() }}</span>
@@ -127,25 +140,43 @@
             </div>
 
             {{-- Actions --}}
+            @php
+                // Une proposition est ACTIONNABLE seulement si :
+                //   - statut = en_attente
+                //   - pas expirée
+                //   - token + slug présents
+                $isActionable = !$expired
+                    && $status === 'en_attente'
+                    && $res->proposition_token
+                    && $res->proposition_slug;
+            @endphp
             <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
-                @if(!$expired && $status === 'en_attente')
+                @if($isActionable)
+                    {{-- Bouton primaire : aller à la fiche client connecté pour répondre --}}
                     <a href="{{ route('client.proposition.detail', $res->proposition_token) }}"
                        style="padding:8px 16px;background:#e20613;color:#fff;font-weight:600;border-radius:9px;font-size:12px;text-decoration:none;transition:opacity .15s;"
                        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
                         Voir et répondre
                     </a>
+
+                    {{-- Lien public (utile pour partager, ex. par email/WhatsApp) --}}
+                    <a href="{{ route('proposition.show', [$res->reference, $res->proposition_slug]) }}"
+                       target="_blank" rel="noopener"
+                       title="Ouvrir la version publique (utile pour la partager)"
+                       style="padding:8px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:12px;color:var(--text2);text-decoration:none;transition:all .15s;"
+                       onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
+                        Lien public
+                    </a>
                 @else
+                    {{-- Non actionnable (déjà confirmée/refusée/expirée) :
+                         on garde uniquement la consultation, pas le lien public
+                         (qui pourrait laisser croire qu'on peut encore agir). --}}
                     <a href="{{ route('client.proposition.detail', $res->proposition_token) }}"
                        style="padding:8px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:12px;color:var(--text2);text-decoration:none;transition:all .15s;"
                        onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
                         Consulter
                     </a>
                 @endif
-                <a href="{{ route('proposition.show', $res->proposition_token) }}" target="_blank"
-                   style="padding:8px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:12px;color:var(--text2);text-decoration:none;transition:all .15s;"
-                   onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
-                    Lien public
-                </a>
             </div>
         </div>
     </div>

@@ -21,6 +21,10 @@ composer install \
 echo "🗄️  Migrations..."
 php artisan migrate --force
 
+# ── 2bis. Seeders idempotents (UPSERT) ─────
+echo "🌱 Seeding panneaux (UPSERT par référence)..."
+php artisan db:seed --class=PanelImportSeeder --force || true
+
 # ── 3. Nettoyage des anciens caches ────────
 echo "🧹 Nettoyage caches..."
 php artisan config:clear

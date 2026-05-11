@@ -20,7 +20,7 @@ class CommuneController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $data = $request->validate([
             'name'     => 'required|string|max:100',
             'city'     => 'nullable|string|max:100',
             'region'   => 'nullable|string|max:100',
@@ -28,7 +28,10 @@ class CommuneController extends Controller
             'tm_rate'  => 'nullable|numeric|min:0',
         ]);
 
-        Commune::create($request->all());
+        $data['odp_rate'] = $data['odp_rate'] ?? 0;
+        $data['tm_rate']  = $data['tm_rate']  ?? 0;
+
+        Commune::create($data);
 
         return redirect()->route('admin.settings.communes.index')
             ->with('success', 'Commune créée avec succès !');
@@ -41,7 +44,7 @@ class CommuneController extends Controller
 
     public function update(Request $request, Commune $commune)
     {
-        $request->validate([
+        $data = $request->validate([
             'name'     => 'required|string|max:100',
             'city'     => 'nullable|string|max:100',
             'region'   => 'nullable|string|max:100',
@@ -49,7 +52,10 @@ class CommuneController extends Controller
             'tm_rate'  => 'nullable|numeric|min:0',
         ]);
 
-        $commune->update($request->all());
+        $data['odp_rate'] = $data['odp_rate'] ?? 0;
+        $data['tm_rate']  = $data['tm_rate']  ?? 0;
+
+        $commune->update($data);
 
         return redirect()->route('admin.settings.communes.index')
             ->with('success', 'Commune modifiée avec succès !');

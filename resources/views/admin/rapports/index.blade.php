@@ -418,8 +418,15 @@ $kpiCards = [
                 <tbody>
                     @forelse($statsCommunes as $row)
                     @php $tc = $row['taux'] >= 75 ? '#ef4444' : ($row['taux'] >= 50 ? '#f97316' : ($row['taux'] >= 25 ? '#e8a020' : '#22c55e')); @endphp
-                    <tr style="border-bottom:1px solid var(--border);transition:background .1s" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
-                        <td style="padding:10px 16px;font-size:13px;font-weight:600;color:var(--text)">{{ $row['commune'] }}</td>
+                    <tr data-commune-id="{{ $row['id'] }}"
+                        onclick="CommuneDrilldown.open({{ $row['id'] }})"
+                        title="Cliquer pour voir le détail de la commune"
+                        style="border-bottom:1px solid var(--border);transition:background .1s;cursor:pointer"
+                        onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
+                        <td style="padding:10px 16px;font-size:13px;font-weight:600;color:var(--text)">
+                            {{ $row['commune'] }}
+                            <span style="font-size:11px;color:var(--text3);margin-left:6px;opacity:.6">↗</span>
+                        </td>
                         <td style="padding:10px 16px;font-size:13px;color:var(--text)">{{ $row['total'] }}</td>
                         <td style="padding:10px 16px;font-size:13px;color:#ef4444;font-weight:600">{{ $row['occupes'] }}</td>
                         <td style="padding:10px 16px;font-size:13px;color:#22c55e;font-weight:600">{{ $row['libres'] }}</td>
@@ -531,12 +538,68 @@ $kpiCards = [
     </div>
 </div>
 
+{{-- ════ MODAL DRILLDOWN COMMUNE ════ --}}
+<div id="commune-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center;padding:20px;"
+     onclick="if(event.target===this)CommuneDrilldown.close()">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:1080px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;"
+         onclick="event.stopPropagation()">
+        <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div>
+                <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;">Commune</div>
+                <h2 id="cm-name" style="font-size:18px;font-weight:800;color:var(--text);margin-top:3px;">…</h2>
+            </div>
+            <button type="button" onclick="CommuneDrilldown.close()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);padding:6px 10px;border-radius:8px;" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='none'">✕</button>
+        </div>
+
+        <div id="cm-loading" style="padding:60px;text-align:center;color:var(--text3);font-size:13px;">
+            <div class="rpt-spinner" style="display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:rpt-spin .7s linear infinite;vertical-align:middle;margin-right:8px;"></div>
+            Chargement…
+        </div>
+
+        <div id="cm-body" style="display:none;padding:18px 22px;overflow-y:auto;flex:1;">
+            {{-- Stats résumé --}}
+            <div id="cm-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px;"></div>
+
+            {{-- Top clients --}}
+            <h3 style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Top clients (année en cours)</h3>
+            <div id="cm-top-clients" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:18px;"></div>
+
+            {{-- Campagnes --}}
+            <h3 style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Campagnes touchant cette commune</h3>
+            <div id="cm-campagnes" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:18px;"></div>
+
+            {{-- Panneaux --}}
+            <h3 style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Panneaux installés (<span id="cm-panels-count">0</span>)</h3>
+            <div id="cm-panels" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;"></div>
+        </div>
+    </div>
+</div>
+
 {{-- ════ STYLES ════ --}}
 <style>
 .rpt-tab { flex:1;padding:9px 10px;border-radius:10px;border:none;background:transparent;color:var(--text3);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap; }
 .rpt-tab:hover { background:var(--surface2);color:var(--text); }
 .rpt-tab.active { background:var(--accent);color:#000; }
 .kpi-active { border-color:var(--kpi-c,var(--accent)) !important;background:var(--surface2) !important;transform:translateY(-3px) !important; }
+@keyframes rpt-spin { to { transform: rotate(360deg); } }
+.cm-stat { background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;border-left:3px solid var(--accent); }
+.cm-stat .lbl { font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:4px; }
+.cm-stat .val { font-size:18px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums; }
+.cm-table { width:100%;border-collapse:collapse;font-size:12px; }
+.cm-table th { background:var(--surface);padding:8px 12px;text-align:left;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border); }
+.cm-table th.r { text-align:right; }
+.cm-table td { padding:8px 12px;border-bottom:1px solid var(--border); }
+.cm-table td.r { text-align:right;font-variant-numeric:tabular-nums; }
+.cm-table tbody tr:last-child td { border-bottom:none; }
+.cm-table tbody tr:hover td { background:var(--surface); }
+.cm-table a { color:var(--accent);text-decoration:none; }
+.cm-table a:hover { text-decoration:underline; }
+.cm-status-pill { display:inline-block;padding:1px 7px;border-radius:9px;font-size:9.5px;font-weight:700; }
+.cm-status-libre       { background:rgba(34,197,94,.12);color:#16a34a; }
+.cm-status-occupe      { background:rgba(239,68,68,.12);color:#b91c1c; }
+.cm-status-option      { background:rgba(232,160,32,.12);color:#c2570d; }
+.cm-status-confirme    { background:rgba(59,130,246,.12);color:#1d4ed8; }
+.cm-status-maintenance { background:rgba(107,114,128,.12);color:#374151; }
 </style>
 
 {{-- ════ JAVASCRIPT ════ --}}
@@ -580,11 +643,13 @@ function hmRenderGrid() {
     grid.innerHTML = sorted.map(({d,n})=>{
         const bg=hmColor(n), tc=hmTC(n), tc2=hmTC2(n);
         const sub = hmMode!=='taux' ? d.taux+'% occ.' : d.total+' pann.';
-        return `<div style="background:${bg};border-radius:10px;padding:14px 12px;cursor:default;
+        // Tuile cliquable → drilldown commune. cursor:pointer + onclick.
+        return `<div style="background:${bg};border-radius:10px;padding:14px 12px;cursor:pointer;
             transition:transform .15s,box-shadow .15s;position:relative;overflow:hidden"
+            onclick="CommuneDrilldown.open(${d.id})"
             onmouseenter="this.style.transform='scale(1.05)';this.style.boxShadow='0 6px 18px rgba(0,0,0,.25)'"
             onmouseleave="this.style.transform='';this.style.boxShadow=''"
-            title="${d.commune} — Taux: ${d.taux}% · ${d.total} panneaux · CA: ${(d.ca_annee/1000000).toFixed(1)}M FCFA">
+            title="${d.commune} — cliquer pour le détail">
             <div style="font-size:11px;font-weight:500;color:${tc};margin-bottom:8px;line-height:1.2">${d.commune}</div>
             <div style="font-size:20px;font-weight:500;color:${tc};line-height:1">${hmFmt(hmVal(d,hmMode),hmMode)}</div>
             <div style="font-size:10px;color:${tc2};margin-top:6px">${sub}</div>
@@ -714,6 +779,176 @@ window.RPT = {
 
 // Init graphique évolution au chargement (onglet 1 actif par défaut)
 document.addEventListener('DOMContentLoaded', ()=>{ RPT.renderEvol(); RPT._evolDone=true; });
+
+// ══════════════════════════════
+// DRILLDOWN COMMUNE — module
+// ══════════════════════════════
+window.CommuneDrilldown = (function () {
+    const overlay = document.getElementById('commune-modal');
+    const body    = document.getElementById('cm-body');
+    const loading = document.getElementById('cm-loading');
+    const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
+
+    const statusLabels = {
+        libre: 'Libre', occupe: 'Occupé', option: 'Option',
+        confirme: 'Confirmé', maintenance: 'Maintenance',
+    };
+
+    function renderStats(stats, commune) {
+        const cards = [
+            ['Panneaux',     fmt(stats.total),       'var(--accent)'],
+            ["Taux d'occ.",  stats.taux + '%',       stats.taux >= 75 ? '#ef4444' : (stats.taux >= 50 ? '#f97316' : (stats.taux >= 25 ? '#e8a020' : '#22c55e'))],
+            ['Occupés',      fmt(stats.occupes),     '#ef4444'],
+            ['Libres',       fmt(stats.libres),      '#22c55e'],
+            ['Maintenance',  fmt(stats.maintenance), '#6b7280'],
+            ['Tarif moyen',  stats.tarif_moyen ? fmt(stats.tarif_moyen) + ' FCFA' : '—', '#3b82f6'],
+            ["CA " + (D.annee || ''), stats.ca_annee ? fmt(stats.ca_annee) + ' FCFA' : '—', '#a855f7'],
+        ];
+        return cards.map(([lbl, val, color]) => `
+            <div class="cm-stat" style="border-left-color:${color}">
+                <div class="lbl">${lbl}</div>
+                <div class="val" style="color:${color}">${val}</div>
+            </div>
+        `).join('');
+    }
+
+    function renderTopClients(rows) {
+        if (!rows || !rows.length) {
+            return '<div style="padding:14px 16px;color:var(--text3);font-size:12px;text-align:center;">Aucune campagne client cette année.</div>';
+        }
+        return `
+            <table class="cm-table">
+                <thead><tr><th>#</th><th>Client</th><th class="r">Campagnes</th><th class="r">CA cumulé</th></tr></thead>
+                <tbody>
+                    ${rows.map((r, i) => `
+                        <tr>
+                            <td style="width:40px;">${i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : i + 1))}</td>
+                            <td><strong>${r.url ? `<a href="${r.url}">${r.name}</a>` : r.name}</strong></td>
+                            <td class="r">${fmt(r.nb)}</td>
+                            <td class="r"><strong style="color:var(--accent)">${fmt(r.ca)} FCFA</strong></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    }
+
+    function renderCampagnes(rows) {
+        if (!rows || !rows.length) {
+            return '<div style="padding:14px 16px;color:var(--text3);font-size:12px;text-align:center;">Aucune campagne touchant cette commune dans la période.</div>';
+        }
+        const statusColors = {
+            actif: '#22c55e', pose: '#22c55e', planifie: '#3b82f6',
+            pause: '#f97316', termine: '#6b7280', annule: '#ef4444',
+        };
+        return `
+            <table class="cm-table">
+                <thead><tr><th>Campagne</th><th>Client</th><th>Période</th><th>Statut</th><th class="r">Montant</th></tr></thead>
+                <tbody>
+                    ${rows.map(c => `
+                        <tr>
+                            <td><a href="${c.url}"><strong>${c.name}</strong></a></td>
+                            <td>${c.client}</td>
+                            <td style="font-size:11px;color:var(--text3)">${c.start_date} → ${c.end_date}</td>
+                            <td><span class="cm-status-pill" style="background:${(statusColors[c.status]||'#6b7280')}22;color:${statusColors[c.status]||'#6b7280'}">${c.status}</span></td>
+                            <td class="r"><strong>${c.amount > 0 ? fmt(c.amount) + ' FCFA' : (c.amount === 0 ? '0 FCFA · Offert' : '—')}</strong></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    }
+
+    function renderPanels(rows) {
+        if (!rows || !rows.length) {
+            return '<div style="padding:14px 16px;color:var(--text3);font-size:12px;text-align:center;">Aucun panneau installé.</div>';
+        }
+        const tauxColor = (t) =>
+            t >= 75 ? '#ef4444' : (t >= 50 ? '#f97316' : (t >= 25 ? '#e8a020' : '#22c55e'));
+        return `
+            <table class="cm-table">
+                <thead>
+                    <tr>
+                        <th>Réf.</th><th>Nom</th><th>Format</th><th>Zone</th><th>Statut</th>
+                        <th class="r">Tarif/mois</th>
+                        <th class="r" title="Taux d'occupation sur la période sélectionnée (jours occupés / jours période)">Occ. période</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows.map(p => {
+                        const t = p.taux || 0;
+                        const c = tauxColor(t);
+                        return `
+                        <tr>
+                            <td><a href="${p.url}" style="font-family:monospace;font-weight:700;">${p.reference}</a></td>
+                            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name || '—'}</td>
+                            <td>${p.format}${p.is_lit ? ' · 💡' : ''}</td>
+                            <td style="color:var(--text3);font-size:11px;">${p.zone}</td>
+                            <td><span class="cm-status-pill cm-status-${p.status}">${statusLabels[p.status] || p.status}</span></td>
+                            <td class="r">${p.rate > 0 ? fmt(p.rate) + ' FCFA' : (p.rate === 0 ? '0 FCFA' : '—')}</td>
+                            <td class="r" title="${p.busy_days || 0}j occupés${p.campaigns ? ' · ' + p.campaigns + ' campagne(s)' : ''}">
+                                <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;">
+                                    <div style="width:46px;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+                                        <div style="width:${t}%;height:100%;background:${c};"></div>
+                                    </div>
+                                    <strong style="color:${c};min-width:34px;text-align:right;">${t}%</strong>
+                                </div>
+                            </td>
+                        </tr>
+                    `;}).join('')}
+                </tbody>
+            </table>
+        `;
+    }
+
+    return {
+        async open(communeId) {
+            overlay.style.display = 'flex';
+            body.style.display = 'none';
+            loading.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+
+            try {
+                // Lot 8.2 — Passe la période active au drilldown pour que le
+                // taux d'occupation panneau soit calculé sur la même fenêtre
+                // que le rapport principal.
+                const params = new URLSearchParams({
+                    annee:   D.annee   || new Date().getFullYear(),
+                    mois_du: D.moisDu  || 1,
+                    mois_au: D.moisAu  || 12,
+                });
+                const url = `/admin/rapports/communes/${communeId}/detail?${params}`;
+                const r = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+
+                document.getElementById('cm-name').textContent = data.commune.name;
+                document.getElementById('cm-stats').innerHTML = renderStats(data.stats, data.commune);
+                document.getElementById('cm-top-clients').innerHTML = renderTopClients(data.top_clients);
+                document.getElementById('cm-campagnes').innerHTML = renderCampagnes(data.campagnes);
+                document.getElementById('cm-panels').innerHTML = renderPanels(data.panels);
+                document.getElementById('cm-panels-count').textContent = (data.panels || []).length;
+
+                loading.style.display = 'none';
+                body.style.display = 'block';
+            } catch (e) {
+                console.error(e);
+                loading.innerHTML = '<div style="color:#ef4444;">Erreur de chargement. Réessayez.</div>';
+            }
+        },
+        close() {
+            overlay.style.display = 'none';
+            document.body.style.overflow = '';
+        },
+    };
+})();
+
+// Échap = fermer le drilldown
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('commune-modal')?.style.display === 'flex') {
+        window.CommuneDrilldown.close();
+    }
+});
 
 })();
 </script>

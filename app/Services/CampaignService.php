@@ -6,12 +6,14 @@ use App\Enums\ReservationStatus;
 use App\Models\Campaign;
 use App\Models\Panel;
 use App\Models\Reservation;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class CampaignService
 {
+    /** Statuts permettant la modification du panel (ajout/retrait) */
+    private const MODIFIABLE_STATUSES = ['planifie', 'actif', 'pose'];
+
     public function __construct(
         protected AvailabilityService $availability
     ) {}
@@ -21,17 +23,20 @@ class CampaignService
     // ══════════════════════════════════════════════════════════════
     public function addPanels(Campaign $campaign, array $panelIds): array
     {
-        if (!in_array($campaign->status->value, ['actif', 'pose'])) {
+        if (!in_array($campaign->status->value, self::MODIFIABLE_STATUSES)) {
             return ['ok' => false, 'error' => 'Campagne non modifiable.'];
         }
 
-        $alreadyIn = $campaign->panels->pluck('id')->intersect($panelIds)->toArray();
+        $existingIds = $campaign->panels()->pluck('panels.id')->all();
+        $alreadyIn   = array_intersect($existingIds, $panelIds);
+
         if (!empty($alreadyIn)) {
             $refs = Panel::whereIn('id', $alreadyIn)->pluck('reference')->join(', ');
             return ['ok' => false, 'error' => "Ces panneaux sont déjà dans la campagne : {$refs}"];
         }
 
         return DB::transaction(function () use ($campaign, $panelIds) {
+            // Verrou pessimiste sur les panels
             Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
 
             $conflicts = $this->availability->getUnavailablePanelIds(
@@ -46,10 +51,7 @@ class CampaignService
                 return ['ok' => false, 'error' => "Panneaux non disponibles : {$refs}"];
             }
 
-            $months = $this->monthsBetween(
-                $campaign->start_date->format('Y-m-d'),
-                $campaign->end_date->format('Y-m-d')
-            );
+            $months = $campaign->billableMonths();
 
             if ($campaign->reservation_id) {
                 $reservation = $campaign->reservation;
@@ -67,6 +69,7 @@ class CampaignService
             Log::info('campaign.panels_added', [
                 'campaign_id' => $campaign->id,
                 'panel_ids'   => $panelIds,
+                'count'       => count($panelIds),
                 'user_id'     => auth()->id(),
             ]);
 
@@ -79,7 +82,7 @@ class CampaignService
     // ══════════════════════════════════════════════════════════════
     public function removePanel(Campaign $campaign, Panel $panel): array
     {
-        if (!in_array($campaign->status->value, ['actif', 'pose'])) {
+        if (!in_array($campaign->status->value, self::MODIFIABLE_STATUSES)) {
             return ['ok' => false, 'error' => 'Campagne non modifiable.'];
         }
 
@@ -96,6 +99,7 @@ class CampaignService
                 }
             }
 
+            // Si c'était le dernier panneau, on annule la campagne
             if ($remainingCount <= 1) {
                 $this->cancel($campaign, 'Dernier panneau retiré automatiquement.');
                 return ['ok' => true, 'warning' => 'Campagne annulée — plus aucun panneau.'];
@@ -103,6 +107,13 @@ class CampaignService
 
             $this->recalculateCampaignAmount($campaign);
             $this->availability->syncPanelStatuses([$panel->id]);
+
+            Log::info('campaign.panel_removed', [
+                'campaign_id' => $campaign->id,
+                'panel_id'    => $panel->id,
+                'user_id'     => auth()->id(),
+            ]);
+
             return ['ok' => true];
         });
     }
@@ -110,147 +121,108 @@ class CampaignService
     // ══════════════════════════════════════════════════════════════
     // ANNULER UNE CAMPAGNE
     //
-    // Cas : annulation volontaire, dernier panneau retiré, suppression.
-    // La réservation est marquée ANNULE et les panneaux libérés.
-    //
-    // ⚠️ updateWithoutObservers() est obligatoire pour éviter :
-    //    Observer.updated() → campaignService.cancel() → boucle infinie
+    // Idempotent : si déjà terminale, ne fait rien.
+    // ⚠️ updateWithoutObservers() sur Reservation = obligatoire pour
+    //    éviter ReservationObserver → CampaignService::cancel() → boucle.
     // ══════════════════════════════════════════════════════════════
-    public function cancel(Campaign $campaign, string $reason = ''): void
+    public function cancel(Campaign $campaign, string $reason = '', ?string $cancellationReason = null, ?string $cancellationNotes = null): void
     {
-        if ($campaign->status->isTerminal()) {
-            return; // idempotent
-        }
+        if ($campaign->status->isTerminal()) return;
 
-        DB::transaction(function () use ($campaign, $reason) {
+        DB::transaction(function () use ($campaign, $reason, $cancellationReason, $cancellationNotes) {
+            $internalIds = $this->collectAllPanelIds($campaign);
+            $externalIds = $this->collectAllExternalPanelIds($campaign);
 
-            // ── Collecter les panneaux AVANT toute modification ──────────
-            $campaignPanelIds    = $campaign->panels()->pluck('panels.id')->toArray();
-            $reservationPanelIds = [];
-            $reservation         = null;
-
+            // Annuler la réservation liée (sans observer)
             if ($campaign->reservation_id) {
                 $reservation = $campaign->reservation()->first();
-            }
-            if ($reservation) {
-                $reservationPanelIds = $reservation->panels()->pluck('panels.id')->toArray();
-            }
+                if ($reservation && !$reservation->status->isTerminal()) {
+                    $reservation->updateWithoutObservers([
+                        'status' => ReservationStatus::ANNULE->value,
+                        'notes'  => $this->appendNote(
+                            $reservation->notes,
+                            "[Auto] Annulée — campagne #{$campaign->id} annulée le " . now()->format('d/m/Y')
+                        ),
+                    ]);
 
-            $allPanelIds = array_unique(array_merge($campaignPanelIds, $reservationPanelIds));
-
-            // ── Annuler la réservation sans déclencher l'Observer ────────
-            // NE PAS detach() les panels ici — syncPanelStatuses() en a besoin
-            // La réservation ANNULE est filtrée par BLOCKING_STATUSES → panneaux libres
-            if ($reservation && !$reservation->status->isTerminal()) {
-                $reservation->updateWithoutObservers([
-                    'status' => ReservationStatus::ANNULE->value,
-                    'notes'  => trim(
-                        ($reservation->notes ?? '') .
-                        "\n[Auto] Annulée — campagne #{$campaign->id} annulée le " . now()->format('d/m/Y')
-                    ),
-                ]);
-
-                Log::info('reservation.cancelled_by_campaign', [
-                    'reservation_id' => $reservation->id,
-                    'campaign_id'    => $campaign->id,
-                ]);
+                    Log::info('reservation.cancelled_by_campaign', [
+                        'reservation_id' => $reservation->id,
+                        'campaign_id'    => $campaign->id,
+                    ]);
+                }
             }
 
-            // ── Annuler la campagne ──────────────────────────────────────
             $campaign->update([
-                'status'     => CampaignStatus::ANNULE->value,
-                'notes'      => trim(($campaign->notes ?? '') . "\n[Auto] " . $reason),
-                'updated_by' => auth()->id() ?? null,
+                'status'               => CampaignStatus::ANNULE->value,
+                'cancellation_reason'  => $cancellationReason,
+                'cancellation_notes'   => $cancellationNotes ?: null,
+                'notes'                => $this->appendNote($campaign->notes, $reason ? "[Auto] {$reason}" : null),
+                'updated_by'           => auth()->id(),
             ]);
 
-            // ── Sync panneaux → libre ────────────────────────────────────
-            // reservation_panels toujours présents mais réservation ANNULE
-            // → exclue des BLOCKING_STATUSES → panneaux passent à libre
-            if (!empty($allPanelIds)) {
-                $this->availability->syncPanelStatuses($allPanelIds);
-            }
+            $this->syncAllPanels($internalIds, $externalIds);
 
             Log::info('campaign.cancelled', [
                 'campaign_id'    => $campaign->id,
                 'reason'         => $reason,
-                'reservation_id' => $reservation?->id,
-                'panels_freed'   => count($allPanelIds),
+                'panels_freed'   => count($internalIds),
+                'externals_freed'=> count($externalIds),
                 'user_id'        => auth()->id(),
             ]);
         });
     }
 
     // ══════════════════════════════════════════════════════════════
-    // TERMINER UNE CAMPAGNE MANUELLEMENT (avant ou à l'échéance)
-    //
-    // LOGIQUE MÉTIER CIBLE CI :
-    // "Terminer" = résiliation anticipée ou clôture normale.
-    // → Réservation → TERMINE (pas annulée, historique propre)
+    // TERMINER UNE CAMPAGNE (clôture normale ou résiliation anticipée)
+    // → Réservation = TERMINE (historique propre, ≠ annulé)
     // → Panneaux libérés immédiatement
-    // → Différent de cancel() : trace que la campagne s'est bien déroulée
     // ══════════════════════════════════════════════════════════════
     public function terminate(Campaign $campaign, string $reason = ''): void
     {
-        if ($campaign->status->isTerminal()) {
-            return; // idempotent
-        }
+        if ($campaign->status->isTerminal()) return;
 
         DB::transaction(function () use ($campaign, $reason) {
-
-            $campaignPanelIds    = $campaign->panels()->pluck('panels.id')->toArray();
-            $reservationPanelIds = [];
-            $reservation         = null;
+            $internalIds = $this->collectAllPanelIds($campaign);
+            $externalIds = $this->collectAllExternalPanelIds($campaign);
 
             if ($campaign->reservation_id) {
                 $reservation = $campaign->reservation()->first();
-            }
-            if ($reservation) {
-                $reservationPanelIds = $reservation->panels()->pluck('panels.id')->toArray();
-            }
+                if ($reservation && !$reservation->status->isTerminal()) {
+                    $reservation->updateWithoutObservers([
+                        'status' => ReservationStatus::TERMINE->value,
+                        'notes'  => $this->appendNote(
+                            $reservation->notes,
+                            "[Auto] Terminée — campagne #{$campaign->id} terminée le " . now()->format('d/m/Y')
+                        ),
+                    ]);
 
-            $allPanelIds = array_unique(array_merge($campaignPanelIds, $reservationPanelIds));
-
-            // Terminer la réservation sans déclencher l'Observer
-            if ($reservation && !$reservation->status->isTerminal()) {
-                $reservation->updateWithoutObservers([
-                    'status' => ReservationStatus::TERMINE->value,
-                    'notes'  => trim(
-                        ($reservation->notes ?? '') .
-                        "\n[Auto] Terminée — campagne #{$campaign->id} terminée le " . now()->format('d/m/Y')
-                    ),
-                ]);
-
-                Log::info('reservation.terminated_by_campaign', [
-                    'reservation_id' => $reservation->id,
-                    'campaign_id'    => $campaign->id,
-                ]);
+                    Log::info('reservation.terminated_by_campaign', [
+                        'reservation_id' => $reservation->id,
+                        'campaign_id'    => $campaign->id,
+                    ]);
+                }
             }
 
-            // Terminer la campagne
             $campaign->update([
                 'status'     => CampaignStatus::TERMINE->value,
-                'notes'      => trim(($campaign->notes ?? '') . ($reason ? "\n[Fin] " . $reason : '')),
-                'updated_by' => auth()->id() ?? null,
+                'notes'      => $this->appendNote($campaign->notes, $reason ? "[Fin] {$reason}" : null),
+                'updated_by' => auth()->id(),
             ]);
 
-            // Libérer les panneaux immédiatement
-            // TERMINE est hors BLOCKING_STATUSES → syncPanelStatuses → libre
-            if (!empty($allPanelIds)) {
-                $this->availability->syncPanelStatuses($allPanelIds);
-            }
+            $this->syncAllPanels($internalIds, $externalIds);
 
             Log::info('campaign.terminated', [
                 'campaign_id'    => $campaign->id,
                 'reason'         => $reason,
-                'reservation_id' => $reservation?->id,
-                'panels_freed'   => count($allPanelIds),
+                'panels_freed'   => count($internalIds),
+                'externals_freed'=> count($externalIds),
                 'user_id'        => auth()->id(),
             ]);
         });
     }
 
     // ══════════════════════════════════════════════════════════════
-    // SUPPRIMER UNE CAMPAGNE (soft delete)
+    // SUPPRIMER UNE CAMPAGNE (soft delete + nettoyage)
     // ══════════════════════════════════════════════════════════════
     public function delete(Campaign $campaign): array
     {
@@ -259,40 +231,48 @@ class CampaignService
             $campaign->refresh();
         }
 
-        $panelIds = $campaign->panels()->pluck('panels.id')->toArray();
+        $panelIds         = $campaign->panels()->pluck('panels.id')->all();
+        $externalPanelIds = $campaign->externalPanels()->pluck('external_panels.id')->all();
 
-        DB::transaction(function () use ($campaign, $panelIds) {
-
+        DB::transaction(function () use ($campaign, $panelIds, $externalPanelIds) {
             if ($campaign->reservation_id) {
                 $reservation = $campaign->reservation()->first();
 
+                // Réservation technique = créée par le système → suppression dure
                 if ($reservation && $reservation->is_technical) {
-                    $resPanelIds = $reservation->panels()->pluck('panels.id')->toArray();
+                    $resPanelIds         = $reservation->panels()->pluck('panels.id')->all();
+                    $resExternalPanelIds = $reservation->externalPanels()->pluck('external_panels.id')->all();
+
+                    // Detach internes via la relation + delete des lignes
+                    // externes du pivot reservation_panels (non gérées par
+                    // la relation Eloquent filtrée).
                     $reservation->panels()->detach();
+                    DB::table('reservation_panels')
+                        ->where('reservation_id', $reservation->id)
+                        ->where('source', 'externe')
+                        ->delete();
+
                     $reservation->forceDelete();
 
-                    if (!empty($resPanelIds)) {
-                        $this->availability->syncPanelStatuses($resPanelIds);
-                    }
+                    $this->syncAllPanels($resPanelIds, $resExternalPanelIds);
 
                     Log::info('reservation.hard_deleted_with_campaign', [
                         'reservation_id' => $reservation->id,
                         'campaign_id'    => $campaign->id,
                     ]);
                 }
-                // Réservation normale → conservée dans l'historique
+                // Réservation manuelle → conservée
             }
 
             $campaign->delete();
 
-            if (!empty($panelIds)) {
-                $this->availability->syncPanelStatuses($panelIds);
-            }
+            $this->syncAllPanels($panelIds, $externalPanelIds);
 
             Log::info('campaign.deleted', [
-                'campaign_id'  => $campaign->id,
-                'panels_count' => count($panelIds),
-                'user_id'      => auth()->id(),
+                'campaign_id'    => $campaign->id,
+                'panels_count'   => count($panelIds),
+                'externals_count'=> count($externalPanelIds),
+                'user_id'        => auth()->id(),
             ]);
         });
 
@@ -300,20 +280,87 @@ class CampaignService
     }
 
     // ══════════════════════════════════════════════════════════════
+    // RECALCUL DU MONTANT (utilisé par add/remove panel, prolonger, update)
+    //
+    // Source unique de vérité : Campaign::billableMonths()
+    // ══════════════════════════════════════════════════════════════
+    public function recalculateCampaignAmount(Campaign $campaign): void
+    {
+        $months = $campaign->billableMonths();
+
+        // Internes + externes : monthly_rate sommé sur les deux relations.
+        $sumRateInternal = (float) $campaign->panels()->sum('monthly_rate');
+        $sumRateExternal = (float) $campaign->externalPanels()->sum('monthly_rate');
+        $countInternal   = (int)   $campaign->panels()->count();
+        $countExternal   = (int)   $campaign->externalPanels()->count();
+
+        $campaign->update([
+            'total_panels' => $countInternal + $countExternal,
+            'total_amount' => round(($sumRateInternal + $sumRateExternal) * $months, 2),
+            'updated_by'   => auth()->id(),
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // HELPERS PRIVÉS
     // ══════════════════════════════════════════════════════════════
 
-    private function createTechnicalReservation(
-        Campaign $campaign,
-        array    $panelIds,
-        float    $months
-    ): void {
+    /** Collecte tous les panel_id liés (campaign_panels + reservation_panels) */
+    private function collectAllPanelIds(Campaign $campaign): array
+    {
+        $campaignPanels = $campaign->panels()->pluck('panels.id')->all();
+
+        if (!$campaign->reservation_id) {
+            return array_unique($campaignPanels);
+        }
+
+        $reservation = $campaign->reservation()->first();
+        if (!$reservation) return array_unique($campaignPanels);
+
+        $reservationPanels = $reservation->panels()->pluck('panels.id')->all();
+        return array_unique(array_merge($campaignPanels, $reservationPanels));
+    }
+
+    /**
+     * Collecte tous les external_panel_id liés (campaign_panels + reservation_panels).
+     * Pendant pour les externes — les sync passent par syncExternalPanelStatuses.
+     */
+    private function collectAllExternalPanelIds(Campaign $campaign): array
+    {
+        $campaignExternals = $campaign->externalPanels()->pluck('external_panels.id')->all();
+
+        if (!$campaign->reservation_id) {
+            return array_unique($campaignExternals);
+        }
+
+        $reservation = $campaign->reservation()->first();
+        if (!$reservation) return array_unique($campaignExternals);
+
+        $reservationExternals = $reservation->externalPanels()->pluck('external_panels.id')->all();
+        return array_unique(array_merge($campaignExternals, $reservationExternals));
+    }
+
+    /** Sync centralisé : libère internes + externes en une passe. */
+    private function syncAllPanels(array $internalIds, array $externalIds): void
+    {
+        if (!empty($internalIds)) {
+            $this->availability->syncPanelStatuses($internalIds);
+        }
+        if (!empty($externalIds)) {
+            $this->availability->syncExternalPanelStatuses($externalIds);
+        }
+    }
+
+    private function createTechnicalReservation(Campaign $campaign, array $panelIds, float $months): void
+    {
+        $marker = '[Auto] Réservation technique — campagne #' . $campaign->id;
+
         $existing = Reservation::where('client_id', $campaign->client_id)
             ->where('start_date', $campaign->start_date->format('Y-m-d'))
-            ->where('end_date', $campaign->end_date->format('Y-m-d'))
-            ->where('status', ReservationStatus::CONFIRME->value)
+            ->where('end_date',   $campaign->end_date->format('Y-m-d'))
+            ->where('status',     ReservationStatus::CONFIRME->value)
             ->where('is_technical', true)
-            ->where('notes', 'like', '%[Auto] Réservation technique — campagne #' . $campaign->id . '%')
+            ->where('notes', 'like', '%' . $marker . '%')
             ->first();
 
         $attach = $this->buildAttach($panelIds, $months);
@@ -331,7 +378,7 @@ class CampaignService
                 'total_amount' => $total,
                 'confirmed_at' => now(),
                 'is_technical' => true,
-                'notes'        => '[Auto] Réservation technique — campagne #' . $campaign->id,
+                'notes'        => $marker,
             ]);
 
             $reservation->panels()->attach($attach);
@@ -350,68 +397,38 @@ class CampaignService
 
     private function buildAttach(array $panelIds, float $months): array
     {
-        $panelData = Panel::whereIn('id', $panelIds)->get()->keyBy('id');
-        $attach    = [];
+        $rates = Panel::whereIn('id', $panelIds)
+            ->pluck('monthly_rate', 'id')
+            ->map(fn($r) => (float) ($r ?? 0));
+
+        $attach = [];
         foreach ($panelIds as $id) {
-            $unit        = (float)(($panelData[$id] ?? null)?->monthly_rate ?? 0);
-            $attach[$id] = ['unit_price' => $unit, 'total_price' => $unit * $months];
+            $unit        = (float) ($rates[$id] ?? 0);
+            $attach[$id] = [
+                'unit_price'  => $unit,
+                'total_price' => round($unit * $months, 2),
+            ];
         }
         return $attach;
     }
 
     private function recalculateReservationAmount(Reservation $reservation): void
     {
-        $total = $reservation->panels()->get()
-            ->sum(fn($p) => (float)($p->pivot->total_price ?? 0));
-        $reservation->update(['total_amount' => $total]);
-    }
+        $total = (float) DB::table('reservation_panels')
+            ->where('reservation_id', $reservation->id)
+            ->sum('total_price');
 
-    public function recalculateCampaignAmount(Campaign $campaign): void
-    {
-        $months   = $campaign->durationInMonths();
-        $newTotal = $campaign->panels()->get()
-            ->sum(fn($p) => (float)($p->monthly_rate ?? 0) * $months);
-        $campaign->update([
-            'total_panels' => $campaign->panels()->count(),
-            'total_amount' => $newTotal,
-            'updated_by'   => auth()->id(),
-        ]);
+        $reservation->updateWithoutObservers(['total_amount' => round($total, 2)]);
     }
 
     private function generateTechReference(int $campaignId): string
     {
-        return 'AUTO-' . str_pad($campaignId, 6, '0', STR_PAD_LEFT) . '-' . now()->format('YmdHis');
+        return 'AUTO-' . str_pad((string) $campaignId, 6, '0', STR_PAD_LEFT) . '-' . now()->format('YmdHis');
     }
 
-    private function monthsBetween($start, $end): float
+    private function appendNote(?string $existing, ?string $new): ?string
     {
-        $s = Carbon::parse($start)->startOfDay();
-        $e = Carbon::parse($end)->startOfDay();
-
-        // Nombre de jours réels
-        $totalDays = (int) $s->diffInDays($e);
-
-        if ($totalDays <= 0) return 0.5;
-
-        // Mois entiers
-        $fullMonths = (int) floor($totalDays / 30);
-
-        // Jours restants après les mois entiers
-        $remainDays = $totalDays % 30;
-
-        // Règle CIBLE CI :
-        // 1-15j restants  → + 0.5 mois
-        // 16-30j restants → + 1 mois
-        $fraction = 0;
-        if ($remainDays >= 1 && $remainDays <= 15) {
-            $fraction = 0.5;
-        } elseif ($remainDays > 15) {
-            $fraction = 1;
-        }
-
-        $result = $fullMonths + $fraction;
-
-        // Minimum : 0.5 mois (demi-mois)
-        return max($result, 0.5);
+        if (!$new) return $existing;
+        return trim(($existing ?? '') . "\n" . $new);
     }
 }

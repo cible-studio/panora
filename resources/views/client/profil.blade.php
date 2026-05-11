@@ -5,6 +5,15 @@
 @section('content')
 @php $client = auth('client')->user(); @endphp
 
+{{-- ══ RETOUR ══ --}}
+<a href="{{ route('client.dashboard') }}"
+   style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text3);text-decoration:none;padding:6px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);transition:all .15s;margin-bottom:18px;"
+   onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--border2)';this.style.background='var(--surface2)'"
+   onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border)';this.style.background='var(--surface)'">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    Tableau de bord
+</a>
+
 {{-- ══ HEADER PROFIL ══ --}}
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:20px;">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:20px;">

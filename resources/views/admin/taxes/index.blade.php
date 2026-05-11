@@ -1,316 +1,505 @@
 <x-admin-layout>
-<x-slot name="title">Taxes Communes</x-slot>
+<x-slot name="title">Taxes Communales</x-slot>
 
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.taxes.export.pdf') }}" class="btn btn-ghost btn-sm">📄 Export PDF</a>
-    <a href="{{ route('admin.taxes.create') }}" class="btn btn-primary btn-sm">＋ Nouvelle taxe</a>
+    <a href="{{ route('admin.rapports.taxes') }}" class="btn btn-ghost btn-sm" title="Rapport agrégé matrice mois × commune">
+        📊 Rapport
+    </a>
+    <a href="{{ route('admin.taxes.historique') }}" class="btn btn-ghost btn-sm" title="Historique des écritures legacy">
+        📋 Historique
+    </a>
+    <a href="{{ route('admin.taxes.export.pdf') }}" class="btn btn-ghost btn-sm">📄 PDF</a>
 </x-slot>
 
-{{-- STATS CLIQUABLES (filtres AJAX) --}}
-<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
-    <div data-status="en_attente" class="stat-card filter-stat {{ request('status') === 'en_attente' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">En attente</div>
-        <div class="stat-value" style="color:var(--accent);">{{ $totalEnAttente }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
+{{-- ════ EN-TÊTE PÉRIODE ════ --}}
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:18px;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;">📅 Période</span>
+        </div>
+
+        {{-- Tabs type période --}}
+        <div class="tax-tabs">
+            <button type="button" class="tax-tab {{ $periodType === 'mensuel' ? 'active' : '' }}" data-period-type="mensuel">Mensuel</button>
+            <button type="button" class="tax-tab {{ $periodType === 'trimestriel' ? 'active' : '' }}" data-period-type="trimestriel">Trimestriel</button>
+            <button type="button" class="tax-tab {{ $periodType === 'annuel' ? 'active' : '' }}" data-period-type="annuel">Annuel</button>
+        </div>
+
+        {{-- Sélecteur valeur période (mois 1-12 / trimestre 1-4 / vide pour annuel) --}}
+        <select id="period-value-select" class="filter-select" style="width:160px;">
+            {{-- Rempli en JS selon le type --}}
+        </select>
+
+        <select id="period-year-select" class="filter-select" style="width:110px;">
+            @foreach($anneesDispos as $a)
+                <option value="{{ $a }}" {{ $a == $year ? 'selected' : '' }}>{{ $a }}</option>
+            @endforeach
+        </select>
+
+        <span id="period-label" style="margin-left:auto;font-size:12px;color:var(--text3);"></span>
     </div>
-    <div data-status="payee" class="stat-card filter-stat {{ request('status') === 'payee' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">Payées</div>
-        <div class="stat-value" style="color:var(--green);">{{ $totalPayees }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </div>
-    <div data-status="en_retard" class="stat-card filter-stat {{ request('status') === 'en_retard' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">En retard</div>
-        <div class="stat-value" style="color:var(--red);">{{ $totalEnRetard }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </div>
-    <div data-status="" class="stat-card filter-stat {{ !request('status') ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">Montant dû</div>
-        <div class="stat-value" style="font-size:18px; color:var(--accent);">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Voir tout →</div>
+
+    <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.6;">
+        <strong>Formules :</strong> ODP = tarif commune × surface m² × nb panneaux × nb mois ·
+        TM = 1 000 × surface m² × nb panneaux × nb mois (fixe national).
+        Calcul en temps réel sur le parc actuel (panneaux internes hors maintenance).
     </div>
 </div>
 
-{{-- FILTRES AJAX DYNAMIQUES --}}
-<div class="card" style="margin-bottom:16px;">
-    <div class="filter-bar" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;padding:16px;">
-        <div class="filter-group">
-            <label class="filter-label">Commune</label>
-            <select id="filter-commune" class="filter-select" style="width:180px;">
-                <option value="">Toutes</option>
-                @foreach($communes as $commune)
-                <option value="{{ $commune->id }}" {{ request('commune_id') == $commune->id ? 'selected' : '' }}>{{ $commune->name }}</option>
-                @endforeach
-            </select>
+{{-- ════ KPI CARDS ════ --}}
+<div id="tax-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px;">
+    @php
+        $kpiCfg = [
+            ['key'=>'odp_total',   'label'=>'ODP théorique', 'color'=>'#3b82f6', 'icon'=>'🏛️'],
+            ['key'=>'tm_total',    'label'=>'TM théorique',  'color'=>'#a855f7', 'icon'=>'🏢'],
+            ['key'=>'grand_total', 'label'=>'Grand total',   'color'=>'#e8a020', 'icon'=>'💰'],
+            ['key'=>'paye_total',  'label'=>'Déjà payé',     'color'=>'#22c55e', 'icon'=>'✅'],
+            ['key'=>'solde_total', 'label'=>'Solde restant', 'color'=>'#ef4444', 'icon'=>'⏳'],
+        ];
+    @endphp
+    @foreach($kpiCfg as $k)
+    <div class="tax-kpi-card" style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['color'] }};border-radius:12px;padding:14px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;">{{ $k['label'] }}</span>
+            <span style="font-size:14px;">{{ $k['icon'] }}</span>
         </div>
-        <div class="filter-group">
-            <label class="filter-label">Type</label>
-            <select id="filter-type" class="filter-select" style="width:120px;">
-                <option value="">Tous</option>
-                <option value="odp" {{ request('type') === 'odp' ? 'selected' : '' }}>ODP</option>
-                <option value="tm"  {{ request('type') === 'tm'  ? 'selected' : '' }}>TM</option>
-            </select>
-        </div>
-        <div class="filter-group">
-            <label class="filter-label">Année</label>
-            <select id="filter-year" class="filter-select" style="width:100px;">
-                <option value="">Toutes</option>
-                @for($y = date('Y'); $y >= 2020; $y--)
-                <option value="{{ $y }}" {{ request('year') == $y ? 'selected' : '' }}>{{ $y }}</option>
-                @endfor
-            </select>
-        </div>
-        <div class="filter-group">
-            <label class="filter-label">Statut</label>
-            <select id="filter-status" class="filter-select" style="width:130px;">
-                <option value="">Tous</option>
-                <option value="en_attente" {{ request('status') === 'en_attente' ? 'selected' : '' }}>En attente</option>
-                <option value="payee"      {{ request('status') === 'payee'      ? 'selected' : '' }}>Payée</option>
-                <option value="en_retard"  {{ request('status') === 'en_retard'  ? 'selected' : '' }}>En retard</option>
-            </select>
-        </div>
-        
-        <div class="filter-group" id="reset-wrapper" style="display:none;">
-            <label class="filter-label" style="visibility:hidden;">Actions</label>
-            <button id="btn-reset" class="reset-btn" style="display:flex;align-items:center;gap:4px;">
-                ↺ Réinitialiser
-            </button>
-        </div>
-
-        <div class="filter-group" style="margin-left:auto;">
-            <label class="filter-label" style="visibility:hidden;">&nbsp;</label>
-            <div class="result-badge">
-                <strong id="result-count">{{ number_format($taxes->total()) }}</strong> taxe(s)
-            </div>
-        </div>
+        <div class="tax-kpi-value" data-kpi="{{ $k['key'] }}" style="font-size:18px;font-weight:800;color:{{ $k['color'] }};font-variant-numeric:tabular-nums;">—</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;">FCFA</div>
     </div>
+    @endforeach
 </div>
 
-{{-- TABLEAU --}}
-<div id="table-container" class="card">
-    <div class="card-header">
-        <div class="card-title">🏛️ Taxes <span id="title-count">({{ $taxes->total() }})</span></div>
+{{-- ════ TABLEAU LIVE ════ --}}
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+    <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <span style="font-size:13px;font-weight:700;color:var(--text);">🏛️ Détail par commune</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <input type="text" id="tax-search" class="filter-input"
+                   placeholder="Rechercher commune…" style="height:34px;width:200px;font-size:12px;">
+            <span id="tax-loading" style="display:none;font-size:11px;color:var(--text3);">⏳ Calcul…</span>
+        </div>
     </div>
-    <div class="table-wrap">
-        <table id="taxes-table">
+
+    <div style="overflow-x:auto;">
+        <table class="tax-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:1100px;">
             <thead>
                 <tr>
-                    <th>Commune</th>
-                    <th>Type</th>
-                    <th>Année</th>
-                    <th>Montant</th>
-                    <th>Échéance</th>
-                    <th>Payée le</th>
-                    <th>Statut</th>
-                    <th>Actions</th>
+                    <th style="text-align:left;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Commune</th>
+                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Panneaux</th>
+                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Surface (m²)</th>
+                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Tarif ODP</th>
+                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">ODP</th>
+                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">TM</th>
+                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Total</th>
+                    <th style="text-align:center;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Statut</th>
+                    <th style="text-align:center;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Action</th>
                 </tr>
             </thead>
-            <tbody id="table-body">
-                @include('admin.taxes.partials.table-rows', ['taxes' => $taxes])
+            <tbody id="tax-table-body">
+                <tr><td colspan="9" style="text-align:center;padding:60px;color:var(--text3);">Chargement du calcul…</td></tr>
             </tbody>
+            <tfoot id="tax-table-foot">
+                {{-- Rempli via JS --}}
+            </tfoot>
         </table>
     </div>
-    <div id="pagination-container" style="padding:16px;">
-        {{ $taxes->links() }}
+</div>
+
+{{-- ════ MODAL ENREGISTRER PAIEMENT ════ --}}
+<div id="payment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center;padding:16px;"
+     onclick="if(event.target===this)TaxModule.closePaymentModal()">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:560px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;"
+         onclick="event.stopPropagation()">
+        <div style="padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+            <h3 style="font-size:15px;font-weight:700;">💰 Enregistrer paiement — <span id="pm-commune">—</span></h3>
+            <button type="button" onclick="TaxModule.closePaymentModal()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);">✕</button>
+        </div>
+        <div style="padding:18px 22px;overflow-y:auto;flex:1;">
+            <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text2);">
+                <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;">Période</div>
+                <div id="pm-period-label" style="font-weight:600;">—</div>
+                <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;">
+                    <div>
+                        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;display:block;">ODP théorique</span>
+                        <strong id="pm-odp-theorique" style="color:#3b82f6;">—</strong>
+                    </div>
+                    <div>
+                        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;display:block;">TM théorique</span>
+                        <strong id="pm-tm-theorique" style="color:#a855f7;">—</strong>
+                    </div>
+                    <div>
+                        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;display:block;">Total</span>
+                        <strong id="pm-total-theorique" style="color:var(--accent);">—</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>
+                    <label class="filter-label">ODP payé (FCFA)</label>
+                    <input type="number" id="pm-odp-paye" min="0" step="1" class="filter-input" style="width:100%;">
+                </div>
+                <div>
+                    <label class="filter-label">TM payé (FCFA)</label>
+                    <input type="number" id="pm-tm-paye" min="0" step="1" class="filter-input" style="width:100%;">
+                </div>
+                <div>
+                    <label class="filter-label">Date paiement</label>
+                    <input type="date" id="pm-paid-at" class="filter-input" style="width:100%;" value="{{ now()->format('Y-m-d') }}">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;padding-top:18px;">
+                    <input type="checkbox" id="pm-attestation" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+                    <label for="pm-attestation" style="font-size:12px;color:var(--text2);cursor:pointer;">Attestation reçue</label>
+                </div>
+                <div style="grid-column:1/3;">
+                    <label class="filter-label">Notes (optionnel)</label>
+                    <textarea id="pm-notes" rows="2" class="filter-input" style="width:100%;resize:vertical;font-family:inherit;" maxlength="1000" placeholder="N° quittance, observations…"></textarea>
+                </div>
+            </div>
+
+            <div style="margin-top:12px;padding:8px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.2);border-radius:8px;font-size:11px;color:var(--text2);">
+                💡 Astuce : laissez 0 si seul un type de taxe est payé. Vous pouvez compléter plus tard.
+            </div>
+        </div>
+        <div style="padding:14px 22px;border-top:1px solid var(--border);background:var(--surface2);display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" onclick="TaxModule.closePaymentModal()" class="btn btn-ghost btn-sm">Annuler</button>
+            <button type="button" id="pm-submit-btn" onclick="TaxModule.submitPayment()" class="btn btn-primary btn-sm">💾 Enregistrer</button>
+        </div>
     </div>
 </div>
 
 <style>
+.tax-tabs { display: flex; gap: 4px; background: var(--surface2); border-radius: 9px; padding: 4px; }
+.tax-tab {
+    padding: 8px 14px; border: none; background: transparent;
+    color: var(--text3); font-weight: 600; font-size: 12px;
+    border-radius: 7px; cursor: pointer; transition: all .15s;
+}
+.tax-tab:hover { background: var(--surface); color: var(--text); }
+.tax-tab.active { background: var(--accent); color: #0a0c10; }
 
-.reset-btn {
-    height: 40px;
-    padding: 0 20px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text-muted);
-    font-size: 12px;
+.tax-table tbody tr:hover td { background: var(--surface2); }
+.tax-table tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.tax-table tfoot td { padding: 12px 14px; background: #0f172a; color: #e8a020; font-weight: 700; font-size: 12px; }
+
+.tax-status-pill {
+    display: inline-block; padding: 3px 10px; border-radius: 12px;
+    font-size: 10px; font-weight: 700; letter-spacing: .3px;
+}
+.tax-status-non_paye { background: rgba(239,68,68,.12); color: #b91c1c; }
+.tax-status-partiel  { background: rgba(232,160,32,.12); color: #c2570d; }
+.tax-status-paye     { background: rgba(34,197,94,.12); color: #15803d; }
+.tax-status-aucun    { background: var(--surface2); color: var(--text3); }
+
+.tax-attestation-badge {
+    display: inline-block; padding: 1px 7px;
+    background: rgba(59,130,246,.12); color: #1d4ed8;
+    border-radius: 9px; font-size: 9px; font-weight: 700;
+    margin-left: 4px;
+}
+
+.tax-pay-btn {
+    padding: 5px 10px;
+    background: rgba(34,197,94,.1); color: #15803d;
+    border: 1px solid rgba(34,197,94,.25);
+    border-radius: 7px; font-size: 11px; font-weight: 600;
     cursor: pointer;
 }
-.reset-btn:hover { background: var(--surface3); border-color: var(--danger); color: var(--danger); }
-.filter-select, .filter-input { height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--text);outline:none; }
-.filter-select:focus, .filter-input:focus { border-color:var(--accent); }
-.filter-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:block;margin-bottom:4px; }
-.filter-group { display:flex;flex-direction:column; }
-.result-badge { height:38px;display:flex;align-items:center;font-size:12px;color:var(--text3);white-space:nowrap; }
-.stat-card { cursor:pointer; transition:all .15s; border:2px solid transparent; }
-.stat-card:hover { transform:translateY(-2px); }
-.stat-card.active { border-color:var(--accent) !important; }
-.spinner { display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:8px; }
-@keyframes spin { to { transform: rotate(360deg); } }
+.tax-pay-btn:hover { background: rgba(34,197,94,.18); }
+.tax-pay-btn-edit {
+    background: rgba(59,130,246,.1); color: #1d4ed8;
+    border-color: rgba(59,130,246,.25);
+}
+.tax-pay-btn-edit:hover { background: rgba(59,130,246,.18); }
 </style>
 
 @push('scripts')
 <script>
-// ════════════════════════════════════════════════════════════
-// FILTRAGE AJAX DYNAMIQUE
-// ════════════════════════════════════════════════════════════
-(function() {
-    let currentFilters = {
-        commune_id: '',
-        type: '',
-        year: '',
-        status: ''
-    };
-    let debounceTimer = null;
-    let isUpdating = false;
+window.TaxModule = (function () {
+    const csrf = '{{ csrf_token() }}';
+    let currentPeriodType  = '{{ $periodType }}';
+    let currentPeriodYear  = {{ $year }};
+    let currentPeriodValue = {{ $periodValue }};
+    let currentData = null;
+    let pmContext = null; // contexte de la modale paiement
 
-    const elements = {
-        commune: document.getElementById('filter-commune'),
-        type: document.getElementById('filter-type'),
-        year: document.getElementById('filter-year'),
-        status: document.getElementById('filter-status'),
-        resetBtn: document.getElementById('btn-reset'),
-        resetWrapper: document.getElementById('reset-wrapper'),
-        resultCount: document.getElementById('result-count'),
-        titleCount: document.getElementById('title-count'),
-        tableBody: document.getElementById('table-body'),
-        paginationContainer: document.getElementById('pagination-container')
-    };
+    const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
 
-    function updateResetButton() {
-        const hasFilters = currentFilters.commune_id ||
-                          currentFilters.type ||
-                          currentFilters.year ||
-                          currentFilters.status;
-        if (elements.resetWrapper) {
-            elements.resetWrapper.style.display = hasFilters ? 'flex' : 'none';
+    const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    const quarterNames = ['Q1 (Jan-Mars)','Q2 (Avr-Juin)','Q3 (Juil-Sept)','Q4 (Oct-Déc)'];
+
+    function rebuildPeriodValueOptions() {
+        const sel = document.getElementById('period-value-select');
+        sel.innerHTML = '';
+        if (currentPeriodType === 'mensuel') {
+            sel.style.display = '';
+            for (let i = 1; i <= 12; i++) {
+                const o = document.createElement('option');
+                o.value = i;
+                o.textContent = monthNames[i - 1];
+                if (i === currentPeriodValue) o.selected = true;
+                sel.appendChild(o);
+            }
+        } else if (currentPeriodType === 'trimestriel') {
+            sel.style.display = '';
+            for (let i = 1; i <= 4; i++) {
+                const o = document.createElement('option');
+                o.value = i;
+                o.textContent = quarterNames[i - 1];
+                if (i === Math.min(currentPeriodValue, 4)) o.selected = true;
+                sel.appendChild(o);
+            }
+            // si l'ancienne valeur > 4 (mois), reset à 1
+            if (currentPeriodValue > 4) currentPeriodValue = Math.ceil(currentPeriodValue / 3);
+        } else {
+            sel.style.display = 'none';
+            currentPeriodValue = 0;
         }
     }
 
-    async function applyFilters() {
-        if (isUpdating) return;
-        isUpdating = true;
-
-        const params = new URLSearchParams();
-        if (currentFilters.commune_id) params.set('commune_id', currentFilters.commune_id);
-        if (currentFilters.type) params.set('type', currentFilters.type);
-        if (currentFilters.year) params.set('year', currentFilters.year);
-        if (currentFilters.status) params.set('status', currentFilters.status);
-        params.set('ajax', '1');
-
-        if (elements.tableBody) {
-            elements.tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:60px;"><div class="spinner"></div> Chargement...</td></tr>';
+    function buildPeriodLabel() {
+        if (currentPeriodType === 'mensuel') {
+            return `${monthNames[currentPeriodValue - 1]} ${currentPeriodYear}`;
         }
+        if (currentPeriodType === 'trimestriel') {
+            return `${quarterNames[currentPeriodValue - 1]} ${currentPeriodYear}`;
+        }
+        return `Année ${currentPeriodYear}`;
+    }
+
+    async function loadCalcul() {
+        document.getElementById('tax-loading').style.display = '';
+        const params = new URLSearchParams({
+            period_type:  currentPeriodType,
+            period_year:  String(currentPeriodYear),
+            period_value: String(currentPeriodValue),
+        });
 
         try {
-            const response = await fetch(`{{ route("admin.taxes.index") }}?${params}`, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            const r = await fetch(`{{ route('admin.taxes.calcul') }}?${params}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
             });
-            const data = await response.json();
-
-            if (data.html && elements.tableBody) {
-                elements.tableBody.innerHTML = data.html;
-            }
-            
-            if (elements.resultCount && data.total) {
-                elements.resultCount.textContent = data.total;
-            }
-            if (elements.titleCount && data.total) {
-                elements.titleCount.textContent = `(${data.total})`;
-            }
-            
-            if (elements.paginationContainer && data.pagination) {
-                elements.paginationContainer.innerHTML = data.pagination;
-            }
-
-            const url = new URL(window.location.href);
-            Object.keys(currentFilters).forEach(key => {
-                if (currentFilters[key]) url.searchParams.set(key, currentFilters[key]);
-                else url.searchParams.delete(key);
-            });
-            window.history.pushState({}, '', url);
-
-        } catch (error) {
-            console.error('Erreur:', error);
-            if (elements.tableBody) {
-                elements.tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:60px;color:#ef4444;">Erreur de chargement</td></tr>';
-            }
+            const data = await r.json();
+            currentData = data;
+            renderKpis(data.kpi);
+            renderTable(data.communes);
+            document.getElementById('period-label').textContent =
+                `${buildPeriodLabel()} · ${data.kpi.communes_actives} commune(s) · ${data.kpi.panneaux_total} panneau(x)`;
+        } catch (e) {
+            console.error(e);
+            document.getElementById('tax-table-body').innerHTML =
+                '<tr><td colspan="9" style="text-align:center;padding:40px;color:#ef4444;">Erreur de chargement.</td></tr>';
         } finally {
-            isUpdating = false;
+            document.getElementById('tax-loading').style.display = 'none';
         }
     }
 
-    // Écouteurs d'événements
-    const selectElements = [elements.commune, elements.type, elements.year, elements.status];
-    selectElements.forEach(el => {
-        if (el) {
-            el.addEventListener('change', () => {
-                currentFilters.commune_id = elements.commune?.value || '';
-                currentFilters.type = elements.type?.value || '';
-                currentFilters.year = elements.year?.value || '';
-                currentFilters.status = elements.status?.value || '';
-                updateResetButton();
-                applyFilters();
-                
-                // Mettre à jour l'apparence des cartes stats
-                document.querySelectorAll('.stat-card').forEach(card => {
-                    const status = card.dataset.status;
-                    if (status === currentFilters.status) {
-                        card.classList.add('active');
-                    } else {
-                        card.classList.remove('active');
-                    }
+    function renderKpis(kpi) {
+        document.querySelectorAll('.tax-kpi-value').forEach(el => {
+            const key = el.dataset.kpi;
+            el.textContent = fmt(kpi[key] || 0);
+        });
+    }
+
+    function statusPill(statut) {
+        const labels = {
+            paye:     '✓ Payé',
+            partiel:  '◐ Partiel',
+            non_paye: '⏳ Non payé',
+            aucun:    '— Aucun',
+        };
+        return `<span class="tax-status-pill tax-status-${statut}">${labels[statut] || statut}</span>`;
+    }
+
+    function renderTable(communes) {
+        const tbody = document.getElementById('tax-table-body');
+        if (!communes || !communes.length) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text3);">Aucune commune avec des panneaux installés.</td></tr>';
+            document.getElementById('tax-table-foot').innerHTML = '';
+            return;
+        }
+
+        const rowsHtml = communes.map(c => {
+            const attestationBadge = c.attestation
+                ? '<span class="tax-attestation-badge">📜 Attestation</span>' : '';
+            const surface = c.surface_totale > 0 ? c.surface_totale.toFixed(2) : '0';
+            const lignesTooltip = (c.lignes || [])
+                .map(l => `${l.format} (${l.dimensions}) ×${l.qty}`)
+                .join(' · ') || '—';
+
+            return `
+                <tr data-commune-id="${c.commune_id}" data-search="${(c.commune || '').toLowerCase()}">
+                    <td>
+                        <strong>${c.commune}</strong>
+                        <div style="font-size:10px;color:var(--text3);margin-top:2px;" title="${lignesTooltip}">
+                            ${(c.lignes || []).length} format(s) · ${lignesTooltip.length > 60 ? lignesTooltip.substr(0,60) + '…' : lignesTooltip}
+                        </div>
+                    </td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;">${c.nb_panneaux}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text3);">${surface}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text3);">${fmt(c.odp_taux)}/m²</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:#3b82f6;font-weight:600;">${fmt(c.odp_theorique)}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:#a855f7;font-weight:600;">${fmt(c.tm_theorique)}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:var(--accent);">${fmt(c.total_theorique)}</td>
+                    <td style="text-align:center;">
+                        ${statusPill(c.statut)}
+                        ${attestationBadge}
+                        ${c.paid_at ? `<div style="font-size:9px;color:var(--text3);margin-top:3px;">${c.paid_at}</div>` : ''}
+                        ${c.total_paye > 0 && c.statut !== 'paye'
+                            ? `<div style="font-size:9px;color:var(--text3);margin-top:2px;">payé : ${fmt(c.total_paye)}</div>`
+                            : ''}
+                    </td>
+                    <td style="text-align:center;">
+                        <button type="button"
+                                class="tax-pay-btn ${c.payment_id ? 'tax-pay-btn-edit' : ''}"
+                                onclick="TaxModule.openPaymentModal(${c.commune_id})">
+                            ${c.payment_id ? '✏️ Modifier' : '💰 Payer'}
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        tbody.innerHTML = rowsHtml;
+
+        // Footer totaux
+        const k = currentData.kpi;
+        document.getElementById('tax-table-foot').innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align:right;">TOTAUX</td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums;">${fmt(k.odp_total)}</td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums;">${fmt(k.tm_total)}</td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums;background:rgba(232,160,32,.15);">${fmt(k.grand_total)}</td>
+                <td colspan="2" style="text-align:right;color:#22c55e;">Payé : ${fmt(k.paye_total)} · Solde : ${fmt(k.solde_total)}</td>
+            </tr>
+        `;
+
+        applySearchFilter();
+    }
+
+    function applySearchFilter() {
+        const term = (document.getElementById('tax-search').value || '').trim().toLowerCase();
+        document.querySelectorAll('#tax-table-body tr[data-commune-id]').forEach(tr => {
+            const visible = !term || tr.dataset.search.includes(term);
+            tr.style.display = visible ? '' : 'none';
+        });
+    }
+
+    return {
+        init() {
+            rebuildPeriodValueOptions();
+
+            // Listeners
+            document.querySelectorAll('.tax-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tax-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentPeriodType = tab.dataset.periodType;
+                    rebuildPeriodValueOptions();
+                    loadCalcul();
                 });
             });
-        }
-    });
+            document.getElementById('period-value-select').addEventListener('change', e => {
+                currentPeriodValue = parseInt(e.target.value, 10) || 0;
+                loadCalcul();
+            });
+            document.getElementById('period-year-select').addEventListener('change', e => {
+                currentPeriodYear = parseInt(e.target.value, 10);
+                loadCalcul();
+            });
+            document.getElementById('tax-search').addEventListener('input', applySearchFilter);
 
-    // Cartes stats
-    document.querySelectorAll('.stat-card').forEach(card => {
-        card.addEventListener('click', (e) => {
-            e.preventDefault();
-            const status = card.dataset.status;
-            if (elements.status) {
-                elements.status.value = status;
-                currentFilters.status = status;
-                updateResetButton();
-                applyFilters();
-                
-                document.querySelectorAll('.stat-card').forEach(c => {
-                    if (c.dataset.status === status) {
-                        c.classList.add('active');
-                    } else {
-                        c.classList.remove('active');
-                    }
+            // Premier chargement
+            loadCalcul();
+        },
+
+        openPaymentModal(communeId) {
+            const row = (currentData?.communes || []).find(c => c.commune_id === communeId);
+            if (!row) return;
+            pmContext = row;
+
+            document.getElementById('pm-commune').textContent = row.commune;
+            document.getElementById('pm-period-label').textContent = buildPeriodLabel();
+            document.getElementById('pm-odp-theorique').textContent = fmt(row.odp_theorique) + ' FCFA';
+            document.getElementById('pm-tm-theorique').textContent = fmt(row.tm_theorique) + ' FCFA';
+            document.getElementById('pm-total-theorique').textContent = fmt(row.total_theorique) + ' FCFA';
+
+            document.getElementById('pm-odp-paye').value = row.odp_paye || row.odp_theorique;
+            document.getElementById('pm-tm-paye').value  = row.tm_paye  || row.tm_theorique;
+            document.getElementById('pm-attestation').checked = !!row.attestation;
+            document.getElementById('pm-notes').value = '';
+            // paid_at : si déjà payé, restaurer la date saisie ; sinon today
+            // (on n'a pas la date back en JSON pour l'instant — date du jour OK).
+            document.getElementById('pm-paid-at').value = '{{ now()->format("Y-m-d") }}';
+
+            document.getElementById('payment-modal').style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        },
+
+        closePaymentModal() {
+            document.getElementById('payment-modal').style.display = 'none';
+            document.body.style.overflow = '';
+            pmContext = null;
+        },
+
+        async submitPayment() {
+            if (!pmContext) return;
+            const btn = document.getElementById('pm-submit-btn');
+            btn.disabled = true;
+            btn.textContent = 'Enregistrement…';
+
+            const fd = new URLSearchParams({
+                _token:           csrf,
+                commune_id:       String(pmContext.commune_id),
+                period_type:      currentPeriodType,
+                period_year:      String(currentPeriodYear),
+                period_value:     String(currentPeriodValue),
+                odp_paye:         document.getElementById('pm-odp-paye').value || '0',
+                tm_paye:          document.getElementById('pm-tm-paye').value  || '0',
+                odp_theorique:    String(pmContext.odp_theorique),
+                tm_theorique:     String(pmContext.tm_theorique),
+                paid_at:          document.getElementById('pm-paid-at').value || '',
+                attestation_recue: document.getElementById('pm-attestation').checked ? '1' : '0',
+                notes:            document.getElementById('pm-notes').value || '',
+            });
+
+            try {
+                const r = await fetch(`{{ route('admin.taxes.payments.record') }}`, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    body: fd,
                 });
+                if (r.status === 422) {
+                    const data = await r.json().catch(() => ({}));
+                    const first = data.errors ? Object.values(data.errors).flat()[0] : (data.message || 'Données invalides.');
+                    alert(first);
+                    return;
+                }
+                const data = await r.json();
+                if (!r.ok || !data.ok) {
+                    alert(data.message || 'Erreur.');
+                    return;
+                }
+                this.closePaymentModal();
+                await loadCalcul(); // refresh KPIs + table
+            } catch (e) {
+                console.error(e);
+                alert('Erreur réseau.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '💾 Enregistrer';
             }
-        });
-    });
-
-    // Reset button
-    if (elements.resetBtn) {
-        elements.resetBtn.addEventListener('click', () => {
-            currentFilters = { commune_id: '', type: '', year: '', status: '' };
-            if (elements.commune) elements.commune.value = '';
-            if (elements.type) elements.type.value = '';
-            if (elements.year) elements.year.value = '';
-            if (elements.status) elements.status.value = '';
-            
-            document.querySelectorAll('.stat-card').forEach(card => card.classList.remove('active'));
-            
-            updateResetButton();
-            applyFilters();
-        });
-    }
-
-    // Initialiser les valeurs depuis l'URL
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('commune_id')) currentFilters.commune_id = urlParams.get('commune_id');
-    if (urlParams.has('type')) currentFilters.type = urlParams.get('type');
-    if (urlParams.has('year')) currentFilters.year = urlParams.get('year');
-    if (urlParams.has('status')) currentFilters.status = urlParams.get('status');
-    
-    if (elements.commune && currentFilters.commune_id) elements.commune.value = currentFilters.commune_id;
-    if (elements.type && currentFilters.type) elements.type.value = currentFilters.type;
-    if (elements.year && currentFilters.year) elements.year.value = currentFilters.year;
-    if (elements.status && currentFilters.status) elements.status.value = currentFilters.status;
-    
-    updateResetButton();
+        },
+    };
 })();
+
+document.addEventListener('DOMContentLoaded', () => TaxModule.init());
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && document.getElementById('payment-modal')?.style.display === 'flex') {
+        TaxModule.closePaymentModal();
+    }
+});
 </script>
 @endpush
+
 </x-admin-layout>

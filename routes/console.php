@@ -22,6 +22,9 @@ Schedule::command('campaigns:sync-expired')->dailyAt('01:30');
 
 Schedule::command('propositions:expire')->everyFifteenMinutes();
 
+// Rappels J+2 et J+5 aux clients dont la proposition est en attente
+Schedule::command('propositions:send-rappels')->dailyAt('09:00');
+
 // 4. Génération automatique des alertes
 //    Tous les jours à 07h00
 Schedule::command('alerts:generate')->dailyAt('07:00');
@@ -33,3 +36,11 @@ Schedule::command('external-panels:sync-status')->dailyAt('02:00');
 // 6. Activation automatique des campagnes planifiées
 //    Tous les jours à 00h05
 Schedule::command('campaigns:activate-planned')->dailyAt('00:05');
+
+// 7. Rappels propositions (J+2 et J+5 sur les propositions en attente)
+//    Tous les jours à 09h00 — heure d'ouverture, plus efficace pour la
+//    lecture client. withoutOverlapping() évite les doublons en cas de
+//    cron qui chevauche.
+Schedule::command('propositions:send-reminders')
+    ->dailyAt('09:00')
+    ->withoutOverlapping();

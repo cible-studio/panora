@@ -5,37 +5,82 @@
 
 @section('content')
 
-{{-- ══ STATS 4 KPI PRINCIPAUX ══ --}}
+{{-- ══ STATS 4 KPI PRINCIPAUX (cliquables) ══ --}}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
     @php
     $kpis = [
-        ['v' => $stats['propositions_en_attente'], 'l' => 'Propositions', 'c' => '#e20613', 'i' => '📋'],
-        ['v' => $stats['campagnes_actives'], 'l' => 'Campagnes actives', 'c' => '#fab80b', 'i' => '📢'],
-        ['v' => $stats['poses_realisees'], 'l' => 'Poses réalisées', 'c' => '#8b5cf6', 'i' => '✅'],
-        ['v' => $stats['piges_verifiees'], 'l' => 'Preuves validées', 'c' => '#22c55e', 'i' => '📸'],
+        ['v' => $stats['propositions_en_attente'], 'l' => 'Propositions en attente', 'c' => '#e20613', 'i' => '📋', 'url' => route('client.propositions'), 'hint' => 'Voir mes propositions'],
+        ['v' => $stats['campagnes_actives'], 'l' => 'Campagnes actives', 'c' => '#fab80b', 'i' => '📢', 'url' => route('client.campagnes', ['status' => 'actif']), 'hint' => 'Voir les campagnes en cours'],
+        ['v' => $stats['poses_realisees'], 'l' => 'Poses réalisées', 'c' => '#8b5cf6', 'i' => '✅', 'url' => route('client.poses'), 'hint' => 'Voir le suivi des poses'],
+        ['v' => $stats['piges_verifiees'], 'l' => 'Piges validées', 'c' => '#22c55e', 'i' => '📸', 'url' => route('client.piges'), 'hint' => 'Voir les piges d\'affichage'],
     ];
     @endphp
     @foreach($kpis as $k)
-    <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 transition-all hover:border-[{{ $k['c'] }}]/30">
-        <div class="text-2xl mb-1">{{ $k['i'] }}</div>
-        <div class="text-2xl font-bold" style="color:{{ $k['c'] }}">{{ number_format($k['v']) }}</div>
-        <div class="text-[10px] text-[var(--text3)] font-medium mt-1">{{ $k['l'] }}</div>
-    </div>
+    <a href="{{ $k['url'] }}" style="display:block;text-decoration:none;background:var(--surface);border:1px solid var(--border);border-top:3px solid {{ $k['c'] }};border-radius:12px;padding:16px;transition:all .18s;cursor:pointer;"
+       onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.15)'"
+       onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div style="font-size:22px;margin-bottom:6px;">{{ $k['i'] }}</div>
+        <div style="font-size:26px;font-weight:800;color:{{ $k['c'] }};line-height:1;">{{ number_format($k['v']) }}</div>
+        <div style="font-size:10px;color:var(--text3);font-weight:600;margin-top:4px;">{{ $k['l'] }}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:6px;opacity:.6;">{{ $k['hint'] }} →</div>
+    </a>
     @endforeach
 </div>
 
 {{-- ══ STATS SECONDAIRES (2 colonnes) ══ --}}
 <div class="grid grid-cols-2 gap-3 mb-6">
-    <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-        <div class="text-[var(--text2)] text-xs font-semibold uppercase tracking-wide mb-2">📊 Total campagnes</div>
-        <div class="text-2xl font-bold text-[#22c55e]">{{ number_format($stats['campagnes_total']) }}</div>
+    <a href="{{ route('client.campagnes') }}" style="display:block;text-decoration:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;transition:all .18s;"
+       onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.15)'"
+       onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">📊 Total campagnes</div>
+        <div style="font-size:26px;font-weight:800;color:#22c55e;">{{ number_format($stats['campagnes_total']) }}</div>
+    </a>
+    <a href="{{ route('client.piges') }}" style="display:block;text-decoration:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;transition:all .18s;"
+       onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.15)'"
+       onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">🪧 Panneaux couverts</div>
+        <div style="font-size:26px;font-weight:800;color:#0ea5e9;">{{ number_format($stats['panneaux_couverts']) }}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">sur {{ number_format($stats['panneaux_actifs']) }} actifs</div>
+    </a>
+</div>
+
+{{-- ══ INTERLOCUTEUR COMMERCIAL (Lot 12.4) ══ --}}
+@if($commercial ?? null)
+@php
+    $com = $commercial;
+    $initials = collect(explode(' ', $com->name ?? ''))
+        ->map(fn($w) => strtoupper($w[0] ?? ''))->filter()->take(2)->implode('');
+@endphp
+<div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid #e20613;border-radius:12px;padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#e20613,#fab80b);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:#fff;flex-shrink:0;letter-spacing:-.5px;">
+        {{ $initials ?: '?' }}
     </div>
-    <div class="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-        <div class="text-[var(--text2)] text-xs font-semibold uppercase tracking-wide mb-2">🪧 Panneaux couverts</div>
-        <div class="text-2xl font-bold text-[#0ea5e9]">{{ number_format($stats['panneaux_couverts']) }}</div>
-        <div class="text-[10px] text-[var(--text3)] mt-1">sur {{ number_format($stats['panneaux_actifs']) }} actifs</div>
+    <div style="flex:1;min-width:160px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">👋 Votre interlocuteur</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">{{ $com->name }}</div>
+        @if($com->role?->label())
+            <div style="font-size:11px;color:var(--text3);margin-top:1px;">{{ $com->role->label() }}@if($com->agent_code) · <span style="font-family:monospace;">{{ $com->agent_code }}</span>@endif</div>
+        @endif
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        @if($com->email)
+        <a href="mailto:{{ $com->email }}"
+           style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#e20613;text-decoration:none;padding:6px 12px;border:1px solid rgba(226,6,19,.25);border-radius:8px;transition:all .15s;"
+           onmouseover="this.style.background='rgba(226,6,19,.06)'" onmouseout="this.style.background='transparent'">
+            📧 Email
+        </a>
+        @endif
+        @if($com->whatsapp_number)
+        <a href="https://wa.me/{{ preg_replace('/\D/', '', $com->whatsapp_number) }}"
+           target="_blank" rel="noopener"
+           style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#22c55e;text-decoration:none;padding:6px 12px;border:1px solid rgba(34,197,94,.25);border-radius:8px;transition:all .15s;"
+           onmouseover="this.style.background='rgba(34,197,94,.06)'" onmouseout="this.style.background='transparent'">
+            💬 WhatsApp
+        </a>
+        @endif
     </div>
 </div>
+@endif
 
 {{-- ══ ACTIVITÉ RÉCENTE (2 colonnes sur mobile, 3 sur desktop) ══ --}}
 <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
@@ -54,7 +99,7 @@
             <a href="{{ route('client.proposition.detail', $prop->proposition_token) }}"
                class="block bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 transition-all hover:border-red-500/30">
                 <div class="font-mono text-[10px] font-bold text-red-500">{{ $prop->reference }}</div>
-                <div class="text-xs text-[var(--text2)] mt-1">{{ $prop->panels->count() }} panneau(x)</div>
+                <div class="text-xs text-[var(--text2)] mt-1">{{ $prop->panels->count() + $prop->externalPanels->count() }} panneau(x)</div>
                 <div class="text-[10px] text-[var(--text3)] mt-1">📅 {{ $prop->end_date->format('d/m/Y') }}</div>
             </a>
             @empty
@@ -85,12 +130,12 @@
         </div>
     </div>
 
-    {{-- Preuves d'affichage --}}
+    {{-- Piges d'affichage --}}
     <div>
         <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
                 <span class="text-green-500 text-sm">📸</span>
-                <h3 class="text-sm font-semibold text-[var(--text)]">Preuves validées</h3>
+                <h3 class="text-sm font-semibold text-[var(--text)]">Piges validées</h3>
             </div>
             <a href="{{ route('client.piges') }}" class="text-[10px] font-semibold text-green-500 hover:underline">Voir →</a>
         </div>
@@ -102,7 +147,7 @@
                 <div class="text-[10px] text-[var(--text3)] mt-1">✅ Vérifié {{ $pige->verified_at?->format('d/m/Y') }}</div>
             </div>
             @empty
-            <div class="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6 text-center text-[var(--text3)] text-xs">Aucune preuve disponible</div>
+            <div class="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6 text-center text-[var(--text3)] text-xs">Aucune pige disponible</div>
             @endforelse
         </div>
     </div>

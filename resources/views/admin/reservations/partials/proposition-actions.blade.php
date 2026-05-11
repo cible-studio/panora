@@ -44,6 +44,27 @@
                 </strong>
             </div>
             @endif
+
+            {{-- Rappels J+2 / J+5 — affichés seulement quand renseignés.
+                 Permet à l'admin de voir où en est le cycle de relance. --}}
+            @if($reservation->proposition_reminded_j2_at)
+            <div class="info-item">
+                <span class="info-label">Rappel J+2</span>
+                <strong class="info-value" style="color:#f59e0b">
+                    📤 {{ $reservation->proposition_reminded_j2_at->format('d/m/Y') }}
+                    <span class="info-sub">({{ $reservation->proposition_reminded_j2_at->diffForHumans() }})</span>
+                </strong>
+            </div>
+            @endif
+            @if($reservation->proposition_reminded_j5_at)
+            <div class="info-item">
+                <span class="info-label">Rappel J+5</span>
+                <strong class="info-value" style="color:#ef4444">
+                    📤 {{ $reservation->proposition_reminded_j5_at->format('d/m/Y') }}
+                    <span class="info-sub">({{ $reservation->proposition_reminded_j5_at->diffForHumans() }})</span>
+                </strong>
+            </div>
+            @endif
         </div>
 
         {{-- Lien client --}}
@@ -467,12 +488,18 @@
 // ════════════════════════════════════════════════════════════════
 window.PropositionActions = {
     csrf: document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
-    
+
+    /** Récupère l'email client visible dans la fiche pour l'afficher dans la modale */
+    _currentRecipient() {
+        return document.querySelector('.client-email')?.textContent?.replace(/^→\s*/, '').trim() || '';
+    },
+
     confirmSend(reservationId) {
         this._showModal({
-            title: '📧 Envoyer la proposition',
+            title: 'Envoyer la proposition',
             message: 'Un email sera envoyé au client avec un lien sécurisé pour consulter et valider la proposition.',
-            details: 'Le lien sera valable 7 jours et sera accessible uniquement au client.',
+            details: 'Le lien sera valable 7 jours (capé à la fin de la réservation). Des rappels automatiques seront envoyés au client à J+2 et J+5 si la proposition n\'est pas traitée.',
+            recipient: this._currentRecipient(),
             type: 'confirm',
             confirmText: 'Envoyer',
             confirmClass: 'btn-primary',
@@ -482,9 +509,10 @@ window.PropositionActions = {
 
     confirmResend(reservationId) {
         this._showModal({
-            title: '🔄 Renvoyer la proposition',
+            title: 'Renvoyer la proposition',
             message: 'Une nouvelle proposition sera envoyée au client.',
             details: '⚠️ Le lien actuel sera révoqué et un nouveau sera généré.',
+            recipient: this._currentRecipient(),
             type: 'warning',
             confirmText: 'Renvoyer',
             confirmClass: 'btn-warning',
@@ -494,7 +522,7 @@ window.PropositionActions = {
 
     confirmReset(reservationId) {
         this._showModal({
-            title: '🔄 Réinitialiser le lien',
+            title: 'Réinitialiser le lien',
             message: 'Êtes-vous sûr de vouloir réinitialiser le lien de proposition ?',
             details: '⚠️ Le lien actuel ne fonctionnera plus. Un nouveau sera généré, mais l\'email ne sera pas renvoyé automatiquement.',
             type: 'danger',
@@ -590,6 +618,11 @@ window.PropositionActions = {
                 </div>
                 <div class="proposition-modal-body">
                     <p class="proposition-modal-message">${options.message}</p>
+                    ${options.recipient ? `
+                        <div class="proposition-modal-recipient" title="Destinataire">
+                            <span class="recipient-label">Destinataire</span>
+                            <span class="recipient-email">${options.recipient}</span>
+                        </div>` : ''}
                     ${options.details ? `<p class="proposition-modal-details">${options.details}</p>` : ''}
                 </div>
                 <div class="proposition-modal-footer">
@@ -674,8 +707,21 @@ window.PropositionActions = {
         }
         .proposition-modal-container {
             position: relative; background: var(--surface, #1e293b); border-radius: 20px;
-            width: 90%; max-width: 480px; transform: scale(0.95); transition: transform 0.3s ease;
+            width: 90%; max-width: 540px; transform: scale(0.95); transition: transform 0.3s ease;
             border: 1px solid var(--border, #334155);
+        }
+        .proposition-modal-recipient {
+            display: flex; flex-direction: column; gap: 4px;
+            background: var(--surface2, #0f172a); border: 1px solid var(--border, #334155);
+            border-radius: 10px; padding: 10px 12px; margin: 12px 0;
+        }
+        .proposition-modal-recipient .recipient-label {
+            font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--text3, #94a3b8); font-weight: 600;
+        }
+        .proposition-modal-recipient .recipient-email {
+            font-family: monospace; font-size: 14px; font-weight: 600;
+            color: var(--accent, #e8a020); word-break: break-all;
         }
         .proposition-modal.active .proposition-modal-container { transform: scale(1); }
         .proposition-modal-container.confirm { border-top: 3px solid #3b82f6; }

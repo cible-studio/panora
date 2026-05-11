@@ -16,7 +16,7 @@ class ExpireReservationOptions extends Command
         $expired = Reservation::where('status', 'en_attente')
             ->where('type', 'option')
             ->where('created_at', '<', now()->subDays($days))
-            ->with('panels')
+            ->with(['panels', 'externalPanels'])
             ->get();
 
         if ($expired->isEmpty()) {
@@ -25,9 +25,18 @@ class ExpireReservationOptions extends Command
         }
 
         foreach ($expired as $reservation) {
-            $panelIds = $reservation->panels->pluck('id')->toArray();
+            $panelIds    = $reservation->panels->pluck('id')->toArray();
+            $externalIds = $reservation->externalPanels->pluck('id')->toArray();
+
             $reservation->update(['status' => 'annule']);
-            $availability->syncPanelStatuses($panelIds);
+
+            if (!empty($panelIds)) {
+                $availability->syncPanelStatuses($panelIds);
+            }
+            if (!empty($externalIds)) {
+                $availability->syncExternalPanelStatuses($externalIds);
+            }
+
             $this->line("→ Option {$reservation->reference} expirée.");
         }
 

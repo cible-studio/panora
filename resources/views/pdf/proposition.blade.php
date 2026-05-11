@@ -154,6 +154,12 @@
                 <div class="field">
                     <div class="field-label">Commercial</div>
                     <div class="field-value">{{ $proposition->creator->name }}</div>
+                    @if($proposition->creator->email)
+                    <div style="font-size:10px;color:#64748b;margin-top:2px;">{{ $proposition->creator->email }}</div>
+                    @endif
+                    @if($proposition->creator->whatsapp_number)
+                    <div style="font-size:10px;color:#64748b;">📱 {{ $proposition->creator->whatsapp_number }}</div>
+                    @endif
                 </div>
             </div>
         </div>

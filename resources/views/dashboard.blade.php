@@ -148,7 +148,12 @@
             <div class="card-body">
                 <div style="display:flex; flex-direction:column; gap:14px;">
                     @foreach($tauxParCommune as $commune)
-                    <div>
+                    <a href="{{ route('admin.panels.index', ['commune_id' => $commune['id']]) }}"
+                       style="display:block; text-decoration:none; cursor:pointer;"
+                       title="Voir les panneaux de {{ $commune['nom'] }}">
+                    <div style="padding:6px 8px; border-radius:8px; transition:background .15s;"
+                         onmouseenter="this.style.background='rgba(255,255,255,0.04)'"
+                         onmouseleave="this.style.background='transparent'">
                         <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
                             <span style="color:var(--text2); font-size:13px;">{{ $commune['nom'] }}</span>
                             @if($commune['taux'] >= 80)
@@ -175,6 +180,7 @@
                             @endif
                         </div>
                     </div>
+                    </a>
                     @endforeach
                 </div>
             </div>
@@ -190,8 +196,17 @@
             <div class="card-header">
                 <div class="card-title">⏳ Confirmations</div>
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <span class="badge badge-orange">{{ $reservationsEnAttente }} en attente</span>
-                    <a href="{{ route('admin.reservations.index') }}" class="btn btn-ghost btn-sm">Voir tout</a>
+                    {{-- Le badge et "Voir tout" pointent vers le listing
+                         filtré sur en_attente — sinon le clic montre toutes
+                         les réservations et l'admin ne retrouve pas la
+                         "1 réservation en attente" affichée ici. --}}
+                    <a href="{{ route('admin.reservations.index', ['status' => 'en_attente']) }}"
+                       class="badge badge-orange"
+                       style="text-decoration:none;cursor:pointer;"
+                       title="Voir les réservations en attente">
+                        {{ $reservationsEnAttente }} en attente
+                    </a>
+                    <a href="{{ route('admin.reservations.index', ['status' => 'en_attente']) }}" class="btn btn-ghost btn-sm">Voir tout</a>
                 </div>
             </div>
             <div class="card-body">

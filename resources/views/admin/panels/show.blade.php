@@ -1,6 +1,13 @@
 <x-admin-layout>
     <x-slot name="title">{{ $panel->reference }}</x-slot>
 
+    <x-slot:topbarLeft>
+        <a href="{{ route('admin.panels.index') }}" class="btn btn-ghost btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+            Retour
+        </a>
+    </x-slot:topbarLeft>
+
     <x-slot name="topbarActions">
         <a href="{{ route('admin.panels.pdf', $panel) }}" class="btn btn-ghost btn-sm">
             📄 Export PDF
@@ -55,7 +62,7 @@
                         </div>
                         <div>
                             <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">FORMAT</div>
-                            <div style="font-weight:600;">{{ $panel->format->name }}</div>
+                            <div style="font-weight:600;">{{ $panel->format->surface_label ?? $panel->format->name }}</div>
                         </div>
                         <div>
                             <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">CATÉGORIE</div>
@@ -90,18 +97,16 @@
                                 <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">TYPE SUPPORT</div>
                                 <div style="font-weight:600;">{{ $panel->type_support ?? '—' }}</div>
                             </div>
-                            @if ($panel->format->width && $panel->format->height)
+                            @if ($panel->format->dimensions_label)
                                 <div>
                                     <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">DIMENSIONS</div>
-                                    <div style="font-weight:600;">
-                                        {{ $panel->format->width }}m × {{ $panel->format->height }}m
-                                    </div>
+                                    <div style="font-weight:600;">{{ $panel->format->dimensions_label }}</div>
                                 </div>
                             @endif
-                            @if ($panel->format->surface)
+                            @if ($panel->format->surface_label)
                                 <div>
                                     <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">SURFACE</div>
-                                    <div style="font-weight:600;">{{ $panel->format->surface }} m²</div>
+                                    <div style="font-weight:600;">{{ $panel->format->surface_label }}</div>
                                 </div>
                             @endif
                             @if ($panel->daily_traffic)

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="140" viewBox="0 0 200 140">
+  <rect width="200" height="140" fill="#1a1a2e"/>
+  <rect x="10" y="10" width="180" height="120" rx="8" fill="#2a2a3e" stroke="#3a3a4e" stroke-width="1"/>
+  <text x="100" y="78" font-family="Arial, sans-serif" font-size="40" fill="#5a5a6e" text-anchor="middle" dominant-baseline="middle">🪧</text>
+  <text x="100" y="110" font-family="Arial, sans-serif" font-size="11" fill="#5a5a6e" text-anchor="middle" letter-spacing="1">PAS D'IMAGE</text>
+</svg>

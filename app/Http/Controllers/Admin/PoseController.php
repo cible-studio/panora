@@ -46,45 +46,57 @@ class PoseController extends Controller
             'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
         ]);
 
+        // Filtres "neutres" appliqués à la query (et au calcul des compteurs)
         if ($request->filled('q')) {
             $q = $request->q;
-            $query->where(fn($sq) => 
+            $query->where(fn($sq) =>
                 $sq->whereHas('panel', fn($p) => $p->where('reference', 'like', "%{$q}%")->orWhere('name', 'like', "%{$q}%"))
                 ->orWhereHas('campaign', fn($c) => $c->where('name', 'like', "%{$q}%"))
                 ->orWhereHas('technicien', fn($u) => $u->where('name', 'like', "%{$q}%"))
             );
         }
+        if ($request->filled('technicien_id')) $query->where('assigned_user_id', $request->technicien_id);
+        if ($request->filled('campaign_id'))   $query->where('campaign_id', $request->campaign_id);
+        if ($request->filled('date_from'))     $query->whereDate('scheduled_at', '>=', $request->date_from);
+        if ($request->filled('date_to'))       $query->whereDate('scheduled_at', '<=', $request->date_to);
+
+        // ─── COMPTEURS KPI sur le périmètre AVANT filtre status ───
+        // (chaque carte garde sa vraie valeur quand on en clique une)
+        $countsRaw = (clone $query)
+            ->setEagerLoads([])
+            ->reorder()
+            ->select('status', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $stats = [
+            'planifiee' => (int) ($countsRaw['planifiee'] ?? 0),
+            'en_cours'  => (int) ($countsRaw['en_cours']  ?? 0),
+            'realisee'  => (int) ($countsRaw['realisee']  ?? 0),
+            'annulee'   => (int) ($countsRaw['annulee']   ?? 0),
+        ];
+
+        // Filtre status appliqué APRÈS le calcul des compteurs
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
-        if ($request->filled('technicien_id')) {
-            $query->where('assigned_user_id', $request->technicien_id);
-        }
-        if ($request->filled('campaign_id')) {
-            $query->where('campaign_id', $request->campaign_id);
-        }
-        if ($request->filled('date_from')) {
-            $query->whereDate('scheduled_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('scheduled_at', '<=', $request->date_to);
-        }
 
         $poseTasks = $query->latest('scheduled_at')->paginate(20)->withQueryString();
-        $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
-        $campaigns = Campaign::whereIn('status', [CampaignStatus::ACTIF->value, CampaignStatus::POSE->value])->orderBy('name')->get(['id', 'name', 'status']);
-        $stats = $this->poseService->getStats();
-        $overdueTasks = $this->poseService->getOverdueTasks();
+        $stats['total'] = $poseTasks->total();
+
+        $techniciens   = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
+        $campaigns     = Campaign::whereIn('status', [CampaignStatus::ACTIF->value, CampaignStatus::POSE->value])->orderBy('name')->get(['id', 'name', 'status']);
+        $overdueTasks  = $this->poseService->getOverdueTasks();
         $posesSansPige = PoseTask::where('status', PoseTaskStatus::COMPLETED->value)->whereNotNull('campaign_id')->whereDoesntHave('piges', fn($q) => $q->where('status', '!=', 'rejete'))->count();
 
-        // ✅ AJAX response
         if ($request->ajax() || $request->input('ajax')) {
             $html = view('admin.poses.partials.table-rows', compact('poseTasks'))->render();
             $paginationHtml = $poseTasks->hasPages() ? $poseTasks->links()->render() : '';
             return response()->json([
-                'html' => $html,
+                'html'       => $html,
                 'pagination' => $paginationHtml,
-                'total' => number_format($poseTasks->total()),
+                'total'      => $poseTasks->total(),
+                'stats'      => $stats, // pour rafraîchir les KPI cards en AJAX
             ]);
         }
 
@@ -156,8 +168,18 @@ class PoseController extends Controller
         if (!empty($result['warnings'])) {
             $msg .= ' ⚠️ ' . implode(' ', $result['warnings']);
         }
- 
+
+        // Alerte création pose
+        AlertService::create(
+            'pose',
+            'info',
+            '🔧 Nouvelles tâches de pose — ' . $result['count'] . ' tâche(s)',
+            auth()->user()->name . ' a créé ' . $result['count'] . ' tâche(s) de pose',
+            null
+        );
+
         return redirect()->route('admin.pose-tasks.index')->with('success', $msg);
+ 
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -238,14 +260,69 @@ class PoseController extends Controller
             'notes.max'               => 'Les notes ne doivent pas dépasser 1000 caractères.',
         ]);
  
-        $result = $this->poseService->update($poseTask, $validated, auth()->user());
- 
+        $oldTechId = $poseTask->assigned_user_id;
+        $result    = $this->poseService->update($poseTask, $validated, auth()->user());
+
         if (!$result['ok']) {
             return back()->withInput()->with('error', $result['error']);
         }
- 
+
+        // Alerte modification pose (uniquement si changements importants)
+        AlertService::create(
+            'pose',
+            'info',
+            '✏️ Tâche de pose modifiée — ' . ($poseTask->panel?->reference ?? ''),
+            auth()->user()->name . ' a modifié la tâche de pose du panneau ' . ($poseTask->panel?->reference ?? ''),
+            $poseTask
+        );
+
+        // Si le technicien a changé → renvoyer le lien WhatsApp au nouveau
+        $newTechId = (int) ($validated['assigned_user_id'] ?? 0);
+        if ($newTechId && $newTechId !== (int) $oldTechId) {
+            $this->poseService->notifyTechnicianOnWhatsApp($poseTask->fresh()->load('panel.commune', 'technicien'));
+        }
+
         return redirect()->route('admin.pose-tasks.show', $poseTask)
             ->with('success', 'Tâche mise à jour avec succès.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // PROGRESS — JSON polling pour la vue admin (toutes les 30 s)
+    // ══════════════════════════════════════════════════════════════
+    public function progress(Request $request): JsonResponse
+    {
+        $ids = array_map('intval', array_filter((array) $request->input('ids', [])));
+        $query = PoseTask::query()->select([
+            'id', 'panel_id', 'status', 'progress_percent',
+            'started_at', 'done_at', 'real_minutes', 'whatsapp_sent_at',
+        ]);
+
+        if (!empty($ids)) {
+            $query->whereIn('id', $ids);
+        } else {
+            // Par défaut on retourne uniquement les tâches non-terminées des 90 derniers jours
+            $query->whereNotIn('status', [PoseTaskStatus::COMPLETED->value, PoseTaskStatus::CANCELLED->value])
+                  ->where('updated_at', '>=', now()->subDays(90));
+        }
+
+        $tasks = $query->limit(500)->get()->map(fn($t) => [
+            'id'              => $t->id,
+            'status'          => $t->status,
+            'status_label'    => PoseTaskStatus::tryFrom($t->status)?->label() ?? '—',
+            'percent'         => (int) ($t->progress_percent ?? 0),
+            'color'           => $t->progressColor(),
+            'is_running'      => $t->isInProgress(),
+            'is_done'         => $t->status === PoseTaskStatus::COMPLETED->value,
+            'started_at'      => $t->started_at?->toIso8601String(),
+            'done_at'         => $t->done_at?->toIso8601String(),
+            'real_minutes'    => $t->real_minutes,
+            'whatsapp_sent'   => $t->whatsapp_sent_at !== null,
+        ]);
+
+        return response()->json([
+            'tasks'      => $tasks,
+            'server_time'=> now()->toIso8601String(),
+        ]);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -256,8 +333,53 @@ class PoseController extends Controller
         if ($poseTask->status === PoseTaskStatus::COMPLETED->value) {
             return back()->with('error', 'Impossible de supprimer une tâche déjà réalisée.');
         }
+        
+        $panelRef = $poseTask->panel?->reference ?? '';
         $poseTask->delete();
+        
+        // Alerte suppression pose
+        AlertService::create(
+            'pose',
+            'danger',
+            '🗑 Tâche de pose supprimée — ' . $panelRef,
+            auth()->user()->name . ' a supprimé la tâche de pose du panneau ' . $panelRef,
+            null
+        );
+        
         return redirect()->route('admin.pose-tasks.index')->with('success', 'Tâche de pose supprimée.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // NOTIFY WHATSAPP — déclenchement manuel par l'admin
+    // ══════════════════════════════════════════════════════════════
+    public function notifyWhatsApp(PoseTask $poseTask)
+    {
+        if (in_array($poseTask->status, ['realisee', 'annulee'])) {
+            return back()->with('error', 'Notification non pertinente sur une tâche déjà clôturée.');
+        }
+
+        $poseTask->load('panel.commune', 'technicien', 'campaign');
+        $tech = $poseTask->technicien;
+
+        if (!$tech || empty($tech->whatsapp_number)) {
+            return back()->with('error', 'Aucun numéro WhatsApp pour le technicien — configure-le d\'abord.');
+        }
+
+        $sent = $this->poseService->notifyTechnicianOnWhatsApp($poseTask);
+
+        if ($sent) {
+            return back()->with('success', "✅ Notification WhatsApp envoyée à {$tech->name}.");
+        }
+
+        // Échec : message actionnable + lien fallback (lien public à partager
+        // manuellement). On lit la dernière erreur loggée pour aider l'admin
+        // à diagnostiquer (numéro non joint sandbox, SSL, token invalide…).
+        $publicUrl = $poseTask->publicUrl();
+        return back()->with(
+            'warning',
+            "L'envoi automatique a échoué — vérifiez les logs serveur (whatsapp.failed). " .
+            "Vous pouvez partager le lien manuellement : {$publicUrl}"
+        );
     }
 
     // ══════════════════════════════════════════════════════════════

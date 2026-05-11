@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php -r ' *)",
+      "Bash(awk 'NR>=400 && NR<=415' resources/views/admin/reservations/show.blade.php)",
+      "Bash(awk 'NR==487' resources/views/admin/reservations/show.blade.php)",
+      "Bash(grep -nE '^@endif|@if\\\\\\(\\\\$reservation->externalPanels|<div class=\"card mt-4\" id=\"add-panel-card\"|note: confirmation modal' resources/views/admin/reservations/show.blade.php)",
+      "Bash(grep -nE '@if\\\\\\(false\\\\\\)|@endif.*FIN|@endif.*totalCount|@endif.*extCount|<div class=\"card|^</div>|^@endif$' resources/views/admin/reservations/show.blade.php)",
+      "Bash(php -l app/Http/Controllers/Client/ClientDashboardController.php)"
+    ]
+  }
+}

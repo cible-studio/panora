@@ -2,9 +2,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+
+use App\Mail\UserWelcomeMail;
 use App\Models\User;
 use App\Models\AuditLog;
+
 use App\Enums\UserRole;
+
+use App\Services\AlertService;
+use App\Services\NotificationMailer;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -24,24 +31,77 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'       => 'required|string|max:100',
-            'email'      => 'required|email|unique:users,email',
-            'password'   => 'required|min:8|confirmed',
-            'role'       => 'required|in:admin,commercial,mediaplanner,technique',
-            'agent_code' => 'nullable|string|unique:users,agent_code',
+            'name'            => 'required|string|max:100',
+            'email'           => 'required|email|unique:users,email',
+            'password'        => 'required|min:8|confirmed',
+            'role'            => 'required|in:admin,commercial,mediaplanner,technique',
+            'agent_code'      => 'nullable|string|unique:users,agent_code',
+            'whatsapp_number' => 'nullable|string|max:20|regex:/^[\+\d\s\-\(\)\.]{6,20}$/',
+        ], [
+            'whatsapp_number.regex' => 'Format WhatsApp invalide (ex: 0707070707 ou +2250707070707).',
         ]);
 
-        User::create([
-            'name'       => $request->name,
-            'email'      => $request->email,
-            'password'   => Hash::make($request->password),
-            'role'       => $request->role,
-            'agent_code' => $request->agent_code,
-            'is_active'  => true,
+        $plainPassword = $request->password; // gardé pour l'email AVANT hash
+
+        // Normalisation du numéro WhatsApp si fourni → format international sans "+"
+        $whatsapp = null;
+        if ($request->filled('whatsapp_number')) {
+            $whatsapp = app(\App\Services\WhatsAppService::class)
+                ->normalizeNumber($request->input('whatsapp_number'));
+            if ($whatsapp === null) {
+                return back()->withInput()->withErrors([
+                    'whatsapp_number' => 'Numéro WhatsApp invalide.',
+                ]);
+            }
+        }
+
+        // Code agent : si l'admin n'en saisit pas, on génère un code par
+        // rôle (Lot 10.1) au format SC-001 (commercial), TT-001 (technique),
+        // MP-001 (mediaplanner), AD-001 (admin). Si l'admin saisit un code
+        // manuellement, on respecte tel quel.
+        $agentCode = $request->agent_code ?: User::generateAgentCode($request->role);
+
+        $user = User::create([
+            'name'            => $request->name,
+            'email'           => $request->email,
+            'password'        => Hash::make($plainPassword),
+            'role'            => $request->role,
+            'agent_code'      => $agentCode,
+            'whatsapp_number' => $whatsapp,
+            'is_active'       => true,
         ]);
 
+        // Alerte création utilisateur
+        $roleLabel = UserRole::labelFor($request->role);
+
+        AlertService::create(
+            'utilisateur',
+            'info',
+            '👤 Nouvel utilisateur — ' . $request->name,
+            auth()->user()->name . ' a créé un compte ' . $roleLabel . ' : ' . $request->name . ' (' . $request->email . ')',
+            $user
+        );
+
+        // ── Mail de bienvenue ────────────────────────────────────────────
+        // sendNow() = envoi synchrone (bypass queue). On veut savoir
+        // immédiatement si le mail est parti, car le mot de passe temporaire
+        // n'est pas re-récupérable plus tard.
+        $mailResult = app(NotificationMailer::class)->sendNow(
+            $user->email,
+            new UserWelcomeMail($user, $plainPassword, 'created'),
+            context: ['action' => 'user.welcome', 'created_by' => auth()->id()]
+        );
+
+        $msg = 'Utilisateur créé avec succès !';
+        if ($mailResult->ok) {
+            $msg .= ' 📧 Un email de bienvenue a été envoyé à ' . $user->email . '.';
+            return redirect()->route('admin.users.index')->with('success', $msg);
+        }
+
+        // Mail KO → on prévient l'admin sans bloquer
         return redirect()->route('admin.users.index')
-            ->with('success', 'Utilisateur créé avec succès !');
+            ->with('warning', $msg . ' ' . $mailResult->message
+                . ' Vous pouvez communiquer manuellement les identifiants à ' . $user->email . '.');
     }
 
     public function edit(User $user)
@@ -52,18 +112,37 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $request->validate([
-            'name'       => 'required|string|max:100',
-            'email'      => 'required|email|unique:users,email,'.$user->id,
-            'role'       => 'required|in:admin,commercial,mediaplanner,technique',
-            'agent_code' => 'nullable|string|unique:users,agent_code,'.$user->id,
-            'password'   => 'nullable|min:8|confirmed',
+            'name'            => 'required|string|max:100',
+            'email'           => 'required|email|unique:users,email,'.$user->id,
+            'role'            => 'required|in:admin,commercial,mediaplanner,technique',
+            'agent_code'      => 'nullable|string|unique:users,agent_code,'.$user->id,
+            'password'        => 'nullable|min:8|confirmed',
+            'whatsapp_number' => 'nullable|string|max:20|regex:/^[\+\d\s\-\(\)\.]{6,20}$/',
+        ], [
+            'whatsapp_number.regex' => 'Format WhatsApp invalide (ex: 0707070707 ou +2250707070707).',
         ]);
 
+        $oldName = $user->name;
+        $oldRole = $user->role;
+
+        // Normalisation WhatsApp : si vide → null, sinon E.164 sans +
+        $whatsapp = null;
+        if ($request->filled('whatsapp_number')) {
+            $whatsapp = app(\App\Services\WhatsAppService::class)
+                ->normalizeNumber($request->input('whatsapp_number'));
+            if ($whatsapp === null) {
+                return back()->withInput()->withErrors([
+                    'whatsapp_number' => 'Numéro WhatsApp invalide.',
+                ]);
+            }
+        }
+
         $data = [
-            'name'       => $request->name,
-            'email'      => $request->email,
-            'role'       => $request->role,
-            'agent_code' => $request->agent_code,
+            'name'            => $request->name,
+            'email'           => $request->email,
+            'role'            => $request->role,
+            'agent_code'      => $request->agent_code,
+            'whatsapp_number' => $whatsapp,
         ];
 
         if ($request->filled('password')) {
@@ -71,6 +150,17 @@ class UserController extends Controller
         }
 
         $user->update($data);
+
+        // Alerte modification utilisateur
+        $newRoleLabel = UserRole::labelFor($request->role);
+        
+        AlertService::create(
+            'utilisateur',
+            'info',
+            '✏️ Utilisateur modifié — ' . $request->name,
+            auth()->user()->name . ' a modifié le compte de ' . $oldName . ' (rôle: ' . $newRoleLabel . ')',
+            $user
+        );
 
         return redirect()->route('admin.users.index')
             ->with('success', 'Utilisateur modifié avec succès !');
@@ -82,9 +172,39 @@ class UserController extends Controller
             return back()->with('error', 'Vous ne pouvez pas supprimer votre propre compte !');
         }
 
+        $userName  = $user->name;
+        $roleLabel = UserRole::labelFor($user->role);
+
         $user->delete();
+        
+        // Alerte suppression utilisateur
+        AlertService::create(
+            'utilisateur',
+            'danger',
+            '🗑 Utilisateur supprimé — ' . $userName,
+            auth()->user()->name . ' a supprimé le compte ' . $userName . ' (' . $roleLabel . ')',
+            null
+        );
+        
         return redirect()->route('admin.users.index')
             ->with('success', 'Utilisateur supprimé !');
+    }
+
+    public function auditLogs(Request $request)
+    {
+        $query = AuditLog::with('user')->latest();
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->integer('user_id'));
+        }
+        if ($request->filled('action')) {
+            $query->where('action', 'like', '%' . $request->input('action') . '%');
+        }
+
+        $logs  = $query->paginate(50)->withQueryString();
+        $users = User::orderBy('name')->get(['id', 'name']);
+
+        return view('admin.audit.logs', compact('logs', 'users'));
     }
 
     public function toggleActive(User $user)
@@ -93,18 +213,35 @@ class UserController extends Controller
             return back()->with('error', 'Vous ne pouvez pas désactiver votre propre compte !');
         }
 
-        $user->update(['is_active' => !$user->is_active]);
+        $oldStatus = $user->is_active ? 'actif' : 'désactivé';
+        $newStatus = !$user->is_active;
+        $wasInactive = !$user->is_active;
 
-        $status = $user->is_active ? 'activé' : 'désactivé';
-        return back()->with('success', "Compte {$status} !");
-    }
+        $user->update(['is_active' => $newStatus]);
 
-    public function auditLogs()
-    {
-        $logs = AuditLog::with('user')
-            ->latest()
-            ->paginate(20);
+        // Notifier l'utilisateur si son compte vient d'être (ré)activé
+        if ($wasInactive && $newStatus === true) {
+            app(NotificationMailer::class)->sendSilently(
+                $user->email,
+                new UserWelcomeMail($user, null, 'reactivated'),
+                context: ['action' => 'user.reactivated', 'by' => auth()->id()]
+            );
+        }
 
-        return view('admin.users.audit-logs', compact('logs'));
+        $statusText = $newStatus ? 'activé' : 'désactivé';
+        $statusIcon = $newStatus ? '✅' : '🔒';
+        
+        // Alerte activation/désactivation utilisateur
+        $roleLabel = UserRole::labelFor($user->role);
+        
+        AlertService::create(
+            'utilisateur',
+            $newStatus ? 'info' : 'warning',
+            $statusIcon . ' Compte ' . $statusText . ' — ' . $user->name,
+            auth()->user()->name . ' a ' . $statusText . ' le compte de ' . $user->name . ' (' . $roleLabel . ')',
+            $user
+        );
+        
+        return back()->with('success', "Compte {$statusText} !");
     }
 }

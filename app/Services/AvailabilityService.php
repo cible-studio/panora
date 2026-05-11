@@ -3,6 +3,7 @@ namespace App\Services;
 
 use App\Enums\PanelStatus;
 use App\Enums\ReservationStatus;
+use App\Models\ExternalPanel;
 use App\Models\Panel;
 use App\Models\ReservationPanel;
 use Illuminate\Support\Collection;
@@ -19,6 +20,31 @@ use Illuminate\Support\Facades\Log;
  *
  * panels.status = cache de lecture — JAMAIS utilisé pour décider
  * de la disponibilité réelle.
+ *
+ * ─── ANTI DOUBLE-BOOKING (pattern d'usage) ──────────────────────────────
+ * À CHAQUE création/ajout de panneau qui pourrait entrer en conflit, le
+ * code appelant DOIT respecter ce pattern (verrouillage pessimiste) :
+ *
+ *   DB::transaction(function () use ($panelIds, ...) {
+ *       Panel::whereIn('id', $panelIds)->lockForUpdate()->get();    // ① verrou
+ *       $conflicts = $availability->getUnavailablePanelIds(...);     // ② re-check
+ *       if (!empty($conflicts)) { throw new RuntimeException(...); } // ③ rollback
+ *       // ... attach + create
+ *   });
+ *
+ * Le verrou pessimiste (SELECT ... FOR UPDATE) bloque toute autre transaction
+ * concurrente qui tenterait `lockForUpdate()` sur les mêmes panneaux jusqu'au
+ * COMMIT/ROLLBACK. Combiné au re-check après verrou, on a une garantie forte :
+ *   - Avec 2 utilisateurs simultanés sur le même panneau, 1 seul peut commiter.
+ *   - Le second voit `getUnavailablePanelIds()` détecter le conflit et rollback.
+ *
+ * Niveau d'isolation requis : REPEATABLE READ (défaut MySQL InnoDB) ou supérieur.
+ * Sous READ COMMITTED, le re-check pourrait passer entre 2 transactions concurrentes.
+ *
+ * Index DB optimal pour la requête de chevauchement (cf. migration
+ * 2026_05_01_120000_add_overlap_index_for_anti_double_booking) :
+ *   `idx_reservations_overlap (status, start_date, end_date)`
+ * ────────────────────────────────────────────────────────────────────────
  */
 class AvailabilityService
 {
@@ -104,14 +130,14 @@ class AvailabilityService
         return $query->orderBy('reference')->get();
     }    
 
-    // ── 5. Sync statuts — transaction atomique, 3 UPDATE max ──────
+    // ── 5. Sync statuts — transaction atomique, 4 UPDATE max ──────
     public function syncPanelStatuses(array $panelIds): void
     {
         if (empty($panelIds)) return;
 
         $today = now()->toDateString();
 
-        // Une requête pour tous les statuts actifs
+        // Réservations actives (en_attente / confirme) qui couvrent today
         $activeBookings = DB::table('reservation_panels')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->whereIn('reservation_panels.panel_id', $panelIds)
@@ -126,18 +152,40 @@ class AvailabilityService
             ->get()
             ->keyBy('panel_id');
 
-        // Panneau maintenance → intouchable
+        // Lot 6 : campagnes actuellement EN COURS (actif / pose) couvrant today.
+        // Un panneau réellement affiché = statut "occupé" (≠ "confirme" qui
+        // signifie booké mais pas encore en pose). Cette nouvelle requête
+        // permet de propager l'occupation effective dans l'inventaire.
+        $occupiedByCampaign = DB::table('campaign_panels')
+            ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+            ->whereIn('campaign_panels.panel_id', $panelIds)
+            ->where('campaign_panels.type', 'interne')
+            ->whereIn('campaigns.status', ['actif', 'pose'])
+            ->where('campaigns.start_date', '<=', $today)
+            ->where('campaigns.end_date',   '>=', $today)
+            ->pluck('campaign_panels.panel_id')
+            ->flip();
+
+        // Maintenance → intouchable par la sync (l'admin contrôle manuellement)
         $maintenanceIds = Panel::whereIn('id', $panelIds)
             ->where('status', PanelStatus::MAINTENANCE->value)
             ->pluck('id')
             ->flip();
 
+        $toOccupe   = [];
         $toConfirme = [];
         $toOption   = [];
         $toLibre    = [];
 
+        // Priorité : maintenance > occupe (campagne en cours) > confirme
+        // (réservation confirmée pour plus tard) > option > libre.
         foreach ($panelIds as $id) {
             if (isset($maintenanceIds[$id])) continue;
+
+            if (isset($occupiedByCampaign[$id])) {
+                $toOccupe[] = $id;
+                continue;
+            }
 
             $booking = $activeBookings->get($id);
             if ($booking?->has_confirmed) {
@@ -149,8 +197,12 @@ class AvailabilityService
             }
         }
 
-        // 3 UPDATE groupés max — atomique
-        DB::transaction(function () use ($toConfirme, $toOption, $toLibre) {
+        // 4 UPDATE groupés max — atomique
+        DB::transaction(function () use ($toOccupe, $toConfirme, $toOption, $toLibre) {
+            if (!empty($toOccupe)) {
+                Panel::whereIn('id', $toOccupe)
+                    ->update(['status' => PanelStatus::OCCUPE->value]);
+            }
             if (!empty($toConfirme)) {
                 Panel::whereIn('id', $toConfirme)
                     ->update(['status' => PanelStatus::CONFIRME->value]);
@@ -166,10 +218,147 @@ class AvailabilityService
         });
 
         Log::debug('availability.sync_done', [
+            'occupe'   => count($toOccupe),
             'confirme' => count($toConfirme),
             'option'   => count($toOption),
             'libre'    => count($toLibre),
         ]);
+    }
+
+    // ── 5b. Sync statuts EXTERNES — même règle, table external_panels ──────
+    public function syncExternalPanelStatuses(array $externalPanelIds): void
+    {
+        if (empty($externalPanelIds)) return;
+
+        $today = now()->toDateString();
+
+        $activeBookings = DB::table('reservation_panels')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->whereIn('reservation_panels.external_panel_id', $externalPanelIds)
+            ->where('reservation_panels.source', 'externe')
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.end_date', '>=', $today)
+            ->select(
+                'reservation_panels.external_panel_id',
+                DB::raw('MAX(CASE WHEN reservations.status = "confirme"   THEN 1 ELSE 0 END) as has_confirmed'),
+                DB::raw('MAX(CASE WHEN reservations.status = "en_attente" THEN 1 ELSE 0 END) as has_option')
+            )
+            ->groupBy('reservation_panels.external_panel_id')
+            ->get()
+            ->keyBy('external_panel_id');
+
+        // Maintenance → intouchable
+        $maintenanceIds = ExternalPanel::whereIn('id', $externalPanelIds)
+            ->where('availability_status', 'maintenance')
+            ->pluck('id')
+            ->flip();
+
+        $toConfirme = [];
+        $toOption   = [];
+        $toLibre    = [];
+
+        foreach ($externalPanelIds as $id) {
+            if (isset($maintenanceIds[$id])) continue;
+
+            $booking = $activeBookings->get($id);
+            if ($booking?->has_confirmed) {
+                $toConfirme[] = $id;
+            } elseif ($booking?->has_option) {
+                $toOption[]   = $id;
+            } else {
+                $toLibre[]    = $id;
+            }
+        }
+
+        DB::transaction(function () use ($toConfirme, $toOption, $toLibre) {
+            if (!empty($toConfirme)) {
+                ExternalPanel::whereIn('id', $toConfirme)
+                    ->update(['availability_status' => 'confirme']);
+            }
+            if (!empty($toOption)) {
+                ExternalPanel::whereIn('id', $toOption)
+                    ->update(['availability_status' => 'option']);
+            }
+            if (!empty($toLibre)) {
+                ExternalPanel::whereIn('id', $toLibre)
+                    ->update(['availability_status' => 'disponible']);
+            }
+        });
+
+        Log::debug('availability.sync_external_done', [
+            'confirme' => count($toConfirme),
+            'option'   => count($toOption),
+            'libre'    => count($toLibre),
+        ]);
+    }
+
+    /**
+     * Panneaux externes occupés sur la période (par leurs propres réservations).
+     * Renvoie l'ID externe → état dominant ('confirme' / 'en_attente').
+     */
+    public function getExternalPanelBookingMap(
+        array  $externalPanelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null
+    ): Collection {
+        if (empty($externalPanelIds)) return collect();
+
+        return DB::table('reservation_panels')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->whereIn('reservation_panels.external_panel_id', $externalPanelIds)
+            ->where('reservation_panels.source', 'externe')
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.start_date', '<', $endDate)
+            ->where('reservations.end_date',   '>', $startDate)
+            ->when($excludeReservationId, fn($q) =>
+                $q->where('reservations.id', '!=', $excludeReservationId)
+            )
+            ->select(
+                'reservation_panels.external_panel_id as id',
+                DB::raw('MAX(CASE WHEN reservations.status = "confirme"   THEN 1 ELSE 0 END) as has_confirmed'),
+                DB::raw('MAX(CASE WHEN reservations.status = "en_attente" THEN 1 ELSE 0 END) as has_option'),
+                DB::raw('MAX(reservations.end_date) as release_date')
+            )
+            ->groupBy('reservation_panels.external_panel_id')
+            ->get()
+            ->keyBy('id');
+    }
+
+    /**
+     * Pendant interne de getExternalPanelBookingMap — renvoie pour chaque
+     * panel_id : has_confirmed, has_option, release_date (dernière fin de
+     * réservation bloquante). Utilisé par les vues d'export pour rétablir
+     * le `display_status` réel sur la période demandée (sinon on perd
+     * l'info "En option" entre la sélection et le PDF).
+     */
+    public function getInternalPanelBookingMap(
+        array  $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null
+    ): Collection {
+        if (empty($panelIds)) return collect();
+
+        return DB::table('reservation_panels')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->where('reservation_panels.source', 'interne')
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.start_date', '<', $endDate)
+            ->where('reservations.end_date',   '>', $startDate)
+            ->when($excludeReservationId, fn($q) =>
+                $q->where('reservations.id', '!=', $excludeReservationId)
+            )
+            ->select(
+                'reservation_panels.panel_id',
+                DB::raw('MAX(CASE WHEN reservations.status = "confirme"   THEN 1 ELSE 0 END) as has_confirmed'),
+                DB::raw('MAX(CASE WHEN reservations.status = "en_attente" THEN 1 ELSE 0 END) as has_option'),
+                DB::raw('MAX(reservations.end_date) as release_date')
+            )
+            ->groupBy('reservation_panels.panel_id')
+            ->get()
+            ->keyBy('panel_id');
     }
 
     // ── 6. Vérification rapide sans chargement modèle ────────────

@@ -1,19 +1,18 @@
 <x-admin-layout title="{{ $agency->name }}">
 
+<x-slot:topbarLeft>
+  <a href="{{ route('admin.external-agencies.index') }}" class="btn btn-ghost btn-sm">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    Retour
+  </a>
+</x-slot:topbarLeft>
+
 <x-slot:topbarActions>
   <button class="btn btn-primary"
           @click="$dispatch('open-modal', 'create-panel')">
     + Ajouter un panneau
   </button>
 </x-slot:topbarActions>
-
-{{-- Retour --}}
-<div style="margin-bottom:16px;">
-  <a href="{{ route('admin.external-agencies.index') }}"
-     style="color:var(--text2);font-size:13px;text-decoration:none;">
-    ← Retour aux régies
-  </a>
-</div>
 
 {{-- Fiche régie --}}
 <div class="card" style="margin-bottom:20px;">
@@ -38,34 +37,120 @@
   <div class="card-body">
     <div class="form-3col">
       <div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">CONTACT</div>
-        <div style="font-weight:500;">{{ $agency->contact ?? '—' }}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">EMAIL GÉNÉRAL</div>
+        <div style="font-weight:500;">
+            @if($agency->email)
+                <a href="mailto:{{ $agency->email }}" style="color:var(--accent);text-decoration:none">{{ $agency->email }}</a>
+            @else — @endif
+        </div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">EMAIL</div>
-        <div style="font-weight:500;">{{ $agency->email ?? '—' }}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">TÉLÉPHONE</div>
+        <div style="font-weight:500;">
+            @if($agency->phone)
+                <a href="tel:{{ $agency->phone }}" style="color:var(--accent);text-decoration:none">{{ $agency->phone }}</a>
+            @else — @endif
+        </div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">ADRESSE</div>
-        <div style="font-weight:500;">{{ $agency->address ?? '—' }}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">VILLE</div>
+        <div style="font-weight:500;">{{ $agency->city ?? '—' }}</div>
       </div>
     </div>
+    @if($agency->address)
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">ADRESSE COMPLÈTE</div>
+            <div style="font-weight:500;">{{ $agency->address }}</div>
+        </div>
+    @endif
   </div>
 </div>
 
+{{-- ── Carte Contacts détaillés (T11) ─────────────────────────── --}}
+@if($agency->manager_name || $agency->commercial_name || $agency->commercial_email || $agency->commercial_phone)
+<div class="card" style="margin-top:14px">
+    <div class="card-header">
+        <span class="card-title">👥 Contacts</span>
+    </div>
+    <div class="card-body">
+        <div class="form-2col">
+            {{-- Responsable --}}
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:700;margin-bottom:6px">
+                    🎩 Responsable
+                </div>
+                @if($agency->manager_name)
+                    <div style="font-weight:600;color:var(--text);font-size:14px">{{ $agency->manager_name }}</div>
+                @else
+                    <div style="color:var(--text3);font-style:italic;font-size:12px">Non renseigné</div>
+                @endif
+            </div>
+
+            {{-- Commercial --}}
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-weight:700;margin-bottom:6px">
+                    💼 Commercial dédié
+                </div>
+                @if($agency->commercial_name)
+                    <div style="font-weight:600;color:var(--text);font-size:14px;margin-bottom:6px">{{ $agency->commercial_name }}</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px">
+                        @if($agency->commercial_email)
+                            <a href="mailto:{{ $agency->commercial_email }}"
+                               style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--accent-dim);border:1px solid rgba(232,160,32,.3);border-radius:6px;color:var(--accent);text-decoration:none;font-weight:500">
+                                ✉️ {{ $agency->commercial_email }}
+                            </a>
+                        @endif
+                        @if($agency->commercial_phone)
+                            <a href="tel:{{ $agency->commercial_phone }}"
+                               style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--accent-dim);border:1px solid rgba(232,160,32,.3);border-radius:6px;color:var(--accent);text-decoration:none;font-weight:500">
+                                ☎ {{ $agency->commercial_phone }}
+                            </a>
+                        @endif
+                    </div>
+                @else
+                    <div style="color:var(--text3);font-style:italic;font-size:12px">Aucun commercial dédié</div>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- Tableau panneaux --}}
 <div class="card">
-  <div class="card-header">
-    <span class="card-title">🪧 Panneaux de la régie</span>
-    <span style="font-size:12px;color:var(--text2);">
-      {{ $agency->externalPanels->count() }} panneau(x)
-    </span>
+  <div class="card-header" style="flex-wrap:wrap;gap:10px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="card-title">🪧 Panneaux de la régie</span>
+      <span style="font-size:12px;color:var(--text2);">
+        {{ $agency->externalPanels->count() }} panneau(x)
+      </span>
+    </div>
+
+    @if($agency->externalPanels->count() > 0)
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;padding:6px 10px;border:1px dashed var(--border);border-radius:8px;"
+               title="Cocher pour inclure tarif et statut dans les exports (usage interne)">
+          <input type="checkbox" id="ext-show-pricing" style="accent-color:var(--accent)">
+          <span>💰 Inclure prix + statut</span>
+        </label>
+        <button type="button" class="btn btn-ghost btn-sm"
+                style="color:var(--green);border-color:rgba(34,197,94,.4)"
+                onclick="EXT_EXPORTS.run('excel')">📊 Excel</button>
+        <button type="button" class="btn btn-ghost btn-sm"
+                style="color:var(--red);border-color:rgba(239,68,68,.4)"
+                onclick="EXT_EXPORTS.run('pdf-images')">📄 PDF images</button>
+        <button type="button" class="btn btn-ghost btn-sm"
+                style="color:var(--blue);border-color:rgba(59,130,246,.4)"
+                onclick="EXT_EXPORTS.run('pdf-liste')">📋 PDF liste</button>
+      </div>
+    @endif
   </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
           <th>Code</th>
+          <th></th>
           <th>Désignation</th>
           <th>Format / Catégorie</th>
           <th>Commune</th>
@@ -86,6 +171,19 @@
                            border-radius:5px;color:var(--accent);">
                 {{ $panel->code_panneau }}
               </span>
+            </td>
+            <td style="width:52px;padding:6px;">
+              @if($panel->photo_path)
+                <img src="{{ asset('storage/' . $panel->photo_path) }}"
+                     alt=""
+                     onclick="openLightbox(this.src)"
+                     style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block;cursor:zoom-in;">
+              @else
+                <div style="width:44px;height:44px;border-radius:6px;border:1px dashed var(--border);
+                            background:var(--surface2);display:flex;align-items:center;justify-content:center;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </div>
+              @endif
             </td>
             <td>
               <div style="font-weight:500;">{{ $panel->designation }}</div>
@@ -155,7 +253,7 @@
           </tr>
         @empty
           <tr>
-            <td colspan="10"
+            <td colspan="11"
                 style="text-align:center;padding:40px;color:var(--text3);">
               Aucun panneau pour cette régie.
             </td>
@@ -165,6 +263,62 @@
     </table>
   </div>
 </div>
+
+{{-- ══════════════════════════════════════
+     EXPORTS — module JS (PDF images / PDF liste / Excel)
+     Cohérent avec la barre de sélection des disponibilités :
+     - par défaut : pas de prix ni de statut
+     - cocher "Inclure prix + statut" pour transmettre show_pricing=1
+══════════════════════════════════════ --}}
+@if($agency->externalPanels->count() > 0)
+<script>
+window.EXT_EXPORTS = (function () {
+    const ENDPOINTS = {
+        'pdf-images': @json(route('admin.external-agencies.exports.pdf-images', $agency)),
+        'pdf-liste':  @json(route('admin.external-agencies.exports.pdf-liste',  $agency)),
+        'excel':      @json(route('admin.external-agencies.exports.excel',      $agency)),
+    };
+    const CSRF = @json(csrf_token());
+
+    function buildForm(action, fields) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = action;
+        form.style.display = 'none';
+        const add = (name, value) => {
+            const i = document.createElement('input');
+            i.type = 'hidden';
+            i.name = name;
+            i.value = value;
+            form.appendChild(i);
+        };
+        add('_token', CSRF);
+        Object.entries(fields).forEach(([k, v]) => {
+            if (Array.isArray(v)) v.forEach(x => add(k + '[]', x));
+            else if (v !== null && v !== '') add(k, v);
+        });
+        return form;
+    }
+
+    return {
+        run(type) {
+            const action = ENDPOINTS[type];
+            if (!action) return;
+
+            const showPricing = document.getElementById('ext-show-pricing')?.checked ? '1' : '0';
+            const form = buildForm(action, { show_pricing: showPricing });
+
+            // Excel : ouvrir dans un nouvel onglet pour ne pas bloquer la page
+            if (type === 'excel') form.target = '_blank';
+
+            document.body.appendChild(form);
+            form.submit();
+            setTimeout(() => form.remove(), 1000);
+        },
+    };
+})();
+</script>
+@endif
 
 {{-- ══════════════════════════════════════
      MACRO : champs communs panneau
@@ -188,7 +342,8 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
       <button class="modal-close" @click="open = false">✕</button>
     </div>
     <form method="POST"
-          action="{{ route('admin.external-agencies.panels.store', $agency) }}">
+          action="{{ route('admin.external-agencies.panels.store', $agency) }}"
+          enctype="multipart/form-data">
       @csrf
       <input type="hidden" name="agency_id" value="{{ $agency->id }}"/>
       <div class="modal-body">
@@ -383,6 +538,14 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
           </div>
         </div>
 
+        {{-- IMAGE --}}
+        <div class="section-label">Image du panneau <span style="font-weight:400;color:var(--text3);">(optionnel)</span></div>
+        <div class="mfg">
+          <label>Photo</label>
+          <input type="file" name="photo" accept="image/*">
+          <div style="font-size:12px;color:var(--text3);margin-top:4px;">Formats acceptés : JPG, PNG, GIF (max 35 Mo)</div>
+        </div>
+
         {{-- LIAISON COMMERCIALE --}}
         <div class="section-label" style="color:var(--accent);">🔗 Liaison commerciale (optionnel)</div>
         <div style="background:rgba(226,6,19,0.05);border:1px solid rgba(226,6,19,0.2);border-radius:10px;padding:14px;margin-bottom:16px;">
@@ -436,7 +599,8 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
       <button class="modal-close" @click="open = false">✕</button>
     </div>
     <form method="POST"
-          :action="`/admin/external-agencies/{{ $agency->id }}/panels/${panel.id}`">
+          :action="`/admin/external-agencies/{{ $agency->id }}/panels/${panel.id}`"
+          enctype="multipart/form-data">
       @csrf @method('PUT')
       <div class="modal-body">
 
@@ -619,6 +783,20 @@ $orientations = ['nord','sud','est','ouest','nord-est','nord-ouest','sud-est','s
             <input type="number" name="longitude"
                    :value="panel.longitude" step="0.0000001"/>
           </div>
+        </div>
+
+        <div class="section-label">Image du panneau <span style="font-weight:400;color:var(--text3);">(optionnel)</span></div>
+        <div class="mfg">
+          <template x-if="panel.photo_url">
+            <div style="margin-bottom:10px;">
+              <img :src="panel.photo_url" alt="Photo actuelle"
+                   style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border);object-fit:cover;">
+              <div style="font-size:11px;color:var(--text3);margin-top:4px;">Photo actuelle — en uploader une nouvelle remplacera celle-ci.</div>
+            </div>
+          </template>
+          <label>Nouvelle photo</label>
+          <input type="file" name="photo" accept="image/*">
+          <div style="font-size:12px;color:var(--text3);margin-top:4px;">Formats acceptés : JPG, PNG, GIF (max 35 Mo)</div>
         </div>
 
       </div>

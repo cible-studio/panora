@@ -37,25 +37,12 @@ class PigeController extends Controller
             'verificateur:id,name',
         ]);
 
-        // ── Filtres ──────────────────────────────────────────────
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->filled('campaign_id')) {
-            $query->where('campaign_id', $request->campaign_id);
-        }
-        if ($request->filled('panel_id')) {
-            $query->where('panel_id', $request->panel_id);
-        }
-        if ($request->filled('technicien_id')) {
-            $query->where('user_id', $request->technicien_id);
-        }
-        if ($request->filled('date_from')) {
-            $query->whereDate('taken_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('taken_at', '<=', $request->date_to);
-        }
+        // ── Filtres "neutres" appliqués au périmètre + aux compteurs ──
+        if ($request->filled('campaign_id'))   $query->where('campaign_id', $request->campaign_id);
+        if ($request->filled('panel_id'))      $query->where('panel_id', $request->panel_id);
+        if ($request->filled('technicien_id')) $query->where('user_id', $request->technicien_id);
+        if ($request->filled('date_from'))     $query->whereDate('taken_at', '>=', $request->date_from);
+        if ($request->filled('date_to'))       $query->whereDate('taken_at', '<=', $request->date_to);
         if ($request->filled('q')) {
             $q = $request->q;
             $query->where(fn($sq) =>
@@ -68,8 +55,29 @@ class PigeController extends Controller
             );
         }
 
-        $piges       = $query->latest('taken_at')->paginate(24)->withQueryString();
-        $stats       = $this->pigeService->getStats();
+        // ─── COMPTEURS KPI sur le périmètre AVANT filtre status ───
+        // (chaque carte garde sa vraie valeur quand on en clique une)
+        $countsRaw = (clone $query)
+            ->setEagerLoads([])
+            ->reorder()
+            ->select('status', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $stats = [
+            'en_attente' => (int) ($countsRaw['en_attente'] ?? 0),
+            'verifie'    => (int) ($countsRaw['verifie']    ?? 0),
+            'rejete'     => (int) ($countsRaw['rejete']     ?? 0),
+        ];
+
+        // ─── Filtre status (carte cliquée) appliqué APRÈS ───
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $piges = $query->latest('taken_at')->paginate(24)->withQueryString();
+        $stats['total'] = $piges->total();
+
         $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
         $campaigns   = Campaign::whereIn('status', [
             CampaignStatus::ACTIF->value,
@@ -165,6 +173,15 @@ class PigeController extends Controller
         }
 
         $msg = $result['count'] . ' pige(s) uploadée(s) avec succès — en attente de vérification.';
+
+        // Alerte upload piges
+        AlertService::create(
+            'pige',
+            'info',
+            '📸 Nouvelles piges uploadées',
+            auth()->user()->name . ' a uploadé ' . $result['count'] . ' pige(s) pour le panneau ' . ($request->panel_id ? '#' . $request->panel_id : ''),
+            null
+        );
 
         // Rediriger vers index filtré sur la campagne/panneau
         $redirectParams = array_filter([
@@ -335,6 +352,17 @@ class PigeController extends Controller
             ]);
         }
 
+        // Alerte vérification pige (uniquement pour les requêtes non AJAX)
+        if (!$request->wantsJson()) {
+            AlertService::create(
+                'pige',
+                'success',
+                '✅ Pige vérifiée — ' . ($pige->panel?->reference ?? ''),
+                auth()->user()->name . ' a vérifié la pige du panneau ' . ($pige->panel?->reference ?? ''),
+                $pige
+            );
+        }
+
         return back()->with('success', 'Pige marquée comme vérifiée.');
     }
 
@@ -351,6 +379,15 @@ class PigeController extends Controller
             }
             return back()->with('error', $result['error']);
         }
+
+        // Alerte suppression pige
+        AlertService::create(
+            'pige',
+            'danger',
+            '🗑 Pige supprimée — ' . ($pige->panel?->reference ?? ''),
+            auth()->user()->name . ' a supprimé une pige du panneau ' . ($pige->panel?->reference ?? ''),
+            null
+        );
 
         if (request()->wantsJson()) {
             return response()->json(['success' => true, 'message' => 'Pige supprimée avec succès.']);

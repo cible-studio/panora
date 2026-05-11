@@ -1,5 +1,14 @@
 <x-admin-layout title="Campagnes">
     <x-slot:topbarActions>
+        {{-- Exports (préservent les filtres URL courants) --}}
+        <a href="{{ route('admin.campaigns.export.excel', request()->query()) }}"
+           class="btn btn-ghost btn-sm" title="Exporter la liste filtrée en Excel">
+            📊 Excel
+        </a>
+        <a href="{{ route('admin.campaigns.export.pdf', request()->query()) }}"
+           class="btn btn-ghost btn-sm" title="Exporter la liste filtrée en PDF">
+            📄 PDF
+        </a>
         @can('create', App\Models\Campaign::class)
         <a href="{{ route('admin.campaigns.create') }}" class="btn btn-primary">
             + Nouvelle campagne
@@ -18,32 +27,61 @@
     </div>
     @endif
 
-    {{-- ══ STATS AVEC FILTRES DYNAMIQUES ══ --}}
-    <div class="stats-grid">
-        @php
-        $statCards = [
-            ['key'=>'all', 'label'=>'Total', 'icon'=>'📋', 'color'=>'var(--text)', 'bg'=>'var(--surface)'],
-            ['key'=>'actif', 'label'=>'En cours', 'icon'=>'📡', 'color'=>'#22c55e', 'bg'=>'rgba(34,197,94,0.08)'],
-            ['key'=>'pose', 'label'=>'En pose', 'icon'=>'🔧', 'color'=>'#3b82f6', 'bg'=>'rgba(59,130,246,0.08)'],
-            ['key'=>'termine', 'label'=>'Terminées', 'icon'=>'✅', 'color'=>'#6b7280', 'bg'=>'rgba(107,114,128,0.08)'],
-            ['key'=>'annule', 'label'=>'Annulées', 'icon'=>'🚫', 'color'=>'#ef4444', 'bg'=>'rgba(239,68,68,0.08)'],
-        ];
-        @endphp
-
+    {{-- ══ KPI cards (pattern unifié projet : bordure latérale colorée,
+         toggle, état actif, counts qui suivent les filtres) ══ --}}
+    @php
+    $statCards = [
+        ['key'=>'all',      'label'=>'Total',      'icon'=>'📋', 'color'=>'var(--accent)'],
+        ['key'=>'planifie', 'label'=>'Planifiées', 'icon'=>'📅', 'color'=>'#f97316'],
+        ['key'=>'actif',    'label'=>'En cours',   'icon'=>'📡', 'color'=>'#22c55e'],
+        ['key'=>'pause',    'label'=>'En pause',   'icon'=>'⏸',  'color'=>'#f59e0b'],
+        ['key'=>'termine',  'label'=>'Terminées',  'icon'=>'✅', 'color'=>'#3b82f6'],
+        ['key'=>'annule',   'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'#ef4444'],
+    ];
+    $activeStatus = request('status');
+    $hasAnyFilter = request('search') || request('status') || request('client_id')
+                  || request('date_from') || request('date_to') || request('date_debut')
+                  || request('date_fin') || request('non_facturee')
+                  || request('commune_id') || request('zone_id');
+    @endphp
+    {{-- Compact : icone à gauche, chiffre + label à droite, sur 1 seule ligne.
+         6 cartes alignées sans étirement excessif. --}}
+    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-bottom:18px">
         @foreach($statCards as $sc)
-        <a href="#" 
-           class="stat-card" 
-           data-filter="status" 
-           data-value="{{ $sc['key'] !== 'all' ? $sc['key'] : '' }}"
-           style="background:{{ $sc['bg'] }};border:1px solid var(--border);">
-            <div class="stat-icon">{{ $sc['icon'] }}</div>
-            <div class="stat-number" style="color:{{ $sc['color'] }}">
-                {{ $sc['key'] === 'all' ? $campaigns->total() : ($counts[$sc['key']] ?? 0) }}
+        @php
+            $isAll    = $sc['key'] === 'all';
+            $isActive = $isAll ? !$hasAnyFilter : ($activeStatus === $sc['key']);
+            $val      = $isAll ? $campaigns->total() : ($counts[$sc['key']] ?? 0);
+        @endphp
+        <a href="#"
+           class="stat-card {{ $isActive ? 'active' : '' }}"
+           data-filter="status"
+           data-kpi="{{ $sc['key'] }}"
+           data-value="{{ $isAll ? '' : $sc['key'] }}"
+           title="{{ $sc['label'] }}"
+           style="background:var(--surface);border:1px solid var(--border);border-left:3px solid {{ $sc['color'] }};border-radius:10px;padding:10px 12px;text-decoration:none;display:flex;align-items:center;gap:10px;transition:all .15s;min-width:0;{{ $isActive ? 'box-shadow:0 0 0 2px '.$sc['color'].'33;' : '' }}">
+            <div class="stat-icon" style="font-size:18px;color:{{ $sc['color'] }};flex-shrink:0;line-height:1">{{ $sc['icon'] }}</div>
+            <div style="min-width:0;line-height:1.1">
+                <div class="stat-number" data-kpi-value="{{ $sc['key'] }}" style="font-size:20px;font-weight:800;color:{{ $sc['color'] }}">{{ number_format($val) }}</div>
+                <div class="stat-label" style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ $sc['label'] }}</div>
             </div>
-            <div class="stat-label">{{ strtoupper($sc['label']) }}</div>
         </a>
         @endforeach
     </div>
+
+    {{-- Responsive : sur petits écrans, 3 cartes par ligne au lieu de 6 --}}
+    <style>
+        @media (max-width: 900px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            }
+        }
+        @media (max-width: 540px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+    </style>
 
     {{-- ══ FILTRES DYNAMIQUES (sans bouton) ══ --}}
     <div class="filters-card">
@@ -194,10 +232,47 @@
         </div>
     </div>
 
+    {{-- ══ MODAL FACTURATION RAPIDE ══ --}}
+    <div id="modal-billing" class="modal-overlay" style="display:none;">
+        <div class="modal" style="max-width:460px;width:100%;">
+            <div class="modal-header">
+                <div class="modal-title">💰 Facturation — <span id="bill-campaign-name" style="font-size:15px;font-weight:500;"></span></div>
+                <button class="modal-close" onclick="closeBillingModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:grid;gap:14px;">
+                    <div>
+                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px;">Statut</label>
+                        <select id="bill-status" style="width:100%;height:40px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);" onchange="onBillStatusChange()">
+                            <option value="brouillon">📝 Brouillon</option>
+                            <option value="envoyee">📤 Envoyée</option>
+                            <option value="payee">✅ Payée</option>
+                            <option value="annulee">🚫 Annulée</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px;">Montant TTC (FCFA)</label>
+                        <input type="number" id="bill-amount" step="1" min="0"
+                               style="width:100%;height:40px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);box-sizing:border-box;">
+                    </div>
+                    <div id="bill-paid-at-group">
+                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px;">Date de paiement</label>
+                        <input type="date" id="bill-paid-at"
+                               style="width:100%;height:40px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);box-sizing:border-box;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeBillingModal()">Annuler</button>
+                <button class="btn btn-primary" id="bill-submit-btn" onclick="submitBilling()">✅ Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
     <style>
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(6, 1fr);
             gap: 12px;
             margin-bottom: 20px;
         }
@@ -437,7 +512,7 @@
         .mb-4 { margin-bottom: 16px; }
 
         @media (max-width: 768px) {
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
             .filters-grid { grid-template-columns: 1fr; }
             .data-table { font-size: 12px; }
             .data-table th, .data-table td { padding: 8px 10px; }
@@ -446,6 +521,139 @@
 
     @push('scripts')
 <script>
+// ══ MODAL FACTURATION RAPIDE ══
+let _billCampaignId = null;
+
+function openBillingModal(id, name, totalAmount, currentStatus, currentAmount, paidAt) {
+    _billCampaignId = id;
+    document.getElementById('bill-campaign-name').textContent = name;
+    document.getElementById('bill-status').value = currentStatus || 'brouillon';
+    document.getElementById('bill-amount').value = currentAmount ? parseInt(currentAmount.replace(/\s/g,'')) : Math.round(totalAmount);
+    document.getElementById('bill-paid-at').value = paidAt || '';
+    onBillStatusChange();
+    document.getElementById('modal-billing').style.display = 'flex';
+}
+
+function closeBillingModal() {
+    document.getElementById('modal-billing').style.display = 'none';
+    _billCampaignId = null;
+}
+
+function onBillStatusChange() {
+    const status = document.getElementById('bill-status').value;
+    const group = document.getElementById('bill-paid-at-group');
+    group.style.display = status === 'payee' ? 'block' : 'none';
+    if (status === 'payee' && !document.getElementById('bill-paid-at').value) {
+        document.getElementById('bill-paid-at').value = new Date().toISOString().split('T')[0];
+    }
+}
+
+// Toast réutilisable pour la page campagnes (succès / erreur, avec lien optionnel)
+function showCampaignToast(message, type = 'success', linkUrl = null, linkLabel = null) {
+    let host = document.getElementById('campaign-toast-host');
+    if (!host) {
+        host = document.createElement('div');
+        host.id = 'campaign-toast-host';
+        host.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;';
+        document.body.appendChild(host);
+    }
+    const colors = type === 'error'
+        ? { bg: '#fee2e2', fg: '#991b1b', bd: '#fca5a5' }
+        : { bg: '#dcfce7', fg: '#166534', bd: '#86efac' };
+
+    const t = document.createElement('div');
+    t.style.cssText = `padding:12px 16px;background:${colors.bg};color:${colors.fg};border:1px solid ${colors.bd};border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 6px 16px rgba(0,0,0,.1);min-width:260px;max-width:420px;display:flex;flex-direction:column;gap:6px;`;
+
+    const msg = document.createElement('div');
+    msg.textContent = message;
+    t.appendChild(msg);
+
+    if (linkUrl && linkLabel) {
+        const a = document.createElement('a');
+        a.href = linkUrl;
+        a.textContent = linkLabel + ' →';
+        a.style.cssText = `color:${colors.fg};text-decoration:underline;font-size:12px;font-weight:700;`;
+        t.appendChild(a);
+    }
+
+    host.appendChild(t);
+    setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; }, 4500);
+    setTimeout(() => t.remove(), 4900);
+}
+
+async function submitBilling() {
+    if (!_billCampaignId) return;
+    const btn = document.getElementById('bill-submit-btn');
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    const body = new FormData();
+    body.append('_method', 'PATCH');
+    body.append('_token', document.querySelector('meta[name=csrf-token]')?.content || '{{ csrf_token() }}');
+    body.append('status', document.getElementById('bill-status').value);
+    body.append('amount_ttc', document.getElementById('bill-amount').value);
+    const paidAt = document.getElementById('bill-paid-at').value;
+    if (paidAt) body.append('paid_at', paidAt);
+
+    try {
+        const res = await fetch(`/admin/campaigns/${_billCampaignId}/billing-quick`, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            body,
+        });
+
+        // Erreurs de validation (422) — Laravel renvoie {message, errors:{field:[...]}}
+        if (res.status === 422) {
+            const data = await res.json().catch(() => ({}));
+            const firstError = data.errors
+                ? Object.values(data.errors).flat()[0]
+                : (data.message || 'Données invalides.');
+            showCampaignToast(firstError, 'error');
+            return;
+        }
+
+        const data = await res.json();
+        if (!data.ok) {
+            showCampaignToast(data.message || 'Erreur lors de la mise à jour.', 'error');
+            return;
+        }
+
+        closeBillingModal();
+
+        // Toast avec lien direct vers la fiche facture
+        showCampaignToast(
+            data.message || 'Facture mise à jour.',
+            'success',
+            data.invoice_url || null,
+            'Voir la facture'
+        );
+
+        // Mise à jour in-place de la ligne — pas de fetchData() ni de
+        // spinner, le bouton facturation reflète instantanément le nouveau
+        // statut. Fallback sur fetchData() si le serveur n'a pas renvoyé
+        // de row_html (compat anciennes réponses).
+        if (data.row_html && data.campaign_id) {
+            const oldRow = document.querySelector(`tr[data-campaign-row="${data.campaign_id}"]`);
+            if (oldRow) {
+                const wrapper = document.createElement('tbody');
+                wrapper.innerHTML = data.row_html.trim();
+                const newRow = wrapper.firstElementChild;
+                if (newRow) oldRow.replaceWith(newRow);
+            } else if (typeof fetchData === 'function') {
+                fetchData();
+            }
+        } else if (typeof fetchData === 'function') {
+            fetchData();
+        }
+    } catch(e) {
+        console.error(e);
+        showCampaignToast('Erreur réseau. Réessayez.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '✅ Enregistrer';
+    }
+}
+
 // ══ MODAL SUPPRESSION ══
 function openDeleteCampaign(id, name) {
     document.getElementById('del-campaign-name').textContent = name;
@@ -659,6 +867,19 @@ document.addEventListener('keydown', e => {
             
             if (data.stats && data.stats.total !== undefined) {
                 document.getElementById('total-count').textContent = data.stats.total + ' résultat(s)';
+
+                // Met à jour le KPI "Total" (carte data-value vide = 'all')
+                document.querySelectorAll('.stat-card').forEach(card => {
+                    const numEl = card.querySelector('.stat-number');
+                    if (!numEl) return;
+                    const v = card.dataset.value;
+                    if (!v) {
+                        // Carte 'all' = total filtré
+                        numEl.textContent = data.stats.total;
+                    } else if (data.stats.counts && data.stats.counts[v] !== undefined) {
+                        numEl.textContent = data.stats.counts[v];
+                    }
+                });
             }
             
             // Mettre à jour l'URL sans recharger

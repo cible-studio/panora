@@ -28,6 +28,7 @@ class PanelController extends Controller
     public function index(Request $request)
     {
         $source = $request->input('source', 'all');
+        $showOccupants = false;
 
         // ═══════════════════════════════════════════════════════════════
         // PANNEAUX INTERNES (CIBLE CI)
@@ -39,18 +40,49 @@ class PanelController extends Controller
             $panneauxOccupes = 0;
             $enMaintenance = 0;
         } else {
-            $query = Panel::with('commune', 'zone', 'format', 'category', 'photos');
+            // Eager loading optimisé : on ne charge que la photo principale (ordre=0/1)
+            // pour éviter de tirer toutes les photos sur l'index (réduit drastiquement
+            // la taille du payload et le N+1 photos).
+            $showOccupants = $source === 'occupes'
+                          || in_array($request->status, ['occupe', 'option', 'confirme']);
 
-            if ($request->filled('search')) {
-                $search = $request->search;
-                $query->where(function ($q) use ($search) {
-                    $q->where('reference', 'like', "%{$search}%")
-                        ->orWhere('name', 'like', "%{$search}%")
-                        ->orWhere('quartier', 'like', "%{$search}%")
-                        ->orWhere('adresse', 'like', "%{$search}%")
-                        ->orWhereHas('commune', fn($c) => $c->where('name', 'like', "%{$search}%"));
+            $eagerLoad = [
+                'commune:id,name',
+                'zone:id,name',
+                'format:id,name,width,height',
+                'category:id,name',
+                'photos' => fn($q) => $q->orderBy('ordre')->limit(1),
+            ];
+            if ($showOccupants) {
+                $eagerLoad['campaigns'] = fn($q) => $q
+                    ->whereNotIn('campaigns.status', ['annule', 'termine'])
+                    ->with('client:id,name');
+            }
+
+            $query = Panel::with($eagerLoad);
+
+            if ($source === 'occupes') {
+                $query->whereIn('status', ['occupe', 'option', 'confirme']);
+            }
+
+            // 🔍 RECHERCHE EXACTE SUR MOT ENTIER
+            // Exemple : "ABG" trouve "ABG-002" mais pas "CABG-001"
+           if ($request->filled('search')) {
+                $search = strtolower(trim($request->search));
+                $escapedSearch = preg_quote($search, '/');
+                $pattern = '(^|[^a-zA-ZÀ-ÿ0-9])' . $escapedSearch . '([^a-zA-ZÀ-ÿ0-9]|$)';
+
+                $query->where(function ($q) use ($pattern) {
+                    $q->whereRaw('LOWER(reference) REGEXP ?', [$pattern])
+                    ->orWhereRaw('LOWER(name) REGEXP ?', [$pattern])
+                    ->orWhereRaw('LOWER(quartier) REGEXP ?', [$pattern])
+                    ->orWhereRaw('LOWER(adresse) REGEXP ?', [$pattern])
+                    ->orWhereHas('commune', function($c) use ($pattern) {
+                        $c->whereRaw('LOWER(name) REGEXP ?', [$pattern]);
+                    });
                 });
             }
+            
             if ($request->filled('commune_id')) {
                 $query->where('commune_id', $request->commune_id);
             }
@@ -85,10 +117,13 @@ class PanelController extends Controller
         $externalQuery = \App\Models\ExternalPanel::with(['agency', 'commune', 'format', 'category']);
 
         if ($request->filled('search')) {
-            $search = $request->search;
-            $externalQuery->where(function ($q) use ($search) {
-                $q->where('code_panneau', 'like', "%{$search}%")
-                    ->orWhere('designation', 'like', "%{$search}%");
+            $search = strtolower(trim($request->search));
+            $escapedSearch = preg_quote($search, '/');
+            $pattern = '(^|[^a-zA-ZÀ-ÿ0-9])' . $escapedSearch . '([^a-zA-ZÀ-ÿ0-9]|$)';
+
+            $externalQuery->where(function ($q) use ($pattern) {
+                $q->whereRaw('LOWER(code_panneau) REGEXP ?', [$pattern])
+                ->orWhereRaw('LOWER(designation) REGEXP ?', [$pattern]);
             });
         }
         if ($request->filled('commune_id')) {
@@ -105,7 +140,7 @@ class PanelController extends Controller
         // RÉPONSE AJAX
         // ═══════════════════════════════════════════════════════════════
         if ($request->ajax() || $request->input('ajax')) {
-            $html = view('admin.panels.partials.table-rows', compact('panels', 'source', 'externalPanels', 'request'))->render();
+            $html = view('admin.panels.partials.table-rows', compact('panels', 'source', 'externalPanels', 'request', 'showOccupants'))->render();
             $paginationHtml = ($source !== 'externe' && $panels->hasPages()) ? $panels->links()->render() : '';
 
             return response()->json([
@@ -133,7 +168,8 @@ class PanelController extends Controller
             'enMaintenance',
             'externalPanels',
             'totalExternes',
-            'source'
+            'source',
+            'showOccupants'
         ));
     }
 
@@ -141,6 +177,9 @@ class PanelController extends Controller
     {
         if ($source === 'externe') {
             return '🏢 Panneaux Régies externes (' . $externalPanels->count() . ')';
+        }
+        if ($source === 'occupes') {
+            return '🔴 Panneaux occupés (' . $panels->total() . ')';
         }
         return '🪧 Panneaux CIBLE CI (' . $panels->total() . ')';
     }
@@ -215,6 +254,7 @@ class PanelController extends Controller
                 ]);
             }
         }
+
         AlertService::create(
             'panneau',
             'info',
@@ -421,7 +461,19 @@ class PanelController extends Controller
     // ── SUPPRIMER ──
     public function destroy(Panel $panel)
     {
+        $panelRef = $panel->reference;
+        
         $panel->delete();
+        
+        // Alerte suppression panneau
+        AlertService::create(
+            'panneau',
+            'danger',
+            '🗑 Panneau supprimé — ' . $panelRef,
+            auth()->user()->name . ' a supprimé le panneau ' . $panelRef . '.',
+            null
+        );
+        
         return redirect()->route('admin.panels.index')
             ->with('success', 'Panneau supprimé !');
     }
@@ -429,18 +481,44 @@ class PanelController extends Controller
     // ── CHANGER STATUT ──
     public function updateStatus(Request $request, Panel $panel)
     {
+        // Côté UI on n'autorise que libre↔maintenance (les autres statuts
+        // sont dérivés des réservations/campagnes via AvailabilityService).
+        // On garde la validation large pour rétro-compat des anciens scripts.
         $request->validate([
             'status' => 'required|in:libre,occupe,option,confirme,maintenance'
         ]);
 
+        $previousStatus = $panel->status->value;
         $panel->update(['status' => $request->status]);
+
         AlertService::create(
             'panneau',
             'info',
             'Statut panneau mis à jour — ' . $panel->reference,
-            auth()->user()->name . ' a changé le statut du panneau ' . $panel->reference . ' en "' . $request->status . '".',
+            auth()->user()->name . ' a changé le statut du panneau ' . $panel->reference . ' : ' . $previousStatus . ' → ' . $request->status,
             $panel
         );
+
+        if ($request->expectsJson() || $request->ajax()) {
+            $statusCfg = match ($panel->status->value) {
+                'libre'       => ['label' => 'Libre',       'class' => 'badge-green',  'color' => '#22c55e'],
+                'option'      => ['label' => 'Option',      'class' => 'badge-orange', 'color' => '#f59e0b'],
+                'confirme'    => ['label' => 'Confirmé',    'class' => 'badge-blue',   'color' => '#3b82f6'],
+                'occupe'      => ['label' => 'Occupé',      'class' => 'badge-purple', 'color' => '#a855f7'],
+                'maintenance' => ['label' => 'Maintenance', 'class' => 'badge-red',    'color' => '#ef4444'],
+                default       => ['label' => $panel->status->value, 'class' => '', 'color' => '#6b7280'],
+            };
+
+            return response()->json([
+                'ok'              => true,
+                'message'         => "Statut mis à jour : {$statusCfg['label']}.",
+                'status'          => $panel->status->value,
+                'previous_status' => $previousStatus,
+                'label'           => $statusCfg['label'],
+                'class'           => $statusCfg['class'],
+                'color'           => $statusCfg['color'],
+            ]);
+        }
 
         return back()->with('success', 'Statut mis à jour !');
     }

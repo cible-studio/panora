@@ -4,7 +4,29 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
+    {{-- Bouton Retour à GAUCHE — cohérent avec les pages show/edit --}}
+    <x-slot:topbarLeft>
+        <a href="{{ route('admin.reservations.index') }}" class="btn btn-ghost btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Retour
+        </a>
+    </x-slot:topbarLeft>
+
     <x-slot:topbarActions>
+        {{-- Bouton Tableau de bord (raccourci) --}}
+        <a href="{{ route('dashboard') }}" class="btn btn-ghost btn-sm" title="Tableau de bord">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            Dashboard
+        </a>
         <div id="topbar-confirm-wrapper" style="display:none">
             <button class="btn btn-primary" onclick="DISPO.openConfirmModal()">
                 ✅ Confirmer (<span id="topbar-count">0</span>)
@@ -153,44 +175,54 @@
 
         {{-- ══ BARRE OUTILS ══ --}}
         <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
-            <div class="flex items-center gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1">
-                <button id="btn-view-grid" onclick="DISPO.setView('grid')"
-                    class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-[var(--accent)] text-white">⊞
-                    Grille</button>
-                <button id="btn-view-list" onclick="DISPO.setView('list')"
-                    class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-[var(--text3)] hover:text-[var(--text)]">☰
-                    Liste</button>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1">
+                    <button id="btn-view-grid" onclick="DISPO.setView('grid')"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-[var(--accent)] text-white">⊞
+                        Grille</button>
+                    <button id="btn-view-list" onclick="DISPO.setView('list')"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-[var(--text3)] hover:text-[var(--text)]">☰
+                        Liste</button>
+                </div>
+                <button id="btn-select-all" type="button" onclick="DISPO.selectAll()"
+                        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--text2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
+                        title="Sélectionner tous les panneaux disponibles + en option">
+                    ☑ <span id="btn-select-all-label">Tout sélectionner</span>
+                </button>
             </div>
 
-            {{-- PDF liste avec option masquer statut --}}
-            <div style="position:relative;display:inline-block;" id="dispo-export-wrap">
-                <div class="flex gap-2 flex-wrap">
-                    <button onclick="DISPO.exportPdf('images')"
-                        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-red-500 hover:border-red-500 hover:bg-red-500/5 transition-all">
-                        📋 PDF images
-                    </button>
+            {{-- Boutons export --}}
+            <div class="flex gap-2 flex-wrap">
+                <button onclick="DISPO.exportPdf('images')"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-red-500 hover:border-red-500 hover:bg-red-500/5 transition-all">
+                    📋 PDF images
+                </button>
 
-                    <div style="position:relative;display:inline-block;" id="dispo-export-wrap">
-                        <button onclick="document.getElementById('dispo-export-dropdown').classList.toggle('hidden')"
-                            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--blue)] hover:border-[var(--blue)] hover:bg-blue-500/5 transition-all">
-                            📄 PDF liste ▾
+                <button onclick="DISPO.exportExcel()"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-green-600 hover:border-green-600 hover:bg-green-500/5 transition-all">
+                    📊 Excel
+                </button>
+
+                <div style="position:relative;display:inline-block;" id="dispo-export-wrap">
+                    <button onclick="document.getElementById('dispo-export-dropdown').classList.toggle('hidden')"
+                        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--blue)] hover:border-[var(--blue)] hover:bg-blue-500/5 transition-all">
+                        📄 PDF liste ▾
+                    </button>
+                    <div id="dispo-export-dropdown" class="hidden"
+                        style="position:absolute;top:calc(100% + 6px);right:0;z-index:200;
+                background:var(--surface);border:1px solid var(--border2);
+                border-radius:10px;padding:14px;min-width:200px;
+                box-shadow:0 8px 24px rgba(0,0,0,.15);">
+                        <label for="dispo-hide-status"
+                            style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;">
+                            <input type="checkbox" id="dispo-hide-status"
+                                style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;">
+                            <span style="font-size:13px;color:var(--text2);">Masquer le statut</span>
+                        </label>
+                        <button onclick="DISPO.exportPdf('liste')" class="btn btn-primary btn-sm"
+                            style="width:100%;">
+                            📄 Générer PDF liste
                         </button>
-                        <div id="dispo-export-dropdown" class="hidden"
-                            style="position:absolute;top:calc(100% + 6px);right:0;z-index:200;
-                    background:var(--surface);border:1px solid var(--border2);
-                    border-radius:10px;padding:14px;min-width:200px;
-                    box-shadow:0 8px 24px rgba(0,0,0,.15);">
-                            <label for="dispo-hide-status"
-                                style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;">
-                                <input type="checkbox" id="dispo-hide-status"
-                                    style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;">
-                                <span style="font-size:13px;color:var(--text2);">Masquer le statut</span>
-                            </label>
-                            <button onclick="DISPO.exportPdf('liste')" class="btn btn-primary btn-sm"
-                                style="width:100%;">
-                                📄 Générer PDF liste
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -238,19 +270,40 @@
         <div id="sel-bar"
             style="display:none;position:fixed;bottom:0;left:235px;right:0;z-index:300;background:var(--surface);border-top:2px solid var(--accent);padding:12px 24px;box-shadow:0 -8px 32px rgba(0,0,0,.2)">
             <div class="flex items-center justify-between flex-wrap gap-3">
-                <div class="flex items-center gap-4">
+                <div class="flex items-center gap-4 flex-wrap">
                     <div>
                         <span id="sel-count" class="text-3xl font-black text-[var(--accent)]">0</span>
                         <span class="text-sm text-[var(--text2)] ml-2">panneau(x) — </span>
                         <span id="sel-amount" class="text-base font-bold text-[var(--accent)]">0 FCFA/mois</span>
+                    </div>
+                    {{-- Décomposition libres / options : visible seulement si la
+                         sélection contient des panneaux en option (sinon bruit
+                         visuel inutile : "5 libres + 0 en option"). --}}
+                    <div id="sel-breakdown" class="hidden text-xs flex items-center gap-3" style="line-height:1.3">
+                        <span style="color:#22c55e">
+                            <strong id="sel-libre-n">0</strong> libre(s)
+                        </span>
+                        <span style="color:#f97316">
+                            + <strong id="sel-option-n">0</strong> en option
+                        </span>
                     </div>
                     <div id="sel-ext-badge"
                         class="hidden px-2 py-0.5 text-xs text-blue-500 border border-blue-500/30 bg-blue-500/10 rounded-lg">
                         dont <span id="sel-ext-n">0</span> externe(s)
                     </div>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 items-center flex-wrap">
+                    {{-- Par défaut, le PDF n'affiche NI prix NI statut (proposition commerciale propre).
+                         Cocher pour révéler ces colonnes. --}}
+                    <label
+                        style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;padding:6px 10px;border:1px dashed var(--border);border-radius:8px;"
+                        title="Cocher pour inclure le tarif et le statut dans le PDF (usage interne uniquement)">
+                        <input type="checkbox" id="pdf-show-pricing" style="accent-color:var(--accent)">
+                        <span>💰 Inclure prix + statut (interne)</span>
+                    </label>
                     <button class="btn btn-ghost btn-sm" onclick="DISPO.clearSelection()">✕ Vider</button>
+                    <button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(34,197,94,.4)"
+                        onclick="DISPO.exportSelExcel()">📊 Excel sélection</button>
                     <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(239,68,68,.4)"
                         onclick="DISPO.exportSelPdf('images')">📄 PDF images</button>
                     <button class="btn btn-ghost btn-sm" style="color:var(--blue);border-color:rgba(59,130,246,.4)"
@@ -262,31 +315,31 @@
         </div>
 
         <form id="form-pdf-images" method="POST"
-            action="{{ route('admin.reservations.disponibilites.pdf-images') }}" target="_blank"
-            style="display:none">
+            action="{{ route('admin.reservations.disponibilites.pdf-images') }}" style="display:none">
             @csrf
             <div id="pdf-images-inputs"></div>
             <input type="hidden" name="start_date" id="pdf-start">
             <input type="hidden" name="end_date" id="pdf-end">
+            <input type="hidden" name="show_pricing" id="pdf-images-show-pricing" value="0">
         </form>
+
         <form id="form-pdf-liste" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}"
-            target="_blank" style="display:none">
+            style="display:none">
             @csrf
             <div id="pdf-liste-inputs"></div>
             <input type="hidden" name="start_date" id="pdf-liste-start">
             <input type="hidden" name="end_date" id="pdf-liste-end">
+            <input type="hidden" name="show_pricing" id="pdf-liste-show-pricing" value="0">
         </form>
 
     </div>
 
-    {{-- ══ MODAL CONFIRMER ══ --}}
+    {{-- ══ MODAL CONFIRMER AVEC PRIX MODIFIABLE ══ --}}
     <div id="modal-confirm"
         class="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm items-center justify-center p-4"
         style="display:none" onclick="if(event.target===this)DISPO.closeConfirmModal()">
-
         <div class="bg-[var(--surface)] border border-[var(--border2)] rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl"
             onclick="event.stopPropagation()">
-
             <div
                 class="px-6 py-4 border-b border-[var(--border)] bg-[var(--surface2)] rounded-t-2xl flex justify-between items-center flex-shrink-0">
                 <div>
@@ -358,15 +411,13 @@
                                 <option value="{{ $c->id }}">{{ $c->name }}</option>
                             @endforeach
                         </select>
-                        <div id="modal-client-err" class="hidden mt-1 text-xs text-red-500">
-                            Veuillez sélectionner un client.
-                        </div>
+                        <div id="modal-client-err" class="hidden mt-1 text-xs text-red-500">Veuillez sélectionner un
+                            client.</div>
                     </div>
 
                     <div id="wrapper-campaign-name" class="hidden">
-                        <label class="filter-label block mb-1">
-                            Nom campagne <span class="text-[var(--text3)] font-normal">(optionnel)</span>
-                        </label>
+                        <label class="filter-label block mb-1">Nom campagne <span
+                                class="text-[var(--text3)] font-normal">(optionnel)</span></label>
                         <input type="text" name="campaign_name" id="modal-campaign"
                             placeholder="Ex : Ramadan 2026" class="modal-input w-full">
                     </div>
@@ -389,21 +440,49 @@
                         <span>⚠️</span><span id="modal-date-err-text"></span>
                     </div>
 
-                    <div
-                        class="flex justify-between items-center bg-[var(--accent-dim)] border border-[var(--accent)]/20 rounded-xl px-4 py-3">
-                        <div class="text-xs text-[var(--text3)]">
-                            Montant estimé <span id="modal-months" class="ml-1"></span>
+                    {{-- ✅ SECTION MONTANT AVEC PERSONNALISATION --}}
+                    <div>
+                        <div
+                            class="flex justify-between items-center bg-[var(--accent-dim)] border border-[var(--accent)]/20 rounded-xl px-4 py-3">
+                            <div>
+                                <div class="text-xs text-[var(--text3)]">
+                                    Montant estimé <span id="modal-months" class="ml-1"></span>
+                                </div>
+                                <div class="text-xl font-black text-[var(--accent)] mt-1">
+                                    <span id="modal-total">—</span>
+                                    <span class="text-xs font-normal text-[var(--text3)]"> FCFA</span>
+                                </div>
+                            </div>
+                            {{-- ✅ Bouton pour personnaliser le montant --}}
+                            <button type="button" onclick="DISPO.toggleAmountEdit()" id="btn-toggle-amount"
+                                class="text-xs text-[var(--accent)] bg-[var(--surface)] border border-[var(--accent)]/25 rounded-lg px-3 py-1.5 hover:opacity-80 transition-opacity">
+                                ✏️ Personnaliser
+                            </button>
                         </div>
-                        <div class="text-xl font-black text-[var(--accent)]">
-                            <span id="modal-total">—</span>
-                            <span class="text-xs font-normal text-[var(--text3)]"> FCFA</span>
+
+                        {{-- ✅ Champ montant personnalisé (caché par défaut) --}}
+                        <div id="amount-edit-wrap" class="hidden mt-2">
+                            <div class="relative">
+                                <input type="number" name="amount" id="modal-amount" min="0"
+                                    step="1000" placeholder="Montant total personnalisé (FCFA)…"
+                                    class="modal-input w-full pr-16" oninput="DISPO.onAmountInput(this.value)">
+                                <span
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text3)] pointer-events-none font-bold">FCFA</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1.5 px-1">
+                                <span class="text-xs text-[var(--text3)]">Laissez vide pour le calcul
+                                    automatique</span>
+                                <button type="button" onclick="DISPO.resetAmount()"
+                                    class="text-xs text-[var(--accent)] hover:opacity-75 transition-opacity">
+                                    ↺ Réinitialiser
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <div>
-                        <label class="filter-label block mb-1">
-                            Notes <span class="text-[var(--text3)] font-normal">(optionnel)</span>
-                        </label>
+                        <label class="filter-label block mb-1">Notes <span
+                                class="text-[var(--text3)] font-normal">(optionnel)</span></label>
                         <textarea name="notes" rows="2" placeholder="Remarques…"
                             class="modal-input w-full resize-none min-h-[56px]"></textarea>
                     </div>
@@ -890,6 +969,9 @@
     </style>
 
     @push('scripts')
+        {{-- ══════════════════════════════════════════════════════
+     SELECT2 INIT — à placer AVANT le script principal
+══════════════════════════════════════════════════════ --}}
         <script>
             function initConfirmSelect2() {
                 const $sel = $('#modal-client-select');
@@ -912,18 +994,18 @@
                 const style = document.createElement('style');
                 style.id = 'select2-cible-styles';
                 style.textContent = `
-        .select2-container--default .select2-selection--single { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:10px !important;height:42px !important;display:flex !important;align-items:center !important; }
-        .select2-container--default.select2-container--open .select2-selection--single { border-color:var(--accent) !important;box-shadow:0 0 0 2px var(--accent-dim) !important; }
-        .select2-container--default .select2-selection--single .select2-selection__rendered { color:var(--text) !important;font-size:13px !important;padding-left:12px !important;line-height:42px !important; }
-        .select2-container--default .select2-selection--single .select2-selection__placeholder { color:var(--text3) !important; }
-        .select2-container--default .select2-selection--single .select2-selection__arrow { height:42px !important;right:8px !important; }
-        .select2-dropdown { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:12px !important;box-shadow:0 12px 40px rgba(0,0,0,.2) !important;z-index:99999 !important; }
-        .select2-container--default .select2-search--dropdown { padding:8px !important;border-bottom:1px solid var(--border) !important;background:var(--surface) !important; }
-        .select2-container--default .select2-search--dropdown .select2-search__field { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:8px !important;color:var(--text) !important;font-size:13px !important;padding:7px 10px !important;outline:none !important; }
-        .select2-results__option { color:var(--text2) !important;font-size:13px !important;padding:9px 14px !important;border-bottom:1px solid var(--border) !important; }
-        .select2-results__option--highlighted { background:var(--accent-dim) !important;color:var(--accent) !important; }
-        .select2-results__option[aria-selected="true"] { background:var(--accent-dim) !important;color:var(--accent) !important;font-weight:600 !important; }
-    `;
+            .select2-container--default .select2-selection--single { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:10px !important;height:42px !important;display:flex !important;align-items:center !important; }
+            .select2-container--default.select2-container--open .select2-selection--single { border-color:var(--accent) !important;box-shadow:0 0 0 2px var(--accent-dim) !important; }
+            .select2-container--default .select2-selection--single .select2-selection__rendered { color:var(--text) !important;font-size:13px !important;padding-left:12px !important;line-height:42px !important; }
+            .select2-container--default .select2-selection--single .select2-selection__placeholder { color:var(--text3) !important; }
+            .select2-container--default .select2-selection--single .select2-selection__arrow { height:42px !important;right:8px !important; }
+            .select2-dropdown { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:12px !important;box-shadow:0 12px 40px rgba(0,0,0,.2) !important;z-index:99999 !important; }
+            .select2-container--default .select2-search--dropdown { padding:8px !important;border-bottom:1px solid var(--border) !important;background:var(--surface) !important; }
+            .select2-container--default .select2-search--dropdown .select2-search__field { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:8px !important;color:var(--text) !important;font-size:13px !important;padding:7px 10px !important;outline:none !important; }
+            .select2-results__option { color:var(--text2) !important;font-size:13px !important;padding:9px 14px !important;border-bottom:1px solid var(--border) !important; }
+            .select2-results__option--highlighted { background:var(--accent-dim) !important;color:var(--accent) !important; }
+            .select2-results__option[aria-selected="true"] { background:var(--accent-dim) !important;color:var(--accent) !important;font-weight:600 !important; }
+        `;
                 document.head.appendChild(style);
             }
 
@@ -932,12 +1014,16 @@
             }
         </script>
 
+        {{-- ══════════════════════════════════════════════════════
+     SCRIPT PRINCIPAL DISPO
+══════════════════════════════════════════════════════ --}}
         <script>
             (function() {
                 'use strict';
 
                 const D = window.__DISPO__;
 
+                // ══ ÉTAT GLOBAL ══════════════════════════════════════════
                 const S = {
                     f: {
                         commune_ids: [],
@@ -969,11 +1055,14 @@
                     _lastPanels: [],
                 };
 
+                // ✅ FIX CRITIQUE — exposer S globalement pour submitForm()
+                window.S = S;
+
                 const MS_DATA = {
                     commune_ids: D.communes,
                     zone_ids: D.zones,
                     format_ids: D.formats,
-                    agency_ids: D.agencies
+                    agency_ids: D.agencies,
                 };
 
                 const STATUS_CFG = {
@@ -1003,9 +1092,9 @@
                     },
                     confirme: {
                         l: 'Confirmé',
-                        c: '#81358a',
-                        b: 'rgba(129,53,138,.08)',
-                        bd: 'rgba(129,53,138,.3)'
+                        c: '#e20613',
+                        b: 'rgba(226,6,19,.08)',
+                        bd: 'rgba(226,6,19,.3)'
                     },
                     maintenance: {
                         l: 'Maintenance',
@@ -1021,13 +1110,87 @@
                     },
                 };
 
+                // ══ HELPERS UTILITAIRES ═══════════════════════════════════
+                const _el = id => document.getElementById(id);
+                const _show = id => {
+                    const e = _el(id);
+                    if (e) e.style.display = 'flex';
+                };
+                const _hide = id => {
+                    const e = _el(id);
+                    if (e) e.style.display = 'none';
+                };
+
+                function _showLoader() {
+                    const l = _el('loader'),
+                        g = _el('panels-grid'),
+                        e = _el('empty-state'),
+                        p = _el('pagination-bar');
+                    if (l) l.style.display = 'block';
+                    if (g) g.innerHTML = '';
+                    const tb = _el('panels-list-body');
+                    if (tb) tb.innerHTML = '';
+                    if (e) e.style.display = 'none';
+                    if (p) p.classList.add('hidden');
+                }
+
+                function _showEmpty(title, sub) {
+                    _hide('loader');
+                    const g = _el('panels-grid');
+                    if (g) g.innerHTML = '';
+                    const tb = _el('panels-list-body');
+                    if (tb) tb.innerHTML = '';
+                    const e = _el('empty-state');
+                    if (e) e.style.display = 'block';
+                    const t = _el('empty-title');
+                    if (t) t.textContent = title;
+                    const s = _el('empty-sub');
+                    if (s) s.textContent = sub;
+                }
+
+                function _showDateErr(msg) {
+                    const el = _el('date-error');
+                    if (el) {
+                        el.textContent = '⚠️ ' + msg;
+                        el.classList.remove('hidden');
+                    }
+                }
+
+                function _hideDateErr() {
+                    const el = _el('date-error');
+                    if (el) el.classList.add('hidden');
+                }
+
+                // ══ RÈGLE FACTURATION CIBLE CI ════════════════════════════
+                // Identique à PHP monthsBetween() — 15j = demi-mois
+                function _months(startStr, endStr) {
+                    const a = new Date(startStr + 'T00:00:00');
+                    const b = new Date(endStr + 'T00:00:00');
+                    const totalDays = Math.round((b - a) / 86400000);
+                    if (totalDays <= 0) return 0.5;
+                    const fullMonths = Math.floor(totalDays / 30);
+                    const remainDays = totalDays % 30;
+                    let fraction = 0;
+                    if (remainDays >= 1 && remainDays <= 15) fraction = 0.5;
+                    else if (remainDays > 15) fraction = 1;
+                    return Math.max(fullMonths + fraction, 0.5);
+                }
+
+                // ══ OBJET PRINCIPAL DISPO ════════════════════════════════
                 window.DISPO = {
+
+                    // ── ÉTAT MONTANT PERSONNALISÉ ─────────────────────────
+                    _customAmount: null,
+                    _originalEstimate: 0,
+
+                    // ── FILTRES ───────────────────────────────────────────
                     set(k, v) {
                         S.f[k] = v;
                         S.page = 1;
                         this._fetch();
                         this._syncUI();
                     },
+
                     onSearch(v) {
                         S.f.q = v.trim();
                         S.page = 1;
@@ -1038,6 +1201,7 @@
                         }, 350);
                         _el('btn-clear-search').classList.toggle('hidden', !v);
                     },
+
                     clearSearch() {
                         S.f.q = '';
                         S.page = 1;
@@ -1046,6 +1210,7 @@
                         this._fetch();
                         this._syncUI();
                     },
+
                     onSourceChange(v) {
                         S.f.source = v;
                         if (v === 'internal') {
@@ -1056,6 +1221,7 @@
                         this._fetch();
                         this._syncUI();
                     },
+
                     onDateChange(which, val) {
                         if (which === 'du') {
                             S.f.du = val;
@@ -1081,6 +1247,7 @@
                         this._fetch();
                         this._syncUI();
                     },
+
                     reset() {
                         S.f = {
                             commune_ids: [],
@@ -1113,6 +1280,8 @@
                         this._fetch();
                         this._syncUI();
                     },
+
+                    // ── VUE ───────────────────────────────────────────────
                     setView(mode) {
                         S.view = mode;
                         const grid = _el('panels-grid'),
@@ -1137,10 +1306,22 @@
                             if (S._lastPanels.length > 0) this._renderList(S._lastPanels);
                         }
                     },
+
+                    // ── EXPORTS PDF ───────────────────────────────────────
+                    // Logique commune : par défaut, le PDF n'affiche NI prix NI statut.
+                    // L'admin coche "Inclure prix + statut" pour transmettre show_pricing=1.
+                    _injectShowPricing(type) {
+                        const checked = document.getElementById('pdf-show-pricing')?.checked ? '1' : '0';
+                        const fieldId = type === 'images' ? 'pdf-images-show-pricing' : 'pdf-liste-show-pricing';
+                        const field = document.getElementById(fieldId);
+                        if (field) field.value = checked;
+                    },
+
                     exportPdf(type) {
-                        const ids = S._lastPanels.filter(p => p.source === 'internal').map(p => p.id);
-                        if (ids.length === 0) {
-                            alert('Aucun panneau interne à exporter.');
+                        // Mixed export — internes + externes (ext_<id>). Le backend split.
+                        const ids = S._lastPanels.map(p => p.id);
+                        if (!ids.length) {
+                            alert('Aucun panneau à exporter.');
                             return;
                         }
                         const fId = type === 'images' ? 'form-pdf-images' : 'form-pdf-liste';
@@ -1149,19 +1330,18 @@
                         const eId = type === 'images' ? 'pdf-end' : 'pdf-liste-end';
                         _el(iId).innerHTML = ids.map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`)
                             .join('');
-                        // Ajouter hide_status si coché
-                        if (type === 'liste') {
-                            const hideStatus = document.getElementById('dispo-hide-status')?.checked;
-                            if (hideStatus) _el(iId).innerHTML += `<input type="hidden" name="hide_status" value="1">`;
-                        }
                         _el(sId).value = S.f.du || '';
                         _el(eId).value = S.f.au || '';
+                        this._injectShowPricing(type);
                         document.getElementById(fId).submit();
                     },
+
                     exportSelPdf(type) {
-                        const ids = S.sel.ids.filter(id => !String(id).startsWith('ext_'));
-                        if (ids.length === 0) {
-                            alert('Aucun panneau interne sélectionné.');
+                        // On garde TOUS les IDs sélectionnés (internes + ext_<id>) — le
+                        // backend sait dispatcher sur la bonne table.
+                        const ids = S.sel.ids;
+                        if (!ids.length) {
+                            alert('Aucun panneau sélectionné.');
                             return;
                         }
                         const fId = type === 'images' ? 'form-pdf-images' : 'form-pdf-liste';
@@ -1172,8 +1352,57 @@
                             .join('');
                         _el(sId).value = S.f.du || '';
                         _el(eId).value = S.f.au || '';
+                        this._injectShowPricing(type);
                         document.getElementById(fId).submit();
                     },
+
+                    // ── EXPORTS EXCEL ─────────────────────────────────────
+                    exportExcel() {
+                        const ids = S._lastPanels.map(p => p.id);
+                        if (!ids.length) {
+                            alert('Aucun panneau à exporter.');
+                            return;
+                        }
+                        this._submitExcelForm(ids);
+                    },
+
+                    exportSelExcel() {
+                        const ids = S.sel.ids;
+                        if (!ids.length) {
+                            alert('Aucun panneau sélectionné.');
+                            return;
+                        }
+                        this._submitExcelForm(ids);
+                    },
+
+                    _submitExcelForm(ids) {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '{{ route('admin.reservations.disponibilites.export-excel') }}';
+                        // Pas de target=_blank : download dans l'onglet courant
+                        form.style.display = 'none';
+                        const addInput = (name, value) => {
+                            const i = document.createElement('input');
+                            i.type = 'hidden';
+                            i.name = name;
+                            i.value = value;
+                            form.appendChild(i);
+                        };
+                        addInput('_token', D.csrf);
+                        ids.forEach(id => addInput('panel_ids[]', id));
+                        if (S.f.du) addInput('start_date', S.f.du);
+                        if (S.f.au) addInput('end_date', S.f.au);
+                        // Cohérence avec PDF : si la checkbox "Inclure prix + statut" est cochée,
+                        // on transmet show_pricing=1 à l'Excel aussi (le backend Excel peut l'ignorer
+                        // ou l'utiliser selon le besoin métier).
+                        const showP = document.getElementById('pdf-show-pricing')?.checked;
+                        if (showP) addInput('show_pricing', '1');
+                        document.body.appendChild(form);
+                        form.submit();
+                        document.body.removeChild(form);
+                    },
+
+                    // ── PAGINATION ────────────────────────────────────────
                     prevPage() {
                         if (S.page > 1) {
                             S.page--;
@@ -1190,26 +1419,46 @@
                             });
                         }
                     },
-                    toggle(id, rate, source) {
+
+                    // ── SÉLECTION ─────────────────────────────────────────
+                    // 4e arg displayStatus : 'libre' | 'option_periode' —
+                    // utilisé pour la décompo libres/options + bordure dashed
+                    // côté UI, et pour traquer le statut au moment de la sélection.
+                    toggle(id, rate, source, displayStatus, selectableFrom) {
                         id = String(id);
                         const idx = S.sel.ids.indexOf(id);
+                        S.sel.start_dates = S.sel.start_dates || {};
                         if (idx === -1) {
                             S.sel.ids.push(id);
-                            S.sel.rates[id] = parseFloat(rate) || 0;
-                            S.sel.sources[id] = source || 'internal';
+                            S.sel.rates[id]    = parseFloat(rate) || 0;
+                            S.sel.sources[id]  = source || 'internal';
+                            S.sel.statuses     = S.sel.statuses || {};
+                            S.sel.statuses[id] = displayStatus || 'libre';
+                            if (selectableFrom) S.sel.start_dates[id] = selectableFrom;
                         } else {
                             S.sel.ids.splice(idx, 1);
                             delete S.sel.rates[id];
                             delete S.sel.sources[id];
+                            if (S.sel.statuses) delete S.sel.statuses[id];
+                            delete S.sel.start_dates[id];
                         }
                         const sel = S.sel.ids.includes(id);
+                        const isOption = displayStatus === 'option_periode'
+                            || (S.sel.statuses && S.sel.statuses[id] === 'option_periode');
                         const card = document.querySelector(`.panel-card[data-id="${id}"]`);
                         if (card) {
                             card.classList.toggle('selected', sel);
+                            card.classList.toggle('selected-option', sel && isOption);
+                            // Bordure dashed orange si option sélectionnée
+                            if (sel && isOption) {
+                                card.style.border = '2px dashed #f97316';
+                            } else {
+                                card.style.border = '';
+                            }
                             const btn = card.querySelector('.btn-sel');
                             if (btn) {
                                 btn.textContent = sel ? '✓ Sélectionné' : '+ Sélectionner';
-                                btn.style.background = sel ? 'var(--accent)' : 'var(--surface3)';
+                                btn.style.background = sel ? (isOption ? '#f97316' : 'var(--accent)') : 'var(--surface3)';
                                 btn.style.color = sel ? '#fff' : 'var(--text)';
                             }
                             const chk = card.querySelector('.card-chk');
@@ -1223,14 +1472,12 @@
                         }
                         this._syncSelBar();
                     },
+
                     clearSelection() {
-                        S.sel = {
-                            ids: [],
-                            rates: {},
-                            sources: {}
-                        };
+                        S.sel = { ids: [], rates: {}, sources: {}, statuses: {}, start_dates: {} };
                         document.querySelectorAll('.panel-card.selected,.list-row.selected').forEach(el => {
-                            el.classList.remove('selected');
+                            el.classList.remove('selected', 'selected-option');
+                            el.style.border = '';
                             const btn = el.querySelector('.btn-sel');
                             if (btn) {
                                 btn.textContent = '+ Sélectionner';
@@ -1242,11 +1489,59 @@
                         });
                         this._syncSelBar();
                     },
+
+                    // Toggle "Tout sélectionner" / "Tout désélectionner".
+                    // Cible tous les panneaux is_selectable du résultat AJAX
+                    // courant (S._lastPanels). Bascule via toggle() pour
+                    // garder le state cohérent (statuses inclus).
+                    selectAll() {
+                        const all = (S._lastPanels || []).filter(p => p.is_selectable);
+                        if (all.length === 0) return;
+                        const allSelected = all.every(p => S.sel.ids.includes(String(p.id)));
+
+                        if (allSelected) {
+                            // Tout déjà coché → décocher tout
+                            all.forEach(p => {
+                                if (S.sel.ids.includes(String(p.id))) {
+                                    this.toggle(p.id, p.monthly_rate, p.source, p.display_status, p.selectable_from || null);
+                                }
+                            });
+                        } else {
+                            all.forEach(p => {
+                                if (!S.sel.ids.includes(String(p.id))) {
+                                    this.toggle(p.id, p.monthly_rate, p.source, p.display_status, p.selectable_from || null);
+                                }
+                            });
+                        }
+                        this._syncSelectAllLabel();
+                    },
+
+                    _syncSelectAllLabel() {
+                        const all = (S._lastPanels || []).filter(p => p.is_selectable);
+                        const lbl = _el('btn-select-all-label');
+                        if (!lbl) return;
+                        if (all.length === 0) { lbl.textContent = 'Tout sélectionner'; return; }
+                        const allSelected = all.every(p => S.sel.ids.includes(String(p.id)));
+                        lbl.textContent = allSelected ? 'Tout désélectionner' : 'Tout sélectionner';
+                    },
+
+                    // ── MODAL CONFIRMATION ────────────────────────────────
                     openConfirmModal() {
+                        if (S.sel.ids.length === 0) {
+                            this.showError(['Veuillez sélectionner au moins un panneau avant de continuer.']);
+                            return;
+                        }
                         _el('modal-du').value = S.f.du || '';
                         _el('modal-au').value = S.f.au || '';
-                        _el('hidden-panels').innerHTML = S.sel.ids.map(id =>
-                            `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
+
+                        // ✅ FIX — utiliser S.sel.ids directement (closure)
+                        _el('hidden-panels').innerHTML = S.sel.ids
+                            .map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`)
+                            .join('')
+                            + Object.entries(S.sel.start_dates || {})
+                                .map(([id, date]) => `<input type="hidden" name="panel_start_dates[${id}]" value="${date}">`)
+                                .join('');
+
                         const hasExt = Object.values(S.sel.sources).includes('external');
                         _el('modal-ext-warn').classList.toggle('hidden', !hasExt);
                         _el('modal-ext-warn').classList.toggle('flex', hasExt);
@@ -1254,13 +1549,25 @@
                         _el('modal-date-err').classList.add('hidden');
                         _el('modal-client-err').classList.add('hidden');
                         _el('modal-summary').textContent = `${S.sel.ids.length} panneau(x) sélectionné(s)`;
+
+                        // Reset montant personnalisé
+                        this._customAmount = null;
+                        const amountWrap = document.getElementById('amount-edit-wrap');
+                        if (amountWrap) amountWrap.classList.add('hidden');
+                        const btnToggle = document.getElementById('btn-toggle-amount');
+                        if (btnToggle) btnToggle.innerHTML = '✏️ Personnaliser';
+                        const amountInput = document.getElementById('modal-amount');
+                        if (amountInput) amountInput.value = '';
+
                         this.calcEstimate();
                         _show('modal-confirm');
                         setTimeout(() => initConfirmSelect2(), 50);
                     },
+
                     closeConfirmModal() {
                         _hide('modal-confirm');
                     },
+
                     setType(type) {
                         document.querySelector(`input[name="type"][value="${type}"]`).checked = true;
                         const isOpt = type === 'option';
@@ -1270,41 +1577,116 @@
                         _el('lbl-ferme').style.borderWidth = !isOpt ? '2px' : '1px';
                         _el('wrapper-campaign-name').classList.toggle('hidden', isOpt);
                     },
+
+                    // ── CALCUL MONTANT ────────────────────────────────────
                     calcEstimate() {
                         const du = _el('modal-du').value,
                             au = _el('modal-au').value;
+                        const totalEl = _el('modal-total'),
+                            monthsEl = _el('modal-months');
+                        const errEl = _el('modal-date-err'),
+                            errTxt = _el('modal-date-err-text');
+
                         if (du && au && au <= du) {
-                            _el('modal-date-err').classList.remove('hidden');
-                            _el('modal-date-err-text').textContent = 'La date de fin doit être après la date de début.';
-                            _el('modal-total').textContent = '—';
-                            _el('modal-months').textContent = '';
+                            errEl.classList.remove('hidden');
+                            errTxt.textContent = 'La date de fin doit être après la date de début.';
+                            totalEl.textContent = '—';
+                            monthsEl.textContent = '';
                             return;
                         }
-                        _el('modal-date-err').classList.add('hidden');
+                        errEl.classList.add('hidden');
+
                         if (!du || !au) {
-                            _el('modal-total').textContent = '—';
-                            _el('modal-months').textContent = '';
+                            totalEl.textContent = '—';
+                            monthsEl.textContent = '';
                             return;
                         }
+
                         const months = _months(du, au);
+                        // ✅ Utiliser S directement (même closure)
                         const total = S.sel.ids.reduce((s, id) => s + (S.sel.rates[id] || 0) * months, 0);
-                        _el('modal-total').textContent = Math.round(total).toLocaleString('fr-FR');
-                        _el('modal-months').textContent = `(${months} mois)`;
+                        this._originalEstimate = total;
+
+                        // Si montant personnalisé actif → garder (0 est une valeur valide)
+                        if (this._customAmount !== null) {
+                            totalEl.textContent = this._customAmount === 0 ? '0 (sans prix)' : Math.round(this._customAmount).toLocaleString('fr-FR');
+                            monthsEl.textContent = '(montant personnalisé)';
+                        } else {
+                            totalEl.textContent = Math.round(total).toLocaleString('fr-FR');
+                            monthsEl.textContent = `(${months} mois)`;
+                        }
+
+                        const amountInput = document.getElementById('modal-amount');
+                        if (amountInput && !amountInput.value) {
+                            amountInput.placeholder = Math.round(total).toLocaleString('fr-FR') + ' FCFA';
+                        }
                     },
+
+                    // ── MONTANT PERSONNALISÉ ──────────────────────────────
+                    toggleAmountEdit() {
+                        const wrap = document.getElementById('amount-edit-wrap');
+                        const btn = document.getElementById('btn-toggle-amount');
+                        const visible = wrap && !wrap.classList.contains('hidden');
+                        if (visible) {
+                            wrap.classList.add('hidden');
+                            btn.innerHTML = '✏️ Personnaliser';
+                            this._customAmount = null;
+                            this.calcEstimate();
+                        } else {
+                            wrap.classList.remove('hidden');
+                            btn.innerHTML = '✕ Annuler personnalisation';
+                            const inp = document.getElementById('modal-amount');
+                            if (inp) {
+                                inp.value = '';
+                                inp.focus();
+                            }
+                        }
+                    },
+
+                    onAmountInput(value) {
+                        const num = parseFloat(value);
+                        if (!isNaN(num) && num >= 0) {
+                            this._customAmount = num;
+                            _el('modal-total').textContent = num === 0 ? '0 (sans prix)' : Math.round(num).toLocaleString('fr-FR');
+                            _el('modal-months').textContent = '(montant personnalisé)';
+                        } else {
+                            this._customAmount = null;
+                            this.calcEstimate();
+                        }
+                    },
+
+                    resetAmount() {
+                        const inp = document.getElementById('modal-amount');
+                        if (inp) inp.value = '';
+                        this._customAmount = null;
+                        this.calcEstimate();
+                    },
+
+                    // ── SUBMIT FORMULAIRE ─────────────────────────────────
                     submitForm() {
-                        const du = _el('modal-du').value,
-                            au = _el('modal-au').value,
-                            client = $('#modal-client-select').val(),
-                            errors = [];
+                        const du = _el('modal-du').value;
+                        const au = _el('modal-au').value;
+                        const client = $('#modal-client-select').val();
+                        const errors = [];
+
+                        // Validation client
                         if (!client) {
                             errors.push('Veuillez sélectionner un client.');
                             _el('modal-client-err').classList.remove('hidden');
                         } else {
                             _el('modal-client-err').classList.add('hidden');
                         }
+
+                        // Validation dates
                         if (!du) errors.push('La date de début est obligatoire.');
                         if (!au) errors.push('La date de fin est obligatoire.');
                         if (du && au && au <= du) errors.push('La date de fin doit être après la date de début.');
+
+                        // ✅ FIX CRITIQUE — validation panneaux via S (closure directe)
+                        if (S.sel.ids.length === 0) {
+                            errors.push('Aucun panneau sélectionné. Veuillez sélectionner au moins un panneau.');
+                        }
+
                         if (errors.length > 0) {
                             const box = _el('modal-errors');
                             box.innerHTML = errors.map(e =>
@@ -1312,12 +1694,30 @@
                             box.classList.remove('hidden');
                             return;
                         }
-                        _el('hidden-panels').innerHTML = S.sel.ids.map(id =>
-                            `<input type="hidden" name="panel_ids[]" value="${id}">`).join('');
+
+                        // ✅ FIX — injecter les panel_ids depuis S.sel.ids (closure directe)
+                        _el('hidden-panels').innerHTML = S.sel.ids
+                            .map(id => `<input type="hidden" name="panel_ids[]" value="${id}">`)
+                            .join('')
+                            + Object.entries(S.sel.start_dates || {})
+                                .map(([id, date]) => `<input type="hidden" name="panel_start_dates[${id}]" value="${date}">`)
+                                .join('');
+
+                        // Montant personnalisé (0 est valide = sans prix)
+                        if (this._customAmount !== null) {
+                            const inp = document.createElement('input');
+                            inp.type = 'hidden';
+                            inp.name = 'custom_amount';
+                            inp.value = this._customAmount;
+                            _el('hidden-panels').appendChild(inp);
+                        }
+
                         _el('modal-submit-txt').textContent = 'Envoi en cours…';
                         _el('modal-submit').disabled = true;
                         _el('form-confirm').submit();
                     },
+
+                    // ── MODAL FICHE ───────────────────────────────────────
                     openFiche(p) {
                         _el('fiche-title').textContent = `📋 ${p.reference} — ${p.name}`;
                         const src = p.source === 'external' ? `🤝 ${p.agency_name}` : '🏢 Interne';
@@ -1331,24 +1731,37 @@
                             ['ÉCLAIRAGE', p.is_lit ? '💡 Éclairé' : 'Non éclairé'],
                             ['TRAFIC/JOUR', p.daily_traffic > 0 ? p.daily_traffic.toLocaleString('fr-FR') +
                                 ' contacts' : '—'
-                            ]
+                            ],
                         ];
                         _el('fiche-body').innerHTML =
-                            `<div class="grid grid-cols-2 gap-2 mb-4">${fields.map(([l,v])=>`<div style="background:var(--surface2);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${l}</div><div style="font-size:13px;color:var(--text);font-weight:500">${v||'—'}</div></div>`).join('')}</div><div style="background:var(--accent-dim);border:1px solid var(--accent)22;border-radius:12px;padding:16px;text-align:center;margin-bottom:12px"><div style="font-size:10px;color:var(--text3);margin-bottom:4px">TARIF MENSUEL</div><div style="font-size:24px;font-weight:800;color:var(--accent)">${p.monthly_rate?Math.round(p.monthly_rate).toLocaleString('fr-FR')+' FCFA':'—'}</div></div>${p.zone_description?`<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:4px">Zone</div><div style="background:var(--surface2);border-radius:10px;padding:12px;font-size:12px;color:var(--text2)">${p.zone_description}</div>`:''}`;
+                            `<div class="grid grid-cols-2 gap-2 mb-4">${
+                    fields.map(([l,v]) => `<div style="background:var(--surface2);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${l}</div><div style="font-size:13px;color:var(--text);font-weight:500">${v||'—'}</div></div>`).join('')
+                }</div>
+                <div style="background:var(--accent-dim);border:1px solid rgba(232,160,32,.22);border-radius:12px;padding:16px;text-align:center;margin-bottom:12px">
+                    <div style="font-size:10px;color:var(--text3);margin-bottom:4px">TARIF MENSUEL</div>
+                    <div style="font-size:24px;font-weight:800;color:var(--accent)">${p.monthly_rate ? Math.round(p.monthly_rate).toLocaleString('fr-FR')+' FCFA' : '—'}</div>
+                </div>
+                ${p.zone_description ? `<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:4px">Zone</div><div style="background:var(--surface2);border-radius:10px;padding:12px;font-size:12px;color:var(--text2)">${p.zone_description}</div>` : ''}`;
                         _show('modal-fiche');
                     },
                     closeFiche() {
                         _hide('modal-fiche');
                     },
+
+                    // ── MODAL ERREUR ──────────────────────────────────────
                     showError(msgs) {
-                        _el('error-body').innerHTML = (Array.isArray(msgs) ? msgs : [msgs]).map(m =>
-                            `<div class="flex gap-2 items-start"><span class="text-red-500">•</span><span>${m}</span></div>`
-                        ).join('');
+                        _el('error-body').innerHTML = (Array.isArray(msgs) ? msgs : [msgs])
+                            .map(m =>
+                                `<div class="flex gap-2 items-start"><span class="text-red-500">•</span><span>${m}</span></div>`
+                                )
+                            .join('');
                         _show('modal-error');
                     },
                     closeError() {
                         _hide('modal-error');
                     },
+
+                    // ── MODAL CLIENT RAPIDE ───────────────────────────────
                     openQuickClientModal() {
                         const form = _el('form-quick-client');
                         if (form) form.reset();
@@ -1361,6 +1774,7 @@
                     closeQuickClientModal() {
                         _hide('modal-quick-client');
                     },
+
                     async submitQuickClient(event) {
                         event.preventDefault();
                         const btn = _el('qc-submit'),
@@ -1391,8 +1805,8 @@
                                         ncc: _el('qc-ncc').value.trim() || null,
                                         email: _el('qc-email').value.trim() || null,
                                         phone: _el('qc-phone').value.trim() || null,
-                                        contact_name: _el('qc-contact').value.trim() || null
-                                    })
+                                        contact_name: _el('qc-contact').value.trim() || null,
+                                    }),
                                 });
                             const data = await res.json();
                             if (!res.ok) {
@@ -1406,7 +1820,13 @@
                             }
                             addClientToSelect2(data.id, data.name);
                             this.closeQuickClientModal();
-                            this.showSuccessToast(`Client "${data.name}" créé ✅`);
+                            // Tâche 6.2 : utiliser le système Toast global de l'app pour cohérence visuelle
+                            if (window.Toast?.success) {
+                                window.Toast.success(
+                                    `Client <strong>${data.name}</strong> créé et sélectionné automatiquement.`);
+                            } else {
+                                this.showSuccessToast(`Client "${data.name}" créé ✅`);
+                            }
                         } catch (err) {
                             errBox.innerHTML =
                                 `<div class="flex gap-2"><span>⚠️</span><span>Erreur réseau : ${err.message}</span></div>`;
@@ -1417,6 +1837,7 @@
                             btn.disabled = false;
                         }
                     },
+
                     showSuccessToast(message) {
                         const toast = document.createElement('div');
                         toast.style.cssText =
@@ -1430,10 +1851,13 @@
                             setTimeout(() => toast.remove(), 300);
                         }, 3500);
                     },
+
+                    // ── FETCH AJAX ────────────────────────────────────────
                     _fetch(delay) {
                         clearTimeout(S.debounce);
                         S.debounce = setTimeout(() => this._doFetch(), delay !== undefined ? delay : 300);
                     },
+
                     async _doFetch() {
                         const rid = ++S.reqId;
                         S.loading = true;
@@ -1467,21 +1891,35 @@
                             if (data.date_error) {
                                 _showDateErr(data.date_error);
                                 _showEmpty(data.date_error, '');
+                                // Reset l'état pour éviter de garder une vieille pagination
+                                S._lastPanels = [];
+                                this._renderStats(data.stats || {}, false);
                                 return;
                             }
+                            // Cas nominal — on nettoie tout vestige d'erreur précédente
+                            _hideDateErr();
                             S.pages = data.stats.pages || 1;
                             S.total = data.stats.total || 0;
                             S._lastPanels = data.panels || [];
+                            // Empty state contextuel : 0 résultat ≠ erreur
+                            if ((data.panels || []).length === 0) {
+                                const hint = S.f.q ?
+                                    'Aucun panneau ne correspond à votre recherche.' :
+                                    'Aucun panneau ne correspond aux filtres sélectionnés.';
+                                _showEmpty('Aucun résultat', hint);
+                            }
                             this._renderPanels(data.panels);
                             this._renderStats(data.stats, data.has_period);
                             this._renderPagination(data.stats);
                         } catch (err) {
                             if (rid !== S.reqId) return;
                             S.loading = false;
-                            _showEmpty('Erreur de chargement', 'Vérifiez votre connexion.');
+                            _showEmpty('Erreur de chargement', 'Vérifiez votre connexion ou réessayez.');
                             console.error('[DISPO]', err);
                         }
                     },
+
+                    // ── RENDU PANNEAUX ────────────────────────────────────
                     _renderPanels(panels) {
                         const grid = _el('panels-grid'),
                             empty = _el('empty-state');
@@ -1502,6 +1940,7 @@
                         grid.innerHTML = '';
                         grid.appendChild(frag);
                         if (S.view === 'list') this._renderList(panels);
+                        // Restaurer état sélection après rechargement
                         S.sel.ids.forEach(id => {
                             const card = grid.querySelector(`.panel-card[data-id="${id}"]`);
                             if (!card) return;
@@ -1515,26 +1954,48 @@
                             const chk = card.querySelector('.card-chk');
                             if (chk) chk.checked = true;
                         });
+                        this._syncSelBar();
                     },
+
                     _cardHtml(p) {
                         const sc = STATUS_CFG[p.display_status] || STATUS_CFG.libre;
                         const bg = D.colors[p.card_color_idx || 0] || '#3b82f6';
                         const isSel = S.sel.ids.includes(String(p.id));
-                        const thumbStyle = p.photo_url ? `background:url('${p.photo_url}') center/cover no-repeat;` :
+                        const isOption = p.display_status === 'option_periode';
+                        const thumbSt = p.photo_url ? `background:url('${p.photo_url}') center/cover no-repeat;` :
                             `background:${bg};`;
-                        const tags = [p.format ? `<span class="tag">${p.format}</span>` : '', p.dimensions ?
-                            `<span class="tag">${p.dimensions}</span>` : '', p.is_lit ?
-                            `<span class="tag" style="color:var(--accent)">💡</span>` : ''
+                        const tags = [
+                            p.format ? `<span class="tag">${p.format}</span>` : '',
+                            p.dimensions ? `<span class="tag">${p.dimensions}</span>` : '',
+                            p.is_lit ? `<span class="tag" style="color:var(--accent)">💡</span>` : '',
                         ].filter(Boolean).join('');
+                        // release_info cliquable (feature 2.2) : caler la
+                        // période sur la libération du panneau occupé.
                         const releaseHtml = p.release_info ?
-                            `<div style="margin-top:4px;padding:4px 8px;border-radius:6px;font-size:10px;background:rgba(226,6,19,.06);border:1px solid rgba(226,6,19,.15);"><span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'var(--accent)':'var(--text3)'}">📅 ${p.release_info.label}</span></div>` :
+                            `<div onclick="event.stopPropagation();DISPO.scheduleAfter('${p.release_info.date}')" title="Cliquer pour caler la période sur la libération" style="margin-top:4px;padding:4px 8px;border-radius:6px;font-size:10px;background:rgba(226,6,19,.06);border:1px solid rgba(226,6,19,.15);cursor:pointer;"><span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'var(--accent)':'var(--text3)'}">📅 ${p.release_info.label}</span></div>` :
                             '';
+                        const _sf = (p.is_future_selectable && p.selectable_from) ? p.selectable_from : '';
+                        const _sfLabel = p.selectable_from_label || (_sf ? _sf.split('-').reverse().join('/') : '');
+                        const _selLabel = isSel ? '✓ Sélectionné' : (_sf ? `📅 Dès le ${_sfLabel}` : '+ Sélectionner');
                         const selBtn = p.is_selectable ?
-                            `<button type="button" class="btn-sel" style="flex:1.2;font-size:11px;padding:6px 10px;border-radius:7px;background:${isSel?'var(--accent)':'var(--surface3)'};color:${isSel?'#fff':'var(--text)'};border:1px solid ${isSel?'transparent':'var(--border2)'};cursor:pointer;transition:all .15s;" onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">${isSel?'✓ Sélectionné':'+ Sélectionner'}</button>` :
+                            `<button type="button" class="btn-sel" style="flex:1.2;font-size:11px;padding:6px 10px;border-radius:7px;background:${isSel?(isOption?'#f97316':'var(--accent)'):'var(--surface3)'};color:${isSel?'#fff':'var(--text)'};border:1px solid ${isSel?'transparent':'var(--border2)'};cursor:pointer;transition:all .15s;" onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}','${_sf}')">${_selLabel}</button>` :
                             `<div style="flex:1.2;padding:6px 10px;background:var(--surface3);border-radius:7px;font-size:11px;color:var(--text3);text-align:center;border:1px solid var(--border);">${sc.l}</div>`;
                         const safeP = encodeURIComponent(JSON.stringify(p));
-                        return `<div class="panel-card${p.is_selectable?' selectable':''}${isSel?' selected':''}" data-id="${p.id}" ${p.is_selectable?`onclick="DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')"`:''}>${p.source==='external'?`<div style="position:absolute;top:8px;left:8px;z-index:2;font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)">🤝 ${p.agency_name}</div>`:''} ${p.is_selectable?`<div style="position:absolute;top:10px;left:10px;z-index:2;"><input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')"></div>`:''}<div style="position:absolute;top:8px;right:8px;z-index:2;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${sc.c};color:white;text-transform:uppercase;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.3);">${sc.l}</div><div style="height:96px;flex-shrink:0;position:relative;overflow:hidden;${thumbStyle}"><div style="position:absolute;inset:0;background:${p.photo_url?'linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.65))':'rgba(0,0,0,.15)'}"></div><div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border-radius:7px;padding:4px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#fff;letter-spacing:1.5px;white-space:nowrap;backdrop-filter:blur(4px);">${p.reference}</div></div><div style="padding:12px 14px;flex:1;display:flex;flex-direction:column;"><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div><div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.name}">${p.name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">${tags}</div>${p.zone_description?`<div style="font-size:11px;color:var(--text2);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.zone_description}">📍 ${p.zone_description}</div>`:''}<div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);"><div style="font-size:17px;font-weight:800;color:var(--accent);margin-bottom:6px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K <span style="font-size:11px;font-weight:400;color:var(--text3)">FCFA/mois</span>':'<span style="font-size:13px;color:var(--text3)">Tarif non défini</span>'}</div>${releaseHtml}<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" style="flex:none;font-size:10px;padding:6px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button>${selBtn}</div></div></div></div>`;
+
+                        // Bordure dashed orange si option sélectionnée
+                        const cardCls = `panel-card${p.is_selectable?' selectable':''}${isSel?' selected':''}${isOption&&isSel?' selected-option':''}`;
+                        const inlineStyle = isOption && isSel
+                            ? 'style="border:2px dashed #f97316 !important;"'
+                            : '';
+
+                        // Badge "EN OPTION" en superposition
+                        const optionBadge = isOption
+                            ? `<span style="position:absolute;${p.source==='external'?'top:32px':'top:8px'};left:8px;z-index:2;background:#f97316;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.5px;box-shadow:0 1px 4px rgba(0,0,0,.2);">EN OPTION</span>`
+                            : '';
+
+                        return `<div class="${cardCls}" ${inlineStyle} data-id="${p.id}" ${p.is_selectable?`onclick="DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}','${_sf}')"`:''}>${p.source==='external'?`<div style="position:absolute;top:8px;left:8px;z-index:2;font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)">🤝 ${p.agency_name}</div>`:''}${optionBadge} ${p.is_selectable?`<div style="position:absolute;top:10px;${isOption?'left:90px':'left:10px'};z-index:2;"><input type="checkbox" class="card-chk" style="accent-color:${isOption?'#f97316':'var(--accent)'};width:16px;height:16px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}','${_sf}')"></div>`:''}<div style="position:absolute;top:8px;right:8px;z-index:2;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${sc.c};color:white;text-transform:uppercase;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.3);">${sc.l}</div><div style="height:96px;flex-shrink:0;position:relative;overflow:hidden;${thumbSt}"><div style="position:absolute;inset:0;background:${p.photo_url?'linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.65))':'rgba(0,0,0,.15)'}"></div><div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border-radius:7px;padding:4px 14px;font-family:monospace;font-size:13px;font-weight:700;color:#fff;letter-spacing:1.5px;white-space:nowrap;backdrop-filter:blur(4px);">${p.reference}</div></div><div style="padding:12px 14px;flex:1;display:flex;flex-direction:column;"><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div><div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.name}">${p.name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">${tags}</div>${p.zone_description?`<div style="font-size:11px;color:var(--text2);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.zone_description}">📍 ${p.zone_description}</div>`:''}<div style="margin-top:auto;padding-top:8px;border-top:1px solid var(--border);"><div style="font-size:17px;font-weight:800;color:var(--accent);margin-bottom:6px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K <span style="font-size:11px;font-weight:400;color:var(--text3)">FCFA/mois</span>':'<span style="font-size:13px;color:var(--text3)">Tarif non défini</span>'}</div>${releaseHtml}<div style="display:flex;gap:6px;margin-top:8px;"><button type="button" style="flex:none;font-size:10px;padding:6px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button>${selBtn}</div></div></div>`;
                     },
+
                     _renderList(panels) {
                         const tbody = _el('panels-list-body');
                         if (!tbody) return;
@@ -1545,11 +2006,10 @@
                             const tr = document.createElement('tr');
                             tr.className = `list-row${isSel?' selected':''}`;
                             tr.dataset.id = p.id;
-                            if (p.is_selectable) tr.onclick = () => DISPO.toggle(p.id, p.monthly_rate, p
-                                .source);
+                            if (p.is_selectable) tr.onclick = () => DISPO.toggle(p.id, p.monthly_rate, p.source, p.display_status, (p.is_future_selectable ? p.selectable_from : null));
                             const safeP = encodeURIComponent(JSON.stringify(p));
                             tr.innerHTML =
-                                `<td style="padding:10px 8px;width:36px;text-align:center;">${p.is_selectable?`<input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}')">`:`<span style="font-size:12px;opacity:.4;">🔒</span>`}</td><td style="padding:10px 8px;"><span style="font-family:monospace;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;background:${sc.b};color:${sc.c}">${p.reference}</span>${p.source==='external'?`<span style="display:block;font-size:9px;color:#60a5fa;margin-top:2px;">🤝 ${p.agency_name}</span>`:''}</td><td style="padding:10px 8px;"><div style="font-weight:600;font-size:13px;color:var(--text);">${p.name}</div><div style="font-size:11px;color:var(--text3);">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div></td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.format||'—'}</td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.dimensions||'—'}${p.is_lit?' 💡':''}</td><td style="padding:10px 8px;"><div style="font-weight:700;color:var(--accent);font-size:13px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K':'—'} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></div></td><td style="padding:10px 8px;"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">${sc.l}</span>${p.release_info?`<div style="font-size:10px;color:var(--text3);margin-top:3px;">📅 ${p.release_info.label}</div>`:''}</td><td style="padding:10px 8px;"><button type="button" style="font-size:10px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button></td>`;
+                                `<td style="padding:10px 8px;width:36px;text-align:center;">${p.is_selectable?`<input type="checkbox" class="card-chk" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" ${isSel?'checked':''} onclick="event.stopPropagation();DISPO.toggle('${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')">`:`<span style="font-size:12px;opacity:.4;">🔒</span>`}</td><td style="padding:10px 8px;"><span style="font-family:monospace;font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;background:${sc.b};color:${sc.c}">${p.reference}</span>${p.source==='external'?`<span style="display:block;font-size:9px;color:#60a5fa;margin-top:2px;">🤝 ${p.agency_name}</span>`:''}</td><td style="padding:10px 8px;"><div style="font-weight:600;font-size:13px;color:var(--text);">${p.name}</div><div style="font-size:11px;color:var(--text3);">${p.commune}${p.zone&&p.zone!=='—'?' · '+p.zone:''}</div></td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.format||'—'}</td><td style="padding:10px 8px;font-size:12px;color:var(--text2);">${p.dimensions||'—'}${p.is_lit?' 💡':''}</td><td style="padding:10px 8px;"><div style="font-weight:700;color:var(--accent);font-size:13px;">${p.monthly_rate?Math.round(p.monthly_rate/1000).toLocaleString('fr-FR')+'K':'—'} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></div></td><td style="padding:10px 8px;"><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${sc.b};color:${sc.c};border:1px solid ${sc.bd}">${sc.l}</span>${p.release_info?`<div style="font-size:10px;color:var(--text3);margin-top:3px;">📅 ${p.release_info.label}</div>`:''}</td><td style="padding:10px 8px;"><button type="button" style="font-size:10px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();DISPO.openFiche(JSON.parse(decodeURIComponent(this.dataset.p)))" data-p="${safeP}">📋 Fiche</button></td>`;
                             frag.appendChild(tr);
                         });
                         tbody.innerHTML = '';
@@ -1563,6 +2023,7 @@
                             }
                         });
                     },
+
                     _renderStats(stats, hasPeriod) {
                         const set = (id, html, show = true) => {
                             const el = _el(id);
@@ -1575,10 +2036,11 @@
                             .disponibles > 0);
                         set('stat-occupes', `🔒 <strong>${stats.occupes}</strong> occupé(s)`, hasPeriod && stats
                             .occupes > 0);
-                        set('stat-options', `⏳ <strong>${stats.options || 0}</strong> en option`, hasPeriod && (stats
+                        set('stat-options', `⏳ <strong>${stats.options||0}</strong> en option`, hasPeriod && (stats
                             .options || 0) > 0);
                         set('stat-ext', `🤝 <strong>${stats.externes}</strong> externe(s)`, stats.externes > 0);
                     },
+
                     _renderPagination(stats) {
                         const bar = _el('pagination-bar'),
                             info = _el('pag-info'),
@@ -1596,10 +2058,17 @@
                         if (prev) prev.disabled = S.page <= 1;
                         if (next) next.disabled = S.page >= stats.pages;
                     },
+
                     _syncSelBar() {
-                        const n = S.sel.ids.length,
-                            total = Object.values(S.sel.rates).reduce((s, r) => s + r, 0),
-                            nExt = Object.values(S.sel.sources).filter(s => s === 'external').length;
+                        const n = S.sel.ids.length;
+                        const total = Object.values(S.sel.rates).reduce((s, r) => s + r, 0);
+                        const nExt = Object.values(S.sel.sources).filter(s => s === 'external').length;
+
+                        // Décomposition libres/options pour clarté de la sélection
+                        const statuses = S.sel.statuses || {};
+                        const nOption  = Object.values(statuses).filter(s => s === 'option_periode').length;
+                        const nLibre   = n - nOption;
+
                         _el('sel-bar').style.display = n > 0 ? 'block' : 'none';
                         const tw = _el('topbar-confirm-wrapper');
                         if (tw) tw.style.display = n > 0 ? 'block' : 'none';
@@ -1611,15 +2080,61 @@
                             eb.classList.toggle('hidden', nExt === 0);
                             _el('sel-ext-n').textContent = nExt;
                         }
+
+                        // Affichage breakdown libre/option (caché si 0 option)
+                        const bd = _el('sel-breakdown');
+                        if (bd) {
+                            bd.classList.toggle('hidden', nOption === 0);
+                            const elL = _el('sel-libre-n');  if (elL) elL.textContent = nLibre;
+                            const elO = _el('sel-option-n'); if (elO) elO.textContent = nOption;
+                        }
+
+                        // Label dynamique du bouton "Tout sélectionner / désélectionner"
+                        this._syncSelectAllLabel();
                     },
+
+                    // Reporte la période demandée AU LENDEMAIN d'une date donnée
+                    // (format d/m/Y français). Utilisé quand l'admin clique sur
+                    // la pastille "Libre le 31/05" d'un panneau occupé.
+                    scheduleAfter(dateFr) {
+                        if (!dateFr) return;
+                        const m = String(dateFr).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+                        if (!m) return;
+                        const [_, dd, mm, yyyy] = m;
+                        const d = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+                        d.setDate(d.getDate() + 1);
+                        const newDu = d.toISOString().split('T')[0];
+
+                        let newAu = S.f.au;
+                        if (!newAu || newAu <= newDu) {
+                            const e = new Date(d); e.setDate(e.getDate() + 30);
+                            newAu = e.toISOString().split('T')[0];
+                        }
+
+                        S.f.du = newDu;
+                        S.f.au = newAu;
+                        const elDu = _el('f-du'); if (elDu) elDu.value = newDu;
+                        const elAu = _el('f-au'); if (elAu) elAu.value = newAu;
+                        S.page = 1;
+                        this._fetch();
+                        this._syncUI();
+
+                        if (typeof showToast === 'function') {
+                            showToast('info',
+                                `Période ajustée à partir du ${newDu.split('-').reverse().join('/')} pour intégrer ce panneau.`,
+                                4000, 'Disponibilités');
+                        }
+                    },
+
                     _syncUI() {
-                        const f = S.f,
-                            active = f.commune_ids.length || f.zone_ids.length || f.format_ids.length || f.agency_ids
+                        const f = S.f;
+                        const active = f.commune_ids.length || f.zone_ids.length || f.format_ids.length || f.agency_ids
                             .length || f.dimensions || f.is_lit !== '' || f.statut !== 'tous' || f.du || f.au || f
                             .source !== 'all' || f.q;
                         _el('btn-reset').classList.toggle('hidden', !active);
                         this._renderTags();
                     },
+
                     _renderTags() {
                         const f = S.f,
                             tags = [];
@@ -1699,11 +2214,12 @@
                         bar.classList.toggle('flex', tags.length > 0);
                         list.innerHTML = tags.map((t, i) =>
                             `<span class="ms-chip">${t.l}<button type="button" onclick="__tagRm(${i})" title="Retirer">✕</button></span>`
-                        ).join('');
+                            ).join('');
                         window.__tagCbs = tags.map(t => t.rm);
                     },
-                };
+                }; // fin window.DISPO
 
+                // ══ MULTI-SELECT ══════════════════════════════════════════
                 const MS = {};
 
                 function buildMs(wrapper) {
@@ -1739,7 +2255,7 @@
                     function render(q = '') {
                         const sel = S.f[key],
                             filtered = q ? data.filter(i => i.name.toLowerCase().includes(q.toLowerCase())) : data;
-                        if (filtered.length === 0) {
+                        if (!filtered.length) {
                             listEl.innerHTML =
                                 '<div class="ms-opt" style="justify-content:center;font-style:italic">Aucun résultat</div>';
                             return;
@@ -1755,8 +2271,8 @@
                                 '';
                             lbl.innerHTML = `<input type="checkbox" ${isSel?'checked':''}> ${item.name}${dim}`;
                             lbl.querySelector('input').addEventListener('change', () => {
-                                const arr = S.f[key];
-                                const idx = arr.indexOf(item.id);
+                                const arr = S.f[key],
+                                    idx = arr.indexOf(item.id);
                                 if (idx === -1) arr.push(item.id);
                                 else arr.splice(idx, 1);
                                 lbl.classList.toggle('selected', arr.includes(item.id));
@@ -1776,7 +2292,7 @@
                         const sel = S.f[key],
                             inner = btn.querySelector('.ms-tags-inner');
                         if (!inner) return;
-                        if (sel.length === 0) {
+                        if (!sel.length) {
                             inner.innerHTML = `<span class="ms-placeholder">${ph}</span>`;
                         } else {
                             inner.innerHTML = sel.map(id => {
@@ -1792,19 +2308,19 @@
                             badge.classList.toggle('hidden', sel.length === 0);
                         }
                         listEl.querySelectorAll('label.ms-opt').forEach(l => {
-                            const id = parseInt(l.dataset.id);
-                            const c = l.querySelector('input');
-                            const s = sel.includes(id) || sel.includes(String(id));
+                            const id = parseInt(l.dataset.id),
+                                c = l.querySelector('input'),
+                                s = sel.includes(id) || sel.includes(String(id));
                             if (c) c.checked = s;
                             l.classList.toggle('selected', s);
                         });
                     }
 
                     function updateFoot() {
-                        const n = S.f[key].length;
                         const el = _el(`ms-foot-${key}`);
-                        if (el) el.textContent = n + ' sélectionné(s)';
+                        if (el) el.textContent = S.f[key].length + ' sélectionné(s)';
                     }
+
                     let stimer;
                     si.addEventListener('input', () => {
                         clearTimeout(stimer);
@@ -1844,11 +2360,12 @@
                         m.btn.classList.remove('open');
                     });
                 }
+
                 window.__msAll = k => {
                     const d = MS_DATA[k] || [];
                     const q = MS[k]?.drop?.querySelector('.ms-search input')?.value?.toLowerCase() || '';
-                    const visible = q ? d.filter(i => i.name.toLowerCase().includes(q)) : d;
-                    visible.forEach(i => {
+                    const vis = q ? d.filter(i => i.name.toLowerCase().includes(q)) : d;
+                    vis.forEach(i => {
                         if (!S.f[k].includes(i.id) && !S.f[k].includes(String(i.id))) S.f[k].push(i.id);
                     });
                     MS[k]?.updateTrigger();
@@ -1866,8 +2383,8 @@
                     DISPO._syncUI();
                 };
                 window.__msRemove = (k, id) => {
-                    const i = S.f[k].indexOf(id);
-                    const i2 = S.f[k].indexOf(String(id));
+                    const i = S.f[k].indexOf(id),
+                        i2 = S.f[k].indexOf(String(id));
                     if (i > -1) S.f[k].splice(i, 1);
                     else if (i2 > -1) S.f[k].splice(i2, 1);
                     MS[k]?.updateTrigger();
@@ -1879,83 +2396,14 @@
                 window.__tagRm = i => {
                     window.__tagCbs?.[i]?.();
                 };
+
                 document.addEventListener('click', _closeAllMs);
 
-                function _el(id) {
-                    return document.getElementById(id);
-                }
-
-                function _show(id) {
-                    const el = _el(id);
-                    if (el) el.style.display = 'flex';
-                }
-
-                function _hide(id) {
-                    const el = _el(id);
-                    if (el) el.style.display = 'none';
-                }
-
-                function _showLoader() {
-                    const l = _el('loader'),
-                        g = _el('panels-grid'),
-                        e = _el('empty-state'),
-                        p = _el('pagination-bar');
-                    if (l) l.style.display = 'block';
-                    if (g) g.innerHTML = '';
-                    const tb = _el('panels-list-body');
-                    if (tb) tb.innerHTML = '';
-                    if (e) e.style.display = 'none';
-                    if (p) p.classList.add('hidden');
-                }
-
-                function _showEmpty(title, sub) {
-                    _hide('loader');
-                    const g = _el('panels-grid');
-                    if (g) g.innerHTML = '';
-                    const tb = _el('panels-list-body');
-                    if (tb) tb.innerHTML = '';
-                    const e = _el('empty-state');
-                    if (e) e.style.display = 'block';
-                    const t = _el('empty-title');
-                    if (t) t.textContent = title;
-                    const s = _el('empty-sub');
-                    if (s) s.textContent = sub;
-                }
-
-                function _showDateErr(msg) {
-                    const el = _el('date-error');
-                    if (el) {
-                        el.textContent = '⚠️ ' + msg;
-                        el.classList.remove('hidden');
-                    }
-                }
-
-                function _hideDateErr() {
-                    const el = _el('date-error');
-                    if (el) el.classList.add('hidden');
-                }
-
-                function _months(s, e) {
-                    const a = new Date(s + 'T00:00:00');
-                    const b = new Date(e + 'T00:00:00');
-
-                    const totalDays = Math.round((b - a) / (1000 * 60 * 60 * 24));
-                    if (totalDays <= 0) return 0.5;
-
-                    const fullMonths = Math.floor(totalDays / 30);
-                    const remainDays = totalDays % 30;
-
-                    let fraction = 0;
-                    if (remainDays >= 1 && remainDays <= 15) {
-                        fraction = 0.5;
-                    } else if (remainDays > 15) {
-                        fraction = 1;
-                    }
-
-                    return Math.max(fullMonths + fraction, 0.5);
-                }
+                // ══ INIT ═════════════════════════════════════════════════
                 document.addEventListener('DOMContentLoaded', () => {
                     document.querySelectorAll('.ms-wrapper').forEach(buildMs);
+
+                    // Remplir dimensions
                     const dimSel = _el('f-dimensions');
                     if (dimSel) D.dimensions.forEach(d => {
                         const o = document.createElement('option');
@@ -1963,6 +2411,8 @@
                         o.textContent = d;
                         dimSel.appendChild(o);
                     });
+
+                    // Fermer avec Escape
                     document.addEventListener('keydown', e => {
                         if (e.key === 'Escape') {
                             DISPO.closeConfirmModal();
@@ -1971,12 +2421,17 @@
                             _closeAllMs();
                         }
                     });
+
+                    // Afficher erreurs flash
                     if (D.hasErrors && D.flashErrors.length > 0) DISPO.showError(D.flashErrors);
+
                     DISPO._fetch(0);
                     DISPO._syncSelBar();
                 });
+
             })();
-            // Fermer dropdown export dispo
+
+            // Fermer dropdown export PDF liste
             document.addEventListener('click', function(e) {
                 const wrap = document.getElementById('dispo-export-wrap');
                 if (wrap && !wrap.contains(e.target)) {

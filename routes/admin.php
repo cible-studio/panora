@@ -36,7 +36,41 @@ use App\Http\Controllers\Client\ClientDashboardController;
 // ══════════════════════════════════════════════════════════════
 
 // ── Routes propositions publiques ──────────────────────────────
-Route::prefix('proposition')->name('proposition.')->group(function () {
+// ── Routes PUBLIQUES Pose OOH (accès technicien sans auth) ─────────
+// Throttle strict pour éviter l'abus en cas de fuite du lien.
+Route::prefix('pose')->name('pose.public.')->middleware('throttle:30,1')->group(function () {
+    Route::get('/{token}',         [\App\Http\Controllers\PoseTaskPublicController::class, 'show'])
+        ->name('show');
+    Route::post('/{token}/update', [\App\Http\Controllers\PoseTaskPublicController::class, 'update'])
+        ->name('update');
+});
+
+// ── Route PUBLIQUE Satisfaction client (T9) ─────────────────────────
+// Accès direct via token 64 chars sans authentification.
+// Locale forcée 'fr' (Lot 12.1).
+Route::prefix('satisfaction')->middleware(['throttle:10,1', \App\Http\Middleware\SetFrenchLocale::class])->group(function () {
+    Route::get('/{token}',  [\App\Http\Controllers\SatisfactionController::class, 'show'])
+        ->name('satisfaction.show');
+    Route::post('/{token}', [\App\Http\Controllers\SatisfactionController::class, 'submit'])
+        ->name('satisfaction.submit');
+});
+
+// ── Route PUBLIQUE Pige campagne (Lot 5) ────────────────────────────
+// Le commercial génère un token sur la fiche campagne et le partage au
+// technicien terrain. Throttle plus large (60 req/min) car upload de
+// photos sur plusieurs panneaux en suivant — éviter le throttle agressif.
+// Locale forcée 'fr' (Lot 12.1) — public client.
+Route::prefix('pige')->middleware(['throttle:60,1', \App\Http\Middleware\SetFrenchLocale::class])->group(function () {
+    Route::get('/{token}',           [\App\Http\Controllers\PublicPigeController::class, 'show'])
+        ->name('pige.public.show');
+    Route::post('/{token}/upload',   [\App\Http\Controllers\PublicPigeController::class, 'upload'])
+        ->name('pige.public.upload');
+    // Lot 9.3 — Validation "Pose effectuée" par panneau depuis la page publique
+    Route::post('/{token}/posed',    [\App\Http\Controllers\PublicPigeController::class, 'markPosed'])
+        ->name('pige.public.posed');
+});
+
+Route::prefix('proposition')->name('proposition.')->middleware(\App\Http\Middleware\SetFrenchLocale::class)->group(function () {
 
     // Ancienne URL (token 64 chars) — rétrocompatibilité
     Route::get('/{token}', function ($token) {
@@ -70,12 +104,15 @@ Route::prefix('proposition')->name('proposition.')->group(function () {
 });
 
 // ── Routes espace client (sans auth) ──────────────────────────
-Route::prefix('client')->name('client.')->group(function () {
+// Lot 12.1 — locale forcée à 'fr' sur tout le scope client (auth +
+// dashboard) pour que validation/auth.failed/mot de passe oublié
+// soient en français même si APP_LOCALE est 'en' côté env.
+Route::prefix('client')->name('client.')->middleware(\App\Http\Middleware\SetFrenchLocale::class)->group(function () {
     // Auth
     Route::get('/login', [ClientAuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [ClientAuthController::class, 'login'])
         ->name('login.post')
-        ->middleware('throttle:5,1');
+        ->middleware('throttle:20,1');
     Route::post('/logout', [ClientAuthController::class, 'logout'])->name('logout');
 
     // Routes protégées
@@ -97,10 +134,22 @@ Route::prefix('client')->name('client.')->group(function () {
         //Poses & Piges
         Route::get('/poses',  [ClientDashboardController::class, 'poses']) ->name('poses');
         Route::get('/piges',  [ClientDashboardController::class, 'piges']) ->name('piges');
+        Route::get('/piges/{pige}/download', [ClientDashboardController::class, 'pigeDownload'])->name('pige.download');
+        Route::get('/campagnes/{campaign}/piges/download-zip', [ClientDashboardController::class, 'pigesZip'])->name('campagne.piges.zip');
 
         // Profil
         Route::get('/profil', [ClientDashboardController::class, 'profil'])->name('profil');
         Route::patch('/profil', [ClientDashboardController::class, 'updateProfil'])->name('profil.update');
+
+        // Contact
+        Route::get('/contact',  [ClientDashboardController::class, 'contact'])->name('contact');
+        Route::post('/contact', [ClientDashboardController::class, 'sendContact'])->name('contact.send');
+
+        // Équipe (multi-utilisateurs)
+        Route::get('/equipe',                   [\App\Http\Controllers\Client\ClientUserController::class, 'index'])  ->name('equipe');
+        Route::post('/equipe',                  [\App\Http\Controllers\Client\ClientUserController::class, 'store'])  ->name('equipe.store');
+        Route::patch('/equipe/{clientUser}',    [\App\Http\Controllers\Client\ClientUserController::class, 'update']) ->name('equipe.update');
+        Route::delete('/equipe/{clientUser}',   [\App\Http\Controllers\Client\ClientUserController::class, 'destroy'])->name('equipe.destroy');
 
         // Changement mot de passe (sans middleware ForceClientPasswordChange)
         Route::get('/password/change', [ClientAuthController::class, 'showChangePassword'])
@@ -162,6 +211,8 @@ Route::prefix('admin')
             Route::get('search-campaigns', [PoseController::class, 'searchCampaigns'])->name('search-campaigns');
             Route::get('campaign-panels',  [PoseController::class, 'campaignPanels']) ->name('campaign-panels');
             Route::get('search-panels',    [PoseController::class, 'searchPanels'])   ->name('search-panels');
+            // Polling progression temps réel (vue admin index)
+            Route::get('progress',         [PoseController::class, 'progress'])       ->name('progress');
 
             // ── CRUD standard ─────────────────────────────────────────
             Route::get('/',         [PoseController::class, 'index'])  ->name('index');
@@ -175,21 +226,30 @@ Route::prefix('admin')
         
         // ── Alias pour markComplete (rétrocompatibilité) ──────────────
         Route::post('pose-tasks/{poseTask}/complete', [PoseController::class, 'markComplete'])
-            ->name('pose.complete');        
+            ->name('pose.complete');
+
+        // ── Renvoyer / envoyer manuellement la notification WhatsApp ──
+        Route::post('pose-tasks/{poseTask}/notify', [PoseController::class, 'notifyWhatsApp'])
+            ->name('pose-tasks.notify');
 
         // Maintenance
+        // Endpoints AJAX recherche panneaux + création rapide technicien
+        // (à placer AVANT Route::resource sinon /search-panels matche {maintenance})
+        Route::get ('maintenances/search-panels',  [MaintenanceController::class, 'searchPanels'])->name('maintenances.search-panels');
+        Route::post('maintenances/quick-tech',     [MaintenanceController::class, 'quickCreateTechnician'])->name('maintenances.quick-tech');
         Route::resource('maintenances', MaintenanceController::class);
         Route::post('maintenances/{maintenance}/resolve', [MaintenanceController::class, 'resolve'])->name('maintenances.resolve');
 
         // ── Alertes ───────────────────────────────────────────────
-        Route::get('alerts', [AlertController::class, 'index'])
-            ->name('alerts.index');
-        Route::post('alerts/read-all', [AlertController::class, 'markAllRead'])
-            ->name('alerts.read-all');
-        Route::post('alerts/{alert}/read', [AlertController::class, 'markRead'])
-            ->name('alerts.read');
-        Route::delete('alerts/{alert}', [AlertController::class, 'destroy'])
-            ->name('alerts.destroy');
+        Route::prefix('alerts')->name('alerts.')->group(function () {
+            Route::get('/',                       [AlertController::class, 'index'])     ->name('index');
+            Route::post('read-all',               [AlertController::class, 'markAllRead'])->name('read-all');
+            Route::post('clear-read',             [AlertController::class, 'clearRead'])  ->name('clear-read');
+            Route::get('summary',                 [AlertController::class, 'summary'])    ->name('summary');
+            Route::post('{alert}/read',           [AlertController::class, 'markRead'])   ->name('read');
+            Route::post('{alert}/archive',        [AlertController::class, 'archive'])    ->name('archive');
+            Route::delete('{alert}',              [AlertController::class, 'destroy'])    ->name('destroy');
+        });
 
         // Paramètres (admin uniquement)
         Route::middleware('role:admin')
@@ -250,15 +310,24 @@ Route::prefix('admin')
         });
 
         // ── Taxes Communes ────────────────────────────────────────
+        Route::get('taxes/auto/preview',  [TaxController::class, 'previewAuto'])->name('taxes.auto.preview');
+        Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
+        Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');
+        Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
+        Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
         Route::resource('taxes', TaxController::class);
         Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
         Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
 
         // ── Facturation ───────────────────────────────────────────
+        Route::get('invoices/export/pdf',   [InvoiceController::class, 'exportListPdf'])->name('invoices.export.pdf');
+        Route::get('invoices/export/excel', [InvoiceController::class, 'exportListExcel'])->name('invoices.export.excel');
         Route::resource('invoices', InvoiceController::class);
-        Route::patch('invoices/{invoice}/send', [InvoiceController::class, 'markSent'])->name('invoices.send');
-        Route::patch('invoices/{invoice}/pay', [InvoiceController::class, 'markPaid'])->name('invoices.pay');
-        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
+        Route::patch('invoices/{invoice}/send',         [InvoiceController::class, 'markSent'])->name('invoices.send');
+        Route::patch('invoices/{invoice}/pay',          [InvoiceController::class, 'markPaid'])->name('invoices.pay');
+        Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'markCancelled'])->name('invoices.cancel');
+        Route::patch('invoices/{invoice}/revert-draft', [InvoiceController::class, 'revertDraft'])->name('invoices.revert-draft');
+        Route::get('invoices/{invoice}/pdf',            [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
 
         // ════════════════════════════════════════════════
         // DEV B
@@ -266,6 +335,17 @@ Route::prefix('admin')
         // Clients
         Route::post('clients/quick-store', [ClientController::class, 'storeQuick'])
             ->name('clients.quick-store');
+        // Import Excel (avant les routes paramétriques pour éviter conflit)
+        Route::get('clients/import/template', [ClientController::class, 'importTemplate'])
+            ->name('clients.import.template');
+        Route::post('clients/import',         [ClientController::class, 'import'])
+            ->name('clients.import');
+        // Exports liste clients (5.2) — placés AVANT /clients/{client} pour
+        // ne pas être avalés par le route model binding.
+        Route::get('clients/export/csv', [ClientController::class, 'exportCsv'])
+            ->name('clients.export.csv');
+        Route::get('clients/export/pdf', [ClientController::class, 'exportPdf'])
+            ->name('clients.export.pdf');
         Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
         Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');
         Route::get('clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');
@@ -281,6 +361,12 @@ Route::prefix('admin')
         Route::post('clients/{client}/account/reset', [ClientController::class, 'resetPassword'])->name('clients.account.reset');
         Route::delete('clients/{client}/account', [ClientController::class, 'revokeAccount'])->name('clients.account.revoke');
 
+        // ── Multi-interlocuteurs (T4) ─────────────────────────────
+        Route::post  ('clients/{client}/contacts',                [\App\Http\Controllers\Admin\ClientContactController::class, 'store'])     ->name('clients.contacts.store');
+        Route::put   ('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'update'])    ->name('clients.contacts.update');
+        Route::delete('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'destroy'])   ->name('clients.contacts.destroy');
+        Route::patch ('clients/{client}/contacts/{contact}/primary', [\App\Http\Controllers\Admin\ClientContactController::class, 'setPrimary'])->name('clients.contacts.primary');
+
         // Régies externes
         Route::resource('external-agencies', ExternalAgencyController::class)->except(['create', 'edit']);
 
@@ -291,22 +377,28 @@ Route::prefix('admin')
         Route::delete('external-agencies/{externalAgency}/panels/{panel}', [ExternalAgencyController::class, 'destroyPanel'])
             ->name('external-agencies.panels.destroy');
 
+        // Exports régie externe (PDF images / PDF liste / Excel)
+        Route::post('external-agencies/{externalAgency}/exports/pdf-images', [ExternalAgencyController::class, 'pdfImages'])
+            ->name('external-agencies.exports.pdf-images');
+        Route::post('external-agencies/{externalAgency}/exports/pdf-liste', [ExternalAgencyController::class, 'pdfListe'])
+            ->name('external-agencies.exports.pdf-liste');
+        Route::post('external-agencies/{externalAgency}/exports/excel', [ExternalAgencyController::class, 'exportExcel'])
+            ->name('external-agencies.exports.excel');
+
         // ══════════════════════════════════════════════════════════
         // ⚠️ RÈGLE IMPORTANTE : routes GET spécifiques AVANT resource
         // ══════════════════════════════════════════════════════════
 
-        // Prix panneaux dans une réservation
-        Route::patch(
-            'reservations/{reservation}/panels/{panel}/price',
-            [ReservationController::class, 'updatePanelPrice']
-        )
-            ->name('reservations.panels.price');
+        // Prix panneaux dans une réservation (internes + externes)
+        Route::patch('reservations/{reservation}/panels/{panel}/price',
+            [ReservationController::class, 'updatePanelPrice'])->name('reservations.panels.price');
+        Route::post('reservations/{reservation}/panels/{panel}/price/reset',
+            [ReservationController::class, 'resetPanelPrice'])->name('reservations.panels.price.reset');
 
-        Route::post(
-            'reservations/{reservation}/panels/{panel}/price/reset',
-            [ReservationController::class, 'resetPanelPrice']
-        )
-            ->name('reservations.panels.price.reset');
+        Route::patch('reservations/{reservation}/external-panels/{panel}/price',
+            [ReservationController::class, 'updateExternalPanelPrice'])->name('reservations.external-panels.price');
+        Route::post('reservations/{reservation}/external-panels/{panel}/price/reset',
+            [ReservationController::class, 'resetExternalPanelPrice'])->name('reservations.external-panels.price.reset');
 
         // Disponibilités
         Route::get('disponibilites', [ReservationController::class, 'disponibilites'])->name('reservations.disponibilites');
@@ -324,6 +416,8 @@ Route::prefix('admin')
             ->name('reservations.disponibilites.pdf-images');
         Route::post('disponibilites/pdf-liste', [ReservationController::class, 'pdfListe'])
             ->name('reservations.disponibilites.pdf-liste');
+        Route::post('disponibilites/export-excel', [ReservationController::class, 'exportExcel'])
+            ->name('reservations.disponibilites.export-excel');
 
 
         // Réservations
@@ -332,7 +426,20 @@ Route::prefix('admin')
             ->middleware('throttle:60,1');
         Route::post('reservations/mark-seen', [ReservationController::class, 'markSeen'])->name('reservations.mark-seen');
 
+        // Ajout de panneaux à une réservation existante (utilisé dans la modale d'ajout de panneaux)
+        Route::post('reservations/{reservation}/panels/add', [ReservationController::class, 'addPanel']) ->name('reservations.panels.add');
+
         // CRUD Réservations (en dernier pour ne pas capturer les routes spécifiques)
+        // JSON — liste des panneaux d'une réservation (modale "Voir les panneaux" depuis l'index)
+        Route::get('reservations/{reservation}/panels-list', [ReservationController::class, 'getPanels'])
+            ->name('reservations.panels.list');
+
+        // JSON — snapshot du statut courant (polling 10s côté admin pour
+        // refléter en temps réel les actions client : confirmation,
+        // refus, vue de la proposition…). Endpoint léger.
+        Route::get('reservations/{reservation}/status-snapshot', [ReservationController::class, 'statusSnapshot'])
+            ->name('reservations.status-snapshot');
+
         Route::resource('reservations', ReservationController::class)->except(['create', 'store']);
         Route::patch('reservations/{reservation}/status', [ReservationController::class, 'updateStatus'])->name('reservations.update-status');
         Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])->name('reservations.annuler');
@@ -343,6 +450,15 @@ Route::prefix('admin')
             [PropositionController::class, 'envoyerProposition']
         )
             ->name('reservations.proposition.envoyer');
+
+        // Renvoyer = même action, le contrôleur regénère token+slug si nécessaire.
+        // Le JS du partial proposition-actions.blade.php utilise cette URL quand
+        // l'admin clique "Renvoyer la proposition".
+        Route::post(
+            'reservations/{reservation}/proposition/renvoyer',
+            [PropositionController::class, 'envoyerProposition']
+        )
+            ->name('reservations.proposition.renvoyer');
 
         Route::post(
             'reservations/{reservation}/proposition/reinitialiser',
@@ -360,30 +476,56 @@ Route::prefix('admin')
         Route::get('propositions/{proposition}/pdf', [PropositionController::class, 'exportPdf'])
             ->name('propositions.pdf');
 
+        // Campagnes — exports (avant le resource pour éviter conflit /campaigns/{id})
+        Route::get('campaigns/export/excel', [CampaignController::class, 'exportExcel'])
+            ->name('campaigns.export.excel');
+        Route::get('campaigns/export/pdf',   [CampaignController::class, 'exportPdf'])
+            ->name('campaigns.export.pdf');
+
         // Campagnes
         Route::resource('campaigns', CampaignController::class);
         Route::patch('campaigns/{campaign}/status', [CampaignController::class, 'updateStatus'])->name('campaigns.update-status');
+        Route::patch('campaigns/{campaign}/billing-quick', [CampaignController::class, 'billingQuick'])->name('campaigns.billing-quick');
         Route::patch('campaigns/{campaign}/prolonger', [CampaignController::class, 'prolonger'])->name('campaigns.prolonger');
+        // Lot 5 — Lien pige public (token partageable)
+        Route::post  ('campaigns/{campaign}/pige-token', [CampaignController::class, 'generatePigeToken'])->name('campaigns.pige-token.generate');
+        Route::delete('campaigns/{campaign}/pige-token', [CampaignController::class, 'revokePigeToken'])  ->name('campaigns.pige-token.revoke');
         Route::post('campaigns/{campaign}/panels', [CampaignController::class, 'addPanel'])->name('campaigns.panels.add');
         Route::delete('campaigns/{campaign}/panels/{panel}', [CampaignController::class, 'removePanel'])->name('campaigns.panels.remove');
+        // Endpoints AJAX (rafraîchissement progression + chargement panneaux disponibles)
+        Route::get('campaigns/{campaign}/progress', [CampaignController::class, 'progress'])->name('campaigns.progress');
+        Route::get('campaigns/{campaign}/available-panels', [CampaignController::class, 'availablePanels'])->name('campaigns.available-panels');
 
         // Gestion panneaux externes d'une campagne
         Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])
             ->name('campaigns.external-panels.remove');
 
         // ── Taxes Communes ────────────────────────────────────────
+        Route::get('taxes/auto/preview',  [TaxController::class, 'previewAuto'])->name('taxes.auto.preview');
+        Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
+        Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');
+        Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
+        Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
         Route::resource('taxes', TaxController::class);
         Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
         Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
 
         // ── Facturation ───────────────────────────────────────────
+        Route::get('invoices/export/pdf',   [InvoiceController::class, 'exportListPdf'])->name('invoices.export.pdf');
+        Route::get('invoices/export/excel', [InvoiceController::class, 'exportListExcel'])->name('invoices.export.excel');
         Route::resource('invoices', InvoiceController::class);
-        Route::patch('invoices/{invoice}/send', [InvoiceController::class, 'markSent'])->name('invoices.send');
-        Route::patch('invoices/{invoice}/pay', [InvoiceController::class, 'markPaid'])->name('invoices.pay');
-        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
+        Route::patch('invoices/{invoice}/send',         [InvoiceController::class, 'markSent'])->name('invoices.send');
+        Route::patch('invoices/{invoice}/pay',          [InvoiceController::class, 'markPaid'])->name('invoices.pay');
+        Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'markCancelled'])->name('invoices.cancel');
+        Route::patch('invoices/{invoice}/revert-draft', [InvoiceController::class, 'revertDraft'])->name('invoices.revert-draft');
+        Route::get('invoices/{invoice}/pdf',            [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
 
         Route::get('/rapports', [RapportController::class, 'index'])->name('rapports.index');
         Route::get('/rapports/ajax', [RapportController::class, 'ajax'])->name('rapports.ajax');
+        Route::get('/rapports/annulations', [RapportController::class, 'annulations'])->name('rapports.annulations');
+        Route::get('/rapports/communes/{commune}/detail', [RapportController::class, 'communeDetail'])
+            ->name('rapports.communes.detail');
+        Route::get('/rapports/taxes', [RapportController::class, 'taxes'])->name('rapports.taxes');
 
     });
 

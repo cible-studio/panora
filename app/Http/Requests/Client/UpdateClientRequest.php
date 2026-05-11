@@ -30,7 +30,8 @@ class UpdateClientRequest extends FormRequest
                 'string',
                 'max:50',
                 Rule::unique('clients', 'ncc')
-                    ->ignore($clientId),
+                    ->ignore($clientId)
+                    ->whereNull('deleted_at'),
             ],
             'sector' => [
                 'nullable',

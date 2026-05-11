@@ -1,6 +1,10 @@
 <x-admin-layout>
 <x-slot name="title">Modifier — {{ $panel->reference }}</x-slot>
 
+<x-slot:topbarLeft>
+  <a href="{{ route('admin.panels.show', $panel) }}" class="btn btn-ghost">← Retour</a>
+</x-slot:topbarLeft>
+
 <div style="max-width:800px;">
     <div class="card">
         <div class="card-header">
@@ -57,7 +61,7 @@
                         <select name="format_id">
                             @foreach($formats as $format)
                             <option value="{{ $format->id }}" {{ old('format_id', $panel->format_id) == $format->id ? 'selected' : '' }}>
-                                {{ $format->name }}@if($format->surface) ({{ $format->surface }}m²)@endif
+                                {{ $format->surface_label ?? $format->name }}@if($format->dimensions_label) — {{ $format->dimensions_label }}@endif
                             </option>
                             @endforeach
                         </select>

@@ -2,6 +2,17 @@
 <x-slot name="title">Facturation</x-slot>
 
 <x-slot name="topbarActions">
+    {{-- Les exports reprennent les filtres en cours pour ne pas avoir à
+         refiltrer côté Excel/PDF — utile pour transmettre un sous-ensemble
+         (1 client, 1 mois, 1 statut) au comptable. --}}
+    <a href="{{ route('admin.invoices.export.pdf', request()->only(['client_id','status','date_from','date_to'])) }}"
+       class="btn btn-ghost btn-sm" title="Export PDF du listing filtré">
+        📄 PDF
+    </a>
+    <a href="{{ route('admin.invoices.export.excel', request()->only(['client_id','status','date_from','date_to'])) }}"
+       class="btn btn-ghost btn-sm" title="Export Excel (.xlsx) du listing filtré">
+        📊 Excel
+    </a>
     <a href="{{ route('admin.invoices.create') }}" class="btn btn-primary btn-sm">＋ Nouvelle facture</a>
 </x-slot>
 
@@ -10,25 +21,25 @@
     <div data-status="brouillon" class="stat-card filter-stat {{ request('status') === 'brouillon' ? 'active' : '' }}"
          style="text-decoration:none;cursor:pointer;transition:all .15s;">
         <div class="stat-label">Brouillons</div>
-        <div class="stat-value" style="color:var(--text3);">{{ $totalBrouillons }}</div>
+        <div class="stat-value" data-kpi="brouillon" style="color:var(--text3);">{{ $totalBrouillons }}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
     </div>
     <div data-status="envoyee" class="stat-card filter-stat {{ request('status') === 'envoyee' ? 'active' : '' }}"
          style="text-decoration:none;cursor:pointer;transition:all .15s;">
         <div class="stat-label">Envoyées</div>
-        <div class="stat-value" style="color:var(--blue);">{{ $totalEnvoyees }}</div>
+        <div class="stat-value" data-kpi="envoyee" style="color:var(--blue);">{{ $totalEnvoyees }}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
     </div>
     <div data-status="payee" class="stat-card filter-stat {{ request('status') === 'payee' ? 'active' : '' }}"
          style="text-decoration:none;cursor:pointer;transition:all .15s;">
         <div class="stat-label">Payées</div>
-        <div class="stat-value" style="color:var(--green);">{{ $totalPayees }}</div>
+        <div class="stat-value" data-kpi="payee" style="color:var(--green);">{{ $totalPayees }}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
     </div>
     <div data-status="" class="stat-card filter-stat {{ !request('status') ? 'active' : '' }}"
          style="text-decoration:none;cursor:pointer;transition:all .15s;">
         <div class="stat-label">CA Encaissé</div>
-        <div class="stat-value" style="font-size:16px; color:var(--accent);">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
+        <div class="stat-value" data-kpi="ca" style="font-size:16px; color:var(--accent);">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">Voir tout →</div>
     </div>
 </div>
@@ -278,11 +289,99 @@ cursor: pointer;
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('client_id')) currentFilters.client_id = urlParams.get('client_id');
     if (urlParams.has('status')) currentFilters.status = urlParams.get('status');
-    
+
     if (elements.client && currentFilters.client_id) elements.client.value = currentFilters.client_id;
     if (elements.status && currentFilters.status) elements.status.value = currentFilters.status;
-    
+
     updateResetButton();
+})();
+
+// ════════════════════════════════════════════════════════════
+// ACTIONS INLINE (send / pay / cancel / revert) — AJAX
+// ════════════════════════════════════════════════════════════
+(function () {
+    const tableBody = document.getElementById('table-body');
+    if (!tableBody) return;
+
+    function showToast(message, type = 'success') {
+        let host = document.getElementById('invoice-toast-host');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'invoice-toast-host';
+            host.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;';
+            document.body.appendChild(host);
+        }
+        const colors = type === 'error'
+            ? { bg: '#fee2e2', fg: '#991b1b', bd: '#fca5a5' }
+            : { bg: '#dcfce7', fg: '#166534', bd: '#86efac' };
+        const t = document.createElement('div');
+        t.textContent = message;
+        t.style.cssText = `padding:10px 14px;background:${colors.bg};color:${colors.fg};border:1px solid ${colors.bd};border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.08);min-width:240px;max-width:380px;`;
+        host.appendChild(t);
+        setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; }, 2700);
+        setTimeout(() => t.remove(), 3100);
+    }
+
+    function updateKPIs(counts) {
+        if (!counts) return;
+        const map = { brouillon: counts.brouillon, envoyee: counts.envoyee, payee: counts.payee };
+        for (const [k, v] of Object.entries(map)) {
+            const el = document.querySelector(`[data-kpi="${k}"]`);
+            if (el && v !== undefined) el.textContent = v;
+        }
+        const ca = document.querySelector('[data-kpi="ca"]');
+        if (ca && counts.ca !== undefined) {
+            ca.textContent = new Intl.NumberFormat('fr-FR').format(Math.round(counts.ca));
+        }
+    }
+
+    tableBody.addEventListener('submit', async (event) => {
+        const form = event.target.closest('form.invoice-action');
+        if (!form) return;
+        event.preventDefault();
+
+        const confirmText = form.dataset.confirm;
+        if (confirmText && !window.confirm(confirmText)) return;
+
+        const button = form.querySelector('button[type="submit"]');
+        if (button) { button.disabled = true; button.dataset.prev = button.innerHTML; button.innerHTML = '⏳'; }
+
+        try {
+            const fd = new FormData(form);
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                },
+                body: fd,
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || !data.success) {
+                showToast(data.message || 'Action impossible.', 'error');
+                if (button) { button.disabled = false; button.innerHTML = button.dataset.prev || '↺'; }
+                return;
+            }
+
+            // Remplacer la ligne par la version fraîche renvoyée par le serveur
+            const row = form.closest('tr[data-invoice-row]');
+            if (row && data.row_html) {
+                const wrapper = document.createElement('tbody');
+                wrapper.innerHTML = data.row_html.trim();
+                const newRow = wrapper.firstElementChild;
+                if (newRow) row.replaceWith(newRow);
+            }
+
+            updateKPIs(data.counts);
+            showToast(data.message || 'Action effectuée.');
+        } catch (err) {
+            console.error(err);
+            showToast('Erreur réseau. Réessayez.', 'error');
+            if (button) { button.disabled = false; button.innerHTML = button.dataset.prev || '↺'; }
+        }
+    });
 })();
 </script>
 @endpush

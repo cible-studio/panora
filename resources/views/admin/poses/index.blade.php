@@ -7,13 +7,34 @@
     </a>
 </x-slot:topbarActions>
 
-{{-- ════ ALERTES ACTIVITÉ DU MODULE ════ --}}
+{{-- ════ ALERTES ACTIVITÉ DU MODULE ════
+     Dismissibles par utilisateur (localStorage). La signature inclut
+     l'identité utilisateur + un hash du contenu (IDs des tâches en
+     retard / nb sans pige) → si une NOUVELLE tâche entre en retard ou
+     qu'une nouvelle pose sans pige apparaît, le hash change et l'alerte
+     ressort. Les détails restent toujours accessibles via "Voir tout"
+     et la fiche détail de chaque tâche. ════ --}}
 @if($overdueTasks->isNotEmpty() || $posesSansPige > 0)
-<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
+@php
+    $alertUserKey = (string) (auth()->id() ?? 'anon');
+    $overdueSig   = 'pose-alert.overdue.' . $alertUserKey . '.' .
+                    md5($overdueTasks->pluck('id')->sort()->values()->join(','));
+    $missingSig   = 'pose-alert.missing-piges.' . $alertUserKey . '.' . md5((string) $posesSansPige);
+@endphp
+<div id="pose-alerts-host" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
 
     @if($overdueTasks->isNotEmpty())
-    <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-radius:12px;padding:12px 16px">
-        <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div class="pose-alert" data-alert-key="{{ $overdueSig }}"
+         style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-radius:12px;padding:12px 16px;position:relative">
+        <button type="button" class="pose-alert-dismiss"
+                onclick="dismissPoseAlert('{{ $overdueSig }}')"
+                title="Masquer cette alerte (réapparaîtra si une nouvelle tâche tombe en retard)"
+                style="position:absolute;top:8px;right:10px;background:transparent;border:none;cursor:pointer;color:rgba(239,68,68,.6);font-size:14px;padding:4px 8px;border-radius:6px;line-height:1;"
+                onmouseenter="this.style.background='rgba(239,68,68,.1)';this.style.color='#ef4444'"
+                onmouseleave="this.style.background='transparent';this.style.color='rgba(239,68,68,.6)'">
+            ✕
+        </button>
+        <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;padding-right:24px">
             <div style="width:34px;height:34px;background:rgba(239,68,68,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
@@ -43,11 +64,20 @@
     @endif
 
     @if($posesSansPige > 0)
-    <div style="background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.25);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px">
+    <div class="pose-alert" data-alert-key="{{ $missingSig }}"
+         style="background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.25);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;position:relative">
+        <button type="button" class="pose-alert-dismiss"
+                onclick="dismissPoseAlert('{{ $missingSig }}')"
+                title="Masquer cette alerte"
+                style="position:absolute;top:8px;right:10px;background:transparent;border:none;cursor:pointer;color:rgba(249,115,22,.6);font-size:14px;padding:4px 8px;border-radius:6px;line-height:1;"
+                onmouseenter="this.style.background='rgba(249,115,22,.1)';this.style.color='#f97316'"
+                onmouseleave="this.style.background='transparent';this.style.color='rgba(249,115,22,.6)'">
+            ✕
+        </button>
         <div style="width:34px;height:34px;background:rgba(249,115,22,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         </div>
-        <div style="flex:1">
+        <div style="flex:1;padding-right:24px">
             <div style="font-size:13px;font-weight:700;color:#f97316">{{ $posesSansPige }} pose(s) réalisée(s) sans pige photo</div>
             <div style="font-size:11px;color:rgba(249,115,22,.75);margin-top:2px">Aucune preuve d'affichage — impossible de facturer le client</div>
         </div>
@@ -58,26 +88,87 @@
     </div>
     @endif
 </div>
+<script>
+// ── Dismiss persistant via localStorage ──
+// La clé inclut user_id + hash du contenu : si le contenu change (nouvelle
+// tâche en retard, nouvelle pose sans pige), la clé change et l'alerte
+// réapparaît. Les détails restent toujours accessibles via "Voir tout"
+// et les fiches détail.
+(function () {
+    const STORE_KEY = 'pose_alerts_dismissed';
+    let dismissed;
+    try { dismissed = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); }
+    catch (e) { dismissed = []; }
+    if (!Array.isArray(dismissed)) dismissed = [];
+
+    // Cache au chargement les alertes déjà dismissed
+    document.querySelectorAll('.pose-alert').forEach(el => {
+        if (dismissed.includes(el.dataset.alertKey)) {
+            el.style.display = 'none';
+        }
+    });
+
+    // Si toutes les alertes sont cachées, on cache le wrapper
+    function cleanupHost() {
+        const host = document.getElementById('pose-alerts-host');
+        if (!host) return;
+        const visible = Array.from(host.querySelectorAll('.pose-alert'))
+            .some(el => el.style.display !== 'none');
+        if (!visible) host.style.display = 'none';
+    }
+    cleanupHost();
+
+    window.dismissPoseAlert = function (key) {
+        const el = document.querySelector(`.pose-alert[data-alert-key="${key}"]`);
+        if (el) {
+            el.style.transition = 'opacity .2s,transform .2s';
+            el.style.opacity = '0';
+            el.style.transform = 'translateX(8px)';
+            setTimeout(() => { el.style.display = 'none'; cleanupHost(); }, 200);
+        }
+        try {
+            const list = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
+            if (!list.includes(key)) {
+                list.push(key);
+                // Garde-fou taille : on tronque les plus vieux au-delà de 50 entrées
+                while (list.length > 50) list.shift();
+                localStorage.setItem(STORE_KEY, JSON.stringify(list));
+            }
+        } catch (e) { /* localStorage indispo : pas critique */ }
+    };
+})();
+</script>
 @endif
 
-{{-- ════ KPI avec filtres dynamiques ════ --}}
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px" class="stats-grid">
+{{-- ════ KPI cards (pattern unifié projet : bordure latérale colorée,
+     toggle, état actif, counts qui gardent leur valeur indépendamment
+     du filtre KPI courant). ════ --}}
 @php
 $kpis = [
-    ['s'=>'planifiee','l'=>'Planifiées','v'=>$stats['planifiee']??0,'c'=>'#e8a020','bg'=>'rgba(232,160,32,.08)'],
-    ['s'=>'en_cours', 'l'=>'En cours',  'v'=>$stats['en_cours'] ??0,'c'=>'#3b82f6','bg'=>'rgba(59,130,246,.08)'],
-    ['s'=>'realisee', 'l'=>'Réalisées', 'v'=>$stats['realisee'] ??0,'c'=>'#22c55e','bg'=>'rgba(34,197,94,.08)'],
-    ['s'=>'annulee',  'l'=>'Annulées',  'v'=>$stats['annulee']  ??0,'c'=>'#ef4444','bg'=>'rgba(239,68,68,.08)'],
+    ['s'=>'total',     'l'=>'Total',      'c'=>'var(--accent)', 'icon'=>'📋'],
+    ['s'=>'planifiee', 'l'=>'Planifiées', 'c'=>'#f97316',       'icon'=>'📅'],
+    ['s'=>'en_cours',  'l'=>'En cours',   'c'=>'#3b82f6',       'icon'=>'🔧'],
+    ['s'=>'realisee',  'l'=>'Réalisées',  'c'=>'#22c55e',       'icon'=>'✅'],
+    ['s'=>'annulee',   'l'=>'Annulées',   'c'=>'#ef4444',       'icon'=>'🚫'],
 ];
+$activeStatus = request('status');
+$hasAnyFilter = request('q') || request('status') || request('technicien_id')
+              || request('campaign_id') || request('date_from') || request('date_to');
 @endphp
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px" class="stats-grid">
 @foreach($kpis as $k)
-@php $active = request('status') === $k['s']; @endphp
-<a href="#" data-status="{{ $k['s'] }}"
-   class="stat-card filter-stat {{ $active ? 'active' : '' }}"
-   style="background:{{ $k['bg'] }};border:1px solid {{ $active ? $k['c'] : 'var(--border)' }};border-radius:14px;padding:16px 18px;text-decoration:none;display:block;transition:all .15s;{{ $active ? 'box-shadow:0 0 0 2px '.$k['c'].'30;' : '' }}">
-    <div style="font-size:26px;font-weight:800;color:{{ $k['c'] }};line-height:1;margin-bottom:6px">{{ number_format($k['v']) }}</div>
+@php
+    $isTotal  = $k['s'] === 'total';
+    $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $k['s']);
+@endphp
+<a href="#"
+   data-kpi="{{ $k['s'] }}"
+   data-status="{{ $isTotal ? '' : $k['s'] }}"
+   class="stat-card filter-stat {{ $isActive ? 'active' : '' }}"
+   style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['c'] }};border-radius:14px;padding:14px 18px;text-decoration:none;display:block;transition:all .15s;{{ $isActive ? 'box-shadow:0 0 0 2px '.$k['c'].'33;' : '' }}">
+    <div style="font-size:18px;color:{{ $k['c'] }};margin-bottom:4px">{{ $k['icon'] }}</div>
+    <div data-kpi-value="{{ $k['s'] }}" style="font-size:26px;font-weight:800;color:{{ $k['c'] }};line-height:1;margin-bottom:6px">{{ number_format($stats[$k['s']] ?? 0) }}</div>
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">{{ $k['l'] }}</div>
-    @if($active)<div style="font-size:9px;color:{{ $k['c'] }};margin-top:3px;font-weight:600">Filtre actif ✓</div>@endif
 </a>
 @endforeach
 </div>
@@ -181,6 +272,67 @@ $kpis = [
     </div>
     @endif
 </div>
+
+{{-- ════ POLLING TEMPS RÉEL : progression des poses ════ --}}
+<script>
+(function () {
+    const POLL_URL      = "{{ route('admin.pose-tasks.progress') }}";
+    const POLL_INTERVAL = 30_000; // 30 s
+
+    function getVisibleTaskIds() {
+        return Array.from(document.querySelectorAll('tr[data-pose-id]'))
+            .map(tr => Number(tr.dataset.poseId))
+            .filter(Boolean);
+    }
+
+    function colorFor(p) {
+        p = Number(p);
+        if (p >= 100) return '#22c55e';
+        if (p >=  67) return '#3b82f6';
+        if (p >=  34) return '#f59e0b';
+        return '#ef4444';
+    }
+
+    async function poll() {
+        const ids = getVisibleTaskIds();
+        if (!ids.length) return;
+
+        try {
+            const url = new URL(POLL_URL, window.location.origin);
+            ids.forEach(id => url.searchParams.append('ids[]', id));
+
+            const res = await fetch(url.toString(), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+
+            (data.tasks || []).forEach(t => {
+                const fill = document.querySelector(`[data-pose-progress="${t.id}"]`);
+                if (fill) {
+                    fill.style.width = t.percent + '%';
+                    fill.style.background = t.color || colorFor(t.percent);
+                    const textEl = fill.closest('td')?.querySelector('.pose-progress-text');
+                    if (textEl) textEl.textContent = t.percent + '%';
+                }
+
+                // Si le statut a changé, signaler visuellement (subtil — pas d'overlay agressif)
+                const row = document.querySelector(`tr[data-pose-id="${t.id}"]`);
+                if (row) {
+                    if (t.is_done) row.dataset.poseStatus = 'realisee';
+                    else if (t.is_running) row.dataset.poseStatus = 'en_cours';
+                }
+            });
+        } catch (e) {
+            // Silencieux — réseau instable
+        }
+    }
+
+    // Démarre le polling après 5s (pour ne pas charger la page initiale + polling en concurrence)
+    setTimeout(poll, 5000);
+    setInterval(poll, POLL_INTERVAL);
+})();
+</script>
 
 {{-- ════ MODAL CONFIRMATION ════ --}}
 <div id="modal-confirm" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
@@ -346,13 +498,19 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
                 elements.tableContainer.innerHTML = data.html;
                 elements.tableContainer.style.opacity = '1';
             }
-            
-            if (elements.resultCount && data.total) {
-                elements.resultCount.textContent = data.total;
+
+            if (elements.resultCount && data.total !== undefined) {
+                elements.resultCount.textContent = new Intl.NumberFormat('fr-FR').format(data.total);
             }
-            
+
             if (elements.paginationContainer && data.pagination) {
                 elements.paginationContainer.innerHTML = data.pagination;
+            }
+
+            // Met à jour les KPI cards (counts par statut + total)
+            if (data.stats) {
+                updateKpiCards(data.stats);
+                updateActiveKpi();
             }
 
             // Mettre à jour l'URL sans recharger
@@ -430,27 +588,48 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         }
     });
 
-    // Cartes KPI
+    // Cartes KPI — toggle (re-cliquer = retire le filtre).
+    // La carte "total" reset le filtre status.
     document.querySelectorAll('.stat-card').forEach(card => {
         card.addEventListener('click', (e) => {
             e.preventDefault();
+            const kpi    = card.dataset.kpi;
             const status = card.dataset.status;
-            if (status && elements.status) {
-                elements.status.value = status;
-                currentFilters.status = status;
-                updateResetButton();
-                applyFilters();
-                
-                document.querySelectorAll('.stat-card').forEach(c => {
-                    if (c.dataset.status === status) {
-                        c.classList.add('active');
-                    } else {
-                        c.classList.remove('active');
-                    }
-                });
+
+            if (kpi === 'total') {
+                currentFilters.status = '';
+                if (elements.status) elements.status.value = '';
+            } else if (status && elements.status) {
+                const isActive = currentFilters.status === status;
+                currentFilters.status = isActive ? '' : status;
+                elements.status.value = currentFilters.status;
             }
+            updateResetButton();
+            applyFilters();
+            updateActiveKpi();
         });
     });
+
+    function updateActiveKpi() {
+        const noStatus = !currentFilters.status;
+        document.querySelectorAll('.stat-card').forEach(c => {
+            const k = c.dataset.kpi;
+            const s = c.dataset.status;
+            const active = k === 'total' ? noStatus : (currentFilters.status === s);
+            c.classList.toggle('active', active);
+        });
+    }
+
+    // Met à jour les valeurs des KPI après un fetch AJAX
+    function updateKpiCards(stats) {
+        if (!stats) return;
+        document.querySelectorAll('[data-kpi-value]').forEach(el => {
+            const k = el.dataset.kpiValue;
+            if (stats[k] !== undefined) {
+                el.textContent = new Intl.NumberFormat('fr-FR').format(stats[k]);
+            }
+        });
+    }
 
     // Reset button
     if (elements.resetBtn) {

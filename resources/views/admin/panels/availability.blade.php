@@ -177,10 +177,9 @@
                         @endif
                     </div>
                     <div style="font-size:11px; color:var(--text3); margin-top:2px;">
-                        📐 {{ $panel->format->name }}
-                        @if($panel->format->surface)
-                            ({{ $panel->format->surface }}m²)
-                        @endif
+                        📐
+                        @if($panel->format->dimensions_label){{ $panel->format->dimensions_label }}@else{{ $panel->format->name }}@endif
+                        @if($panel->format->surface_label) · {{ $panel->format->surface_label }}@endif
                         · {{ $panel->nombre_faces ?? 1 }} face(s)
                     </div>
                 </div>
@@ -275,11 +274,13 @@
                         </td>
                         <td>{{ $panel->commune->name }}</td>
                         <td>
-                            <div>{{ $panel->format->name }}</div>
-                            @if($panel->format->surface)
-                            <div style="font-size:11px; color:var(--text3);">
-                                {{ $panel->format->surface }}m²
-                            </div>
+                            @if($panel->format->dimensions_label)
+                                <div>{{ $panel->format->dimensions_label }}</div>
+                            @else
+                                <div>{{ $panel->format->name }}</div>
+                            @endif
+                            @if($panel->format->surface_label)
+                                <div style="font-size:11px; color:var(--text3);">{{ $panel->format->surface_label }}</div>
                             @endif
                         </td>
                         <td style="text-align:center;">

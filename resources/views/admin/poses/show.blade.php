@@ -1,10 +1,13 @@
 <x-admin-layout title="Tâche {{ $poseTask->panel?->reference }}">
 
-<x-slot:topbarActions>
+<x-slot:topbarLeft>
     <a href="{{ route('admin.pose-tasks.index') }}" class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         Retour
     </a>
+</x-slot:topbarLeft>
+
+<x-slot:topbarActions>
     @if(!in_array($poseTask->status, ['realisee','annulee']))
     <a href="{{ route('admin.pose-tasks.edit', $poseTask) }}" class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
@@ -149,6 +152,113 @@ $sIconLg = match($poseTask->status) {
                 <div style="font-size:12px;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;line-height:1.6;white-space:pre-wrap">{{ $poseTask->notes }}</div>
             </div>
             @endif
+
+            {{-- ─── Section WhatsApp + Suivi temps réel ─────────────── --}}
+            @php
+                $hasToken    = !empty($poseTask->public_token);
+                $publicUrl   = $hasToken ? route('pose.public.show', $poseTask->public_token) : null;
+                $tech        = $poseTask->technicien;
+                $waSent      = $poseTask->whatsapp_sent_at;
+                $progress    = (int) ($poseTask->progress_percent ?? 0);
+                // Note : progressColor est une méthode, pas un attribut → toujours appelée avec ()
+                $progColor   = method_exists($poseTask, 'progressColor')
+                    ? $poseTask->progressColor()
+                    : '#ef4444';
+            @endphp
+
+            <div style="margin:0 18px 18px;border-top:1px solid var(--border);padding-top:14px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#22c55e" aria-hidden="true">
+                        <path d="M20.5 3.5C18.2 1.2 15.2 0 12 0 5.4 0 0 5.4 0 12c0 2.1.6 4.2 1.6 6L0 24l6.2-1.6c1.7.9 3.7 1.5 5.7 1.5 6.6 0 12-5.4 12-12 0-3.2-1.2-6.2-3.4-8.4z"/>
+                    </svg>
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text2)">
+                        Suivi technicien (WhatsApp)
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px">
+                    {{-- Numéro technicien --}}
+                    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+                        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:4px">📱 Num. WhatsApp</div>
+                        @if($tech?->whatsapp_number)
+                            @php $waFormatted = app(\App\Services\WhatsAppService::class)->format($tech->whatsapp_number); @endphp
+                            <div style="font-family:ui-monospace,monospace;font-size:13px;color:#22c55e;font-weight:600">{{ $waFormatted }}</div>
+                        @elseif($tech)
+                            <div style="font-size:12px;color:#ef4444">⚠️ Non renseigné — <a href="{{ route('admin.users.edit', $tech) }}" style="color:var(--accent);text-decoration:underline">configurer</a></div>
+                        @else
+                            <div style="font-size:12px;color:var(--text3);font-style:italic">Aucun technicien assigné</div>
+                        @endif
+                    </div>
+
+                    {{-- Statut envoi --}}
+                    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px">
+                            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)">📤 Notification</div>
+                            @if($tech && $tech->whatsapp_number && !in_array($poseTask->status, ['realisee','annulee']))
+                            <form method="POST" action="{{ route('admin.pose-tasks.notify', $poseTask) }}" style="margin:0">
+                                @csrf
+                                <button type="submit" style="font-size:10px;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0">
+                                    {{ $waSent ? 'Renvoyer' : 'Envoyer' }}
+                                </button>
+                            </form>
+                            @endif
+                        </div>
+                        @if($waSent)
+                            <div style="font-size:12px;color:#22c55e;font-weight:600">
+                                ✓ Envoyée
+                                <span style="color:var(--text3);font-weight:normal;font-size:11px">({{ $waSent->diffForHumans() }})</span>
+                            </div>
+                        @else
+                            <div style="font-size:12px;color:#f59e0b">⏸ Non envoyée</div>
+                        @endif
+                    </div>
+                </div>
+
+                {{-- Progression actuelle --}}
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)">📊 Progression rapportée</div>
+                        <div style="font-family:ui-monospace,monospace;font-size:13px;color:var(--text);font-weight:700">{{ $progress }} %</div>
+                    </div>
+                    <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden">
+                        <div style="width:{{ $progress }}%;height:100%;background:{{ $progColor ?? '#ef4444' }};transition:width .3s"></div>
+                    </div>
+                    <div style="display:flex;gap:14px;margin-top:8px;font-size:11px;color:var(--text3)">
+                        <div>Démarré : <strong style="color:var(--text)">{{ $poseTask->started_at?->format('d/m/Y H:i') ?? '—' }}</strong></div>
+                        <div>Terminé : <strong style="color:var(--text)">{{ $poseTask->done_at?->format('d/m/Y H:i') ?? '—' }}</strong></div>
+                        @if($poseTask->real_minutes)
+                            <div>Durée : <strong style="color:var(--accent)">{{ $poseTask->real_minutes }} min</strong></div>
+                        @endif
+                    </div>
+                </div>
+
+                {{-- Lien public technicien + actions --}}
+                @if($hasToken)
+                    <div style="margin-top:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px">
+                        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#9a3412;margin-bottom:4px">🔗 Lien personnel technicien</div>
+                        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                            <input type="text" id="pose-public-url" readonly value="{{ $publicUrl }}"
+                                   style="flex:1;min-width:200px;font-family:ui-monospace,monospace;font-size:11px;background:#fff;border:1px solid #fed7aa;border-radius:5px;padding:5px 8px;color:#9a3412">
+                            <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('pose-public-url').value).then(()=>this.textContent='✓ Copié')"
+                                    class="btn btn-ghost btn-sm" style="font-size:11px">📋 Copier</button>
+                            @if($tech?->whatsapp_number)
+                                @php
+                                    $waText = "Pose CIBLE CI - {$poseTask->panel?->reference}\nMettez à jour votre avancement : {$publicUrl}";
+                                    $waLink = 'https://wa.me/' . $tech->whatsapp_number . '?text=' . urlencode($waText);
+                                @endphp
+                                <a href="{{ $waLink }}" target="_blank" rel="noopener"
+                                   class="btn btn-ghost btn-sm" style="font-size:11px;color:#22c55e;border-color:rgba(34,197,94,.4)">
+                                    💬 Ouvrir WhatsApp
+                                </a>
+                            @endif
+                        </div>
+                        <div style="font-size:10px;color:#9a3412;margin-top:6px;line-height:1.45">
+                            Ce lien permet au technicien de mettre à jour sa progression depuis son téléphone, sans login.
+                            La barre de progression ci-dessus se met à jour automatiquement (rafraîchissement 30s).
+                        </div>
+                    </div>
+                @endif
+            </div>
         </div>
 
         {{-- Card piges --}}
@@ -246,13 +356,16 @@ $sIconLg = match($poseTask->status) {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
                         Modifier la tâche
                     </a>
-                    <button type="button"
-                            onclick="Confirm.show('Supprimer définitivement la tâche du panneau <strong>{{ $poseTask->panel?->reference }}</strong> ? Cette action est irréversible.', 'danger', function(){ document.getElementById(\'form-destroy\').submit(); })"
-                            class="sb-action sb-action-danger" style="width:100%;text-align:left;cursor:pointer">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                        Supprimer la tâche
-                    </button>
-                    <form id="form-destroy" method="POST" action="{{ route('admin.pose-tasks.destroy', $poseTask) }}" style="display:none">@csrf @method('DELETE')</form>
+                    <form method="POST"
+                          action="{{ route('admin.pose-tasks.destroy', $poseTask) }}"
+                          onsubmit="return confirm('Supprimer définitivement la tâche du panneau {{ $poseTask->panel?->reference }} ? Cette action est irréversible.');"
+                          style="margin:0">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="sb-action sb-action-danger" style="width:100%;text-align:left;cursor:pointer;border:1px solid rgba(239,68,68,.15)">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                            Supprimer la tâche
+                        </button>
+                    </form>
                 </div>
                 @endif
             </div>

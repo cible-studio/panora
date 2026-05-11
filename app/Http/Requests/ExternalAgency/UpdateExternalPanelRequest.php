@@ -28,6 +28,7 @@ class UpdateExternalPanelRequest extends FormRequest
             'daily_traffic'    => 'nullable|integer|min:0',
             'latitude'         => 'nullable|numeric|between:-90,90',
             'longitude'        => 'nullable|numeric|between:-180,180',
+            'photo'            => 'nullable|image|max:35840',
         ];
     }
 
