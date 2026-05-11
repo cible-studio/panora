@@ -102,18 +102,15 @@ class Campaign extends Model
         return $query->where('status', CampaignStatus::TERMINE->value);
     }
 
-    /** Campagnes "en cours" : actif + pose (pour la barre de progression) */
+    /** Campagnes "en cours" — actif (pose terrain trackée via PoseTask). */
     public function scopeRunning($query)
     {
-        return $query->whereIn('status', [
-            CampaignStatus::ACTIF->value,
-            CampaignStatus::POSE->value,
-        ]);
+        return $query->where('status', CampaignStatus::ACTIF->value);
     }
 
     public function scopeNonFacturees($query)
     {
-        return $query->whereIn('status', ['actif', 'pose', 'termine'])
+        return $query->whereIn('status', ['actif', 'termine'])
                      ->doesntHave('invoices');
     }
 
@@ -258,10 +255,10 @@ class Campaign extends Model
         return "Se termine dans environ {$months} mois ({$days} j)";
     }
 
-    /** Alerte fin proche : campagne en cours (actif/pose) finissant dans <= $days jours */
+    /** Alerte fin proche : campagne ACTIF finissant dans <= $days jours */
     public function isEndingSoon(int $threshold = 14): bool
     {
-        if (!in_array($this->status, [CampaignStatus::ACTIF, CampaignStatus::POSE])) {
+        if ($this->status !== CampaignStatus::ACTIF) {
             return false;
         }
         $days = $this->daysRemaining();
@@ -283,14 +280,15 @@ class Campaign extends Model
     /**
      * Synchronise le statut en base par rapport aux dates si pertinent.
      * - PLANIFIE → ACTIF si start_date atteinte
-     * - ACTIF/POSE → TERMINE si end_date dépassée
-     * - Ne touche pas les statuts terminaux (TERMINE/ANNULE)
+     * - ACTIF → TERMINE si end_date dépassée
+     * - Ne touche pas les statuts terminaux (TERMINE/ANNULE) ni PAUSE
      *
      * @return bool True si le statut a changé
      */
     public function syncStatusWithDates(): bool
     {
         if ($this->status->isTerminal()) return false;
+        if ($this->status === CampaignStatus::PAUSE) return false;
 
         $today = now()->startOfDay();
         $start = $this->start_date->copy()->startOfDay();
@@ -299,7 +297,7 @@ class Campaign extends Model
 
         if ($this->status === CampaignStatus::PLANIFIE && $start->lte($today) && $end->gt($today)) {
             $newStatus = CampaignStatus::ACTIF;
-        } elseif (in_array($this->status, [CampaignStatus::ACTIF, CampaignStatus::POSE]) && $end->lte($today)) {
+        } elseif ($this->status === CampaignStatus::ACTIF && $end->lte($today)) {
             $newStatus = CampaignStatus::TERMINE;
         } elseif ($this->status === CampaignStatus::PLANIFIE && $end->lte($today)) {
             $newStatus = CampaignStatus::TERMINE;

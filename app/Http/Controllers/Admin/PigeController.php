@@ -79,10 +79,8 @@ class PigeController extends Controller
         $stats['total'] = $piges->total();
 
         $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
-        $campaigns   = Campaign::whereIn('status', [
-            CampaignStatus::ACTIF->value,
-            CampaignStatus::POSE->value,
-        ])->orderBy('name')->get(['id', 'name', 'status']);
+        $campaigns   = Campaign::where('status', CampaignStatus::ACTIF->value)
+            ->orderBy('name')->get(['id', 'name', 'status']);
 
         // Panneau pré-filtré (depuis index poses)
         $filterPanel = $request->filled('panel_id')

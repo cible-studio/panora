@@ -2,9 +2,12 @@
 namespace App\Services;
 
 use App\Enums\CampaignStatus;
+use App\Enums\PoseTaskStatus;
 use App\Enums\ReservationStatus;
+use App\Mail\CampaignStartedMail;
 use App\Models\Campaign;
 use App\Models\Panel;
+use App\Models\PoseTask;
 use App\Models\Reservation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -12,10 +15,11 @@ use Illuminate\Support\Facades\Log;
 class CampaignService
 {
     /** Statuts permettant la modification du panel (ajout/retrait) */
-    private const MODIFIABLE_STATUSES = ['planifie', 'actif', 'pose'];
+    private const MODIFIABLE_STATUSES = ['planifie', 'actif'];
 
     public function __construct(
-        protected AvailabilityService $availability
+        protected AvailabilityService $availability,
+        protected NotificationMailer  $mailer,
     ) {}
 
     // ══════════════════════════════════════════════════════════════
@@ -119,6 +123,99 @@ class CampaignService
     }
 
     // ══════════════════════════════════════════════════════════════
+    // ACTIVER UNE CAMPAGNE — PLANIFIE ou PAUSE → ACTIF + mail client
+    //
+    // Garde : refus si 0 panneau. Le mail "votre campagne démarre" part
+    // seulement à la première activation (PLANIFIE → ACTIF), pas à la
+    // reprise depuis PAUSE (le client a déjà reçu un mail au démarrage
+    // initial — pas la peine de le renotifier).
+    //
+    // Retour : ['ok' => bool, 'error' => ?string, 'mail_sent' => bool].
+    // ══════════════════════════════════════════════════════════════
+    public function activate(Campaign $campaign): array
+    {
+        // Statut actuel exploitable ?
+        $allowedFrom = [CampaignStatus::PLANIFIE, CampaignStatus::PAUSE];
+        if (!in_array($campaign->status, $allowedFrom, true)) {
+            return ['ok' => false, 'error' => 'Cette campagne ne peut pas être activée depuis le statut « '
+                . $campaign->status->label() . ' ».'];
+        }
+
+        // Garde panneaux : impossible sans au moins 1 panneau.
+        $totalPanels = $campaign->panels()->count() + $campaign->externalPanels()->count();
+        if ($totalPanels === 0) {
+            return ['ok' => false, 'error' => 'Ajoutez au moins un panneau à la campagne avant de l\'activer.'];
+        }
+
+        $wasFromPlanifie = $campaign->status === CampaignStatus::PLANIFIE;
+
+        $campaign->update([
+            'status'     => CampaignStatus::ACTIF->value,
+            'updated_by' => auth()->id(),
+        ]);
+
+        // Mail au client : uniquement à la première activation (pas à la
+        // reprise depuis PAUSE — le client a déjà reçu l'annonce initiale).
+        $mailSent = false;
+        if ($wasFromPlanifie) {
+            $mailSent = $this->sendStartedMailToClient($campaign->fresh());
+        }
+
+        Log::info('campaign.activated', [
+            'campaign_id'  => $campaign->id,
+            'from_status'  => $wasFromPlanifie ? 'planifie' : 'pause',
+            'panels_count' => $totalPanels,
+            'mail_sent'    => $mailSent,
+            'user_id'      => auth()->id(),
+        ]);
+
+        return ['ok' => true, 'mail_sent' => $mailSent];
+    }
+
+    /**
+     * Envoie le mail "campagne démarre" à tous les destinataires utiles
+     * du client : l'email principal + tous les interlocuteurs renseignés.
+     * Best-effort : un envoi qui rate ne casse pas l'activation.
+     */
+    private function sendStartedMailToClient(Campaign $campaign): bool
+    {
+        $campaign->loadMissing(['client.contacts']);
+        $client = $campaign->client;
+        if (!$client) {
+            Log::warning('campaign.activate.mail.skip.no_client', ['campaign_id' => $campaign->id]);
+            return false;
+        }
+
+        $recipients = collect()
+            ->push($client->email)
+            ->merge($client->contacts->pluck('email'))
+            ->filter(fn($e) => $e && filter_var($e, FILTER_VALIDATE_EMAIL))
+            ->unique()
+            ->values();
+
+        if ($recipients->isEmpty()) {
+            Log::warning('campaign.activate.mail.skip.no_recipient', [
+                'campaign_id' => $campaign->id,
+                'client_id'   => $client->id,
+            ]);
+            return false;
+        }
+
+        $sent = $this->mailer->sendSilently(
+            $recipients->all(),
+            new CampaignStartedMail($campaign),
+            context: [
+                'campaign_id'      => $campaign->id,
+                'client_id'        => $client->id,
+                'recipients_count' => $recipients->count(),
+                'event'            => 'campaign.started',
+            ]
+        );
+
+        return $sent;
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // ANNULER UNE CAMPAGNE
     //
     // Idempotent : si déjà terminale, ne fait rien.
@@ -160,6 +257,8 @@ class CampaignService
                 'updated_by'           => auth()->id(),
             ]);
 
+            $cancelledPoses = $this->cancelPendingPoseTasks($campaign, 'Campagne annulée');
+
             $this->syncAllPanels($internalIds, $externalIds);
 
             Log::info('campaign.cancelled', [
@@ -167,6 +266,7 @@ class CampaignService
                 'reason'         => $reason,
                 'panels_freed'   => count($internalIds),
                 'externals_freed'=> count($externalIds),
+                'poses_cancelled'=> $cancelledPoses,
                 'user_id'        => auth()->id(),
             ]);
         });
@@ -209,6 +309,11 @@ class CampaignService
                 'updated_by' => auth()->id(),
             ]);
 
+            // À la clôture, les poses non-faites sont annulées (campagne
+            // terminée → plus de raison de poser des bâches). Les COMPLETED
+            // restent comme historique.
+            $cancelledPoses = $this->cancelPendingPoseTasks($campaign, 'Campagne terminée');
+
             $this->syncAllPanels($internalIds, $externalIds);
 
             Log::info('campaign.terminated', [
@@ -216,6 +321,7 @@ class CampaignService
                 'reason'         => $reason,
                 'panels_freed'   => count($internalIds),
                 'externals_freed'=> count($externalIds),
+                'poses_cancelled'=> $cancelledPoses,
                 'user_id'        => auth()->id(),
             ]);
         });
@@ -264,6 +370,12 @@ class CampaignService
                 // Réservation manuelle → conservée
             }
 
+            // Filet de sécurité : si des poses étaient encore en PLANNED
+            // ou IN_PROGRESS (cas d'une campagne déjà TERMINE/ANNULE
+            // datant d'avant le fix), on les annule maintenant pour ne
+            // pas laisser de poses orphelines après le soft-delete.
+            $cancelledPoses = $this->cancelPendingPoseTasks($campaign, 'Campagne supprimée');
+
             $campaign->delete();
 
             $this->syncAllPanels($panelIds, $externalPanelIds);
@@ -272,6 +384,7 @@ class CampaignService
                 'campaign_id'    => $campaign->id,
                 'panels_count'   => count($panelIds),
                 'externals_count'=> count($externalPanelIds),
+                'poses_cancelled'=> $cancelledPoses,
                 'user_id'        => auth()->id(),
             ]);
         });
@@ -430,5 +543,46 @@ class CampaignService
     {
         if (!$new) return $existing;
         return trim(($existing ?? '') . "\n" . $new);
+    }
+
+    /**
+     * Annule en bloc les PoseTask non commencées (PLANNED) ou en cours
+     * (IN_PROGRESS) d'une campagne, lors d'une annulation, terminaison ou
+     * suppression de campagne.
+     *
+     * Les COMPLETED restent intactes — c'est l'historique terrain : la
+     * bâche a été posée, la pige photo existe peut-être, on garde la
+     * traçabilité même si la campagne disparaît.
+     *
+     * @return int Nombre de PoseTask annulées.
+     */
+    private function cancelPendingPoseTasks(Campaign $campaign, string $reason): int
+    {
+        $now = now();
+        $note = "[Auto] {$reason} #" . $campaign->id . ' le ' . $now->format('d/m/Y');
+
+        $affected = PoseTask::where('campaign_id', $campaign->id)
+            ->whereIn('status', [
+                PoseTaskStatus::PLANNED->value,
+                PoseTaskStatus::IN_PROGRESS->value,
+            ])
+            ->get();
+
+        foreach ($affected as $task) {
+            $task->update([
+                'status' => PoseTaskStatus::CANCELLED->value,
+                'notes'  => $this->appendNote($task->notes, $note),
+            ]);
+        }
+
+        if ($affected->isNotEmpty()) {
+            Log::info('campaign.poses_cancelled', [
+                'campaign_id' => $campaign->id,
+                'count'       => $affected->count(),
+                'reason'      => $reason,
+            ]);
+        }
+
+        return $affected->count();
     }
 }

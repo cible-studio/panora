@@ -51,11 +51,27 @@
             </td>
             <td style="padding:10px 12px;max-width:150px">
                 @if($task->campaign)
-                <a href="{{ route('admin.campaigns.show', $task->campaign) }}" style="font-size:12px;font-weight:500;color:var(--text);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ $task->campaign->name }}">{{ Str::limit($task->campaign->name, 22) }}</a>
-                @php $cui = $task->campaign->status->uiConfig(); @endphp
-                <div style="font-size:9px;color:{{ $cui['color'] }};margin-top:2px;font-weight:600">{{ $task->campaign->status->label() }}</div>
+                    @php
+                        $isTrashed = (bool) $task->campaign->deleted_at;
+                        $cstatus   = $task->campaign->status?->value ?? '';
+                        $isPaused  = $cstatus === 'pause';
+                        $isClosed  = in_array($cstatus, ['annule', 'termine'], true);
+                        $orphan    = $isTrashed || $isClosed;
+                    @endphp
+                    <a href="{{ route('admin.campaigns.show', $task->campaign) }}" style="font-size:12px;font-weight:500;color:var(--text);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;{{ $orphan ? 'text-decoration:line-through;color:var(--text3);' : '' }}" title="{{ $task->campaign->name }}">{{ Str::limit($task->campaign->name, 22) }}</a>
+                    @if($isTrashed)
+                        <div style="font-size:9px;color:#ef4444;margin-top:2px;font-weight:700">🗑️ Supprimée</div>
+                    @elseif($isPaused)
+                        <div style="font-size:9px;color:#f59e0b;margin-top:2px;font-weight:700">⏸️ En pause</div>
+                    @elseif($isClosed)
+                        @php $cui = $task->campaign->status->uiConfig(); @endphp
+                        <div style="font-size:9px;color:{{ $cui['color'] }};margin-top:2px;font-weight:700">{{ $task->campaign->status->label() }}</div>
+                    @else
+                        @php $cui = $task->campaign->status->uiConfig(); @endphp
+                        <div style="font-size:9px;color:{{ $cui['color'] }};margin-top:2px;font-weight:600">{{ $task->campaign->status->label() }}</div>
+                    @endif
                 @else
-                <span style="font-size:11px;color:var(--text3);font-style:italic">Intervention</span>
+                    <span style="font-size:11px;color:var(--text3);font-style:italic">Intervention</span>
                 @endif
             </td>
             <td style="padding:10px 12px">

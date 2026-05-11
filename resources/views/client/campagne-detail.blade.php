@@ -77,7 +77,7 @@ $coverageColor = $coveragePercent >= 80 ? '#22c55e' : ($coveragePercent >= 50 ? 
             </div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
-            @if($daysLeft > 0 && in_array($s, ['actif','pose']))
+            @if($daysLeft > 0 && $s === 'actif')
             <div style="font-size:24px;font-weight:800;color:{{ $daysLeft <= 7 ? '#ef4444' : ($daysLeft <= 14 ? '#f97316' : 'var(--text)') }};line-height:1;">{{ $daysLeft }}</div>
             <div style="font-size:10px;color:var(--text3);margin-top:2px;">jours restants</div>
             @elseif($daysLeft <= 0 && $s !== 'annule')
@@ -87,7 +87,7 @@ $coverageColor = $coveragePercent >= 80 ? '#22c55e' : ($coveragePercent >= 50 ? 
     </div>
 
     {{-- Barre progression temporelle --}}
-    @if(in_array($s, ['actif','pose']))
+    @if($s === 'actif')
     <div style="margin-top:14px;">
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:5px;">
             <span>Début</span>

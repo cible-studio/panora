@@ -36,15 +36,32 @@ class PoseController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function index(Request $request)
     {
+        // On charge withTrashed sur la campagne pour pouvoir afficher
+        // "campagne supprimée" sur les poses orphelines (la campagne
+        // est en soft-delete mais la pose, elle, est toujours là).
         $query = PoseTask::with([
             'panel:id,reference,name,commune_id',
             'panel.commune:id,name',
-            'campaign:id,name,status',
+            'campaign' => fn($q) => $q->withTrashed()->select('id', 'name', 'status', 'deleted_at'),
             'technicien:id,name',
         ])->withCount([
             'piges as pige_count',
             'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
         ]);
+
+        // Filtre "Masquer poses orphelines" (par défaut activé) : cache
+        // celles dont la campagne est supprimée, annulée ou terminée.
+        // L'utilisateur peut décocher pour les voir (debug / audit).
+        $hideOrphan = !$request->has('show_orphan') || !$request->boolean('show_orphan');
+        if ($hideOrphan) {
+            $query->whereHas('campaign', fn($q) =>
+                $q->whereNotIn('status', [
+                    \App\Enums\CampaignStatus::ANNULE->value,
+                    \App\Enums\CampaignStatus::TERMINE->value,
+                ])
+                ->whereNull('deleted_at')
+            );
+        }
 
         // Filtres "neutres" appliqués à la query (et au calcul des compteurs)
         if ($request->filled('q')) {
@@ -85,7 +102,7 @@ class PoseController extends Controller
         $stats['total'] = $poseTasks->total();
 
         $techniciens   = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
-        $campaigns     = Campaign::whereIn('status', [CampaignStatus::ACTIF->value, CampaignStatus::POSE->value])->orderBy('name')->get(['id', 'name', 'status']);
+        $campaigns     = Campaign::where('status', CampaignStatus::ACTIF->value)->orderBy('name')->get(['id', 'name', 'status']);
         $overdueTasks  = $this->poseService->getOverdueTasks();
         $posesSansPige = PoseTask::where('status', PoseTaskStatus::COMPLETED->value)->whereNotNull('campaign_id')->whereDoesntHave('piges', fn($q) => $q->where('status', '!=', 'rejete'))->count();
 
@@ -439,10 +456,11 @@ class PoseController extends Controller
             ->when(!empty($statusArr), fn($qr) => $qr->whereIn('status', $statusArr))
             ->orderByRaw("CASE
                 WHEN status = 'actif' THEN 0
-                WHEN status = 'pose'  THEN 1
+                WHEN status = 'planifie' THEN 1
+                WHEN status = 'pause' THEN 2
                 WHEN status = 'termine' THEN 4
                 WHEN status = 'annule'  THEN 5
-                ELSE 2 END")
+                ELSE 3 END")
             ->orderBy('name')
             ->limit(40)
             ->get(['id', 'name', 'status', 'start_date', 'end_date', 'total_panels']);

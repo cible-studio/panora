@@ -154,7 +154,22 @@ class PoseService
             }
         }
 
-        $old = $task->status;
+        // Garde métier : on n'autorise PLANNED → IN_PROGRESS que si la
+        // campagne est en ACTIF ou POSE. Bloque toute pose terrain sur
+        // une campagne mise en pause, annulée, terminée ou supprimée.
+        $oldStatus = $task->status;
+        $newStatus = $data['status'] ?? $oldStatus;
+        if ($newStatus === PoseTaskStatus::IN_PROGRESS->value
+            && $oldStatus === PoseTaskStatus::PLANNED->value) {
+            $campaignId = $data['campaign_id'] ?? $task->campaign_id;
+            $campaign = $campaignId ? Campaign::withTrashed()->find($campaignId) : null;
+            $blocker = $this->resolveCampaignBlocker($campaign);
+            if ($blocker) {
+                return $this->error($blocker);
+            }
+        }
+
+        $old = $oldStatus;
         $task->update([
             'campaign_id'      => $data['campaign_id'] ?? $task->campaign_id,
             'panel_id'         => $data['panel_id'] ?? $task->panel_id,
@@ -179,6 +194,14 @@ class PoseService
         }
         if ($task->status === PoseTaskStatus::CANCELLED->value) {
             return $this->error('Impossible de réaliser une tâche annulée.');
+        }
+
+        // Garde campagne : si la campagne mère a été mise en pause ou
+        // close entre la planification et la pose terrain, on bloque.
+        $campaign = $task->campaign_id ? Campaign::withTrashed()->find($task->campaign_id) : null;
+        $blocker = $this->resolveCampaignBlocker($campaign);
+        if ($blocker) {
+            return $this->error($blocker);
         }
 
         // Lock optimiste anti double-clic
@@ -417,4 +440,26 @@ class PoseService
 
     // ── Helpers ───────────────────────────────────────────────────
     private function error(string $msg): array { return ['ok' => false, 'error' => $msg]; }
+
+    /**
+     * Retourne un message d'erreur si la campagne empêche l'exécution
+     * d'une pose terrain (PAUSE / TERMINE / ANNULE / supprimée), ou null
+     * si tout est OK. Source unique de vérité pour update() et complete().
+     */
+    private function resolveCampaignBlocker(?Campaign $campaign): ?string
+    {
+        if (!$campaign) {
+            return 'Pose orpheline : la campagne associée a été supprimée.';
+        }
+        if ($campaign->trashed()) {
+            return 'La campagne associée a été supprimée — pose impossible.';
+        }
+        $statusValue = $campaign->status?->value ?? (string) $campaign->status;
+        return match ($statusValue) {
+            'pause'   => 'Campagne en pause — reprenez la campagne avant de démarrer la pose.',
+            'annule'  => 'Campagne annulée — pose impossible.',
+            'termine' => 'Campagne terminée — pose impossible.',
+            default   => null,
+        };
+    }
 }

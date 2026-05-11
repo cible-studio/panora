@@ -1,10 +1,10 @@
 @php
     $statusCfg     = $campaign->status->uiConfig();
-    $isRunning     = in_array($campaign->status->value, ['actif', 'pose']);
+    $isRunning     = $campaign->status->value === 'actif';
     $daysLeft      = $campaign->daysRemaining();
     $pct           = $isRunning ? $campaign->progressPercent() : 0;
     $endingSoon    = $campaign->isEndingSoon();
-    $isNonFacturee = in_array($campaign->status->value, ['actif','pose','termine']) && ($campaign->invoices_count ?? 0) === 0;
+    $isNonFacturee = in_array($campaign->status->value, ['actif','termine']) && ($campaign->invoices_count ?? 0) === 0;
 
     $latestInvoice = $campaign->invoices->first();
     $invoiceCfg = $latestInvoice ? match($latestInvoice->status) {
