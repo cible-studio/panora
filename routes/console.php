@@ -12,9 +12,13 @@ Artisan::command('inspire', function () {
 //    Tous les jours à 01h00
 Schedule::command('reservations:sync-expired')->dailyAt('01:00');
 
-// 2. Options (en_attente) expirées → "annule" + panneaux libérés
-//    Tous les jours à 01h15
+// 2a. Options dont la période est passée → "annule" + panneaux libérés
+//     Tous les jours à 01h15
 Schedule::command('reservations:expire-options')->dailyAt('01:15');
+
+// 2b. Options trop anciennes (> 7j) même si période future → libère les panneaux bloqués
+//     Tous les jours à 01h20
+Schedule::command('reservations:expire-old-options', ['--days' => 7])->dailyAt('01:20');
 
 // 3. Campagnes actives expirées → "termine"
 //    Tous les jours à 01h30

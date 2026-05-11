@@ -7,8 +7,8 @@ use Illuminate\Console\Command;
 
 class ExpireReservationOptions extends Command
 {
-    protected $signature   = 'reservations:expire-options {--days=7}';
-    protected $description = 'Expire les options non confirmées après N jours (défaut: 7)';
+    protected $signature   = 'reservations:expire-old-options {--days=7}';
+    protected $description = 'Expire les options non confirmées créées depuis plus de N jours (défaut: 7), même si leur période est future';
 
     public function handle(AvailabilityService $availability): void
     {
