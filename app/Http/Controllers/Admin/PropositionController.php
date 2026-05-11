@@ -76,7 +76,39 @@ class PropositionController extends Controller
     public function updateStatus(Request $request, Reservation $proposition)
     {
         $request->validate(['status' => 'required|in:en_attente,confirme,annule,refuse']);
-        $proposition->update(['status' => $request->status]);
+
+        $newStatus = $request->status;
+
+        // Confirmation admin → même logique que le flux client (campagne + sync + auto-cancel concurrents)
+        // Couvre toutes les transitions → confirme (en_attente, refuse, annule), pas seulement en_attente.
+        if ($newStatus === 'confirme' && $proposition->status->value !== 'confirme') {
+            $proposition->loadMissing(['panels', 'externalPanels', 'campaign']);
+            try {
+                $this->propositionService->confirmer($proposition);
+            } catch (\RuntimeException $e) {
+                return back()->with('error', $e->getMessage());
+            } catch (\Exception $e) {
+                Log::error('admin.proposition.updateStatus.error', ['error' => $e->getMessage()]);
+                return back()->with('error', 'Erreur lors de la confirmation.');
+            }
+            return back()->with('success', 'Proposition confirmée.');
+        }
+
+        // Pour annule/refuse/en_attente : mise à jour directe + sync panneaux
+        $proposition->update(['status' => $newStatus]);
+
+        if (in_array($newStatus, ['annule', 'refuse'])) {
+            $availability = app(\App\Services\AvailabilityService::class);
+            $panelIds = $proposition->panels->pluck('id')->toArray();
+            if (!empty($panelIds)) {
+                $availability->syncPanelStatuses($panelIds);
+            }
+            $extIds = $proposition->externalPanels->pluck('id')->toArray();
+            if (!empty($extIds)) {
+                $availability->syncExternalPanelStatuses($extIds);
+            }
+        }
+
         return back()->with('success', 'Statut mis à jour.');
     }
 
@@ -249,7 +281,6 @@ class PropositionController extends Controller
         }
 
         try {
-            $token    = $reservation->proposition_token;
             $campaign = $this->propositionService->confirmer($reservation);
         } catch (\RuntimeException $e) {
             Log::warning('admin.propositions.conflict', ['reservation' => $reference, 'error' => $e->getMessage()]);
@@ -498,7 +529,9 @@ class PropositionController extends Controller
             ->where('proposition_slug', $slug)
             ->whereNotNull('proposition_token')
             ->with(['client', 'panels.photos', 'panels.commune',
-                    'panels.zone', 'panels.format', 'panels.category'])
+                    'panels.zone', 'panels.format', 'panels.category',
+                    'externalPanels.commune', 'externalPanels.zone',
+                    'externalPanels.format', 'externalPanels.category'])
             ->first();
     }
 

@@ -113,15 +113,66 @@ class PropositionService
             ]);
 
             // Sync panneaux internes
-            $panelIds = $reservation->panels->pluck('id')->toArray();
             if (!empty($panelIds)) {
                 $availability->syncPanelStatuses($panelIds);
             }
 
             // Sync panneaux externes
-            $externalIds = $reservation->externalPanels->pluck('id')->toArray();
-            if (!empty($externalIds)) {
-                $availability->syncExternalPanelStatuses($externalIds);
+            if (!empty($extIds)) {
+                $availability->syncExternalPanelStatuses($extIds);
+            }
+
+            // Annuler automatiquement toutes les autres propositions EN_ATTENTE
+            // qui chevauchent les mêmes panneaux sur la même période.
+            $competingIds = collect();
+            if (!empty($panelIds)) {
+                $ids = DB::table('reservation_panels')
+                    ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                    ->whereIn('reservation_panels.panel_id', $panelIds)
+                    ->where('reservations.status', ReservationStatus::EN_ATTENTE->value)
+                    ->where('reservations.id', '!=', $reservation->id)
+                    ->where('reservations.start_date', '<', $end)
+                    ->where('reservations.end_date',   '>', $start)
+                    ->distinct()
+                    ->pluck('reservations.id');
+                $competingIds = $competingIds->merge($ids);
+            }
+            if (!empty($extIds)) {
+                $ids = DB::table('reservation_panels')
+                    ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                    ->whereIn('reservation_panels.external_panel_id', $extIds)
+                    ->where('reservation_panels.source', 'externe')
+                    ->where('reservations.status', ReservationStatus::EN_ATTENTE->value)
+                    ->where('reservations.id', '!=', $reservation->id)
+                    ->where('reservations.start_date', '<', $end)
+                    ->where('reservations.end_date',   '>', $start)
+                    ->distinct()
+                    ->pluck('reservations.id');
+                $competingIds = $competingIds->merge($ids);
+            }
+            if ($competingIds->isNotEmpty()) {
+                $uniqueCompeting = $competingIds->unique()->toArray();
+                Reservation::whereIn('id', $uniqueCompeting)
+                    ->update(['status' => ReservationStatus::ANNULE->value]);
+
+                // Sync les panneaux des réservations annulées qui ne font pas partie
+                // de notre confirmation (sinon ils restent en cache avec statut 'option').
+                $extraInternalIds = DB::table('reservation_panels')
+                    ->whereIn('reservation_id', $uniqueCompeting)
+                    ->where('source', 'interne')
+                    ->whereNotNull('panel_id')
+                    ->when(!empty($panelIds), fn($q) => $q->whereNotIn('panel_id', $panelIds))
+                    ->distinct()->pluck('panel_id')->toArray();
+
+                $extraExternalIds = DB::table('reservation_panels')
+                    ->whereIn('reservation_id', $uniqueCompeting)
+                    ->where('source', 'externe')
+                    ->whereNotNull('external_panel_id')
+                    ->when(!empty($extIds), fn($q) => $q->whereNotIn('external_panel_id', $extIds))
+                    ->distinct()->pluck('external_panel_id')->toArray();
+
+                if (!empty($extraInternalIds)) $availability->syncPanelStatuses($extraInternalIds);
+                if (!empty($extraExternalIds)) $availability->syncExternalPanelStatuses($extraExternalIds);
             }
 
             // Créer campagne si elle n'existe pas
@@ -143,7 +194,7 @@ class PropositionService
                     'start_date'     => $reservation->start_date,
                     'end_date'       => $reservation->end_date,
                     'status'         => $campStatus,
-                    'total_panels'   => count($panelIds) + count($externalIds),
+                    'total_panels'   => count($panelIds) + count($extIds),
                     'total_amount'   => $reservation->total_amount,
                     'user_id'        => $reservation->user_id,
                 ]);
@@ -154,14 +205,14 @@ class PropositionService
 
                 // Le pivot campaign_panels supporte external_panel_id avec
                 // type='externe' — même schéma que ReservationController::store.
-                if (!empty($externalIds)) {
+                if (!empty($extIds)) {
                     $rows = array_map(fn($extId) => [
                         'campaign_id'       => $campaign->id,
                         'external_panel_id' => $extId,
                         'type'              => 'externe',
                         'created_at'        => now(),
                         'updated_at'        => now(),
-                    ], $externalIds);
+                    ], $extIds);
                     DB::table('campaign_panels')->insert($rows);
                 }
 
@@ -178,7 +229,7 @@ class PropositionService
                 'campaign_id'    => $campaign->id,
                 'client_id'      => $reservation->client_id,
                 'panels'         => count($panelIds),
-                'externals'      => count($externalIds),
+                'externals'      => count($extIds),
             ]);
         });
 
