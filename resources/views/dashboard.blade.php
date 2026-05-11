@@ -113,8 +113,10 @@
                                 @php $s = $campagne->status->value ?? $campagne->status; @endphp
                                 @if($s === 'actif')
                                     <span class="badge badge-green">Actif</span>
-                                @elseif($s === 'pose')
-                                    <span class="badge badge-blue">En pose</span>
+                                @elseif($s === 'pause')
+                                    <span class="badge badge-orange">En pause</span>
+                                @elseif($s === 'planifie')
+                                    <span class="badge badge-blue">Planifiée</span>
                                 @elseif($s === 'termine')
                                     <span class="badge badge-gray">Terminé</span>
                                 @else

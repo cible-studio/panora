@@ -160,7 +160,7 @@ class AvailabilityService
             ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
             ->whereIn('campaign_panels.panel_id', $panelIds)
             ->where('campaign_panels.type', 'interne')
-            ->whereIn('campaigns.status', ['actif', 'pose'])
+            ->where('campaigns.status', 'actif')
             ->where('campaigns.start_date', '<=', $today)
             ->where('campaigns.end_date',   '>=', $today)
             ->pluck('campaign_panels.panel_id')

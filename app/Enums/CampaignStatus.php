@@ -1,11 +1,20 @@
 <?php
 namespace App\Enums;
 
+/**
+ * Statuts campagne — simplifiés à 5.
+ *
+ * L'ancien statut POSE (« en cours de pose terrain ») a été supprimé :
+ * il dupliquait l'information déjà portée par PoseTask (statuts
+ * planifiee / en_cours / realisee). Les campagnes y étant restent
+ * en ACTIF — la pose effective continue d'être suivie via PoseTask.
+ *
+ * Migration des données : 2026_05_11_140000_remove_pose_from_campaigns_status.php
+ */
 enum CampaignStatus: string
 {
     case PLANIFIE = 'planifie';
     case ACTIF    = 'actif';
-    case POSE     = 'pose';
     case PAUSE    = 'pause';
     case TERMINE  = 'termine';
     case ANNULE   = 'annule';
@@ -15,7 +24,6 @@ enum CampaignStatus: string
         return match($this) {
             self::PLANIFIE => 'Planifiée',
             self::ACTIF    => 'En cours',
-            self::POSE     => 'En pose',
             self::PAUSE    => 'En pause',
             self::TERMINE  => 'Terminée',
             self::ANNULE   => 'Annulée',
@@ -38,13 +46,6 @@ enum CampaignStatus: string
                 'bg'          => 'rgba(34,197,94,0.08)',
                 'border'      => 'rgba(34,197,94,0.3)',
                 'description' => 'Campagne active — panneaux en affichage',
-            ],
-            self::POSE     => [
-                'icon'        => '🔧',
-                'color'       => '#3b82f6',
-                'bg'          => 'rgba(59,130,246,0.08)',
-                'border'      => 'rgba(59,130,246,0.3)',
-                'description' => 'En cours de pose terrain',
             ],
             self::PAUSE    => [
                 'icon'        => '⏸',
@@ -74,8 +75,7 @@ enum CampaignStatus: string
     {
         return match($this) {
             self::PLANIFIE => [self::ACTIF, self::ANNULE],
-            self::ACTIF    => [self::POSE, self::PAUSE, self::TERMINE, self::ANNULE],
-            self::POSE     => [self::ACTIF, self::PAUSE, self::TERMINE, self::ANNULE],
+            self::ACTIF    => [self::PAUSE, self::TERMINE, self::ANNULE],
             self::PAUSE    => [self::ACTIF, self::ANNULE],
             self::TERMINE  => [],
             self::ANNULE   => [],
@@ -91,19 +91,11 @@ enum CampaignStatus: string
 
     public function canTransitionTo(CampaignStatus $new): bool
     {
-        $allowed = match($this->value) {
-            'planifie' => ['actif', 'annule'],
-            'actif'    => ['pose', 'pause', 'termine', 'annule'],
-            'pose'     => ['actif', 'pause', 'termine', 'annule'],
-            'pause'    => ['actif', 'annule'],
-            'termine'  => [],
-            'annule'   => [],
-        };
-        return in_array($new->value, $allowed);
+        return in_array($new, $this->allowedTransitions(), true);
     }
 
     public function isTerminal(): bool
     {
-        return in_array($this->value, ['termine', 'annule']);
+        return in_array($this, [self::TERMINE, self::ANNULE], true);
     }
 }

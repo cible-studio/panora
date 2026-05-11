@@ -18,7 +18,7 @@
                 onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'">
             <option value="">Tous les statuts</option>
             <option value="actif"    {{ request('status') == 'actif'    ? 'selected' : '' }}>Actif</option>
-            <option value="pose"     {{ request('status') == 'pose'     ? 'selected' : '' }}>En pose</option>
+            <option value="pause"    {{ request('status') == 'pause'    ? 'selected' : '' }}>En pause</option>
             <option value="planifie" {{ request('status') == 'planifie' ? 'selected' : '' }}>Planifiée</option>
             <option value="termine"  {{ request('status') == 'termine'  ? 'selected' : '' }}>Terminée</option>
             <option value="annule"   {{ request('status') == 'annule'   ? 'selected' : '' }}>Annulée</option>

@@ -46,7 +46,7 @@ class ClientDashboardController extends Controller
         
         // Campagnes actives
         $campagnesActives = $client->campaigns()
-            ->whereIn('status', ['actif', 'pose'])
+            ->where('status', 'actif')
             ->withCount(['panels', 'externalPanels'])
             ->orderByDesc('start_date')
             ->limit(5)
@@ -85,7 +85,7 @@ class ClientDashboardController extends Controller
         
         // Panneaux actifs (une seule requête, internes + externes)
         $activePanelsCount = $client->campaigns()
-            ->whereIn('status', ['actif', 'pose'])
+            ->where('status', 'actif')
             ->withCount(['panels', 'externalPanels'])
             ->get()
             ->sum(fn($c) => (int) $c->panels_count + (int) $c->external_panels_count);
@@ -320,7 +320,7 @@ class ClientDashboardController extends Controller
             ")->first();
 
         $campaigns = $client->campaigns()
-            ->orderByRaw("FIELD(status, 'actif', 'pose', 'termine', 'annule')")
+            ->orderByRaw("FIELD(status, 'actif', 'termine', 'annule')")
             ->orderBy('name')
             ->get(['id', 'name', 'status']);
 
@@ -370,7 +370,7 @@ class ClientDashboardController extends Controller
             ")->first();
 
         $campaigns = $client->campaigns()
-            ->orderByRaw("FIELD(status, 'actif', 'pose', 'termine', 'annule')")
+            ->orderByRaw("FIELD(status, 'actif', 'termine', 'annule')")
             ->orderBy('name')
             ->get(['id', 'name', 'status']);
 
@@ -433,7 +433,7 @@ class ClientDashboardController extends Controller
         $client = Auth::guard('client')->user();
 
         $interlocutors = $client->campaigns()
-            ->whereIn('status', ['actif', 'pose', 'planifie'])
+            ->whereIn('status', ['actif', 'planifie'])
             ->with('user:id,name,email,role,whatsapp_number')
             ->get()
             ->pluck('user')

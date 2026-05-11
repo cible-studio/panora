@@ -4,6 +4,7 @@ namespace App\Services;
 use App\Enums\CampaignStatus;
 use App\Enums\PoseTaskStatus;
 use App\Enums\ReservationStatus;
+use App\Mail\CampaignStartedMail;
 use App\Models\Campaign;
 use App\Models\Panel;
 use App\Models\PoseTask;
@@ -14,10 +15,11 @@ use Illuminate\Support\Facades\Log;
 class CampaignService
 {
     /** Statuts permettant la modification du panel (ajout/retrait) */
-    private const MODIFIABLE_STATUSES = ['planifie', 'actif', 'pose'];
+    private const MODIFIABLE_STATUSES = ['planifie', 'actif'];
 
     public function __construct(
-        protected AvailabilityService $availability
+        protected AvailabilityService $availability,
+        protected NotificationMailer  $mailer,
     ) {}
 
     // ══════════════════════════════════════════════════════════════
@@ -118,6 +120,99 @@ class CampaignService
 
             return ['ok' => true];
         });
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // ACTIVER UNE CAMPAGNE — PLANIFIE ou PAUSE → ACTIF + mail client
+    //
+    // Garde : refus si 0 panneau. Le mail "votre campagne démarre" part
+    // seulement à la première activation (PLANIFIE → ACTIF), pas à la
+    // reprise depuis PAUSE (le client a déjà reçu un mail au démarrage
+    // initial — pas la peine de le renotifier).
+    //
+    // Retour : ['ok' => bool, 'error' => ?string, 'mail_sent' => bool].
+    // ══════════════════════════════════════════════════════════════
+    public function activate(Campaign $campaign): array
+    {
+        // Statut actuel exploitable ?
+        $allowedFrom = [CampaignStatus::PLANIFIE, CampaignStatus::PAUSE];
+        if (!in_array($campaign->status, $allowedFrom, true)) {
+            return ['ok' => false, 'error' => 'Cette campagne ne peut pas être activée depuis le statut « '
+                . $campaign->status->label() . ' ».'];
+        }
+
+        // Garde panneaux : impossible sans au moins 1 panneau.
+        $totalPanels = $campaign->panels()->count() + $campaign->externalPanels()->count();
+        if ($totalPanels === 0) {
+            return ['ok' => false, 'error' => 'Ajoutez au moins un panneau à la campagne avant de l\'activer.'];
+        }
+
+        $wasFromPlanifie = $campaign->status === CampaignStatus::PLANIFIE;
+
+        $campaign->update([
+            'status'     => CampaignStatus::ACTIF->value,
+            'updated_by' => auth()->id(),
+        ]);
+
+        // Mail au client : uniquement à la première activation (pas à la
+        // reprise depuis PAUSE — le client a déjà reçu l'annonce initiale).
+        $mailSent = false;
+        if ($wasFromPlanifie) {
+            $mailSent = $this->sendStartedMailToClient($campaign->fresh());
+        }
+
+        Log::info('campaign.activated', [
+            'campaign_id'  => $campaign->id,
+            'from_status'  => $wasFromPlanifie ? 'planifie' : 'pause',
+            'panels_count' => $totalPanels,
+            'mail_sent'    => $mailSent,
+            'user_id'      => auth()->id(),
+        ]);
+
+        return ['ok' => true, 'mail_sent' => $mailSent];
+    }
+
+    /**
+     * Envoie le mail "campagne démarre" à tous les destinataires utiles
+     * du client : l'email principal + tous les interlocuteurs renseignés.
+     * Best-effort : un envoi qui rate ne casse pas l'activation.
+     */
+    private function sendStartedMailToClient(Campaign $campaign): bool
+    {
+        $campaign->loadMissing(['client.contacts']);
+        $client = $campaign->client;
+        if (!$client) {
+            Log::warning('campaign.activate.mail.skip.no_client', ['campaign_id' => $campaign->id]);
+            return false;
+        }
+
+        $recipients = collect()
+            ->push($client->email)
+            ->merge($client->contacts->pluck('email'))
+            ->filter(fn($e) => $e && filter_var($e, FILTER_VALIDATE_EMAIL))
+            ->unique()
+            ->values();
+
+        if ($recipients->isEmpty()) {
+            Log::warning('campaign.activate.mail.skip.no_recipient', [
+                'campaign_id' => $campaign->id,
+                'client_id'   => $client->id,
+            ]);
+            return false;
+        }
+
+        $sent = $this->mailer->sendSilently(
+            $recipients->all(),
+            new CampaignStartedMail($campaign),
+            context: [
+                'campaign_id'      => $campaign->id,
+                'client_id'        => $client->id,
+                'recipients_count' => $recipients->count(),
+                'event'            => 'campaign.started',
+            ]
+        );
+
+        return $sent;
     }
 
     // ══════════════════════════════════════════════════════════════

@@ -60,7 +60,7 @@ class TaxReportService
         // Toutes les campagnes qui touchent l'année (1 jour suffit). On
         // exclut les annulées : pas de pose effective, donc pas de taxe.
         $campaigns = Campaign::query()
-            ->whereIn('status', ['actif', 'pose', 'termine', 'planifie'])
+            ->whereIn('status', ['actif', 'termine', 'planifie'])
             ->where('start_date', '<=', $end)
             ->where('end_date',   '>=', $start)
             ->with([

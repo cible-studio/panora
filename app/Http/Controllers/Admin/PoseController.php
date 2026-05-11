@@ -102,7 +102,7 @@ class PoseController extends Controller
         $stats['total'] = $poseTasks->total();
 
         $techniciens   = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
-        $campaigns     = Campaign::whereIn('status', [CampaignStatus::ACTIF->value, CampaignStatus::POSE->value])->orderBy('name')->get(['id', 'name', 'status']);
+        $campaigns     = Campaign::where('status', CampaignStatus::ACTIF->value)->orderBy('name')->get(['id', 'name', 'status']);
         $overdueTasks  = $this->poseService->getOverdueTasks();
         $posesSansPige = PoseTask::where('status', PoseTaskStatus::COMPLETED->value)->whereNotNull('campaign_id')->whereDoesntHave('piges', fn($q) => $q->where('status', '!=', 'rejete'))->count();
 
@@ -456,10 +456,11 @@ class PoseController extends Controller
             ->when(!empty($statusArr), fn($qr) => $qr->whereIn('status', $statusArr))
             ->orderByRaw("CASE
                 WHEN status = 'actif' THEN 0
-                WHEN status = 'pose'  THEN 1
+                WHEN status = 'planifie' THEN 1
+                WHEN status = 'pause' THEN 2
                 WHEN status = 'termine' THEN 4
                 WHEN status = 'annule'  THEN 5
-                ELSE 2 END")
+                ELSE 3 END")
             ->orderBy('name')
             ->limit(40)
             ->get(['id', 'name', 'status', 'start_date', 'end_date', 'total_panels']);

@@ -20,7 +20,7 @@ class SyncExpiredCampaigns extends Command
     {
         $today = Carbon::today()->format('Y-m-d');
 
-        $expired = Campaign::whereIn('status', ['actif', 'pose'])
+        $expired = Campaign::where('status', 'actif')
             ->where('end_date', '<', $today)
             ->get();
 

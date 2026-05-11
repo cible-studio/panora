@@ -45,7 +45,7 @@ class RapportController extends Controller
         // Un panneau est "occupé sur la période" s'il appartient à au
         // moins 1 campagne actif/pose qui chevauche [dateFrom, dateTo].
         $occupes = Panel::whereHas('campaigns', fn($q) =>
-            $q->whereIn('status', ['actif', 'pose', 'planifie', 'termine'])
+            $q->whereIn('status', ['actif', 'planifie', 'termine'])
               ->where('start_date', '<=', $dateTo)
               ->where('end_date',   '>=', $dateFrom)
         )->count();
@@ -78,7 +78,7 @@ class RapportController extends Controller
                 $total = Panel::where('commune_id', $commune->id)->count();
                 $occ = Panel::where('commune_id', $commune->id)
                     ->whereHas('campaigns', fn($q) =>
-                        $q->whereIn('status', ['actif', 'pose', 'planifie', 'termine'])
+                        $q->whereIn('status', ['actif', 'planifie', 'termine'])
                           ->where('start_date', '<=', $dateTo)
                           ->where('end_date',   '>=', $dateFrom)
                     )->count();
@@ -153,7 +153,7 @@ class RapportController extends Controller
             $total = Panel::where('commune_id', $commune->id)->count();
             $occ = Panel::where('commune_id', $commune->id)
                 ->whereHas('campaigns', fn($q) =>
-                    $q->whereIn('status', ['actif', 'pose', 'planifie', 'termine'])
+                    $q->whereIn('status', ['actif', 'planifie', 'termine'])
                       ->where('start_date', '<=', $dateTo)
                       ->where('end_date',   '>=', $dateFrom)
                 )->count();
@@ -180,7 +180,7 @@ class RapportController extends Controller
 
         // ── Stats clients ───────────────────────────────────────
         $statsClients = Client::with('campaigns')->get()->map(function ($client) {
-            $campagnesActives = $client->campaigns->whereIn('status', ['actif', 'pose'])->count();
+            $campagnesActives = $client->campaigns->where('status', 'actif')->count();
             $derniere = $client->campaigns->sortByDesc('created_at')->first()?->created_at;
             return [
                 'id' => $client->id,
@@ -334,7 +334,7 @@ class RapportController extends Controller
                 // Lot 8.2 : on charge les campagnes liées au panneau qui
                 // chevauchent la période → calcul taux occupation panneau.
                 'campaigns' => fn($q) =>
-                    $q->whereIn('status', ['actif', 'pose', 'planifie', 'termine'])
+                    $q->whereIn('status', ['actif', 'planifie', 'termine'])
                       ->where('start_date', '<=', $dateTo)
                       ->where('end_date',   '>=', $dateFrom)
                       ->select(['campaigns.id', 'campaigns.start_date', 'campaigns.end_date', 'campaigns.status']),

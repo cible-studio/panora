@@ -23,7 +23,7 @@ class SyncExternalPanelStatus extends Command
             }
 
             $status = $campaign->status->value ?? $campaign->status;
-            $newStatus = in_array($status, ['actif', 'pose', 'confirme'])
+            $newStatus = in_array($status, ['actif', 'confirme'])
                 ? 'occupe'
                 : 'a_verifier';
 
