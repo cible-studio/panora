@@ -979,8 +979,7 @@ class ReservationController extends Controller
 
         try {
             DB::transaction(function () use ($request, $internalIds, $externalIds, $internalStartDates, $externalStartDates, &$createdCampaignId, &$reservation) {
-                // Lock + check conflits UNIQUEMENT pour les internes (l'antidouble-booking
-                // s'applique au catalogue CIBLE, les externes restent gérés par leur régie).
+                // ── Internes : verrou pessimiste + re-check après verrou ──
                 if ($internalIds) {
                     Panel::whereIn('id', $internalIds)->lockForUpdate()->get();
 
@@ -1004,6 +1003,34 @@ class ReservationController extends Controller
                         );
                         if (!empty($conflicts)) {
                             $ref = Panel::find($panelId)?->reference ?? "#{$panelId}";
+                            throw new \RuntimeException("CONFLICT:{$ref}");
+                        }
+                    }
+                }
+
+                // ── Externes : même logique anti-double-booking ──────────
+                if ($externalIds) {
+                    ExternalPanel::whereIn('id', $externalIds)->lockForUpdate()->get();
+
+                    $standardExtIds = array_values(array_filter($externalIds, fn($id) => !isset($externalStartDates[$id])));
+                    if ($standardExtIds) {
+                        $extMap = $this->availability->getExternalPanelBookingMap(
+                            $standardExtIds, $request->start_date, $request->end_date
+                        );
+                        $conflictIds = $extMap->keys()->toArray();
+                        if (!empty($conflictIds)) {
+                            $refs = ExternalPanel::whereIn('id', $conflictIds)->pluck('reference')->join(', ');
+                            throw new \RuntimeException("CONFLICT:$refs");
+                        }
+                    }
+
+                    foreach ($externalIds as $extId) {
+                        if (!isset($externalStartDates[$extId])) continue;
+                        $extMap = $this->availability->getExternalPanelBookingMap(
+                            [$extId], $externalStartDates[$extId], $request->end_date
+                        );
+                        if ($extMap->isNotEmpty()) {
+                            $ref = ExternalPanel::find($extId)?->reference ?? "#{$extId}";
                             throw new \RuntimeException("CONFLICT:{$ref}");
                         }
                     }
