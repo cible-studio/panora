@@ -7,6 +7,7 @@ use App\Http\Requests\Reservation\UpdateReservationRequest;
 use App\Models\Client;
 use App\Models\Commune;
 use App\Models\Panel;
+use App\Models\PanelCategory;
 use App\Models\PanelFormat;
 use App\Models\Reservation;
 use App\Models\ReservationPanel;
@@ -48,6 +49,7 @@ class ReservationController extends Controller
         $communes = Commune::orderBy('name')->get(['id', 'name']);
         $formats = PanelFormat::orderBy('name')->get(['id', 'name', 'width', 'height']);
         $zones = Zone::orderBy('name')->get(['id', 'name']);
+        $categories = PanelCategory::orderBy('name')->get(['id', 'name']);
         $clients = Client::orderBy('name')->get(['id', 'name']);
         $agencies = \App\Models\ExternalAgency::where('is_active', true)
             ->whereNull('deleted_at')->orderBy('name')->get(['id', 'name']);
@@ -64,7 +66,7 @@ class ReservationController extends Controller
 
         return view(
             'admin.reservations.disponibilites',
-            compact('communes', 'formats', 'zones', 'clients', 'dimensions', 'agencies')
+            compact('communes', 'formats', 'zones', 'categories', 'clients', 'dimensions', 'agencies')
         );
     }
 
@@ -84,6 +86,7 @@ class ReservationController extends Controller
         $communeIds = array_map('intval', array_filter((array) $request->get('commune_ids', [])));
         $zoneIds = array_map('intval', array_filter((array) $request->get('zone_ids', [])));
         $formatIds = array_map('intval', array_filter((array) $request->get('format_ids', [])));
+        $categoryIds = array_map('intval', array_filter((array) $request->get('category_ids', [])));
         $agencyIds = array_map('intval', array_filter((array) $request->get('agency_ids', [])));
         $isLit = $request->input('is_lit', '');
 
@@ -133,6 +136,8 @@ class ReservationController extends Controller
                 $query->whereIn('zone_id', $zoneIds);
             if (!empty($formatIds))
                 $query->whereIn('format_id', $formatIds);
+            if (!empty($categoryIds))
+                $query->whereIn('category_id', $categoryIds);
             if ($isLit === '1')
                 $query->where('is_lit', true);
             elseif ($isLit === '0')
@@ -236,6 +241,7 @@ class ReservationController extends Controller
             if (!empty($communeIds))  $extQuery->whereIn('commune_id', $communeIds);
             if (!empty($zoneIds))     $extQuery->whereIn('zone_id', $zoneIds);
             if (!empty($formatIds))   $extQuery->whereIn('format_id', $formatIds);
+            if (!empty($categoryIds)) $extQuery->whereIn('category_id', $categoryIds);
             if (!empty($agencyIds))   $extQuery->whereIn('agency_id', $agencyIds);
             if ($isLit === '1')       $extQuery->where('is_lit', true);
             elseif ($isLit === '0')   $extQuery->where('is_lit', false);
