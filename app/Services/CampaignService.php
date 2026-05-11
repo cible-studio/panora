@@ -2,9 +2,11 @@
 namespace App\Services;
 
 use App\Enums\CampaignStatus;
+use App\Enums\PoseTaskStatus;
 use App\Enums\ReservationStatus;
 use App\Models\Campaign;
 use App\Models\Panel;
+use App\Models\PoseTask;
 use App\Models\Reservation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -160,6 +162,8 @@ class CampaignService
                 'updated_by'           => auth()->id(),
             ]);
 
+            $cancelledPoses = $this->cancelPendingPoseTasks($campaign, 'Campagne annulée');
+
             $this->syncAllPanels($internalIds, $externalIds);
 
             Log::info('campaign.cancelled', [
@@ -167,6 +171,7 @@ class CampaignService
                 'reason'         => $reason,
                 'panels_freed'   => count($internalIds),
                 'externals_freed'=> count($externalIds),
+                'poses_cancelled'=> $cancelledPoses,
                 'user_id'        => auth()->id(),
             ]);
         });
@@ -209,6 +214,11 @@ class CampaignService
                 'updated_by' => auth()->id(),
             ]);
 
+            // À la clôture, les poses non-faites sont annulées (campagne
+            // terminée → plus de raison de poser des bâches). Les COMPLETED
+            // restent comme historique.
+            $cancelledPoses = $this->cancelPendingPoseTasks($campaign, 'Campagne terminée');
+
             $this->syncAllPanels($internalIds, $externalIds);
 
             Log::info('campaign.terminated', [
@@ -216,6 +226,7 @@ class CampaignService
                 'reason'         => $reason,
                 'panels_freed'   => count($internalIds),
                 'externals_freed'=> count($externalIds),
+                'poses_cancelled'=> $cancelledPoses,
                 'user_id'        => auth()->id(),
             ]);
         });
@@ -264,6 +275,12 @@ class CampaignService
                 // Réservation manuelle → conservée
             }
 
+            // Filet de sécurité : si des poses étaient encore en PLANNED
+            // ou IN_PROGRESS (cas d'une campagne déjà TERMINE/ANNULE
+            // datant d'avant le fix), on les annule maintenant pour ne
+            // pas laisser de poses orphelines après le soft-delete.
+            $cancelledPoses = $this->cancelPendingPoseTasks($campaign, 'Campagne supprimée');
+
             $campaign->delete();
 
             $this->syncAllPanels($panelIds, $externalPanelIds);
@@ -272,6 +289,7 @@ class CampaignService
                 'campaign_id'    => $campaign->id,
                 'panels_count'   => count($panelIds),
                 'externals_count'=> count($externalPanelIds),
+                'poses_cancelled'=> $cancelledPoses,
                 'user_id'        => auth()->id(),
             ]);
         });
@@ -430,5 +448,46 @@ class CampaignService
     {
         if (!$new) return $existing;
         return trim(($existing ?? '') . "\n" . $new);
+    }
+
+    /**
+     * Annule en bloc les PoseTask non commencées (PLANNED) ou en cours
+     * (IN_PROGRESS) d'une campagne, lors d'une annulation, terminaison ou
+     * suppression de campagne.
+     *
+     * Les COMPLETED restent intactes — c'est l'historique terrain : la
+     * bâche a été posée, la pige photo existe peut-être, on garde la
+     * traçabilité même si la campagne disparaît.
+     *
+     * @return int Nombre de PoseTask annulées.
+     */
+    private function cancelPendingPoseTasks(Campaign $campaign, string $reason): int
+    {
+        $now = now();
+        $note = "[Auto] {$reason} #" . $campaign->id . ' le ' . $now->format('d/m/Y');
+
+        $affected = PoseTask::where('campaign_id', $campaign->id)
+            ->whereIn('status', [
+                PoseTaskStatus::PLANNED->value,
+                PoseTaskStatus::IN_PROGRESS->value,
+            ])
+            ->get();
+
+        foreach ($affected as $task) {
+            $task->update([
+                'status' => PoseTaskStatus::CANCELLED->value,
+                'notes'  => $this->appendNote($task->notes, $note),
+            ]);
+        }
+
+        if ($affected->isNotEmpty()) {
+            Log::info('campaign.poses_cancelled', [
+                'campaign_id' => $campaign->id,
+                'count'       => $affected->count(),
+                'reason'      => $reason,
+            ]);
+        }
+
+        return $affected->count();
     }
 }
