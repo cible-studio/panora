@@ -222,6 +222,73 @@ class PoseTaskPublicController extends Controller
     }
 
     /**
+     * Suppression d'une pige déjà uploadée depuis cette page (= reprise
+     * ou remplacement par le tech qui se rend compte que sa photo est
+     * floue / mauvais angle). Le tech ré-upload ensuite via le bouton
+     * normal — UX simple, pas de "remplacer en 1 étape".
+     *
+     * Garde : seule une pige dont le panel_id correspond à cette pose-
+     * task est supprimable via ce lien. Empêche un tech malveillant de
+     * supprimer les piges d'un autre panneau s'il devine un id.
+     *
+     * DELETE /pige/{token}/photo/{pige}
+     */
+    public function deletePhoto(Request $request, string $token, int $pigeId)
+    {
+        $task = $this->resolveTask($token);
+
+        if ($task->isTerminal()) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Tâche clôturée — suppression désactivée.',
+            ], 422);
+        }
+
+        $pige = \App\Models\Pige::where('id', $pigeId)
+            ->where('panel_id', $task->panel_id)
+            ->when($task->campaign_id, fn($q) => $q->where('campaign_id', $task->campaign_id))
+            ->first();
+
+        if (!$pige) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Photo introuvable ou non liée à cette intervention.',
+            ], 404);
+        }
+
+        // Sécurité : refuser la suppression d'une pige déjà validée par
+        // un admin (status verifie). On ne défait pas un travail de
+        // vérification côté bureau.
+        if ($pige->status === 'verifie') {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Photo déjà validée — suppression impossible. Contactez le superviseur.',
+            ], 403);
+        }
+
+        // Supprime le fichier physique (best-effort) + l'enregistrement.
+        if ($pige->photo_path) {
+            try {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($pige->photo_path);
+            } catch (\Throwable $e) {
+                Log::warning('pige.delete.file_failed', [
+                    'pige_id' => $pige->id, 'path' => $pige->photo_path, 'err' => $e->getMessage(),
+                ]);
+            }
+        }
+        $pige->delete();
+
+        Log::info('pige.public.deleted_from_pose', [
+            'pige_id'  => $pigeId,
+            'task_id'  => $task->id,
+            'panel_id' => $task->panel_id,
+            'ip'       => $request->ip(),
+        ]);
+
+        return response()->json(['ok' => true, 'message' => 'Photo supprimée.']);
+    }
+
+    /**
      * Résout le token vers une tâche valide ou abort 404.
      */
     private function resolveTask(string $token): PoseTask

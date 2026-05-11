@@ -278,6 +278,25 @@
         .photo-thumb.verifie  { border-color: var(--green); }
         .photo-thumb.rejete   { border-color: var(--red); }
         .photo-thumb.en_attente { border-color: var(--warn); }
+        .photo-del {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            background: rgba(220,38,38,.92);
+            color: #fff;
+            border: 0;
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,.3);
+            font-family: inherit;
+            line-height: 1;
+        }
+        .photo-del:active { transform: scale(.92); }
 
         .photo-cta {
             display: flex;
@@ -622,19 +641,29 @@
                   photo(s) {{ $hasPige ? 'transmise(s)' : '— aucune pige fournie' }}</span>
         </div>
 
-        @if($hasPige)
-        <div class="photo-thumbs" id="photo-thumbs">
+        <div class="photo-thumbs" id="photo-thumbs" style="{{ $hasPige ? '' : 'display:none;' }}">
             @foreach($piges as $pige)
                 @php
                     $statusIcon = ['en_attente' => '⏳', 'verifie' => '✓', 'rejete' => '✕'][$pige->status] ?? '?';
+                    $canDelete  = !$isFinal && $pige->status !== 'verifie';
                 @endphp
                 <div class="photo-thumb {{ $pige->status }}"
+                     data-pige-id="{{ $pige->id }}"
+                     data-status="{{ $pige->status }}"
                      data-url="{{ \Illuminate\Support\Facades\Storage::url($pige->photo_path) }}">
                     <img src="{{ \Illuminate\Support\Facades\Storage::url($pige->photo_path) }}"
                          alt="Pige {{ $pige->id }}" loading="lazy">
                     <span class="status-badge" title="{{ $pige->status }}">{{ $statusIcon }}</span>
+                    @if($canDelete)
+                    <button type="button" class="photo-del" aria-label="Supprimer la photo"
+                            data-pige-id="{{ $pige->id }}">🗑</button>
+                    @endif
                 </div>
             @endforeach
+        </div>
+        @if($hasPige && !$isFinal)
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;text-align:center;">
+            🗑 Pour <strong>remplacer</strong> une photo, supprimez-la puis reprenez-en une nouvelle.
         </div>
         @endif
 
@@ -692,9 +721,10 @@
 (function () {
     'use strict';
     const CSRF = document.querySelector('meta[name=csrf-token]').content;
-    const ROUTE_UPDATE = "{{ route('pose.public.update', $task->public_token) }}";
-    const ROUTE_DONE   = "{{ route('pose.public.done',   $task->public_token) }}";
-    const ROUTE_PHOTO  = "{{ route('pose.public.photo',  $task->public_token) }}";
+    const ROUTE_UPDATE       = "{{ route('pige.public.intervention.update', $task->public_token) }}";
+    const ROUTE_DONE         = "{{ route('pige.public.intervention.done',   $task->public_token) }}";
+    const ROUTE_PHOTO        = "{{ route('pige.public.intervention.photo',  $task->public_token) }}";
+    const ROUTE_PHOTO_DELETE = "{{ route('pige.public.intervention.photo.delete', ['token' => $task->public_token, 'pigeId' => 'PIGE_ID']) }}";
 
     // ── Toast helper ─────────────────────────────────────────
     function toast(msg, type) {
@@ -861,45 +891,85 @@
 
     function injectThumbnail(pige) {
         if (!pige?.photo_url) return;
-        let grid = document.getElementById('photo-thumbs');
-        if (!grid) {
-            // 1ère photo : on crée le grid
-            const indicator = document.getElementById('photos-indicator');
-            grid = document.createElement('div');
-            grid.id = 'photo-thumbs';
-            grid.className = 'photo-thumbs';
-            indicator.parentNode.insertBefore(grid, indicator.nextSibling);
-        }
+        const grid = document.getElementById('photo-thumbs');
+        if (!grid) return;
+        grid.style.display = '';
+
         const t = document.createElement('div');
         t.className = 'photo-thumb ' + (pige.status || 'en_attente');
-        t.dataset.url = pige.photo_url;
-        t.innerHTML = `<img src="${pige.photo_url}" alt="">
-                       <span class="status-badge" title="${pige.status}">⏳</span>`;
+        t.dataset.url     = pige.photo_url;
+        t.dataset.pigeId  = pige.id;
+        t.dataset.status  = pige.status || 'en_attente';
+        t.innerHTML =
+            `<img src="${pige.photo_url}" alt="">
+             <span class="status-badge" title="${pige.status || 'en_attente'}">⏳</span>
+             <button type="button" class="photo-del" aria-label="Supprimer la photo" data-pige-id="${pige.id}">🗑</button>`;
         grid.insertBefore(t, grid.firstChild);
         bindThumb(t);
     }
 
     function refreshPhotoCount() {
-        const all = document.querySelectorAll('#photo-thumbs .photo-thumb');
-        const c = document.getElementById('photos-count');
+        const grid = document.getElementById('photo-thumbs');
+        const all = grid ? grid.querySelectorAll('.photo-thumb') : [];
+        const n = all.length;
         const ind = document.getElementById('photos-indicator');
-        if (c) c.textContent = all.length;
+        if (grid) grid.style.display = n > 0 ? '' : 'none';
         if (ind) {
-            ind.classList.toggle('ok', all.length > 0);
-            ind.classList.toggle('empty', all.length === 0);
-            ind.querySelector('.ic').textContent = all.length > 0 ? '✅' : '⚠️';
-            ind.querySelector('span:last-child').innerHTML =
-                `<strong id="photos-count">${all.length}</strong> photo(s) ${all.length > 0 ? 'transmise(s)' : '— aucune pige fournie'}`;
+            ind.classList.toggle('ok', n > 0);
+            ind.classList.toggle('empty', n === 0);
+            const ic = ind.querySelector('.ic');
+            if (ic) ic.textContent = n > 0 ? '✅' : '⚠️';
+            const txt = ind.querySelector('span:last-child');
+            if (txt) txt.innerHTML =
+                `<strong id="photos-count">${n}</strong> photo(s) ${n > 0 ? 'transmise(s)' : '— aucune pige fournie'}`;
         }
     }
 
-    // ── Lightbox ─────────────────────────────────────────────
+    // ── Lightbox + suppression photo ─────────────────────────
     const lb = document.getElementById('lightbox');
     const lbImg = document.getElementById('lightbox-img');
+
     function bindThumb(el) {
-        el.addEventListener('click', () => {
+        // Clic sur la vignette (zone image) = ouvre lightbox.
+        // Clic sur le bouton 🗑 dans la vignette = supprime (event.stop)
+        const img = el.querySelector('img');
+        img?.addEventListener('click', () => {
             lbImg.src = el.dataset.url;
             lb.classList.add('open');
+        });
+        const del = el.querySelector('.photo-del');
+        del?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const pigeId = del.dataset.pigeId;
+            const ok = await confirmModal(
+                'Supprimer cette photo ?',
+                'Vous pourrez en reprendre une nouvelle ensuite.'
+            );
+            if (!ok) return;
+
+            const url = ROUTE_PHOTO_DELETE.replace('PIGE_ID', pigeId);
+            try {
+                del.disabled = true;
+                const r = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': CSRF,
+                        'Accept':       'application/json',
+                    },
+                });
+                const data = await r.json();
+                if (data.ok) {
+                    toast(data.message || 'Photo supprimée.', 'success');
+                    el.remove();
+                    refreshPhotoCount();
+                } else {
+                    toast(data.message || 'Suppression impossible.', 'error');
+                    del.disabled = false;
+                }
+            } catch (err) {
+                toast('Erreur réseau : ' + err.message, 'error');
+                del.disabled = false;
+            }
         });
     }
     document.querySelectorAll('.photo-thumb').forEach(bindThumb);

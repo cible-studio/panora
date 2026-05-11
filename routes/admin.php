@@ -38,18 +38,26 @@ use App\Http\Controllers\Client\ClientDashboardController;
 // ── Routes propositions publiques ──────────────────────────────
 // ── Routes PUBLIQUES Pose OOH (accès technicien sans auth) ─────────
 // Throttle strict pour éviter l'abus en cas de fuite du lien.
-Route::prefix('pose')->name('pose.public.')->middleware('throttle:30,1')->group(function () {
-    Route::get ('/{token}',        [\App\Http\Controllers\PoseTaskPublicController::class, 'show'])
-        ->name('show');
-    Route::post('/{token}/update', [\App\Http\Controllers\PoseTaskPublicController::class, 'update'])
-        ->name('update');
-    Route::post('/{token}/done',   [\App\Http\Controllers\PoseTaskPublicController::class, 'markDone'])
-        ->name('done');
-    // Upload photo : throttle dédié plus permissif (30 photos/min possible
-    // si la connexion réseau est correcte).
-    Route::post('/{token}/photo',  [\App\Http\Controllers\PoseTaskPublicController::class, 'uploadPhoto'])
-        ->name('photo')
-        ->middleware('throttle:30,1');
+// ── ANCIENS LIENS /pose/{token} → REDIRECT vers /pige/{token} ──────
+// La spec Évolution 3 demande un lien unique au format /pige/{token}.
+// Tout ancien lien WhatsApp encore dans la poche du technicien est
+// automatiquement redirigé vers la nouvelle URL — pas de rupture.
+//
+// Note : pour les POST (update/done/photo), Laravel ne supporte pas
+// proprement le redirect 307/308 avec préservation du body. Le tech
+// rechargera la page (GET → redirect 301 → nouvelle URL) et soumettra
+// vers les nouvelles routes côté JS. Les noms 'pose.public.*' sont
+// préservés comme alias des nouveaux noms pour ne pas casser le code
+// qui appelle route('pose.public.show', ...) en attendant la migration.
+Route::redirect('/pose/{token}', '/pige/{token}', 301)
+    ->where('token', '[A-Za-z0-9]{32}');
+
+// Alias des noms de routes pour code legacy (PoseTask::publicUrl utilise
+// pose.public.show — gardé fonctionnel via le nom de route ci-dessous).
+Route::prefix('pose')->name('pose.public.')->group(function () {
+    Route::get('/{token}', fn($token) => redirect("/pige/{$token}", 301))
+        ->name('show')
+        ->where('token', '[A-Za-z0-9]{32}');
 });
 
 // ── Route PUBLIQUE Satisfaction client (T9) ─────────────────────────
@@ -67,9 +75,33 @@ Route::prefix('satisfaction')->middleware(['throttle:10,1', \App\Http\Middleware
 // technicien terrain. Throttle plus large (60 req/min) car upload de
 // photos sur plusieurs panneaux en suivant — éviter le throttle agressif.
 // Locale forcée 'fr' (Lot 12.1) — public client.
+// ── LIEN UNIQUE TECHNICIEN : /pige/{token} ─────────────────────────
+// Un seul point d'entrée pour le tech terrain (cf. Évolution 3 du spec).
+// Le token résout vers :
+//   - PoseTask (32 chars)  → interface unique intervention/panneau
+//   - Campaign (48 chars)  → interface multi-panneaux campagne (legacy)
+// Toutes les sous-actions vivent sous /pige/{token}/... — l'ancien
+// préfixe /pose/{token}/... est conservé pour rétrocompat mais redirige.
 Route::prefix('pige')->middleware(['throttle:60,1', \App\Http\Middleware\SetFrenchLocale::class])->group(function () {
+
+    // Dispatcher GET — PublicPigeController::show essaie d'abord
+    // pose_task, fallback campaign.
     Route::get('/{token}',           [\App\Http\Controllers\PublicPigeController::class, 'show'])
         ->name('pige.public.show');
+
+    // ─── Sous-routes intervention/panneau (PoseTask) ────────────────
+    Route::post('/{token}/update',       [\App\Http\Controllers\PoseTaskPublicController::class, 'update'])
+        ->name('pige.public.intervention.update');
+    Route::post('/{token}/done',         [\App\Http\Controllers\PoseTaskPublicController::class, 'markDone'])
+        ->name('pige.public.intervention.done');
+    Route::post('/{token}/photo',        [\App\Http\Controllers\PoseTaskPublicController::class, 'uploadPhoto'])
+        ->name('pige.public.intervention.photo')
+        ->middleware('throttle:30,1');
+    Route::delete('/{token}/photo/{pigeId}', [\App\Http\Controllers\PoseTaskPublicController::class, 'deletePhoto'])
+        ->name('pige.public.intervention.photo.delete')
+        ->whereNumber('pigeId');
+
+    // ─── Sous-routes multi-panneaux campagne (legacy) ────────────────
     Route::post('/{token}/upload',   [\App\Http\Controllers\PublicPigeController::class, 'upload'])
         ->name('pige.public.upload');
     // Lot 9.3 — Validation "Pose effectuée" par panneau depuis la page publique
