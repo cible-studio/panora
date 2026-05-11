@@ -21,9 +21,12 @@ composer install \
 echo "🗄️  Migrations..."
 php artisan migrate --force
 
-# ── 2bis. Seeders idempotents (UPSERT) ─────
-echo "🌱 Seeding panneaux (UPSERT par référence)..."
-php artisan db:seed --class=PanelImportSeeder --force || true
+# ── 2bis. Seeders : DÉSACTIVÉ ──────────────
+# Le seeding du parc panneaux est une opération manuelle destructive
+# (truncate + ré-insertion). À lancer à la main via :
+#   php artisan parc:seed --dry-run   # vérification
+#   php artisan parc:seed --force     # exécution
+# Ne JAMAIS l'automatiser dans le pipeline de déploiement.
 
 # ── 3. Nettoyage des anciens caches ────────
 echo "🧹 Nettoyage caches..."
