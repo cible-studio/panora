@@ -299,7 +299,8 @@
                     </div>
                     <div style="font-size:11px;color:var(--text3);">
                         📍 {{ $panel->commune?->name ?? '—' }}
-                        @if($panel->format?->name) · {{ $panel->format->name }} @endif
+                        @if($panel->format?->surface_label) · {{ $panel->format->surface_label }}@elseif($panel->format?->name) · {{ $panel->format->name }}@endif
+                        @if($panel->format?->dimensions_label) ({{ $panel->format->dimensions_label }})@endif
                     </div>
                     @php
                         $unitPrice  = (float)($panel->pivot->unit_price  ?? $panel->monthly_rate ?? 0);

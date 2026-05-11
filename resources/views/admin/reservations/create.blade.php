@@ -118,7 +118,9 @@
           <select class="filter-select" x-model="filters.format_id" @change="loadPanels">
             <option value="">Tous</option>
             @foreach($formats as $format)
-              <option value="{{ $format->id }}">{{ $format->name }}</option>
+              <option value="{{ $format->id }}">
+                {{ $format->surface_label ?? $format->name }}@if($format->dimensions_label) ({{ $format->dimensions_label }})@endif
+              </option>
             @endforeach
           </select>
         </div>
