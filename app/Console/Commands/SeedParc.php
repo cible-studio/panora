@@ -102,38 +102,13 @@ class SeedParc extends Command {
         DB::table("communes")->insert(["id"=>30,"name"=>"YOPOUGON","city"=>"YOPOUGON","region"=>"Abidjan","odp_rate"=>1000,"tm_rate"=>1000,"created_at"=>now(),"updated_at"=>now()]);
         $this->info("Communes: 30");
 
-        // ── Zones (1 par commune) ──
-        DB::table("zones")->insert(["id"=>1,"commune_id"=>1,"name"=>"ABENGOUROU - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>2,"commune_id"=>2,"name"=>"ADIAKE-ASSINIE - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>3,"commune_id"=>3,"name"=>"ADJAME - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>4,"commune_id"=>4,"name"=>"ASSINIE - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>5,"commune_id"=>5,"name"=>"ATTECOUBE - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>6,"commune_id"=>6,"name"=>"AUTOROUTE DU NORD - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>7,"commune_id"=>7,"name"=>"BASSAM - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>8,"commune_id"=>8,"name"=>"BINGERVILLE - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>9,"commune_id"=>9,"name"=>"BONDOUKOU - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>10,"commune_id"=>10,"name"=>"BONOUA - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>11,"commune_id"=>11,"name"=>"BOUAFLE - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>12,"commune_id"=>12,"name"=>"BOUAKE - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>13,"commune_id"=>13,"name"=>"COCODY - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>14,"commune_id"=>14,"name"=>"DALOA - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>15,"commune_id"=>15,"name"=>"FERKESSEDOUGOU - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>16,"commune_id"=>16,"name"=>"GAGNOA - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>17,"commune_id"=>17,"name"=>"KORHOGO - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>18,"commune_id"=>18,"name"=>"KOUMASSI - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>19,"commune_id"=>19,"name"=>"MAN - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>20,"commune_id"=>20,"name"=>"MARCORY - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>21,"commune_id"=>21,"name"=>"ODIENNE - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>22,"commune_id"=>22,"name"=>"PLATEAU - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>23,"commune_id"=>23,"name"=>"PORT-BOUET - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>24,"commune_id"=>24,"name"=>"SAMO - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>25,"commune_id"=>25,"name"=>"SAN PEDRO - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>26,"commune_id"=>26,"name"=>"SONGON - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>27,"commune_id"=>27,"name"=>"SOUBRE - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>28,"commune_id"=>28,"name"=>"TREICH-VILLE - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>29,"commune_id"=>29,"name"=>"YAMOUSSOUKRO - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        DB::table("zones")->insert(["id"=>30,"commune_id"=>30,"name"=>"YOPOUGON - Centre","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
-        $this->info("Zones: 30");
+        // ── Zones (2 : Abidjan + Intérieur Pays) ──
+        // Chez CIBLE CI, "zone" = grande région, pas sous-division par
+        // commune. Le rattachement panneau→zone se fait en fin de seed
+        // via la colonne communes.region.
+        DB::table("zones")->insert(["id"=>1,"commune_id"=>null,"name"=>"Abidjan","description"=>"Communes du district autonome d'Abidjan","demand_level"=>"haute","created_at"=>now(),"updated_at"=>now()]);
+        DB::table("zones")->insert(["id"=>2,"commune_id"=>null,"name"=>"Intérieur Pays","description"=>"Communes des autres régions du pays","demand_level"=>"normale","created_at"=>now(),"updated_at"=>now()]);
+        $this->info("Zones: 2");
 
         // ── Formats (13) ──
         DB::table("panel_formats")->insert(["id"=>1,"name"=>"2m²","width"=>2.0,"height"=>1.0,"surface"=>2.0,"created_at"=>now(),"updated_at"=>now()]);
@@ -840,8 +815,23 @@ class SeedParc extends Command {
         DB::table("panels")->insert(["id"=>337,"reference"=>"YKR-PAN-02","name"=>"Yamoussoukro - Sortie de Ville -","commune_id"=>29,"zone_id"=>29,"format_id"=>11,"category_id"=>6,"status"=>"libre","is_lit"=>0,"nombre_faces"=>1,"maintenance_status"=>"bon","created_by"=>$adminId,"created_at"=>now(),"updated_at"=>now()]);
         $bar->advance();
         $bar->finish(); $this->newLine();
+
+        // ── Remap zone_id : Abidjan (1) ou Intérieur (2) selon commune.region ──
+        // Les inserts ci-dessus utilisent zone_id=commune_id (vestige du
+        // schéma "1 zone par commune"). On remappe ici vers les 2 zones
+        // réelles via la colonne communes.region.
+        $abidjan = DB::table("panels")
+            ->join("communes","communes.id","=","panels.commune_id")
+            ->where("communes.region","Abidjan")
+            ->update(["panels.zone_id"=>1]);
+        $interieur = DB::table("panels")
+            ->join("communes","communes.id","=","panels.commune_id")
+            ->where("communes.region","!=","Abidjan")
+            ->update(["panels.zone_id"=>2]);
+        $this->info("Zones remap : $abidjan Abidjan / $interieur Intérieur");
+
         DB::statement("SET FOREIGN_KEY_CHECKS=1");
-        $this->info("TERMINE — 337 panneaux | 30 communes | 13 formats | 7 categories");
+        $this->info("TERMINE — 337 panneaux | 30 communes | 2 zones | 13 formats | 7 categories");
         return 0;
     }
 }
