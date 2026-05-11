@@ -1911,6 +1911,14 @@
                             this._renderPanels(data.panels);
                             this._renderStats(data.stats, data.has_period);
                             this._renderPagination(data.stats);
+                            if (S._autoSelect) {
+                                const as = S._autoSelect;
+                                S._autoSelect = null;
+                                const found = (data.panels || []).find(p => String(p.id) === as.id);
+                                if (found && found.is_selectable && !S.sel.ids.includes(as.id)) {
+                                    this.toggle(as.id, found.monthly_rate, found.source, found.display_status, as.selectableFrom);
+                                }
+                            }
                         } catch (err) {
                             if (rid !== S.reqId) return;
                             S.loading = false;
@@ -1972,7 +1980,7 @@
                         // release_info cliquable (feature 2.2) : caler la
                         // période sur la libération du panneau occupé.
                         const releaseHtml = p.release_info ?
-                            `<div onclick="event.stopPropagation();DISPO.scheduleAfter('${p.release_info.date}')" title="Cliquer pour caler la période sur la libération" style="margin-top:4px;padding:4px 8px;border-radius:6px;font-size:10px;background:rgba(226,6,19,.06);border:1px solid rgba(226,6,19,.15);cursor:pointer;"><span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'var(--accent)':'var(--text3)'}">📅 ${p.release_info.label}</span></div>` :
+                            `<div onclick="event.stopPropagation();DISPO.scheduleAfter('${p.release_info.date}','${p.id}',${p.monthly_rate},'${p.source}','${p.display_status}')" title="Cliquer pour caler la période sur la libération" style="margin-top:4px;padding:4px 8px;border-radius:6px;font-size:10px;background:rgba(226,6,19,.06);border:1px solid rgba(226,6,19,.15);cursor:pointer;"><span style="color:${p.release_info.color==='green'?'#22c55e':p.release_info.color==='orange'?'var(--accent)':'var(--text3)'}">📅 ${p.release_info.label}</span></div>` :
                             '';
                         const _sf = (p.is_future_selectable && p.selectable_from) ? p.selectable_from : '';
                         const _sfLabel = p.selectable_from_label || (_sf ? _sf.split('-').reverse().join('/') : '');
@@ -2096,7 +2104,7 @@
                     // Reporte la période demandée AU LENDEMAIN d'une date donnée
                     // (format d/m/Y français). Utilisé quand l'admin clique sur
                     // la pastille "Libre le 31/05" d'un panneau occupé.
-                    scheduleAfter(dateFr) {
+                    scheduleAfter(dateFr, panelId, rate, source, displayStatus) {
                         if (!dateFr) return;
                         const m = String(dateFr).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
                         if (!m) return;
@@ -2116,13 +2124,18 @@
                         const elDu = _el('f-du'); if (elDu) elDu.value = newDu;
                         const elAu = _el('f-au'); if (elAu) elAu.value = newAu;
                         S.page = 1;
+
+                        if (panelId) {
+                            S._autoSelect = { id: String(panelId), rate: parseFloat(rate) || 0, source: source || 'internal', displayStatus: displayStatus || 'libre', selectableFrom: newDu };
+                        }
+
                         this._fetch();
                         this._syncUI();
 
                         if (typeof showToast === 'function') {
                             showToast('info',
-                                `Période ajustée à partir du ${newDu.split('-').reverse().join('/')} pour intégrer ce panneau.`,
-                                4000, 'Disponibilités');
+                                `Période ajustée — le panneau sera sélectionné automatiquement.`,
+                                3500, 'Disponibilités');
                         }
                     },
 
