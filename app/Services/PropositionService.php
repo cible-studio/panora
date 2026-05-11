@@ -74,9 +74,21 @@ class PropositionService
                 ? $reservation->end_date->toDateString()
                 : (string) $reservation->end_date;
 
+            // On bloque uniquement si une autre réservation est déjà CONFIRMÉE
+            // (pas EN_ATTENTE — plusieurs options peuvent coexister, la première
+            // confirmée gagne ; la lockForUpdate garantit l'atomicité).
             if (!empty($panelIds)) {
                 \App\Models\Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
-                $conflicts = $availability->getUnavailablePanelIds($panelIds, $start, $end, $reservation->id);
+                $conflicts = DB::table('reservation_panels')
+                    ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                    ->whereIn('reservation_panels.panel_id', $panelIds)
+                    ->where('reservations.status', ReservationStatus::CONFIRME->value)
+                    ->where('reservations.start_date', '<', $end)
+                    ->where('reservations.end_date',   '>', $start)
+                    ->where('reservations.id', '!=', $reservation->id)
+                    ->distinct()
+                    ->pluck('reservation_panels.panel_id')
+                    ->toArray();
                 if (!empty($conflicts)) {
                     $refs = \App\Models\Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
                     throw new \RuntimeException("Ce panneau est déjà confirmé pour cette période : {$refs}.");
