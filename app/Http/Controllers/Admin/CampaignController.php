@@ -67,8 +67,6 @@ class CampaignController extends Controller
         // ─── COMPTEURS KPI sur le périmètre AVANT filtre status ───
         // Permet à chaque carte de garder sa vraie valeur quand on en clique
         // une (sinon les autres tombent à 0).
-        // ⚠ "actif" inclut "pose" (sous-état d'actif) pour que la somme des
-        // cards = total affiché.
         $countsRaw = (clone $query)
             ->setEagerLoads([])
             ->reorder()
@@ -78,20 +76,15 @@ class CampaignController extends Controller
 
         $counts = [
             'planifie' => (int) ($countsRaw['planifie'] ?? 0),
-            'actif'    => (int) ($countsRaw['actif']    ?? 0) + (int) ($countsRaw['pose'] ?? 0),
+            'actif'    => (int) ($countsRaw['actif']    ?? 0),
             'pause'    => (int) ($countsRaw['pause']    ?? 0),
             'termine'  => (int) ($countsRaw['termine']  ?? 0),
             'annule'   => (int) ($countsRaw['annule']   ?? 0),
         ];
 
         // ─── Filtre status (carte cliquée OU select) appliqué APRÈS ───
-        // "actif" inclut "pose" côté filtre aussi (cohérent avec le compteur)
         if ($request->filled('status')) {
-            if ($request->status === 'actif') {
-                $query->whereIn('status', ['actif', 'pose']);
-            } else {
-                $query->where('status', $request->status);
-            }
+            $query->where('status', $request->status);
         }
 
         $campaigns = $query->paginate(20)->withQueryString();
@@ -143,7 +136,7 @@ class CampaignController extends Controller
 
         $user = auth()->user();
         $canManagePanel = $user->can('managePanel', $campaign)
-            && in_array($campaign->status->value, ['planifie', 'actif', 'pose']);
+            && in_array($campaign->status->value, ['planifie', 'actif']);
 
         $can = [
             'update'       => $user->can('update', $campaign),
@@ -158,6 +151,28 @@ class CampaignController extends Controller
         // pour ne pas pénaliser le rendu initial de la page.
 
         return view('admin.campaigns.show', compact('campaign', 'can', 'allowed'));
+    }
+
+    /**
+     * Active manuellement une campagne PLANIFIEE (ou redémarre depuis PAUSE).
+     * Garde : au moins 1 panneau obligatoire. Mail au client envoyé
+     * automatiquement à la première activation (PLANIFIE → ACTIF).
+     */
+    public function activate(Campaign $campaign)
+    {
+        $this->authorize('updateStatus', $campaign);
+
+        $result = $this->campaignService->activate($campaign);
+
+        if (!$result['ok']) {
+            return back()->with('error', $result['error']);
+        }
+
+        $msg = '✅ Campagne activée.';
+        if (!empty($result['mail_sent'])) {
+            $msg .= ' Email d\'annonce envoyé au client.';
+        }
+        return back()->with('success', $msg);
     }
 
     /**
@@ -178,7 +193,7 @@ class CampaignController extends Controller
             'status'      => $campaign->status->value,
             'status_label'=> $campaign->status->label(),
             'ending_soon' => $campaign->isEndingSoon(),
-            'is_running'  => in_array($campaign->status, [CampaignStatus::ACTIF, CampaignStatus::POSE]),
+            'is_running'  => $campaign->status === CampaignStatus::ACTIF,
             'reload'      => $changed, // Frontend recharge la page si statut a changé
             'server_time' => now()->toIso8601String(),
         ]);
@@ -320,7 +335,7 @@ class CampaignController extends Controller
     {
         $this->authorize('managePanel', $campaign);
 
-        if (!in_array($campaign->status->value, ['planifie', 'actif', 'pose'])) {
+        if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
             return response()->json(['panels' => []]);
         }
 
@@ -496,7 +511,7 @@ class CampaignController extends Controller
         $this->authorize('update', $campaign);
 
         // Garde-fou : seules les campagnes PLANIFIEE / ACTIVE sont modifiables
-        if (in_array($campaign->status->value, ['pose', 'termine', 'annule'])) {
+        if (in_array($campaign->status->value, ['termine', 'annule'])) {
             return back()->withInput()->with('error',
                 "❌ Une campagne « {$campaign->status->label()} » ne peut pas être modifiée. " .
                 "Seules les campagnes Planifiées ou Actives sont modifiables."
@@ -613,8 +628,8 @@ class CampaignController extends Controller
 
         if ($end->lte($today))   return CampaignStatus::TERMINE->value;
         if ($start->gt($today))  return CampaignStatus::PLANIFIE->value;
-        // Si campagne en pose et toujours dans la fenêtre, on garde POSE ; sinon ACTIF
-        if ($current === CampaignStatus::POSE) return CampaignStatus::POSE->value;
+        // PAUSE est préservée (suspension manuelle, pas dérivée des dates).
+        if ($current === CampaignStatus::PAUSE) return CampaignStatus::PAUSE->value;
         return CampaignStatus::ACTIF->value;
     }
 
@@ -630,9 +645,9 @@ class CampaignController extends Controller
             'panel_ids.*' => 'required|integer|exists:panels,id',
         ]);
 
-        if (!in_array($campaign->status->value, ['planifie', 'actif', 'pose'])) {
+        if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
             return back()->with('error',
-                'Impossible d\'ajouter des panneaux à une campagne terminée ou annulée.');
+                'Impossible d\'ajouter des panneaux à une campagne en pause, terminée ou annulée.');
         }
 
         $result = $this->campaignService->addPanels($campaign, $request->panel_ids);

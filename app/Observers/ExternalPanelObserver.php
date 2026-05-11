@@ -12,7 +12,7 @@ class ExternalPanelObserver
             $campaign = \App\Models\Campaign::find($panel->campaign_id);
             if ($campaign) {
                 $status = $campaign->status->value ?? $campaign->status;
-                if (in_array($status, ['actif', 'pose', 'confirme'])) {
+                if (in_array($status, ['actif', 'confirme'])) {
                     $panel->availability_status = 'occupe';
                 } elseif (in_array($status, ['termine', 'annule'])) {
                     $panel->availability_status = 'a_verifier';

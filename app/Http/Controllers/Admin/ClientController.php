@@ -27,7 +27,7 @@ class ClientController extends Controller
 
         $stats = [
             'total'    => Client::count(),
-            'actifs'   => Client::whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'pose']))->count(),
+            'actifs'   => Client::whereHas('campaigns', fn($q) => $q->where('status', 'actif'))->count(),
             'ca_total' => \App\Models\Campaign::sum('total_amount'),
         ];
 
@@ -63,18 +63,18 @@ class ClientController extends Controller
         $query = Client::withCount(['campaigns', 'reservations'])
             ->withCount([
                 'campaigns as active_campaigns_count' => function ($q) {
-                    $q->whereIn('status', ['actif', 'pose']);
+                    $q->where('status', 'actif');
                 }
             ])
             ->with([
                 'campaigns' => function ($q) {
-                    $q->whereIn('status', ['actif', 'pose']);
+                    $q->where('status', 'actif');
                 }
             ]);
 
         // Bug 5.1 — filtre "Clients avec campagne active"
         if ($request->boolean('active_only')) {
-            $query->whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'pose']));
+            $query->whereHas('campaigns', fn($q) => $q->where('status', 'actif'));
         }
 
         if ($request->search) {

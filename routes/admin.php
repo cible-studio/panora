@@ -486,6 +486,7 @@ Route::prefix('admin')
         // Campagnes
         Route::resource('campaigns', CampaignController::class);
         Route::patch('campaigns/{campaign}/status', [CampaignController::class, 'updateStatus'])->name('campaigns.update-status');
+        Route::post ('campaigns/{campaign}/activate', [CampaignController::class, 'activate'])->name('campaigns.activate');
         Route::patch('campaigns/{campaign}/billing-quick', [CampaignController::class, 'billingQuick'])->name('campaigns.billing-quick');
         Route::patch('campaigns/{campaign}/prolonger', [CampaignController::class, 'prolonger'])->name('campaigns.prolonger');
         // Lot 5 — Lien pige public (token partageable)

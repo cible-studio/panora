@@ -82,7 +82,7 @@
                 </div>
                 @endif
 
-                @if(in_array($campaign->status->value, ['pose', 'termine', 'annule']))
+                @if(in_array($campaign->status->value, ['termine', 'annule']))
                 <div class="alert-danger mb-4">
                     <div class="flex items-start gap-3">
                         <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -109,7 +109,7 @@
                         <input type="text" name="name"
                                value="{{ old('name', $campaign->name) }}"
                                class="form-input @error('name') is-invalid @enderror"
-                               {{ in_array($campaign->status->value, ['pose', 'termine', 'annule']) ? 'disabled' : '' }}>
+                               {{ in_array($campaign->status->value, ['termine', 'annule']) ? 'disabled' : '' }}>
                         @error('name')
                         <p class="form-error">{{ $message }}</p>
                         @enderror
@@ -120,7 +120,7 @@
                         <label class="form-label">CLIENT *</label>
                         <select name="client_id"
                                 class="form-select @error('client_id') is-invalid @enderror"
-                                {{ in_array($campaign->status->value, ['pose', 'termine', 'annule']) ? 'disabled' : '' }}>
+                                {{ in_array($campaign->status->value, ['termine', 'annule']) ? 'disabled' : '' }}>
                             @foreach($clients as $client)
                             <option value="{{ $client->id }}"
                                 {{ old('client_id', $campaign->client_id) == $client->id ? 'selected' : '' }}>
@@ -162,7 +162,7 @@
                             <p class="form-hint">
                                 🔒 Date de début non modifiable (campagne déjà lancée)
                             </p>
-                        @elseif(in_array($campaign->status->value, ['pose', 'termine', 'annule']))
+                        @elseif(in_array($campaign->status->value, ['termine', 'annule']))
                             {{-- Campagne terminée/annulée : complètement désactivé --}}
                             <input type="date" name="start_date"
                                 value="{{ $campaign->start_date->format('Y-m-d') }}"
@@ -188,7 +188,7 @@
                                value="{{ old('end_date', $campaign->end_date->format('Y-m-d')) }}"
                                min="{{ $campaign->start_date->copy()->addDay()->format('Y-m-d') }}"
                                class="form-input @error('end_date') is-invalid @enderror"
-                               {{ in_array($campaign->status->value, ['pose', 'termine', 'annule']) ? 'disabled' : '' }}>
+                               {{ in_array($campaign->status->value, ['termine', 'annule']) ? 'disabled' : '' }}>
                         @error('end_date')
                         <p class="form-error">{{ $message }}</p>
                         @enderror
@@ -200,7 +200,7 @@
                         <textarea name="notes" rows="4"
                                   placeholder="Informations complémentaires, instructions de pose…"
                                   class="form-textarea @error('notes') is-invalid @enderror"
-                                  {{ in_array($campaign->status->value, ['pose', 'termine', 'annule']) ? 'disabled' : '' }}>{{ old('notes', $campaign->notes) }}</textarea>
+                                  {{ in_array($campaign->status->value, ['termine', 'annule']) ? 'disabled' : '' }}>{{ old('notes', $campaign->notes) }}</textarea>
                         @error('notes')
                         <p class="form-error">{{ $message }}</p>
                         @enderror
@@ -213,7 +213,7 @@
                         Annuler
                     </a>
                     <button type="submit" class="btn btn-primary"
-                            {{ in_array($campaign->status->value, ['pose', 'termine', 'annule']) ? 'disabled' : '' }}>
+                            {{ in_array($campaign->status->value, ['termine', 'annule']) ? 'disabled' : '' }}>
                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                         </svg>

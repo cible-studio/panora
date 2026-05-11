@@ -7,6 +7,24 @@
     </x-slot:topbarLeft>
 
     <x-slot:topbarActions>
+        @if($can['updateStatus'] && in_array($campaign->status->value, ['planifie', 'pause']))
+            @php
+                $panelsCount = $campaign->panels->count() + $campaign->externalPanels->count();
+                $isFirstStart = $campaign->status->value === 'planifie';
+                $label = $isFirstStart ? '▶ Démarrer la campagne' : '▶ Reprendre';
+                $confirmMsg = $isFirstStart
+                    ? ($panelsCount > 0
+                        ? 'Activer la campagne et envoyer le mail au client ?'
+                        : 'Cette campagne n\'a aucun panneau — ajoutez d\'abord des panneaux avant l\'activation.')
+                    : 'Reprendre la campagne ?';
+            @endphp
+            <form method="POST" action="{{ route('admin.campaigns.activate', $campaign) }}"
+                  style="display:inline;"
+                  onsubmit="return confirm({{ json_encode($confirmMsg) }});">
+                @csrf
+                <button type="submit" class="btn btn-primary btn-sm">{{ $label }}</button>
+            </form>
+        @endif
         @if($can['update'])
             <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn btn-ghost btn-sm">✏️ Modifier</a>
         @endif
@@ -25,7 +43,7 @@
         $humanTime  = $campaign->humanTimeRemaining();
         $pct        = $campaign->progressPercent();
         $endingSoon = $campaign->isEndingSoon();
-        $isRunning  = in_array($campaign->status->value, ['actif', 'pose']);
+        $isRunning  = $campaign->status->value === 'actif';
         $minNewEnd  = $campaign->end_date->copy()->addDay()->format('Y-m-d');
     @endphp
 
@@ -327,7 +345,7 @@
                     @endif
 
                     {{-- Prolonger --}}
-                    @if($can['update'] && in_array($campaign->status->value, ['actif', 'pose', 'termine']))
+                    @if($can['update'] && in_array($campaign->status->value, ['actif', 'termine']))
                     <div class="mt-5 pt-5 border-t" id="section-prolonger" style="border-color:var(--border)" x-data="{ show: false }">
                         <button type="button"
                                 class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold"
