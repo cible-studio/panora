@@ -478,6 +478,7 @@
             display: flex;
             justify-content: flex-end;
             gap: 12px;
+            
         }
         .warning-box {
             background: rgba(239,68,68,0.08);
@@ -498,7 +499,7 @@
             border: none;
         }
         .btn-primary { background: var(--accent); color: #000; }
-        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger { background: var(--danger); color: red; }
         .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
         .text-center { text-align: center; }
         .text-5xl { font-size: 48px; }
