@@ -7,6 +7,8 @@ use App\Models\Panel;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Services\AlertService;
+use App\Services\AvailabilityService;
+use Illuminate\Support\Facades\Log;
 
 class MaintenanceController extends Controller
 {
@@ -127,7 +129,17 @@ class MaintenanceController extends Controller
             'date_resolution' => 'nullable|date',
         ]);
 
+        $oldStatut = $maintenance->statut;
         $maintenance->update($request->all());
+
+        // BUG FIX — Si on bascule vers "resolu" ou "annule" depuis l'édit
+        // libre, on doit aussi remettre le panneau en service. Sinon le
+        // panneau garde son statut "maintenance" alors que la fiche dit
+        // que tout est résolu : il reste invisible dans dispos / inventaire.
+        if (in_array($maintenance->statut, ['resolu', 'annule'], true)
+            && $oldStatut !== $maintenance->statut) {
+            $this->releasePanelFromMaintenance($maintenance->panel);
+        }
 
         // Alerte modification maintenance (uniquement si changements importants)
         AlertService::create(
@@ -144,7 +156,22 @@ class MaintenanceController extends Controller
 
     public function destroy(Maintenance $maintenance)
     {
+        // Sécurité : si le panneau était en maintenance à cause de CETTE
+        // maintenance précisément et qu'il n'y en a plus d'active, on
+        // libère le panneau pour qu'il redevienne disponible.
+        $panel = $maintenance->panel;
         $maintenance->delete();
+
+        if ($panel && $panel->status->value === 'maintenance') {
+            $hasOther = Maintenance::where('panel_id', $panel->id)
+                ->whereNotIn('statut', ['resolu', 'annule'])
+                ->whereKeyNot($maintenance->id)
+                ->exists();
+            if (!$hasOther) {
+                $this->releasePanelFromMaintenance($panel);
+            }
+        }
+
         return redirect()->route('admin.maintenances.index')
             ->with('success', 'Maintenance supprimée !');
     }
@@ -162,8 +189,10 @@ class MaintenanceController extends Controller
             'date_resolution' => $request->date_resolution,
         ]);
 
-        // Remettre panneau en libre
-        $maintenance->panel->update(['status' => 'libre']);
+        // Remet le panneau en service en respectant les éventuelles
+        // réservations / campagnes actives (libre / option / confirme /
+        // occupé) — pas forcé en "libre".
+        $this->releasePanelFromMaintenance($maintenance->panel);
 
         AlertService::create(
             'maintenance',
@@ -173,5 +202,48 @@ class MaintenanceController extends Controller
             $maintenance
         );
         return back()->with('success', 'Maintenance résolue ! Panneau remis en service. ✅');
+    }
+
+    /**
+     * Sort un panneau du statut "maintenance" et recalcule son statut
+     * réel via AvailabilityService (libre / option / confirme / occupé)
+     * en fonction des réservations et campagnes actives.
+     *
+     * Pourquoi pas un simple update(['status' => 'libre']) ?
+     *   Si le panneau a une réservation en cours ou une campagne actif,
+     *   il doit être marqué "confirme" / "occupe", pas "libre" → sinon
+     *   les vues dispos / inventaire mentent à l'admin.
+     *
+     * AvailabilityService::syncPanelStatuses skip les panneaux déjà en
+     * maintenance (sécurité côté lui), donc on passe d'abord à 'libre'
+     * pour débloquer la sync, puis on appelle sync qui dérive le bon
+     * statut depuis les bookings.
+     */
+    private function releasePanelFromMaintenance(?Panel $panel): void
+    {
+        if (!$panel) return;
+        if ($panel->status->value !== 'maintenance') return;
+
+        // Étape 1 : sortir le panneau de la maintenance (statut transitoire
+        // 'libre' qui sera réajusté ensuite par la sync).
+        $panel->update(['status' => 'libre']);
+
+        // Étape 2 : laisser AvailabilityService recalculer le bon statut
+        // en fonction des réservations / campagnes actives sur ce panneau.
+        try {
+            app(AvailabilityService::class)->syncPanelStatuses([$panel->id]);
+        } catch (\Throwable $e) {
+            Log::warning('maintenance.release.sync_failed', [
+                'panel_id' => $panel->id,
+                'error'    => $e->getMessage(),
+            ]);
+        }
+
+        Log::info('maintenance.panel_released', [
+            'panel_id'    => $panel->id,
+            'panel_ref'   => $panel->reference,
+            'new_status'  => $panel->fresh()?->status?->value,
+            'released_by' => auth()->id(),
+        ]);
     }
 }
