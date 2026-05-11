@@ -39,10 +39,17 @@ use App\Http\Controllers\Client\ClientDashboardController;
 // ── Routes PUBLIQUES Pose OOH (accès technicien sans auth) ─────────
 // Throttle strict pour éviter l'abus en cas de fuite du lien.
 Route::prefix('pose')->name('pose.public.')->middleware('throttle:30,1')->group(function () {
-    Route::get('/{token}',         [\App\Http\Controllers\PoseTaskPublicController::class, 'show'])
+    Route::get ('/{token}',        [\App\Http\Controllers\PoseTaskPublicController::class, 'show'])
         ->name('show');
     Route::post('/{token}/update', [\App\Http\Controllers\PoseTaskPublicController::class, 'update'])
         ->name('update');
+    Route::post('/{token}/done',   [\App\Http\Controllers\PoseTaskPublicController::class, 'markDone'])
+        ->name('done');
+    // Upload photo : throttle dédié plus permissif (30 photos/min possible
+    // si la connexion réseau est correcte).
+    Route::post('/{token}/photo',  [\App\Http\Controllers\PoseTaskPublicController::class, 'uploadPhoto'])
+        ->name('photo')
+        ->middleware('throttle:30,1');
 });
 
 // ── Route PUBLIQUE Satisfaction client (T9) ─────────────────────────
