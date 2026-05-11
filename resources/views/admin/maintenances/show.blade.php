@@ -2,9 +2,20 @@
 <x-slot name="title">Maintenance — {{ $maintenance->panel->reference }}</x-slot>
 
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.maintenances.edit', $maintenance) }}" class="btn btn-ghost btn-sm">
-        ✏️ Modifier
-    </a>
+    @if($maintenance->isLocked())
+        <span class="badge badge-gray" style="font-size:13px;">🔒 Verrouillée</span>
+        <form method="POST" action="{{ route('admin.maintenances.reopen', $maintenance) }}"
+              style="display:inline;"
+              onsubmit="return confirm('Rouvrir cette maintenance ? Une nouvelle fiche sera créée et le panneau passera à nouveau en maintenance.');">
+            @csrf
+            <button type="submit" class="btn btn-ghost btn-sm">🔄 Rouvrir</button>
+        </form>
+    @else
+        <a href="{{ route('admin.maintenances.edit', $maintenance) }}" class="btn btn-ghost btn-sm">
+            ✏️ Modifier
+        </a>
+    @endif
+    <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm">← Retour</a>
 </x-slot>
 
 <div style="display:grid; grid-template-columns:1fr 320px; gap:20px;">
@@ -99,8 +110,8 @@
     {{-- COLONNE DROITE --}}
     <div>
 
-        {{-- RÉSOUDRE --}}
-        @if($maintenance->statut !== 'resolu')
+        {{-- RÉSOUDRE (uniquement si ouverte) --}}
+        @if(!$maintenance->isLocked())
         <div class="card">
             <div class="card-header">
                 <div class="card-title">✅ Marquer comme résolu</div>
@@ -123,6 +134,44 @@
                         ✅ Marquer résolu
                     </button>
                 </form>
+            </div>
+        </div>
+        @else
+        <div class="card" style="border-left:3px solid var(--text3);">
+            <div class="card-body" style="font-size:13px;color:var(--text2);">
+                🔒 Fiche verrouillée — pour signaler une nouvelle panne sur ce
+                panneau, cliquez sur <strong>« Rouvrir »</strong> en haut de page :
+                une nouvelle maintenance sera créée, reliée à celle-ci.
+            </div>
+        </div>
+        @endif
+
+        {{-- HISTORIQUE PARENT / RÉCURRENCES --}}
+        @php $children = $maintenance->children()->orderByDesc('id')->get(); @endphp
+        @if($maintenance->parent_maintenance_id || $children->isNotEmpty())
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">🔁 Historique récurrences</div>
+            </div>
+            <div class="card-body" style="font-size:13px;display:flex;flex-direction:column;gap:8px;">
+                @if($maintenance->parent_maintenance_id)
+                    <div>
+                        <span style="color:var(--text3);">Suite de :</span>
+                        <a href="{{ route('admin.maintenances.show', $maintenance->parent_maintenance_id) }}"
+                           style="color:var(--accent);">
+                            Maintenance #{{ $maintenance->parent_maintenance_id }}
+                        </a>
+                    </div>
+                @endif
+                @foreach($children as $child)
+                    <div>
+                        <span style="color:var(--text3);">Rouverte plus tard :</span>
+                        <a href="{{ route('admin.maintenances.show', $child) }}"
+                           style="color:var(--accent);">
+                            #{{ $child->id }} · {{ $child->statut }} · {{ $child->date_signalement?->format('d/m/Y') }}
+                        </a>
+                    </div>
+                @endforeach
             </div>
         </div>
         @endif

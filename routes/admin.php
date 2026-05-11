@@ -239,6 +239,7 @@ Route::prefix('admin')
         Route::post('maintenances/quick-tech',     [MaintenanceController::class, 'quickCreateTechnician'])->name('maintenances.quick-tech');
         Route::resource('maintenances', MaintenanceController::class);
         Route::post('maintenances/{maintenance}/resolve', [MaintenanceController::class, 'resolve'])->name('maintenances.resolve');
+        Route::post('maintenances/{maintenance}/reopen',  [MaintenanceController::class, 'reopen'])->name('maintenances.reopen');
 
         // ── Alertes ───────────────────────────────────────────────
         Route::prefix('alerts')->name('alerts.')->group(function () {

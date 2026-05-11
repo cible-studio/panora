@@ -20,6 +20,34 @@
         </a>
     </x-slot>
 
+    {{-- ALERTE MAINTENANCE ACTIVE (placée au-dessus de tout) --}}
+    @isset($activeMaintenance)
+    @if($activeMaintenance)
+    <div style="background:linear-gradient(90deg,rgba(239,68,68,.10),rgba(239,68,68,.04));border:1px solid rgba(239,68,68,.4);border-left:4px solid #ef4444;border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:240px;">
+            <div style="font-size:24px;">🔧</div>
+            <div>
+                <div style="font-weight:700;color:#dc2626;font-size:14px;">
+                    Maintenance en cours · {{ $activeMaintenance->type_panne }}
+                </div>
+                <div style="font-size:12px;color:var(--text2);margin-top:3px;">
+                    @if($activeMaintenance->technicien)
+                        Technicien : <strong>{{ $activeMaintenance->technicien->name }}</strong>
+                    @else
+                        <span style="color:#dc2626;">⚠️ Aucun technicien assigné</span>
+                    @endif
+                    · Priorité : <strong>{{ ucfirst($activeMaintenance->priorite) }}</strong>
+                    · Signalée le {{ $activeMaintenance->date_signalement?->format('d/m/Y') }}
+                </div>
+            </div>
+        </div>
+        <a href="{{ route('admin.maintenances.show', $activeMaintenance) }}" class="btn btn-primary btn-sm">
+            Voir la fiche maintenance →
+        </a>
+    </div>
+    @endif
+    @endisset
+
     <div style="display:grid; grid-template-columns:1fr 320px; gap:20px;">
 
         {{-- COLONNE GAUCHE --}}
@@ -302,34 +330,48 @@
         </div>
         <div>
 
-            {{-- CHANGER STATUT --}}
+            {{-- CHANGER STATUT (manuels uniquement) --}}
+            {{-- Les statuts option / confirmé / occupé sont calculés par
+                 AvailabilityService à partir des réservations actives —
+                 ils ne sont pas modifiables manuellement pour éviter
+                 toute incohérence avec le planning commercial. --}}
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">⚡ Changer statut</div>
                 </div>
                 <div class="card-body">
+                    @php
+                        $currentStatus = $panel->status->value;
+                        $isCalculated = in_array($currentStatus, ['option', 'confirme', 'occupe']);
+                    @endphp
+
+                    @if($isCalculated)
+                        <div style="background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px; font-size:12px; color:var(--text2); margin-bottom:10px;">
+                            🔒 Statut <strong>{{ $currentStatus }}</strong> dérivé automatiquement des réservations actives — non modifiable ici.
+                        </div>
+                    @endif
+
                     <form method="POST" action="{{ route('admin.panels.status', $panel) }}">
                         @csrf
                         <div class="mfg">
-                            <select name="status">
+                            <select name="status" {{ $isCalculated ? 'disabled' : '' }}>
                                 <option value="libre"
-                                    {{ $panel->status->value === 'libre' ? 'selected' : '' }}>🟢 Libre</option>
-                                <option value="option"
-                                    {{ $panel->status->value === 'option' ? 'selected' : '' }}>🟡 Option</option>
-                                <option value="confirme"
-                                    {{ $panel->status->value === 'confirme' ? 'selected' : '' }}>🔵 Confirmé
-                                </option>
-                                <option value="occupe"
-                                    {{ $panel->status->value === 'occupe' ? 'selected' : '' }}>🟣 Occupé</option>
+                                    {{ $currentStatus === 'libre' ? 'selected' : '' }}>🟢 Libre</option>
                                 <option value="maintenance"
-                                    {{ $panel->status->value === 'maintenance' ? 'selected' : '' }}>🔴 Maintenance
-                                </option>
+                                    {{ $currentStatus === 'maintenance' ? 'selected' : '' }}>🔴 Maintenance</option>
                             </select>
                         </div>
-                        <button type="submit" class="btn btn-primary" style="width:100%;">
+                        <button type="submit" class="btn btn-primary" style="width:100%;" {{ $isCalculated ? 'disabled' : '' }}>
                             Mettre à jour
                         </button>
                     </form>
+
+                    @if($currentStatus === 'maintenance')
+                        <div style="margin-top:10px; font-size:12px; color:var(--text3);">
+                            💡 Pour gérer la panne en cours, utilisez le module
+                            <a href="{{ route('admin.maintenances.index') }}" style="color:var(--accent);">Maintenances</a>.
+                        </div>
+                    @endif
                 </div>
             </div>
 
