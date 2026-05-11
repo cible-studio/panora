@@ -281,6 +281,15 @@ class PanelController extends Controller
             'piges'
         );
 
+        // Maintenance ouverte (signalee/en_cours) — pour afficher la carte
+        // d'alerte avec lien direct vers la fiche panne. Si plusieurs, on
+        // prend la plus récente (improbable mais défensif).
+        $activeMaintenance = \App\Models\Maintenance::where('panel_id', $panel->id)
+            ->whereIn('statut', \App\Models\Maintenance::STATUTS_OUVERTS)
+            ->with('technicien:id,name,whatsapp_number')
+            ->latest('id')
+            ->first();
+
         // Qui occupe ce panneau ? (réservations + campagnes actives)
         $occupants = collect();
 
@@ -337,7 +346,7 @@ class PanelController extends Controller
             ]);
         }
 
-        return view('admin.panels.show', compact('panel', 'occupants'));
+        return view('admin.panels.show', compact('panel', 'occupants', 'activeMaintenance'));
     }
     // ── FORMULAIRE MODIFICATION ──
     public function edit(Panel $panel)
@@ -481,15 +490,31 @@ class PanelController extends Controller
     // ── CHANGER STATUT ──
     public function updateStatus(Request $request, Panel $panel)
     {
-        // Côté UI on n'autorise que libre↔maintenance (les autres statuts
-        // sont dérivés des réservations/campagnes via AvailabilityService).
-        // On garde la validation large pour rétro-compat des anciens scripts.
+        // Seuls libre et maintenance sont manuels — les autres (option,
+        // confirme, occupe) sont calculés par AvailabilityService à partir
+        // des réservations. Permettre leur saisie manuelle créait des
+        // incohérences avec le planning commercial.
         $request->validate([
-            'status' => 'required|in:libre,occupe,option,confirme,maintenance'
+            'status' => 'required|in:libre,maintenance'
+        ], [
+            'status.in' => "Seuls les statuts 'libre' et 'maintenance' sont modifiables manuellement. Les autres sont dérivés des réservations.",
         ]);
 
         $previousStatus = $panel->status->value;
         $panel->update(['status' => $request->status]);
+
+        // Si on revient à 'libre' alors qu'une réservation active existe,
+        // AvailabilityService réajuste vers le bon statut (option / confirme).
+        if ($request->status === 'libre') {
+            try {
+                app(\App\Services\AvailabilityService::class)->syncPanelStatuses([$panel->id]);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('panel.updateStatus.sync_failed', [
+                    'panel_id' => $panel->id,
+                    'error'    => $e->getMessage(),
+                ]);
+            }
+        }
 
         AlertService::create(
             'panneau',

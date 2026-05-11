@@ -123,23 +123,33 @@
                             <span class="badge badge-gray">Annulé</span>
                         @endif
                     </td>
-                    <td>{{ $maintenance->technicien?->name ?? '—' }}</td>
+                    <td>
+                        @if($maintenance->technicien)
+                            {{ $maintenance->technicien->name }}
+                        @elseif($maintenance->isUnassigned())
+                            <span class="badge badge-red" title="Maintenance signalée sans technicien attribué — à assigner rapidement.">⚠️ Non assigné</span>
+                        @else
+                            —
+                        @endif
+                    </td>
                     <td style="font-size:12px; color:var(--text3);">
                         {{ $maintenance->date_signalement->format('d/m/Y') }}
                     </td>
                     <td>
                         <div style="display:flex; gap:6px;">
                             <a href="{{ route('admin.maintenances.show', $maintenance) }}"
-                               class="btn btn-ghost btn-sm">👁️</a>
-                            <a href="{{ route('admin.maintenances.edit', $maintenance) }}"
-                               class="btn btn-ghost btn-sm">✏️</a>
-                            @if($maintenance->statut !== 'resolu')
-                            <form method="POST"
-                                  action="{{ route('admin.maintenances.destroy', $maintenance) }}"
-                                  onsubmit="return confirm('Supprimer ?')">
-                                @csrf @method('DELETE')
-                                <button class="btn btn-danger btn-sm">🗑️</button>
-                            </form>
+                               class="btn btn-ghost btn-sm" title="Voir">👁️</a>
+                            @if(!$maintenance->isLocked())
+                                <a href="{{ route('admin.maintenances.edit', $maintenance) }}"
+                                   class="btn btn-ghost btn-sm" title="Modifier">✏️</a>
+                                <form method="POST"
+                                      action="{{ route('admin.maintenances.destroy', $maintenance) }}"
+                                      onsubmit="return confirm('Supprimer ?')">
+                                    @csrf @method('DELETE')
+                                    <button class="btn btn-danger btn-sm" title="Supprimer">🗑️</button>
+                                </form>
+                            @else
+                                <span class="badge badge-gray" title="Maintenance verrouillée — utilisez Rouvrir depuis la fiche">🔒</span>
                             @endif
                         </div>
                     </td>

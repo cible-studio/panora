@@ -8,10 +8,15 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use App\Services\AlertService;
 use App\Services\AvailabilityService;
+use App\Services\MaintenanceNotifier;
 use Illuminate\Support\Facades\Log;
 
 class MaintenanceController extends Controller
 {
+    public function __construct(
+        protected MaintenanceNotifier $notifier,
+    ) {}
+
     public function index(Request $request)
     {
         $query = Maintenance::with('panel', 'technicien', 'signaledBy');
@@ -194,12 +199,12 @@ class MaintenanceController extends Controller
         $maintenance = Maintenance::create([
             ...$request->all(),
             'signale_par' => auth()->id(),
-            'statut' => 'signale',
+            'statut'      => $request->filled('technicien_id') ? 'en_cours' : 'signale',
         ]);
 
-        // Mettre panneau en maintenance
-        Panel::find($request->panel_id)
-            ->update(['status' => 'maintenance']);
+        // Mettre panneau en maintenance (l'AvailabilityService rendra le
+        // statut "libre" automatiquement à la résolution / annulation).
+        Panel::find($request->panel_id)->update(['status' => 'maintenance']);
 
         AlertService::create(
             'maintenance',
@@ -208,6 +213,12 @@ class MaintenanceController extends Controller
             auth()->user()->name . ' a signalé une panne sur ' . $maintenance->panel->reference . ' : ' . $maintenance->type_panne . ' (priorité: ' . $maintenance->priorite . ').',
             $maintenance
         );
+
+        // Notification immédiate au technicien si assigné dès la création.
+        if ($maintenance->technicien_id) {
+            $this->notifier->notifyAssigned($maintenance);
+        }
+
         return redirect()->route('admin.maintenances.index')
             ->with('success', 'Maintenance signalée avec succès !');
     }
@@ -220,6 +231,15 @@ class MaintenanceController extends Controller
 
     public function edit(Maintenance $maintenance)
     {
+        // Une fiche close est verrouillée : pour rouvrir, l'admin doit
+        // utiliser le bouton "Rouvrir" qui crée une nouvelle maintenance
+        // liée à celle-ci. Évite qu'on défasse une résolution validée.
+        if ($maintenance->isLocked()) {
+            return redirect()->route('admin.maintenances.show', $maintenance)
+                ->with('error', 'Cette maintenance est verrouillée ('
+                    . $maintenance->statut . '). Utilisez "Rouvrir" pour signaler une nouvelle panne.');
+        }
+
         $panels = Panel::orderBy('reference')->get();
         $techniciens = User::where('role', 'technique')->orderBy('name')->get();
         return view('admin.maintenances.edit', compact(
@@ -231,29 +251,54 @@ class MaintenanceController extends Controller
 
     public function update(Request $request, Maintenance $maintenance)
     {
+        // Garde serveur : impossible de modifier une fiche close, même via
+        // POST direct. La seule sortie est le bouton "Rouvrir".
+        if ($maintenance->isLocked()) {
+            return redirect()->route('admin.maintenances.show', $maintenance)
+                ->with('error', 'Maintenance verrouillée — modification refusée.');
+        }
+
         $request->validate([
-            'type_panne' => 'required|string|max:255',
-            'priorite' => 'required|in:faible,normale,haute,urgente',
-            'statut' => 'required|in:signale,en_cours,resolu,annule',
-            'technicien_id' => 'nullable|exists:users,id',
-            'description' => 'nullable|string',
-            'solution' => 'nullable|string',
-            'date_resolution' => 'nullable|date',
+            'type_panne'       => 'required|string|max:255',
+            'priorite'         => 'required|in:faible,normale,haute,urgente',
+            'statut'           => 'required|in:signale,en_cours,resolu,annule',
+            'technicien_id'    => 'nullable|exists:users,id',
+            'description'      => 'nullable|string',
+            'solution'         => 'nullable|string',
+            'date_resolution'  => 'nullable|date',
         ]);
 
-        $oldStatut = $maintenance->statut;
-        $maintenance->update($request->all());
+        $oldStatut    = $maintenance->statut;
+        $oldTechId    = $maintenance->technicien_id;
+        $oldPriorite  = $maintenance->priorite;
 
-        // BUG FIX — Si on bascule vers "resolu" ou "annule" depuis l'édit
-        // libre, on doit aussi remettre le panneau en service. Sinon le
-        // panneau garde son statut "maintenance" alors que la fiche dit
-        // que tout est résolu : il reste invisible dans dispos / inventaire.
+        $maintenance->update($request->all());
+        $maintenance->refresh();
+
+        // Si on bascule vers "resolu" ou "annule" depuis l'édit libre,
+        // remet le panneau en service via AvailabilityService.
         if (in_array($maintenance->statut, ['resolu', 'annule'], true)
             && $oldStatut !== $maintenance->statut) {
             $this->releasePanelFromMaintenance($maintenance->panel);
+
+            if ($maintenance->statut === 'resolu') {
+                $this->notifier->notifyResolved($maintenance);
+            }
+        } else {
+            // Hors transition vers close : notif si changement technicien
+            // ou si priorité a grimpé à haute/urgente.
+            $newTechAssigned = $maintenance->technicien_id
+                && $maintenance->technicien_id !== $oldTechId;
+            if ($newTechAssigned) {
+                $this->notifier->notifyAssigned($maintenance);
+            } elseif ($oldPriorite !== $maintenance->priorite
+                && in_array($maintenance->priorite, ['haute', 'urgente'], true)) {
+                $this->notifier->notifyPriorityRaised($maintenance);
+            } else {
+                $this->notifier->notifyUpdated($maintenance);
+            }
         }
 
-        // Alerte modification maintenance (uniquement si changements importants)
         AlertService::create(
             'maintenance',
             'info',
@@ -264,6 +309,51 @@ class MaintenanceController extends Controller
 
         return redirect()->route('admin.maintenances.index')
             ->with('success', 'Maintenance mise à jour !');
+    }
+
+    /**
+     * Rouvre une maintenance fermée en créant une nouvelle ligne reliée à
+     * la précédente via parent_maintenance_id. Le panneau repasse en
+     * maintenance. On reprend le type de panne + le technicien à titre
+     * indicatif — éditables par l'admin sur la nouvelle fiche.
+     */
+    public function reopen(Maintenance $maintenance)
+    {
+        if (!$maintenance->isLocked()) {
+            return redirect()->route('admin.maintenances.show', $maintenance)
+                ->with('error', 'Cette maintenance est encore ouverte — pas besoin de la rouvrir.');
+        }
+
+        $new = Maintenance::create([
+            'panel_id'              => $maintenance->panel_id,
+            'parent_maintenance_id' => $maintenance->id,
+            'technicien_id'         => $maintenance->technicien_id,
+            'signale_par'           => auth()->id(),
+            'type_panne'            => $maintenance->type_panne,
+            'priorite'              => $maintenance->priorite,
+            'statut'                => $maintenance->technicien_id ? 'en_cours' : 'signale',
+            'date_signalement'      => now()->toDateString(),
+            'description'           => 'Récurrence de la maintenance #' . $maintenance->id
+                . ($maintenance->solution ? ' (solution précédente : ' . $maintenance->solution . ')' : ''),
+        ]);
+
+        Panel::find($maintenance->panel_id)->update(['status' => 'maintenance']);
+
+        AlertService::create(
+            'maintenance',
+            'warning',
+            '🔄 Maintenance rouverte — ' . $new->panel->reference,
+            auth()->user()->name . ' a rouvert la maintenance #' . $maintenance->id
+                . ' (nouvelle fiche #' . $new->id . ').',
+            $new
+        );
+
+        if ($new->technicien_id) {
+            $this->notifier->notifyAssigned($new);
+        }
+
+        return redirect()->route('admin.maintenances.show', $new)
+            ->with('success', 'Maintenance rouverte — nouvelle fiche #' . $new->id . ' créée.');
     }
 
     public function destroy(Maintenance $maintenance)
@@ -290,14 +380,19 @@ class MaintenanceController extends Controller
 
     public function resolve(Request $request, Maintenance $maintenance)
     {
+        // Garde : une maintenance déjà résolue ne se "re-résout" pas.
+        if ($maintenance->isLocked()) {
+            return back()->with('error', 'Cette maintenance est déjà clôturée.');
+        }
+
         $request->validate([
-            'solution' => 'required|string',
+            'solution'        => 'required|string',
             'date_resolution' => 'required|date',
         ]);
 
         $maintenance->update([
-            'statut' => 'resolu',
-            'solution' => $request->solution,
+            'statut'          => 'resolu',
+            'solution'        => $request->solution,
             'date_resolution' => $request->date_resolution,
         ]);
 
@@ -313,6 +408,9 @@ class MaintenanceController extends Controller
             auth()->user()->name . ' a résolu la panne sur ' . $maintenance->panel->reference . '.',
             $maintenance
         );
+
+        $this->notifier->notifyResolved($maintenance);
+
         return back()->with('success', 'Maintenance résolue ! Panneau remis en service. ✅');
     }
 

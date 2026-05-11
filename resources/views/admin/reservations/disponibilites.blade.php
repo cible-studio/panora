@@ -41,6 +41,7 @@
             formats: {!! json_encode(
                 $formats->map(fn($f) => ['id' => $f->id, 'name' => $f->name, 'width' => $f->width, 'height' => $f->height])->values(),
             ) !!},
+            categories: {!! json_encode(($categories ?? collect())->map(fn($c) => ['id' => $c->id, 'name' => $c->name])->values()) !!},
             dimensions: {!! json_encode($dimensions) !!},
             clients: {!! json_encode($clients->map(fn($c) => ['id' => $c->id, 'name' => $c->name])->values()) !!},
             agencies: {!! json_encode($agencies->map(fn($a) => ['id' => $a->id, 'name' => $a->name])->values()) !!},
@@ -103,6 +104,13 @@
             </div>
 
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="filter-label">🏷️ Catégorie</label>
+                        <span id="badge-category_ids" class="ms-badge hidden"></span>
+                    </div>
+                    <div class="ms-wrapper" data-key="category_ids" data-placeholder="Toutes"></div>
+                </div>
                 <div>
                     <label class="filter-label block mb-1">💡 Éclairage</label>
                     <select id="f-is_lit" class="filter-select w-full" onchange="DISPO.set('is_lit', this.value)">
@@ -1029,6 +1037,7 @@
                         commune_ids: [],
                         zone_ids: [],
                         format_ids: [],
+                        category_ids: [],
                         agency_ids: [],
                         dimensions: '',
                         is_lit: '',
@@ -1062,6 +1071,7 @@
                     commune_ids: D.communes,
                     zone_ids: D.zones,
                     format_ids: D.formats,
+                    category_ids: D.categories,
                     agency_ids: D.agencies,
                 };
 
@@ -1253,6 +1263,7 @@
                             commune_ids: [],
                             zone_ids: [],
                             format_ids: [],
+                            category_ids: [],
                             agency_ids: [],
                             dimensions: '',
                             is_lit: '',
@@ -1275,7 +1286,7 @@
                         _el('f-au').value = '';
                         _el('f-search').value = '';
                         _el('btn-clear-search').classList.add('hidden');
-                        ['commune_ids', 'zone_ids', 'format_ids', 'agency_ids'].forEach(_syncMs);
+                        ['commune_ids', 'zone_ids', 'format_ids', 'category_ids', 'agency_ids'].forEach(_syncMs);
                         _hideDateErr();
                         this._fetch();
                         this._syncUI();
@@ -1866,6 +1877,7 @@
                         S.f.commune_ids.forEach(id => p.append('commune_ids[]', id));
                         S.f.zone_ids.forEach(id => p.append('zone_ids[]', id));
                         S.f.format_ids.forEach(id => p.append('format_ids[]', id));
+                        S.f.category_ids.forEach(id => p.append('category_ids[]', id));
                         S.f.agency_ids.forEach(id => p.append('agency_ids[]', id));
                         if (S.f.dimensions) p.set('dimensions', S.f.dimensions);
                         if (S.f.is_lit !== '') p.set('is_lit', S.f.is_lit);
@@ -2133,9 +2145,9 @@
 
                     _syncUI() {
                         const f = S.f;
-                        const active = f.commune_ids.length || f.zone_ids.length || f.format_ids.length || f.agency_ids
-                            .length || f.dimensions || f.is_lit !== '' || f.statut !== 'tous' || f.du || f.au || f
-                            .source !== 'all' || f.q;
+                        const active = f.commune_ids.length || f.zone_ids.length || f.format_ids.length
+                            || f.category_ids.length || f.agency_ids.length || f.dimensions || f.is_lit !== ''
+                            || f.statut !== 'tous' || f.du || f.au || f.source !== 'all' || f.q;
                         _el('btn-reset').classList.toggle('hidden', !active);
                         this._renderTags();
                     },
@@ -2160,6 +2172,7 @@
                         addMS(f.commune_ids, 'commune_ids', D.communes);
                         addMS(f.zone_ids, 'zone_ids', D.zones);
                         addMS(f.format_ids, 'format_ids', D.formats);
+                        addMS(f.category_ids, 'category_ids', D.categories);
                         addMS(f.agency_ids, 'agency_ids', D.agencies);
                         if (f.dimensions) tags.push({
                             l: f.dimensions,
