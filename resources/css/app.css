@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Cache les éléments Alpine avant leur initialisation → évite le layout shift */
+[x-cloak] { display: none !important; }
+
 /* ═══════════════════════════════════════════════
    VARIABLES — Changer ici = tout le site change
    ═══════════════════════════════════════════════ */

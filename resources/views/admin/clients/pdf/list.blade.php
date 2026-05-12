@@ -199,7 +199,7 @@
                             @if($hasAcc)
                                 <span class="badge badge-account">Actif</span>
                             @else
-                                <span class="badge badge-no">—</span>
+                                <span class="badge badge-no">Non actif</span>
                             @endif
                         </td>
                     </tr>

@@ -1,60 +1,73 @@
 <?php
-// app/Policies/ReservationPolicy.php
-
 namespace App\Policies;
 
+use App\Enums\UserRole;
 use App\Models\Reservation;
 use App\Models\User;
 
+/**
+ * Refonte selon docs/ROLES_VALIDES.md :
+ *
+ *   Admin       → tout
+ *   MP          → crée + modifie + annule (créateur)
+ *   Commercial  → voit ses dossiers, NE crée plus, NE modifie plus
+ *                 (il intervient sur le statut côté Proposition uniquement)
+ *
+ * "view" reste large : tout le monde côté admin peut voir une résa
+ * (filtres / portefeuilles côté UI). Les actions modifiantes sont
+ * restreintes ici.
+ */
 class ReservationPolicy
 {
-    // Qui peut voir une réservation ?
+    public function before(User $user, string $ability): ?bool
+    {
+        if ($user->role === UserRole::ADMIN) return true;
+        return null;
+    }
+
     public function view(User $user, Reservation $reservation): bool
     {
-        return true; // tous les authentifiés
+        return in_array($user->role, [
+            UserRole::COMMERCIAL,
+            UserRole::MEDIAPLANNER,
+        ], true);
     }
 
-    // Qui peut créer ?
+    /** Créer une réservation : Media Planner uniquement. */
     public function create(User $user): bool
     {
-        return in_array($user->role, ['admin', 'commercial', 'mediaplanner']);
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
-    // Qui peut éditer ?
+    /** Modifier (panneaux, période, prix) : MP, et seulement si éditable. */
     public function update(User $user, Reservation $reservation): bool
     {
-        // Statut bloquant
-        if (! $reservation->isEditable()) return false;
-
-        // Client supprimé → on bloque
+        if (!$reservation->isEditable()) return false;
         if ($reservation->client?->trashed()) return false;
-
-        // Seul l'admin ou le créateur peut modifier
-        return $user->role === 'admin' || $reservation->user_id === $user->id;
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
-    // Qui peut changer le statut ?
+    /**
+     * Changer statut "interne" de la réservation (en_attente / confirme
+     * etc. côté MP). Le statut visible client (envoyée, vue, signée) est
+     * géré par PropositionPolicy.
+     */
     public function updateStatus(User $user, Reservation $reservation): bool
     {
-        // Client supprimé → inutile de changer le statut
         if ($reservation->client?->trashed()) return false;
-
-        return in_array($user->role, ['admin', 'commercial']);
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
-    // Qui peut annuler ?
+    /** Annuler une réservation : MP (créateur) + Admin. */
     public function annuler(User $user, Reservation $reservation): bool
     {
-        if (! $reservation->isCancellable()) return false;
-
-        return $user->role === 'admin' || $reservation->user_id === $user->id;
+        if (!$reservation->isCancellable()) return false;
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
-    // Qui peut supprimer ? Seulement les dossiers clos
+    /** Supprimer : Admin uniquement (before() capte). */
     public function delete(User $user, Reservation $reservation): bool
     {
-        if (! in_array($reservation->status->value, ['annule', 'refuse'])) return false;
-
-        return $user->role === 'admin';
+        return false;
     }
 }

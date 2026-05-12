@@ -28,7 +28,7 @@ class TaxController extends Controller
      */
     public function index(Request $request)
     {
-        $communes = Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate']);
+        $communes = Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate', 'db_rate']);
 
         // Année par défaut : courante (utile pour pré-sélectionner le filtre)
         $year         = (int) ($request->input('year', date('Y')));
@@ -244,7 +244,7 @@ class TaxController extends Controller
         $request->validate([
             'commune_id' => 'required|exists:communes,id',
             'year'       => 'required|integer|min:2000|max:2099',
-            'type'       => 'required|in:odp,tm',
+            'type'       => 'required|in:odp,tm,db',
             'amount'     => 'required|numeric|min:0',
             'due_date'   => 'nullable|date',
         ]);
@@ -272,7 +272,7 @@ class TaxController extends Controller
         $request->validate([
             'commune_id' => 'required|exists:communes,id',
             'year'       => 'required|integer|min:2000|max:2099',
-            'type'       => 'required|in:odp,tm',
+            'type'       => 'required|in:odp,tm,db',
             'amount'     => 'required|numeric|min:0',
             'due_date'   => 'nullable|date',
             'status'     => 'required|in:en_attente,payee,en_retard',
@@ -382,7 +382,7 @@ class TaxController extends Controller
                     ->with('format:id,name,width,height'),
             ])
             ->whereNotNull('odp_rate')
-            ->get(['id', 'name', 'odp_rate', 'tm_rate']);
+            ->get(['id', 'name', 'odp_rate', 'tm_rate', 'db_rate']);
 
         // Index des paiements existants pour cette période
         $payments = CommuneTaxPayment::where('period_type', $periodType)
@@ -394,11 +394,12 @@ class TaxController extends Controller
         $rows = $communes->map(function ($commune) use ($nbMois, $payments) {
             $tmRate  = (float) ($commune->tm_rate ?: 1000);
             $odpRate = (float) $commune->odp_rate;
+            $dbRate  = (float) ($commune->db_rate ?? 0);
 
             // Lignes détaillées par format (pour affichage tableau)
             $lignes = $commune->panels
                 ->groupBy('format_id')
-                ->map(function ($panels) use ($commune, $tmRate, $odpRate, $nbMois) {
+                ->map(function ($panels) use ($tmRate, $odpRate, $dbRate, $nbMois) {
                     $fmt = $panels->first()->format;
                     if (!$fmt?->width || !$fmt?->height) return null;
 
@@ -406,6 +407,7 @@ class TaxController extends Controller
                     $qty = $panels->count();
                     $odp = round($odpRate * $m2 * $qty * $nbMois);
                     $tm  = round($tmRate  * $m2 * $qty * $nbMois);
+                    $db  = round($dbRate  * $m2 * $qty * $nbMois);
 
                     return [
                         'format_id'  => $fmt->id,
@@ -417,9 +419,11 @@ class TaxController extends Controller
                         'qty'        => $qty,
                         'odp_taux'   => $odpRate,
                         'tm_taux'    => $tmRate,
+                        'db_taux'    => $dbRate,
                         'odp'        => $odp,
                         'tm'         => $tm,
-                        'total'      => $odp + $tm,
+                        'db'         => $db,
+                        'total'      => $odp + $tm + $db,
                     ];
                 })
                 ->filter()
@@ -428,10 +432,12 @@ class TaxController extends Controller
             $payment = $payments->get($commune->id);
             $odpTheo = (float) $lignes->sum('odp');
             $tmTheo  = (float) $lignes->sum('tm');
+            $dbTheo  = (float) $lignes->sum('db');
             $odpPaye = (float) ($payment?->odp_paye ?? 0);
             $tmPaye  = (float) ($payment?->tm_paye  ?? 0);
-            $totalTheo = $odpTheo + $tmTheo;
-            $totalPaye = $odpPaye + $tmPaye;
+            $dbPaye  = (float) ($payment?->db_paye  ?? 0);
+            $totalTheo = $odpTheo + $tmTheo + $dbTheo;
+            $totalPaye = $odpPaye + $tmPaye + $dbPaye;
 
             $statut = match (true) {
                 $totalTheo === 0.0           => 'aucun',
@@ -445,13 +451,16 @@ class TaxController extends Controller
                 'commune_id'     => $commune->id,
                 'odp_taux'       => $odpRate,
                 'tm_taux'        => $tmRate,
+                'db_taux'        => $dbRate,
                 'nb_panneaux'    => (int) $commune->panels->count(),
                 'surface_totale' => (float) $lignes->sum(fn($l) => $l['m2'] * $l['qty']),
                 'odp_theorique'  => $odpTheo,
                 'tm_theorique'   => $tmTheo,
+                'db_theorique'   => $dbTheo,
                 'total_theorique'=> $totalTheo,
                 'odp_paye'       => $odpPaye,
                 'tm_paye'        => $tmPaye,
+                'db_paye'        => $dbPaye,
                 'total_paye'     => $totalPaye,
                 'solde'          => $totalTheo - $totalPaye,
                 'paid_at'        => $payment?->paid_at?->format('d/m/Y'),
@@ -469,6 +478,7 @@ class TaxController extends Controller
         $kpi = [
             'odp_total'        => (float) $rows->sum('odp_theorique'),
             'tm_total'         => (float) $rows->sum('tm_theorique'),
+            'db_total'         => (float) $rows->sum('db_theorique'),
             'grand_total'      => (float) $rows->sum('total_theorique'),
             'paye_total'       => (float) $rows->sum('total_paye'),
             'solde_total'      => (float) $rows->sum('solde'),
@@ -499,8 +509,10 @@ class TaxController extends Controller
             'period_value'      => 'required|integer|min:0|max:12',
             'odp_paye'          => 'required|numeric|min:0',
             'tm_paye'           => 'required|numeric|min:0',
+            'db_paye'           => 'nullable|numeric|min:0',
             'odp_theorique'     => 'required|numeric|min:0',
             'tm_theorique'      => 'required|numeric|min:0',
+            'db_theorique'      => 'nullable|numeric|min:0',
             'paid_at'           => 'nullable|date',
             'attestation_recue' => 'sometimes|boolean',
             'attestation_date'  => 'nullable|date',
@@ -517,8 +529,10 @@ class TaxController extends Controller
             [
                 'odp_theorique'     => $data['odp_theorique'],
                 'tm_theorique'      => $data['tm_theorique'],
+                'db_theorique'      => $data['db_theorique'] ?? 0,
                 'odp_paye'          => $data['odp_paye'],
                 'tm_paye'           => $data['tm_paye'],
+                'db_paye'           => $data['db_paye'] ?? 0,
                 'paid_at'           => $data['paid_at'] ?? now(),
                 'attestation_recue' => $data['attestation_recue'] ?? false,
                 'attestation_date'  => $data['attestation_date'] ?? null,
@@ -542,6 +556,7 @@ class TaxController extends Controller
                 'id'                => $payment->id,
                 'odp_paye'          => (float) $payment->odp_paye,
                 'tm_paye'           => (float) $payment->tm_paye,
+                'db_paye'           => (float) $payment->db_paye,
                 'paid_at'           => $payment->paid_at?->format('d/m/Y'),
                 'attestation_recue' => (bool) $payment->attestation_recue,
                 'status'            => $payment->status,
