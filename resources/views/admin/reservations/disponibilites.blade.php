@@ -36,7 +36,8 @@
 
     <script>
         window.__DISPO__ = {
-            communes: {!! json_encode($communes->map(fn($c) => ['id' => $c->id, 'name' => $c->name])->values()) !!},
+            communes: {!! json_encode($communes->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'city' => $c->city])->values()) !!},
+            cities: {!! json_encode(($cities ?? collect())->map(fn($c) => ['id' => $c, 'name' => $c])->values()) !!},
             zones: {!! json_encode($zones->map(fn($z) => ['id' => $z->id, 'name' => $z->name])->values()) !!},
             formats: {!! json_encode(
                 $formats->map(fn($f) => ['id' => $f->id, 'name' => $f->name, 'width' => $f->width, 'height' => $f->height])->values(),
@@ -56,13 +57,13 @@
 
     <div id="dispo-app">
 
-        {{-- ══ FILTRES ══ --}}
+        {{-- ══ FILTRES (regroupés par thème — inspiré de l'ancienne app) ══ --}}
         <div class="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-5 mb-4 shadow-sm">
 
-            <div class="mb-4">
-                <div class="relative max-w-lg">
-                    <span
-                        class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text3)] text-sm pointer-events-none">🔍</span>
+            {{-- Recherche libre en pleine largeur, toujours en haut --}}
+            <div class="mb-5">
+                <div class="relative max-w-2xl">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text3)] text-sm pointer-events-none">🔍</span>
                     <input type="text" id="f-search"
                         class="w-full h-11 pl-9 pr-10 bg-[var(--surface2)] border border-[var(--border2)] rounded-xl text-sm text-[var(--text)] placeholder:text-[var(--text3)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 transition-all"
                         placeholder="Référence, nom, zone, commune..." oninput="DISPO.onSearch(this.value)">
@@ -72,107 +73,122 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="filter-label">📍 Commune</label>
-                        <span id="badge-commune_ids" class="ms-badge hidden"></span>
+            {{-- 4 groupes thématiques, layout responsive : 1 col mobile, 2 cols sm, 4 cols xl --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
+
+                {{-- ── GROUPE 1 : 📅 Période + Statut ── --}}
+                <fieldset class="filter-group-box">
+                    <legend class="filter-group-title">📅 Période & Statut</legend>
+                    <div class="grid gap-2">
+                        <label class="filter-label">Période</label>
+                        <div class="flex items-center gap-2 bg-[var(--surface2)] px-3 py-1.5 rounded-lg border border-[var(--border2)]">
+                            <input type="date" id="f-du" class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
+                                   onchange="DISPO.onDateChange('du', this.value)">
+                            <span class="text-[var(--text3)] text-xs">→</span>
+                            <input type="date" id="f-au" class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
+                                   onchange="DISPO.onDateChange('au', this.value)">
+                        </div>
+                        <div id="date-error" class="hidden text-xs text-red-500 bg-red-500/10 px-3 py-1 rounded-lg"></div>
+
+                        <label class="filter-label mt-1">Statut</label>
+                        <select id="f-statut" class="filter-select w-full" onchange="DISPO.set('statut', this.value)">
+                            <option value="tous">Tous</option>
+                            <option value="libre">✅ Disponible</option>
+                            <option value="occupe">🔒 Occupé</option>
+                            <option value="option">⏳ En option</option>
+                            <option value="maintenance">🔧 Maintenance</option>
+                        </select>
                     </div>
-                    <div class="ms-wrapper" data-key="commune_ids" data-placeholder="Toutes"></div>
-                </div>
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="filter-label">🗺️ Zone</label>
-                        <span id="badge-zone_ids" class="ms-badge hidden"></span>
+                </fieldset>
+
+                {{-- ── GROUPE 2 : 📍 Géographie ── --}}
+                <fieldset class="filter-group-box">
+                    <legend class="filter-group-title">📍 Géographie</legend>
+                    <div class="grid gap-2">
+                        <div class="flex items-center justify-between">
+                            <label class="filter-label">Ville</label>
+                            <span id="badge-cities" class="ms-badge hidden"></span>
+                        </div>
+                        <div class="ms-wrapper" data-key="cities" data-placeholder="Toutes"></div>
+
+                        <div class="flex items-center justify-between mt-1">
+                            <label class="filter-label">Commune</label>
+                            <span id="badge-commune_ids" class="ms-badge hidden"></span>
+                        </div>
+                        <div class="ms-wrapper" data-key="commune_ids" data-placeholder="Toutes"></div>
+
+                        <div class="flex items-center justify-between mt-1">
+                            <label class="filter-label">Zone</label>
+                            <span id="badge-zone_ids" class="ms-badge hidden"></span>
+                        </div>
+                        <div class="ms-wrapper" data-key="zone_ids" data-placeholder="Toutes"></div>
                     </div>
-                    <div class="ms-wrapper" data-key="zone_ids" data-placeholder="Toutes"></div>
-                </div>
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="filter-label">📏 Format</label>
-                        <span id="badge-format_ids" class="ms-badge hidden"></span>
+                </fieldset>
+
+                {{-- ── GROUPE 3 : 📏 Caractéristiques panneau ── --}}
+                <fieldset class="filter-group-box">
+                    <legend class="filter-group-title">📏 Caractéristiques</legend>
+                    <div class="grid gap-2">
+                        <div class="flex items-center justify-between">
+                            <label class="filter-label">Format</label>
+                            <span id="badge-format_ids" class="ms-badge hidden"></span>
+                        </div>
+                        <div class="ms-wrapper" data-key="format_ids" data-placeholder="Tous"></div>
+
+                        <label class="filter-label mt-1">Dimensions</label>
+                        <select id="f-dimensions" class="filter-select w-full" onchange="DISPO.set('dimensions', this.value)">
+                            <option value="">Toutes</option>
+                        </select>
+
+                        <div class="flex items-center justify-between mt-1">
+                            <label class="filter-label">Catégorie</label>
+                            <span id="badge-category_ids" class="ms-badge hidden"></span>
+                        </div>
+                        <div class="ms-wrapper" data-key="category_ids" data-placeholder="Toutes"></div>
+
+                        <label class="filter-label mt-1">💡 Éclairage</label>
+                        <select id="f-is_lit" class="filter-select w-full" onchange="DISPO.set('is_lit', this.value)">
+                            <option value="">Tous</option>
+                            <option value="1">💡 Éclairé</option>
+                            <option value="0">🌙 Non éclairé</option>
+                        </select>
                     </div>
-                    <div class="ms-wrapper" data-key="format_ids" data-placeholder="Tous"></div>
-                </div>
-                <div>
-                    <label class="filter-label block mb-1">📐 Dimensions</label>
-                    <select id="f-dimensions" class="filter-select w-full"
-                        onchange="DISPO.set('dimensions', this.value)">
-                        <option value="">Toutes</option>
-                    </select>
-                </div>
+                </fieldset>
+
+                {{-- ── GROUPE 4 : 🏢 Source ── --}}
+                <fieldset class="filter-group-box">
+                    <legend class="filter-group-title">🏢 Source</legend>
+                    <div class="grid gap-2">
+                        <label class="filter-label">Type de panneaux</label>
+                        <select id="f-source" class="filter-select w-full" onchange="DISPO.onSourceChange(this.value)">
+                            <option value="all">📦 Tous (internes + externes)</option>
+                            <option value="internal">🏢 Internes uniquement</option>
+                            <option value="external">🤝 Externes uniquement</option>
+                        </select>
+
+                        <div id="wrapper-agencies">
+                            <div class="flex items-center justify-between mt-1">
+                                <label class="filter-label">🤝 Régie</label>
+                                <span id="badge-agency_ids" class="ms-badge hidden"></span>
+                            </div>
+                            <div class="ms-wrapper" data-key="agency_ids" data-placeholder="Toutes"></div>
+                        </div>
+                    </div>
+                </fieldset>
             </div>
 
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="filter-label">🏷️ Catégorie</label>
-                        <span id="badge-category_ids" class="ms-badge hidden"></span>
-                    </div>
-                    <div class="ms-wrapper" data-key="category_ids" data-placeholder="Toutes"></div>
+            {{-- ── Barre stats + actions globales ── --}}
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[var(--border)]">
+                <div id="stats-bar" class="flex gap-2 flex-wrap">
+                    <span id="stat-total" class="stat-pill">📊 <strong>0</strong> panneaux</span>
+                    <span id="stat-dispo" class="stat-pill hidden">✅ <strong>0</strong> dispos</span>
+                    <span id="stat-occupes" class="stat-pill hidden">🔒 <strong>0</strong> occupés</span>
+                    <span id="stat-options" class="stat-pill hidden">⏳ <strong>0</strong> options</span>
+                    <span id="stat-ext" class="stat-pill hidden">🤝 <strong>0</strong> externes</span>
                 </div>
-                <div>
-                    <label class="filter-label block mb-1">💡 Éclairage</label>
-                    <select id="f-is_lit" class="filter-select w-full" onchange="DISPO.set('is_lit', this.value)">
-                        <option value="">Tous</option>
-                        <option value="1">💡 Éclairé</option>
-                        <option value="0">🌙 Non éclairé</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="filter-label block mb-1">📊 Statut</label>
-                    <select id="f-statut" class="filter-select w-full" onchange="DISPO.set('statut', this.value)">
-                        <option value="tous">Tous</option>
-                        <option value="libre">✅ Disponible</option>
-                        <option value="occupe">🔒 Occupé</option>
-                        <option value="option">⏳ En option</option>
-                        <option value="maintenance">🔧 Maintenance</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="filter-label block mb-1">🏢 Source</label>
-                    <select id="f-source" class="filter-select w-full" onchange="DISPO.onSourceChange(this.value)">
-                        <option value="all">📦 Tous</option>
-                        <option value="internal">🏢 Internes</option>
-                        <option value="external">🤝 Externes</option>
-                    </select>
-                </div>
-                <div id="wrapper-agencies">
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="filter-label">🤝 Régie</label>
-                        <span id="badge-agency_ids" class="ms-badge hidden"></span>
-                    </div>
-                    <div class="ms-wrapper" data-key="agency_ids" data-placeholder="Toutes"></div>
-                </div>
-            </div>
-
-            <div class="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-[var(--border)]">
-                <div class="flex flex-wrap items-center gap-3">
-                    <span class="filter-label">📅 Période</span>
-                    <div
-                        class="flex items-center gap-2 bg-[var(--surface2)] px-3 py-1.5 rounded-xl border border-[var(--border2)]">
-                        <input type="date" id="f-du"
-                            class="bg-transparent border-none text-sm text-[var(--text)] focus:outline-none"
-                            onchange="DISPO.onDateChange('du', this.value)">
-                        <span class="text-[var(--text3)] text-xs">→</span>
-                        <input type="date" id="f-au"
-                            class="bg-transparent border-none text-sm text-[var(--text)] focus:outline-none"
-                            onchange="DISPO.onDateChange('au', this.value)">
-                    </div>
-                    <div id="date-error" class="hidden text-xs text-red-500 bg-red-500/10 px-3 py-1 rounded-lg"></div>
-                </div>
-                <div class="flex items-center gap-3 flex-wrap">
-                    <div id="stats-bar" class="flex gap-2 flex-wrap">
-                        <span id="stat-total" class="stat-pill">📊 <strong>0</strong> panneaux</span>
-                        <span id="stat-dispo" class="stat-pill hidden">✅ <strong>0</strong> dispos</span>
-                        <span id="stat-occupes" class="stat-pill hidden">🔒 <strong>0</strong> occupés</span>
-                        <span id="stat-options" class="stat-pill hidden">⏳ <strong>0</strong> options</span>
-                        <span id="stat-ext" class="stat-pill hidden">🤝 <strong>0</strong> externes</span>
-                    </div>
-                    <button id="btn-reset"
-                        class="hidden px-3 py-1.5 text-xs text-[var(--text3)] border border-[var(--border2)] rounded-xl hover:border-red-500 hover:text-red-500 transition-all"
-                        onclick="DISPO.reset()">↻ Réinitialiser</button>
-                </div>
+                <button id="btn-reset"
+                    class="hidden px-3 py-1.5 text-xs text-[var(--text3)] border border-[var(--border2)] rounded-xl hover:border-red-500 hover:text-red-500 transition-all"
+                    onclick="DISPO.reset()">↻ Réinitialiser</button>
             </div>
 
             <div id="tags-bar" class="hidden flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[var(--border)]">
@@ -645,6 +661,25 @@
             color: var(--text3);
         }
 
+        /* Groupes thématiques de filtres — inspiré de l'ancienne app
+           (fieldset avec legend) pour une lecture claire. */
+        .filter-group-box {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 10px 14px 14px;
+            background: var(--surface2);
+        }
+        .filter-group-title {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: .8px;
+            padding: 0 8px;
+            background: var(--surface);
+            border-radius: 6px;
+        }
+
         .filter-select {
             height: 40px;
             padding: 0 12px;
@@ -1035,6 +1070,7 @@
                 const S = {
                     f: {
                         commune_ids: [],
+                        cities: [],
                         zone_ids: [],
                         format_ids: [],
                         category_ids: [],
@@ -1069,6 +1105,7 @@
 
                 const MS_DATA = {
                     commune_ids: D.communes,
+                    cities: D.cities,
                     zone_ids: D.zones,
                     format_ids: D.formats,
                     category_ids: D.categories,
@@ -1261,6 +1298,7 @@
                     reset() {
                         S.f = {
                             commune_ids: [],
+                            cities: [],
                             zone_ids: [],
                             format_ids: [],
                             category_ids: [],
@@ -1286,7 +1324,7 @@
                         _el('f-au').value = '';
                         _el('f-search').value = '';
                         _el('btn-clear-search').classList.add('hidden');
-                        ['commune_ids', 'zone_ids', 'format_ids', 'category_ids', 'agency_ids'].forEach(_syncMs);
+                        ['commune_ids', 'cities', 'zone_ids', 'format_ids', 'category_ids', 'agency_ids'].forEach(_syncMs);
                         _hideDateErr();
                         this._fetch();
                         this._syncUI();
@@ -1875,6 +1913,7 @@
                         _showLoader();
                         const p = new URLSearchParams();
                         S.f.commune_ids.forEach(id => p.append('commune_ids[]', id));
+                        S.f.cities.forEach(c => p.append('cities[]', c));
                         S.f.zone_ids.forEach(id => p.append('zone_ids[]', id));
                         S.f.format_ids.forEach(id => p.append('format_ids[]', id));
                         S.f.category_ids.forEach(id => p.append('category_ids[]', id));
@@ -2145,9 +2184,10 @@
 
                     _syncUI() {
                         const f = S.f;
-                        const active = f.commune_ids.length || f.zone_ids.length || f.format_ids.length
-                            || f.category_ids.length || f.agency_ids.length || f.dimensions || f.is_lit !== ''
-                            || f.statut !== 'tous' || f.du || f.au || f.source !== 'all' || f.q;
+                        const active = f.commune_ids.length || f.cities.length || f.zone_ids.length
+                            || f.format_ids.length || f.category_ids.length || f.agency_ids.length
+                            || f.dimensions || f.is_lit !== '' || f.statut !== 'tous' || f.du || f.au
+                            || f.source !== 'all' || f.q;
                         _el('btn-reset').classList.toggle('hidden', !active);
                         this._renderTags();
                     },
@@ -2170,6 +2210,7 @@
                             });
                         });
                         addMS(f.commune_ids, 'commune_ids', D.communes);
+                        addMS(f.cities, 'cities', D.cities);
                         addMS(f.zone_ids, 'zone_ids', D.zones);
                         addMS(f.format_ids, 'format_ids', D.formats);
                         addMS(f.category_ids, 'category_ids', D.categories);
@@ -2284,10 +2325,10 @@
                             const lbl = document.createElement('label');
                             lbl.className = 'ms-opt' + (isSel ? ' selected' : '');
                             lbl.dataset.id = item.id;
-                            const dim = (key === 'format_ids' && item.width && item.height) ?
-                                ` <small style="color:var(--text3)">(${Math.round(item.width)}×${Math.round(item.height)}m)</small>` :
-                                '';
-                            lbl.innerHTML = `<input type="checkbox" ${isSel?'checked':''}> ${item.name}${dim}`;
+                            // Format : on n'affiche que le name ("12 m²" etc.).
+                            // Les dimensions précises (3×2m) sont disponibles
+                            // via le filtre Dimensions dédié et la fiche panneau.
+                            lbl.innerHTML = `<input type="checkbox" ${isSel?'checked':''}> ${item.name}`;
                             lbl.querySelector('input').addEventListener('change', () => {
                                 const arr = S.f[key],
                                     idx = arr.indexOf(item.id);
