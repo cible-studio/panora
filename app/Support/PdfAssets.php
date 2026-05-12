@@ -8,9 +8,50 @@ namespace App\Support;
 trait PdfAssets
 {
     /**
-     * Retourne le logo CIBLE CI en data-URI base64, prêt à être utilisé
-     * dans un <img src="..."> de template PDF.
-     * Fallback : SVG inline avec le texte "CIBLE CI".
+     * Logo Panora en data-URI — version foncée (panora.png).
+     * À utiliser sur fond CLAIR (header blanc, footer beige…).
+     */
+    protected function getPanoraLogoDark(): string
+    {
+        return $this->logoDataUri([
+            public_path('images/panora.png'),
+        ], '#0f172a');
+    }
+
+    /**
+     * Logo Panora en data-URI — version claire (panora-blanc.png).
+     * À utiliser sur fond FONCÉ (bandeau noir, header sombre…).
+     */
+    protected function getPanoraLogoLight(): string
+    {
+        return $this->logoDataUri([
+            public_path('images/panora-blanc.png'),
+        ], '#ffffff');
+    }
+
+    /**
+     * Helper interne : tente chaque candidat dans l'ordre, retourne le
+     * premier trouvé en base64 ou un SVG fallback "Panora" coloré.
+     */
+    private function logoDataUri(array $candidates, string $fallbackColor): string
+    {
+        foreach ($candidates as $path) {
+            if (is_file($path) && is_readable($path)) {
+                $mime = mime_content_type($path) ?: 'image/png';
+                return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
+            }
+        }
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="140" height="40" viewBox="0 0 140 40">'
+             . '<text x="70" y="28" font-family="Arial,sans-serif" font-weight="900" '
+             . 'font-size="22" fill="' . $fallbackColor . '" text-anchor="middle">Panora</text>'
+             . '</svg>';
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
+    }
+
+    /**
+     * Retourne le logo CIBLE CI en data-URI base64 (legacy, conservé
+     * pour rétro-compatibilité avec les anciens templates PDF).
+     * Pour les nouveaux templates, préférer getPanoraLogoDark/Light.
      */
     protected function getLogoPdf(): string
     {

@@ -77,8 +77,8 @@
     <div class="header">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <div>
-                <div class="logo">CIBLE CI</div>
-                <div class="logo-sub">RAPPORT PIGES PHOTOS</div>
+                @include('pdf.partials.branding-header')
+                <div class="logo-sub" style="margin-top:6px;">RAPPORT PIGES PHOTOS</div>
                 @if($campaign)
                 <div style="color:white; margin-top:6px; font-size:11px;">
                     Campagne : {{ $campaign->name }}

@@ -52,8 +52,8 @@
     <div class="header">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <div>
-                <div class="logo">CIBLE CI</div>
-                <div class="logo-sub">RAPPORT TAXES COMMUNES</div>
+                @include('pdf.partials.branding-header')
+                <div class="logo-sub" style="margin-top:6px;">RAPPORT TAXES COMMUNES</div>
                 @if($commune)
                 <div style="color:white; margin-top:4px; font-size:10px;">
                     Commune : {{ $commune->name }}
