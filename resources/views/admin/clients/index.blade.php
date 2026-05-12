@@ -36,7 +36,8 @@
             <div style="display:flex;gap:8px;flex-wrap:wrap">
                 {{-- Les exports respectent les filtres courants — la fonction
                      buildExportUrl() en JS injecte search/sector/active_only. --}}
-                <a class="ci-export-btn" href="#" id="export-csv" style="text-decoration:none" title="Export CSV (Excel-friendly, UTF-8)">📊 CSV</a>
+                <a class="ci-export-btn" href="#" id="export-excel" style="text-decoration:none" title="Export Excel (xlsx — logo + mise en forme)">📊 Excel</a>
+                <a class="ci-export-btn" href="#" id="export-csv" style="text-decoration:none" title="Export CSV (UTF-8)">📋 CSV</a>
                 <a class="ci-export-btn" href="#" id="export-pdf" style="text-decoration:none" title="Export PDF (paysage A4)">📄 PDF</a>
                 <button class="ci-export-btn" onclick="document.getElementById('modal-import-clients').style.display='flex'">📥 Import</button>
                 <a class="ci-export-btn" href="{{ route('admin.clients.import.template') }}" style="text-decoration:none">📋 Modèle</a>
@@ -1019,8 +1020,9 @@
                 let isLoading = false;
                 let debTimer = null;
                 const baseUrl = '{{ route('admin.clients.index') }}';
-                const csvUrl  = '{{ route('admin.clients.export.csv') }}';
-                const pdfUrl  = '{{ route('admin.clients.export.pdf') }}';
+                const csvUrl   = '{{ route('admin.clients.export.csv') }}';
+                const pdfUrl   = '{{ route('admin.clients.export.pdf') }}';
+                const excelUrl = '{{ route('admin.clients.export.excel') }}';
 
                 function init() {
                     const s = document.getElementById('filter-search');
@@ -1061,6 +1063,10 @@
 
                     // Liens d'export — réinitialisés à chaque applyFilters
                     updateExportLinks();
+                    document.getElementById('export-excel').addEventListener('click', e => {
+                        e.preventDefault();
+                        window.location.href = buildExportUrl(excelUrl);
+                    });
                     document.getElementById('export-csv').addEventListener('click', e => {
                         e.preventDefault();
                         window.location.href = buildExportUrl(csvUrl);
@@ -1094,10 +1100,12 @@
                 }
 
                 function updateExportLinks() {
-                    const csv = document.getElementById('export-csv');
-                    const pdf = document.getElementById('export-pdf');
-                    if (csv) csv.href = buildExportUrl(csvUrl);
-                    if (pdf) pdf.href = buildExportUrl(pdfUrl);
+                    const excel = document.getElementById('export-excel');
+                    const csv   = document.getElementById('export-csv');
+                    const pdf   = document.getElementById('export-pdf');
+                    if (excel) excel.href = buildExportUrl(excelUrl);
+                    if (csv)   csv.href   = buildExportUrl(csvUrl);
+                    if (pdf)   pdf.href   = buildExportUrl(pdfUrl);
                 }
 
                 function applyFilters() {

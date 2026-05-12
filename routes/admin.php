@@ -397,6 +397,8 @@ Route::prefix('admin')
             ->name('clients.export.csv');
         Route::get('clients/export/pdf', [ClientController::class, 'exportPdf'])
             ->name('clients.export.pdf');
+        Route::get('clients/export/excel', [ClientController::class, 'exportExcel'])
+            ->name('clients.export.excel');
         Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
         Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');
         Route::get('clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');

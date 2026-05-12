@@ -184,6 +184,18 @@ class ClientController extends Controller
         return $pdf->download('clients-' . now()->format('Ymd_His') . '.pdf');
     }
 
+    public function exportExcel(Request $request)
+    {
+        $clients = $this->buildClientsQuery($request)->get();
+        $filters = [
+            'search'      => $request->input('search'),
+            'sector'      => $request->input('sector'),
+            'active_only' => $request->boolean('active_only'),
+        ];
+        $filename = 'clients-' . now()->format('Ymd_His') . '.xlsx';
+        return Excel::download(new \App\Exports\ClientsExport($clients, $filters), $filename);
+    }
+
     public function create()
     {
         $sectors = Client::SECTORS;
