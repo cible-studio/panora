@@ -2,63 +2,66 @@
 
 namespace App\Policies;
 
+use App\Enums\UserRole;
 use App\Models\Panel;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
+/**
+ * Refonte selon docs/ROLES_VALIDES.md :
+ *
+ *   Admin       → tout (créer / éditer / supprimer)
+ *   MP          → voir + changer le statut manuel (libre / maintenance)
+ *   Commercial  → voir uniquement (catalogue)
+ *   Technique   → voir uniquement (consultation terrain)
+ */
 class PanelPolicy
 {
-    /**
-     * Determine whether the user can view any models.
-     */
+    public function before(User $user, string $ability): ?bool
+    {
+        if ($user->role === UserRole::ADMIN) return true;
+        return null;
+    }
+
     public function viewAny(User $user): bool
     {
-        return false;
+        return in_array($user->role, [
+            UserRole::COMMERCIAL,
+            UserRole::MEDIAPLANNER,
+            UserRole::TECHNIQUE,
+        ], true);
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, Panel $panel): bool
     {
-        return false;
+        return $this->viewAny($user);
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
-        return false;
+        return false; // admin only via before()
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
     public function update(User $user, Panel $panel): bool
     {
-        return false;
+        return false; // admin only via before()
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
+    /** Changer manuellement le statut libre <-> maintenance : MP + Admin. */
+    public function updateStatus(User $user, Panel $panel): bool
+    {
+        return $user->role === UserRole::MEDIAPLANNER;
+    }
+
     public function delete(User $user, Panel $panel): bool
     {
-        return false;
+        return false; // admin only via before()
     }
 
-    /**
-     * Determine whether the user can restore the model.
-     */
     public function restore(User $user, Panel $panel): bool
     {
         return false;
     }
 
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
     public function forceDelete(User $user, Panel $panel): bool
     {
         return false;

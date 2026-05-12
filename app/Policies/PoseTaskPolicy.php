@@ -2,65 +2,67 @@
 
 namespace App\Policies;
 
+use App\Enums\UserRole;
 use App\Models\PoseTask;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
+/**
+ * Refonte selon docs/ROLES_VALIDES.md :
+ *
+ *   Admin       → tout
+ *   MP          → tout (planning des poses : créer, assigner, replanifier,
+ *                 suivre, marquer effectuée)
+ *   Commercial  → aucun accès (le commercial ne s'occupe pas du terrain)
+ *   Technique   → ses propres interventions uniquement via le lien public
+ *                 /pige/{token} (PAS de login web). Ces accès passent par
+ *                 PoseTaskPublicController + token, pas par cette policy.
+ */
 class PoseTaskPolicy
 {
-    /**
-     * Determine whether the user can view any models.
-     */
+    public function before(User $user, string $ability): ?bool
+    {
+        if ($user->role === UserRole::ADMIN) return true;
+        return null;
+    }
+
     public function viewAny(User $user): bool
     {
-        return false;
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, PoseTask $poseTask): bool
     {
-        return false;
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
-        return false;
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
     public function update(User $user, PoseTask $poseTask): bool
     {
-        return false;
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
+    /** Actions groupées (bulk update) — même règle que update. */
+    public function bulkUpdate(User $user): bool
+    {
+        return $user->role === UserRole::MEDIAPLANNER;
+    }
+
     public function delete(User $user, PoseTask $poseTask): bool
     {
-        return false;
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
-    /**
-     * Determine whether the user can restore the model.
-     */
     public function restore(User $user, PoseTask $poseTask): bool
     {
-        return false;
+        return false; // admin only via before()
     }
 
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
     public function forceDelete(User $user, PoseTask $poseTask): bool
     {
-        return false;
+        return false; // admin only via before()
     }
 }

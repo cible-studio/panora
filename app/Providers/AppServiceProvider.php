@@ -4,11 +4,21 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Gate;
-use App\Models\Reservation;
-use App\Policies\ReservationPolicy;
 use App\Models\Campaign;
 use App\Models\Commune;
 use App\Models\ExternalPanel;
+use App\Models\Maintenance;
+use App\Models\Panel;
+use App\Models\Pige;
+use App\Models\PoseTask;
+use App\Models\Reservation;
+use App\Policies\CampaignPolicy;
+use App\Policies\MaintenancePolicy;
+use App\Policies\PanelPolicy;
+use App\Policies\PigePolicy;
+use App\Policies\PoseTaskPolicy;
+use App\Policies\PropositionPolicy;
+use App\Policies\ReservationPolicy;
 
 use Illuminate\Support\Facades\URL;
 
@@ -23,8 +33,23 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191);
 
-        Gate::policy(Reservation::class, ReservationPolicy::class);
-        Gate::policy(Campaign::class, \App\Policies\CampaignPolicy::class);
+        // ─── Policies (refonte rôles selon docs/ROLES_VALIDES.md) ────
+        // Note : PropositionPolicy partage le modèle Reservation. On
+        // l'enregistre sous une "Gate" nommée pour pouvoir l'utiliser
+        // avec @can('proposition.send', $reservation) sans collision.
+        Gate::policy(Reservation::class,  ReservationPolicy::class);
+        Gate::policy(Campaign::class,     CampaignPolicy::class);
+        Gate::policy(PoseTask::class,     PoseTaskPolicy::class);
+        Gate::policy(Pige::class,         PigePolicy::class);
+        Gate::policy(Maintenance::class,  MaintenancePolicy::class);
+        Gate::policy(Panel::class,        PanelPolicy::class);
+
+        // Gates dédiées Proposition (workflow construction → envoi → décision).
+        // Usage Blade : @can('proposition.send', $reservation)
+        // Usage controller : $this->authorize('proposition.send', $reservation)
+        foreach (['build', 'markReady', 'send', 'relancer', 'cancel', 'view'] as $action) {
+            Gate::define("proposition.{$action}", [PropositionPolicy::class, $action]);
+        }
 
         Reservation::observe(\App\Observers\ReservationObserver::class);
 
