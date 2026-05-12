@@ -151,11 +151,18 @@
 
 <div class="wrap">
 
-    {{-- HEADER : LOGO + RÉFÉRENCE ─────────────────── --}}
+    {{-- HEADER : LOGO PANORA + RÉFÉRENCE ─────────────── --}}
     <table class="head">
         <tr>
             <td class="logo-cell">
-                <img src="{{ public_path('images/logol.png') }}" alt="CIBLE CI">
+                @if(!empty($logoPanoraDark))
+                    <img src="{{ $logoPanoraDark }}" alt="Panora" style="height:36px;">
+                    <div style="font-size:9px;color:#6b7280;margin-top:2px;">
+                        opéré par <strong>{{ $operatorName ?? 'CIBLE CI' }}</strong>
+                    </div>
+                @else
+                    <img src="{{ public_path('images/logol.png') }}" alt="CIBLE CI">
+                @endif
             </td>
             <td class="ref-cell">
                 <div class="doc-label">Facture</div>
@@ -173,11 +180,11 @@
             <td class="col">
                 <div class="party">
                     <div class="lbl">Émetteur</div>
-                    <div class="name">CIBLE CI</div>
+                    <div class="name">{{ $operatorName ?? 'CIBLE CI' }}</div>
                     <div class="info">
                         Régie publicitaire OOH<br>
                         Abidjan, Côte d'Ivoire<br>
-                        www.cible-ci.com
+                        Plateforme <strong>Panora</strong>
                     </div>
                 </div>
             </td>
@@ -280,7 +287,7 @@
     <table class="signatures">
         <tr>
             <td>
-                <strong>CIBLE CI</strong><br>
+                <strong>{{ $operatorName ?? 'CIBLE CI' }}</strong><br>
                 Signature & cachet
             </td>
             <td>
@@ -298,7 +305,11 @@
     </div>
 
     <div class="footer">
-        <strong>CIBLE CI</strong> — Régie publicitaire OOH · Abidjan, Côte d'Ivoire ·
+        @if(!empty($logoPanoraDark))
+            <img src="{{ $logoPanoraDark }}" alt="Panora" style="height:18px;display:inline-block;vertical-align:middle;margin-right:6px;opacity:.85;">
+        @endif
+        Plateforme <strong>Panora</strong> · opérée par <strong>{{ $operatorName ?? 'CIBLE CI' }}</strong>
+        — Régie publicitaire OOH · Abidjan, Côte d'Ivoire ·
         Document généré le {{ now()->format('d/m/Y \à H:i') }}
     </div>
 

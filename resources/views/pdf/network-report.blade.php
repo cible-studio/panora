@@ -80,8 +80,7 @@
 
     {{-- HEADER --}}
     <div class="header">
-        <div class="logo">CIBLE CI</div>
-        <div class="logo-sub">RÉGIE OOH — CÔTE D'IVOIRE</div>
+        @include('pdf.partials.branding-header')
         <div class="report-title">📊 Rapport Réseau Panneaux — {{ now()->format('d/m/Y') }}</div>
     </div>
 

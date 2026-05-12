@@ -33,6 +33,43 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191);
 
+        // ─── View composer : injecte les logos Panora dans tous les PDFs ─
+        // Évite d'avoir à les passer manuellement depuis chaque controller.
+        \Illuminate\Support\Facades\View::composer(['pdf.*', 'admin.*.pdf.*'], function ($view) {
+            $assets = new class { use \App\Support\PdfAssets {
+                getPanoraLogoDark as public;
+                getPanoraLogoLight as public;
+            } };
+            $view->with([
+                'logoPanoraDark'  => $assets->getPanoraLogoDark(),
+                'logoPanoraLight' => $assets->getPanoraLogoLight(),
+                'operatorName'    => config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')),
+                'platformName'    => 'Panora',
+            ]);
+        });
+
+        // ─── Inliner CSS pour tous les emails ──────────────────────────
+        // Sans ça, Gmail/Outlook strippent le <style> au forward et le
+        // mail transféré perd son design. tijsverkoyen/css-to-inline-styles
+        // est déjà installé en dépendance. On hook avant envoi.
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Mail\Events\MessageSending::class,
+            function (\Illuminate\Mail\Events\MessageSending $event) {
+                $message = $event->message;
+                $html    = $message->getHtmlBody();
+                if (!$html || mb_strlen($html) < 50) return;
+                try {
+                    $inliner = new \TijsVerkoyen\CssToInlineStyles\CssToInlineStyles();
+                    $message->html($inliner->convert($html));
+                } catch (\Throwable $e) {
+                    // Mieux vaut un mail design dégradé qu'un envoi qui plante.
+                    \Illuminate\Support\Facades\Log::warning('mail.css_inline.failed', [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        );
+
         // ─── Policies (refonte rôles selon docs/ROLES_VALIDES.md) ────
         // Note : PropositionPolicy partage le modèle Reservation. On
         // l'enregistre sous une "Gate" nommée pour pouvoir l'utiliser

@@ -58,8 +58,8 @@
     <div class="header">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <div>
-                <div class="logo">CIBLE CI</div>
-                <div class="logo-sub">LISTE DES PANNEAUX
+                @include('pdf.partials.branding-header')
+                <div class="logo-sub" style="margin-top:6px;">LISTE DES PANNEAUX
                     @if($commune) — {{ strtoupper($commune->name) }} @endif
                 </div>
             </div>
