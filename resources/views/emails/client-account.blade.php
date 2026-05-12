@@ -6,7 +6,8 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ $isReset ? 'Nouveau mot de passe' : 'Bienvenue' }} — CIBLE CI</title>
+@php $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')); @endphp
+<title>{{ $isReset ? 'Nouveau mot de passe' : 'Bienvenue' }} — PANORA · {{ $operator }}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#0f1117;font-family:'Helvetica Neue',Arial,sans-serif;color:#e2e8f0}
@@ -33,9 +34,12 @@
 <body>
 <div class="wrap">
 <div class="card">
-  <div class="header">
-    <div class="logo">CIBLE CI</div>
-    <div class="logo-sub">Régie Publicitaire · Abidjan</div>
+  <div class="header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+        <div class="logo" style="font-size:20px;font-weight:800;color:#e8a020;letter-spacing:-0.3px;">PANORA</div>
+        <div class="logo-sub">Plateforme d'affichage publicitaire</div>
+    </div>
+    <div class="logo" style="font-size:14px;color:#cbd5e1;">{{ $operator }}</div>
   </div>
   <div class="body">
     <span class="badge">{{ $isReset ? '🔑 Réinitialisation' : '🎉 Bienvenue' }}</span>
@@ -50,7 +54,7 @@
     @if($isReset)
       <p>Un nouveau mot de passe temporaire a été créé pour votre compte. Connectez-vous avec les identifiants ci-dessous et changez-le immédiatement.</p>
     @else
-      <p>Bienvenue sur votre espace client CIBLE CI. Vous pouvez maintenant consulter vos propositions commerciales, suivre vos campagnes et accéder à vos factures.</p>
+      <p>Bienvenue sur votre espace client PANORA — la plateforme utilisée par {{ $operator }}. Vous pouvez maintenant consulter vos propositions commerciales, suivre vos campagnes et accéder à vos factures.</p>
     @endif
 
     <div class="creds">
@@ -77,7 +81,7 @@
     </div>
   </div>
   <div class="footer">
-    CIBLE CI · Régie Publicitaire · Abidjan, Côte d'Ivoire<br>
+    PANORA · {{ $operator }} — Abidjan, Côte d'Ivoire<br>
     Si vous n'attendiez pas cet email, ignorez-le ou contactez notre équipe.
   </div>
 </div>

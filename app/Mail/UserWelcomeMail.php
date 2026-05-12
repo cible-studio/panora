@@ -30,11 +30,12 @@ class UserWelcomeMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
+        $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
         // Subjects sobres et descriptifs — pas d'emoji, pas de "!"
         $subject = match ($this->context) {
-            'activated'   => 'Votre compte CIBLE CI a été activé',
-            'reactivated' => 'Votre compte CIBLE CI a été réactivé',
-            default       => 'Bienvenue sur CIBLE CI - vos identifiants',
+            'activated'   => "Votre compte PANORA · {$operator} a été activé",
+            'reactivated' => "Votre compte PANORA · {$operator} a été réactivé",
+            default       => "Bienvenue sur PANORA · {$operator} — vos identifiants",
         };
 
         return new Envelope(

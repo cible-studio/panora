@@ -1,13 +1,14 @@
 @php
+    $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $title = match ($context) {
         'activated'   => 'Compte activé',
         'reactivated' => 'Compte réactivé',
-        default       => 'Bienvenue chez CIBLE CI',
+        default       => "Bienvenue sur PANORA · {$operator}",
     };
     $intro = match ($context) {
         'activated'   => 'Votre compte vient d\'être activé. Vous pouvez désormais accéder à la plateforme.',
         'reactivated' => 'Votre compte a été réactivé. Bon retour parmi nous.',
-        default       => 'Un compte vient d\'être créé pour vous sur la plateforme CIBLE CI.',
+        default       => 'Un compte vient d\'être créé pour vous sur la plateforme PANORA.',
     };
     $pillClass = $context === 'created' ? 'pill' : 'pill pill-success';
     $pillText  = match ($context) {
@@ -17,8 +18,8 @@
     };
     $roleLabel = \App\Enums\UserRole::labelFor($user->role);
     $preheader = $context === 'created'
-        ? 'Vos identifiants pour accéder à la plateforme CIBLE CI.'
-        : 'Votre compte est de nouveau actif sur CIBLE CI.';
+        ? "Vos identifiants pour accéder à la plateforme PANORA."
+        : "Votre compte est de nouveau actif sur PANORA · {$operator}.";
 @endphp
 
 <x-mail.layout :title="$title" :preheader="$preheader">
@@ -48,7 +49,8 @@
     @if($temporaryPassword)
         <div class="alert alert-warning">
             Pour votre sécurité, ce mot de passe est <strong>temporaire</strong>.
-            Il vous sera demandé d'en choisir un nouveau lors de votre première connexion.
+            Pensez à le modifier dès votre première connexion depuis votre profil
+            (menu en haut à droite → <em>Mon profil</em>).
         </div>
     @endif
 
