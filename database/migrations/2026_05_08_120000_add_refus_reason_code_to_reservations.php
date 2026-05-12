@@ -22,7 +22,7 @@ return new class extends Migration {
             if (!Schema::hasColumn('reservations', 'refus_reason_code')) {
                 $table->string('refus_reason_code', 30)
                       ->nullable()
-                      ->after('cancel_reason');
+                      ->after('notes');
             }
         });
     }

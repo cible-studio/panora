@@ -67,6 +67,11 @@ class PoseTask extends Model
             ->when($this->campaign_id, fn($q) => $q->where('campaign_id', $this->campaign_id));
     }
 
+    public function actions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PoseTaskAction::class)->orderByDesc('created_at');
+    }
+
     // ── HELPERS ───────────────────────────────────────────────────
  
     public function isLate(): bool
@@ -235,10 +240,13 @@ class PoseTask extends Model
             $changed = true;
         }
 
-        // Premier passage > 0 → marque started_at
+        // Premier passage > 0 → marque started_at + transition en_cours
         if ($percent > 0 && !$this->started_at) {
             $this->started_at = now();
-            if ($this->status === PoseTaskStatus::PLANNED->value) {
+            if (in_array($this->status, [
+                PoseTaskStatus::PLANNED->value,
+                PoseTaskStatus::EN_ROUTE->value,
+            ])) {
                 $this->status = PoseTaskStatus::IN_PROGRESS->value;
             }
             $changed = true;

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Enums\PoseTaskStatus;
 use App\Models\Pige;
 use App\Models\PoseTask;
+use App\Models\PoseTaskAction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -25,7 +26,7 @@ class PoseTaskPublicController extends Controller
      * Affiche la page mobile du technicien : infos panneau, photos déjà
      * envoyées pour ce panneau+campagne, bouton de progression, bouton
      * "Pose effectuée".
-     * GET /pose/{token}
+     * GET /pige/{token}
      */
     public function show(string $token)
     {
@@ -40,9 +41,6 @@ class PoseTaskPublicController extends Controller
             'technicien:id,name,whatsapp_number',
         ]);
 
-        // Piges existantes pour ce panneau + campagne — affichées comme
-        // mini-galerie pour permettre au tech de voir ce qui a déjà été
-        // transmis (et éviter de re-photographier).
         $piges = Pige::where('panel_id', $task->panel_id)
             ->when($task->campaign_id, fn($q) => $q->where('campaign_id', $task->campaign_id))
             ->orderByDesc('taken_at')
@@ -59,7 +57,7 @@ class PoseTaskPublicController extends Controller
 
     /**
      * Met à jour le pourcentage d'avancement.
-     * POST /pose/{token}/update
+     * POST /pige/{token}/update
      */
     public function update(Request $request, string $token)
     {
@@ -80,7 +78,6 @@ class PoseTaskPublicController extends Controller
         $oldPercent = (int) $task->progress_percent;
         $newPercent = (int) $request->integer('progress');
 
-        // Empêche les régressions involontaires (sauf retour à 0 explicite)
         if ($newPercent > 0 && $newPercent < $oldPercent) {
             return response()->json([
                 'ok'      => false,
@@ -93,7 +90,15 @@ class PoseTaskPublicController extends Controller
             $task->notes = trim(($task->notes ?? '') . "\n[{$stamp}] " . $request->input('note'));
         }
 
+        $oldStatus = $task->status;
         $task->updateProgress($newPercent);
+
+        PoseTaskAction::log($task->id, 'progress_updated', [
+            'old_percent' => $oldPercent,
+            'new_percent' => $newPercent,
+            'old_status'  => $oldStatus,
+            'new_status'  => $task->status,
+        ], null, $request->ip());
 
         Log::info('pose_task.public.progress_updated', [
             'task_id' => $task->id,
@@ -119,10 +124,94 @@ class PoseTaskPublicController extends Controller
     }
 
     /**
+     * Transition explicite de statut depuis les boutons de la page mobile.
+     * Gère : planifiee→en_route, planifiee/en_route→en_cours, →annulee.
+     * POST /pige/{token}/status
+     */
+    public function setStatus(Request $request, string $token)
+    {
+        $task = $this->resolveTask($token);
+
+        if ($task->isTerminal()) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Tâche déjà clôturée.',
+                'status'  => $task->status,
+            ], 422);
+        }
+
+        $request->validate([
+            'status'    => 'required|string|in:en_route,en_cours,realisee,annulee',
+            'tech_name' => 'nullable|string|max:100',
+        ]);
+
+        $newStatusValue = $request->input('status');
+        $newStatus = PoseTaskStatus::tryFrom($newStatusValue);
+
+        if (!$newStatus) {
+            return response()->json(['ok' => false, 'message' => 'Statut inconnu.'], 422);
+        }
+
+        $currentStatus = PoseTaskStatus::tryFrom($task->status);
+        $allowed = $currentStatus?->allowedTransitions() ?? [];
+
+        if (!in_array($newStatus, $allowed)) {
+            return response()->json([
+                'ok'      => false,
+                'message' => "Transition {$currentStatus?->label()} → {$newStatus->label()} non autorisée.",
+            ], 422);
+        }
+
+        $oldStatus = $task->status;
+
+        // Transitions spéciales avec effets de bord
+        if ($newStatus === PoseTaskStatus::IN_PROGRESS && !$task->started_at) {
+            $task->started_at = now();
+        }
+        if ($newStatus === PoseTaskStatus::COMPLETED) {
+            $task->done_at          = now();
+            $task->progress_percent = 100;
+            if ($task->started_at) {
+                $task->real_minutes = max(1, (int) round(
+                    $task->started_at->diffInMinutes(now())
+                ));
+            }
+        }
+
+        $task->status = $newStatus->value;
+        $task->save();
+
+        PoseTaskAction::log($task->id, 'status_changed', [
+            'old_status' => $oldStatus,
+            'new_status' => $task->status,
+        ], $request->input('tech_name'), $request->ip());
+
+        Log::info('pose_task.public.status_changed', [
+            'task_id'    => $task->id,
+            'token'      => substr($token, 0, 8) . '…',
+            'old_status' => $oldStatus,
+            'new_status' => $task->status,
+            'tech_name'  => $request->input('tech_name'),
+            'ip'         => $request->ip(),
+        ]);
+
+        return response()->json([
+            'ok'           => true,
+            'message'      => $newStatus->icon() . ' ' . $newStatus->label() . '.',
+            'status'       => $task->status,
+            'status_label' => $newStatus->label(),
+            'status_icon'  => $newStatus->icon(),
+            'status_color' => $newStatus->color(),
+            'is_done'      => $task->status === PoseTaskStatus::COMPLETED->value,
+            'started_at'   => $task->started_at?->toIso8601String(),
+            'done_at'      => $task->done_at?->toIso8601String(),
+        ]);
+    }
+
+    /**
      * Bouton "Pose effectuée" — marque la tâche comme réalisée sans passer
-     * par le slider (cas typique : tech qui a fini, n'a pas envie de
-     * cliquer 25/50/75/100). Idempotent.
-     * POST /pose/{token}/done
+     * par le slider. Idempotent.
+     * POST /pige/{token}/done
      */
     public function markDone(Request $request, string $token)
     {
@@ -136,8 +225,13 @@ class PoseTaskPublicController extends Controller
             ], 422);
         }
 
+        $oldStatus = $task->status;
         $task->updateProgress(100);
         $task->refresh();
+
+        PoseTaskAction::log($task->id, 'marked_done', [
+            'old_status' => $oldStatus,
+        ], null, $request->ip());
 
         Log::info('pose_task.public.marked_done', [
             'task_id' => $task->id,
@@ -154,9 +248,8 @@ class PoseTaskPublicController extends Controller
     }
 
     /**
-     * Upload d'une photo (pige) directement depuis la page pose — évite
-     * au technicien de switcher vers /pige/{token}.
-     * POST /pose/{token}/photo
+     * Upload d'une photo (pige) directement depuis la page pose.
+     * POST /pige/{token}/photo
      */
     public function uploadPhoto(Request $request, string $token)
     {
@@ -170,8 +263,6 @@ class PoseTaskPublicController extends Controller
         }
 
         $data = $request->validate([
-            // 50 MB plafond serveur, le client compresse à ~1.5 MB avant
-            // envoi via canvas (cf. JS de pose-task.blade.php).
             'photo'   => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:51200'],
             'gps_lat' => 'nullable|numeric|between:-90,90',
             'gps_lng' => 'nullable|numeric|between:-180,180',
@@ -193,7 +284,7 @@ class PoseTaskPublicController extends Controller
         $pige = Pige::create([
             'panel_id'    => $task->panel_id,
             'campaign_id' => $task->campaign_id,
-            'user_id'     => $task->campaign?->user_id, // commercial créateur
+            'user_id'     => $task->campaign?->user_id,
             'photo_path'  => $path,
             'taken_at'    => now(),
             'gps_lat'     => $data['gps_lat'] ?? null,
@@ -201,6 +292,11 @@ class PoseTaskPublicController extends Controller
             'notes'       => implode(' · ', $noteParts),
             'status'      => 'en_attente',
         ]);
+
+        PoseTaskAction::log($task->id, 'photo_uploaded', [
+            'pige_id' => $pige->id,
+            'path'    => $path,
+        ], $task->technicien?->name, $request->ip());
 
         Log::info('pige.public.uploaded_from_pose', [
             'pige_id'  => $pige->id,
@@ -210,9 +306,9 @@ class PoseTaskPublicController extends Controller
         ]);
 
         return response()->json([
-            'ok'        => true,
-            'message'   => 'Photo envoyée pour vérification.',
-            'pige'      => [
+            'ok'      => true,
+            'message' => 'Photo envoyée pour vérification.',
+            'pige'    => [
                 'id'        => $pige->id,
                 'photo_url' => Storage::url($path),
                 'status'    => $pige->status,
@@ -222,16 +318,109 @@ class PoseTaskPublicController extends Controller
     }
 
     /**
-     * Suppression d'une pige déjà uploadée depuis cette page (= reprise
-     * ou remplacement par le tech qui se rend compte que sa photo est
-     * floue / mauvais angle). Le tech ré-upload ensuite via le bouton
-     * normal — UX simple, pas de "remplacer en 1 étape".
-     *
-     * Garde : seule une pige dont le panel_id correspond à cette pose-
-     * task est supprimable via ce lien. Empêche un tech malveillant de
-     * supprimer les piges d'un autre panneau s'il devine un id.
-     *
-     * DELETE /pige/{token}/photo/{pige}
+     * Remplace une photo existante par une nouvelle (en un seul POST).
+     * Supprime l'ancienne pige, crée la nouvelle. Refuse si la pige
+     * est déjà vérifiée par un admin (status='verifie').
+     * POST /pige/{token}/photo/{pige}/replace
+     */
+    public function replacePhoto(Request $request, string $token, int $pigeId)
+    {
+        $task = $this->resolveTask($token);
+
+        if ($task->isTerminal()) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Tâche clôturée — remplacement désactivé.',
+            ], 422);
+        }
+
+        $pige = Pige::where('id', $pigeId)
+            ->where('panel_id', $task->panel_id)
+            ->when($task->campaign_id, fn($q) => $q->where('campaign_id', $task->campaign_id))
+            ->first();
+
+        if (!$pige) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Photo introuvable ou non liée à cette intervention.',
+            ], 404);
+        }
+
+        if ($pige->status === 'verifie') {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Photo déjà validée — remplacement impossible. Contactez le superviseur.',
+            ], 403);
+        }
+
+        $data = $request->validate([
+            'photo'   => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:51200'],
+            'gps_lat' => 'nullable|numeric|between:-90,90',
+            'gps_lng' => 'nullable|numeric|between:-180,180',
+            'note'    => 'nullable|string|max:500',
+        ]);
+
+        // Supprime l'ancienne photo physique
+        $oldPath = $pige->photo_path;
+        if ($oldPath) {
+            try {
+                Storage::disk('public')->delete($oldPath);
+            } catch (\Throwable $e) {
+                Log::warning('pige.replace.old_file_delete_failed', [
+                    'pige_id' => $pige->id, 'path' => $oldPath, 'err' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $folder   = 'piges/' . ($task->campaign_id ?: 'sans-campagne') . '/' . $task->panel_id;
+        $filename = time() . '_' . Str::random(8) . '.' . $request->file('photo')->getClientOriginalExtension();
+        $newPath  = $request->file('photo')->storeAs($folder, $filename, 'public');
+
+        $noteParts = ['[via lien pose — remplacement]'];
+        if ($task->technicien?->name) {
+            $noteParts[] = 'Tech: ' . $task->technicien->name;
+        }
+        if (!empty($data['note'])) {
+            $noteParts[] = $data['note'];
+        }
+
+        $pige->update([
+            'photo_path' => $newPath,
+            'taken_at'   => now(),
+            'gps_lat'    => $data['gps_lat'] ?? null,
+            'gps_lng'    => $data['gps_lng'] ?? null,
+            'notes'      => implode(' · ', $noteParts),
+            'status'     => 'en_attente', // repasse en attente après remplacement
+        ]);
+
+        PoseTaskAction::log($task->id, 'photo_replaced', [
+            'pige_id'  => $pige->id,
+            'old_path' => $oldPath,
+            'new_path' => $newPath,
+        ], $task->technicien?->name, $request->ip());
+
+        Log::info('pige.public.replaced_from_pose', [
+            'pige_id'  => $pige->id,
+            'task_id'  => $task->id,
+            'panel_id' => $task->panel_id,
+            'ip'       => $request->ip(),
+        ]);
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Photo remplacée.',
+            'pige'    => [
+                'id'        => $pige->id,
+                'photo_url' => Storage::url($newPath),
+                'status'    => $pige->status,
+                'taken_at'  => $pige->taken_at->format('d/m/Y H:i'),
+            ],
+        ]);
+    }
+
+    /**
+     * Suppression d'une pige depuis la page pose.
+     * DELETE /pige/{token}/photo/{pigeId}
      */
     public function deletePhoto(Request $request, string $token, int $pigeId)
     {
@@ -244,7 +433,7 @@ class PoseTaskPublicController extends Controller
             ], 422);
         }
 
-        $pige = \App\Models\Pige::where('id', $pigeId)
+        $pige = Pige::where('id', $pigeId)
             ->where('panel_id', $task->panel_id)
             ->when($task->campaign_id, fn($q) => $q->where('campaign_id', $task->campaign_id))
             ->first();
@@ -256,9 +445,6 @@ class PoseTaskPublicController extends Controller
             ], 404);
         }
 
-        // Sécurité : refuser la suppression d'une pige déjà validée par
-        // un admin (status verifie). On ne défait pas un travail de
-        // vérification côté bureau.
         if ($pige->status === 'verifie') {
             return response()->json([
                 'ok'      => false,
@@ -266,17 +452,23 @@ class PoseTaskPublicController extends Controller
             ], 403);
         }
 
-        // Supprime le fichier physique (best-effort) + l'enregistrement.
-        if ($pige->photo_path) {
+        $oldPath = $pige->photo_path;
+        if ($oldPath) {
             try {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($pige->photo_path);
+                Storage::disk('public')->delete($oldPath);
             } catch (\Throwable $e) {
                 Log::warning('pige.delete.file_failed', [
-                    'pige_id' => $pige->id, 'path' => $pige->photo_path, 'err' => $e->getMessage(),
+                    'pige_id' => $pige->id, 'path' => $oldPath, 'err' => $e->getMessage(),
                 ]);
             }
         }
+
         $pige->delete();
+
+        PoseTaskAction::log($task->id, 'photo_deleted', [
+            'pige_id' => $pigeId,
+            'path'    => $oldPath,
+        ], null, $request->ip());
 
         Log::info('pige.public.deleted_from_pose', [
             'pige_id'  => $pigeId,

@@ -100,6 +100,12 @@ Route::prefix('pige')->middleware(['throttle:60,1', \App\Http\Middleware\SetFren
     Route::delete('/{token}/photo/{pigeId}', [\App\Http\Controllers\PoseTaskPublicController::class, 'deletePhoto'])
         ->name('pige.public.intervention.photo.delete')
         ->whereNumber('pigeId');
+    Route::post('/{token}/status',           [\App\Http\Controllers\PoseTaskPublicController::class, 'setStatus'])
+        ->name('pige.public.intervention.status');
+    Route::post('/{token}/photo/{pigeId}/replace', [\App\Http\Controllers\PoseTaskPublicController::class, 'replacePhoto'])
+        ->name('pige.public.intervention.photo.replace')
+        ->middleware('throttle:30,1')
+        ->whereNumber('pigeId');
 
     // ─── Sous-routes multi-panneaux campagne (legacy) ────────────────
     Route::post('/{token}/upload',   [\App\Http\Controllers\PublicPigeController::class, 'upload'])

@@ -4,15 +4,17 @@ namespace App\Enums;
 
 enum PoseTaskStatus: string
 {
-    case PLANNED = 'planifiee';
+    case PLANNED     = 'planifiee';
+    case EN_ROUTE    = 'en_route';
     case IN_PROGRESS = 'en_cours';
-    case COMPLETED = 'realisee';
-    case CANCELLED = 'annulee';
+    case COMPLETED   = 'realisee';
+    case CANCELLED   = 'annulee';
 
     public function label(): string
     {
         return match($this) {
             self::PLANNED     => 'Planifiée',
+            self::EN_ROUTE    => 'En route',
             self::IN_PROGRESS => 'En cours',
             self::COMPLETED   => 'Réalisée',
             self::CANCELLED   => 'Annulée',
@@ -23,6 +25,7 @@ enum PoseTaskStatus: string
     {
         return match($this) {
             self::PLANNED     => '#e8a020',
+            self::EN_ROUTE    => '#8b5cf6',
             self::IN_PROGRESS => '#3b82f6',
             self::COMPLETED   => '#22c55e',
             self::CANCELLED   => '#ef4444',
@@ -33,6 +36,7 @@ enum PoseTaskStatus: string
     {
         return match($this) {
             self::PLANNED     => '📅',
+            self::EN_ROUTE    => '🚗',
             self::IN_PROGRESS => '🔧',
             self::COMPLETED   => '✅',
             self::CANCELLED   => '🚫',
@@ -47,7 +51,8 @@ enum PoseTaskStatus: string
     public function allowedTransitions(): array
     {
         return match($this) {
-            self::PLANNED     => [self::IN_PROGRESS, self::CANCELLED],
+            self::PLANNED     => [self::EN_ROUTE, self::IN_PROGRESS, self::CANCELLED],
+            self::EN_ROUTE    => [self::IN_PROGRESS, self::CANCELLED],
             self::IN_PROGRESS => [self::COMPLETED, self::CANCELLED],
             self::COMPLETED   => [],
             self::CANCELLED   => [],
