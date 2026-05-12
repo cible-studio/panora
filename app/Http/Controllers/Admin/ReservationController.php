@@ -46,7 +46,13 @@ class ReservationController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function disponibilites(Request $request)
     {
-        $communes = Commune::orderBy('name')->get(['id', 'name']);
+        // Communes — avec city pour permettre la cascade Ville → Commune
+        // côté front (cf. multiselect Ville dans disponibilites.blade.php).
+        $communes = Commune::orderBy('name')->get(['id', 'name', 'city']);
+        // Villes distinctes — utilisé pour le filtre "Ville" qui regroupe
+        // les communes d'une même ville (typiquement Abidjan = 14 communes).
+        $cities = Commune::whereNotNull('city')->where('city', '!=', '')
+            ->select('city')->distinct()->orderBy('city')->pluck('city');
         $formats = PanelFormat::orderBy('name')->get(['id', 'name', 'width', 'height']);
         $zones = Zone::orderBy('name')->get(['id', 'name']);
         $categories = PanelCategory::orderBy('name')->get(['id', 'name']);
@@ -66,7 +72,7 @@ class ReservationController extends Controller
 
         return view(
             'admin.reservations.disponibilites',
-            compact('communes', 'formats', 'zones', 'categories', 'clients', 'dimensions', 'agencies')
+            compact('communes', 'cities', 'formats', 'zones', 'categories', 'clients', 'dimensions', 'agencies')
         );
     }
 
@@ -84,6 +90,7 @@ class ReservationController extends Controller
         $page = max((int) $request->get('page', 1), 1);
 
         $communeIds = array_map('intval', array_filter((array) $request->get('commune_ids', [])));
+        $cities     = array_values(array_filter(array_map('strval', (array) $request->get('cities', []))));
         $zoneIds = array_map('intval', array_filter((array) $request->get('zone_ids', [])));
         $formatIds = array_map('intval', array_filter((array) $request->get('format_ids', [])));
         $categoryIds = array_map('intval', array_filter((array) $request->get('category_ids', [])));
@@ -132,6 +139,8 @@ class ReservationController extends Controller
 
             if (!empty($communeIds))
                 $query->whereIn('commune_id', $communeIds);
+            if (!empty($cities))
+                $query->whereHas('commune', fn($q) => $q->whereIn('city', $cities));
             if (!empty($zoneIds))
                 $query->whereIn('zone_id', $zoneIds);
             if (!empty($formatIds))
@@ -239,6 +248,7 @@ class ReservationController extends Controller
             ])->whereHas('agency', fn($q) => $q->where('is_active', true)->whereNull('deleted_at'));
 
             if (!empty($communeIds))  $extQuery->whereIn('commune_id', $communeIds);
+            if (!empty($cities))      $extQuery->whereHas('commune', fn($q) => $q->whereIn('city', $cities));
             if (!empty($zoneIds))     $extQuery->whereIn('zone_id', $zoneIds);
             if (!empty($formatIds))   $extQuery->whereIn('format_id', $formatIds);
             if (!empty($categoryIds)) $extQuery->whereIn('category_id', $categoryIds);
