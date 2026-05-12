@@ -1,12 +1,5 @@
 <x-admin-layout title="Tâche {{ $poseTask->panel?->reference }}">
 
-<x-slot:topbarLeft>
-    <a href="{{ route('admin.pose-tasks.index') }}" class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        Retour
-    </a>
-</x-slot:topbarLeft>
-
 <x-slot:topbarActions>
     @if(!in_array($poseTask->status, ['realisee','annulee']))
     <a href="{{ route('admin.pose-tasks.edit', $poseTask) }}" class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px">
@@ -21,6 +14,10 @@
     </button>
     <form id="form-complete" method="POST" action="{{ route('admin.pose.complete', $poseTask) }}" style="display:none">@csrf</form>
     @endif
+    <a href="{{ route('admin.pose-tasks.index') }}" class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Retour
+    </a>
 </x-slot:topbarActions>
 
 @php
