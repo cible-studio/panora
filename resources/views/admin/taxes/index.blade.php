@@ -65,13 +65,15 @@
         ];
     @endphp
     @foreach($kpiCfg as $k)
-    <div class="tax-kpi-card" style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['color'] }};border-radius:12px;padding:14px 16px;">
+    <div class="tax-kpi-card"
+         data-kpi-filter="{{ $k['key'] }}"
+         style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['color'] }};border-radius:12px;padding:14px 16px;cursor:pointer;transition:box-shadow .15s,transform .1s;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
             <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;">{{ $k['label'] }}</span>
             <span style="font-size:14px;">{{ $k['icon'] }}</span>
         </div>
         <div class="tax-kpi-value" data-kpi="{{ $k['key'] }}" style="font-size:18px;font-weight:800;color:{{ $k['color'] }};font-variant-numeric:tabular-nums;">—</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:3px;">FCFA</div>
+        <div class="kpi-hint" style="font-size:10px;color:var(--text3);margin-top:3px;">FCFA · cliquer pour filtrer</div>
     </div>
     @endforeach
 </div>
@@ -185,6 +187,10 @@
 </div>
 
 <style>
+.tax-kpi-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-1px); }
+.tax-kpi-card.kpi-active { box-shadow: 0 0 0 2px currentColor, 0 4px 14px rgba(0,0,0,.12); transform: translateY(-1px); }
+.tax-kpi-card.kpi-active .kpi-hint { font-weight: 700; }
+
 .tax-tabs { display: flex; gap: 4px; background: var(--surface2); border-radius: 9px; padding: 4px; }
 .tax-tab {
     padding: 8px 14px; border: none; background: transparent;
@@ -237,7 +243,8 @@ window.TaxModule = (function () {
     let currentPeriodYear  = {{ $year }};
     let currentPeriodValue = {{ $periodValue }};
     let currentData = null;
-    let pmContext = null; // contexte de la modale paiement
+    let pmContext = null;       // contexte de la modale paiement
+    let activeKpiFilter = null; // filtre KPI actif (null = tous)
 
     const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
 
@@ -298,7 +305,7 @@ window.TaxModule = (function () {
             const data = await r.json();
             currentData = data;
             renderKpis(data.kpi);
-            renderTable(data.communes);
+            renderTable(getFilteredSortedCommunes());
             document.getElementById('period-label').textContent =
                 `${buildPeriodLabel()} · ${data.kpi.communes_actives} commune(s) · ${data.kpi.panneaux_total} panneau(x)`;
         } catch (e) {
@@ -403,6 +410,39 @@ window.TaxModule = (function () {
         });
     }
 
+    function getFilteredSortedCommunes() {
+        if (!currentData?.communes) return [];
+        let data = [...currentData.communes];
+        switch (activeKpiFilter) {
+            case 'odp_total':   return data.sort((a, b) => b.odp_theorique - a.odp_theorique);
+            case 'tm_total':    return data.sort((a, b) => b.tm_theorique - a.tm_theorique);
+            case 'db_total':    return data.sort((a, b) => (b.db_theorique || 0) - (a.db_theorique || 0));
+            case 'grand_total': return data.sort((a, b) => b.total_theorique - a.total_theorique);
+            case 'paye_total':  return data.filter(c => c.total_paye > 0).sort((a, b) => b.total_paye - a.total_paye);
+            case 'solde_total': return data.filter(c => c.solde > 0).sort((a, b) => b.solde - a.solde);
+            default:            return data;
+        }
+    }
+
+    function setKpiSubtitle() {
+        const labels = {
+            odp_total:   'Triées par ODP théorique',
+            tm_total:    'Triées par TM théorique',
+            db_total:    'Triées par DB théorique',
+            grand_total: 'Triées par total décroissant',
+            paye_total:  'Filtrées : avec paiement · triées par montant payé',
+            solde_total: 'Filtrées : avec solde restant · triées par solde',
+        };
+        const el = document.querySelector('#tax-table-body')
+            ?.closest('div[style*="border-radius:14px"]')
+            ?.querySelector('span[style*="font-weight:700"]');
+        if (el) {
+            el.textContent = activeKpiFilter
+                ? `🏛️ Détail par commune — ${labels[activeKpiFilter] || ''}`
+                : '🏛️ Détail par commune';
+        }
+    }
+
     return {
         init() {
             rebuildPeriodValueOptions();
@@ -426,6 +466,18 @@ window.TaxModule = (function () {
                 loadCalcul();
             });
             document.getElementById('tax-search').addEventListener('input', applySearchFilter);
+
+            // Filtres KPI
+            document.querySelectorAll('.tax-kpi-card[data-kpi-filter]').forEach(card => {
+                card.addEventListener('click', () => {
+                    const key = card.dataset.kpiFilter;
+                    activeKpiFilter = (activeKpiFilter === key) ? null : key;
+                    document.querySelectorAll('.tax-kpi-card').forEach(c => c.classList.remove('kpi-active'));
+                    if (activeKpiFilter) card.classList.add('kpi-active');
+                    setKpiSubtitle();
+                    renderTable(getFilteredSortedCommunes());
+                });
+            });
 
             // Premier chargement
             loadCalcul();
