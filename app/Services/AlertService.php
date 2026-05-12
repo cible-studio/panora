@@ -73,6 +73,36 @@ class AlertService
             'label' => 'Campagne créée',
             'group' => 'Campagnes',
         ],
+        'campagne_modifiee' => [
+            'icon' => '✏️', 'niveau' => 'info',    'color' => '#8b5cf6',
+            'label' => 'Campagne modifiée',
+            'group' => 'Campagnes',
+        ],
+        'campagne_supprimee' => [
+            'icon' => '🗑', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Campagne supprimée',
+            'group' => 'Campagnes',
+        ],
+        'campagne_prolongee' => [
+            'icon' => '📅', 'niveau' => 'info',    'color' => '#0ea5e9',
+            'label' => 'Campagne prolongée',
+            'group' => 'Campagnes',
+        ],
+        'campagne_statut' => [
+            'icon' => '🔄', 'niveau' => 'info',    'color' => '#0ea5e9',
+            'label' => 'Statut campagne',
+            'group' => 'Campagnes',
+        ],
+        'campagne_panneau_ajoute' => [
+            'icon' => '➕', 'niveau' => 'info',    'color' => '#22c55e',
+            'label' => 'Panneau ajouté',
+            'group' => 'Campagnes',
+        ],
+        'campagne_panneau_retire' => [
+            'icon' => '➖', 'niveau' => 'warning', 'color' => '#f97316',
+            'label' => 'Panneau retiré',
+            'group' => 'Campagnes',
+        ],
         'campagne_active' => [
             'icon' => '🚀', 'niveau' => 'info',    'color' => '#22c55e',
             'label' => 'Campagne active',
@@ -81,6 +111,11 @@ class AlertService
         'campagne_terminee' => [
             'icon' => '🏁', 'niveau' => 'info',    'color' => '#6b7280',
             'label' => 'Campagne terminée',
+            'group' => 'Campagnes',
+        ],
+        'campagne_sans_panneau' => [
+            'icon' => '⚠️', 'niveau' => 'warning', 'color' => '#f97316',
+            'label' => 'Campagne sans panneau',
             'group' => 'Campagnes',
         ],
         'fin_campagne_j7' => [
@@ -100,6 +135,26 @@ class AlertService
         ],
 
         // ── Panneaux ──────────────────────────────────────────────
+        'panneau_cree' => [
+            'icon' => '🪧', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Panneau créé',
+            'group' => 'Panneaux',
+        ],
+        'panneau_modifie' => [
+            'icon' => '✏️', 'niveau' => 'info',    'color' => '#8b5cf6',
+            'label' => 'Panneau modifié',
+            'group' => 'Panneaux',
+        ],
+        'panneau_supprime' => [
+            'icon' => '🗑', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Panneau supprimé',
+            'group' => 'Panneaux',
+        ],
+        'panneau_statut' => [
+            'icon' => '🔄', 'niveau' => 'info',    'color' => '#0ea5e9',
+            'label' => 'Statut panneau',
+            'group' => 'Panneaux',
+        ],
         'panneau_libre' => [
             'icon' => '🟢', 'niveau' => 'info',    'color' => '#22c55e',
             'label' => 'Panneau libéré',
@@ -122,6 +177,21 @@ class AlertService
         ],
 
         // ── Poses ─────────────────────────────────────────────────
+        'pose_creee' => [
+            'icon' => '🔧', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Pose créée',
+            'group' => 'Poses',
+        ],
+        'pose_modifiee' => [
+            'icon' => '✏️', 'niveau' => 'info',    'color' => '#8b5cf6',
+            'label' => 'Pose modifiée',
+            'group' => 'Poses',
+        ],
+        'pose_supprimee' => [
+            'icon' => '🗑', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Pose supprimée',
+            'group' => 'Poses',
+        ],
         'pose_planifiee' => [
             'icon' => '📌', 'niveau' => 'info',    'color' => '#3b82f6',
             'label' => 'Pose planifiée',
@@ -165,6 +235,108 @@ class AlertService
             'group' => 'Factures',
         ],
 
+        // ── Réservations (suite — supprimée + statut) ─────────────
+        'reservation_supprimee' => [
+            'icon' => '🗑', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Réservation supprimée',
+            'group' => 'Réservations',
+        ],
+        'reservation_statut' => [
+            'icon' => '🔄', 'niveau' => 'info',    'color' => '#0ea5e9',
+            'label' => 'Statut réservation',
+            'group' => 'Réservations',
+        ],
+
+        // ── Propositions ──────────────────────────────────────────
+        'proposition_prete' => [
+            'icon' => '📋', 'niveau' => 'info',    'color' => '#0ea5e9',
+            'label' => 'Proposition prête',
+            'group' => 'Propositions',
+        ],
+        'proposition_envoyee' => [
+            'icon' => '📤', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Proposition envoyée',
+            'group' => 'Propositions',
+        ],
+        'proposition_acceptee' => [
+            'icon' => '✅', 'niveau' => 'info',    'color' => '#22c55e',
+            'label' => 'Proposition acceptée',
+            'group' => 'Propositions',
+        ],
+        'proposition_refusee' => [
+            'icon' => '❌', 'niveau' => 'warning', 'color' => '#f97316',
+            'label' => 'Proposition refusée',
+            'group' => 'Propositions',
+        ],
+
+        // ── Clients ───────────────────────────────────────────────
+        'client_cree' => [
+            'icon' => '👥', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Client créé',
+            'group' => 'Clients',
+        ],
+        'client_modifie' => [
+            'icon' => '✏️', 'niveau' => 'info',    'color' => '#8b5cf6',
+            'label' => 'Client modifié',
+            'group' => 'Clients',
+        ],
+        'client_supprime' => [
+            'icon' => '🗑', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Client supprimé',
+            'group' => 'Clients',
+        ],
+        'client_importe' => [
+            'icon' => '📥', 'niveau' => 'info',    'color' => '#0ea5e9',
+            'label' => 'Import clients',
+            'group' => 'Clients',
+        ],
+
+        // ── Maintenances ──────────────────────────────────────────
+        'maintenance_signalee' => [
+            'icon' => '🔧', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Panne signalée',
+            'group' => 'Maintenances',
+        ],
+        'maintenance_modifiee' => [
+            'icon' => '✏️', 'niveau' => 'info',    'color' => '#8b5cf6',
+            'label' => 'Maintenance modifiée',
+            'group' => 'Maintenances',
+        ],
+        'maintenance_rouverte' => [
+            'icon' => '🔄', 'niveau' => 'warning', 'color' => '#f97316',
+            'label' => 'Maintenance rouverte',
+            'group' => 'Maintenances',
+        ],
+        'maintenance_resolue' => [
+            'icon' => '✅', 'niveau' => 'info',    'color' => '#22c55e',
+            'label' => 'Panne résolue',
+            'group' => 'Maintenances',
+        ],
+
+        // ── Piges ─────────────────────────────────────────────────
+        'pige_uploadee' => [
+            'icon' => '📸', 'niveau' => 'info',    'color' => '#3b82f6',
+            'label' => 'Pige uploadée',
+            'group' => 'Piges',
+        ],
+        'pige_verifiee' => [
+            'icon' => '✅', 'niveau' => 'info',    'color' => '#22c55e',
+            'label' => 'Pige vérifiée',
+            'group' => 'Piges',
+        ],
+        'pige_supprimee' => [
+            'icon' => '🗑', 'niveau' => 'danger',  'color' => '#ef4444',
+            'label' => 'Pige supprimée',
+            'group' => 'Piges',
+        ],
+
+        // ── Satisfaction ──────────────────────────────────────────
+        'satisfaction_recue' => [
+            'icon' => '⭐', 'niveau' => 'info',    'color' => '#eab308',
+            'label' => 'Avis client reçu',
+            'group' => 'Satisfaction',
+        ],
+
         // ── Système ───────────────────────────────────────────────
         'taxe_echeance' => [
             'icon' => '💰', 'niveau' => 'warning', 'color' => '#f97316',
@@ -173,7 +345,7 @@ class AlertService
         ],
         'nouveau_client' => [
             'icon' => '👤', 'niveau' => 'info',    'color' => '#3b82f6',
-            'label' => 'Nouveau client créé',
+            'label' => 'Nouveau client',
             'group' => 'Système',
         ],
     ];
@@ -286,7 +458,9 @@ class AlertService
 
     /**
      * Mappe (type historique, niveau, indices dans le titre) vers un code
-     * du catalogue TYPES. Heuristique simple, suffisante pour 95% des cas.
+     * du catalogue TYPES. On détecte d'abord l'**action** dans le titre
+     * (créé / modifié / supprimé / ajouté / retiré / activé / terminé / …)
+     * puis on retombe sur l'heuristique métier pour les cas restants.
      */
     private static function resolveLegacyCode(string $type, string $niveau, string $title): string
     {
@@ -295,8 +469,30 @@ class AlertService
 
         $titleLc = mb_strtolower($title);
 
+        // ── 1. Détection de l'ACTION dans le titre ───────────────
+        // Ordre important : "supprim" avant "modifi" (un titre rare pourrait
+        // contenir les deux, on privilégie l'action destructive).
+        $action = match (true) {
+            str_contains($title,   '🗑') || str_contains($titleLc, 'supprim')   => 'supprime',
+            str_contains($title,   '➖') || str_contains($titleLc, 'retir')     => 'retire',
+            str_contains($title,   '➕') || str_contains($titleLc, 'ajout')     => 'ajoute',
+            str_contains($title,   '✏️') || str_contains($titleLc, 'modifi')   => 'modifie',
+            str_contains($title,   '📥') || str_contains($titleLc, 'import')    => 'importe',
+            str_contains($title,   '📅') || str_contains($titleLc, 'prolong')   => 'prolonge',
+            default => null,
+        };
+
+        // ── 2. Mapping (module + action) → code catalogue ────────
         return match ($type) {
             'reservation' => match (true) {
+                $action === 'supprime'                                     => 'reservation_supprimee',
+                str_contains($titleLc, 'proposition') && str_contains($titleLc, 'accept')
+                                                                            => 'proposition_acceptee',
+                str_contains($titleLc, 'proposition') && str_contains($titleLc, 'refus')
+                                                                            => 'proposition_refusee',
+                str_contains($titleLc, 'proposition') && (str_contains($titleLc, 'envoyé') || str_contains($titleLc, 'envoyée'))
+                                                                            => 'proposition_envoyee',
+                str_contains($titleLc, 'proposition')                      => 'proposition_prete',
                 str_contains($titleLc, 'confirm')                          => 'reservation_confirmee',
                 str_contains($titleLc, 'annul')                            => 'reservation_annulee',
                 str_contains($titleLc, 'expir')                            => 'reservation_expiree',
@@ -308,6 +504,12 @@ class AlertService
             },
 
             'campagne', 'campaign' => match (true) {
+                $action === 'supprime'                                     => 'campagne_supprimee',
+                $action === 'modifie'                                      => 'campagne_modifiee',
+                $action === 'ajoute' && str_contains($titleLc, 'panneau')  => 'campagne_panneau_ajoute',
+                $action === 'retire' && str_contains($titleLc, 'panneau')  => 'campagne_panneau_retire',
+                $action === 'prolonge'                                     => 'campagne_prolongee',
+                str_contains($titleLc, 'sans panneau')                     => 'campagne_sans_panneau',
                 str_contains($titleLc, 'expire') || str_contains($titleLc, 'fin')
                     => match (true) {
                         $niveau === 'danger'  => 'fin_campagne_j0',
@@ -315,30 +517,77 @@ class AlertService
                         default               => 'fin_campagne_j7',
                     },
                 str_contains($titleLc, 'termin')                           => 'campagne_terminee',
-                str_contains($titleLc, 'activ') || $niveau === 'success'   => 'campagne_active',
-                default                                                    => 'campagne_creee',
+                str_contains($titleLc, 'activ') || str_contains($titleLc, 'planifi') || $niveau === 'success'
+                                                                            => 'campagne_active',
+                str_contains($titleLc, '→') || str_contains($titleLc, 'statut')
+                                                                            => 'campagne_statut',
+                str_contains($titleLc, 'créé')                             => 'campagne_creee',
+                default                                                    => 'campagne_statut',
             },
 
             'panneau', 'panel' => match (true) {
+                $action === 'supprime'                                     => 'panneau_supprime',
+                $action === 'modifie'                                      => 'panneau_modifie',
                 str_contains($titleLc, 'maintenance')                      => 'panneau_maintenance',
                 str_contains($titleLc, 'conflit') || $niveau === 'danger'  => 'conflit_reservation',
+                str_contains($titleLc, 'statut')                           => 'panneau_statut',
+                str_contains($titleLc, 'nouveau') || str_contains($titleLc, 'créé')
+                                                                            => 'panneau_cree',
                 $niveau === 'success'                                      => 'panneau_libre',
                 default                                                    => 'panneau_occupe',
             },
 
-            'maintenance' => 'panneau_maintenance',
+            'maintenance' => match (true) {
+                $action === 'modifie'                                      => 'maintenance_modifiee',
+                str_contains($titleLc, 'résolu') || str_contains($titleLc, 'resolu')
+                                                                            => 'maintenance_resolue',
+                str_contains($titleLc, 'rouvert')                          => 'maintenance_rouverte',
+                str_contains($titleLc, 'signal') || str_contains($titleLc, 'panne')
+                                                                            => 'maintenance_signalee',
+                default                                                    => 'panneau_maintenance',
+            },
 
             'pose' => match (true) {
+                $action === 'supprime'                                     => 'pose_supprimee',
+                $action === 'modifie'                                      => 'pose_modifiee',
+                str_contains($titleLc, 'nouvelle') || str_contains($titleLc, 'créé')
+                                                                            => 'pose_creee',
                 str_contains($titleLc, 'termin') || str_contains($titleLc, 'réalis') || $niveau === 'success'
-                    => 'pose_terminee',
+                                                                            => 'pose_terminee',
                 str_contains($titleLc, 'cours') || str_contains($titleLc, 'avance')
-                    => 'pose_en_cours',
+                                                                            => 'pose_en_cours',
+                str_contains($titleLc, 'retard')                           => 'pose_planifiee',
                 default                                                    => 'pose_planifiee',
             },
 
-            'pige' => 'avancement_pose',
+            'pige' => match (true) {
+                $action === 'supprime'                                     => 'pige_supprimee',
+                str_contains($titleLc, 'vérifi') || str_contains($titleLc, 'verifi')
+                                                                            => 'pige_verifiee',
+                str_contains($titleLc, 'rejet')                            => 'avancement_pose',
+                str_contains($titleLc, 'upload') || str_contains($titleLc, 'nouvelle')
+                                                                            => 'pige_uploadee',
+                default                                                    => 'avancement_pose',
+            },
 
-            'client' => 'nouveau_client',
+            'client' => match (true) {
+                $action === 'supprime'                                     => 'client_supprime',
+                $action === 'modifie'                                      => 'client_modifie',
+                $action === 'importe'                                      => 'client_importe',
+                default                                                    => 'client_cree',
+            },
+
+            'proposition' => match (true) {
+                str_contains($titleLc, 'accept')                           => 'proposition_acceptee',
+                str_contains($titleLc, 'refus')                            => 'proposition_refusee',
+                str_contains($titleLc, 'prêt') || str_contains($titleLc, 'pret')
+                                                                            => 'proposition_prete',
+                str_contains($titleLc, 'envoyé') || str_contains($titleLc, 'envoyée')
+                                                                            => 'proposition_envoyee',
+                default                                                    => 'proposition_prete',
+            },
+
+            'satisfaction' => 'satisfaction_recue',
 
             'taxe' => 'taxe_echeance',
 

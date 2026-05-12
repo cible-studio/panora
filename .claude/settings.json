@@ -31,7 +31,8 @@
       "PowerShell(php artisan chevalets:seed --force 2>&1)",
       "Bash(php -l app/Services/MaintenanceNotifier.php)",
       "Bash(php -l app/Models/Maintenance.php)",
-      "Bash(php -l app/Mail/MaintenanceMail.php)"
+      "Bash(php -l app/Mail/MaintenanceMail.php)",
+      "Bash(php -l app/Services/AlertService.php)"
     ]
   }
 }
