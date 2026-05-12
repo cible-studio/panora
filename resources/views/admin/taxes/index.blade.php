@@ -2,6 +2,10 @@
 <x-slot name="title">Taxes Communales</x-slot>
 
 <x-slot name="topbarActions">
+    <a href="{{ route('admin.taxes.details', ['year' => $year, 'period_type' => $periodType, 'period_value' => $periodValue]) }}"
+       class="btn btn-primary btn-sm" title="Détail par panneau (justification commune par commune)">
+        🔍 Détail par panneau
+    </a>
     <a href="{{ route('admin.rapports.taxes') }}" class="btn btn-ghost btn-sm" title="Rapport agrégé matrice mois × commune">
         📊 Rapport
     </a>

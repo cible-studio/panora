@@ -3,9 +3,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tax;
+use App\Models\Campaign;
+use App\Models\Client;
 use App\Models\Commune;
 use App\Models\CommuneTaxPayment;
 use App\Models\Panel;
+use App\Services\TaxCalculationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +38,62 @@ class TaxController extends Controller
 
         return view('admin.taxes.index', compact(
             'communes', 'year', 'periodType', 'periodValue', 'anneesDispos'
+        ));
+    }
+
+    /**
+     * Vue détaillée par panneau (Évolution 4 — point 5.6).
+     *
+     * Affiche pour chaque panneau éligible une ligne par type de taxe
+     * (TM / ODP / DB) avec commune, dimensions, statut, client, campagne,
+     * période, montant — chaque montant peut être justifié à partir de
+     * cette vue lors d'un contrôle commune.
+     *
+     * Filtres combinables (point 5.7 — rapports) : commune, client,
+     * campagne, type, période.
+     */
+    public function details(Request $request, TaxCalculationService $calc)
+    {
+        $year         = (int) ($request->input('year', date('Y')));
+        $periodType   = $request->input('period_type', TaxCalculationService::PERIOD_MONTHLY);
+        $periodValue  = (int) ($request->input('period_value', date('n')));
+
+        $filters = array_filter([
+            'commune_id'  => $request->input('commune_id') ?: null,
+            'client_id'   => $request->input('client_id')  ?: null,
+            'campaign_id' => $request->input('campaign_id') ?: null,
+            'type'        => $request->input('type')        ?: null,
+        ]);
+
+        $lines  = $calc->generateLines($periodType, $periodValue, $year, $filters);
+        $totals = $calc->summarize($lines);
+
+        // Tri stable pour la lecture : commune > panneau > type.
+        $lines = $lines->sortBy([
+            ['commune', 'asc'],
+            ['reference', 'asc'],
+            ['type', 'asc'],
+        ])->values();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'lines'  => $lines,
+                'totals' => $totals,
+            ]);
+        }
+
+        // Filtres pour les selects de la vue
+        $communes  = Commune::orderBy('name')->get(['id', 'name']);
+        $clients   = Client::orderBy('name')->get(['id', 'name']);
+        $campaigns = Campaign::whereYear('start_date', '<=', $year)
+            ->whereYear('end_date', '>=', $year)
+            ->orderBy('name')
+            ->get(['id', 'name', 'client_id']);
+        $anneesDispos = range(date('Y') + 1, max(2020, date('Y') - 5));
+
+        return view('admin.taxes.details', compact(
+            'lines', 'totals', 'year', 'periodType', 'periodValue',
+            'communes', 'clients', 'campaigns', 'anneesDispos', 'filters'
         ));
     }
 
