@@ -335,23 +335,18 @@
             @if (session('warning')) showToast('warning', @json(session('warning'))); @endif
             @if (session('info'))    showToast('info',    @json(session('info')));    @endif
 
-            {{-- Synchroniser le toggle avec le thème actif --}}
-            const currentTheme = document.getElementById('html-root').getAttribute('data-theme') || 'light';
-            const toggle = document.getElementById('theme-toggle');
-            if (toggle) toggle.checked = currentTheme === 'light';
-
             {{-- Synchroniser les logos --}}
-            applyLogoForTheme(currentTheme);
+            applyLogoForTheme(document.getElementById('html-root').getAttribute('data-theme') || 'light');
         });
     </script>
 
     {{-- Thème + Alertes --}}
     <script>
         function toggleThemeSwitch() {
-            const isChecked = document.getElementById('theme-toggle').checked;
-            const theme = isChecked ? 'light' : 'dark';
-            localStorage.setItem('theme', theme);
+            const current = document.getElementById('html-root').getAttribute('data-theme') || 'light';
+            const theme = current === 'light' ? 'dark' : 'light';
             document.getElementById('html-root').setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
             applyLogoForTheme(theme);
         }
 
