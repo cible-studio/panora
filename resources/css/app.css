@@ -1470,11 +1470,11 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
     transition: 0.3s;
 }
 
-input:checked + .slider {
+[data-theme="light"] .slider {
     background-color: #fbbf24;
 }
 
-input:checked + .slider::before {
+[data-theme="light"] .slider::before {
     transform: translateX(24px);
     content: "☀️";
 }
