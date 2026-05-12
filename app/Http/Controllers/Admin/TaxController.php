@@ -156,6 +156,51 @@ class TaxController extends Controller
     }
 
     /**
+     * Export Excel du rapport détaillé (mêmes filtres que la vue HTML
+     * et le PDF). Pour l'admin comptable qui veut retravailler les
+     * données dans son tableur (TVA, formules, agrégats personnels).
+     */
+    public function detailsExcel(Request $request, TaxCalculationService $calc)
+    {
+        $year         = (int) ($request->input('year', date('Y')));
+        $periodType   = $request->input('period_type', TaxCalculationService::PERIOD_MONTHLY);
+        $periodValue  = (int) ($request->input('period_value', date('n')));
+
+        $filters = array_filter([
+            'commune_id'  => $request->input('commune_id') ?: null,
+            'client_id'   => $request->input('client_id')  ?: null,
+            'campaign_id' => $request->input('campaign_id') ?: null,
+            'type'        => $request->input('type')        ?: null,
+        ]);
+
+        $lines = $calc->generateLines($periodType, $periodValue, $year, $filters)
+            ->sortBy([['commune', 'asc'], ['reference', 'asc'], ['type', 'asc']])
+            ->values();
+
+        $periodLabel = match ($periodType) {
+            TaxCalculationService::PERIOD_MONTHLY   =>
+                \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F') . ' ' . $year,
+            TaxCalculationService::PERIOD_QUARTERLY => "T{$periodValue} {$year}",
+            TaxCalculationService::PERIOD_ANNUAL    => "Année {$year}",
+            default => (string) $year,
+        };
+
+        // Récap filtres pour l'en-tête imprimable de la feuille
+        $parts = [];
+        if (!empty($filters['commune_id']))  { $c = Commune::find($filters['commune_id']);  if ($c) $parts[] = "commune={$c->name}"; }
+        if (!empty($filters['client_id']))   { $c = Client::find($filters['client_id']);    if ($c) $parts[] = "client={$c->name}"; }
+        if (!empty($filters['campaign_id'])) { $c = Campaign::find($filters['campaign_id']);if ($c) $parts[] = "campagne={$c->name}"; }
+        if (!empty($filters['type']))        $parts[] = 'type=' . strtoupper($filters['type']);
+        $filterSummary = implode(' · ', $parts);
+
+        $filename = 'taxes-details-' . str_replace(' ', '-', strtolower($periodLabel)) . '.xlsx';
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\TaxesDetailsExport($lines, $periodLabel, $filterSummary),
+            $filename
+        );
+    }
+
+    /**
      * Historique des écritures Tax legacy (avant refonte 2025) — accessible
      * via /admin/taxes/historique pour les comptes ayant déjà saisi des
      * paiements ligne à ligne.
