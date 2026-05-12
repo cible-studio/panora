@@ -271,9 +271,32 @@ class RapportController extends Controller
         $year = (int) ($request->annee ?? date('Y'));
         if ($year < 2000 || $year > 2099) $year = (int) date('Y');
 
-        $monthly  = $service->monthlyMatrix($year);
-        $annual   = $service->annualByCommune($year);
-        $totals   = $service->totals($year);
+        $filters = array_filter([
+            'client_id'   => $request->input('client_id')   ?: null,
+            'campaign_id' => $request->input('campaign_id') ?: null,
+            'commune_id'  => $request->input('commune_id')  ?: null,
+        ]);
+
+        $monthly  = $service->monthlyMatrix($year, $filters);
+
+        // Si filtres client/campagne → on recalcule annual à partir de
+        // monthlyMatrix filtré (annualByCommune ne supporte pas encore
+        // les filtres et serait incohérent avec la matrice).
+        if (!empty($filters)) {
+            $annual = $this->annualFromMonthly($monthly);
+            $totals = $this->totalsFromMonthly($monthly);
+        } else {
+            $annual = $service->annualByCommune($year);
+            $totals = $service->totals($year);
+        }
+
+        // Filtre commune appliqué en sortie (la requête de fond charge
+        // tout, on filtre l'affichage — plus simple à maintenir).
+        if (!empty($filters['commune_id'])) {
+            $cid = (int) $filters['commune_id'];
+            $monthly = $monthly->where('commune_id', $cid)->values();
+            $annual  = $annual->where('commune_id', $cid)->values();
+        }
 
         // Matrice 12 colonnes × N lignes (commune)
         $months = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
@@ -302,9 +325,63 @@ class RapportController extends Controller
 
         $anneesDisponibles = range(date('Y') + 1, max(2020, date('Y') - 5));
 
+        // Selects pour les filtres UI
+        $clients   = \App\Models\Client::orderBy('name')->get(['id', 'name']);
+        $campaigns = \App\Models\Campaign::whereYear('start_date', '<=', $year)
+            ->whereYear('end_date', '>=', $year)
+            ->orderBy('name')
+            ->get(['id', 'name', 'client_id']);
+        $communes  = \App\Models\Commune::orderBy('name')->get(['id', 'name']);
+
         return view('admin.rapports.taxes', compact(
-            'year', 'months', 'matrix', 'totals', 'anneesDisponibles'
+            'year', 'months', 'matrix', 'totals', 'anneesDisponibles',
+            'clients', 'campaigns', 'communes', 'filters'
         ));
+    }
+
+    /** Agrégation annuelle par commune à partir d'une matrice mensuelle filtrée. */
+    private function annualFromMonthly(\Illuminate\Support\Collection $monthly): \Illuminate\Support\Collection
+    {
+        return $monthly->groupBy('commune_id')->map(function ($rows, $cid) {
+            $first = $rows->first();
+            $q1 = $rows->whereIn('month', [1,2,3])->sum('total');
+            $q2 = $rows->whereIn('month', [4,5,6])->sum('total');
+            $q3 = $rows->whereIn('month', [7,8,9])->sum('total');
+            $q4 = $rows->whereIn('month', [10,11,12])->sum('total');
+            return [
+                'commune_id' => (int) $cid,
+                'commune'    => $first['commune'] ?? '',
+                'odp'        => (float) $rows->sum('odp'),
+                'tm'         => (float) $rows->sum('tm'),
+                'total'      => (float) $rows->sum('total'),
+                'q1'         => $q1, 'q2' => $q2, 'q3' => $q3, 'q4' => $q4,
+                'panel_max'  => (int) ($rows->max('panel_count') ?? 0),
+            ];
+        })->values();
+    }
+
+    /** Totaux annuels globaux à partir d'une matrice mensuelle filtrée.
+     *  Aligné sur TaxReportService::totals() pour que la vue n'ait pas
+     *  à se soucier d'où viennent les données. */
+    private function totalsFromMonthly(\Illuminate\Support\Collection $monthly): array
+    {
+        $byMonth = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $byMonth[$m] = (float) $monthly->where('month', $m)->sum('total');
+        }
+        return [
+            'year'      => (int) ($monthly->first()['year'] ?? date('Y')),
+            'odp'       => (float) $monthly->sum('odp'),
+            'tm'        => (float) $monthly->sum('tm'),
+            'total'     => (float) $monthly->sum('total'),
+            'by_month'  => $byMonth,
+            'q1'        => array_sum(array_slice($byMonth, 0, 3, true)),
+            'q2'        => array_sum(array_slice($byMonth, 3, 3, true)),
+            'q3'        => array_sum(array_slice($byMonth, 6, 3, true)),
+            'q4'        => array_sum(array_slice($byMonth, 9, 3, true)),
+            'communes'  => $monthly->groupBy('commune_id')->count(),
+            'panel_max' => (int) ($monthly->max('panel_count') ?? 0),
+        ];
     }
 
     /**

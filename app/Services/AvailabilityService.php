@@ -361,7 +361,86 @@ class AvailabilityService
             ->keyBy('panel_id');
     }
 
-    // ── 6. Vérification rapide sans chargement modèle ────────────
+    // ── 6. Cartes de conflits avec référence — pour sauvegarde partielle ──
+
+    /**
+     * Retourne pour chaque panneau interne bloqué : statut bloquant,
+     * référence de la réservation conflictuelle, date de libération.
+     * Utilisé par confirmerSelection() pour identifier les panneaux à exclure
+     * avec le motif précis (confirme vs en_attente + quelle réservation bloque).
+     *
+     * Keyed by panel_id. Priorité : confirme > en_attente.
+     */
+    public function getInternalConflictMap(
+        array  $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null
+    ): Collection {
+        if (empty($panelIds)) return collect();
+
+        return DB::table('reservation_panels as rp')
+            ->join('reservations as r', 'r.id', '=', 'rp.reservation_id')
+            ->whereIn('rp.panel_id', $panelIds)
+            ->whereIn('r.status', self::BLOCKING_STATUSES)
+            ->where('r.start_date', '<', $endDate)
+            ->where('r.end_date',   '>', $startDate)
+            ->when($excludeReservationId, fn($q) => $q->where('r.id', '!=', $excludeReservationId))
+            ->select(
+                'rp.panel_id',
+                DB::raw('MAX(CASE WHEN r.status = "confirme"   THEN r.reference ELSE NULL END) as confirme_ref'),
+                DB::raw('MAX(CASE WHEN r.status = "en_attente" THEN r.reference ELSE NULL END) as option_ref'),
+                DB::raw('MAX(CASE WHEN r.status = "confirme"   THEN 1 ELSE 0 END) as has_confirmed'),
+                DB::raw('MAX(r.end_date) as release_date'),
+            )
+            ->groupBy('rp.panel_id')
+            ->get()
+            ->keyBy('panel_id')
+            ->map(fn($row) => (object)[
+                'blocking_status' => (bool) $row->has_confirmed ? 'confirme' : 'en_attente',
+                'conflicting_ref' => (bool) $row->has_confirmed ? $row->confirme_ref : $row->option_ref,
+                'release_date'    => $row->release_date,
+            ]);
+    }
+
+    /**
+     * Pendant externe de getInternalConflictMap.
+     * Keyed by external_panel_id. Priorité : confirme > en_attente.
+     */
+    public function getExternalConflictMap(
+        array  $externalPanelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null
+    ): Collection {
+        if (empty($externalPanelIds)) return collect();
+
+        return DB::table('reservation_panels as rp')
+            ->join('reservations as r', 'r.id', '=', 'rp.reservation_id')
+            ->whereIn('rp.external_panel_id', $externalPanelIds)
+            ->where('rp.source', 'externe')
+            ->whereIn('r.status', self::BLOCKING_STATUSES)
+            ->where('r.start_date', '<', $endDate)
+            ->where('r.end_date',   '>', $startDate)
+            ->when($excludeReservationId, fn($q) => $q->where('r.id', '!=', $excludeReservationId))
+            ->select(
+                'rp.external_panel_id',
+                DB::raw('MAX(CASE WHEN r.status = "confirme"   THEN r.reference ELSE NULL END) as confirme_ref'),
+                DB::raw('MAX(CASE WHEN r.status = "en_attente" THEN r.reference ELSE NULL END) as option_ref'),
+                DB::raw('MAX(CASE WHEN r.status = "confirme"   THEN 1 ELSE 0 END) as has_confirmed'),
+                DB::raw('MAX(r.end_date) as release_date'),
+            )
+            ->groupBy('rp.external_panel_id')
+            ->get()
+            ->keyBy('external_panel_id')
+            ->map(fn($row) => (object)[
+                'blocking_status' => (bool) $row->has_confirmed ? 'confirme' : 'en_attente',
+                'conflicting_ref' => (bool) $row->has_confirmed ? $row->confirme_ref : $row->option_ref,
+                'release_date'    => $row->release_date,
+            ]);
+    }
+
+    // ── 7. Vérification rapide sans chargement modèle ────────────
     public function quickCheck(int $panelId, string $start, string $end): bool
     {
         return !DB::table('reservation_panels')

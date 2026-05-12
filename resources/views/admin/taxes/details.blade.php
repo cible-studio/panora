@@ -7,6 +7,12 @@
 
     <x-slot name="topbarActions">
         <span class="badge badge-blue">{{ $lines->count() }} ligne(s)</span>
+        @if($lines->isNotEmpty())
+            <a href="{{ route('admin.taxes.details.pdf', array_merge(['year' => $year, 'period_type' => $periodType, 'period_value' => $periodValue], $filters)) }}"
+               class="btn btn-primary btn-sm" target="_blank" rel="noopener">
+                📄 Exporter PDF
+            </a>
+        @endif
     </x-slot>
 
     @php

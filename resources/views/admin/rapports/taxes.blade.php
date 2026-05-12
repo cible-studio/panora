@@ -10,11 +10,11 @@
     $fmt = fn($n) => number_format((float) ($n ?? 0), 0, ',', ' ');
 @endphp
 
-{{-- ════ FILTRES ANNÉE ════ --}}
+{{-- ════ FILTRES (année + commune + client + campagne) ════ --}}
 <form method="GET" action="{{ route('admin.rapports.taxes') }}"
-      style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 20px;margin-bottom:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 20px;margin-bottom:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);">
-        🏛️ Taxes communales
+        🏛️ Rapport taxes
     </span>
     <select name="annee" onchange="this.form.submit()"
             style="height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);">
@@ -22,8 +22,33 @@
             <option value="{{ $a }}" {{ $a == $year ? 'selected' : '' }}>{{ $a }}</option>
         @endforeach
     </select>
+    <select name="commune_id" onchange="this.form.submit()"
+            style="height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);min-width:160px;">
+        <option value="">Toutes communes</option>
+        @foreach($communes as $c)
+            <option value="{{ $c->id }}" {{ ($filters['commune_id'] ?? null) == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+        @endforeach
+    </select>
+    <select name="client_id" onchange="this.form.submit()"
+            style="height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);min-width:170px;">
+        <option value="">Tous clients</option>
+        @foreach($clients as $c)
+            <option value="{{ $c->id }}" {{ ($filters['client_id'] ?? null) == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+        @endforeach
+    </select>
+    <select name="campaign_id" onchange="this.form.submit()"
+            style="height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);min-width:170px;">
+        <option value="">Toutes campagnes</option>
+        @foreach($campaigns as $c)
+            <option value="{{ $c->id }}" {{ ($filters['campaign_id'] ?? null) == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+        @endforeach
+    </select>
+    @if(!empty($filters))
+        <a href="{{ route('admin.rapports.taxes', ['annee' => $year]) }}"
+           style="font-size:12px;color:var(--text3);text-decoration:underline;">✕ Reset</a>
+    @endif
     <span style="margin-left:auto;font-size:11px;color:var(--text3);">
-        Calculé depuis les campagnes actives — {{ $totals['communes'] }} commune(s) · {{ $totals['panel_max'] }} panneaux max simultanés
+        {{ $totals['communes'] ?? 0 }} commune(s) · {{ $totals['panel_max'] ?? 0 }} panneaux max simultanés
     </span>
 </form>
 

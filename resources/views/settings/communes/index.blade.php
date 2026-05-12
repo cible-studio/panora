@@ -18,8 +18,9 @@
                     <th>Nom</th>
                     <th>Ville</th>
                     <th>Région</th>
-                    <th>Taux ODP</th>
-                    <th>Taux TM</th>
+                    <th style="text-align:right;">Tarif ODP</th>
+                    <th style="text-align:right;">Tarif TM</th>
+                    <th style="text-align:right;">Tarif DB</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -29,8 +30,9 @@
                     <td><strong>{{ $commune->name }}</strong></td>
                     <td>{{ $commune->city ?? '—' }}</td>
                     <td>{{ $commune->region ?? '—' }}</td>
-                    <td>{{ number_format($commune->odp_rate, 0, ',', ' ') }} FCFA</td>
-                    <td>{{ number_format($commune->tm_rate, 0, ',', ' ') }} FCFA</td>
+                    <td style="text-align:right;font-family:monospace;">{{ number_format($commune->odp_rate, 0, ',', ' ') }}</td>
+                    <td style="text-align:right;font-family:monospace;">{{ number_format($commune->tm_rate, 0, ',', ' ') }}</td>
+                    <td style="text-align:right;font-family:monospace;">{{ number_format($commune->db_rate, 0, ',', ' ') }}</td>
                     <td>
                         <div style="display:flex; gap:6px;">
                             <a href="{{ route('admin.settings.communes.edit', $commune) }}"
@@ -47,7 +49,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" style="text-align:center; color:var(--text3); padding:24px;">
+                    <td colspan="7" style="text-align:center; color:var(--text3); padding:24px;">
                         Aucune commune créée
                     </td>
                 </tr>
