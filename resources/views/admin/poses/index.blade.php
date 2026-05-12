@@ -678,7 +678,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         campaign_id: '',
         date_from: '',
         date_to: '',
-        show_orphan: false
+        show_orphan: false,
+        page: 1,
     };
     let debounceTimer = null;
     let isUpdating = false;
@@ -712,9 +713,24 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
 
     // Exposé pour permettre au bloc "actions groupées" de recharger la
     // table après un bulk update sans dupliquer la logique de fetch.
-    window._reloadPosesTable = () => applyFilters();
+    window._reloadPosesTable = () => applyFilters(1);
 
-    async function applyFilters() {
+    // Interception des liens de pagination → AJAX au lieu de rechargement
+    // complet, ce qui préserve la sélection en mémoire JS.
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('#pagination-container a');
+        if (!link) return;
+        e.preventDefault();
+        try {
+            const page = parseInt(new URL(link.href).searchParams.get('page') || '1', 10);
+            applyFilters(page);
+        } catch (_) {
+            applyFilters(1);
+        }
+    });
+
+    async function applyFilters(page = 1) {
+        currentFilters.page = page;
         if (isUpdating) return;
         isUpdating = true;
 
@@ -726,6 +742,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         if (currentFilters.date_from) params.set('date_from', currentFilters.date_from);
         if (currentFilters.date_to) params.set('date_to', currentFilters.date_to);
         if (currentFilters.show_orphan) params.set('show_orphan', '1');
+        if (currentFilters.page > 1) params.set('page', currentFilters.page);
         params.set('ajax', '1');
 
         // Afficher le loader
