@@ -13,7 +13,18 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'Panora'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Operator Name (régie qui opère la plateforme Panora)
+    |--------------------------------------------------------------------------
+    | Panora est la plateforme SaaS multi-régie. CIBLE CI est la régie qui
+    | l'utilise actuellement. Pour déployer Panora pour une autre régie
+    | (ex: RegieOOH), il suffit de définir OPERATOR_NAME dans le .env de
+    | l'instance — tous les emails et PDFs s'adaptent automatiquement.
+    */
+    'operator_name' => env('OPERATOR_NAME', 'CIBLE CI'),
 
     /*
     |--------------------------------------------------------------------------
