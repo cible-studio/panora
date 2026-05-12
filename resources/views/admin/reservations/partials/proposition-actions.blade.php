@@ -113,10 +113,44 @@
     </div>
     @endif
 
-    {{-- Actions — l'envoi au client est réservé au Commercial.
-         Le MP ne voit pas ces boutons : sa fiche s'arrête à "soumettre
-         au commercial" (action ajoutée dans le commit 3). --}}
+    {{-- Statut interne de la proposition --}}
+    @php
+        $propStatus = $reservation->proposition_status ?? 'draft';
+        $statusBadge = match($propStatus) {
+            'draft'        => ['📝 En construction',      '#6b7280', 'rgba(107,114,128,.1)'],
+            'prepared'     => ['✏️ Prête',                 '#3b82f6', 'rgba(59,130,246,.1)'],
+            'pending_send' => ['📤 Prête à envoyer',       '#f59e0b', 'rgba(245,158,11,.1)'],
+            'sent'         => ['✉️ Envoyée au client',     '#22c55e', 'rgba(34,197,94,.1)'],
+            default        => [$propStatus, '#9ca3af', 'rgba(156,163,175,.1)'],
+        };
+    @endphp
+    <div style="margin-bottom:14px;">
+        <span style="display:inline-block;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:700;
+                     color:{{ $statusBadge[1] }};background:{{ $statusBadge[2] }};">
+            {{ $statusBadge[0] }}
+        </span>
+    </div>
+
+    {{-- Actions — workflow MP → Commercial → Client.
+         MP construit puis "soumet au commercial". Commercial envoie. --}}
     <div class="proposition-actions">
+
+        {{-- MP : bouton "Soumettre au commercial" si la proposition n'est
+             pas encore en pending_send ni envoyée. --}}
+        @can('proposition.submit', $reservation)
+            @if(in_array($propStatus, ['draft','prepared'], true))
+                <form method="POST"
+                      action="{{ route('admin.reservations.proposition.soumettre', $reservation) }}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Soumettre la proposition au commercial pour envoi au client ?');">
+                    @csrf
+                    <button type="submit" class="btn-primary">
+                        📤 Soumettre au commercial
+                    </button>
+                </form>
+            @endif
+        @endcan
+
         @if(!empty($reservation->client?->email))
             @can('proposition.send', $reservation)
                 @if($reservation->proposition_sent_at)

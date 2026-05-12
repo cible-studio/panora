@@ -52,37 +52,47 @@ class PropositionPolicy
     public function build(User $user, Reservation $reservation): bool
     {
         if ($reservation->client?->trashed()) return false;
-
-        $status = $reservation->proposition_status ?? null;
-        // Non-éditable une fois envoyée — sécurité de cohérence avec le client.
-        if (in_array($status, ['envoyee', 'vue', 'signee', 'refusee', 'expiree'], true)) {
+        if (!in_array($reservation->proposition_status, Reservation::PROPOSITION_STATUSES_BEFORE_SEND, true)) {
             return false;
         }
         return $user->role === UserRole::MEDIAPLANNER;
     }
 
     /**
-     * Marquer la proposition comme "prête à envoyer" (transition draft →
-     * prepared/pending_send). Réservé au MP.
+     * Soumettre au commercial : draft|prepared → pending_send.
+     * Réservé au MP — son action principale.
      */
-    public function markReady(User $user, Reservation $reservation): bool
+    public function submit(User $user, Reservation $reservation): bool
     {
         if ($reservation->client?->trashed()) return false;
+        // Doit être avant envoi.
+        if ($reservation->proposition_status === Reservation::PROPOSITION_SENT) {
+            return false;
+        }
         return $user->role === UserRole::MEDIAPLANNER;
     }
 
+    /** Alias historique pour compat (anciens appels). */
+    public function markReady(User $user, Reservation $reservation): bool
+    {
+        return $this->submit($user, $reservation);
+    }
+
     /**
-     * Envoyer la proposition par email au client. Réservé au Commercial
-     * (signe avec son nom + coordonnées). Le MP n'a pas accès au bouton.
-     *
-     * On accepte aussi un envoi depuis l'état "draft" si le commercial
-     * intervient sur ses propres anciens dossiers — c'est l'admin qui
-     * tranche au cas par cas via le rôle qu'il porte.
+     * Envoyer la proposition par email au client.
+     * Réservé au Commercial : signe avec son nom + ses coordonnées.
+     * Le statut doit être pending_send (soumis par le MP) ou sent
+     * (renvoi possible). En draft/prepared, le commercial n'est pas
+     * encore censé recevoir le dossier.
      */
     public function send(User $user, Reservation $reservation): bool
     {
         if ($reservation->client?->trashed()) return false;
-        return $user->role === UserRole::COMMERCIAL;
+        if ($user->role !== UserRole::COMMERCIAL) return false;
+        return in_array($reservation->proposition_status, [
+            Reservation::PROPOSITION_PENDING_SEND,
+            Reservation::PROPOSITION_SENT, // autorise renvoi
+        ], true);
     }
 
     /**
