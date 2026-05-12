@@ -37,7 +37,6 @@
     <script>
         window.__DISPO__ = {
             communes: {!! json_encode($communes->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'city' => $c->city])->values()) !!},
-            cities: {!! json_encode(($cities ?? collect())->map(fn($c) => ['id' => $c, 'name' => $c])->values()) !!},
             zones: {!! json_encode($zones->map(fn($z) => ['id' => $z->id, 'name' => $z->name])->values()) !!},
             formats: {!! json_encode(
                 $formats->map(fn($f) => ['id' => $f->id, 'name' => $f->name, 'width' => $f->width, 'height' => $f->height])->values(),
@@ -116,18 +115,15 @@
                     </div>
                 </fieldset>
 
-                {{-- ── GROUPE 2 : 📍 Géographie (Ville · Commune · Zone) ── --}}
+                {{-- ── GROUPE 2 : 📍 Géographie (Localisation + Zone) ── --}}
+                {{-- Un seul filtre "Localisation" qui combine commune + ville :
+                     dans le multiselect chaque option est rendue
+                     "Cocody · Abidjan" pour grouper visuellement. --}}
                 <fieldset class="filter-group-box flex flex-col">
                     <legend class="filter-group-title">📍 Géographie</legend>
 
                     <div class="flex items-center justify-between">
-                        <label class="filter-label">Ville</label>
-                        <span id="badge-cities" class="ms-badge hidden"></span>
-                    </div>
-                    <div class="ms-wrapper mb-2" data-key="cities" data-placeholder="Toutes"></div>
-
-                    <div class="flex items-center justify-between">
-                        <label class="filter-label">Commune</label>
+                        <label class="filter-label">Localisation (commune · ville)</label>
                         <span id="badge-commune_ids" class="ms-badge hidden"></span>
                     </div>
                     <div class="ms-wrapper mb-2" data-key="commune_ids" data-placeholder="Toutes"></div>
@@ -1075,7 +1071,6 @@
                 const S = {
                     f: {
                         commune_ids: [],
-                        cities: [],
                         zone_ids: [],
                         format_ids: [],
                         category_ids: [],
@@ -1110,7 +1105,6 @@
 
                 const MS_DATA = {
                     commune_ids: D.communes,
-                    cities: D.cities,
                     zone_ids: D.zones,
                     format_ids: D.formats,
                     category_ids: D.categories,
@@ -1303,7 +1297,6 @@
                     reset() {
                         S.f = {
                             commune_ids: [],
-                            cities: [],
                             zone_ids: [],
                             format_ids: [],
                             category_ids: [],
@@ -1329,7 +1322,7 @@
                         _el('f-au').value = '';
                         _el('f-search').value = '';
                         _el('btn-clear-search').classList.add('hidden');
-                        ['commune_ids', 'cities', 'zone_ids', 'format_ids', 'category_ids', 'agency_ids'].forEach(_syncMs);
+                        ['commune_ids', 'zone_ids', 'format_ids', 'category_ids', 'agency_ids'].forEach(_syncMs);
                         _hideDateErr();
                         this._fetch();
                         this._syncUI();
@@ -1918,7 +1911,6 @@
                         _showLoader();
                         const p = new URLSearchParams();
                         S.f.commune_ids.forEach(id => p.append('commune_ids[]', id));
-                        S.f.cities.forEach(c => p.append('cities[]', c));
                         S.f.zone_ids.forEach(id => p.append('zone_ids[]', id));
                         S.f.format_ids.forEach(id => p.append('format_ids[]', id));
                         S.f.category_ids.forEach(id => p.append('category_ids[]', id));
@@ -2189,7 +2181,7 @@
 
                     _syncUI() {
                         const f = S.f;
-                        const active = f.commune_ids.length || f.cities.length || f.zone_ids.length
+                        const active = f.commune_ids.length || f.zone_ids.length
                             || f.format_ids.length || f.category_ids.length || f.agency_ids.length
                             || f.dimensions || f.is_lit !== '' || f.statut !== 'tous' || f.du || f.au
                             || f.source !== 'all' || f.q;
@@ -2215,7 +2207,6 @@
                             });
                         });
                         addMS(f.commune_ids, 'commune_ids', D.communes);
-                        addMS(f.cities, 'cities', D.cities);
                         addMS(f.zone_ids, 'zone_ids', D.zones);
                         addMS(f.format_ids, 'format_ids', D.formats);
                         addMS(f.category_ids, 'category_ids', D.categories);
@@ -2330,10 +2321,15 @@
                             const lbl = document.createElement('label');
                             lbl.className = 'ms-opt' + (isSel ? ' selected' : '');
                             lbl.dataset.id = item.id;
-                            // Format : on n'affiche que le name ("12 m²" etc.).
-                            // Les dimensions précises (3×2m) sont disponibles
-                            // via le filtre Dimensions dédié et la fiche panneau.
-                            lbl.innerHTML = `<input type="checkbox" ${isSel?'checked':''}> ${item.name}`;
+                            // Suffixe contextuel selon le filtre :
+                            //   commune_ids → "Cocody · Abidjan" (sous-info ville)
+                            //   format_ids  → uniquement le name (les dimensions
+                            //                 précises sont dans le filtre dédié).
+                            let suffix = '';
+                            if (key === 'commune_ids' && item.city && item.city !== item.name) {
+                                suffix = ` <small style="color:var(--text3);font-size:11px;">· ${item.city}</small>`;
+                            }
+                            lbl.innerHTML = `<input type="checkbox" ${isSel?'checked':''}> ${item.name}${suffix}`;
                             lbl.querySelector('input').addEventListener('change', () => {
                                 const arr = S.f[key],
                                     idx = arr.indexOf(item.id);
