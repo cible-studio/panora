@@ -498,6 +498,13 @@ Route::prefix('admin')
         Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])->name('reservations.annuler');
 
         // Propositions (admin)
+        // MP : soumet la proposition au commercial pour envoi.
+        Route::post(
+            'reservations/{reservation}/proposition/soumettre',
+            [PropositionController::class, 'submitProposition']
+        )
+            ->name('reservations.proposition.soumettre');
+
         Route::post(
             'reservations/{reservation}/proposition/envoyer',
             [PropositionController::class, 'envoyerProposition']

@@ -21,6 +21,7 @@ class Reservation extends Model
         'status',
         'type',
         'proposition_slug',       // ← URL lisible proposition
+        'proposition_status',     // draft → prepared → pending_send → sent
         'total_amount',
         'notes',
         'confirmed_at',
@@ -38,6 +39,21 @@ class Reservation extends Model
         'cancelled_by',
         // Motif refus client (proposition)
         'refus_reason_code',      // budget|zones|periode|concurrent|delais|autre
+    ];
+
+    /**
+     * Cycle interne de la proposition (workflow MP → Commercial → Client).
+     * Cf. docs/ROLES_VALIDES.md
+     */
+    public const PROPOSITION_DRAFT        = 'draft';        // MP en construction
+    public const PROPOSITION_PREPARED     = 'prepared';     // MP a fini (optionnel)
+    public const PROPOSITION_PENDING_SEND = 'pending_send'; // soumise au commercial
+    public const PROPOSITION_SENT         = 'sent';         // commercial a envoyé
+
+    public const PROPOSITION_STATUSES_BEFORE_SEND = [
+        self::PROPOSITION_DRAFT,
+        self::PROPOSITION_PREPARED,
+        self::PROPOSITION_PENDING_SEND,
     ];
 
     /**

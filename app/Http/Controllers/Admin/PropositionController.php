@@ -132,6 +132,50 @@ class PropositionController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // ADMIN — Soumettre la proposition au commercial (MP)
+    //
+    // Le MP termine sa construction et clique "Soumettre au commercial".
+    // La proposition passe en pending_send → apparaît dans l'inbox du
+    // commercial qui pourra cliquer "Envoyer au client" (signe avec son
+    // nom + ses coordonnées dans le mail).
+    // ══════════════════════════════════════════════════════════════
+    public function submitProposition(Request $request, Reservation $reservation)
+    {
+        $this->authorize('proposition.submit', $reservation);
+
+        if (!$reservation->client) {
+            return back()->with('error', 'Pas de client associé.');
+        }
+        if (empty($reservation->client->email)) {
+            return back()->with('error', "Ce client n'a pas d'email — un commercial ne pourra pas envoyer.");
+        }
+        if ($reservation->panels()->count() === 0) {
+            return back()->with('error', 'Ajoutez au moins un panneau avant de soumettre au commercial.');
+        }
+
+        $reservation->update([
+            'proposition_status' => Reservation::PROPOSITION_PENDING_SEND,
+        ]);
+
+        \App\Services\AlertService::create(
+            'proposition',
+            'info',
+            '📋 Proposition prête à envoyer — ' . $reservation->reference,
+            auth()->user()->name . ' a soumis la proposition ' . $reservation->reference
+                . ' (' . ($reservation->client->name ?? '?') . ') pour envoi au client.',
+            $reservation
+        );
+
+        \Illuminate\Support\Facades\Log::info('proposition.submitted_to_commercial', [
+            'reservation_id' => $reservation->id,
+            'by'             => auth()->id(),
+        ]);
+
+        return back()->with('success',
+            '✅ Proposition soumise. Le commercial peut maintenant l\'envoyer au client.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // ADMIN — envoyer proposition
     // ══════════════════════════════════════════════════════════════
     public function envoyerProposition(Request $request, Reservation $reservation)
@@ -171,6 +215,7 @@ class PropositionController extends Controller
             'proposition_token'           => $token,
             'proposition_slug'            => $slug,
             'proposition_sent_at'         => now(),
+            'proposition_status'          => Reservation::PROPOSITION_SENT,
             'proposition_expires_at'      => $this->computeExpirationDate($reservation),
             // Reset des flags rappels — un nouvel envoi redémarre le cycle
             // 7 jours, donc on doit pouvoir re-déclencher les rappels J+2/J+5

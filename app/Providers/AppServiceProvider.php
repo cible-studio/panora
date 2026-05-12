@@ -47,7 +47,7 @@ class AppServiceProvider extends ServiceProvider
         // Gates dédiées Proposition (workflow construction → envoi → décision).
         // Usage Blade : @can('proposition.send', $reservation)
         // Usage controller : $this->authorize('proposition.send', $reservation)
-        foreach (['build', 'markReady', 'send', 'relancer', 'cancel', 'view'] as $action) {
+        foreach (['build', 'submit', 'markReady', 'send', 'relancer', 'cancel', 'view'] as $action) {
             Gate::define("proposition.{$action}", [PropositionPolicy::class, $action]);
         }
 
