@@ -52,10 +52,13 @@
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
                         <span class="nav-text">Tableau de bord</span>
                     </a>
+                    @php $u = auth()->user(); $isAdmin = $u?->role?->value === 'admin'; $isMP = $u?->role?->value === 'mediaplanner'; $isCom = $u?->role?->value === 'commercial'; @endphp
+                    @if($isAdmin || $isMP)
                     <a href="{{ route('admin.reservations.disponibilites') }}" data-tooltip="Disponibilités" class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span>
                         <span class="nav-text">Disponibilités</span>
                     </a>
+                    @endif
                     <a href="{{ route('admin.panels.index') }}" data-tooltip="Inventaire" class="nav-item {{ request()->routeIs('admin.panels.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
                         <span class="nav-text">Inventaire</span>
@@ -80,6 +83,7 @@
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
                         <span class="nav-text">Confirmations</span>
                     </a>
+                    @if($isAdmin || $isMP)
                     <a href="{{ route('admin.pose-tasks.index') }}" data-tooltip="Gestion Pose OOH" class="nav-item {{ request()->routeIs('admin.pose-tasks.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></span>
                         <span class="nav-text">Gestion Pose OOH</span>
@@ -88,6 +92,7 @@
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
                         <span class="nav-text">Piges Photos</span>
                     </a>
+                    @endif
                     <a href="{{ route('admin.taxes.index') }}" data-tooltip="Taxes Communes" class="nav-item {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
                         <span class="nav-text">Taxes Communes</span>
@@ -114,15 +119,24 @@
                     </a>
                 </div>
 
+                {{-- Maintenance : visible pour MP + Admin (hors section
+                     Administration qui est admin-only). --}}
+                @if($isAdmin || $isMP)
+                <div class="nav-section">
+                    <div class="nav-label">Terrain</div>
+                    <a href="{{ route('admin.maintenances.index') }}" data-tooltip="Maintenance" class="nav-item {{ request()->routeIs('admin.maintenances.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+                        <span class="nav-text">Maintenance</span>
+                    </a>
+                </div>
+                @endif
+
+                @if($isAdmin)
                 <div class="nav-section">
                     <div class="nav-label">Administration</div>
                     <a href="{{ route('admin.users.index') }}" data-tooltip="Utilisateurs" class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
                         <span class="nav-text">Utilisateurs</span>
-                    </a>
-                    <a href="{{ route('admin.maintenances.index') }}" data-tooltip="Maintenance" class="nav-item {{ request()->routeIs('admin.maintenances.*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
-                        <span class="nav-text">Maintenance</span>
                     </a>
                     <a href="{{ route('admin.audit.logs') }}" data-tooltip="Logs d'audit" class="nav-item {{ request()->routeIs('admin.audit.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
@@ -133,6 +147,7 @@
                         <span class="nav-text">Paramètres</span>
                     </a>
                 </div>
+                @endif {{-- /admin only section --}}
             </nav>
 
             <div class="sidebar-footer">
