@@ -36,7 +36,7 @@
 
     <script>
         window.__DISPO__ = {
-            communes: {!! json_encode($communes->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'city' => $c->city])->values()) !!},
+            communes: {!! json_encode($communes->map(fn($c) => ['id' => $c->id, 'name' => $c->name])->values()) !!},
             zones: {!! json_encode($zones->map(fn($z) => ['id' => $z->id, 'name' => $z->name])->values()) !!},
             formats: {!! json_encode(
                 $formats->map(fn($f) => ['id' => $f->id, 'name' => $f->name, 'width' => $f->width, 'height' => $f->height])->values(),
@@ -77,36 +77,42 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-3 items-stretch">
 
                 {{-- ── GROUPE 1 : 📅 Période · Statut · Source · Régie ── --}}
-                <fieldset class="filter-group-box flex flex-col">
+                <fieldset class="filter-group-box">
                     <legend class="filter-group-title">📅 Période & Source</legend>
 
-                    <label class="filter-label">Période</label>
-                    <div class="flex items-center gap-2 bg-[var(--surface)] px-3 py-1.5 rounded-lg border border-[var(--border2)] mb-2">
-                        <input type="date" id="f-du" class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
-                               onchange="DISPO.onDateChange('du', this.value)">
-                        <span class="text-[var(--text3)] text-xs">→</span>
-                        <input type="date" id="f-au" class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
-                               onchange="DISPO.onDateChange('au', this.value)">
+                    <div class="filter-field">
+                        <label class="filter-label">Période</label>
+                        <div class="flex items-center gap-2 bg-[var(--surface)] px-3 h-10 rounded-lg border border-[var(--border2)]">
+                            <input type="date" id="f-du" class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
+                                   onchange="DISPO.onDateChange('du', this.value)">
+                            <span class="text-[var(--text3)] text-xs">→</span>
+                            <input type="date" id="f-au" class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
+                                   onchange="DISPO.onDateChange('au', this.value)">
+                        </div>
+                        <div id="date-error" class="hidden text-xs text-red-500 bg-red-500/10 px-3 py-1 rounded-lg"></div>
                     </div>
-                    <div id="date-error" class="hidden text-xs text-red-500 bg-red-500/10 px-3 py-1 rounded-lg mb-2"></div>
 
-                    <label class="filter-label">Statut</label>
-                    <select id="f-statut" class="filter-select w-full mb-2" onchange="DISPO.set('statut', this.value)">
-                        <option value="tous">Tous</option>
-                        <option value="libre">✅ Disponible</option>
-                        <option value="occupe">🔒 Occupé</option>
-                        <option value="option">⏳ En option</option>
-                        <option value="maintenance">🔧 Maintenance</option>
-                    </select>
+                    <div class="filter-field">
+                        <label class="filter-label">Statut</label>
+                        <select id="f-statut" class="filter-select" onchange="DISPO.set('statut', this.value)">
+                            <option value="tous">Tous</option>
+                            <option value="libre">✅ Disponible</option>
+                            <option value="occupe">🔒 Occupé</option>
+                            <option value="option">⏳ En option</option>
+                            <option value="maintenance">🔧 Maintenance</option>
+                        </select>
+                    </div>
 
-                    <label class="filter-label">Source des panneaux</label>
-                    <select id="f-source" class="filter-select w-full mb-2" onchange="DISPO.onSourceChange(this.value)">
-                        <option value="all">📦 Tous (internes + externes)</option>
-                        <option value="internal">🏢 Internes uniquement</option>
-                        <option value="external">🤝 Externes uniquement</option>
-                    </select>
+                    <div class="filter-field">
+                        <label class="filter-label">Source des panneaux</label>
+                        <select id="f-source" class="filter-select" onchange="DISPO.onSourceChange(this.value)">
+                            <option value="all">📦 Tous (internes + externes)</option>
+                            <option value="internal">🏢 Internes uniquement</option>
+                            <option value="external">🤝 Externes uniquement</option>
+                        </select>
+                    </div>
 
-                    <div id="wrapper-agencies">
+                    <div class="filter-field" id="wrapper-agencies">
                         <div class="flex items-center justify-between">
                             <label class="filter-label">🤝 Régie</label>
                             <span id="badge-agency_ids" class="ms-badge hidden"></span>
@@ -115,53 +121,62 @@
                     </div>
                 </fieldset>
 
-                {{-- ── GROUPE 2 : 📍 Géographie (Localisation + Zone) ── --}}
-                {{-- Un seul filtre "Localisation" qui combine commune + ville :
-                     dans le multiselect chaque option est rendue
-                     "Cocody · Abidjan" pour grouper visuellement. --}}
-                <fieldset class="filter-group-box flex flex-col">
+                {{-- ── GROUPE 2 : 📍 Géographie (Commune + Zone) ── --}}
+                <fieldset class="filter-group-box">
                     <legend class="filter-group-title">📍 Géographie</legend>
 
-                    <div class="flex items-center justify-between">
-                        <label class="filter-label">Localisation (commune · ville)</label>
-                        <span id="badge-commune_ids" class="ms-badge hidden"></span>
+                    <div class="filter-field">
+                        <div class="flex items-center justify-between">
+                            <label class="filter-label">Commune</label>
+                            <span id="badge-commune_ids" class="ms-badge hidden"></span>
+                        </div>
+                        <div class="ms-wrapper" data-key="commune_ids" data-placeholder="Toutes"></div>
                     </div>
-                    <div class="ms-wrapper mb-2" data-key="commune_ids" data-placeholder="Toutes"></div>
 
-                    <div class="flex items-center justify-between">
-                        <label class="filter-label">Zone</label>
-                        <span id="badge-zone_ids" class="ms-badge hidden"></span>
+                    <div class="filter-field">
+                        <div class="flex items-center justify-between">
+                            <label class="filter-label">Zone</label>
+                            <span id="badge-zone_ids" class="ms-badge hidden"></span>
+                        </div>
+                        <div class="ms-wrapper" data-key="zone_ids" data-placeholder="Toutes"></div>
                     </div>
-                    <div class="ms-wrapper" data-key="zone_ids" data-placeholder="Toutes"></div>
                 </fieldset>
 
                 {{-- ── GROUPE 3 : 📏 Caractéristiques panneau ── --}}
-                <fieldset class="filter-group-box flex flex-col">
+                <fieldset class="filter-group-box">
                     <legend class="filter-group-title">📏 Caractéristiques</legend>
 
-                    <div class="flex items-center justify-between">
-                        <label class="filter-label">Format</label>
-                        <span id="badge-format_ids" class="ms-badge hidden"></span>
+                    <div class="filter-field">
+                        <div class="flex items-center justify-between">
+                            <label class="filter-label">Format</label>
+                            <span id="badge-format_ids" class="ms-badge hidden"></span>
+                        </div>
+                        <div class="ms-wrapper" data-key="format_ids" data-placeholder="Tous"></div>
                     </div>
-                    <div class="ms-wrapper mb-2" data-key="format_ids" data-placeholder="Tous"></div>
 
-                    <label class="filter-label">Dimensions</label>
-                    <select id="f-dimensions" class="filter-select w-full mb-2" onchange="DISPO.set('dimensions', this.value)">
-                        <option value="">Toutes</option>
-                    </select>
-
-                    <div class="flex items-center justify-between">
-                        <label class="filter-label">Catégorie</label>
-                        <span id="badge-category_ids" class="ms-badge hidden"></span>
+                    <div class="filter-field">
+                        <label class="filter-label">Dimensions</label>
+                        <select id="f-dimensions" class="filter-select" onchange="DISPO.set('dimensions', this.value)">
+                            <option value="">Toutes</option>
+                        </select>
                     </div>
-                    <div class="ms-wrapper mb-2" data-key="category_ids" data-placeholder="Toutes"></div>
 
-                    <label class="filter-label">💡 Éclairage</label>
-                    <select id="f-is_lit" class="filter-select w-full" onchange="DISPO.set('is_lit', this.value)">
-                        <option value="">Tous</option>
-                        <option value="1">💡 Éclairé</option>
-                        <option value="0">🌙 Non éclairé</option>
-                    </select>
+                    <div class="filter-field">
+                        <div class="flex items-center justify-between">
+                            <label class="filter-label">Catégorie</label>
+                            <span id="badge-category_ids" class="ms-badge hidden"></span>
+                        </div>
+                        <div class="ms-wrapper" data-key="category_ids" data-placeholder="Toutes"></div>
+                    </div>
+
+                    <div class="filter-field">
+                        <label class="filter-label">💡 Éclairage</label>
+                        <select id="f-is_lit" class="filter-select" onchange="DISPO.set('is_lit', this.value)">
+                            <option value="">Tous</option>
+                            <option value="1">💡 Éclairé</option>
+                            <option value="0">🌙 Non éclairé</option>
+                        </select>
+                    </div>
                 </fieldset>
             </div>
 
@@ -649,14 +664,18 @@
             color: var(--text3);
         }
 
-        /* Groupes thématiques de filtres — inspiré de l'ancienne app
-           (fieldset avec legend) pour une lecture claire. */
+        /* Groupes thématiques de filtres — fieldset avec legend pour une
+           lecture claire. Le gap interne uniforme remplace les mb-* ad-hoc
+           pour que tous les groupes respirent de la même façon. */
         .filter-group-box {
             border: 1px solid var(--border);
             border-radius: 14px;
-            padding: 14px 16px 16px;
+            padding: 16px 18px 18px;
             background: var(--surface2);
             min-height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
         .filter-group-title {
             font-size: 11px;
@@ -668,17 +687,24 @@
             background: var(--surface);
             border-radius: 6px;
             border: 1px solid var(--border);
-        }
-        /* Labels groupés à l'intérieur — espacement homogène */
-        .filter-group-box > .filter-label {
             margin-bottom: 4px;
-            display: block;
+        }
+        /* Chaque filtre = un mini-bloc (label + champ) regroupé. */
+        .filter-group-box .filter-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .filter-group-box .filter-label {
+            margin: 0;
         }
         .filter-group-box .ms-wrapper {
-            min-height: 38px;
+            min-height: 40px;
         }
-        .filter-group-box .filter-select {
-            margin-bottom: 0;
+        .filter-group-box .filter-select,
+        .filter-group-box .ms-wrapper,
+        .filter-group-box .filter-field > .flex {
+            margin: 0;
         }
 
         .filter-select {
@@ -2321,15 +2347,7 @@
                             const lbl = document.createElement('label');
                             lbl.className = 'ms-opt' + (isSel ? ' selected' : '');
                             lbl.dataset.id = item.id;
-                            // Suffixe contextuel selon le filtre :
-                            //   commune_ids → "Cocody · Abidjan" (sous-info ville)
-                            //   format_ids  → uniquement le name (les dimensions
-                            //                 précises sont dans le filtre dédié).
-                            let suffix = '';
-                            if (key === 'commune_ids' && item.city && item.city !== item.name) {
-                                suffix = ` <small style="color:var(--text3);font-size:11px;">· ${item.city}</small>`;
-                            }
-                            lbl.innerHTML = `<input type="checkbox" ${isSel?'checked':''}> ${item.name}${suffix}`;
+                            lbl.innerHTML = `<input type="checkbox" ${isSel?'checked':''}> ${item.name}`;
                             lbl.querySelector('input').addEventListener('change', () => {
                                 const arr = S.f[key],
                                     idx = arr.indexOf(item.id);
