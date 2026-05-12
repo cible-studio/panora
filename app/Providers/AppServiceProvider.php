@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Gate;
 use App\Models\Reservation;
 use App\Policies\ReservationPolicy;
 use App\Models\Campaign;
+use App\Models\Commune;
 use App\Models\ExternalPanel;
 
 use Illuminate\Support\Facades\URL;
@@ -34,6 +35,12 @@ class AppServiceProvider extends ServiceProvider
         // T9 : déclenche l'enquête de satisfaction quand campaign passe en "termine"
         if (class_exists(\App\Observers\CampaignObserver::class)) {
             Campaign::observe(\App\Observers\CampaignObserver::class);
+        }
+
+        // Évolution 4 : historisation tarifaire automatique à chaque
+        // modification d'un tarif ODP/TM/DB sur une commune.
+        if (class_exists(\App\Observers\CommuneObserver::class)) {
+            Commune::observe(\App\Observers\CommuneObserver::class);
         }
 
 
