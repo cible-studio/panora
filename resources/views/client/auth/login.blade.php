@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr" id="html-root" data-theme="dark">
+<html lang="fr" id="html-root" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,16 +10,6 @@
     <style>
         *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
 
-        [data-theme="dark"] {
-            --bg:       #080a12;
-            --surface:  #0d0f1a;
-            --surface2: #13162a;
-            --border:   rgba(255,255,255,0.07);
-            --border2:  rgba(255,255,255,0.12);
-            --text:     #f1f5f9;
-            --text2:    #94a3b8;
-            --text3:    #4b5563;
-        }
         [data-theme="light"] {
             --bg:       #f1f3f7;
             --surface:  #ffffff;
@@ -168,15 +158,6 @@
         .page-footer a { color:var(--text3); text-decoration:none; transition:color .15s; }
         .page-footer a:hover { color:#e20613; }
 
-        /* ── Theme toggle ── */
-        .theme-toggle {
-            position:absolute; top:16px; right:16px;
-            padding:7px 10px; background:var(--surface); border:1px solid var(--border2);
-            border-radius:9px; cursor:pointer; font-size:15px;
-            transition:all .15s; color:var(--text2);
-        }
-        .theme-toggle:hover { border-color:#e20613; }
-
         /* ── Responsive ── */
         @media (max-width:900px) {
             html, body { overflow:auto; }
@@ -189,13 +170,6 @@
     </style>
 </head>
 <body>
-
-<script>
-    (function(){
-        const t = localStorage.getItem('client-theme') || 'dark';
-        document.getElementById('html-root').setAttribute('data-theme', t);
-    })();
-</script>
 
 {{-- ══ LEFT — image ══ --}}
 <div class="auth-image-panel">
@@ -218,7 +192,7 @@
 
         {{-- Logo --}}
         <div class="logo-section flex flex-col items-center gap-2">
-            <img id="logo-img" src="{{ asset('images/logol.png') }}" alt="CIBLE CI">
+            <img id="logo-img" src="{{ asset('images/panora.png') }}" alt="Panora">
             <div>
                 <span class="logo-badge">Espace Client</span>
             </div>
@@ -295,26 +269,5 @@
     </div>
 </div>
 
-<script>
-function toggleTheme() {
-    const root = document.getElementById('html-root');
-    const current = root.getAttribute('data-theme') || 'dark';
-    const next = current === 'dark' ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
-    localStorage.setItem('client-theme', next);
-    document.getElementById('theme-btn').textContent = next === 'dark' ? '🌙' : '☀️';
-    document.getElementById('logo-img').src = next === 'dark'
-        ? '{{ asset("images/logob.png") }}'
-        : '{{ asset("images/logol.png") }}';
-}
-
-(function(){
-    const t = localStorage.getItem('client-theme') || 'dark';
-    document.getElementById('theme-btn').textContent = t === 'dark' ? '🌙' : '☀️';
-    document.getElementById('logo-img').src = t === 'dark'
-        ? '{{ asset("images/logob.png") }}'
-        : '{{ asset("images/logol.png") }}';
-})();
-</script>
 </body>
 </html>
