@@ -1,8 +1,10 @@
 <x-admin-layout title="Réservations">
     <x-slot:topbarActions>
-        <a href="{{ route('admin.reservations.disponibilites') }}" class="btn btn-primary">
-            + Nouvelle réservation
-        </a>
+        @can('create', App\Models\Reservation::class)
+            <a href="{{ route('admin.reservations.disponibilites') }}" class="btn btn-primary">
+                + Nouvelle réservation
+            </a>
+        @endcan
     </x-slot:topbarActions>
 
     {{-- ══ STATS AVEC FILTRES DYNAMIQUES ══ --}}

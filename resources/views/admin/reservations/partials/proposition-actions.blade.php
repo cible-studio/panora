@@ -113,30 +113,36 @@
     </div>
     @endif
 
-    {{-- Actions --}}
+    {{-- Actions — l'envoi au client est réservé au Commercial.
+         Le MP ne voit pas ces boutons : sa fiche s'arrête à "soumettre
+         au commercial" (action ajoutée dans le commit 3). --}}
     <div class="proposition-actions">
         @if(!empty($reservation->client?->email))
-            @if($reservation->proposition_sent_at)
-                <button type="button" 
-                        class="btn-primary btn-resend"
-                        onclick="PropositionActions.confirmResend({{ $reservation->id }})">
-                    📧 Renvoyer la proposition
-                </button>
-            @else
-                <button type="button" 
-                        class="btn-primary"
-                        onclick="PropositionActions.confirmSend({{ $reservation->id }})">
-                    📧 Envoyer la proposition
-                </button>
-            @endif
+            @can('proposition.send', $reservation)
+                @if($reservation->proposition_sent_at)
+                    <button type="button"
+                            class="btn-primary btn-resend"
+                            onclick="PropositionActions.confirmResend({{ $reservation->id }})">
+                        📧 Renvoyer la proposition
+                    </button>
+                @else
+                    <button type="button"
+                            class="btn-primary"
+                            onclick="PropositionActions.confirmSend({{ $reservation->id }})">
+                        📧 Envoyer la proposition
+                    </button>
+                @endif
+            @endcan
         @endif
 
         @if($reservation->proposition_token)
-            <button type="button" 
-                    class="btn-secondary"
-                    onclick="PropositionActions.confirmReset({{ $reservation->id }})">
-                🔄 Réinitialiser le lien
-            </button>
+            @can('proposition.send', $reservation)
+                <button type="button"
+                        class="btn-secondary"
+                        onclick="PropositionActions.confirmReset({{ $reservation->id }})">
+                    🔄 Réinitialiser le lien
+                </button>
+            @endcan
         @endif
 
         @if(!empty($reservation->client?->email))
