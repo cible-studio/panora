@@ -181,10 +181,10 @@
                 <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
 
                 <div class="topbar-actions">
-                    <label class="theme-switch" title="Changer de thème">
-                        <input type="checkbox" id="theme-toggle" onchange="toggleThemeSwitch()">
-                        <span class="slider"></span>
-                    </label>
+                    <button type="button" id="theme-toggle-btn" class="theme-btn" title="Changer de thème" onclick="toggleTheme()">
+                        <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                        <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                    </button>
                     @php
                         // Source unique de vérité pour le badge cloche : on
                         // demande au service le count exact (non lues, actives).
@@ -318,11 +318,6 @@
             @if (session('warning')) showToast('warning', @json(session('warning'))); @endif
             @if (session('info'))    showToast('info',    @json(session('info')));    @endif
 
-            {{-- Synchroniser le toggle avec le thème actif --}}
-            const currentTheme = document.getElementById('html-root').getAttribute('data-theme') || 'light';
-            const toggle = document.getElementById('theme-toggle');
-            if (toggle) toggle.checked = currentTheme === 'light';
-
             {{-- Synchroniser les logos --}}
             applyLogoForTheme(currentTheme);
         });
@@ -330,12 +325,13 @@
 
     {{-- Thème + Alertes --}}
     <script>
-        function toggleThemeSwitch() {
-            const isChecked = document.getElementById('theme-toggle').checked;
-            const theme = isChecked ? 'light' : 'dark';
-            localStorage.setItem('theme', theme);
-            document.getElementById('html-root').setAttribute('data-theme', theme);
-            applyLogoForTheme(theme);
+        function toggleTheme() {
+            const html = document.getElementById('html-root');
+            const current = html.getAttribute('data-theme') || 'light';
+            const next = current === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+            applyLogoForTheme(next);
         }
 
         function applyLogoForTheme(theme) {

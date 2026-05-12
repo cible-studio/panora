@@ -1429,53 +1429,36 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
   .topbar-spacer { display: none !important; }
 }
 
-.theme-switch {
-    position: relative;
-    display: inline-block;
-    width: 50px;
-    height: 26px;
-}
-
-.theme-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.slider {
-    position: absolute;
-    cursor: pointer;
-    background-color: #1e293b;
-    border-radius: 50px;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    transition: 0.3s;
-}
-
-.slider::before {
-    content: "🌙";
-    position: absolute;
-    height: 20px;
-    width: 20px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    border-radius: 50%;
-    display: flex;
+.theme-btn {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
-    transition: 0.3s;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid #e2e8f0;
+    background: #f1f5f9;
+    color: #475569;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    flex-shrink: 0;
 }
+.theme-btn:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+.theme-btn .icon-moon { display: block; }
+.theme-btn .icon-sun  { display: none; }
 
-input:checked + .slider {
-    background-color: #fbbf24;
+[data-theme="dark"] .theme-btn {
+    border-color: #334155;
+    background: #1e293b;
+    color: #94a3b8;
 }
-
-input:checked + .slider::before {
-    transform: translateX(24px);
-    content: "☀️";
+[data-theme="dark"] .theme-btn:hover {
+    background: #334155;
+    color: #e2e8f0;
 }
+[data-theme="dark"] .theme-btn .icon-moon { display: none; }
+[data-theme="dark"] .theme-btn .icon-sun  { display: block; }
 
