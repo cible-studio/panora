@@ -115,30 +115,19 @@
             <table role="presentation" class="container" width="580" cellspacing="0" cellpadding="0" border="0"
                    style="max-width:580px;width:100%;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
 
-                {{-- ═══ HEADER : Panora à gauche · CIBLE à droite ═══ --}}
+                {{-- ═══ HEADER : Panora seul (gros logo, fond foncé) ═══ --}}
+                {{-- Le logo opérateur (CIBLE) est uniquement dans le footer
+                     — sa version sur fond noir (logon.png) rendait mal en
+                     en-tête (petit + fond noir non transparent). --}}
                 <tr>
                     <td class="header resp-pad"
-                        style="padding:24px 36px;background:#0f172a;border-bottom:1px solid #1e293b;">
-                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                            <tr>
-                                <td align="left" valign="middle" style="vertical-align:middle;">
-                                    @if($logoPanoraDark)
-                                        <img src="{{ $logoPanoraDark }}" alt="{{ $platformName }}" height="30"
-                                             style="height:30px;width:auto;border:0;display:block;outline:none;text-decoration:none;">
-                                    @else
-                                        <span style="font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-0.3px;">{{ $platformName }}</span>
-                                    @endif
-                                </td>
-                                <td align="right" valign="middle" style="vertical-align:middle;text-align:right;">
-                                    @if($logoOperatorDark)
-                                        <img src="{{ $logoOperatorDark }}" alt="{{ $operatorName }}" height="26"
-                                             style="height:26px;width:auto;border:0;display:inline-block;outline:none;text-decoration:none;">
-                                    @else
-                                        <span style="display:inline-block;font-size:13px;font-weight:700;color:#ffffff;letter-spacing:0.2px;">{{ $operatorName }}</span>
-                                    @endif
-                                </td>
-                            </tr>
-                        </table>
+                        style="padding:28px 36px;background:#0f172a;border-bottom:1px solid #1e293b;text-align:left;">
+                        @if($logoPanoraDark)
+                            <img src="{{ $logoPanoraDark }}" alt="{{ $platformName }}" height="38"
+                                 style="height:38px;width:auto;border:0;display:inline-block;outline:none;text-decoration:none;">
+                        @else
+                            <span style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.3px;">{{ $platformName }}</span>
+                        @endif
                     </td>
                 </tr>
 
@@ -157,18 +146,18 @@
                             <tr>
                                 <td align="left" valign="middle" style="vertical-align:middle;">
                                     @if($logoPanora)
-                                        <img src="{{ $logoPanora }}" alt="{{ $platformName }}" height="22"
-                                             style="height:22px;width:auto;border:0;display:block;outline:none;text-decoration:none;">
+                                        <img src="{{ $logoPanora }}" alt="{{ $platformName }}" height="28"
+                                             style="height:28px;width:auto;border:0;display:block;outline:none;text-decoration:none;">
                                     @else
-                                        <span style="font-size:14px;font-weight:700;color:#1f2937;">{{ $platformName }}</span>
+                                        <span style="font-size:16px;font-weight:800;color:#1f2937;">{{ $platformName }}</span>
                                     @endif
                                 </td>
                                 <td align="right" valign="middle" style="vertical-align:middle;text-align:right;">
                                     @if($logoOperatorLight)
-                                        <img src="{{ $logoOperatorLight }}" alt="{{ $operatorName }}" height="22"
-                                             style="height:22px;width:auto;border:0;display:inline-block;outline:none;text-decoration:none;">
+                                        <img src="{{ $logoOperatorLight }}" alt="{{ $operatorName }}" height="28"
+                                             style="height:28px;width:auto;border:0;display:inline-block;outline:none;text-decoration:none;">
                                     @else
-                                        <span style="font-size:13px;font-weight:700;color:#1f2937;">{{ $operatorName }}</span>
+                                        <span style="font-size:14px;font-weight:700;color:#1f2937;">{{ $operatorName }}</span>
                                     @endif
                                 </td>
                             </tr>
