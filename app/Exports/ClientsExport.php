@@ -121,7 +121,7 @@ class ClientsExport implements FromCollection, WithHeadings, WithMapping, WithSt
                 $sheet->getRowDimension(5)->setRowHeight(22);
 
                 // ── Logo ──────────────────────────────────────────────────
-                $logoPath = public_path('images/logol.png');
+                $logoPath = public_path('images/logob.png');
                 if (file_exists($logoPath)) {
                     $drawing = new Drawing();
                     $drawing->setName('CIBLE CI');
