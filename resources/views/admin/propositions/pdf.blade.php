@@ -108,9 +108,9 @@
     /* CONDITIONS ─────────────────────────────────── */
     .conditions {
         background: #fff8e6; border: 1px solid #f3d488;
-        border-radius: 6px; padding: 12px 14px;
-        font-size: 9.5px; color: #6b4a13; line-height: 1.6;
-        margin-top: 16px;
+        border-radius: 6px; padding: 18px 20px;
+        font-size: 11px; color: #6b4a13; line-height: 1.8;
+        margin-top: 20px;
     }
     .conditions strong { color: #a06010; }
 
@@ -228,7 +228,7 @@
                     <th style="width:30%;">Emplacement</th>
                     <th style="width:18%;">Commune / Zone</th>
                     <th style="width:18%;">Format</th>
-                    <th style="width:10%;" class="num">PU mensuel</th>
+                    <th style="width:10%;" class="num">PU mensuel (estimatif)</th>
                     <th style="width:10%;" class="num">Total</th>
                 </tr>
             </thead>
