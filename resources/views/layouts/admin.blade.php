@@ -38,8 +38,8 @@
         <aside class="sidebar" id="main-sidebar" :class="{ 'is-open': sidebarOpen }">
             <div class="sidebar-logo">
                 <div class="sidebar-logo-mark">
-                    <img id="logo-dark"  class="w-40" src="{{ asset('images/panorab.png') }}" alt="Logo Panora">
-                    <img id="logo-light" class="w-40" src="{{ asset('images/panora.png') }}" alt="Logo Panora" style="display:none;">
+                    <img id="logo-dark"  class="w-40 px-6" src="{{ asset('images/panorab.png') }}" alt="Logo Panora">
+                    <img id="logo-light" class="w-40 px-6" src="{{ asset('images/panora.png') }}" alt="Logo Panora" style="display:none;">
                 </div>
             </div>
 
