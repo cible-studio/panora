@@ -52,22 +52,28 @@ class TaxReportService
      *
      * @return Collection<int, array>
      */
-    public function monthlyMatrix(int $year): Collection
+    public function monthlyMatrix(int $year, array $filters = []): Collection
     {
         $start = Carbon::create($year, 1, 1)->startOfYear();
         $end   = Carbon::create($year, 12, 31)->endOfYear();
 
         // Toutes les campagnes qui touchent l'année (1 jour suffit). On
         // exclut les annulées : pas de pose effective, donc pas de taxe.
-        $campaigns = Campaign::query()
+        // Filtres optionnels client_id / campaign_id / commune_id pour les
+        // rapports filtrés (spec Évolution 4 — 5.7 rapports combinables).
+        $campaignsQuery = Campaign::query()
             ->whereIn('status', ['actif', 'termine', 'planifie'])
             ->where('start_date', '<=', $end)
             ->where('end_date',   '>=', $start)
             ->with([
                 'panels:id,commune_id',
                 'externalPanels:id,commune_id',
-            ])
-            ->get(['id','start_date','end_date','status']);
+            ]);
+
+        if (!empty($filters['client_id']))   $campaignsQuery->where('client_id', $filters['client_id']);
+        if (!empty($filters['campaign_id'])) $campaignsQuery->where('id', $filters['campaign_id']);
+
+        $campaigns = $campaignsQuery->get(['id','client_id','start_date','end_date','status']);
 
         // Index commune_id → tarifs (évite N requêtes)
         $rates = Commune::pluck('odp_rate', 'id')->map(fn($r) => (float) $r);

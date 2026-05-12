@@ -98,6 +98,64 @@ class TaxController extends Controller
     }
 
     /**
+     * Export PDF de la vue détaillée — document à transmettre aux
+     * administrations communales pour justifier les montants taxés.
+     * Reprend exactement les filtres de /admin/taxes/details.
+     */
+    public function detailsPdf(Request $request, TaxCalculationService $calc)
+    {
+        $year         = (int) ($request->input('year', date('Y')));
+        $periodType   = $request->input('period_type', TaxCalculationService::PERIOD_MONTHLY);
+        $periodValue  = (int) ($request->input('period_value', date('n')));
+
+        $filters = array_filter([
+            'commune_id'  => $request->input('commune_id') ?: null,
+            'client_id'   => $request->input('client_id')  ?: null,
+            'campaign_id' => $request->input('campaign_id') ?: null,
+            'type'        => $request->input('type')        ?: null,
+        ]);
+
+        $lines  = $calc->generateLines($periodType, $periodValue, $year, $filters);
+        $totals = $calc->summarize($lines);
+        $lines  = $lines->sortBy([['commune', 'asc'], ['reference', 'asc'], ['type', 'asc']])->values();
+
+        // Libellé période lisible (titre PDF + nom du fichier)
+        $periodLabel = match ($periodType) {
+            TaxCalculationService::PERIOD_MONTHLY   =>
+                \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F') . ' ' . $year,
+            TaxCalculationService::PERIOD_QUARTERLY => "T{$periodValue} {$year}",
+            TaxCalculationService::PERIOD_ANNUAL    => "Année {$year}",
+            default => $year,
+        };
+
+        // Récap filtres pour l'en-tête PDF
+        $filterParts = [];
+        if (!empty($filters['commune_id'])) {
+            $c = Commune::find($filters['commune_id']);
+            if ($c) $filterParts[] = "commune={$c->name}";
+        }
+        if (!empty($filters['client_id'])) {
+            $cl = Client::find($filters['client_id']);
+            if ($cl) $filterParts[] = "client={$cl->name}";
+        }
+        if (!empty($filters['campaign_id'])) {
+            $cm = Campaign::find($filters['campaign_id']);
+            if ($cm) $filterParts[] = "campagne={$cm->name}";
+        }
+        if (!empty($filters['type'])) {
+            $filterParts[] = "type=" . strtoupper($filters['type']);
+        }
+        $filterSummary = implode(' · ', $filterParts);
+
+        $pdf = Pdf::loadView('pdf.taxes-details', compact(
+            'lines', 'totals', 'periodLabel', 'filterSummary'
+        ))->setPaper('a4', 'landscape');
+
+        $filename = 'taxes-details-' . str_replace(' ', '-', strtolower($periodLabel)) . '.pdf';
+        return $pdf->download($filename);
+    }
+
+    /**
      * Historique des écritures Tax legacy (avant refonte 2025) — accessible
      * via /admin/taxes/historique pour les comptes ayant déjà saisi des
      * paiements ligne à ligne.
