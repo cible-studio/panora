@@ -44,8 +44,10 @@
     </div>
 
     <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.6;">
-        <strong>Formules :</strong> ODP = tarif commune × surface m² × nb panneaux × nb mois ·
-        TM = 1 000 × surface m² × nb panneaux × nb mois (fixe national).
+        <strong>Formules :</strong>
+        ODP = tarif commune × m² × nb panneaux × nb mois ·
+        TM = tarif commune × m² × nb panneaux × nb mois ·
+        DB = tarif commune × m² × nb panneaux × nb mois.
         Calcul en temps réel sur le parc actuel (panneaux internes hors maintenance).
     </div>
 </div>
@@ -56,6 +58,7 @@
         $kpiCfg = [
             ['key'=>'odp_total',   'label'=>'ODP théorique', 'color'=>'#3b82f6', 'icon'=>'🏛️'],
             ['key'=>'tm_total',    'label'=>'TM théorique',  'color'=>'#a855f7', 'icon'=>'🏢'],
+            ['key'=>'db_total',    'label'=>'DB théorique',  'color'=>'#0891b2', 'icon'=>'📐'],
             ['key'=>'grand_total', 'label'=>'Grand total',   'color'=>'#e8a020', 'icon'=>'💰'],
             ['key'=>'paye_total',  'label'=>'Déjà payé',     'color'=>'#22c55e', 'icon'=>'✅'],
             ['key'=>'solde_total', 'label'=>'Solde restant', 'color'=>'#ef4444', 'icon'=>'⏳'],
@@ -92,15 +95,16 @@
                     <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Panneaux</th>
                     <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Surface (m²)</th>
                     <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Tarif ODP</th>
-                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">ODP</th>
-                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">TM</th>
+                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">ODP</th>
+                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:#a855f7;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">TM</th>
+                    <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:#0891b2;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">DB</th>
                     <th style="text-align:right;padding:10px 14px;font-size:9px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Total</th>
                     <th style="text-align:center;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Statut</th>
                     <th style="text-align:center;padding:10px 14px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);background:var(--surface2);">Action</th>
                 </tr>
             </thead>
             <tbody id="tax-table-body">
-                <tr><td colspan="9" style="text-align:center;padding:60px;color:var(--text3);">Chargement du calcul…</td></tr>
+                <tr><td colspan="10" style="text-align:center;padding:60px;color:var(--text3);">Chargement du calcul…</td></tr>
             </tbody>
             <tfoot id="tax-table-foot">
                 {{-- Rempli via JS --}}
@@ -132,13 +136,17 @@
                         <strong id="pm-tm-theorique" style="color:#a855f7;">—</strong>
                     </div>
                     <div>
+                        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;display:block;">DB théorique</span>
+                        <strong id="pm-db-theorique" style="color:#0891b2;">—</strong>
+                    </div>
+                    <div>
                         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;display:block;">Total</span>
                         <strong id="pm-total-theorique" style="color:var(--accent);">—</strong>
                     </div>
                 </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
                 <div>
                     <label class="filter-label">ODP payé (FCFA)</label>
                     <input type="number" id="pm-odp-paye" min="0" step="1" class="filter-input" style="width:100%;">
@@ -146,6 +154,10 @@
                 <div>
                     <label class="filter-label">TM payé (FCFA)</label>
                     <input type="number" id="pm-tm-paye" min="0" step="1" class="filter-input" style="width:100%;">
+                </div>
+                <div>
+                    <label class="filter-label">DB payé (FCFA)</label>
+                    <input type="number" id="pm-db-paye" min="0" step="1" class="filter-input" style="width:100%;">
                 </div>
                 <div>
                     <label class="filter-label">Date paiement</label>
@@ -292,7 +304,7 @@ window.TaxModule = (function () {
         } catch (e) {
             console.error(e);
             document.getElementById('tax-table-body').innerHTML =
-                '<tr><td colspan="9" style="text-align:center;padding:40px;color:#ef4444;">Erreur de chargement.</td></tr>';
+                '<tr><td colspan="10" style="text-align:center;padding:40px;color:#ef4444;">Erreur de chargement.</td></tr>';
         } finally {
             document.getElementById('tax-loading').style.display = 'none';
         }
@@ -318,7 +330,7 @@ window.TaxModule = (function () {
     function renderTable(communes) {
         const tbody = document.getElementById('tax-table-body');
         if (!communes || !communes.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text3);">Aucune commune avec des panneaux installés.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text3);">Aucune commune avec des panneaux installés.</td></tr>';
             document.getElementById('tax-table-foot').innerHTML = '';
             return;
         }
@@ -344,6 +356,7 @@ window.TaxModule = (function () {
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text3);">${fmt(c.odp_taux)}/m²</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:#3b82f6;font-weight:600;">${fmt(c.odp_theorique)}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:#a855f7;font-weight:600;">${fmt(c.tm_theorique)}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:#0891b2;font-weight:600;">${fmt(c.db_theorique || 0)}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:var(--accent);">${fmt(c.total_theorique)}</td>
                     <td style="text-align:center;">
                         ${statusPill(c.statut)}
@@ -373,6 +386,7 @@ window.TaxModule = (function () {
                 <td colspan="4" style="text-align:right;">TOTAUX</td>
                 <td style="text-align:right;font-variant-numeric:tabular-nums;">${fmt(k.odp_total)}</td>
                 <td style="text-align:right;font-variant-numeric:tabular-nums;">${fmt(k.tm_total)}</td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums;">${fmt(k.db_total || 0)}</td>
                 <td style="text-align:right;font-variant-numeric:tabular-nums;background:rgba(232,160,32,.15);">${fmt(k.grand_total)}</td>
                 <td colspan="2" style="text-align:right;color:#22c55e;">Payé : ${fmt(k.paye_total)} · Solde : ${fmt(k.solde_total)}</td>
             </tr>
@@ -425,11 +439,13 @@ window.TaxModule = (function () {
             document.getElementById('pm-commune').textContent = row.commune;
             document.getElementById('pm-period-label').textContent = buildPeriodLabel();
             document.getElementById('pm-odp-theorique').textContent = fmt(row.odp_theorique) + ' FCFA';
-            document.getElementById('pm-tm-theorique').textContent = fmt(row.tm_theorique) + ' FCFA';
+            document.getElementById('pm-tm-theorique').textContent  = fmt(row.tm_theorique)  + ' FCFA';
+            document.getElementById('pm-db-theorique').textContent  = fmt(row.db_theorique || 0) + ' FCFA';
             document.getElementById('pm-total-theorique').textContent = fmt(row.total_theorique) + ' FCFA';
 
             document.getElementById('pm-odp-paye').value = row.odp_paye || row.odp_theorique;
             document.getElementById('pm-tm-paye').value  = row.tm_paye  || row.tm_theorique;
+            document.getElementById('pm-db-paye').value  = row.db_paye  || row.db_theorique || 0;
             document.getElementById('pm-attestation').checked = !!row.attestation;
             document.getElementById('pm-notes').value = '';
             // paid_at : si déjà payé, restaurer la date saisie ; sinon today
@@ -460,8 +476,10 @@ window.TaxModule = (function () {
                 period_value:     String(currentPeriodValue),
                 odp_paye:         document.getElementById('pm-odp-paye').value || '0',
                 tm_paye:          document.getElementById('pm-tm-paye').value  || '0',
+                db_paye:          document.getElementById('pm-db-paye').value  || '0',
                 odp_theorique:    String(pmContext.odp_theorique),
                 tm_theorique:     String(pmContext.tm_theorique),
+                db_theorique:     String(pmContext.db_theorique || 0),
                 paid_at:          document.getElementById('pm-paid-at').value || '',
                 attestation_recue: document.getElementById('pm-attestation').checked ? '1' : '0',
                 notes:            document.getElementById('pm-notes').value || '',
