@@ -5,7 +5,7 @@
     {{-- Barre de recherche --}}
     <div style="position:relative;">
         <input type="text" id="search-input"
-               placeholder="🔍 Rechercher campagne, client..."
+               placeholder="Rechercher campagne, client..."
                oninput="filterTable(this.value)"
                style="
                   width:260px; height:36px; padding:0 12px 0 12px;
@@ -136,7 +136,8 @@
                 {{-- Message aucun résultat --}}
                 <div id="no-results"
                      style="display:none; text-align:center; color:var(--text3); padding:24px; font-size:13px;">
-                    🔍 Aucun résultat pour cette recherche
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    Aucun résultat pour cette recherche
                 </div>
             </div>
         </div>
@@ -144,7 +145,10 @@
         {{-- TAUX D'OCCUPATION --}}
         <div class="card">
             <div class="card-header">
-                <div class="card-title">📊 Taux d'occupation par commune</div>
+                <div class="card-title" style="display:flex;align-items:center;gap:7px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="18" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="2" y="13" width="4" height="8"/></svg>
+                    Taux d'occupation par commune
+                </div>
                 <span class="badge badge-green">Mois en cours</span>
             </div>
             <div class="card-body">
@@ -196,7 +200,10 @@
         {{-- CONFIRMATIONS --}}
         <div class="card">
             <div class="card-header">
-                <div class="card-title">⏳ Confirmations</div>
+                <div class="card-title" style="display:flex;align-items:center;gap:7px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Confirmations
+                </div>
                 <div style="display:flex;align-items:center;gap:8px;">
                     {{-- Le badge et "Voir tout" pointent vers le listing
                          filtré sur en_attente — sinon le clic montre toutes
@@ -240,7 +247,10 @@
         {{-- ALERTES --}}
         <div class="card">
             <div class="card-header">
-                <div class="card-title">🔔 Alertes</div>
+                <div class="card-title" style="display:flex;align-items:center;gap:7px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    Alertes
+                </div>
                 <a href="{{ route('admin.alerts.index') }}" class="btn btn-ghost btn-sm">Voir tout</a>
             </div>
             <div class="card-body">
@@ -275,7 +285,10 @@
         {{-- MAINTENANCES --}}
         <div class="card">
             <div class="card-header">
-                <div class="card-title">🔧 Maintenance</div>
+                <div class="card-title" style="display:flex;align-items:center;gap:7px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    Maintenance
+                </div>
                 <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm">Voir tout</a>
             </div>
             <div class="card-body">
