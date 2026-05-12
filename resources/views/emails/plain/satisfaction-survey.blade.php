@@ -1,4 +1,5 @@
-CIBLE CI — Régie Publicitaire (Abidjan, Côte d'Ivoire)
+@php $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')); @endphp
+PANORA · {{ $operator }} — Régie Publicitaire (Abidjan, Côte d'Ivoire)
 
 Bonjour {{ $client?->name ?? 'Client' }},
 
@@ -19,4 +20,4 @@ Merci d'avance pour votre retour.
 
 —
 Lien personnel sécurisé — ne le partagez pas.
-© {{ date('Y') }} CIBLE CI. Tous droits réservés.
+© {{ date('Y') }} PANORA · {{ $operator }}. Tous droits réservés.

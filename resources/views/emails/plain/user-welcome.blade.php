@@ -1,12 +1,13 @@
 @php
+    $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $roleLabel = \App\Enums\UserRole::labelFor($user->role);
     $intro = match ($context) {
         'activated'   => 'Votre compte vient d\'être activé.',
         'reactivated' => 'Votre compte a été réactivé.',
-        default       => 'Un compte vient d\'être créé pour vous sur la plateforme CIBLE CI.',
+        default       => 'Un compte vient d\'être créé pour vous sur la plateforme PANORA.',
     };
 @endphp
-CIBLE CI — Régie Publicitaire (Abidjan, Côte d'Ivoire)
+PANORA · {{ $operator }}
 
 Bonjour {{ $user->name }},
 
@@ -18,8 +19,8 @@ Vos identifiants :
 @if($temporaryPassword)
 - Mot de passe temporaire : {{ $temporaryPassword }}
 
-Pour votre sécurité, ce mot de passe est temporaire. Vous serez invité à le
-changer lors de votre première connexion.
+Pour votre sécurité, ce mot de passe est temporaire. Pensez à le modifier
+dès votre première connexion depuis votre profil (menu utilisateur).
 @endif
 
 Connectez-vous : {{ $loginUrl }}
@@ -29,4 +30,4 @@ Pour toute question, contactez votre administrateur.
 
 —
 Email automatique — merci de ne pas répondre.
-© {{ date('Y') }} CIBLE CI. Tous droits réservés.
+© {{ date('Y') }} Panora · {{ $operator }}. Tous droits réservés.

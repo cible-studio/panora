@@ -19,7 +19,8 @@
     $hasAmount = $reservation->total_amount !== null;
     $isOffert  = $hasAmount && $totalAmount === 0.0;
 @endphp
-CIBLE CI — Régie Publicitaire (Abidjan, Côte d'Ivoire)
+@php $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')); @endphp
+PANORA · {{ $operator }} — Régie Publicitaire (Abidjan, Côte d'Ivoire)
 
 Bonjour {{ $clientName }},
 
@@ -32,7 +33,7 @@ Détails :
 - Durée        : {{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }} ({{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }})
 - Emplacements : {{ $panelCount }} panneau{{ $panelCount > 1 ? 'x' : '' }}
 @if($hasAmount)
-- Montant total : @if($isOffert)0 FCFA — Offert (campagne offerte par CIBLE CI)@else{{ number_format($totalAmount, 0, ',', ' ') }} FCFA (pour la totalité de la campagne)@endif
+- Montant total : @if($isOffert)0 FCFA — Offert (campagne offerte par {{ $operator }})@else{{ number_format($totalAmount, 0, ',', ' ') }} FCFA (pour la totalité de la campagne)@endif
 
 @endif
 
@@ -56,4 +57,4 @@ Vous pouvez également répondre à cet email pour toute question.
 Notre équipe commerciale est à votre disposition.
 
 —
-© {{ date('Y') }} CIBLE CI. Tous droits réservés.
+© {{ date('Y') }} PANORA · {{ $operator }}. Tous droits réservés.

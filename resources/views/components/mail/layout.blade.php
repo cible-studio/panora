@@ -27,6 +27,10 @@
     };
     $logoPanora     = $resolveLogo('images/panora.png');
     $logoPanoraDark = $resolveLogo('images/panora-blanc.png'); // pour bandeau foncé
+    // Logo opérateur (CIBLE CI / régie utilisatrice).
+    // logon.png = version pour fond foncé · logol.png = pour fond clair.
+    $logoOperatorDark  = $resolveLogo('images/logon.png');
+    $logoOperatorLight = $resolveLogo('images/logol.png');
 @endphp
 <!DOCTYPE html>
 <html lang="fr" xmlns="http://www.w3.org/1999/xhtml">
@@ -126,9 +130,12 @@
                                     @endif
                                 </td>
                                 <td align="right" valign="middle" style="vertical-align:middle;text-align:right;">
-                                    <span style="display:inline-block;font-size:11px;font-weight:600;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.8px;">
-                                        opéré par <strong style="color:#ffffff;">{{ $operatorName }}</strong>
-                                    </span>
+                                    @if($logoOperatorDark)
+                                        <img src="{{ $logoOperatorDark }}" alt="{{ $operatorName }}" height="26"
+                                             style="height:26px;width:auto;border:0;display:inline-block;outline:none;text-decoration:none;">
+                                    @else
+                                        <span style="display:inline-block;font-size:13px;font-weight:700;color:#ffffff;letter-spacing:0.2px;">{{ $operatorName }}</span>
+                                    @endif
                                 </td>
                             </tr>
                         </table>
@@ -157,10 +164,12 @@
                                     @endif
                                 </td>
                                 <td align="right" valign="middle" style="vertical-align:middle;text-align:right;">
-                                    <span style="font-size:11px;color:#6b7280;font-weight:500;">
-                                        Plateforme <strong style="color:#1f2937;">{{ $platformName }}</strong>
-                                        utilisée par <strong style="color:#1f2937;">{{ $operatorName }}</strong>
-                                    </span>
+                                    @if($logoOperatorLight)
+                                        <img src="{{ $logoOperatorLight }}" alt="{{ $operatorName }}" height="22"
+                                             style="height:22px;width:auto;border:0;display:inline-block;outline:none;text-decoration:none;">
+                                    @else
+                                        <span style="font-size:13px;font-weight:700;color:#1f2937;">{{ $operatorName }}</span>
+                                    @endif
                                 </td>
                             </tr>
                         </table>

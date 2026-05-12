@@ -4,8 +4,9 @@
     $totalAmount = (float) ($reservation->total_amount ?? 0);
     $panelCount  = $reservation->panels->count() + $reservation->externalPanels->count();
     $expiresAtLabel = $expiresAt?->format('d/m/Y à H:i') ?? '—';
+    $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
 @endphp
-CIBLE CI — Rappel proposition
+PANORA · {{ $operator }} — Rappel proposition
 
 Bonjour {{ $clientName }},
 
@@ -34,4 +35,4 @@ Votre interlocuteur : {{ $commercial->name }}{{ $commercial->email ? ' — '.$co
 
 —
 Rappel automatique. Vous ne recevrez plus de relance après le {{ $expiresAtLabel }}.
-© {{ date('Y') }} CIBLE CI. Tous droits réservés.
+© {{ date('Y') }} PANORA · {{ $operator }}. Tous droits réservés.
