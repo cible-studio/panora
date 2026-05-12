@@ -125,20 +125,25 @@
                 @endif
             </td>
             <td style="padding:10px 12px">
-                <div style="display:flex;gap:4px;align-items:center">
+                <div style="display:flex;gap:6px;align-items:center">
                     @if(!in_array($task->status, ['realisee','annulee']))
                     <button class="action-btn action-btn-success" title="Marquer réalisée">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
                     <form method="POST" action="{{ route('admin.pose.complete', $task) }}" style="display:none">@csrf</form>
                     @endif
                     <a href="{{ route('admin.pose-tasks.show', $task) }}" class="action-btn" title="Voir">
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </a>
                     @if(!in_array($task->status, ['realisee','annulee']))
-                    <a href="{{ route('admin.pose-tasks.edit', $task) }}" class="action-btn" title="Modifier"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></a>
+                    <a href="{{ route('admin.pose-tasks.edit', $task) }}" class="action-btn" title="Modifier">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+                    </a>
                     @endif
                     @if($task->campaign_id && $task->status === 'realisee')
-                    <a href="{{ route('admin.piges.index', ['campaign_id'=>$task->campaign_id]) }}" class="action-btn action-btn-accent" title="Piges campagne"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></a>
+                    <a href="{{ route('admin.piges.index', ['campaign_id'=>$task->campaign_id]) }}" class="action-btn action-btn-accent" title="Piges campagne">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    </a>
                     @endif
                 </div>
             </td>

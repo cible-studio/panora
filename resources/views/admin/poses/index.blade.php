@@ -616,6 +616,19 @@ cursor: pointer;
 @keyframes spin { to { transform: rotate(360deg); } }
 .btn-reset { display:flex;align-items:center;justify-content:center;height:38px;padding:0 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text3);text-decoration:none;font-size:12px;transition:all .15s;cursor:pointer;font-weight:500; }
 .btn-reset:hover { border-color:var(--accent);color:var(--accent); }
+
+.action-btn {
+    display:inline-flex;align-items:center;justify-content:center;
+    width:34px;height:34px;border-radius:9px;
+    border:1px solid var(--border);background:var(--surface2);
+    color:var(--text2);text-decoration:none;cursor:pointer;
+    transition:all .15s;flex-shrink:0;
+}
+.action-btn:hover { background:var(--surface3);border-color:var(--border2);color:var(--text); }
+.action-btn-success { border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.08);color:#22c55e; }
+.action-btn-success:hover { background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.5); }
+.action-btn-accent { border-color:rgba(232,160,32,.3);background:rgba(232,160,32,.08);color:var(--accent); }
+.action-btn-accent:hover { background:rgba(232,160,32,.18);border-color:rgba(232,160,32,.5); }
 </style>
 
 @push('scripts')
