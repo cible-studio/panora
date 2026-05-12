@@ -362,6 +362,7 @@ Route::prefix('admin')
         Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
         Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');
         Route::get ('taxes/details',       [TaxController::class, 'details'])      ->name('taxes.details');
+        Route::get ('taxes/details/pdf',   [TaxController::class, 'detailsPdf'])   ->name('taxes.details.pdf');
         Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
         Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
         Route::resource('taxes', TaxController::class);
@@ -555,6 +556,7 @@ Route::prefix('admin')
         Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
         Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');
         Route::get ('taxes/details',       [TaxController::class, 'details'])      ->name('taxes.details');
+        Route::get ('taxes/details/pdf',   [TaxController::class, 'detailsPdf'])   ->name('taxes.details.pdf');
         Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
         Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
         Route::resource('taxes', TaxController::class);
