@@ -1,4 +1,5 @@
-CIBLE CI — Notification commerciale
+@php $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')); @endphp
+PANORA · {{ $operator }} — Notification commerciale
 
 {{ $isAccepted ? 'Proposition acceptée' : 'Proposition refusée' }}
 
@@ -49,4 +50,4 @@ Voir la campagne « {{ $campaignName }} » : {{ $campaignLink }}
 
 —
 Notification automatique — décision prise par le client.
-© {{ date('Y') }} CIBLE CI. Tous droits réservés.
+© {{ date('Y') }} PANORA · {{ $operator }}. Tous droits réservés.
