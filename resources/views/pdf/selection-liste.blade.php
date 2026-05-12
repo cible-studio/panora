@@ -69,8 +69,7 @@
 
 <div class="header">
     <div>
-        <div class="logo">CIBLE CI</div>
-        <div class="logo-sub">GIE OOH — Régie Publicitaire</div>
+        @include('pdf.partials.branding-header')
     </div>
     <div class="header-right">
         <strong>Liste de sélection — {{ count($panels) }} panneau(x)</strong>

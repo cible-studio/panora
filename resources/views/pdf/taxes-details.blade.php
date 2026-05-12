@@ -71,10 +71,17 @@
 <div class="header">
     <div style="display:flex; justify-content:space-between; align-items:center;">
         <div>
-            <div class="logo">CIBLE CI</div>
-            <div class="logo-sub">Détail des taxes communales</div>
+            @if(!empty($logoPanoraLight))
+                <img src="{{ $logoPanoraLight }}" alt="Panora" style="height:32px;margin-bottom:4px;">
+            @else
+                <div class="logo">Panora</div>
+            @endif
+            <div class="logo-sub">Détail des taxes communales · opéré par {{ $operatorName ?? 'CIBLE CI' }}</div>
         </div>
         <div style="text-align:right; font-size:9px;">
+            @if(!empty($logoPanoraLight))
+                <img src="{{ $logoPanoraLight }}" alt="Panora" style="height:18px;opacity:.65;margin-bottom:6px;display:inline-block;">
+            @endif
             <div>{{ $periodLabel }}</div>
             <div style="color:#8a90a2;">Édité le {{ now()->format('d/m/Y H:i') }}</div>
         </div>
@@ -147,7 +154,8 @@
 </div>
 
 <div class="footer">
-    CIBLE CI — Document généré automatiquement, taxes communales {{ $periodLabel }}
+    Plateforme <strong>Panora</strong> · opérée par <strong>{{ $operatorName ?? 'CIBLE CI' }}</strong>
+    — Document généré automatiquement, taxes communales {{ $periodLabel }}
 </div>
 
 </body>

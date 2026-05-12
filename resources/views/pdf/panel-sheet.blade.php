@@ -82,8 +82,8 @@
     {{-- HEADER --}}
     <div class="header">
         <div>
-            <div class="logo">CIBLE CI</div>
-            <div class="logo-sub">RÉGIE OOH — FICHE PANNEAU</div>
+            @include('pdf.partials.branding-header')
+            <div class="logo-sub" style="margin-top:6px;">FICHE PANNEAU</div>
         </div>
         <div class="ref">{{ $panel->reference }}</div>
     </div>

@@ -398,8 +398,7 @@ if (!empty($startDate) && !empty($endDate)) {
         <table style="width:100%" cellpadding="0" cellspacing="0">
             <tr>
                 <td class="header-left">
-                    <div class="logo">CIBLE CI</div>
-                    <div class="logo-sub">Régie Publicitaire · Abidjan</div>
+                    @include('pdf.partials.branding-header')
                 </td>
                 <td class="header-right">
                     <div class="doc-title">Fiche Disponibilité</div>

@@ -73,15 +73,25 @@
 <body>
 
     {{-- HEADER --}}
+    @php
+        $operatorName = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
+    @endphp
     <div class="header">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
-                <div class="logo">CIBLE CI</div>
-                <div class="logo-sub">RÉGIE OOH — CÔTE D'IVOIRE</div>
+                @if(isset($logoPanoraLight) && $logoPanoraLight)
+                    <img src="{{ $logoPanoraLight }}" alt="Panora" style="height:36px;margin-bottom:6px;">
+                @else
+                    <div class="logo">Panora</div>
+                @endif
+                <div class="logo-sub">opéré par {{ $operatorName }} — Régie OOH · Côte d'Ivoire</div>
                 <div class="doc-title">PROPOSITION COMMERCIALE</div>
                 <div class="doc-num">{{ $proposition->numero }}</div>
             </div>
             <div style="text-align:right;">
+                @if(isset($logoPanoraLight) && $logoPanoraLight)
+                    <img src="{{ $logoPanoraLight }}" alt="Panora" style="height:24px;opacity:.6;margin-bottom:10px;">
+                @endif
                 <div style="font-size:9px; color:#8a90a2;">Date d'émission</div>
                 <div style="color:white; font-weight:600;">{{ $proposition->created_at->format('d/m/Y') }}</div>
                 <div style="margin-top:8px; font-size:9px; color:#8a90a2;">Statut</div>
@@ -201,7 +211,7 @@
 
     {{-- FOOTER --}}
     <div class="footer">
-        <div>CIBLE CI — Régie OOH — www.cible-ci.com</div>
+        <div>Plateforme <strong>Panora</strong> · opérée par <strong>{{ $operatorName }}</strong> — Régie OOH · Abidjan, Côte d'Ivoire</div>
         <div>{{ $proposition->numero }} — Généré le {{ now()->format('d/m/Y') }}</div>
         <div>Document confidentiel</div>
     </div>
