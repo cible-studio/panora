@@ -53,8 +53,7 @@ Votre interlocuteur commercial :
 @endif
 @endif
 
-Vous pouvez également répondre à cet email pour toute question.
-Notre équipe commerciale est à votre disposition.
+Pour toute question, contactez votre interlocuteur commercial dont les coordonnées figurent ci-dessus.
 
 —
 © {{ date('Y') }} PANORA · {{ $operator }}. Tous droits réservés.

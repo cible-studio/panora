@@ -5,6 +5,7 @@ use App\Models\Reservation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -22,8 +23,15 @@ class PropositionRappelMail extends Mailable implements ShouldQueue
     {
         $ref = $this->reservation->reference;
 
+        $replyTo = [];
+        $contact = $this->reservation->resolveCommercialContact();
+        if ($contact?->email) {
+            $replyTo[] = new Address($contact->email, $contact->name ?? '');
+        }
+
         return new Envelope(
             subject:  "Rappel — Votre proposition {$ref} expire bientôt",
+            replyTo:  $replyTo,
             tags:     ['proposition', 'rappel'],
             metadata: [
                 'reservation_id' => (string) $this->reservation->id,

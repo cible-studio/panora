@@ -81,17 +81,9 @@
 
     @if($commercial)
         <p style="font-size:13px;color:#4b5563;margin-top:24px;line-height:1.6">
-            Vous pouvez aussi répondre directement à cet email ou contacter votre
-            interlocuteur <strong>{{ $commercial->name }}</strong>
-            @if($commercial->email)
-                à <a href="mailto:{{ $commercial->email }}">{{ $commercial->email }}</a>
-            @endif
-            pour toute question.
-        </p>
-    @else
-        <p style="font-size:13px;color:#4b5563;margin-top:24px;line-height:1.6">
-            Vous pouvez répondre directement à cet email pour toute question.
-            Notre équipe commerciale est à votre disposition.
+            Pour toute question, contactez votre interlocuteur
+            <strong>{{ $commercial->name }}</strong>@if($commercial->email)
+                à <a href="mailto:{{ $commercial->email }}">{{ $commercial->email }}</a>@endif.
         </p>
     @endif
 

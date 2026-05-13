@@ -9,6 +9,7 @@ use App\Models\Reservation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -30,11 +31,19 @@ class PropositionMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        // Subject orienté action client + ID lisible — sobre (pas d'emoji,
-        // pas de majuscules agressives) pour minimiser le score spam.
-        // Lot 12.2 : reformulation "Votre réservation de panneaux".
+        // Reply-To dynamique : email du commercial qui suit le dossier.
+        // Si la résa a un commercial assigné explicitement → lui, sinon
+        // créateur de la réservation. Permet au client de répondre à un
+        // humain plutôt qu'au noreply@.
+        $replyTo = [];
+        $contact = $this->reservation->resolveCommercialContact();
+        if ($contact?->email) {
+            $replyTo[] = new Address($contact->email, $contact->name ?? '');
+        }
+
         return new Envelope(
             subject:  "Votre réservation de panneaux — Réf. {$this->reservation->reference} — À confirmer",
+            replyTo:  $replyTo,
             tags:     ['proposition', 'commercial'],
             metadata: [
                 'reservation_id' => (string) $this->reservation->id,
