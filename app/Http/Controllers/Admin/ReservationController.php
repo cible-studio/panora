@@ -971,12 +971,9 @@ class ReservationController extends Controller
                 'required',
                 'date',
                 'date_format:Y-m-d',
-                function ($attribute, $value, $fail) {
-                    if ($value < now()->subDay()->format('Y-m-d'))
-                        $fail('La date de début ne peut pas être dans le passé.');
-                }
+                'after_or_equal:today', // pas de réservation dans le passé
             ],
-            'end_date' => ['required', 'date', 'date_format:Y-m-d', 'after:start_date'],
+            'end_date' => ['required', 'date', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'notes' => 'nullable|string|max:2000',
             'type' => 'required|in:option,ferme',
             'campaign_name' => 'nullable|string|max:150',

@@ -32,7 +32,24 @@
       "Bash(php -l app/Services/MaintenanceNotifier.php)",
       "Bash(php -l app/Models/Maintenance.php)",
       "Bash(php -l app/Mail/MaintenanceMail.php)",
-      "Bash(php -l app/Services/AlertService.php)"
+      "Bash(php -l app/Services/AlertService.php)",
+      "Bash(php -l resources/views/admin/reservations/disponibilites.blade.php)",
+      "Bash(findstr /R \"agency.*rate\\\\|rate.*agency\" database\\\\migrations\\\\*.php)",
+      "Bash(Get-ChildItem \"c:\\\\wamp64\\\\www\\\\panora\\\\database\\\\migrations\" -Filter \"*.php\")",
+      "Bash(Select-String -Pattern \"agency|pivot\")",
+      "Bash(Select-Object Path, Line -First 20)",
+      "Bash(php -l app/Console/Commands/ApplyPanelGrille.php)",
+      "Bash(git ls-tree *)",
+      "Bash(xargs grep \"MAIL_FROM\")",
+      "Bash(php -l app/Mail/PropositionReminderMail.php)",
+      "Bash(php -l app/Mail/PropositionRappelMail.php)",
+      "Bash(php -l app/Mail/CampaignEndedMail.php)",
+      "Bash(php -l app/Mail/CampaignStartedMail.php)",
+      "Bash(php -l app/Mail/ReservationAssignedMail.php)",
+      "Bash(php -l resources/views/admin/reservations/index.blade.php)",
+      "Bash(php -l resources/views/emails/reservation-assigned.blade.php)",
+      "Bash(php -l bootstrap/app.php)",
+      "Bash(php -l app/Http/Middleware/SyncReactiveState.php)"
     ]
   }
 }
