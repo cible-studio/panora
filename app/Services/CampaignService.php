@@ -173,11 +173,14 @@ class CampaignService
     }
 
     /**
-     * Envoie le mail "campagne démarre" à tous les destinataires utiles
-     * du client : l'email principal + tous les interlocuteurs renseignés.
-     * Best-effort : un envoi qui rate ne casse pas l'activation.
+     * Envoie le mail "campagne démarre" / "campagne planifiée" à tous
+     * les destinataires utiles du client (email principal + interlocuteurs).
+     * Best-effort : un envoi qui rate ne casse pas le flow appelant.
+     *
+     * Public : invoqué aussi à la création directe d'une campagne
+     * (CampaignController::store).
      */
-    private function sendStartedMailToClient(Campaign $campaign): bool
+    public function sendStartedMailToClient(Campaign $campaign): bool
     {
         $campaign->loadMissing(['client.contacts']);
         $client = $campaign->client;
