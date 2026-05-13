@@ -312,8 +312,8 @@
      NAVIGATION RÉUTILISABLE — partagée entre sidebar desktop et mobile
 ═══════════════════════════════════════════════════════════════════ --}}
 @php
-    $logoB = asset('images/logob.png');
-    $logoL = asset('images/logol.png');
+    $logoB = asset('images/panorab.png');
+    $logoL = asset('images/panora.png');
     $navItems = [
         ['type' => 'category', 'label' => 'Principal'],
         [
@@ -385,7 +385,7 @@
     <div class="sidebar-desktop">
         <div class="sidebar">
             <div class="sidebar-header">
-                <img class="logo-img h-10 w-auto" src="{{ $logoB }}" data-logo-light="{{ $logoL }}" data-logo-dark="{{ $logoB }}" alt="CIBLE CI">
+                <img class="logo-img h-10 w-auto" src="{{ $logoB }}" data-logo-light="{{ $logoL }}" data-logo-dark="{{ $logoB }}" alt="Panora">
                 <div style="font-size:9px;letter-spacing:.12em;color:var(--text3);font-weight:700;margin-top:14px;">ESPACE CLIENT</div>
             </div>
             <nav class="sidebar-nav">
@@ -437,7 +437,7 @@
 
     <aside class="sidebar-mobile" :class="{ 'is-open': open }" @click="open = false">
         <div class="sidebar-header">
-            <img class="logo-img h-10 w-auto" src="{{ $logoB }}" data-logo-light="{{ $logoL }}" data-logo-dark="{{ $logoB }}" alt="CIBLE CI">
+            <img class="logo-img h-10 w-auto" src="{{ $logoB }}" data-logo-light="{{ $logoL }}" data-logo-dark="{{ $logoB }}" alt="Panora">
             <div style="font-size:9px;letter-spacing:.12em;color:var(--text3);font-weight:700;margin-top:14px;">ESPACE CLIENT</div>
         </div>
         <nav class="sidebar-nav">
