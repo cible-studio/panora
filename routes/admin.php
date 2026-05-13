@@ -593,6 +593,16 @@ Route::prefix('admin')
             Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])->name('reservations.annuler');
         });
 
+        // ── API interne — Liste des commerciaux pour la modale "Soumettre" ──
+        // Retourne id+name+email des users role=admin/commercial actifs.
+        Route::get('api/commercials', function () {
+            return \App\Models\User::query()
+                ->whereIn('role', ['admin', 'commercial'])
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']);
+        })->middleware('role:admin,mediaplanner')->name('api.commercials');
+
         // ── Propositions (workflow MP → Commercial → Client) ──────────
         // MP soumet la proposition au commercial pour envoi (matrice).
         Route::middleware('role:admin,mediaplanner')->group(function () {
