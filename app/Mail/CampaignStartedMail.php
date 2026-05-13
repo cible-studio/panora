@@ -4,6 +4,7 @@ namespace App\Mail;
 use App\Models\Campaign;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -26,8 +27,15 @@ class CampaignStartedMail extends Mailable
 
     public function envelope(): Envelope
     {
+        $replyTo = [];
+        $contact = $this->campaign->user;
+        if ($contact?->email) {
+            $replyTo[] = new Address($contact->email, $contact->name ?? '');
+        }
+
         return new Envelope(
             subject:  "Démarrage de votre campagne {$this->campaign->name} — CIBLE CI",
+            replyTo:  $replyTo,
             tags:     ['campaign', 'started'],
             metadata: [
                 'campaign_id' => (string) $this->campaign->id,

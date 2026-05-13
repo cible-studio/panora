@@ -239,10 +239,11 @@ class ApplyPanelGrille extends Command
             12      => $isAbj ? 120_000 : 90_000, // 12m² Intérieur du pays = 90k
             18      => 750_000,
             20      => 1_000_000,
+            32      => 1_500_000, // PLTCAIS — assimilé "Caisson grand format"
             36      => 1_200_000,
             50      => 1_500_000,
             54      => 1_500_000,
-            default => null, // 15/24/32/70m² → manuel
+            default => null, // 15/24/70m² → manuel
         };
     }
 }

@@ -41,7 +41,7 @@
     </p>
 
     <x-slot:footerNote>
-        Lien personnel sécurisé — ne le partagez pas. Vous pouvez répondre quand vous voulez.
+        Lien personnel sécurisé — ne le partagez pas. Le questionnaire reste accessible à tout moment via ce lien.
     </x-slot:footerNote>
 
 </x-mail.layout>

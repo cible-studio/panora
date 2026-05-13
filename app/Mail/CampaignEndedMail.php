@@ -6,6 +6,7 @@ use App\Models\SatisfactionSurvey;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -25,8 +26,15 @@ class CampaignEndedMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
+        $replyTo = [];
+        $contact = $this->campaign->user;
+        if ($contact?->email) {
+            $replyTo[] = new Address($contact->email, $contact->name ?? '');
+        }
+
         return new Envelope(
             subject:  "Fin de votre campagne {$this->campaign->name} — CIBLE CI",
+            replyTo:  $replyTo,
             tags:     ['campaign', 'ended'],
             metadata: [
                 'campaign_id' => (string) $this->campaign->id,
