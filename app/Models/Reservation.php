@@ -17,6 +17,7 @@ class Reservation extends Model
         'reference',
         'client_id',
         'user_id',
+        'commercial_user_id',
         'start_date',
         'end_date',
         'status',

@@ -56,9 +56,17 @@ class ReservationController extends Controller
         $formats = PanelFormat::orderBy('name')->get(['id', 'name', 'width', 'height']);
         $zones = Zone::orderBy('name')->get(['id', 'name']);
         $categories = PanelCategory::orderBy('name')->get(['id', 'name']);
-        $clients = Client::orderBy('name')->get(['id', 'name']);
+        $clients = Client::orderBy('name')->get(['id', 'name', 'ncc', 'email', 'phone']);
         $agencies = \App\Models\ExternalAgency::where('is_active', true)
             ->whereNull('deleted_at')->orderBy('name')->get(['id', 'name']);
+
+        // Commerciaux disponibles pour le flux "Soumettre au commercial".
+        // On inclut admin + commercial (admin peut aussi suivre un dossier).
+        $commercials = \App\Models\User::query()
+            ->whereIn('role', ['admin', 'commercial'])
+            ->whereNull('deleted_at')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
 
         $dimensions = PanelFormat::whereNotNull('width')->whereNotNull('height')
             ->orderBy('width')->orderBy('height')->get(['width', 'height'])
@@ -72,7 +80,7 @@ class ReservationController extends Controller
 
         return view(
             'admin.reservations.disponibilites',
-            compact('communes', 'cities', 'formats', 'zones', 'categories', 'clients', 'dimensions', 'agencies')
+            compact('communes', 'cities', 'formats', 'zones', 'categories', 'clients', 'dimensions', 'agencies', 'commercials')
         );
     }
 
@@ -947,6 +955,18 @@ class ReservationController extends Controller
         // 3) Validation des autres champs (sans toucher panel_ids — on l'a déjà parsé)
         $request->validate([
             'client_id' => 'required|exists:clients,id',
+            // Commercial assigné : doit être admin ou commercial actif.
+            'commercial_user_id' => [
+                'required',
+                'integer',
+                'exists:users,id',
+                function ($attribute, $value, $fail) {
+                    $u = \App\Models\User::find($value);
+                    if (!$u || !in_array($u->role?->value ?? $u->role, ['admin', 'commercial'])) {
+                        $fail('Le commercial choisi est invalide.');
+                    }
+                },
+            ],
             'start_date' => [
                 'required',
                 'date',
@@ -1163,6 +1183,7 @@ class ReservationController extends Controller
                     'reference' => $reference,
                     'client_id' => $request->client_id,
                     'user_id' => auth()->id(),
+                    'commercial_user_id' => $request->integer('commercial_user_id') ?: auth()->id(),
                     'start_date' => $request->start_date,
                     'end_date' => $request->end_date,
                     'status' => $status,
@@ -1281,6 +1302,41 @@ class ReservationController extends Controller
                     auth()->user()->name . ' a créé la réservation ' . $reservation->reference . ' (' . $totalCount . ' panneau(x))',
                     $reservation
                 );
+
+                // Lot 12.3 — Si un commercial est assigné et ≠ créateur,
+                // on lui notifie spécifiquement la prise en charge.
+                $commercialId = $reservation->commercial_user_id;
+                if ($commercialId && $commercialId !== auth()->id()) {
+                    $commercial = \App\Models\User::find($commercialId);
+                    if ($commercial) {
+                        \App\Services\AlertService::notify(
+                            'proposition_prete',
+                            "Réservation assignée — {$reservation->reference}",
+                            auth()->user()->name . " vous a assigné la réservation {$reservation->reference} "
+                                . "(client : " . ($reservation->client?->name ?? '?') . ", "
+                                . "{$totalCount} panneau·x). Préparez et envoyez la proposition.",
+                            $reservation,
+                            [
+                                'user_id' => $commercial->id,
+                                'lien'    => route('admin.reservations.show', $reservation),
+                            ]
+                        );
+
+                        // Mail léger au commercial (best-effort, n'échoue pas la résa)
+                        try {
+                            if ($commercial->email) {
+                                \Illuminate\Support\Facades\Mail::to($commercial->email)
+                                    ->queue(new \App\Mail\ReservationAssignedMail($reservation, auth()->user()));
+                            }
+                        } catch (\Throwable $e) {
+                            \Illuminate\Support\Facades\Log::warning('reservation.assigned.mail_failed', [
+                                'reservation_id' => $reservation->id,
+                                'commercial_id'  => $commercial->id,
+                                'error'          => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                }
             });
 
         } catch (\RuntimeException $e) {
@@ -1433,6 +1489,19 @@ class ReservationController extends Controller
         }
         if ($request->type)      $query->where('type', $request->type);
         if ($request->client_id) $query->where('client_id', $request->client_id);
+
+        // Lot 12.3 — filtre "Mes propositions à traiter" : ne montre que
+        // les réservations assignées au user connecté (ou en fallback,
+        // créées par lui pour les anciennes sans commercial_user_id).
+        if ($request->boolean('assigned_me')) {
+            $uid = auth()->id();
+            $query->where(function ($q) use ($uid) {
+                $q->where('commercial_user_id', $uid)
+                  ->orWhere(function ($q2) use ($uid) {
+                      $q2->whereNull('commercial_user_id')->where('user_id', $uid);
+                  });
+            });
+        }
 
         if ($request->periode) {
             match ($request->periode) {
