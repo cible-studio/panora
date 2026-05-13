@@ -49,7 +49,11 @@
       "Bash(php -l resources/views/admin/reservations/index.blade.php)",
       "Bash(php -l resources/views/emails/reservation-assigned.blade.php)",
       "Bash(php -l bootstrap/app.php)",
-      "Bash(php -l app/Http/Middleware/SyncReactiveState.php)"
+      "Bash(php -l app/Http/Middleware/SyncReactiveState.php)",
+      "Bash(ls /c/wamp64/bin/php/ 2>/dev/null | head -5)",
+      "Read(//c/wamp64/bin/php//**)",
+      "Bash(/c/wamp64/bin/php/php8.2.26/php.exe -l /c/wamp64/www/panora/routes/admin.php)",
+      "Bash(/c/wamp64/bin/php/php8.2.26/php.exe -l /c/wamp64/www/panora/app/Policies/PanelPolicy.php)"
     ]
   }
 }

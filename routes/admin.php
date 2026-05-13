@@ -232,7 +232,7 @@ Route::prefix('admin')
 
         // ── Panneaux ────────────────────────────────────────────────
         // Lecture + exports = tous les staff (admin/commercial/MP).
-        // Création / modification / suppression = admin uniquement (matrice).
+        // Création / modification / suppression / photos = admin + MP.
         // Changement de statut (libre / maintenance) = admin + MP.
         Route::get('panels', [PanelController::class, 'index'])->name('panels.index');
         Route::get('panels/{panel}', [PanelController::class, 'show'])
@@ -255,8 +255,8 @@ Route::prefix('admin')
             ->middleware('role:admin,mediaplanner')
             ->whereNumber('panel')->name('panels.status');
 
-        // Création / modif / suppression / photos = admin only
-        Route::middleware('role:admin')->group(function () {
+        // Création / modif / suppression / photos = admin + MP
+        Route::middleware('role:admin,mediaplanner')->group(function () {
             Route::get('panels/create', [PanelController::class, 'create'])->name('panels.create');
             Route::post('panels', [PanelController::class, 'store'])->name('panels.store');
             Route::get('panels/{panel}/edit', [PanelController::class, 'edit'])
