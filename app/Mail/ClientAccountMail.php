@@ -21,9 +21,13 @@ class ClientAccountMail extends Mailable
 
     public function envelope(): Envelope
     {
+        $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
+
+        // PANORA est la plateforme (le SaaS), {operator} est la régie qui
+        // l'utilise. Le client se connecte à PANORA via {operator}.
         $subject = $this->isReset
-            ? '🔑 Réinitialisation de votre mot de passe — CIBLE CI'
-            : '🎉 Votre espace client CIBLE CI est prêt';
+            ? "🔑 Réinitialisation de votre mot de passe — PANORA · {$operator}"
+            : "🎉 Bienvenue sur PANORA — Votre espace client est prêt";
 
         return new Envelope(subject: $subject);
     }

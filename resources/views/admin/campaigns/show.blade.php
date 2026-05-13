@@ -191,6 +191,22 @@
                         <div class="text-xs mt-1" style="color:var(--text3)">{{ $campaign->created_at->format('d/m/Y H:i') }}</div>
                     </div>
 
+                    {{-- Commercial assigné — celui qui a envoyé la proposition
+                         au client. Si la résa source en a un explicite,
+                         on l'affiche. Sinon fallback sur le créateur. --}}
+                    @php
+                        $com = $campaign->reservation?->resolveCommercialContact();
+                    @endphp
+                    @if($com)
+                    <div class="rounded-xl p-4 border" style="background:var(--surface2);border-color:var(--border)">
+                        <div class="text-xs uppercase font-semibold mb-2" style="color:var(--text3)">🤝 Commercial</div>
+                        <div style="color:var(--text)">{{ $com->name }}</div>
+                        @if($com->email)
+                            <div class="text-xs mt-1" style="color:var(--text3)">{{ $com->email }}</div>
+                        @endif
+                    </div>
+                    @endif
+
                     {{-- Dernière modif --}}
                     <div class="rounded-xl p-4 border" style="background:var(--surface2);border-color:var(--border)">
                         <div class="text-xs uppercase font-semibold mb-2" style="color:var(--text3)">✏️ Dernière modif.</div>

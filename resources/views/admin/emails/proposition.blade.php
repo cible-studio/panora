@@ -87,55 +87,109 @@
     </div>
 
     @if($panels->count() > 0)
-        <h2>Détail des emplacements</h2>
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-               style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:8px 0 18px;">
-            @foreach($panels->take(5) as $i => $panel)
-                @php
-                    // Le tarif catalogue n'est pas exposé dans la projection
-                    // unifiée — pour les externes c'est la régie qui fixe.
-                    // On compare unit (pivot) vs monthly_rate ('catalogue' de
-                    // la projection) pour détecter une remise négociée.
-                    $unit  = (float) ($panel['monthly_rate'] ?? 0);
-                    $total = (float) ($panel['total'] ?? ($unit * $months));
-                @endphp
-                <tr style="{{ $i > 0 ? 'border-top:1px solid #f1f5f9;' : '' }}">
-                    <td style="padding:12px 16px;">
-                        <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#c2570d;font-weight:600;">{{ $panel['reference'] }}</div>
-                        <div style="font-size:14px;color:#111827;font-weight:500;margin-top:2px;">{{ Str::limit($panel['name'] ?? '', 50) }}</div>
-                        <div style="font-size:12px;color:#6b7280;margin-top:2px;">
-                            {{ $panel['commune'] ?? '—' }}
-                            @if(!empty($panel['format']) && $panel['format'] !== '—') · {{ $panel['format'] }} @endif
-                        </div>
-                    </td>
-                    <td style="padding:12px 16px;text-align:right;vertical-align:top;white-space:nowrap;">
-                        @if($total > 0)
-                            <div style="font-size:14px;color:#111827;font-weight:700;">{{ number_format($total, 0, ',', ' ') }} FCFA</div>
-                            <div style="font-size:11px;color:#9ca3af;">total période</div>
-                            @if($unit > 0)
-                                <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-                                    {{ number_format($unit, 0, ',', ' ') }} FCFA/mois
-                                </div>
+        @php
+            // Résumé statistique : groupage par commune × format pour les
+            // grosses propositions (>10). Évite de spammer le client avec
+            // 100 lignes — il verra le détail complet sur la page web.
+            $isLarge = $panels->count() > 10;
+            $grouped = $panels->groupBy(function ($p) {
+                $commune = $p['commune'] ?? '—';
+                $format  = $p['format'] ?? '—';
+                return $commune . '|||' . $format;
+            })->map(function ($items, $key) {
+                [$commune, $format] = explode('|||', $key);
+                return [
+                    'commune' => $commune,
+                    'format'  => $format,
+                    'count'   => $items->count(),
+                    'total'   => $items->sum(fn($p) => (float) ($p['total'] ?? 0)),
+                ];
+            })->sortByDesc('count')->values();
+        @endphp
+
+        @if($isLarge)
+            {{-- Vue résumée : groupes par commune × format (Top 8) --}}
+            <h2>Répartition des {{ $panels->count() }} emplacements</h2>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                   style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:8px 0 18px;">
+                @foreach($grouped->take(8) as $i => $row)
+                    <tr style="{{ $i > 0 ? 'border-top:1px solid #f1f5f9;' : '' }}">
+                        <td style="padding:11px 16px;">
+                            <div style="font-size:14px;color:#111827;font-weight:600;">
+                                {{ $row['count'] }} × {{ $row['format'] !== '—' ? $row['format'] : 'panneau' }}
+                            </div>
+                            <div style="font-size:12px;color:#6b7280;margin-top:2px;">
+                                📍 {{ $row['commune'] }}
+                            </div>
+                        </td>
+                        <td style="padding:11px 16px;text-align:right;vertical-align:top;white-space:nowrap;">
+                            @if($row['total'] > 0)
+                                <div style="font-size:13px;color:#111827;font-weight:600;">{{ number_format($row['total'], 0, ',', ' ') }} FCFA</div>
+                                <div style="font-size:11px;color:#9ca3af;">période</div>
                             @endif
-                        @else
-                            <div style="font-size:14px;color:#16a34a;font-weight:700;">0 FCFA</div>
-                            <div style="font-size:11px;color:#16a34a;font-weight:600;letter-spacing:.4px;">OFFERT</div>
-                        @endif
-                    </td>
-                </tr>
-            @endforeach
-            @if($panels->count() > 5)
-                <tr style="border-top:1px solid #f1f5f9;background:#f9fafb;">
-                    <td colspan="2" style="padding:10px 16px;font-size:12px;color:#6b7280;text-align:center;">
-                        + {{ $panels->count() - 5 }} autre{{ $panels->count() - 5 > 1 ? 's' : '' }} emplacement{{ $panels->count() - 5 > 1 ? 's' : '' }} —
-                        détails complets sur la page de la proposition.
-                    </td>
-                </tr>
-            @endif
-        </table>
-        <p style="font-size:12px;color:#6b7280;margin:8px 0 18px;">
-            ℹ️ Le total prend en compte la durée réelle de votre campagne ({{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }} = {{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }}).
-        </p>
+                        </td>
+                    </tr>
+                @endforeach
+                @if($grouped->count() > 8)
+                    <tr style="border-top:1px solid #f1f5f9;background:#f9fafb;">
+                        <td colspan="2" style="padding:10px 16px;font-size:12px;color:#6b7280;text-align:center;">
+                            + {{ $grouped->count() - 8 }} autres regroupements géographiques
+                        </td>
+                    </tr>
+                @endif
+            </table>
+            <p style="font-size:12px;color:#6b7280;margin:8px 0 18px;">
+                ℹ️ Vue résumée — la liste complète des {{ $panels->count() }} emplacements (références, dimensions, photos)
+                est disponible sur la page de la proposition.
+            </p>
+        @else
+            {{-- Vue détaillée : ≤ 10 panneaux, on affiche jusqu'à 5 lignes complètes --}}
+            <h2>Détail des emplacements</h2>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                   style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:8px 0 18px;">
+                @foreach($panels->take(5) as $i => $panel)
+                    @php
+                        $unit  = (float) ($panel['monthly_rate'] ?? 0);
+                        $total = (float) ($panel['total'] ?? ($unit * $months));
+                    @endphp
+                    <tr style="{{ $i > 0 ? 'border-top:1px solid #f1f5f9;' : '' }}">
+                        <td style="padding:12px 16px;">
+                            <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#c2570d;font-weight:600;">{{ $panel['reference'] }}</div>
+                            <div style="font-size:14px;color:#111827;font-weight:500;margin-top:2px;">{{ Str::limit($panel['name'] ?? '', 50) }}</div>
+                            <div style="font-size:12px;color:#6b7280;margin-top:2px;">
+                                {{ $panel['commune'] ?? '—' }}
+                                @if(!empty($panel['format']) && $panel['format'] !== '—') · {{ $panel['format'] }} @endif
+                            </div>
+                        </td>
+                        <td style="padding:12px 16px;text-align:right;vertical-align:top;white-space:nowrap;">
+                            @if($total > 0)
+                                <div style="font-size:14px;color:#111827;font-weight:700;">{{ number_format($total, 0, ',', ' ') }} FCFA</div>
+                                <div style="font-size:11px;color:#9ca3af;">total période</div>
+                                @if($unit > 0)
+                                    <div style="font-size:11px;color:#6b7280;margin-top:4px;">
+                                        {{ number_format($unit, 0, ',', ' ') }} FCFA/mois
+                                    </div>
+                                @endif
+                            @else
+                                <div style="font-size:14px;color:#16a34a;font-weight:700;">0 FCFA</div>
+                                <div style="font-size:11px;color:#16a34a;font-weight:600;letter-spacing:.4px;">OFFERT</div>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+                @if($panels->count() > 5)
+                    <tr style="border-top:1px solid #f1f5f9;background:#f9fafb;">
+                        <td colspan="2" style="padding:10px 16px;font-size:12px;color:#6b7280;text-align:center;">
+                            + {{ $panels->count() - 5 }} autre{{ $panels->count() - 5 > 1 ? 's' : '' }} emplacement{{ $panels->count() - 5 > 1 ? 's' : '' }} —
+                            détails complets sur la page de la proposition.
+                        </td>
+                    </tr>
+                @endif
+            </table>
+            <p style="font-size:12px;color:#6b7280;margin:8px 0 18px;">
+                ℹ️ Le total prend en compte la durée réelle de votre campagne ({{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }} = {{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }}).
+            </p>
+        @endif
     @endif
 
     <div class="cta-wrap">
@@ -153,21 +207,28 @@
         </div>
     @endif
 
-    {{-- Lot 12.3 — Bloc interlocuteur commercial pour que le client
-         sache qui contacter directement (nom + email + téléphone). --}}
-    @if($reservation->user)
-        @php $com = $reservation->user; @endphp
+    {{-- Bloc interlocuteur commercial — c'est le COMMERCIAL qui envoie
+         qui doit apparaître ici (pas le MP qui a construit la propo).
+         resolveCommercialContact() retourne commercial_user_id si défini,
+         sinon retombe sur user_id (créateur). On filtre aussi les rôles
+         non-commerciaux pour éviter d'afficher "Media Planner" au client. --}}
+    @php
+        $com = $reservation->resolveCommercialContact();
+        $comRole = $com?->role?->value ?? null;
+        // Si le contact résolu n'est pas un commercial/admin (ex: fallback
+        // sur le MP créateur faute de mieux), on masque son rôle interne
+        // pour ne pas afficher "Media Planner" au client.
+        $hideInternalRole = !in_array($comRole, ['admin', 'commercial'], true);
+    @endphp
+    @if($com)
         <h2 style="font-size:14px;font-weight:700;color:#0f172a;margin:20px 0 10px;">Votre interlocuteur commercial</h2>
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
                style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #c2570d;border-radius:8px;margin-bottom:14px;">
             <tr>
                 <td style="padding:14px 16px;">
                     <div style="font-size:14px;font-weight:700;color:#0f172a;">{{ $com->name }}</div>
-                    @if($com->role?->label())
+                    @if(!$hideInternalRole && $com->role?->label())
                         <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ $com->role->label() }}</div>
-                    @endif
-                    @if($com->agent_code)
-                        <div style="font-size:10px;color:#94a3b8;margin-top:2px;font-family:ui-monospace,Menlo,Consolas,monospace;">Code agent : {{ $com->agent_code }}</div>
                     @endif
                     <div style="margin-top:10px;font-size:12px;color:#475569;line-height:1.7;">
                         @if($com->email)
@@ -183,8 +244,11 @@
     @endif
 
     <p style="color:#6b7280;font-size:13px;margin-top:24px;">
-        Vous pouvez également répondre directement à cet email pour toute question.
-        Notre équipe commerciale est à votre disposition.
+        @if($com)
+            Pour toute question, contactez {{ $com->name }} directement aux coordonnées ci-dessus.
+        @else
+            Pour toute question, contactez l'équipe commerciale aux coordonnées de votre interlocuteur.
+        @endif
     </p>
 
     <x-slot:footerNote>
