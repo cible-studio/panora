@@ -91,10 +91,12 @@
                     <div class="filter-field">
                         <label class="filter-label">Période</label>
                         <div class="flex items-center gap-2 bg-[var(--surface)] px-3 h-10 rounded-lg border border-[var(--border2)]">
-                            <input type="date" id="f-du" class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
+                            <input type="date" id="f-du" min="{{ now()->toDateString() }}"
+                                   class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
                                    onchange="DISPO.onDateChange('du', this.value)">
                             <span class="text-[var(--text3)] text-xs">→</span>
-                            <input type="date" id="f-au" class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
+                            <input type="date" id="f-au" min="{{ now()->toDateString() }}"
+                                   class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
                                    onchange="DISPO.onDateChange('au', this.value)">
                         </div>
                         <div id="date-error" class="hidden text-xs text-red-500 bg-red-500/10 px-3 py-1 rounded-lg"></div>
@@ -1427,6 +1429,16 @@
                     },
 
                     onDateChange(which, val) {
+                        // Rejet immédiat des dates antérieures à aujourd'hui
+                        // (saisie manuelle ou autofill qui contournerait min).
+                        const today = new Date().toISOString().split('T')[0];
+                        if (val && val < today) {
+                            _showDateErr('Les dates dans le passé ne sont pas autorisées.');
+                            const el = _el('f-' + which);
+                            if (el) el.value = '';
+                            return;
+                        }
+
                         if (which === 'du') {
                             S.f.du = val;
                             const next = new Date(val);

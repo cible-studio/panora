@@ -79,8 +79,11 @@ class AvailabilityService
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->whereIn('reservation_panels.panel_id', $panelIds)
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
-            ->where('reservations.start_date', '<', $endDate)   // chevauchement strict
-            ->where('reservations.end_date',   '>', $startDate) // chevauchement strict
+            // Chevauchement INCLUSIF : end_date est compté comme journée occupée
+            // (cohérent avec la facturation jusqu'au end_date inclus). Deux
+            // réservations 1→5 et 5→10 chevauchent sur le 5.
+            ->where('reservations.start_date', '<=', $endDate)
+            ->where('reservations.end_date',   '>=', $startDate)
             ->when($excludeReservationId, fn($q) =>
                 $q->where('reservations.id', '!=', $excludeReservationId)
             )
@@ -96,12 +99,12 @@ class AvailabilityService
         ?int   $excludeReservationId = null,
         array  $filters = []
     ): Collection {
-        // Sous-requête : IDs des panneaux bloqués sur la période
+        // Sous-requête : IDs des panneaux bloqués sur la période (overlap inclusif)
         $blockedSubQuery = ReservationPanel::select('panel_id')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
-            ->where('reservations.start_date', '<', $endDate)
-            ->where('reservations.end_date',   '>', $startDate)
+            ->where('reservations.start_date', '<=', $endDate)
+            ->where('reservations.end_date',   '>=', $startDate)
             ->when($excludeReservationId, fn($q) =>
                 $q->where('reservations.id', '!=', $excludeReservationId)
             );
@@ -309,8 +312,8 @@ class AvailabilityService
             ->whereIn('reservation_panels.external_panel_id', $externalPanelIds)
             ->where('reservation_panels.source', 'externe')
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
-            ->where('reservations.start_date', '<', $endDate)
-            ->where('reservations.end_date',   '>', $startDate)
+            ->where('reservations.start_date', '<=', $endDate)
+            ->where('reservations.end_date',   '>=', $startDate)
             ->when($excludeReservationId, fn($q) =>
                 $q->where('reservations.id', '!=', $excludeReservationId)
             )
@@ -345,8 +348,8 @@ class AvailabilityService
             ->whereIn('reservation_panels.panel_id', $panelIds)
             ->where('reservation_panels.source', 'interne')
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
-            ->where('reservations.start_date', '<', $endDate)
-            ->where('reservations.end_date',   '>', $startDate)
+            ->where('reservations.start_date', '<=', $endDate)
+            ->where('reservations.end_date',   '>=', $startDate)
             ->when($excludeReservationId, fn($q) =>
                 $q->where('reservations.id', '!=', $excludeReservationId)
             )
@@ -383,8 +386,8 @@ class AvailabilityService
             ->join('reservations as r', 'r.id', '=', 'rp.reservation_id')
             ->whereIn('rp.panel_id', $panelIds)
             ->whereIn('r.status', self::BLOCKING_STATUSES)
-            ->where('r.start_date', '<', $endDate)
-            ->where('r.end_date',   '>', $startDate)
+            ->where('r.start_date', '<=', $endDate)
+            ->where('r.end_date',   '>=', $startDate)
             ->when($excludeReservationId, fn($q) => $q->where('r.id', '!=', $excludeReservationId))
             ->select(
                 'rp.panel_id',
@@ -420,8 +423,8 @@ class AvailabilityService
             ->whereIn('rp.external_panel_id', $externalPanelIds)
             ->where('rp.source', 'externe')
             ->whereIn('r.status', self::BLOCKING_STATUSES)
-            ->where('r.start_date', '<', $endDate)
-            ->where('r.end_date',   '>', $startDate)
+            ->where('r.start_date', '<=', $endDate)
+            ->where('r.end_date',   '>=', $startDate)
             ->when($excludeReservationId, fn($q) => $q->where('r.id', '!=', $excludeReservationId))
             ->select(
                 'rp.external_panel_id',
@@ -447,8 +450,8 @@ class AvailabilityService
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->where('reservation_panels.panel_id', $panelId)
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
-            ->where('reservations.start_date', '<', $end)
-            ->where('reservations.end_date',   '>', $start)
+            ->where('reservations.start_date', '<=', $end)
+            ->where('reservations.end_date',   '>=', $start)
             ->exists();
     }
 
@@ -470,8 +473,8 @@ class AvailabilityService
             ->leftJoin('campaigns', 'campaigns.reservation_id', '=', 'reservations.id')
             ->whereIn('reservation_panels.panel_id', $panelIds)
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
-            ->where('reservations.start_date', '<', $endDate)
-            ->where('reservations.end_date',   '>', $startDate)
+            ->where('reservations.start_date', '<=', $endDate)
+            ->where('reservations.end_date',   '>=', $startDate)
             ->when($excludeReservationId, fn($q) =>
                 $q->where('reservations.id', '!=', $excludeReservationId)
             )
