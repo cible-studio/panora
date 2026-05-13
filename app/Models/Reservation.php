@@ -155,6 +155,25 @@ class Reservation extends Model
     }
 
     /**
+     * Scope : limite aux réservations "appartenant" à un commercial.
+     * - commercial_user_id = $uid (assignation explicite par MP), OU
+     * - commercial_user_id IS NULL ET user_id = $uid (créateur sans assignation).
+     *
+     * Utilisé pour le cloisonnement RBAC : un commercial ne voit que ses
+     * propres dossiers, pas ceux de ses collègues.
+     */
+    public function scopeForCommercialUser($query, int $userId)
+    {
+        return $query->where(function ($q) use ($userId) {
+            $q->where('commercial_user_id', $userId)
+              ->orWhere(function ($qq) use ($userId) {
+                  $qq->whereNull('commercial_user_id')
+                     ->where('user_id', $userId);
+              });
+        });
+    }
+
+    /**
      * Retourne le user à utiliser comme Reply-To dans les mails clients.
      * Priorité : commercial assigné > créateur de la réservation > null.
      */

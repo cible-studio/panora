@@ -1476,6 +1476,13 @@ class ReservationController extends Controller
         $query = Reservation::with(['client', 'user'])
             ->withCount(['panels', 'externalPanels']);
 
+        // RBAC : un commercial ne voit que SES propres dossiers (assignés
+        // explicitement à lui ou créés par lui sans assignation). Admin et
+        // MP voient tout.
+        if (auth()->user()?->role?->value === 'commercial') {
+            $query->forCommercialUser(auth()->id());
+        }
+
         // Filtres "neutres" appliqués à la liste ET au calcul des compteurs.
         // Ils définissent le périmètre courant (search/type/client/période).
         if ($request->search) {

@@ -13,26 +13,58 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        // RBAC : un commercial voit son portefeuille (réservations/campagnes
+        // qui lui sont assignées). Admin/MP voient tout.
+        $isCommercial = auth()->user()?->role?->value === 'commercial';
+        $uid          = auth()->id();
+
         $totalPanneaux       = Panel::count();
         $panneauxLibres      = Panel::where('status', 'libre')->count();
         $panneauxOccupes     = Panel::whereIn('status', ['occupe', 'option', 'confirme'])->count();
         $panneauxMaintenance = Panel::where('status', 'maintenance')->count();
 
-        $reservationsEnAttente  = Reservation::where('status', 'en_attente')->count();
-        $reservationsConfirmees = Reservation::where('status', 'confirme')->count();
+        $reservationsEnAttente  = Reservation::where('status', 'en_attente')
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
+            ->count();
+        $reservationsConfirmees = Reservation::where('status', 'confirme')
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
+            ->count();
 
-        $campagnesActives   = Campaign::where('status', 'actif')->count();
-        $campagnesTerminees = Campaign::where('status', 'termine')->count();
+        // Campagnes filtrées via résa source pour le commercial.
+        $scopeCampaignCommercial = function ($q) use ($uid) {
+            $q->where(function ($qq) use ($uid) {
+                $qq->whereHas('reservation', fn($r) =>
+                        $r->where('commercial_user_id', $uid)
+                          ->orWhere(function ($rr) use ($uid) {
+                              $rr->whereNull('commercial_user_id')
+                                 ->where('user_id', $uid);
+                          })
+                   )
+                   ->orWhere(function ($qqq) use ($uid) {
+                       $qqq->whereDoesntHave('reservation')->where('user_id', $uid);
+                   });
+            });
+        };
+
+        $campagnesActives   = Campaign::where('status', 'actif')
+            ->when($isCommercial, $scopeCampaignCommercial)
+            ->count();
+        $campagnesTerminees = Campaign::where('status', 'termine')
+            ->when($isCommercial, $scopeCampaignCommercial)
+            ->count();
 
         $totalClients = Client::count();
 
         $maintenancesUrgentes = Maintenance::where('priorite', 'urgente')
             ->where('statut', '!=', 'resolu')->count();
 
-        $alertesNonLues = Alert::where('is_read', false)->count();
+        $alertesNonLues = Alert::where('is_read', false)
+            ->when($isCommercial, fn($q) => $q->where('user_id', $uid))
+            ->count();
 
         $dernieresReservations = Reservation::with('client', 'panels')
             ->where('status', 'en_attente')
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
             ->latest()->take(5)->get();
 
         $dernieresMaintenances = Maintenance::with('panel')
@@ -42,6 +74,7 @@ class DashboardController extends Controller
 
         $campagnesRecentes = Campaign::with('client')
             ->where('status', 'actif')
+            ->when($isCommercial, $scopeCampaignCommercial)
             ->latest()->take(5)->get();
 
         $dernieresAlertes = Alert::where('is_read', false)

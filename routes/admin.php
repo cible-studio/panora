@@ -416,16 +416,33 @@ Route::prefix('admin')
             Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
         });
 
-        // ── Facturation (admin uniquement) ───────────────────────
+        // ── Facturation ───────────────────────────────────────────────
+        // Lecture (index/show/pdf/exports liste) : tous staff (le commercial
+        // voit ses siennes via filtrage InvoiceController). Création /
+        // modification / suppression / changement statut = admin uniquement.
+        Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+        Route::get('invoices/export/pdf',   [InvoiceController::class, 'exportListPdf'])->name('invoices.export.pdf');
+        Route::get('invoices/export/excel', [InvoiceController::class, 'exportListExcel'])->name('invoices.export.excel');
+        Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])
+            ->whereNumber('invoice')->name('invoices.show');
+        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])
+            ->whereNumber('invoice')->name('invoices.pdf');
+
         Route::middleware('role:admin')->group(function () {
-            Route::get('invoices/export/pdf',   [InvoiceController::class, 'exportListPdf'])->name('invoices.export.pdf');
-            Route::get('invoices/export/excel', [InvoiceController::class, 'exportListExcel'])->name('invoices.export.excel');
-            Route::resource('invoices', InvoiceController::class);
+            Route::get('invoices/create', [InvoiceController::class, 'create'])->name('invoices.create');
+            Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
+            Route::get('invoices/{invoice}/edit', [InvoiceController::class, 'edit'])
+                ->whereNumber('invoice')->name('invoices.edit');
+            Route::put('invoices/{invoice}', [InvoiceController::class, 'update'])
+                ->whereNumber('invoice')->name('invoices.update');
+            Route::patch('invoices/{invoice}', [InvoiceController::class, 'update'])
+                ->whereNumber('invoice')->name('invoices.update.patch');
+            Route::delete('invoices/{invoice}', [InvoiceController::class, 'destroy'])
+                ->whereNumber('invoice')->name('invoices.destroy');
             Route::patch('invoices/{invoice}/send',         [InvoiceController::class, 'markSent'])->name('invoices.send');
             Route::patch('invoices/{invoice}/pay',          [InvoiceController::class, 'markPaid'])->name('invoices.pay');
             Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'markCancelled'])->name('invoices.cancel');
             Route::patch('invoices/{invoice}/revert-draft', [InvoiceController::class, 'revertDraft'])->name('invoices.revert-draft');
-            Route::get('invoices/{invoice}/pdf',            [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
         });
 
         // ════════════════════════════════════════════════

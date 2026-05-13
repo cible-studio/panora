@@ -51,6 +51,26 @@ class CampaignController extends Controller
                 'invoices' => fn($q) => $q->select(['id','campaign_id','status','amount_ttc','paid_at','reference'])->latest(),
             ])
             ->withCount(['panels', 'externalPanels', 'invoices'])
+            // RBAC : un commercial ne voit que SES campagnes (via la résa
+            // source ou en fallback campaign.user_id).
+            ->when(auth()->user()?->role?->value === 'commercial', function ($q) {
+                $uid = auth()->id();
+                $q->where(function ($qq) use ($uid) {
+                    $qq->whereHas('reservation', fn($r) =>
+                            $r->where('commercial_user_id', $uid)
+                              ->orWhere(function ($rr) use ($uid) {
+                                  $rr->whereNull('commercial_user_id')
+                                     ->where('user_id', $uid);
+                              })
+                       )
+                       ->orWhere(function ($qqq) use ($uid) {
+                           // Campagnes manuelles sans réservation source : on
+                           // se rabat sur le créateur de la campagne.
+                           $qqq->whereDoesntHave('reservation')
+                               ->where('user_id', $uid);
+                       });
+                });
+            })
             ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
             ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
             // Filtres date originaux : date_from (start) / date_to (end)

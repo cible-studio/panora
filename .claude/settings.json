@@ -61,7 +61,10 @@
       "Bash(php -l resources/views/admin/propositions/confirmed.blade.php)",
       "Bash(php -l resources/views/admin/emails/proposition.blade.php)",
       "Bash(php -l resources/views/admin/campaigns/show.blade.php)",
-      "Bash(php -l resources/views/admin/reservations/partials/proposition-actions.blade.php)"
+      "Bash(php -l resources/views/admin/reservations/partials/proposition-actions.blade.php)",
+      "Bash(php -l app/Http/Controllers/Admin/InvoiceController.php)",
+      "Bash(php -l app/Http/Controllers/Admin/DashboardController.php)",
+      "Bash(php -l resources/views/admin/campaigns/index.blade.php)"
     ]
   }
 }
