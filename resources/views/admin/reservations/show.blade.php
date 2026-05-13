@@ -103,7 +103,11 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-6 mt-4 pt-4"
+        @php
+            $showResCommercial = $reservation->resolveCommercialContact();
+            $showIsSameAsCreator = $showResCommercial && $reservation->user_id === $showResCommercial->id;
+        @endphp
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-4 pt-4"
              style="border-top:1px solid var(--border)">
             <div>
                 <div class="text-xs uppercase tracking-wider mb-1" style="color:var(--text3)">Créée par</div>
@@ -113,6 +117,17 @@
                         🕐 {{ $reservation->created_at->format('d/m/Y') }} à {{ $reservation->created_at->format('H:i') }}
                         <span style="opacity:.7">({{ $reservation->created_at->diffForHumans() }})</span>
                     </div>
+                @endif
+            </div>
+            <div>
+                <div class="text-xs uppercase tracking-wider mb-1" style="color:var(--text3)">🤝 Commercial</div>
+                @if($showResCommercial && !$showIsSameAsCreator)
+                    <div class="text-sm font-medium">{{ $showResCommercial->name }}</div>
+                    @if($showResCommercial->email)
+                        <div class="text-xs mt-0.5" style="color:var(--text3)">{{ $showResCommercial->email }}</div>
+                    @endif
+                @else
+                    <div class="text-sm" style="color:var(--text3)">— Non assigné —</div>
                 @endif
             </div>
             <div>
