@@ -412,6 +412,22 @@ class PropositionController extends Controller
         $reservation = $reservation->fresh(['client', 'panels', 'user']);
         $this->notifyDecision($reservation, \App\Mail\PropositionDecisionMail::DECISION_ACCEPTED, null, $campaign?->name);
 
+        // ── Email de confirmation au CLIENT (campagne lancée) ───────
+        // Récap + CTA suivre la campagne (espace client) ou invitation
+        // à demander un compte si pas encore créé.
+        if ($reservation->client?->email) {
+            try {
+                \Illuminate\Support\Facades\Mail::to($reservation->client->email)
+                    ->send(new \App\Mail\ClientCampaignStartedMail($reservation, $campaign));
+            } catch (\Throwable $e) {
+                Log::warning('client.campaign_started.mail_failed', [
+                    'reservation_id' => $reservation->id,
+                    'client_id'      => $reservation->client_id,
+                    'error'          => $e->getMessage(),
+                ]);
+            }
+        }
+
         // Alerte in-app pour le commercial concerné (en plus du mail)
         \App\Services\AlertService::create(
             'reservation',

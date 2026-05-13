@@ -197,6 +197,12 @@
         </div>
 
         <div class="table-responsive">
+            @php
+                // Facturation : visible uniquement pour admin (matrice FACTURES).
+                // Le MP et le commercial voient une colonne 'Commercial'.
+                $authRole = auth()->user()?->role?->value;
+                $canSeeBilling = $authRole === 'admin';
+            @endphp
             <table class="data-table" id="campaigns-table">
                 <thead>
                     <tr>
@@ -207,8 +213,10 @@
                         <th>Panneaux</th>
                         <th>Montant</th>
                         <th>Statut</th>
+                        @if($canSeeBilling)
                         <th>Facturation</th>
-                        <th>Créée par</th>
+                        @endif
+                        <th>Commercial</th>
                         <th style="width:80px">Actions</th>
                     </tr>
                 </thead>

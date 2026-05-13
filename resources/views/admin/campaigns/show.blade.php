@@ -836,7 +836,7 @@
             loadingPanels: false,
             loaded: false,
             visibleCount: 20,
-            campaignMonths: {{ $billableMonths }},
+            campaignMonths: {{ $campaign->billableMonths() }},
 
             get communeOptions() {
                 return [...new Set(this.allPanels.map(p => p.commune).filter(Boolean))].sort();
