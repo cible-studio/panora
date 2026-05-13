@@ -10,7 +10,7 @@ use App\Models\User;
  * Refonte selon docs/ROLES_VALIDES.md :
  *
  *   Admin       → tout (créer / éditer / supprimer)
- *   MP          → voir + changer le statut manuel (libre / maintenance)
+ *   MP          → tout sur l'inventaire (créer / éditer / supprimer / statut)
  *   Commercial  → voir uniquement (catalogue)
  *   Technique   → voir uniquement (consultation terrain)
  */
@@ -38,12 +38,12 @@ class PanelPolicy
 
     public function create(User $user): bool
     {
-        return false; // admin only via before()
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
     public function update(User $user, Panel $panel): bool
     {
-        return false; // admin only via before()
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
     /** Changer manuellement le statut libre <-> maintenance : MP + Admin. */
@@ -54,7 +54,7 @@ class PanelPolicy
 
     public function delete(User $user, Panel $panel): bool
     {
-        return false; // admin only via before()
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
     public function restore(User $user, Panel $panel): bool

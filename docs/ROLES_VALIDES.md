@@ -56,7 +56,7 @@ Planification production · Du devis à la pige.
 
 **Peut :**
 - Voir tous les clients (lecture seule — pas d'édition)
-- Voir le catalogue panneaux complet
+- **Gérer l'inventaire panneaux** : créer, modifier, supprimer, photos
 - **Créer une réservation** + sélectionner les panneaux (interne / externe)
 - **Construire la proposition** : panneaux, tarifs, périodes, option/ferme
 - **Marquer la proposition "prête à envoyer"** → bascule dans l'inbox du commercial
@@ -129,7 +129,8 @@ Format : ✅ Autorisé | ✗ Refusé | — Sans objet | "siennes" = limité à s
 | Action | Admin | Commercial | MP | Technicien | Client |
 |--------|:-----:|:----------:|:--:|:----------:|:------:|
 | Voir / filtrer panneaux | ✅ | ✅ | ✅ | ✅ | les siens |
-| Créer / modifier panneau | ✅ | ✗ | ✗ | ✗ | ✗ |
+| Créer / modifier / supprimer panneau | ✅ | ✗ | ✅ | ✗ | ✗ |
+| Gérer photos panneau | ✅ | ✗ | ✅ | ✗ | ✗ |
 | Changer statut (libre/maintenance) | ✅ | ✗ | ✅ | ✗ | ✗ |
 
 ### DISPONIBILITÉS
