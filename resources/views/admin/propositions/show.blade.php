@@ -705,8 +705,58 @@
         </div>
     </div>
 
-    {{-- ────────── CTA ────────── --}}
-    @if($expiresIn === null || $expiresIn > 0)
+    {{-- ────────── CTA ou message d'état ────────── --}}
+    @php
+        $statusValue = $reservation->status->value;
+        $stateInfo = match (true) {
+            $isExpired                          => [
+                'icon'  => '⏱',
+                'title' => 'Cette proposition a expiré',
+                'text'  => 'Le délai de réponse est dépassé. Contactez votre commercial pour recevoir une nouvelle proposition.',
+                'tone'  => 'expired',
+            ],
+            $statusValue === 'confirme'         => [
+                'icon'  => '✅',
+                'title' => 'Proposition déjà confirmée',
+                'text'  => 'Cette proposition a été acceptée. Elle a donné lieu à une campagne — connectez-vous à votre espace client pour la suivre.',
+                'tone'  => 'success',
+            ],
+            $statusValue === 'refuse'           => [
+                'icon'  => '❌',
+                'title' => 'Proposition refusée',
+                'text'  => 'Cette proposition a été refusée. Si c\'était une erreur, contactez votre commercial.',
+                'tone'  => 'danger',
+            ],
+            $statusValue === 'annule'           => [
+                'icon'  => '🚫',
+                'title' => 'Proposition annulée',
+                'text'  => "Cette proposition n'est plus active — certains emplacements ont été attribués entre temps via une autre proposition. Contactez votre commercial pour en recevoir une nouvelle adaptée.",
+                'tone'  => 'danger',
+            ],
+            !$isActif                           => [
+                'icon'  => 'ℹ️',
+                'title' => 'Proposition non disponible',
+                'text'  => 'Cette proposition n\'est plus accessible. Contactez votre commercial pour plus d\'informations.',
+                'tone'  => 'neutral',
+            ],
+            default                             => null,
+        };
+    @endphp
+
+    @if($stateInfo)
+        <div class="cta">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:24px 16px;">
+                <div style="font-size:48px;line-height:1">{{ $stateInfo['icon'] }}</div>
+                <h3 style="margin:0">{{ $stateInfo['title'] }}</h3>
+                <p style="margin:0;max-width:520px;color:#475569;line-height:1.6">{{ $stateInfo['text'] }}</p>
+                @if(session('error'))
+                    <div class="modal-warning" style="margin-top:4px;max-width:520px;">
+                        {{ session('error') }}
+                    </div>
+                @endif
+            </div>
+        </div>
+    @else
         <div class="cta">
             <h3>Votre décision</h3>
             <p>

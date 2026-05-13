@@ -67,8 +67,16 @@
             @endif
         </div>
 
-        {{-- Lien client --}}
-        @if($reservation->proposition_slug)
+        @php
+            // Le lien client n'est exposé qu'à l'expéditeur (admin/commercial).
+            // Le MP voit un résumé "qui a envoyé / quand" sans le lien.
+            $authRole = auth()->user()?->role?->value ?? null;
+            $canSeeClientLink = in_array($authRole, ['admin', 'commercial'], true);
+            $sender = $reservation->commercial; // commercial assigné si présent
+        @endphp
+
+        {{-- Lien client : admin + commercial uniquement --}}
+        @if($reservation->proposition_slug && $canSeeClientLink)
         @php
             $propUrl = route('proposition.show', [
                 $reservation->reference,
@@ -78,22 +86,44 @@
         <div class="client-link-container">
             <span class="info-label">🔗 Lien client</span>
             <div class="client-link-actions">
-                <input type="text" 
-                       value="{{ $propUrl }}" 
-                       readonly 
-                       id="prop-link-{{ $reservation->id }}" 
+                <input type="text"
+                       value="{{ $propUrl }}"
+                       readonly
+                       id="prop-link-{{ $reservation->id }}"
                        class="client-link-input">
-                <button type="button" 
-                        class="btn-copy" 
+                <button type="button"
+                        class="btn-copy"
                         onclick="PropositionActions.copyLink('prop-link-{{ $reservation->id }}', this)">
                     📋 Copier
                 </button>
-                <a href="{{ $propUrl }}" 
-                   target="_blank" 
+                <a href="{{ $propUrl }}"
+                   target="_blank"
                    class="btn-view">
                     👁️ Voir
                 </a>
             </div>
+        </div>
+        @endif
+
+        {{-- Pour le MP : résumé "envoyée par X" sans le lien --}}
+        @if($reservation->proposition_slug && !$canSeeClientLink && $sender)
+        <div class="client-link-container">
+            <span class="info-label">📨 Envoyée par</span>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div style="font-size:13px;color:var(--text-primary,#1e293b);font-weight:600;">
+                    {{ $sender->name }}
+                </div>
+                @if($sender->email)
+                    <a href="mailto:{{ $sender->email }}"
+                       style="font-size:12px;color:var(--accent,#d48a00);text-decoration:none;">
+                        ✉️ {{ $sender->email }}
+                    </a>
+                @endif
+            </div>
+            <p style="margin:8px 0 0;font-size:11px;color:var(--text-muted,#64748b);line-height:1.5;">
+                ℹ️ Le lien client est privé au commercial. Si le client signale un problème,
+                demande à <strong>{{ $sender->name }}</strong> de cliquer « Renvoyer la proposition ».
+            </p>
         </div>
         @endif
     </div>

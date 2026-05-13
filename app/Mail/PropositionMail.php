@@ -41,8 +41,16 @@ class PropositionMail extends Mailable implements ShouldQueue
             $replyTo[] = new Address($contact->email, $contact->name ?? '');
         }
 
+        // Titre adapté au type :
+        //   - option : c'est une proposition → "À confirmer" (client doit valider)
+        //   - ferme  : c'est une réservation directe → "Confirmée" (informative)
+        $isOption = ($this->reservation->type ?? 'option') === 'option';
+        $subject  = $isOption
+            ? "Votre proposition de réservation — Réf. {$this->reservation->reference} — À confirmer"
+            : "Votre réservation de panneaux — Réf. {$this->reservation->reference} — Confirmée";
+
         return new Envelope(
-            subject:  "Votre réservation de panneaux — Réf. {$this->reservation->reference} — À confirmer",
+            subject:  $subject,
             replyTo:  $replyTo,
             tags:     ['proposition', 'commercial'],
             metadata: [

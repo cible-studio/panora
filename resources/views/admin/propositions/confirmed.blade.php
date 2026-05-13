@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Proposition confirmée — CIBLE CI</title>
+<title>Proposition confirmée — PANORA</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="{{ asset('images/faviconl.png') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -286,14 +286,51 @@
             </ul>
         </div>
 
+        {{-- Espace client : 2 cas selon que le client a déjà un compte
+             ou non. S'il a un compte → CTA vers /client/login (puis
+             /client/campagnes). S'il n'en a pas → invitation à en créer
+             un pour suivre la campagne en temps réel. --}}
+        @php
+            $hasAccount = $client && !empty($client->password);
+            $operator   = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
+        @endphp
+        <div style="margin-top:18px;padding:16px 18px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;text-align:left;">
+            @if($hasAccount)
+                <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#1d4ed8;margin-bottom:6px;">
+                    📊 Suivre votre campagne
+                </div>
+                <p style="font-size:13px;color:#1e3a8a;margin:0 0 10px;line-height:1.6;">
+                    Connectez-vous à votre espace client PANORA pour suivre l'avancement
+                    de votre campagne en temps réel (poses, photos d'affichage, factures).
+                </p>
+                <a href="{{ route('client.login') }}"
+                   style="display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;
+                          border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">
+                    Accéder à mon espace
+                </a>
+            @else
+                <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#1d4ed8;margin-bottom:6px;">
+                    ✨ Suivez votre campagne en temps réel
+                </div>
+                <p style="font-size:13px;color:#1e3a8a;margin:0 0 4px;line-height:1.6;">
+                    PANORA met à votre disposition un espace client gratuit pour suivre
+                    l'avancement de votre campagne, voir les photos d'affichage en direct,
+                    et télécharger vos factures.
+                </p>
+                <p style="font-size:12px;color:#475569;margin:0 0 10px;">
+                    Votre commercial vous transmettra les identifiants par email d'ici peu.
+                </p>
+            @endif
+        </div>
+
         <div class="note">
-            Vous pouvez fermer cette page. Pour toute question, contactez votre interlocuteur commercial CIBLE CI.
+            Vous pouvez fermer cette page. Pour toute question, contactez votre interlocuteur commercial.
         </div>
     </div>
 </div>
 
 <footer class="footer">
-    © {{ date('Y') }} CIBLE CI — Régie Publicitaire — Abidjan, Côte d'Ivoire
+    © {{ date('Y') }} PANORA · {{ $operator ?? 'CIBLE CI' }} — Régie Publicitaire — Abidjan, Côte d'Ivoire
 </footer>
 
 </body>
