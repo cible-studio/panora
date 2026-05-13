@@ -5,6 +5,7 @@ use App\Models\Reservation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -41,8 +42,17 @@ class PropositionDecisionMail extends Mailable implements ShouldQueue
             ? "Proposition {$ref} acceptée par {$clientName}"
             : "Proposition {$ref} refusée par {$clientName}";
 
+        // Reply-To = client : permet à l'admin de répondre directement au
+        // client (qui a accepté/refusé) sans copier-coller son adresse.
+        $replyTo = [];
+        $client  = $this->reservation->client;
+        if ($client?->email) {
+            $replyTo[] = new Address($client->email, $client->name ?? '');
+        }
+
         return new Envelope(
             subject:  $subject,
+            replyTo:  $replyTo,
             tags:     ['proposition', 'decision', $this->decision],
             metadata: [
                 'reservation_id' => (string) $this->reservation->id,

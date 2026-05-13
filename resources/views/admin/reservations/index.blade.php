@@ -21,7 +21,8 @@
             ['key'=>'annule',     'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'#6b7280'],
         ];
         $activeStatus = request('status');
-        $hasAnyFilter = request('search') || request('status') || request('type') || request('client_id') || request('periode');
+        $assignedMe   = request()->boolean('assigned_me');
+        $hasAnyFilter = request('search') || request('status') || request('type') || request('client_id') || request('periode') || $assignedMe;
         @endphp
         @foreach($statCards as $sc)
         @php
@@ -96,6 +97,16 @@
                     <option value="this_quarter" {{ request('periode') === 'this_quarter' ? 'selected' : '' }}>Ce trimestre</option>
                     <option value="this_year" {{ request('periode') === 'this_year' ? 'selected' : '' }}>Cette année</option>
                 </select>
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label">👤 Assignation</label>
+                <label style="display:flex;align-items:center;gap:8px;height:38px;cursor:pointer;padding:0 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;font-size:13px;color:var(--text2);">
+                    <input type="checkbox" id="filter-assigned-me" data-filter="assigned_me"
+                        {{ $assignedMe ? 'checked' : '' }}
+                        style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;">
+                    <span>Mes à traiter</span>
+                </label>
             </div>
 
             <div class="filter-group" id="reset-wrapper" style="display:none;">
@@ -895,12 +906,15 @@
             currentFilters.type = urlParams.get('type') || '';
             currentFilters.client_id = urlParams.get('client_id') || '';
             currentFilters.periode = urlParams.get('periode') || '';
+            currentFilters.assigned_me = urlParams.get('assigned_me') === '1' ? '1' : '';
 
             document.getElementById('filter-search').value = currentFilters.search;
             document.getElementById('filter-status').value = currentFilters.status;
             document.getElementById('filter-type').value = currentFilters.type;
             document.getElementById('filter-client').value = currentFilters.client_id;
             document.getElementById('filter-periode').value = currentFilters.periode;
+            const assignedEl = document.getElementById('filter-assigned-me');
+            if (assignedEl) assignedEl.checked = !!currentFilters.assigned_me;
 
             updateActiveStat();
             updateResetButton();
@@ -910,6 +924,7 @@
             document.getElementById('filter-type').addEventListener('change', applyFilters);
             document.getElementById('filter-client').addEventListener('change', applyFilters);
             document.getElementById('filter-periode').addEventListener('change', applyFilters);
+            if (assignedEl) assignedEl.addEventListener('change', applyFilters);
             
             document.querySelectorAll('.stat-card').forEach(card => {
                 card.addEventListener('click', (e) => {
@@ -929,6 +944,8 @@
             currentFilters.type = document.getElementById('filter-type').value;
             currentFilters.client_id = document.getElementById('filter-client').value;
             currentFilters.periode = document.getElementById('filter-periode').value;
+            const assignedEl = document.getElementById('filter-assigned-me');
+            currentFilters.assigned_me = assignedEl?.checked ? '1' : '';
             currentFilters.page = 1;
 
             updateResetButton();
@@ -937,12 +954,14 @@
         }
 
         function resetFilters() {
-            currentFilters = { search: '', status: '', type: '', client_id: '', periode: '', page: 1 };
+            currentFilters = { search: '', status: '', type: '', client_id: '', periode: '', assigned_me: '', page: 1 };
             document.getElementById('filter-search').value = '';
             document.getElementById('filter-status').value = '';
             document.getElementById('filter-type').value = '';
             document.getElementById('filter-client').value = '';
             document.getElementById('filter-periode').value = '';
+            const assignedEl = document.getElementById('filter-assigned-me');
+            if (assignedEl) assignedEl.checked = false;
 
             updateResetButton();
             updateActiveStat();
@@ -962,9 +981,9 @@
         }
 
         function updateResetButton() {
-            const hasFilters = currentFilters.search || currentFilters.status || 
-                               currentFilters.type || currentFilters.client_id || 
-                               currentFilters.periode;
+            const hasFilters = currentFilters.search || currentFilters.status ||
+                               currentFilters.type || currentFilters.client_id ||
+                               currentFilters.periode || currentFilters.assigned_me;
             document.getElementById('reset-wrapper').style.display = hasFilters ? 'flex' : 'none';
         }
 
@@ -982,6 +1001,7 @@
                 if (currentFilters.type) params.set('type', currentFilters.type);
                 if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
                 if (currentFilters.periode) params.set('periode', currentFilters.periode);
+                if (currentFilters.assigned_me) params.set('assigned_me', '1');
                 params.set('ajax', '1');
 
                 try {
@@ -1028,6 +1048,7 @@
             if (currentFilters.type) params.set('type', currentFilters.type);
             if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
             if (currentFilters.periode) params.set('periode', currentFilters.periode);
+            if (currentFilters.assigned_me) params.set('assigned_me', '1');
             params.set('ajax', '1');
             try {
                 const response = await fetch(`${currentUrl}?${params}`, {

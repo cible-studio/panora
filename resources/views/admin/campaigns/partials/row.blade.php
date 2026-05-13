@@ -74,6 +74,14 @@
         <div class="days-left">{{ number_format($pct, 1, ',', '') }}% écoulé · {{ $daysLeft }}j restants</div>
         @endif
     </td>
+    @php
+        // Facturation : visible pour admin + commercial. Cachée pour MP.
+        $rowAuthRole = auth()->user()?->role?->value;
+        $rowCanSeeBilling = in_array($rowAuthRole, ['admin', 'commercial'], true);
+        // Commercial suivant le dossier (assigné via résa source).
+        $rowCommercial = $campaign->reservation?->resolveCommercialContact();
+    @endphp
+    @if($rowCanSeeBilling)
     <td>
         @if($latestInvoice)
             <button type="button"
@@ -95,9 +103,16 @@
             <span class="badge-muted">—</span>
         @endif
     </td>
+    @endif
     <td>
-        <div>{{ $campaign->user?->name ?? '—' }}</div>
-        <div class="date-small">{{ $campaign->created_at->format('d/m/Y H:i') }}</div>
+        @if($rowCommercial)
+            <div style="font-weight:500;">{{ $rowCommercial->name }}</div>
+            @if($rowCommercial->email)
+            <div class="date-small">{{ $rowCommercial->email }}</div>
+            @endif
+        @else
+            <span class="badge-muted">—</span>
+        @endif
     </td>
     <td>
         <div class="actions">

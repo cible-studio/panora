@@ -5,6 +5,7 @@ use App\Models\SatisfactionSurvey;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -23,9 +24,15 @@ class SatisfactionSurveyMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        $clientName = $this->survey->client?->name ?? '';
+        $replyTo = [];
+        $contact = $this->survey->campaign?->user;
+        if ($contact?->email) {
+            $replyTo[] = new Address($contact->email, $contact->name ?? '');
+        }
+
         return new Envelope(
             subject:  "Votre avis sur la campagne {$this->survey->campaign?->name} - CIBLE CI",
+            replyTo:  $replyTo,
             tags:     ['satisfaction', 'survey'],
             metadata: [
                 'survey_id'   => (string) $this->survey->id,

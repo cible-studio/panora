@@ -67,8 +67,16 @@
             @endif
         </div>
 
-        {{-- Lien client --}}
-        @if($reservation->proposition_slug)
+        @php
+            // Le lien client n'est exposé qu'à l'expéditeur (admin/commercial).
+            // Le MP voit un résumé "qui a envoyé / quand" sans le lien.
+            $authRole = auth()->user()?->role?->value ?? null;
+            $canSeeClientLink = in_array($authRole, ['admin', 'commercial'], true);
+            $sender = $reservation->commercial; // commercial assigné si présent
+        @endphp
+
+        {{-- Lien client : admin + commercial uniquement --}}
+        @if($reservation->proposition_slug && $canSeeClientLink)
         @php
             $propUrl = route('proposition.show', [
                 $reservation->reference,
@@ -78,22 +86,44 @@
         <div class="client-link-container">
             <span class="info-label">🔗 Lien client</span>
             <div class="client-link-actions">
-                <input type="text" 
-                       value="{{ $propUrl }}" 
-                       readonly 
-                       id="prop-link-{{ $reservation->id }}" 
+                <input type="text"
+                       value="{{ $propUrl }}"
+                       readonly
+                       id="prop-link-{{ $reservation->id }}"
                        class="client-link-input">
-                <button type="button" 
-                        class="btn-copy" 
+                <button type="button"
+                        class="btn-copy"
                         onclick="PropositionActions.copyLink('prop-link-{{ $reservation->id }}', this)">
                     📋 Copier
                 </button>
-                <a href="{{ $propUrl }}" 
-                   target="_blank" 
+                <a href="{{ $propUrl }}"
+                   target="_blank"
                    class="btn-view">
                     👁️ Voir
                 </a>
             </div>
+        </div>
+        @endif
+
+        {{-- Pour le MP : résumé "envoyée par X" sans le lien --}}
+        @if($reservation->proposition_slug && !$canSeeClientLink && $sender)
+        <div class="client-link-container">
+            <span class="info-label">📨 Envoyée par</span>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div style="font-size:13px;color:var(--text-primary,#1e293b);font-weight:600;">
+                    {{ $sender->name }}
+                </div>
+                @if($sender->email)
+                    <a href="mailto:{{ $sender->email }}"
+                       style="font-size:12px;color:var(--accent,#d48a00);text-decoration:none;">
+                        ✉️ {{ $sender->email }}
+                    </a>
+                @endif
+            </div>
+            <p style="margin:8px 0 0;font-size:11px;color:var(--text-muted,#64748b);line-height:1.5;">
+                ℹ️ Le lien client est privé au commercial. Si le client signale un problème,
+                demande à <strong>{{ $sender->name }}</strong> de cliquer « Renvoyer la proposition ».
+            </p>
         </div>
         @endif
     </div>
@@ -135,20 +165,25 @@
          MP construit puis "soumet au commercial". Commercial envoie. --}}
     <div class="proposition-actions">
 
-        {{-- MP : bouton "Soumettre au commercial" si la proposition n'est
-             pas encore en pending_send ni envoyée. --}}
+        {{-- MP/Admin : bouton commercial.
+             - Pas encore assigné : "Soumettre au commercial"
+             - Déjà assigné         : "Changer de commercial" (toujours visible,
+               même après l'envoi au client, pour réassigner le dossier).
+             Dans les 2 cas la modale demande de choisir un commercial, qui
+             reçoit immédiatement email + alerte. --}}
         @can('proposition.submit', $reservation)
-            @if(in_array($propStatus, ['draft','prepared'], true))
-                <form method="POST"
-                      action="{{ route('admin.reservations.proposition.soumettre', $reservation) }}"
-                      style="display:inline;"
-                      onsubmit="return confirm('Soumettre la proposition au commercial pour envoi au client ?');">
-                    @csrf
-                    <button type="submit" class="btn-primary">
-                        📤 Soumettre au commercial
-                    </button>
-                </form>
-            @endif
+            @php
+                $hasCommercial = !empty($reservation->commercial_user_id);
+                $btnLabel      = $hasCommercial
+                    ? '🔄 Changer de commercial'
+                    : '📤 Soumettre au commercial';
+                $btnClass      = $hasCommercial ? 'btn-secondary' : 'btn-primary';
+            @endphp
+            <button type="button"
+                    class="{{ $btnClass }}"
+                    onclick="PropositionActions.confirmSubmit({{ $reservation->id }}, {{ $reservation->commercial_user_id ?: 'null' }})">
+                {{ $btnLabel }}
+            </button>
         @endcan
 
         @if(!empty($reservation->client?->email))
@@ -547,6 +582,110 @@ window.PropositionActions = {
         });
     },
 
+    /**
+     * Workflow : choisir/changer le commercial assigné.
+     * @param {number} reservationId
+     * @param {number|null} currentCommercialId  Commercial déjà assigné (pour
+     *        affichage et pré-sélection dans la modale). null = pas encore.
+     */
+    async confirmSubmit(reservationId, currentCommercialId = null) {
+        // 1) Charger la liste des commerciaux disponibles
+        let commercials = [];
+        try {
+            const res = await fetch('/admin/api/commercials', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (res.ok) commercials = await res.json();
+        } catch (e) { /* fallback : pas de liste */ }
+
+        const isReassign = currentCommercialId !== null && currentCommercialId !== undefined;
+        const currentCom = isReassign
+            ? commercials.find(c => c.id == currentCommercialId)
+            : null;
+
+        // 2) Construire le select HTML avec pré-sélection
+        const options = commercials.length
+            ? '<option value="">— Choisir un commercial —</option>' +
+              commercials.map(c => {
+                  const sel = (currentCommercialId && c.id == currentCommercialId) ? 'selected' : '';
+                  return `<option value="${c.id}" ${sel}>${c.name}${c.email ? ' (' + c.email + ')' : ''}</option>`;
+              }).join('')
+            : '<option value="">Aucun commercial actif</option>';
+
+        // 3) Afficher la modale custom
+        const currentInfo = isReassign && currentCom
+            ? `<div style="font-size:12px;color:var(--text3,#64748b);margin-bottom:8px;">
+                   Commercial actuel : <strong style="color:var(--text,#e2e8f0)">${currentCom.name}</strong>
+               </div>`
+            : '';
+
+        this._showCustomModal({
+            title: isReassign ? 'Changer de commercial' : 'Soumettre la proposition au commercial',
+            icon: isReassign ? '🔄' : '📤',
+            type: 'confirm',
+            bodyHtml: `
+                <p class="proposition-modal-message">
+                    ${isReassign
+                        ? 'Choisissez le nouveau commercial qui prendra en charge ce dossier.'
+                        : 'La proposition sera transmise au commercial pour qu\'il puisse l\'envoyer au client.'}
+                </p>
+                ${currentInfo}
+                <div class="proposition-modal-recipient" style="flex-direction:column;align-items:flex-start;">
+                    <span class="recipient-label">${isReassign ? 'Nouveau commercial' : 'Commercial'}</span>
+                    <select id="submit-commercial-select" style="width:100%;margin-top:4px;padding:8px 10px;border-radius:8px;
+                            background:var(--surface2,#0f172a);color:var(--text,#e2e8f0);
+                            border:1px solid var(--border,#334155);font-size:13px;">
+                        ${options}
+                    </select>
+                </div>
+                <p class="proposition-modal-details">
+                    Le commercial sélectionné recevra une alerte interne <strong>et un email immédiat</strong>
+                    pour prendre connaissance du dossier${isReassign ? ' (le précédent commercial ne sera plus notifié)' : ''}.
+                </p>
+            `,
+            confirmText: isReassign ? 'Changer' : 'Soumettre',
+            confirmClass: 'btn-primary',
+            onConfirm: () => {
+                const sel = document.getElementById('submit-commercial-select');
+                const commercialId = sel ? sel.value : '';
+                if (!commercialId) {
+                    this._showToast('Veuillez choisir un commercial.', 'error');
+                    return false;
+                }
+                if (isReassign && commercialId == currentCommercialId) {
+                    this._showToast('Ce commercial est déjà assigné. Choisissez-en un autre.', 'warning');
+                    return false;
+                }
+                this._submitToCommercial(reservationId, commercialId);
+            }
+        });
+    },
+
+    async _submitToCommercial(reservationId, commercialId) {
+        this._setLoading(true);
+        try {
+            const fd = new FormData();
+            fd.append('_token', this.csrf);
+            fd.append('commercial_id', commercialId);
+            const response = await fetch(`/admin/reservations/${reservationId}/proposition/soumettre`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': this.csrf, 'Accept': 'application/json' },
+                body: fd,
+            });
+            const data = await response.json().catch(() => ({}));
+            if (response.ok && data.success !== false) {
+                this._showToast(data.message || 'Proposition soumise au commercial.', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                this._showToast(data.message || 'Une erreur est survenue.', 'error');
+            }
+        } catch (error) {
+            this._showToast('Erreur de connexion. Veuillez réessayer.', 'error');
+        } finally {
+            this._setLoading(false);
+        }
+    },
+
     confirmResend(reservationId) {
         this._showModal({
             title: 'Renvoyer la proposition',
@@ -639,6 +778,53 @@ window.PropositionActions = {
             btn.innerHTML = '✅ Copié !';
             setTimeout(() => btn.innerHTML = originalText, 2000);
         });
+    },
+
+    /**
+     * Variante de _showModal qui prend bodyHtml en raw HTML (au lieu de
+     * message+details simples). Utilisé pour les modales avec input/select
+     * intégrés (ex: confirmSubmit qui demande le commercial cible).
+     */
+    _showCustomModal(options) {
+        const existingModal = document.getElementById('proposition-modal');
+        if (existingModal) existingModal.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'proposition-modal';
+        modal.className = 'proposition-modal';
+        modal.innerHTML = `
+            <div class="proposition-modal-overlay"></div>
+            <div class="proposition-modal-container ${options.type || 'confirm'}">
+                <div class="proposition-modal-header">
+                    <div class="proposition-modal-icon">${options.icon || '📋'}</div>
+                    <h3 class="proposition-modal-title">${options.title}</h3>
+                    <button class="proposition-modal-close" onclick="PropositionActions._closeModal()">✕</button>
+                </div>
+                <div class="proposition-modal-body">${options.bodyHtml || ''}</div>
+                <div class="proposition-modal-footer">
+                    <button class="proposition-modal-btn proposition-modal-btn-cancel" onclick="PropositionActions._closeModal()">Annuler</button>
+                    <button class="proposition-modal-btn ${options.confirmClass || 'btn-primary'}" id="proposition-modal-confirm">${options.confirmText || 'Confirmer'}</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        document.body.style.overflow = 'hidden';
+        setTimeout(() => modal.classList.add('active'), 10);
+
+        document.getElementById('proposition-modal-confirm').onclick = () => {
+            // onConfirm peut retourner false pour empêcher la fermeture
+            // (utile pour valider un select avant action).
+            const result = options.onConfirm ? options.onConfirm() : true;
+            if (result !== false) this._closeModal();
+        };
+
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                this._closeModal();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
     },
 
     _showModal(options) {

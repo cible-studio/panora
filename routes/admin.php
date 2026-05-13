@@ -210,9 +210,17 @@ Route::prefix('client')->name('client.')->middleware(\App\Http\Middleware\SetFre
 // ROUTES ADMIN (auth requise)
 // ══════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════════════
+// ROUTES ADMIN — Matrice d'accès par rôle (cf. docs/ROLES_VALIDES.md)
+// ──────────────────────────────────────────────────────────────────────
+// • Le rôle `technique` est exclu du web admin : le technicien n'a
+//   QUE l'accès mobile via /pige/{token} (lien WhatsApp public).
+// • 3 rôles staff connectables : admin / commercial / mediaplanner.
+// • Restrictions par module via middleware imbriqué role:... ci-dessous.
+// ══════════════════════════════════════════════════════════════════════
 Route::prefix('admin')
     ->name('admin.')
-    ->middleware(['auth', 'role:admin,commercial,mediaplanner,technique'])
+    ->middleware(['auth', 'role:admin,commercial,mediaplanner'])
     ->group(function () {
 
         // ════════════════════════════════════════════════
@@ -222,18 +230,17 @@ Route::prefix('admin')
         // Dashboard
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-        // ── Panneaux ──────────────────────────────────────────────
-        Route::resource('panels', PanelController::class);
-        Route::post('panels/{panel}/status', [PanelController::class, 'updateStatus'])
-            ->name('panels.status');
+        // ── Panneaux ────────────────────────────────────────────────
+        // Lecture + exports = tous les staff (admin/commercial/MP).
+        // Création / modification / suppression / photos = admin + MP.
+        // Changement de statut (libre / maintenance) = admin + MP.
+        Route::get('panels', [PanelController::class, 'index'])->name('panels.index');
+        Route::get('panels/{panel}', [PanelController::class, 'show'])
+            ->whereNumber('panel')->name('panels.show');
         Route::get('panels/{panel}/availability', [PanelController::class, 'availability'])
-            ->name('panels.availability');
-        Route::post('panels/{panel}/photos', [PanelController::class, 'uploadPhoto'])
-            ->name('panels.photos');
-        Route::delete('panels/{panel}/photos/{photo}', [PanelController::class, 'deletePhoto'])
-            ->name('panels.photos.delete');
+            ->whereNumber('panel')->name('panels.availability');
         Route::get('panels/{panel}/pdf', [PanelController::class, 'exportPdf'])
-            ->name('panels.pdf');
+            ->whereNumber('panel')->name('panels.pdf');
         Route::get('panels/export/list', [PanelController::class, 'exportList'])
             ->name('panels.export.list');
         Route::get('panels/export/network', [PanelController::class, 'exportNetwork'])
@@ -243,15 +250,41 @@ Route::prefix('admin')
         Route::get('panels/export/network-excel', [PanelController::class, 'exportNetworkExcel'])
             ->name('panels.export.network-excel');
 
+        // Changement statut panneau = admin + MP
+        Route::post('panels/{panel}/status', [PanelController::class, 'updateStatus'])
+            ->middleware('role:admin,mediaplanner')
+            ->whereNumber('panel')->name('panels.status');
+
+        // Création / modif / suppression / photos = admin + MP
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('panels/create', [PanelController::class, 'create'])->name('panels.create');
+            Route::post('panels', [PanelController::class, 'store'])->name('panels.store');
+            Route::get('panels/{panel}/edit', [PanelController::class, 'edit'])
+                ->whereNumber('panel')->name('panels.edit');
+            Route::put('panels/{panel}', [PanelController::class, 'update'])
+                ->whereNumber('panel')->name('panels.update');
+            Route::patch('panels/{panel}', [PanelController::class, 'update'])
+                ->whereNumber('panel')->name('panels.update.patch');
+            Route::delete('panels/{panel}', [PanelController::class, 'destroy'])
+                ->whereNumber('panel')->name('panels.destroy');
+            Route::post('panels/{panel}/photos', [PanelController::class, 'uploadPhoto'])
+                ->whereNumber('panel')->name('panels.photos');
+            Route::delete('panels/{panel}/photos/{photo}', [PanelController::class, 'deletePhoto'])
+                ->whereNumber('panel')->name('panels.photos.delete');
+        });
+
         // ── Carte / Heatmap ───────────────────────────────────────
         Route::get('map', [PanelController::class, 'map'])
             ->name('map');
         Route::get('map/data', [PanelController::class, 'mapData'])
             ->name('map.data');
 
-        // ── Pose OOH ──────────────────────────────────────────────────
+        // ── Pose OOH ─────────────────────────────── (admin + MP only) ──
+        // Le commercial n'a aucun accès au suivi terrain (matrice POSES).
         // ⚠️ Routes AJAX spécifiques AVANT resource pour éviter conflits
-        Route::prefix('pose-tasks')->name('pose-tasks.')->group(function () {
+        Route::prefix('pose-tasks')->name('pose-tasks.')
+            ->middleware('role:admin,mediaplanner')
+            ->group(function () {
             // ── AJAX endpoints (avant les routes paramétriques) ──────
             Route::get('search-campaigns', [PoseController::class, 'searchCampaigns'])->name('search-campaigns');
             Route::get('campaign-panels',  [PoseController::class, 'campaignPanels']) ->name('campaign-panels');
@@ -271,22 +304,27 @@ Route::prefix('admin')
             Route::delete('/{poseTask}',   [PoseController::class, 'destroy'])->name('destroy');
         });
         
-        // ── Alias pour markComplete (rétrocompatibilité) ──────────────
-        Route::post('pose-tasks/{poseTask}/complete', [PoseController::class, 'markComplete'])
-            ->name('pose.complete');
+        // ── Pose : alias + notify (admin + MP only) ───────────────────
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            // Alias pour markComplete (rétrocompatibilité)
+            Route::post('pose-tasks/{poseTask}/complete', [PoseController::class, 'markComplete'])
+                ->name('pose.complete');
 
-        // ── Renvoyer / envoyer manuellement la notification WhatsApp ──
-        Route::post('pose-tasks/{poseTask}/notify', [PoseController::class, 'notifyWhatsApp'])
-            ->name('pose-tasks.notify');
+            // Renvoyer / envoyer manuellement la notification WhatsApp
+            Route::post('pose-tasks/{poseTask}/notify', [PoseController::class, 'notifyWhatsApp'])
+                ->name('pose-tasks.notify');
+        });
 
-        // Maintenance
+        // ── Maintenance ──────────────────────── (admin + MP only) ──
         // Endpoints AJAX recherche panneaux + création rapide technicien
         // (à placer AVANT Route::resource sinon /search-panels matche {maintenance})
-        Route::get ('maintenances/search-panels',  [MaintenanceController::class, 'searchPanels'])->name('maintenances.search-panels');
-        Route::post('maintenances/quick-tech',     [MaintenanceController::class, 'quickCreateTechnician'])->name('maintenances.quick-tech');
-        Route::resource('maintenances', MaintenanceController::class);
-        Route::post('maintenances/{maintenance}/resolve', [MaintenanceController::class, 'resolve'])->name('maintenances.resolve');
-        Route::post('maintenances/{maintenance}/reopen',  [MaintenanceController::class, 'reopen'])->name('maintenances.reopen');
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get ('maintenances/search-panels',  [MaintenanceController::class, 'searchPanels'])->name('maintenances.search-panels');
+            Route::post('maintenances/quick-tech',     [MaintenanceController::class, 'quickCreateTechnician'])->name('maintenances.quick-tech');
+            Route::resource('maintenances', MaintenanceController::class);
+            Route::post('maintenances/{maintenance}/resolve', [MaintenanceController::class, 'resolve'])->name('maintenances.resolve');
+            Route::post('maintenances/{maintenance}/reopen',  [MaintenanceController::class, 'reopen'])->name('maintenances.reopen');
+        });
 
         // ── Alertes ───────────────────────────────────────────────
         Route::prefix('alerts')->name('alerts.')->group(function () {
@@ -334,10 +372,14 @@ Route::prefix('admin')
         // });
 
         // ══════════════════════════════════════════════════════════════
-        // ROUTES PIGES — CRUD + actions spécifiques
+        // ROUTES PIGES — CRUD + actions spécifiques (admin + MP only)
+        // Le commercial peut télécharger les ZIP de ses campagnes mais
+        // pas accéder à la validation / au CRUD des piges.
         // ══════════════════════════════════════════════════════════════
-        
-        Route::prefix('piges')->name('piges.')->group(function () {
+
+        Route::prefix('piges')->name('piges.')
+            ->middleware('role:admin,mediaplanner')
+            ->group(function () {
         
             // ── AJAX (avant les routes paramétriques) ──────────────────
             Route::get('campaign-panels', [PigeController::class, 'campaignPanels'])->name('campaign-panels');
@@ -357,41 +399,68 @@ Route::prefix('admin')
             Route::delete('/{pige}',  [PigeController::class, 'destroy'])->name('destroy');
         });
 
-        // ── Taxes Communes ────────────────────────────────────────
-        Route::get('taxes/auto/preview',  [TaxController::class, 'previewAuto'])->name('taxes.auto.preview');
-        Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
-        Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');
-        Route::get ('taxes/details',       [TaxController::class, 'details'])      ->name('taxes.details');
-        Route::get ('taxes/details/pdf',   [TaxController::class, 'detailsPdf'])   ->name('taxes.details.pdf');
-        Route::get ('taxes/details/excel', [TaxController::class, 'detailsExcel']) ->name('taxes.details.excel');
-        Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
-        Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
-        Route::resource('taxes', TaxController::class);
-        Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
-        Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
+        // ── Taxes Communes ─────────────────────── (admin + MP only) ──
+        // Voir / exporter les rapports = admin + MP. Modifier les tarifs
+        // communaux reste réservé à l'admin (matrice TAXES).
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('taxes/auto/preview',  [TaxController::class, 'previewAuto'])->name('taxes.auto.preview');
+            Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
+            Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');
+            Route::get ('taxes/details',       [TaxController::class, 'details'])      ->name('taxes.details');
+            Route::get ('taxes/details/pdf',   [TaxController::class, 'detailsPdf'])   ->name('taxes.details.pdf');
+            Route::get ('taxes/details/excel', [TaxController::class, 'detailsExcel']) ->name('taxes.details.excel');
+            Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
+            Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
+            Route::resource('taxes', TaxController::class);
+            Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
+            Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
+        });
 
-        // ── Facturation (admin uniquement) ───────────────────────
+        // ── Facturation ───────────────────────────────────────────────
+        // Lecture (index/show/pdf/exports liste) : tous staff (le commercial
+        // voit ses siennes via filtrage InvoiceController). Création /
+        // modification / suppression / changement statut = admin uniquement.
+        Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+        Route::get('invoices/export/pdf',   [InvoiceController::class, 'exportListPdf'])->name('invoices.export.pdf');
+        Route::get('invoices/export/excel', [InvoiceController::class, 'exportListExcel'])->name('invoices.export.excel');
+        Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])
+            ->whereNumber('invoice')->name('invoices.show');
+        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])
+            ->whereNumber('invoice')->name('invoices.pdf');
+
         Route::middleware('role:admin')->group(function () {
-            Route::get('invoices/export/pdf',   [InvoiceController::class, 'exportListPdf'])->name('invoices.export.pdf');
-            Route::get('invoices/export/excel', [InvoiceController::class, 'exportListExcel'])->name('invoices.export.excel');
-            Route::resource('invoices', InvoiceController::class);
+            Route::get('invoices/create', [InvoiceController::class, 'create'])->name('invoices.create');
+            Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
+            Route::get('invoices/{invoice}/edit', [InvoiceController::class, 'edit'])
+                ->whereNumber('invoice')->name('invoices.edit');
+            Route::put('invoices/{invoice}', [InvoiceController::class, 'update'])
+                ->whereNumber('invoice')->name('invoices.update');
+            Route::patch('invoices/{invoice}', [InvoiceController::class, 'update'])
+                ->whereNumber('invoice')->name('invoices.update.patch');
+            Route::delete('invoices/{invoice}', [InvoiceController::class, 'destroy'])
+                ->whereNumber('invoice')->name('invoices.destroy');
             Route::patch('invoices/{invoice}/send',         [InvoiceController::class, 'markSent'])->name('invoices.send');
             Route::patch('invoices/{invoice}/pay',          [InvoiceController::class, 'markPaid'])->name('invoices.pay');
             Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'markCancelled'])->name('invoices.cancel');
             Route::patch('invoices/{invoice}/revert-draft', [InvoiceController::class, 'revertDraft'])->name('invoices.revert-draft');
-            Route::get('invoices/{invoice}/pdf',            [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
         });
 
         // ════════════════════════════════════════════════
         // DEV B
         // ════════════════════════════════════════════════
-        // Clients
+        // ── Clients ─────────────────────────────────────────────────
+        // Lecture (index + show + data) = tous staff (admin/commercial/MP).
+        // Création / modification / interlocuteurs = admin + commercial.
+        // Suppression = admin uniquement.
         Route::post('clients/quick-store', [ClientController::class, 'storeQuick'])
+            ->middleware('role:admin,commercial')
             ->name('clients.quick-store');
         // Import Excel (avant les routes paramétriques pour éviter conflit)
+        // Lecture template = staff, import = admin + commercial.
         Route::get('clients/import/template', [ClientController::class, 'importTemplate'])
             ->name('clients.import.template');
         Route::post('clients/import',         [ClientController::class, 'import'])
+            ->middleware('role:admin,commercial')
             ->name('clients.import');
         // Exports liste clients (5.2) — placés AVANT /clients/{client} pour
         // ne pas être avalés par le route model binding.
@@ -401,193 +470,263 @@ Route::prefix('admin')
             ->name('clients.export.pdf');
         Route::get('clients/export/excel', [ClientController::class, 'exportExcel'])
             ->name('clients.export.excel');
+        // Lecture clients : tous les staff
         Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
-        Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');
-        Route::get('clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');
-        Route::post('clients', [ClientController::class, 'store'])->name('clients.store');
-        Route::put('clients/{client}', [ClientController::class, 'update'])->name('clients.update');
-        Route::delete('clients/{client}', [ClientController::class, 'destroy'])->name('clients.destroy');
+        Route::get('clients/create', [ClientController::class, 'create'])
+            ->middleware('role:admin,commercial')->name('clients.create');
+        Route::get('clients/{client}/edit', [ClientController::class, 'edit'])
+            ->middleware('role:admin,commercial')->name('clients.edit');
+        Route::post('clients', [ClientController::class, 'store'])
+            ->middleware('role:admin,commercial')->name('clients.store');
+        Route::put('clients/{client}', [ClientController::class, 'update'])
+            ->middleware('role:admin,commercial')->name('clients.update');
+        Route::delete('clients/{client}', [ClientController::class, 'destroy'])
+            ->middleware('role:admin')->name('clients.destroy');
         Route::get('clients/{client}', [ClientController::class, 'show'])->name('clients.show');
 
         Route::get('clients/{client}/data', [ClientController::class, 'getClientData'])
             ->name('admin.clients.data')
             ->middleware('throttle:60,1');
-        Route::post('clients/{client}/account', [ClientController::class, 'createAccount'])->name('clients.account.create');
-        Route::post('clients/{client}/account/reset', [ClientController::class, 'resetPassword'])->name('clients.account.reset');
-        Route::delete('clients/{client}/account', [ClientController::class, 'revokeAccount'])->name('clients.account.revoke');
 
-        // ── Multi-interlocuteurs (T4) ─────────────────────────────
-        Route::post  ('clients/{client}/contacts',                [\App\Http\Controllers\Admin\ClientContactController::class, 'store'])     ->name('clients.contacts.store');
-        Route::put   ('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'update'])    ->name('clients.contacts.update');
-        Route::delete('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'destroy'])   ->name('clients.contacts.destroy');
-        Route::patch ('clients/{client}/contacts/{contact}/primary', [\App\Http\Controllers\Admin\ClientContactController::class, 'setPrimary'])->name('clients.contacts.primary');
+        // Comptes client (espace /client) : création / reset = admin + commercial
+        Route::middleware('role:admin,commercial')->group(function () {
+            Route::post('clients/{client}/account', [ClientController::class, 'createAccount'])->name('clients.account.create');
+            Route::post('clients/{client}/account/reset', [ClientController::class, 'resetPassword'])->name('clients.account.reset');
+            Route::delete('clients/{client}/account', [ClientController::class, 'revokeAccount'])->name('clients.account.revoke');
 
-        // Régies externes
-        Route::resource('external-agencies', ExternalAgencyController::class)->except(['create', 'edit']);
+            // ── Multi-interlocuteurs (T4) — édition = admin + commercial ──
+            Route::post  ('clients/{client}/contacts',                [\App\Http\Controllers\Admin\ClientContactController::class, 'store'])     ->name('clients.contacts.store');
+            Route::put   ('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'update'])    ->name('clients.contacts.update');
+            Route::delete('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'destroy'])   ->name('clients.contacts.destroy');
+            Route::patch ('clients/{client}/contacts/{contact}/primary', [\App\Http\Controllers\Admin\ClientContactController::class, 'setPrimary'])->name('clients.contacts.primary');
+        });
 
-        Route::post('external-agencies/{externalAgency}/panels', [ExternalAgencyController::class, 'storePanel'])
-            ->name('external-agencies.panels.store');
-        Route::put('external-agencies/{externalAgency}/panels/{panel}', [ExternalAgencyController::class, 'updatePanel'])
-            ->name('external-agencies.panels.update');
-        Route::delete('external-agencies/{externalAgency}/panels/{panel}', [ExternalAgencyController::class, 'destroyPanel'])
-            ->name('external-agencies.panels.destroy');
+        // ── Régies externes ─────────────────────────────────────────
+        // Lecture (index + show) = tous staff. Création / modification /
+        // suppression d'une régie ou de ses panneaux = admin uniquement
+        // (paramètre système — matrice UTILISATEURS & PARAMÈTRES).
+        Route::get('external-agencies', [ExternalAgencyController::class, 'index'])->name('external-agencies.index');
+        Route::get('external-agencies/{external_agency}', [ExternalAgencyController::class, 'show'])->name('external-agencies.show');
 
-        // Exports régie externe (PDF images / PDF liste / Excel)
-        Route::post('external-agencies/{externalAgency}/exports/pdf-images', [ExternalAgencyController::class, 'pdfImages'])
-            ->name('external-agencies.exports.pdf-images');
-        Route::post('external-agencies/{externalAgency}/exports/pdf-liste', [ExternalAgencyController::class, 'pdfListe'])
-            ->name('external-agencies.exports.pdf-liste');
-        Route::post('external-agencies/{externalAgency}/exports/excel', [ExternalAgencyController::class, 'exportExcel'])
-            ->name('external-agencies.exports.excel');
+        // Exports : lecture étendue (admin + MP qui planifie)
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::post('external-agencies/{externalAgency}/exports/pdf-images', [ExternalAgencyController::class, 'pdfImages'])
+                ->name('external-agencies.exports.pdf-images');
+            Route::post('external-agencies/{externalAgency}/exports/pdf-liste', [ExternalAgencyController::class, 'pdfListe'])
+                ->name('external-agencies.exports.pdf-liste');
+            Route::post('external-agencies/{externalAgency}/exports/excel', [ExternalAgencyController::class, 'exportExcel'])
+                ->name('external-agencies.exports.excel');
+        });
+
+        // Modifications = admin only
+        Route::middleware('role:admin')->group(function () {
+            Route::post('external-agencies', [ExternalAgencyController::class, 'store'])->name('external-agencies.store');
+            Route::put('external-agencies/{external_agency}', [ExternalAgencyController::class, 'update'])->name('external-agencies.update');
+            Route::patch('external-agencies/{external_agency}', [ExternalAgencyController::class, 'update'])->name('external-agencies.update.patch');
+            Route::delete('external-agencies/{external_agency}', [ExternalAgencyController::class, 'destroy'])->name('external-agencies.destroy');
+
+            Route::post('external-agencies/{externalAgency}/panels', [ExternalAgencyController::class, 'storePanel'])
+                ->name('external-agencies.panels.store');
+            Route::put('external-agencies/{externalAgency}/panels/{panel}', [ExternalAgencyController::class, 'updatePanel'])
+                ->name('external-agencies.panels.update');
+            Route::delete('external-agencies/{externalAgency}/panels/{panel}', [ExternalAgencyController::class, 'destroyPanel'])
+                ->name('external-agencies.panels.destroy');
+        });
 
         // ══════════════════════════════════════════════════════════
         // ⚠️ RÈGLE IMPORTANTE : routes GET spécifiques AVANT resource
         // ══════════════════════════════════════════════════════════
 
-        // Prix panneaux dans une réservation (internes + externes)
-        Route::patch('reservations/{reservation}/panels/{panel}/price',
-            [ReservationController::class, 'updatePanelPrice'])->name('reservations.panels.price');
-        Route::post('reservations/{reservation}/panels/{panel}/price/reset',
-            [ReservationController::class, 'resetPanelPrice'])->name('reservations.panels.price.reset');
+        // Prix panneaux dans une réservation (internes + externes) = admin + MP
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::patch('reservations/{reservation}/panels/{panel}/price',
+                [ReservationController::class, 'updatePanelPrice'])->name('reservations.panels.price');
+            Route::post('reservations/{reservation}/panels/{panel}/price/reset',
+                [ReservationController::class, 'resetPanelPrice'])->name('reservations.panels.price.reset');
 
-        Route::patch('reservations/{reservation}/external-panels/{panel}/price',
-            [ReservationController::class, 'updateExternalPanelPrice'])->name('reservations.external-panels.price');
-        Route::post('reservations/{reservation}/external-panels/{panel}/price/reset',
-            [ReservationController::class, 'resetExternalPanelPrice'])->name('reservations.external-panels.price.reset');
+            Route::patch('reservations/{reservation}/external-panels/{panel}/price',
+                [ReservationController::class, 'updateExternalPanelPrice'])->name('reservations.external-panels.price');
+            Route::post('reservations/{reservation}/external-panels/{panel}/price/reset',
+                [ReservationController::class, 'resetExternalPanelPrice'])->name('reservations.external-panels.price.reset');
+        });
 
-        // Disponibilités
-        Route::get('disponibilites', [ReservationController::class, 'disponibilites'])->name('reservations.disponibilites');
-        Route::post('disponibilites/confirmer', [ReservationController::class, 'confirmerSelection'])->name('reservations.confirmer-selection');
+        // ── Disponibilités ──────────────────── (admin + MP only) ──
+        // Le commercial ne crée pas de réservation (matrice DISPONIBILITÉS).
+        // Bloquer toute la section dispo (consultation + création) au
+        // commercial. Si tu veux laisser la consultation au commercial,
+        // déplace le GET hors du groupe.
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('disponibilites', [ReservationController::class, 'disponibilites'])->name('reservations.disponibilites');
+            Route::post('disponibilites/confirmer', [ReservationController::class, 'confirmerSelection'])->name('reservations.confirmer-selection');
 
-        // Route AJAX pour récupérer les panneaux disponibles d'une campagne (utilisée dans la modale de création de réservation)
-        Route::get('disponibilites/panneaux', [ReservationController::class, 'panneauxAjax'])
-            ->name('reservations.disponibilites.panneaux')
-            // Throttling pour éviter les abus sur cette route qui peut être appelée fréquemment lors de la création de réservations
-            ->middleware('throttle:120,1');
+            // Route AJAX pour récupérer les panneaux disponibles d'une campagne
+            Route::get('disponibilites/panneaux', [ReservationController::class, 'panneauxAjax'])
+                ->name('reservations.disponibilites.panneaux')
+                ->middleware('throttle:120,1');
 
-        // Exports PDF disponibilités
-        Route::get('disponibilites/export', [ReservationController::class, 'exportDisponibilites'])->name('disponibilites.export');
-        Route::post('disponibilites/pdf-images', [ReservationController::class, 'pdfImages'])
-            ->name('reservations.disponibilites.pdf-images');
-        Route::post('disponibilites/pdf-liste', [ReservationController::class, 'pdfListe'])
-            ->name('reservations.disponibilites.pdf-liste');
-        Route::post('disponibilites/export-excel', [ReservationController::class, 'exportExcel'])
-            ->name('reservations.disponibilites.export-excel');
+            // Exports PDF disponibilités
+            Route::get('disponibilites/export', [ReservationController::class, 'exportDisponibilites'])->name('disponibilites.export');
+            Route::post('disponibilites/pdf-images', [ReservationController::class, 'pdfImages'])
+                ->name('reservations.disponibilites.pdf-images');
+            Route::post('disponibilites/pdf-liste', [ReservationController::class, 'pdfListe'])
+                ->name('reservations.disponibilites.pdf-liste');
+            Route::post('disponibilites/export-excel', [ReservationController::class, 'exportExcel'])
+                ->name('reservations.disponibilites.export-excel');
+        });
 
 
-        // Réservations
+        // ── Réservations ─────────────────────────────────────────────
+        // Lecture (index + show + JSON) = tous staff. Le commercial voit
+        // ses propres dossiers via Policy ReservationPolicy::view().
+        // Modifications (prix, ajout panneaux, status, annuler) = admin + MP.
         Route::get('reservations/available-panels', [ReservationController::class, 'availablePanels'])
             ->name('reservations.available-panels')
             ->middleware('throttle:60,1');
         Route::post('reservations/mark-seen', [ReservationController::class, 'markSeen'])->name('reservations.mark-seen');
 
-        // Ajout de panneaux à une réservation existante (utilisé dans la modale d'ajout de panneaux)
-        Route::post('reservations/{reservation}/panels/add', [ReservationController::class, 'addPanel']) ->name('reservations.panels.add');
+        // Ajout/modif panneaux et prix dans réservation = admin + MP
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::post('reservations/{reservation}/panels/add', [ReservationController::class, 'addPanel']) ->name('reservations.panels.add');
+            // Prix panneaux dans réservation (déplacés ici depuis plus haut)
+        });
 
         // CRUD Réservations (en dernier pour ne pas capturer les routes spécifiques)
         // JSON — liste des panneaux d'une réservation (modale "Voir les panneaux" depuis l'index)
         Route::get('reservations/{reservation}/panels-list', [ReservationController::class, 'getPanels'])
             ->name('reservations.panels.list');
 
-        // JSON — snapshot du statut courant (polling 10s côté admin pour
-        // refléter en temps réel les actions client : confirmation,
-        // refus, vue de la proposition…). Endpoint léger.
+        // JSON — snapshot du statut courant (polling 10s côté admin).
         Route::get('reservations/{reservation}/status-snapshot', [ReservationController::class, 'statusSnapshot'])
             ->name('reservations.status-snapshot');
 
+        // Lecture résa (index + show) reste ouverte aux 3 rôles staff.
+        // Update/destroy ne sont pas exposés par la resource (sauf via verbes
+        // dédiés ci-dessous), donc pas besoin de scinder ici.
         Route::resource('reservations', ReservationController::class)->except(['create', 'store']);
-        Route::patch('reservations/{reservation}/status', [ReservationController::class, 'updateStatus'])->name('reservations.update-status');
-        Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])->name('reservations.annuler');
 
-        // Propositions (admin)
-        // MP : soumet la proposition au commercial pour envoi.
-        Route::post(
-            'reservations/{reservation}/proposition/soumettre',
-            [PropositionController::class, 'submitProposition']
-        )
-            ->name('reservations.proposition.soumettre');
+        // Changement de statut / annulation = admin + MP uniquement
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::patch('reservations/{reservation}/status', [ReservationController::class, 'updateStatus'])->name('reservations.update-status');
+            Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])->name('reservations.annuler');
+        });
 
-        Route::post(
-            'reservations/{reservation}/proposition/envoyer',
-            [PropositionController::class, 'envoyerProposition']
-        )
-            ->name('reservations.proposition.envoyer');
+        // ── API interne — Liste des commerciaux pour la modale "Soumettre" ──
+        // Retourne id+name+email des users role=admin/commercial actifs.
+        Route::get('api/commercials', function () {
+            return \App\Models\User::query()
+                ->whereIn('role', ['admin', 'commercial'])
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']);
+        })->middleware('role:admin,mediaplanner')->name('api.commercials');
 
-        // Renvoyer = même action, le contrôleur regénère token+slug si nécessaire.
-        // Le JS du partial proposition-actions.blade.php utilise cette URL quand
-        // l'admin clique "Renvoyer la proposition".
-        Route::post(
-            'reservations/{reservation}/proposition/renvoyer',
-            [PropositionController::class, 'envoyerProposition']
-        )
-            ->name('reservations.proposition.renvoyer');
+        // ── Propositions (workflow MP → Commercial → Client) ──────────
+        // MP soumet la proposition au commercial pour envoi (matrice).
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::post(
+                'reservations/{reservation}/proposition/soumettre',
+                [PropositionController::class, 'submitProposition']
+            )->name('reservations.proposition.soumettre');
 
-        Route::post(
-            'reservations/{reservation}/proposition/reinitialiser',
-            [PropositionController::class, 'reinitialiserProposition']
-        )
-            ->name('reservations.proposition.reinitialiser');
+            Route::post(
+                'reservations/{reservation}/proposition/reinitialiser',
+                [PropositionController::class, 'reinitialiserProposition']
+            )->name('reservations.proposition.reinitialiser');
+        });
 
-        // ── CRUD Propositions admin ─────────────────────────────────────
+        // Envoi / renvoi au client = admin + commercial uniquement (matrice).
+        Route::middleware('role:admin,commercial')->group(function () {
+            Route::post(
+                'reservations/{reservation}/proposition/envoyer',
+                [PropositionController::class, 'envoyerProposition']
+            )->name('reservations.proposition.envoyer');
+
+            Route::post(
+                'reservations/{reservation}/proposition/renvoyer',
+                [PropositionController::class, 'envoyerProposition']
+            )->name('reservations.proposition.renvoyer');
+        });
+
+        // ── CRUD Propositions admin (lecture libre, modif = admin+MP) ──
         Route::get('propositions', [PropositionController::class, 'index'])
             ->name('propositions.index');
         Route::get('propositions/{proposition}', [PropositionController::class, 'show'])
             ->name('propositions.show');
-        Route::patch('propositions/{proposition}/status', [PropositionController::class, 'updateStatus'])
-            ->name('propositions.update-status');
         Route::get('propositions/{proposition}/pdf', [PropositionController::class, 'exportPdf'])
             ->name('propositions.pdf');
+        Route::patch('propositions/{proposition}/status', [PropositionController::class, 'updateStatus'])
+            ->middleware('role:admin,mediaplanner')
+            ->name('propositions.update-status');
 
-        // Campagnes — exports (avant le resource pour éviter conflit /campaigns/{id})
+        // ── Campagnes ─────────────────────────────────────────────────
+        // Exports + Lecture (index + show + progress + available-panels)
+        // ouverts à tous les staff. Le filtrage par owner se fait dans
+        // CampaignController::index() via Policy CampaignPolicy::view().
         Route::get('campaigns/export/excel', [CampaignController::class, 'exportExcel'])
             ->name('campaigns.export.excel');
         Route::get('campaigns/export/pdf',   [CampaignController::class, 'exportPdf'])
             ->name('campaigns.export.pdf');
 
-        // Campagnes
-        Route::resource('campaigns', CampaignController::class);
-        Route::patch('campaigns/{campaign}/status', [CampaignController::class, 'updateStatus'])->name('campaigns.update-status');
-        Route::post ('campaigns/{campaign}/activate', [CampaignController::class, 'activate'])->name('campaigns.activate');
-        Route::patch('campaigns/{campaign}/billing-quick', [CampaignController::class, 'billingQuick'])->name('campaigns.billing-quick');
-        Route::patch('campaigns/{campaign}/prolonger', [CampaignController::class, 'prolonger'])->name('campaigns.prolonger');
-        // Lot 5 — Lien pige public (token partageable)
-        Route::post  ('campaigns/{campaign}/pige-token', [CampaignController::class, 'generatePigeToken'])->name('campaigns.pige-token.generate');
-        Route::delete('campaigns/{campaign}/pige-token', [CampaignController::class, 'revokePigeToken'])  ->name('campaigns.pige-token.revoke');
-        Route::post('campaigns/{campaign}/panels', [CampaignController::class, 'addPanel'])->name('campaigns.panels.add');
-        Route::delete('campaigns/{campaign}/panels/{panel}', [CampaignController::class, 'removePanel'])->name('campaigns.panels.remove');
-        // Endpoints AJAX (rafraîchissement progression + chargement panneaux disponibles)
-        Route::get('campaigns/{campaign}/progress', [CampaignController::class, 'progress'])->name('campaigns.progress');
-        Route::get('campaigns/{campaign}/available-panels', [CampaignController::class, 'availablePanels'])->name('campaigns.available-panels');
+        // Lecture campagnes
+        // ⚠️ campaigns/create DOIT être déclarée AVANT campaigns/{campaign}
+        // sinon Laravel matche "create" comme un id de campagne → 404.
+        // whereNumber sur les routes paramétriques garantit que les
+        // segments non-numériques (comme 'create') ne soient pas capturés.
+        Route::get('campaigns', [CampaignController::class, 'index'])->name('campaigns.index');
 
-        // Gestion panneaux externes d'une campagne
-        Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])
-            ->name('campaigns.external-panels.remove');
-
-        // ── Taxes Communes ────────────────────────────────────────
-        Route::get('taxes/auto/preview',  [TaxController::class, 'previewAuto'])->name('taxes.auto.preview');
-        Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
-        Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');
-        Route::get ('taxes/details',       [TaxController::class, 'details'])      ->name('taxes.details');
-        Route::get ('taxes/details/pdf',   [TaxController::class, 'detailsPdf'])   ->name('taxes.details.pdf');
-        Route::get ('taxes/details/excel', [TaxController::class, 'detailsExcel']) ->name('taxes.details.excel');
-        Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
-        Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
-        Route::resource('taxes', TaxController::class);
-        Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
-        Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
-
-        // ── Facturation (admin uniquement) ───────────────────────
-        Route::middleware('role:admin')->group(function () {
-            Route::get('invoices/export/pdf',   [InvoiceController::class, 'exportListPdf'])->name('invoices.export.pdf');
-            Route::get('invoices/export/excel', [InvoiceController::class, 'exportListExcel'])->name('invoices.export.excel');
-            Route::resource('invoices', InvoiceController::class);
-            Route::patch('invoices/{invoice}/send',         [InvoiceController::class, 'markSent'])->name('invoices.send');
-            Route::patch('invoices/{invoice}/pay',          [InvoiceController::class, 'markPaid'])->name('invoices.pay');
-            Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'markCancelled'])->name('invoices.cancel');
-            Route::patch('invoices/{invoice}/revert-draft', [InvoiceController::class, 'revertDraft'])->name('invoices.revert-draft');
-            Route::get('invoices/{invoice}/pdf',            [InvoiceController::class, 'exportPdf'])->name('invoices.pdf');
+        // Création (avant routes {campaign} paramétriques)
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('campaigns/create', [CampaignController::class, 'create'])->name('campaigns.create');
+            Route::post('campaigns', [CampaignController::class, 'store'])->name('campaigns.store');
         });
 
+        // Routes paramétriques (id numérique uniquement)
+        Route::get('campaigns/{campaign}', [CampaignController::class, 'show'])
+            ->whereNumber('campaign')->name('campaigns.show');
+        Route::get('campaigns/{campaign}/progress', [CampaignController::class, 'progress'])
+            ->whereNumber('campaign')->name('campaigns.progress');
+        Route::get('campaigns/{campaign}/available-panels', [CampaignController::class, 'availablePanels'])
+            ->whereNumber('campaign')->name('campaigns.available-panels');
+
+        // Modification / actions = admin + MP (matrice CAMPAGNES)
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('campaigns/{campaign}/edit', [CampaignController::class, 'edit'])
+                ->whereNumber('campaign')->name('campaigns.edit');
+            Route::put('campaigns/{campaign}', [CampaignController::class, 'update'])
+                ->whereNumber('campaign')->name('campaigns.update');
+            Route::patch('campaigns/{campaign}', [CampaignController::class, 'update'])
+                ->whereNumber('campaign')->name('campaigns.update.patch');
+
+            Route::patch('campaigns/{campaign}/status', [CampaignController::class, 'updateStatus'])
+                ->whereNumber('campaign')->name('campaigns.update-status');
+            Route::post ('campaigns/{campaign}/activate', [CampaignController::class, 'activate'])
+                ->whereNumber('campaign')->name('campaigns.activate');
+            Route::patch('campaigns/{campaign}/billing-quick', [CampaignController::class, 'billingQuick'])
+                ->whereNumber('campaign')->name('campaigns.billing-quick');
+            Route::patch('campaigns/{campaign}/prolonger', [CampaignController::class, 'prolonger'])
+                ->whereNumber('campaign')->name('campaigns.prolonger');
+
+            // Lien pige public (token partageable)
+            Route::post  ('campaigns/{campaign}/pige-token', [CampaignController::class, 'generatePigeToken'])
+                ->whereNumber('campaign')->name('campaigns.pige-token.generate');
+            Route::delete('campaigns/{campaign}/pige-token', [CampaignController::class, 'revokePigeToken'])
+                ->whereNumber('campaign')->name('campaigns.pige-token.revoke');
+
+            // Panneaux d'une campagne
+            Route::post('campaigns/{campaign}/panels', [CampaignController::class, 'addPanel'])
+                ->whereNumber('campaign')->name('campaigns.panels.add');
+            Route::delete('campaigns/{campaign}/panels/{panel}', [CampaignController::class, 'removePanel'])
+                ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.remove');
+            Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])
+                ->whereNumber('campaign')->whereNumber('externalPanel')->name('campaigns.external-panels.remove');
+        });
+
+        // Suppression campagne = admin uniquement (matrice CAMPAGNES)
+        Route::delete('campaigns/{campaign}', [CampaignController::class, 'destroy'])
+            ->middleware('role:admin')
+            ->whereNumber('campaign')->name('campaigns.destroy');
+
+        // ── Rapports business (lecture tous staff, filtré par owner via Policy) ──
         Route::get('/rapports', [RapportController::class, 'index'])->name('rapports.index');
         Route::get('/rapports/ajax', [RapportController::class, 'ajax'])->name('rapports.ajax');
         Route::get('/rapports/annulations', [RapportController::class, 'annulations'])->name('rapports.annulations');

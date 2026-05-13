@@ -2,6 +2,7 @@
 namespace App\Models;
 
 use App\Enums\ReservationStatus;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -16,6 +17,7 @@ class Reservation extends Model
         'reference',
         'client_id',
         'user_id',
+        'commercial_user_id',
         'start_date',
         'end_date',
         'status',
@@ -138,9 +140,55 @@ class Reservation extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Commercial assigné explicitement au suivi de la réservation.
+     * Si null, on retombe sur le créateur via resolveCommercialContact().
+     */
+    public function commercial()
+    {
+        return $this->belongsTo(User::class, 'commercial_user_id');
+    }
+
     public function cancelledByUser()
     {
         return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /**
+     * Scope : limite aux réservations "appartenant" à un commercial.
+     * - commercial_user_id = $uid (assignation explicite par MP), OU
+     * - commercial_user_id IS NULL ET user_id = $uid (créateur sans assignation).
+     *
+     * Utilisé pour le cloisonnement RBAC : un commercial ne voit que ses
+     * propres dossiers, pas ceux de ses collègues.
+     */
+    public function scopeForCommercialUser($query, int $userId)
+    {
+        return $query->where(function ($q) use ($userId) {
+            $q->where('commercial_user_id', $userId)
+              ->orWhere(function ($qq) use ($userId) {
+                  $qq->whereNull('commercial_user_id')
+                     ->where('user_id', $userId);
+              });
+        });
+    }
+
+    /**
+     * Retourne le user à utiliser comme Reply-To dans les mails clients.
+     * Priorité : commercial assigné > créateur de la réservation > null.
+     */
+    public function resolveCommercialContact(): ?User
+    {
+        // Si la colonne commercial_user_id n'existe pas encore (migration
+        // pas jouée), le ->commercial retourne null sans erreur grâce au
+        // belongsTo qui tolère un FK absent.
+        try {
+            $c = $this->commercial;
+            if ($c) return $c;
+        } catch (\Throwable $e) {
+            // Champ absent en BD → on retombe sur le créateur.
+        }
+        return $this->user;
     }
 
     public function panels()

@@ -473,10 +473,19 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
 </div>
 @endif
 
-{{-- ══ INTERLOCUTEUR ══ --}}
-@if($campaign->user)
+{{-- ══ INTERLOCUTEUR ══ ───────────────────────────────────────────
+     Le client doit voir le COMMERCIAL qui suit son dossier, pas le MP
+     créateur. resolveCommercialContact() retourne commercial_user_id
+     en priorité (assignation explicite), sinon fallback créateur.
+     On masque le rôle interne si non commercial/admin pour ne pas
+     exposer "Media Planner" au client. --}}
 @php
-    $interlocuteur = $campaign->user;
+    $interlocuteur    = $campaign->reservation?->resolveCommercialContact() ?? $campaign->user;
+    $interlocRole     = $interlocuteur?->role?->value ?? null;
+    $hideInternalRole = !in_array($interlocRole, ['admin', 'commercial'], true);
+@endphp
+@if($interlocuteur)
+@php
     $initials = collect(explode(' ', $interlocuteur->name))
         ->map(fn($w) => strtoupper($w[0] ?? ''))->filter()->take(2)->implode('');
 @endphp
@@ -485,9 +494,11 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
         {{ $initials }}
     </div>
     <div style="flex:1;min-width:140px;">
-        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Votre interlocuteur</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Votre interlocuteur commercial</div>
         <div style="font-size:15px;font-weight:700;color:var(--text);">{{ $interlocuteur->name }}</div>
+        @if(!$hideInternalRole)
         <div style="font-size:12px;color:var(--text3);margin-top:2px;">{{ $interlocuteur->role?->label() ?? '—' }}</div>
+        @endif
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;min-width:0;">
         <a href="mailto:{{ $interlocuteur->email }}"

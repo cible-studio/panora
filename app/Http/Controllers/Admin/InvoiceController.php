@@ -14,6 +14,27 @@ class InvoiceController extends Controller
     {
         $query = Invoice::with('client', 'campaign', 'creator');
 
+        // RBAC : un commercial ne voit que les factures de SES campagnes
+        // (via campaign.reservation.commercial_user_id ou campaign.user_id).
+        if (auth()->user()?->role?->value === 'commercial') {
+            $uid = auth()->id();
+            $query->whereHas('campaign', function ($q) use ($uid) {
+                $q->where(function ($qq) use ($uid) {
+                    $qq->whereHas('reservation', fn($r) =>
+                            $r->where('commercial_user_id', $uid)
+                              ->orWhere(function ($rr) use ($uid) {
+                                  $rr->whereNull('commercial_user_id')
+                                     ->where('user_id', $uid);
+                              })
+                       )
+                       ->orWhere(function ($qqq) use ($uid) {
+                           $qqq->whereDoesntHave('reservation')
+                               ->where('user_id', $uid);
+                       });
+                });
+            });
+        }
+
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);
         }

@@ -59,14 +59,22 @@ class PropositionPolicy
     }
 
     /**
-     * Soumettre au commercial : draft|prepared → pending_send.
+     * Soumettre / changer le commercial assigné au dossier.
      * Réservé au MP — son action principale.
+     *
+     * NOTE : autorisé MÊME APRÈS l'envoi au client (PROPOSITION_SENT) car
+     * le bouton "Changer de commercial" reste permanent pour le MP — il
+     * peut réassigner le suivi à un autre commercial à tout moment.
+     * Le mail déjà parti au client n'est pas affecté.
+     *
+     * Bloqué uniquement si la résa est annulée/refusée/terminée (statut
+     * final, plus de suivi commercial nécessaire).
      */
     public function submit(User $user, Reservation $reservation): bool
     {
         if ($reservation->client?->trashed()) return false;
-        // Doit être avant envoi.
-        if ($reservation->proposition_status === Reservation::PROPOSITION_SENT) {
+        // Statut métier final : pas de réassignation utile.
+        if (in_array($reservation->status?->value, ['annule', 'refuse'], true)) {
             return false;
         }
         return $user->role === UserRole::MEDIAPLANNER;
@@ -81,18 +89,37 @@ class PropositionPolicy
     /**
      * Envoyer la proposition par email au client.
      * Réservé au Commercial : signe avec son nom + ses coordonnées.
-     * Le statut doit être pending_send (soumis par le MP) ou sent
-     * (renvoi possible). En draft/prepared, le commercial n'est pas
-     * encore censé recevoir le dossier.
+     *
+     * Conditions :
+     *   - Le user est l'un des commerciaux assignés au dossier (ou admin
+     *     via before).
+     *   - Le proposition_status est pending_send, sent (renvoi possible),
+     *     OU draft/prepared MAIS avec un commercial assigné explicitement
+     *     (cas où la résa a été créée avec commercial sans passer par
+     *     "soumettre" — assignation directe à la création).
      */
     public function send(User $user, Reservation $reservation): bool
     {
         if ($reservation->client?->trashed()) return false;
         if ($user->role !== UserRole::COMMERCIAL) return false;
-        return in_array($reservation->proposition_status, [
+
+        // Statuts explicitement prêts pour envoi.
+        if (in_array($reservation->proposition_status, [
             Reservation::PROPOSITION_PENDING_SEND,
             Reservation::PROPOSITION_SENT, // autorise renvoi
-        ], true);
+        ], true)) {
+            return true;
+        }
+
+        // Statut draft/prepared mais un commercial est assigné : c'est le
+        // cas des résa créées avec commercial direct (sans étape soumettre).
+        // Le commercial peut envoyer immédiatement.
+        if (!empty($reservation->commercial_user_id)
+            && $reservation->commercial_user_id === $user->id) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

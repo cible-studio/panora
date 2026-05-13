@@ -43,18 +43,22 @@ Consulter et répondre : {{ $lien }}
 Cette proposition expire le {{ $expiresAt->format('d/m/Y à H:i') }}.
 @endif
 
-@if($reservation->user)
+@php
+    $com = $reservation->resolveCommercialContact();
+    $comRole = $com?->role?->value ?? null;
+    $hideInternalRole = !in_array($comRole, ['admin', 'commercial'], true);
+@endphp
+@if($com)
 Votre interlocuteur commercial :
-- {{ $reservation->user->name }}@if($reservation->user->role?->label()) ({{ $reservation->user->role->label() }})@endif
+- {{ $com->name }}@if(!$hideInternalRole && $com->role?->label()) ({{ $com->role->label() }})@endif
 
-@if($reservation->user->email)- Email : {{ $reservation->user->email }}
+@if($com->email)- Email : {{ $com->email }}
 @endif
-@if($reservation->user->whatsapp_number)- WhatsApp : {{ $reservation->user->whatsapp_number }}
+@if($com->whatsapp_number)- WhatsApp : {{ $com->whatsapp_number }}
 @endif
 @endif
 
-Vous pouvez également répondre à cet email pour toute question.
-Notre équipe commerciale est à votre disposition.
+Pour toute question, contactez votre interlocuteur commercial dont les coordonnées figurent ci-dessus.
 
 —
 © {{ date('Y') }} PANORA · {{ $operator }}. Tous droits réservés.

@@ -77,21 +77,23 @@ class PropositionService
             // On bloque uniquement si une autre réservation est déjà CONFIRMÉE
             // (pas EN_ATTENTE — plusieurs options peuvent coexister, la première
             // confirmée gagne ; la lockForUpdate garantit l'atomicité).
+            // Overlap INCLUSIF (<= >=) : end_date est compté comme journée
+            // occupée. Cohérent avec AvailabilityService.
             if (!empty($panelIds)) {
                 \App\Models\Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
                 $conflicts = DB::table('reservation_panels')
                     ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
                     ->whereIn('reservation_panels.panel_id', $panelIds)
                     ->where('reservations.status', ReservationStatus::CONFIRME->value)
-                    ->where('reservations.start_date', '<', $end)
-                    ->where('reservations.end_date',   '>', $start)
+                    ->where('reservations.start_date', '<=', $end)
+                    ->where('reservations.end_date',   '>=', $start)
                     ->where('reservations.id', '!=', $reservation->id)
                     ->distinct()
                     ->pluck('reservation_panels.panel_id')
                     ->toArray();
                 if (!empty($conflicts)) {
                     $refs = \App\Models\Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
-                    throw new \RuntimeException("Ce panneau est déjà confirmé pour cette période : {$refs}.");
+                    throw new \RuntimeException("Panneau(x) déjà confirmé(s) sur cette période : {$refs}.");
                 }
             }
 
@@ -124,6 +126,8 @@ class PropositionService
 
             // Annuler automatiquement toutes les autres propositions EN_ATTENTE
             // qui chevauchent les mêmes panneaux sur la même période.
+            // Overlap INCLUSIF aussi pour la cascade d'annulation des
+            // propositions concurrentes (même règle que le check ci-dessus).
             $competingIds = collect();
             if (!empty($panelIds)) {
                 $ids = DB::table('reservation_panels')
@@ -131,8 +135,8 @@ class PropositionService
                     ->whereIn('reservation_panels.panel_id', $panelIds)
                     ->where('reservations.status', ReservationStatus::EN_ATTENTE->value)
                     ->where('reservations.id', '!=', $reservation->id)
-                    ->where('reservations.start_date', '<', $end)
-                    ->where('reservations.end_date',   '>', $start)
+                    ->where('reservations.start_date', '<=', $end)
+                    ->where('reservations.end_date',   '>=', $start)
                     ->distinct()
                     ->pluck('reservations.id');
                 $competingIds = $competingIds->merge($ids);
@@ -144,8 +148,8 @@ class PropositionService
                     ->where('reservation_panels.source', 'externe')
                     ->where('reservations.status', ReservationStatus::EN_ATTENTE->value)
                     ->where('reservations.id', '!=', $reservation->id)
-                    ->where('reservations.start_date', '<', $end)
-                    ->where('reservations.end_date',   '>', $start)
+                    ->where('reservations.start_date', '<=', $end)
+                    ->where('reservations.end_date',   '>=', $start)
                     ->distinct()
                     ->pluck('reservations.id');
                 $competingIds = $competingIds->merge($ids);

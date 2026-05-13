@@ -105,20 +105,23 @@ class ClientDashboardController extends Controller
             'panneaux_couverts'  => (int) ($pigeStats->panneaux_couverts ?? 0),
         ];
 
-        // Lot 12.4 — Commercial principal du compte client : le créateur
-        // de la réservation/campagne la plus récente (heuristique : c'est
-        // l'interlocuteur courant). On affiche son nom + email + WhatsApp
-        // dans un widget dédié sur le dashboard.
-        $commercial = $client->reservations()
-            ->whereNotNull('user_id')
-            ->with(['user:id,name,email,whatsapp_number,role,agent_code'])
+        // Commercial principal affiché au client : on prend en priorité
+        // le commercial assigné explicitement à la dernière réservation
+        // (resolveCommercialContact = commercial_user_id sinon créateur).
+        // Évite d'afficher le Media Planner comme interlocuteur du client.
+        $latestRes = $client->reservations()
+            ->with(['user:id,name,email,whatsapp_number,role,agent_code',
+                    'commercial:id,name,email,whatsapp_number,role,agent_code'])
             ->latest()
-            ->first()?->user
-            ?? $client->campaigns()
+            ->first();
+        $commercial = $latestRes?->resolveCommercialContact();
+        if (!$commercial) {
+            $commercial = $client->campaigns()
                 ->whereNotNull('user_id')
                 ->with(['user:id,name,email,whatsapp_number,role,agent_code'])
                 ->latest()
                 ->first()?->user;
+        }
 
         return view('client.dashboard', compact(
             'client', 'propositions', 'campagnesActives', 'stats',

@@ -56,9 +56,18 @@ class ReservationController extends Controller
         $formats = PanelFormat::orderBy('name')->get(['id', 'name', 'width', 'height']);
         $zones = Zone::orderBy('name')->get(['id', 'name']);
         $categories = PanelCategory::orderBy('name')->get(['id', 'name']);
-        $clients = Client::orderBy('name')->get(['id', 'name']);
+        $clients = Client::orderBy('name')->get(['id', 'name', 'ncc', 'email', 'phone']);
         $agencies = \App\Models\ExternalAgency::where('is_active', true)
             ->whereNull('deleted_at')->orderBy('name')->get(['id', 'name']);
+
+        // Commerciaux disponibles pour le flux "Soumettre au commercial".
+        // On inclut admin + commercial (admin peut aussi suivre un dossier).
+        // Table users n'utilise pas SoftDeletes — pas de filtre deleted_at.
+        $commercials = \App\Models\User::query()
+            ->whereIn('role', ['admin', 'commercial'])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
 
         $dimensions = PanelFormat::whereNotNull('width')->whereNotNull('height')
             ->orderBy('width')->orderBy('height')->get(['width', 'height'])
@@ -72,7 +81,7 @@ class ReservationController extends Controller
 
         return view(
             'admin.reservations.disponibilites',
-            compact('communes', 'cities', 'formats', 'zones', 'categories', 'clients', 'dimensions', 'agencies')
+            compact('communes', 'cities', 'formats', 'zones', 'categories', 'clients', 'dimensions', 'agencies', 'commercials')
         );
     }
 
@@ -947,16 +956,25 @@ class ReservationController extends Controller
         // 3) Validation des autres champs (sans toucher panel_ids — on l'a déjà parsé)
         $request->validate([
             'client_id' => 'required|exists:clients,id',
+            // Commercial assigné : doit être admin ou commercial actif.
+            'commercial_user_id' => [
+                'required',
+                'integer',
+                'exists:users,id',
+                function ($attribute, $value, $fail) {
+                    $u = \App\Models\User::find($value);
+                    if (!$u || !in_array($u->role?->value ?? $u->role, ['admin', 'commercial'])) {
+                        $fail('Le commercial choisi est invalide.');
+                    }
+                },
+            ],
             'start_date' => [
                 'required',
                 'date',
                 'date_format:Y-m-d',
-                function ($attribute, $value, $fail) {
-                    if ($value < now()->subDay()->format('Y-m-d'))
-                        $fail('La date de début ne peut pas être dans le passé.');
-                }
+                'after_or_equal:today', // pas de réservation dans le passé
             ],
-            'end_date' => ['required', 'date', 'date_format:Y-m-d', 'after:start_date'],
+            'end_date' => ['required', 'date', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'notes' => 'nullable|string|max:2000',
             'type' => 'required|in:option,ferme',
             'campaign_name' => 'nullable|string|max:150',
@@ -1159,10 +1177,25 @@ class ReservationController extends Controller
                     }
                 }
 
+                $assignedCommercialId = $request->integer('commercial_user_id') ?: auth()->id();
+                // Si un commercial autre que le créateur est assigné, on
+                // pose directement proposition_status = pending_send afin
+                // que le commercial voie immédiatement le bouton "Envoyer
+                // la proposition" sur la fiche (sinon il reste en 'draft'
+                // = "En construction" et aucun bouton n'apparaît).
+                // Si le créateur s'assigne lui-même (admin/commercial qui
+                // crée pour lui), on laisse 'draft' pour qu'il termine de
+                // construire avant d'envoyer.
+                $propositionStatus = $assignedCommercialId !== auth()->id()
+                    ? Reservation::PROPOSITION_PENDING_SEND
+                    : Reservation::PROPOSITION_DRAFT;
+
                 $reservation = Reservation::create([
                     'reference' => $reference,
                     'client_id' => $request->client_id,
                     'user_id' => auth()->id(),
+                    'commercial_user_id'  => $assignedCommercialId,
+                    'proposition_status'  => $propositionStatus,
                     'start_date' => $request->start_date,
                     'end_date' => $request->end_date,
                     'status' => $status,
@@ -1281,6 +1314,46 @@ class ReservationController extends Controller
                     auth()->user()->name . ' a créé la réservation ' . $reservation->reference . ' (' . $totalCount . ' panneau(x))',
                     $reservation
                 );
+
+                // Notification automatique au commercial assigné : alerte
+                // interne + email immédiat. La condition ≠ créateur évite
+                // de s'envoyer un mail à soi-même quand un admin/commercial
+                // prend en charge sa propre réservation. Pour un MP qui
+                // assigne à un autre user, l'envoi est systématique.
+                $commercialId = $reservation->commercial_user_id;
+                if ($commercialId && $commercialId !== auth()->id()) {
+                    $commercial = \App\Models\User::find($commercialId);
+                    if ($commercial) {
+                        \App\Services\AlertService::notify(
+                            'proposition_prete',
+                            "📋 Réservation assignée — {$reservation->reference}",
+                            auth()->user()->name . " vous a assigné la réservation {$reservation->reference} "
+                                . "(client : " . ($reservation->client?->name ?? '?') . ", "
+                                . "{$totalCount} panneau·x). Préparez et envoyez la proposition au client.",
+                            $reservation,
+                            [
+                                'user_id' => $commercial->id,
+                                'lien'    => route('admin.reservations.show', $reservation),
+                            ]
+                        );
+
+                        // Mail immédiat (->send() au lieu de ->queue() :
+                        // QUEUE_CONNECTION=database sans worker bloquerait
+                        // les mails dans la table jobs indéfiniment).
+                        try {
+                            if ($commercial->email) {
+                                \Illuminate\Support\Facades\Mail::to($commercial->email)
+                                    ->send(new \App\Mail\ReservationAssignedMail($reservation, auth()->user()));
+                            }
+                        } catch (\Throwable $e) {
+                            \Illuminate\Support\Facades\Log::warning('reservation.assigned.mail_failed', [
+                                'reservation_id' => $reservation->id,
+                                'commercial_id'  => $commercial->id,
+                                'error'          => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                }
             });
 
         } catch (\RuntimeException $e) {
@@ -1422,6 +1495,13 @@ class ReservationController extends Controller
         $query = Reservation::with(['client', 'user'])
             ->withCount(['panels', 'externalPanels']);
 
+        // RBAC : un commercial ne voit que SES propres dossiers (assignés
+        // explicitement à lui ou créés par lui sans assignation). Admin et
+        // MP voient tout.
+        if (auth()->user()?->role?->value === 'commercial') {
+            $query->forCommercialUser(auth()->id());
+        }
+
         // Filtres "neutres" appliqués à la liste ET au calcul des compteurs.
         // Ils définissent le périmètre courant (search/type/client/période).
         if ($request->search) {
@@ -1433,6 +1513,19 @@ class ReservationController extends Controller
         }
         if ($request->type)      $query->where('type', $request->type);
         if ($request->client_id) $query->where('client_id', $request->client_id);
+
+        // Lot 12.3 — filtre "Mes propositions à traiter" : ne montre que
+        // les réservations assignées au user connecté (ou en fallback,
+        // créées par lui pour les anciennes sans commercial_user_id).
+        if ($request->boolean('assigned_me')) {
+            $uid = auth()->id();
+            $query->where(function ($q) use ($uid) {
+                $q->where('commercial_user_id', $uid)
+                  ->orWhere(function ($q2) use ($uid) {
+                      $q2->whereNull('commercial_user_id')->where('user_id', $uid);
+                  });
+            });
+        }
 
         if ($request->periode) {
             match ($request->periode) {

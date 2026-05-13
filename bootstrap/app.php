@@ -31,6 +31,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'audit'                 => \App\Http\Middleware\AuditLogger::class,
             'client.auth'           => \App\Http\Middleware\EnsureClientIsAuthenticated::class,
             'client.must-change-pw' => \App\Http\Middleware\ForceClientPasswordChange::class,
+            'sync.reactive'         => \App\Http\Middleware\SyncReactiveState::class,
+        ]);
+
+        // Sync auto des statuts (campagnes, options) à chaque request web —
+        // évite d'attendre le cron 01h30 pour voir une campagne passer en
+        // "terminé" ou une option expirer. Mutex 60s côté middleware.
+        $middleware->web(append: [
+            \App\Http\Middleware\SyncReactiveState::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

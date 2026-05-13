@@ -43,8 +43,16 @@
             ) !!},
             categories: {!! json_encode(($categories ?? collect())->map(fn($c) => ['id' => $c->id, 'name' => $c->name])->values()) !!},
             dimensions: {!! json_encode($dimensions) !!},
-            clients: {!! json_encode($clients->map(fn($c) => ['id' => $c->id, 'name' => $c->name])->values()) !!},
+            clients: {!! json_encode($clients->map(fn($c) => [
+                'id'    => $c->id,
+                'name'  => $c->name,
+                'ncc'   => $c->ncc,
+                'email' => $c->email,
+                'phone' => $c->phone,
+            ])->values()) !!},
             agencies: {!! json_encode($agencies->map(fn($a) => ['id' => $a->id, 'name' => $a->name])->values()) !!},
+            commercials: {!! json_encode(($commercials ?? collect())->map(fn($u) => ['id' => $u->id, 'name' => $u->name, 'email' => $u->email])->values()) !!},
+            currentUserId: {{ auth()->id() ?? 'null' }},
             ajaxUrl: '{{ route('admin.reservations.disponibilites.panneaux') }}',
             confirmUrl: '{{ route('admin.reservations.confirmer-selection') }}',
             csrf: '{{ csrf_token() }}',
@@ -83,10 +91,12 @@
                     <div class="filter-field">
                         <label class="filter-label">Période</label>
                         <div class="flex items-center gap-2 bg-[var(--surface)] px-3 h-10 rounded-lg border border-[var(--border2)]">
-                            <input type="date" id="f-du" class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
+                            <input type="date" id="f-du" min="{{ now()->toDateString() }}"
+                                   class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
                                    onchange="DISPO.onDateChange('du', this.value)">
                             <span class="text-[var(--text3)] text-xs">→</span>
-                            <input type="date" id="f-au" class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
+                            <input type="date" id="f-au" min="{{ now()->toDateString() }}"
+                                   class="bg-transparent border-none text-xs text-[var(--text)] focus:outline-none flex-1 min-w-0"
                                    onchange="DISPO.onDateChange('au', this.value)">
                         </div>
                         <div id="date-error" class="hidden text-xs text-red-500 bg-red-500/10 px-3 py-1 rounded-lg"></div>
@@ -423,7 +433,11 @@
                         </div>
                     </div>
 
-                    <div>
+                    {{-- ── Sélecteur Client ── Picker custom : combobox
+                         avec recherche tant que rien n'est sélectionné, puis
+                         une carte client (avatar initiales + nom + NCC + email)
+                         avec un bouton "Changer" pour revenir au combobox. --}}
+                    <div id="client-picker">
                         <div class="flex items-center justify-between mb-2">
                             <label class="filter-label">Client *</label>
                             <button type="button" onclick="DISPO.openQuickClientModal()"
@@ -432,14 +446,63 @@
                                 <span>Nouveau client</span>
                             </button>
                         </div>
-                        <select name="client_id" id="modal-client-select" required class="modal-input w-full">
-                            <option value="">— Sélectionner un client —</option>
-                            @foreach ($clients as $c)
-                                <option value="{{ $c->id }}">{{ $c->name }}</option>
+
+                        {{-- Input hidden pour le submit (toujours présent) --}}
+                        <input type="hidden" name="client_id" id="modal-client-select" required>
+
+                        {{-- État 1 : combobox de sélection --}}
+                        <div id="client-picker-combo">
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text3)] text-sm pointer-events-none">🔍</span>
+                                <input type="text" id="client-picker-search" autocomplete="off"
+                                    placeholder="Rechercher un client (nom · NCC · email)…"
+                                    class="modal-input w-full pl-9">
+                            </div>
+                            <div id="client-picker-list"
+                                class="mt-1 max-h-56 overflow-y-auto rounded-xl border border-[var(--border2)] bg-[var(--surface2)] hidden"></div>
+                        </div>
+
+                        {{-- État 2 : carte client sélectionné --}}
+                        <div id="client-picker-card" class="hidden">
+                            <div class="flex items-center gap-3 p-3 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent)]/5">
+                                <div id="client-card-avatar"
+                                    class="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                                    style="background:linear-gradient(135deg,var(--accent),#7c3aed)"></div>
+                                <div class="min-w-0 flex-1">
+                                    <div id="client-card-name" class="text-sm font-bold text-[var(--text)] truncate"></div>
+                                    <div class="flex items-center gap-3 mt-0.5 text-xs text-[var(--text3)] truncate">
+                                        <span id="client-card-ncc"></span>
+                                        <span id="client-card-email"></span>
+                                    </div>
+                                </div>
+                                <button type="button" id="client-picker-change"
+                                    class="text-xs px-3 py-1.5 rounded-lg border border-[var(--border2)] text-[var(--text2)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all flex-shrink-0">
+                                    Changer
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="modal-client-err" class="hidden mt-1 text-xs text-red-500">Veuillez sélectionner un client.</div>
+                    </div>
+
+                    {{-- ── Commercial assigné ──
+                         Cible la notification email + alerte interne. Défaut =
+                         user connecté. Le commercial verra "Mes propositions
+                         à traiter" filtré sur son id. --}}
+                    <div>
+                        <label class="filter-label block mb-1">Commercial assigné *</label>
+                        <select name="commercial_user_id" id="modal-commercial-select" required
+                                class="modal-input w-full">
+                            <option value="">— Sélectionner un commercial —</option>
+                            @foreach (($commercials ?? collect()) as $u)
+                                <option value="{{ $u->id }}" {{ $u->id === auth()->id() ? 'selected' : '' }}>
+                                    {{ $u->name }} @if($u->email)<span style="opacity:.6">— {{ $u->email }}</span>@endif
+                                </option>
                             @endforeach
                         </select>
-                        <div id="modal-client-err" class="hidden mt-1 text-xs text-red-500">Veuillez sélectionner un
-                            client.</div>
+                        <div class="mt-1 text-xs text-[var(--text3)]">
+                            Le commercial recevra un email + une alerte interne pour traiter la proposition.
+                        </div>
                     </div>
 
                     <div id="wrapper-campaign-name" class="hidden">
@@ -1040,47 +1103,118 @@
 
     @push('scripts')
         {{-- ══════════════════════════════════════════════════════
-     SELECT2 INIT — à placer AVANT le script principal
+     CLIENT PICKER — combobox custom + carte client sélectionné
+     Remplace l'ancien Select2. Léger, contrôlé, sans dépendance jQuery.
 ══════════════════════════════════════════════════════ --}}
         <script>
+            const ClientPicker = (() => {
+                const state = { selectedId: null, query: '' };
+
+                // Refs DOM résolues à chaque ouverture (la modale peut bouger).
+                const $ = id => document.getElementById(id);
+
+                function initials(name) {
+                    return (name || '?').trim().split(/\s+/).slice(0, 2)
+                        .map(w => w[0]?.toUpperCase() || '').join('') || '?';
+                }
+
+                function render() {
+                    const all = (window.__DISPO__?.clients) || [];
+                    const q   = state.query.trim().toLowerCase();
+                    const filtered = q
+                        ? all.filter(c => [c.name, c.ncc, c.email, c.phone]
+                            .filter(Boolean).some(v => String(v).toLowerCase().includes(q)))
+                        : all.slice(0, 50); // limite affichage initial
+
+                    const listEl = $('client-picker-list');
+                    if (!listEl) return;
+                    listEl.classList.toggle('hidden', !q && state.selectedId);
+                    if (!filtered.length) {
+                        listEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--text3);font-size:12px">Aucun client</div>';
+                        return;
+                    }
+                    listEl.innerHTML = filtered.map(c => `
+                        <button type="button" data-id="${c.id}"
+                            style="width:100%;text-align:left;padding:9px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);background:transparent;cursor:pointer;transition:background .15s"
+                            onmouseover="this.style.background='var(--accent-dim)'"
+                            onmouseout="this.style.background='transparent'">
+                            <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${initials(c.name)}</div>
+                            <div style="min-width:0;flex:1">
+                                <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name || ''}</div>
+                                <div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                                    ${c.ncc ? 'NCC&nbsp;' + c.ncc : ''}${c.ncc && c.email ? ' · ' : ''}${c.email || ''}
+                                </div>
+                            </div>
+                        </button>
+                    `).join('');
+                    listEl.querySelectorAll('button[data-id]').forEach(btn => {
+                        btn.addEventListener('click', () => select(parseInt(btn.dataset.id)));
+                    });
+                }
+
+                function select(id) {
+                    const c = (window.__DISPO__?.clients || []).find(x => x.id === id);
+                    if (!c) return;
+                    state.selectedId = id;
+                    state.query = '';
+
+                    $('modal-client-select').value = id;
+                    $('client-picker-combo').classList.add('hidden');
+                    $('client-picker-card').classList.remove('hidden');
+                    $('client-card-avatar').textContent = initials(c.name);
+                    $('client-card-name').textContent   = c.name || '';
+                    $('client-card-ncc').textContent    = c.ncc ? 'NCC ' + c.ncc : '';
+                    $('client-card-email').textContent  = c.email ? '· ' + c.email : '';
+                    $('modal-client-err')?.classList.add('hidden');
+                }
+
+                function unselect() {
+                    state.selectedId = null;
+                    state.query = '';
+                    $('modal-client-select').value = '';
+                    $('client-picker-card').classList.add('hidden');
+                    $('client-picker-combo').classList.remove('hidden');
+                    const search = $('client-picker-search');
+                    if (search) { search.value = ''; search.focus(); }
+                    render();
+                }
+
+                function init() {
+                    const search = $('client-picker-search');
+                    const change = $('client-picker-change');
+                    if (search && !search.dataset.bound) {
+                        search.dataset.bound = '1';
+                        search.addEventListener('input', e => {
+                            state.query = e.target.value;
+                            render();
+                        });
+                        search.addEventListener('focus', () => render());
+                    }
+                    if (change && !change.dataset.bound) {
+                        change.dataset.bound = '1';
+                        change.addEventListener('click', unselect);
+                    }
+                    // Reset à l'ouverture
+                    unselect();
+                }
+
+                function addClient(client) {
+                    // Ajout local pour les "Nouveau client" créés à la volée.
+                    window.__DISPO__.clients = window.__DISPO__.clients || [];
+                    window.__DISPO__.clients.unshift(client);
+                    select(client.id);
+                }
+
+                return { init, select, unselect, addClient };
+            })();
+
+            // Rétro-compat avec l'ancien code qui appelle addClientToSelect2.
+            function addClientToSelect2(id, name, extra = {}) {
+                ClientPicker.addClient({ id, name, ncc: extra.ncc || null, email: extra.email || null, phone: extra.phone || null });
+            }
+
             function initConfirmSelect2() {
-                const $sel = $('#modal-client-select');
-                if ($sel.data('select2')) return;
-                $sel.select2({
-                    dropdownParent: $('#modal-confirm'),
-                    placeholder: '— Rechercher un client —',
-                    allowClear: true,
-                    width: '100%',
-                    language: {
-                        noResults: () => 'Aucun client trouvé',
-                        searching: () => 'Recherche…'
-                    },
-                });
-                injectSelect2Styles();
-            }
-
-            function injectSelect2Styles() {
-                if (document.getElementById('select2-cible-styles')) return;
-                const style = document.createElement('style');
-                style.id = 'select2-cible-styles';
-                style.textContent = `
-            .select2-container--default .select2-selection--single { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:10px !important;height:42px !important;display:flex !important;align-items:center !important; }
-            .select2-container--default.select2-container--open .select2-selection--single { border-color:var(--accent) !important;box-shadow:0 0 0 2px var(--accent-dim) !important; }
-            .select2-container--default .select2-selection--single .select2-selection__rendered { color:var(--text) !important;font-size:13px !important;padding-left:12px !important;line-height:42px !important; }
-            .select2-container--default .select2-selection--single .select2-selection__placeholder { color:var(--text3) !important; }
-            .select2-container--default .select2-selection--single .select2-selection__arrow { height:42px !important;right:8px !important; }
-            .select2-dropdown { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:12px !important;box-shadow:0 12px 40px rgba(0,0,0,.2) !important;z-index:99999 !important; }
-            .select2-container--default .select2-search--dropdown { padding:8px !important;border-bottom:1px solid var(--border) !important;background:var(--surface) !important; }
-            .select2-container--default .select2-search--dropdown .select2-search__field { background:var(--surface2) !important;border:1px solid var(--border2) !important;border-radius:8px !important;color:var(--text) !important;font-size:13px !important;padding:7px 10px !important;outline:none !important; }
-            .select2-results__option { color:var(--text2) !important;font-size:13px !important;padding:9px 14px !important;border-bottom:1px solid var(--border) !important; }
-            .select2-results__option--highlighted { background:var(--accent-dim) !important;color:var(--accent) !important; }
-            .select2-results__option[aria-selected="true"] { background:var(--accent-dim) !important;color:var(--accent) !important;font-weight:600 !important; }
-        `;
-                document.head.appendChild(style);
-            }
-
-            function addClientToSelect2(id, name) {
-                $('#modal-client-select').append(new Option(name, id, true, true)).trigger('change');
+                ClientPicker.init();
             }
         </script>
 
@@ -1295,6 +1429,16 @@
                     },
 
                     onDateChange(which, val) {
+                        // Rejet immédiat des dates antérieures à aujourd'hui
+                        // (saisie manuelle ou autofill qui contournerait min).
+                        const today = new Date().toISOString().split('T')[0];
+                        if (val && val < today) {
+                            _showDateErr('Les dates dans le passé ne sont pas autorisées.');
+                            const el = _el('f-' + which);
+                            if (el) el.value = '';
+                            return;
+                        }
+
                         if (which === 'du') {
                             S.f.du = val;
                             const next = new Date(val);
@@ -1891,7 +2035,11 @@
                                 errBox.classList.remove('hidden');
                                 return;
                             }
-                            addClientToSelect2(data.id, data.name);
+                            addClientToSelect2(data.id, data.name, {
+                                ncc:   data.ncc   || null,
+                                email: data.email || null,
+                                phone: data.phone || null,
+                            });
                             this.closeQuickClientModal();
                             // Tâche 6.2 : utiliser le système Toast global de l'app pour cohérence visuelle
                             if (window.Toast?.success) {
