@@ -668,39 +668,63 @@ Route::prefix('admin')
             ->name('campaigns.export.pdf');
 
         // Lecture campagnes
+        // ⚠️ campaigns/create DOIT être déclarée AVANT campaigns/{campaign}
+        // sinon Laravel matche "create" comme un id de campagne → 404.
+        // whereNumber sur les routes paramétriques garantit que les
+        // segments non-numériques (comme 'create') ne soient pas capturés.
         Route::get('campaigns', [CampaignController::class, 'index'])->name('campaigns.index');
-        Route::get('campaigns/{campaign}', [CampaignController::class, 'show'])->name('campaigns.show');
-        Route::get('campaigns/{campaign}/progress', [CampaignController::class, 'progress'])->name('campaigns.progress');
-        Route::get('campaigns/{campaign}/available-panels', [CampaignController::class, 'availablePanels'])->name('campaigns.available-panels');
 
-        // Création / modification / actions = admin + MP (matrice CAMPAGNES)
+        // Création (avant routes {campaign} paramétriques)
         Route::middleware('role:admin,mediaplanner')->group(function () {
             Route::get('campaigns/create', [CampaignController::class, 'create'])->name('campaigns.create');
             Route::post('campaigns', [CampaignController::class, 'store'])->name('campaigns.store');
-            Route::get('campaigns/{campaign}/edit', [CampaignController::class, 'edit'])->name('campaigns.edit');
-            Route::put('campaigns/{campaign}', [CampaignController::class, 'update'])->name('campaigns.update');
-            Route::patch('campaigns/{campaign}', [CampaignController::class, 'update'])->name('campaigns.update.patch');
+        });
 
-            Route::patch('campaigns/{campaign}/status', [CampaignController::class, 'updateStatus'])->name('campaigns.update-status');
-            Route::post ('campaigns/{campaign}/activate', [CampaignController::class, 'activate'])->name('campaigns.activate');
-            Route::patch('campaigns/{campaign}/billing-quick', [CampaignController::class, 'billingQuick'])->name('campaigns.billing-quick');
-            Route::patch('campaigns/{campaign}/prolonger', [CampaignController::class, 'prolonger'])->name('campaigns.prolonger');
+        // Routes paramétriques (id numérique uniquement)
+        Route::get('campaigns/{campaign}', [CampaignController::class, 'show'])
+            ->whereNumber('campaign')->name('campaigns.show');
+        Route::get('campaigns/{campaign}/progress', [CampaignController::class, 'progress'])
+            ->whereNumber('campaign')->name('campaigns.progress');
+        Route::get('campaigns/{campaign}/available-panels', [CampaignController::class, 'availablePanels'])
+            ->whereNumber('campaign')->name('campaigns.available-panels');
+
+        // Modification / actions = admin + MP (matrice CAMPAGNES)
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('campaigns/{campaign}/edit', [CampaignController::class, 'edit'])
+                ->whereNumber('campaign')->name('campaigns.edit');
+            Route::put('campaigns/{campaign}', [CampaignController::class, 'update'])
+                ->whereNumber('campaign')->name('campaigns.update');
+            Route::patch('campaigns/{campaign}', [CampaignController::class, 'update'])
+                ->whereNumber('campaign')->name('campaigns.update.patch');
+
+            Route::patch('campaigns/{campaign}/status', [CampaignController::class, 'updateStatus'])
+                ->whereNumber('campaign')->name('campaigns.update-status');
+            Route::post ('campaigns/{campaign}/activate', [CampaignController::class, 'activate'])
+                ->whereNumber('campaign')->name('campaigns.activate');
+            Route::patch('campaigns/{campaign}/billing-quick', [CampaignController::class, 'billingQuick'])
+                ->whereNumber('campaign')->name('campaigns.billing-quick');
+            Route::patch('campaigns/{campaign}/prolonger', [CampaignController::class, 'prolonger'])
+                ->whereNumber('campaign')->name('campaigns.prolonger');
 
             // Lien pige public (token partageable)
-            Route::post  ('campaigns/{campaign}/pige-token', [CampaignController::class, 'generatePigeToken'])->name('campaigns.pige-token.generate');
-            Route::delete('campaigns/{campaign}/pige-token', [CampaignController::class, 'revokePigeToken'])  ->name('campaigns.pige-token.revoke');
+            Route::post  ('campaigns/{campaign}/pige-token', [CampaignController::class, 'generatePigeToken'])
+                ->whereNumber('campaign')->name('campaigns.pige-token.generate');
+            Route::delete('campaigns/{campaign}/pige-token', [CampaignController::class, 'revokePigeToken'])
+                ->whereNumber('campaign')->name('campaigns.pige-token.revoke');
 
             // Panneaux d'une campagne
-            Route::post('campaigns/{campaign}/panels', [CampaignController::class, 'addPanel'])->name('campaigns.panels.add');
-            Route::delete('campaigns/{campaign}/panels/{panel}', [CampaignController::class, 'removePanel'])->name('campaigns.panels.remove');
+            Route::post('campaigns/{campaign}/panels', [CampaignController::class, 'addPanel'])
+                ->whereNumber('campaign')->name('campaigns.panels.add');
+            Route::delete('campaigns/{campaign}/panels/{panel}', [CampaignController::class, 'removePanel'])
+                ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.remove');
             Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])
-                ->name('campaigns.external-panels.remove');
+                ->whereNumber('campaign')->whereNumber('externalPanel')->name('campaigns.external-panels.remove');
         });
 
         // Suppression campagne = admin uniquement (matrice CAMPAGNES)
         Route::delete('campaigns/{campaign}', [CampaignController::class, 'destroy'])
             ->middleware('role:admin')
-            ->name('campaigns.destroy');
+            ->whereNumber('campaign')->name('campaigns.destroy');
 
         // ── Rapports business (lecture tous staff, filtré par owner via Policy) ──
         Route::get('/rapports', [RapportController::class, 'index'])->name('rapports.index');
