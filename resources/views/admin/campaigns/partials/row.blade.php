@@ -75,9 +75,9 @@
         @endif
     </td>
     @php
-        // Facturation visible uniquement pour admin.
+        // Facturation : visible pour admin + commercial. Cachée pour MP.
         $rowAuthRole = auth()->user()?->role?->value;
-        $rowCanSeeBilling = $rowAuthRole === 'admin';
+        $rowCanSeeBilling = in_array($rowAuthRole, ['admin', 'commercial'], true);
         // Commercial suivant le dossier (assigné via résa source).
         $rowCommercial = $campaign->reservation?->resolveCommercialContact();
     @endphp
