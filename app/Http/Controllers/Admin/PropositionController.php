@@ -186,20 +186,34 @@ class PropositionController extends Controller
             ],
         ]);
 
-        $commercial = \App\Models\User::find($data['commercial_id']);
+        $commercial    = \App\Models\User::find($data['commercial_id']);
+        $previousId    = $reservation->commercial_user_id;
+        $isReassign    = $previousId && $previousId !== $commercial->id;
 
-        $reservation->update([
-            'proposition_status'  => Reservation::PROPOSITION_PENDING_SEND,
-            'commercial_user_id'  => $commercial->id,
-        ]);
+        // Si la proposition était déjà envoyée au client, on ne touche pas
+        // au statut (le mail est parti, le client a son lien). On change
+        // juste l'interlocuteur côté admin pour la suite du suivi.
+        $update = ['commercial_user_id' => $commercial->id];
+        if ($reservation->proposition_status !== Reservation::PROPOSITION_SENT) {
+            $update['proposition_status'] = Reservation::PROPOSITION_PENDING_SEND;
+        }
+        $reservation->update($update);
 
         // Alerte interne ciblée commercial assigné (user_id) — visible
         // dans son inbox + cloche.
+        $alertTitle   = $isReassign
+            ? '🔄 Dossier réassigné — ' . $reservation->reference
+            : '📋 Proposition à envoyer — ' . $reservation->reference;
+        $alertMessage = $isReassign
+            ? auth()->user()->name . ' vous a transféré la proposition ' . $reservation->reference
+                . ' (' . ($reservation->client->name ?? '?') . '). Vous en êtes maintenant l\'interlocuteur commercial.'
+            : auth()->user()->name . ' vous a confié la proposition ' . $reservation->reference
+                . ' (' . ($reservation->client->name ?? '?') . ') pour envoi au client.';
+
         \App\Services\AlertService::notify(
             'proposition_prete',
-            '📋 Proposition à envoyer — ' . $reservation->reference,
-            auth()->user()->name . ' vous a confié la proposition ' . $reservation->reference
-                . ' (' . ($reservation->client->name ?? '?') . ') pour envoi au client.',
+            $alertTitle,
+            $alertMessage,
             $reservation,
             [
                 'lien'    => route('admin.reservations.show', $reservation),
@@ -207,8 +221,8 @@ class PropositionController extends Controller
             ]
         );
 
-        // Email au commercial : la cloche n'est utile que s'il est connecté.
-        // L'email garantit qu'il sera prévenu même hors session.
+        // Email immédiat au commercial (->send() pas ->queue() car
+        // QUEUE_CONNECTION=database sans worker bloquerait les mails).
         try {
             \Illuminate\Support\Facades\Mail::to($commercial->email)
                 ->send(new \App\Mail\PropositionAssignedMail($reservation, $commercial, auth()->user()));
@@ -221,13 +235,16 @@ class PropositionController extends Controller
         }
 
         \Illuminate\Support\Facades\Log::info('proposition.submitted_to_commercial', [
-            'reservation_id' => $reservation->id,
-            'by'             => auth()->id(),
-            'commercial_id'  => $commercial->id,
+            'reservation_id'  => $reservation->id,
+            'by'              => auth()->id(),
+            'commercial_id'   => $commercial->id,
+            'previous_commercial_id' => $previousId,
+            'is_reassign'     => $isReassign,
         ]);
 
-        return $respond('success',
-            "✅ Proposition soumise à {$commercial->name}. Email + alerte envoyés.");
+        return $respond('success', $isReassign
+            ? "✅ Dossier réassigné à {$commercial->name}. Email + alerte envoyés."
+            : "✅ Proposition soumise à {$commercial->name}. Email + alerte envoyés.");
     }
 
     // ══════════════════════════════════════════════════════════════

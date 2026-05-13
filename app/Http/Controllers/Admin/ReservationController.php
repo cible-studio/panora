@@ -1301,18 +1301,21 @@ class ReservationController extends Controller
                     $reservation
                 );
 
-                // Lot 12.3 — Si un commercial est assigné et ≠ créateur,
-                // on lui notifie spécifiquement la prise en charge.
+                // Notification automatique au commercial assigné : alerte
+                // interne + email immédiat. La condition ≠ créateur évite
+                // de s'envoyer un mail à soi-même quand un admin/commercial
+                // prend en charge sa propre réservation. Pour un MP qui
+                // assigne à un autre user, l'envoi est systématique.
                 $commercialId = $reservation->commercial_user_id;
                 if ($commercialId && $commercialId !== auth()->id()) {
                     $commercial = \App\Models\User::find($commercialId);
                     if ($commercial) {
                         \App\Services\AlertService::notify(
                             'proposition_prete',
-                            "Réservation assignée — {$reservation->reference}",
+                            "📋 Réservation assignée — {$reservation->reference}",
                             auth()->user()->name . " vous a assigné la réservation {$reservation->reference} "
                                 . "(client : " . ($reservation->client?->name ?? '?') . ", "
-                                . "{$totalCount} panneau·x). Préparez et envoyez la proposition.",
+                                . "{$totalCount} panneau·x). Préparez et envoyez la proposition au client.",
                             $reservation,
                             [
                                 'user_id' => $commercial->id,
@@ -1320,11 +1323,13 @@ class ReservationController extends Controller
                             ]
                         );
 
-                        // Mail léger au commercial (best-effort, n'échoue pas la résa)
+                        // Mail immédiat (->send() au lieu de ->queue() :
+                        // QUEUE_CONNECTION=database sans worker bloquerait
+                        // les mails dans la table jobs indéfiniment).
                         try {
                             if ($commercial->email) {
                                 \Illuminate\Support\Facades\Mail::to($commercial->email)
-                                    ->queue(new \App\Mail\ReservationAssignedMail($reservation, auth()->user()));
+                                    ->send(new \App\Mail\ReservationAssignedMail($reservation, auth()->user()));
                             }
                         } catch (\Throwable $e) {
                             \Illuminate\Support\Facades\Log::warning('reservation.assigned.mail_failed', [

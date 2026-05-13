@@ -165,17 +165,25 @@
          MP construit puis "soumet au commercial". Commercial envoie. --}}
     <div class="proposition-actions">
 
-        {{-- MP : bouton "Soumettre au commercial" si la proposition n'est
-             pas encore en pending_send ni envoyée. Modale pro au lieu du
-             confirm() natif. --}}
+        {{-- MP/Admin : bouton commercial.
+             - Pas encore assigné : "Soumettre au commercial"
+             - Déjà assigné         : "Changer de commercial" (toujours visible,
+               même après l'envoi au client, pour réassigner le dossier).
+             Dans les 2 cas la modale demande de choisir un commercial, qui
+             reçoit immédiatement email + alerte. --}}
         @can('proposition.submit', $reservation)
-            @if(in_array($propStatus, ['draft','prepared'], true))
-                <button type="button"
-                        class="btn-primary"
-                        onclick="PropositionActions.confirmSubmit({{ $reservation->id }})">
-                    📤 Soumettre au commercial
-                </button>
-            @endif
+            @php
+                $hasCommercial = !empty($reservation->commercial_user_id);
+                $btnLabel      = $hasCommercial
+                    ? '🔄 Changer de commercial'
+                    : '📤 Soumettre au commercial';
+                $btnClass      = $hasCommercial ? 'btn-secondary' : 'btn-primary';
+            @endphp
+            <button type="button"
+                    class="{{ $btnClass }}"
+                    onclick="PropositionActions.confirmSubmit({{ $reservation->id }}, {{ $reservation->commercial_user_id ?: 'null' }})">
+                {{ $btnLabel }}
+            </button>
         @endcan
 
         @if(!empty($reservation->client?->email))
@@ -575,11 +583,12 @@ window.PropositionActions = {
     },
 
     /**
-     * Workflow MP : "Soumettre au commercial".
-     * Modale pro qui demande à quel commercial soumettre, puis POST
-     * vers /reservations/{id}/proposition/soumettre avec commercial_id.
+     * Workflow : choisir/changer le commercial assigné.
+     * @param {number} reservationId
+     * @param {number|null} currentCommercialId  Commercial déjà assigné (pour
+     *        affichage et pré-sélection dans la modale). null = pas encore.
      */
-    async confirmSubmit(reservationId) {
+    async confirmSubmit(reservationId, currentCommercialId = null) {
         // 1) Charger la liste des commerciaux disponibles
         let commercials = [];
         try {
@@ -587,25 +596,42 @@ window.PropositionActions = {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             });
             if (res.ok) commercials = await res.json();
-        } catch (e) { /* fallback : pas de liste, soumet sans cible */ }
+        } catch (e) { /* fallback : pas de liste */ }
 
-        // 2) Construire le select HTML
+        const isReassign = currentCommercialId !== null && currentCommercialId !== undefined;
+        const currentCom = isReassign
+            ? commercials.find(c => c.id == currentCommercialId)
+            : null;
+
+        // 2) Construire le select HTML avec pré-sélection
         const options = commercials.length
             ? '<option value="">— Choisir un commercial —</option>' +
-              commercials.map(c => `<option value="${c.id}">${c.name}${c.email ? ' (' + c.email + ')' : ''}</option>`).join('')
+              commercials.map(c => {
+                  const sel = (currentCommercialId && c.id == currentCommercialId) ? 'selected' : '';
+                  return `<option value="${c.id}" ${sel}>${c.name}${c.email ? ' (' + c.email + ')' : ''}</option>`;
+              }).join('')
             : '<option value="">Aucun commercial actif</option>';
 
-        // 3) Afficher la modale custom (avec select intégré)
+        // 3) Afficher la modale custom
+        const currentInfo = isReassign && currentCom
+            ? `<div style="font-size:12px;color:var(--text3,#64748b);margin-bottom:8px;">
+                   Commercial actuel : <strong style="color:var(--text,#e2e8f0)">${currentCom.name}</strong>
+               </div>`
+            : '';
+
         this._showCustomModal({
-            title: 'Soumettre la proposition au commercial',
-            icon: '📤',
+            title: isReassign ? 'Changer de commercial' : 'Soumettre la proposition au commercial',
+            icon: isReassign ? '🔄' : '📤',
             type: 'confirm',
             bodyHtml: `
                 <p class="proposition-modal-message">
-                    La proposition sera transmise au commercial pour qu'il puisse l'envoyer au client.
+                    ${isReassign
+                        ? 'Choisissez le nouveau commercial qui prendra en charge ce dossier.'
+                        : 'La proposition sera transmise au commercial pour qu\'il puisse l\'envoyer au client.'}
                 </p>
+                ${currentInfo}
                 <div class="proposition-modal-recipient" style="flex-direction:column;align-items:flex-start;">
-                    <span class="recipient-label">Commercial</span>
+                    <span class="recipient-label">${isReassign ? 'Nouveau commercial' : 'Commercial'}</span>
                     <select id="submit-commercial-select" style="width:100%;margin-top:4px;padding:8px 10px;border-radius:8px;
                             background:var(--surface2,#0f172a);color:var(--text,#e2e8f0);
                             border:1px solid var(--border,#334155);font-size:13px;">
@@ -613,17 +639,22 @@ window.PropositionActions = {
                     </select>
                 </div>
                 <p class="proposition-modal-details">
-                    Le commercial recevra une alerte interne <strong>et un email</strong> pour traiter cette proposition.
+                    Le commercial sélectionné recevra une alerte interne <strong>et un email immédiat</strong>
+                    pour prendre connaissance du dossier${isReassign ? ' (le précédent commercial ne sera plus notifié)' : ''}.
                 </p>
             `,
-            confirmText: 'Soumettre',
+            confirmText: isReassign ? 'Changer' : 'Soumettre',
             confirmClass: 'btn-primary',
             onConfirm: () => {
                 const sel = document.getElementById('submit-commercial-select');
                 const commercialId = sel ? sel.value : '';
                 if (!commercialId) {
                     this._showToast('Veuillez choisir un commercial.', 'error');
-                    return false; // empêche la fermeture
+                    return false;
+                }
+                if (isReassign && commercialId == currentCommercialId) {
+                    this._showToast('Ce commercial est déjà assigné. Choisissez-en un autre.', 'warning');
+                    return false;
                 }
                 this._submitToCommercial(reservationId, commercialId);
             }
