@@ -24,6 +24,11 @@ class PropositionController extends Controller
             ->whereNotNull('proposition_token')
             ->withCount('panels');
 
+        // RBAC : un commercial ne voit que ses propres propositions.
+        if (auth()->user()?->role?->value === 'commercial') {
+            $query->forCommercialUser(auth()->id());
+        }
+
         if ($request->status)
             $query->where('status', $request->status);
         if ($request->search)

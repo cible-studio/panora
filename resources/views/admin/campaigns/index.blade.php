@@ -16,15 +16,38 @@
         @endcan
     </x-slot:topbarActions>
 
-    {{-- ══ ALERTE FIN PROCHE ══ --}}
+    {{-- ══ ALERTE FIN PROCHE — dismissible (localStorage 24h) ══ --}}
     @if(($endingSoonCount ?? 0) > 0)
-    <div class="alert-warning-bar">
+    <div class="alert-warning-bar" id="ending-soon-banner" data-banner-key="ending-soon-{{ $endingSoonCount }}">
         <span class="alert-icon">⚠️</span>
         <span class="alert-text">{{ $endingSoonCount }} campagne(s) se terminent dans moins de 14 jours</span>
         <a href="{{ route('admin.campaigns.index', ['status' => 'actif', 'date_to' => now()->addDays(14)->format('Y-m-d')]) }}" class="alert-link">
             Voir →
         </a>
+        <button type="button" class="alert-close"
+                onclick="(function(b){
+                    try { localStorage.setItem('dismissed-' + b.dataset.bannerKey, Date.now()); } catch(e) {}
+                    b.style.display='none';
+                })(this.parentElement)"
+                title="Masquer cette alerte (24h)"
+                aria-label="Fermer">✕</button>
     </div>
+    <script>
+        // Vérifie le localStorage au load : si l'alerte a été fermée il y a
+        // moins de 24h, on la cache. Le compteur change le data-banner-key
+        // donc une nouvelle alerte réapparaît même si l'ancienne était dismiss.
+        (function() {
+            const b = document.getElementById('ending-soon-banner');
+            if (!b) return;
+            const key = 'dismissed-' + b.dataset.bannerKey;
+            try {
+                const ts = parseInt(localStorage.getItem(key) || '0', 10);
+                if (ts && (Date.now() - ts) < 24 * 3600 * 1000) {
+                    b.style.display = 'none';
+                }
+            } catch(e) { /* localStorage indisponible : on laisse visible */ }
+        })();
+    </script>
     @endif
 
     {{-- ══ KPI cards (pattern unifié projet : bordure latérale colorée,
@@ -310,6 +333,24 @@
             padding: 4px 10px;
             border: 1px solid rgba(232,160,32,0.4);
             border-radius: 6px;
+        }
+        .alert-close {
+            background: transparent;
+            border: none;
+            color: var(--accent);
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1;
+            padding: 4px 8px;
+            margin-left: 4px;
+            cursor: pointer;
+            opacity: 0.7;
+            border-radius: 6px;
+            transition: opacity 0.15s, background 0.15s;
+        }
+        .alert-close:hover {
+            opacity: 1;
+            background: rgba(232,160,32,0.15);
         }
 
         .filters-card {
