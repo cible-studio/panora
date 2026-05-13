@@ -507,9 +507,29 @@ class CampaignController extends Controller
                 return $campaign;
             });
 
+            // Email au client après création (hors transaction pour ne pas
+            // bloquer si SMTP lent). Pas d'envoi si la campagne a 0 panneau
+            // (rare, mais le service le gère via sendSilently).
+            $mailSent = false;
+            try {
+                $mailSent = $this->campaignService->sendStartedMailToClient($campaign);
+            } catch (\Throwable $e) {
+                Log::warning('campaign.created.mail_failed', [
+                    'campaign_id' => $campaign->id,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
+
+            $msg = "Campagne « {$campaign->name} » créée avec succès.";
+            if ($mailSent) {
+                $msg .= ' Email envoyé au client.';
+            } elseif ($campaign->client?->email) {
+                $msg .= ' (envoi email au client échoué — vérifie les logs)';
+            }
+
             return redirect()
                 ->route('admin.campaigns.show', $campaign)
-                ->with('success', "Campagne « {$campaign->name} » créée avec succès.");
+                ->with('success', $msg);
 
         } catch (\Exception $e) {
             return back()->withInput()->with('error', $e->getMessage());

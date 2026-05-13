@@ -10,12 +10,15 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Mail envoyé au client au démarrage effectif de sa campagne (transition
- * PLANIFIE → ACTIF). Annonce les panneaux, la période et le montant.
+ * Mail envoyé au client à l'activation (PLANIFIE → ACTIF) OU à la
+ * création directe d'une campagne. Le template adapte le contenu
+ * selon que la campagne démarre maintenant ou est planifiée (futur).
  *
- * Pas envoyé à la création de la fiche : on attend que la campagne ait
- * au moins 1 panneau et soit activée — pour éviter le mail vide « votre
- * campagne est créée » avec aucune information utile.
+ * Reply-To : commercial qui suit le dossier (via résa source si présente,
+ * sinon créateur campagne). Évite d'exposer le MP au client.
+ *
+ * ⚠️ Pas de ShouldQueue : envoi synchrone fiable même sans worker
+ *    queue:work (QUEUE_CONNECTION=database sinon mails bloqués).
  */
 class CampaignStartedMail extends Mailable
 {
@@ -27,14 +30,26 @@ class CampaignStartedMail extends Mailable
 
     public function envelope(): Envelope
     {
+        // Reply-To = commercial assigné via la résa source (priorité),
+        // sinon créateur de la campagne. Cohérent avec les autres mails
+        // client (proposition, espace client).
         $replyTo = [];
-        $contact = $this->campaign->user;
+        $contact = $this->campaign->reservation?->resolveCommercialContact()
+                ?? $this->campaign->user;
         if ($contact?->email) {
             $replyTo[] = new Address($contact->email, $contact->name ?? '');
         }
 
+        // Subject adapté : "démarre" vs "planifiée pour le X"
+        $isFuture = $this->campaign->start_date
+            && $this->campaign->start_date->isFuture();
+        $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
+        $subject  = $isFuture
+            ? "Votre campagne {$this->campaign->name} est planifiée — PANORA · {$operator}"
+            : "Démarrage de votre campagne {$this->campaign->name} — PANORA · {$operator}";
+
         return new Envelope(
-            subject:  "Démarrage de votre campagne {$this->campaign->name} — CIBLE CI",
+            subject:  $subject,
             replyTo:  $replyTo,
             tags:     ['campaign', 'started'],
             metadata: [
@@ -49,12 +64,18 @@ class CampaignStartedMail extends Mailable
         $totalPanels = $this->campaign->panels()->count()
             + $this->campaign->externalPanels()->count();
 
+        $isFuture = $this->campaign->start_date
+            && $this->campaign->start_date->isFuture();
+
         return new Content(
             view: 'emails.campaign-started',
             with: [
                 'campaign'    => $this->campaign,
                 'client'      => $this->campaign->client,
                 'totalPanels' => $totalPanels,
+                'isFuture'    => $isFuture,
+                'contact'     => $this->campaign->reservation?->resolveCommercialContact()
+                                ?? $this->campaign->user,
             ],
         );
     }
