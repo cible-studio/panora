@@ -5,7 +5,6 @@ namespace App\Mail;
 use App\Models\Reservation;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
@@ -13,14 +12,20 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Lot 12.3 — Notification au commercial qu'on lui a assigné une réservation.
+ * Notification au commercial qu'on lui a assigné une réservation.
  *
  * Destinataire : le commercial désigné via reservations.commercial_user_id.
  * Expéditeur : noreply@ (config par défaut).
  * Reply-To : l'auteur de l'assignation (admin/mp) pour que le commercial
  *            puisse poser une question directement.
+ *
+ * ⚠️ Volontairement PAS de ShouldQueue : Mail::to()->send() doit envoyer
+ *    immédiatement et synchroniquement. Si on implémente ShouldQueue,
+ *    Laravel met le mail en queue même avec ->send() — et sans worker
+ *    queue:work actif (QUEUE_CONNECTION=database), le mail reste bloqué
+ *    dans la table `jobs` indéfiniment.
  */
-class ReservationAssignedMail extends Mailable implements ShouldQueue
+class ReservationAssignedMail extends Mailable
 {
     use Queueable, SerializesModels;
 

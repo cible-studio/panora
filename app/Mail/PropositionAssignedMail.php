@@ -5,7 +5,6 @@ namespace App\Mail;
 use App\Models\Reservation;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
@@ -19,8 +18,12 @@ use Illuminate\Queue\SerializesModels;
  *
  * Reply-To = MP qui a soumis (le commercial peut lui répondre direct
  * pour demander une modif avant envoi).
+ *
+ * ⚠️ Volontairement PAS de ShouldQueue : envoi immédiat synchrone
+ *    requis (sinon avec QUEUE_CONNECTION=database sans worker, mail
+ *    bloqué indéfiniment dans la table jobs).
  */
-class PropositionAssignedMail extends Mailable implements ShouldQueue
+class PropositionAssignedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
