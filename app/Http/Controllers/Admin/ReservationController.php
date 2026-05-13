@@ -62,9 +62,10 @@ class ReservationController extends Controller
 
         // Commerciaux disponibles pour le flux "Soumettre au commercial".
         // On inclut admin + commercial (admin peut aussi suivre un dossier).
+        // Table users n'utilise pas SoftDeletes — pas de filtre deleted_at.
         $commercials = \App\Models\User::query()
             ->whereIn('role', ['admin', 'commercial'])
-            ->whereNull('deleted_at')
+            ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
