@@ -72,7 +72,13 @@
       "Bash(php -l resources/views/admin/campaigns/partials/row.blade.php)",
       "Bash(php -l resources/views/admin/reservations/show.blade.php)",
       "Bash(php -l resources/views/client/proposition-detail.blade.php)",
-      "Bash(php -l resources/views/client/campagne-detail.blade.php)"
+      "Bash(php -l resources/views/client/campagne-detail.blade.php)",
+      "Bash(grep -n \"campaigns/create\\\\|campaigns/{campaign}'\\\\|campaigns', \\\\[\" routes/admin.php)",
+      "Bash(php -l app/Models/Pige.php)",
+      "Bash(php -l app/Observers/PigeObserver.php)",
+      "Bash(php -l app/Observers/PoseTaskObserver.php)",
+      "Bash(php -l app/Providers/AppServiceProvider.php)",
+      "Bash(php -l database/migrations/2026_05_13_165323_add_pose_task_id_to_piges_table.php)"
     ]
   }
 }

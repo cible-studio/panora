@@ -105,6 +105,19 @@ class AppServiceProvider extends ServiceProvider
             Commune::observe(\App\Observers\CommuneObserver::class);
         }
 
+        // Unification workflow pose/pige : quand le technicien upload une
+        // Pige via le lien unique, la PoseTask liée passe automatiquement
+        // à COMPLETED et une alerte est envoyée au MP/admin pour validation.
+        if (class_exists(\App\Observers\PigeObserver::class)) {
+            \App\Models\Pige::observe(\App\Observers\PigeObserver::class);
+        }
+
+        // Auto-envoi WhatsApp dès qu'un tech est assigné à une PoseTask
+        // (création ou réassignation). Mutex 60s pour éviter le spam.
+        if (class_exists(\App\Observers\PoseTaskObserver::class)) {
+            \App\Models\PoseTask::observe(\App\Observers\PoseTaskObserver::class);
+        }
+
 
         if (app()->runningInConsole() === false || app()->environment('production')) {
             
