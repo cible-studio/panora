@@ -101,42 +101,49 @@ $coverageColor = $coveragePercent >= 80 ? '#22c55e' : ($coveragePercent >= 50 ? 
     @endif
 </div>
 
-{{-- ══ KPI GRILLE 4 + barre couverture ══ --}}
+{{-- ══ KPI GRILLE — 1 statut composé par panneau ══
+     Workflow unifié : on n'affiche plus "Poses" et "Piges" comme 2
+     métriques distinctes (confus pour le client) — on regroupe en
+     "Panneaux validés" (posés ET photo validée) + "En cours" +
+     "À poser". Indicateur linéaire d'avancement. --}}
+@php
+    $validatedCount  = (int) ($pigesCount ?? 0);                       // pose + pige validée
+    $inProgressCount = max(0, ($posesCount ?? 0) - $validatedCount);   // posé, photo en attente
+    $todoCount       = max(0, ($totalPanneaux ?? 0) - ($posesCount ?? 0));
+@endphp
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
 
-    {{-- Poses réalisées --}}
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+    {{-- Panneaux validés (posés ET photo vérifiée) --}}
+    <div style="background:var(--surface);border:1px solid #22c55e33;border-radius:12px;padding:16px;">
         <div style="margin-bottom:8px;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         </div>
-        <div style="font-size:24px;font-weight:800;color:#8b5cf6;line-height:1;">{{ $posesCount }}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:4px;">Poses réalisées</div>
+        <div style="font-size:24px;font-weight:800;color:#22c55e;line-height:1;">{{ $validatedCount }}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px;">Validés (posé + photo)</div>
         @if($totalPanneaux > 0)
         <div style="font-size:10px;color:var(--text3);margin-top:2px;">sur {{ $totalPanneaux }}</div>
         @endif
     </div>
 
-    {{-- Piges vérifiées --}}
+    {{-- Posé, photo en attente de validation --}}
+    <div style="background:var(--surface);border:1px solid #f59e0b33;border-radius:12px;padding:16px;">
+        <div style="margin-bottom:8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div style="font-size:24px;font-weight:800;color:#f59e0b;line-height:1;">{{ $inProgressCount }}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px;">Photo en validation</div>
+    </div>
+
+    {{-- À poser --}}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
         <div style="margin-bottom:8px;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         </div>
-        <div style="font-size:24px;font-weight:800;color:#22c55e;line-height:1;">{{ $pigesVerif->flatten()->count() }}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:4px;">Piges d'affichage</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px;">{{ $pigesCount }} panneau(x) couverts</div>
+        <div style="font-size:24px;font-weight:800;color:var(--text2);line-height:1;">{{ $todoCount }}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px;">À poser</div>
     </div>
 
-    {{-- Panneaux couverts --}}
-    <div style="background:var(--surface);border:1px solid {{ $coverageColor }}33;border-radius:12px;padding:16px;">
-        <div style="margin-bottom:8px;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{ $coverageColor }}" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        </div>
-        <div style="font-size:24px;font-weight:800;color:{{ $coverageColor }};line-height:1;">{{ $coveragePercent }}%</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:4px;">Couverture pige</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px;">{{ $pigesCount }}/{{ $totalPanneaux }} panneaux</div>
-    </div>
-
-    {{-- Durée --}}
+    {{-- Durée totale campagne --}}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
         <div style="margin-bottom:8px;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>

@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 class Pige extends Model
 {
     protected $fillable = [
-        'panel_id', 'campaign_id', 'user_id', 'verified_by',
+        'panel_id', 'campaign_id', 'pose_task_id', 'user_id', 'verified_by',
         'photo_path', 'photo_thumb',
         'gps_lat', 'gps_lng',
         'taken_at', 'verified_at',
@@ -36,6 +36,16 @@ class Pige extends Model
     public function campaign(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Campaign::class);
+    }
+
+    /**
+     * Lien explicite vers la tâche de pose qui a généré cette pige.
+     * Peut être null pour les piges legacy (uploadées via l'ancien
+     * lien campagne Campaign.pige_token avant l'unification du workflow).
+     */
+    public function poseTask(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(PoseTask::class);
     }
 
     public function technicien(): \Illuminate\Database\Eloquent\Relations\BelongsTo
