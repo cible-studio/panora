@@ -48,21 +48,28 @@ class ReservationPolicy
     }
 
     /**
-     * Changer statut "interne" de la réservation (en_attente / confirme
-     * etc. côté MP). Le statut visible client (envoyée, vue, signée) est
-     * géré par PropositionPolicy.
+     * Changer statut (Confirmer/Refuser/Annuler) : ADMIN UNIQUEMENT.
+     * before() retourne true pour admin → cette méthode n'est appelée
+     * que pour les non-admins, qui doivent toujours être refusés.
+     *
+     * Justification métier : la confirmation/refus passe normalement par
+     * le client via le lien proposition. Les boutons admin sont un
+     * fallback manuel pour cas exceptionnels (problème mail, support).
+     * Le MP n'intervient pas sur le statut final, il prépare la
+     * proposition et la soumet au commercial pour envoi.
      */
     public function updateStatus(User $user, Reservation $reservation): bool
     {
-        if ($reservation->client?->trashed()) return false;
-        return $user->role === UserRole::MEDIAPLANNER;
+        return false;
     }
 
-    /** Annuler une réservation : MP (créateur) + Admin. */
+    /**
+     * Annuler une réservation : ADMIN UNIQUEMENT.
+     * Cas exceptionnel — voir updateStatus() ci-dessus.
+     */
     public function annuler(User $user, Reservation $reservation): bool
     {
-        if (!$reservation->isCancellable()) return false;
-        return $user->role === UserRole::MEDIAPLANNER;
+        return false;
     }
 
     /** Supprimer : Admin uniquement (before() capte). */

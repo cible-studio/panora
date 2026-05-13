@@ -143,36 +143,86 @@ class PropositionController extends Controller
     {
         $this->authorize('proposition.submit', $reservation);
 
+        $respond = function (string $level, string $message, array $extra = []) use ($request) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(array_merge([
+                    'success' => $level === 'success',
+                    'message' => $message,
+                ], $extra), $level === 'success' ? 200 : 422);
+            }
+            return back()->with($level, $message);
+        };
+
         if (!$reservation->client) {
-            return back()->with('error', 'Pas de client associé.');
+            return $respond('error', 'Pas de client associé.');
         }
         if (empty($reservation->client->email)) {
-            return back()->with('error', "Ce client n'a pas d'email — un commercial ne pourra pas envoyer.");
+            return $respond('error', "Ce client n'a pas d'email — un commercial ne pourra pas envoyer.");
         }
-        if ($reservation->panels()->count() === 0) {
-            return back()->with('error', 'Ajoutez au moins un panneau avant de soumettre au commercial.');
+        if ($reservation->panels()->count() === 0 && $reservation->externalPanels()->count() === 0) {
+            return $respond('error', 'Ajoutez au moins un panneau avant de soumettre au commercial.');
         }
 
-        $reservation->update([
-            'proposition_status' => Reservation::PROPOSITION_PENDING_SEND,
+        // Validation commercial assigné (obligatoire pour cibler l'inbox).
+        $data = $request->validate([
+            'commercial_id' => [
+                'required', 'integer', 'exists:users,id',
+                function ($attr, $value, $fail) {
+                    $u = \App\Models\User::find($value);
+                    if (!$u) { $fail('Commercial introuvable.'); return; }
+                    $role = $u->role?->value ?? $u->role;
+                    if (!in_array($role, ['admin', 'commercial'], true)) {
+                        $fail('Le destinataire doit être un commercial ou un admin.');
+                    }
+                    if (isset($u->is_active) && !$u->is_active) {
+                        $fail('Ce commercial est désactivé.');
+                    }
+                },
+            ],
         ]);
 
-        \App\Services\AlertService::create(
-            'proposition',
-            'info',
-            '📋 Proposition prête à envoyer — ' . $reservation->reference,
-            auth()->user()->name . ' a soumis la proposition ' . $reservation->reference
+        $commercial = \App\Models\User::find($data['commercial_id']);
+
+        $reservation->update([
+            'proposition_status'  => Reservation::PROPOSITION_PENDING_SEND,
+            'commercial_user_id'  => $commercial->id,
+        ]);
+
+        // Alerte interne ciblée commercial assigné (user_id) — visible
+        // dans son inbox + cloche.
+        \App\Services\AlertService::notify(
+            'proposition_prete',
+            '📋 Proposition à envoyer — ' . $reservation->reference,
+            auth()->user()->name . ' vous a confié la proposition ' . $reservation->reference
                 . ' (' . ($reservation->client->name ?? '?') . ') pour envoi au client.',
-            $reservation
+            $reservation,
+            [
+                'lien'    => route('admin.reservations.show', $reservation),
+                'user_id' => $commercial->id,
+            ]
         );
+
+        // Email au commercial : la cloche n'est utile que s'il est connecté.
+        // L'email garantit qu'il sera prévenu même hors session.
+        try {
+            \Illuminate\Support\Facades\Mail::to($commercial->email)
+                ->send(new \App\Mail\PropositionAssignedMail($reservation, $commercial, auth()->user()));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('proposition.assigned.mail_failed', [
+                'reservation_id' => $reservation->id,
+                'commercial_id'  => $commercial->id,
+                'error'          => $e->getMessage(),
+            ]);
+        }
 
         \Illuminate\Support\Facades\Log::info('proposition.submitted_to_commercial', [
             'reservation_id' => $reservation->id,
             'by'             => auth()->id(),
+            'commercial_id'  => $commercial->id,
         ]);
 
-        return back()->with('success',
-            '✅ Proposition soumise. Le commercial peut maintenant l\'envoyer au client.');
+        return $respond('success',
+            "✅ Proposition soumise à {$commercial->name}. Email + alerte envoyés.");
     }
 
     // ══════════════════════════════════════════════════════════════

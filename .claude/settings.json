@@ -53,7 +53,9 @@
       "Bash(ls /c/wamp64/bin/php/ 2>/dev/null | head -5)",
       "Read(//c/wamp64/bin/php//**)",
       "Bash(/c/wamp64/bin/php/php8.2.26/php.exe -l /c/wamp64/www/panora/routes/admin.php)",
-      "Bash(/c/wamp64/bin/php/php8.2.26/php.exe -l /c/wamp64/www/panora/app/Policies/PanelPolicy.php)"
+      "Bash(/c/wamp64/bin/php/php8.2.26/php.exe -l /c/wamp64/www/panora/app/Policies/PanelPolicy.php)",
+      "Bash(php -l app/Mail/PropositionAssignedMail.php)",
+      "Bash(php -l app/Policies/ReservationPolicy.php)"
     ]
   }
 }
