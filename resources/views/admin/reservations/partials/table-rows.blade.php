@@ -86,12 +86,14 @@
             @if($canAnnuler)
             <button class="btn-icon btn-cancel"
                     onclick="openAnnulerModal({{ $res->id }}, '{{ $res->reference }}', '{{ addslashes($res->client?->name ?? '') }}', {{ $total }})"
-                    title="Annuler">🚫</button>
+                    title="Annuler la réservation">🚫</button>
             @endif
-           
-            <button class="btn-icon btn-delete" 
+
+            @if($canDelete)
+            <button class="btn-icon btn-delete"
                     onclick="openDeleteModal({{ $res->id }}, '{{ $res->reference }}')"
-                    title="Supprimer">🗑️</button>
+                    title="Supprimer définitivement">🗑️</button>
+            @endif
         </div>
     </td>
 </tr>

@@ -48,15 +48,10 @@ class ReservationPolicy
     }
 
     /**
-     * Changer statut (Confirmer/Refuser/Annuler) : ADMIN UNIQUEMENT.
-     * before() retourne true pour admin → cette méthode n'est appelée
-     * que pour les non-admins, qui doivent toujours être refusés.
-     *
-     * Justification métier : la confirmation/refus passe normalement par
-     * le client via le lien proposition. Les boutons admin sont un
-     * fallback manuel pour cas exceptionnels (problème mail, support).
-     * Le MP n'intervient pas sur le statut final, il prépare la
-     * proposition et la soumet au commercial pour envoi.
+     * Changer statut (Confirmer/Refuser) : ADMIN UNIQUEMENT.
+     * Action de fallback exceptionnel quand le client ne peut pas
+     * confirmer/refuser via le lien proposition. Le MP ne valide pas
+     * une signature à la place du client.
      */
     public function updateStatus(User $user, Reservation $reservation): bool
     {
@@ -64,17 +59,43 @@ class ReservationPolicy
     }
 
     /**
-     * Annuler une réservation : ADMIN UNIQUEMENT.
-     * Cas exceptionnel — voir updateStatus() ci-dessus.
+     * Annuler une réservation :
+     *   - Admin (via before)  : toujours
+     *   - MP                  : oui, tant que pas encore confirmée par
+     *                           le client (status='confirme' = signée).
+     *                           Cela couvre les résa en_attente que le
+     *                           MP veut annuler avant ou après envoi
+     *                           commercial (ex: erreur, client refuse
+     *                           verbalement, demande de remplacement).
+     *   - Commercial          : non — il n'a pas la responsabilité
+     *                           d'annuler, il relance.
+     *
+     * Cf. docs/ROLES_VALIDES.md : "Annuler proposition déjà signée par
+     * le client (admin only)" — donc avant signature, MP autorisé.
      */
     public function annuler(User $user, Reservation $reservation): bool
     {
-        return false;
+        if (!$reservation->isCancellable()) return false;
+        if ($reservation->client?->trashed()) return false;
+        // Si status = 'confirme' (signée client), seul admin (before).
+        if ($reservation->status?->value === 'confirme') return false;
+        return $user->role === UserRole::MEDIAPLANNER;
     }
 
-    /** Supprimer : Admin uniquement (before() capte). */
+    /**
+     * Supprimer dur (DELETE BDD) :
+     *   - Admin (via before)  : toujours quand isDeletable().
+     *   - MP                  : seulement les résa qu'il vient de créer
+     *                           ET qui sont annulées/refusées (jamais
+     *                           transmises au client en cours de
+     *                           validité). Permet la suppression d'une
+     *                           erreur de saisie.
+     */
     public function delete(User $user, Reservation $reservation): bool
     {
-        return false;
+        if (!$reservation->isDeletable()) return false;
+        if ($user->role !== UserRole::MEDIAPLANNER) return false;
+        // MP : uniquement ses propres résa
+        return $reservation->user_id === $user->id;
     }
 }
