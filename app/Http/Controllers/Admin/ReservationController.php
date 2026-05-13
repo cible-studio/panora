@@ -1177,11 +1177,25 @@ class ReservationController extends Controller
                     }
                 }
 
+                $assignedCommercialId = $request->integer('commercial_user_id') ?: auth()->id();
+                // Si un commercial autre que le créateur est assigné, on
+                // pose directement proposition_status = pending_send afin
+                // que le commercial voie immédiatement le bouton "Envoyer
+                // la proposition" sur la fiche (sinon il reste en 'draft'
+                // = "En construction" et aucun bouton n'apparaît).
+                // Si le créateur s'assigne lui-même (admin/commercial qui
+                // crée pour lui), on laisse 'draft' pour qu'il termine de
+                // construire avant d'envoyer.
+                $propositionStatus = $assignedCommercialId !== auth()->id()
+                    ? Reservation::PROPOSITION_PENDING_SEND
+                    : Reservation::PROPOSITION_DRAFT;
+
                 $reservation = Reservation::create([
                     'reference' => $reference,
                     'client_id' => $request->client_id,
                     'user_id' => auth()->id(),
-                    'commercial_user_id' => $request->integer('commercial_user_id') ?: auth()->id(),
+                    'commercial_user_id'  => $assignedCommercialId,
+                    'proposition_status'  => $propositionStatus,
                     'start_date' => $request->start_date,
                     'end_date' => $request->end_date,
                     'status' => $status,
