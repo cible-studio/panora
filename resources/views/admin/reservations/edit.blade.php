@@ -1,7 +1,7 @@
 <x-admin-layout title="Modifier {{ $reservation->reference }}">
-    {{-- Bouton Retour à droite dans la topbar (cohérent capture user).
-         SVG harmonisé avec show.blade.php et disponibilites.blade.php. --}}
-    <x-slot:topbarActions>
+    {{-- Bouton Retour à GAUCHE de la topbar (cohérent show.blade.php et
+         disponibilites.blade.php). --}}
+    <x-slot:topbarLeft>
         <a href="{{ route('admin.reservations.show', $reservation) }}"
            class="btn btn-ghost btn-sm"
            style="display:inline-flex;align-items:center;gap:6px;">
@@ -11,7 +11,7 @@
             </svg>
             Retour
         </a>
-    </x-slot:topbarActions>
+    </x-slot:topbarLeft>
 
     {{-- URL AJAX --}}
     <script>
