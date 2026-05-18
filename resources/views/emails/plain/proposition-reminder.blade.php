@@ -22,9 +22,6 @@ Détails :
 - Référence    : {{ $ref }}
 - Période      : {{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}
 - Emplacements : {{ $panelCount }} panneau{{ $panelCount > 1 ? 'x' : '' }}
-@if($totalAmount > 0)
-- Montant      : {{ number_format($totalAmount, 0, ',', ' ') }} FCFA
-@endif
 - Expire le    : {{ $expiresAtLabel }}
 
 Consulter et répondre : {{ $lien }}
