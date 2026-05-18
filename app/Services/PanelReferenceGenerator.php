@@ -8,39 +8,35 @@ use App\Models\PanelCategory;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Génération des références panneaux selon les patterns historiques
- * CIBLE CI. Modèle unifié :
+ * Génération des références panneaux selon la convention CIBLE CI
+ * unifiée :
  *
- *     reference = commune.code + category.code + numéro + face
+ *     reference = commune.code + "-" + category.code + numéro + face
  *
- * Le séparateur (tiret avant/après) est intégré au code catégorie
- * pour couvrir les deux conventions présentes dans le parc :
- *
- *   - Catégories "joined" (tiret après le code) :
- *       CAIS- → PBT + CAIS- + 05 + A = PBTCAIS-05A
- *       LUP-  → CDY + LUP-  + 001    = CDYLUP-001
- *       P-    → BKE + P-    + 008    = BKEP-008
- *
- *   - Catégories "prefixed" (tiret avant le code) :
- *       -CH   → ABO + -CH   + 001    = ABO-CH001
- *       -PM   → YOP + -PM   + 01     = YOP-PM01
- *       -PAN- → YOP + -PAN- + 01     = YOP-PAN-01
- *
- *   - Classique (pas de catégorie) :
- *       -     → ADJ + -     + 002    = ADJ-002
+ * Exemples :
+ *   PBT  + - + CAIS + 001 + A = PBT-CAIS001A   (Caisson Port-Bouët)
+ *   ABO  + - + CH   + 001 + ''= ABO-CH001      (Chevalet Abobo)
+ *   CDY  + - + LUP  + 001     = CDY-LUP001     (Lampadaire Cocody)
+ *   BKE  + - + P    + 001     = BKE-P001       (Pylône Bouaké)
+ *   TVIL + - + ''   + 002 + A = TVIL-002A      (Classique Treichville)
+ *   ADJ  + - + ''   + 001     = ADJ-001        (Classique Adjamé)
  *
  * Règles d'attribution :
  *   - Numéro = MAX existant + 1 pour le préfixe (jamais le premier
- *     trou : un panneau supprimé garde son numéro réservé à vie pour
+ *     trou — un panneau supprimé garde son numéro réservé à vie pour
  *     éviter toute confusion avec d'anciens contrats).
+ *   - **Compatibilité legacy** : le compteur examine AUSSI les refs
+ *     dans les anciens formats du parc (PBTCAIS-05A, YOP-PAN-01,
+ *     ADJC-03A…). Ainsi, la numérotation continue sans collision
+ *     même si on convertit progressivement vers le nouveau format.
  *   - Appariement de face (B/C/D) : si l'utilisateur enregistre la
  *     face B et qu'il existe déjà la face A pour un numéro sans B
  *     correspondant, on propose ce numéro pour compléter le couple.
- *   - Padding : convention la plus fréquente dans le préfixe. Défaut
- *     3 chiffres (001, 002… — convention CIBLE CI).
+ *   - Padding : 3 chiffres par défaut (001, 002…). Auto-extension
+ *     si on déborde 999.
  *   - Compte les soft-deleted : un numéro libéré n'est jamais recyclé.
  *   - Si le code commune/catégorie est vide en BD, fallback sur les
- *     3 premières lettres du nom (l'admin pourra le stabiliser).
+ *     3 premières lettres du nom.
  */
 class PanelReferenceGenerator
 {
@@ -58,25 +54,24 @@ class PanelReferenceGenerator
         ?string $face = null,
         ?int $excludeId = null,
     ): string {
-        $base   = $this->basePrefix($commune, $category);
+        [$communeCode, $catCode] = $this->resolveCodes($commune, $category);
         $face   = $this->normalizeFace($face);
-        $number = $this->nextNumberFor($base, $face, $excludeId);
+        $number = $this->nextNumberFor($communeCode, $catCode, $face, $excludeId);
 
-        // Le séparateur est désormais intégré au code catégorie : on
-        // concatène directement sans injecter un tiret supplémentaire.
-        return $base . $number . $face;
+        return $communeCode . '-' . $catCode . $number . $face;
     }
 
     /**
      * Décomposition pour l'aperçu UI :
      *   [
-     *     'commune_code'  => 'PBT',
-     *     'category_code' => 'CAIS',
-     *     'base'          => 'PBTCAIS',
-     *     'number'        => '05',
-     *     'face'          => 'A',
-     *     'reference'     => 'PBTCAIS-05A',
-     *     'is_fallback'   => bool — true si un code a été dérivé du nom
+     *     'commune_code'         => 'PBT',
+     *     'category_code'        => 'CAIS',
+     *     'base'                 => 'PBT-CAIS',
+     *     'number'               => '001',
+     *     'face'                 => 'A',
+     *     'reference'            => 'PBT-CAIS001A',
+     *     'commune_is_fallback'  => bool — true si code dérivé du nom
+     *     'category_is_fallback' => bool
      *   ]
      */
     public function preview(
@@ -88,68 +83,48 @@ class PanelReferenceGenerator
         $communeFallback  = !$commune->code;
         $categoryFallback = $category && $category->code === null;
 
-        $communeCode  = $commune->code ?: $this->fallbackCode($commune->name);
-        $categorySeg  = $this->resolveCategorySegment($category);
-
-        $base   = $communeCode . $categorySeg;
+        [$communeCode, $catCode] = $this->resolveCodes($commune, $category);
         $face   = $this->normalizeFace($face);
-        $number = $this->nextNumberFor($base, $face, $excludeId);
+        $number = $this->nextNumberFor($communeCode, $catCode, $face, $excludeId);
 
         return [
             'commune_code'         => $communeCode,
-            'category_code'        => $categorySeg,
-            'base'                 => $base,
+            'category_code'        => $catCode,
+            'base'                 => $communeCode . '-' . $catCode,
             'number'               => $number,
             'face'                 => $face,
-            'reference'            => $base . $number . $face,
+            'reference'            => $communeCode . '-' . $catCode . $number . $face,
             'commune_is_fallback'  => $communeFallback,
             'category_is_fallback' => $categoryFallback,
         ];
     }
 
     /**
-     * Préfixe = code commune + code catégorie (avec séparateur intégré).
+     * Résout les deux codes (commune, catégorie) à partir des modèles.
+     * Les codes sont nettoyés de tout tiret résiduel (cas où l'ancien
+     * format avec séparateurs intégrés serait encore en BD avant que
+     * la migration `simplify_panel_category_codes` ne tourne).
      *
-     * Rétrocompatibilité : si le code catégorie ne contient AUCUN
-     * tiret (ancien format pré-normalisation), on injecte un tiret
-     * en suffix pour rester cohérent avec la convention "joined"
-     * historique. Cela permet au générateur de fonctionner correc-
-     * tement même si la migration de normalisation n'a pas encore
-     * été appliquée (fenêtre de déploiement).
+     * @return array{0:string,1:string}  [commune_code, category_code]
      */
-    private function basePrefix(Commune $commune, ?PanelCategory $category): string
+    private function resolveCodes(Commune $commune, ?PanelCategory $category): array
     {
-        $cc = $commune->code ?: $this->fallbackCode($commune->name);
-        $kc = $this->resolveCategorySegment($category);
-        return $cc . $kc;
-    }
+        $communeCode = $commune->code ?: $this->fallbackCode($commune->name);
 
-    /**
-     * Résout le segment "catégorie" du préfixe en gérant tous les cas :
-     *   - NULL category → "-" (Classique)
-     *   - code NULL en BD → fallback lettres + "-"
-     *   - code "" vide en BD → "-" (Classique explicite)
-     *   - code sans tiret (ancien format) → on ajoute "-" en suffix
-     *   - code avec tiret (format normalisé) → tel quel
-     */
-    private function resolveCategorySegment(?PanelCategory $category): string
-    {
         if ($category === null) {
-            return '-';
+            $catCode = '';
+        } elseif ($category->code === null) {
+            $catCode = $this->fallbackCode($category->name);
+        } else {
+            $catCode = $category->code;
         }
-        $code = $category->code;
-        if ($code === null) {
-            return $this->fallbackCode($category->name) . '-';
-        }
-        if ($code === '') {
-            return '-';
-        }
-        // Format normalisé : contient au moins un tiret → tel quel
-        if (str_contains($code, '-')) {
-            return $code;
-        }
-        // Format hérité : code sans tiret → suffixe avec "-"
-        return $code . '-';
+
+        // Rétrocompat : retire les tirets résiduels (ex: "CAIS-",
+        // "-CH", "-PAN-") issus de migrations intermédiaires. Le
+        // nouveau format ajoute lui-même le tiret au bon endroit.
+        $catCode = trim($catCode, '-');
+
+        return [$communeCode, $catCode];
     }
 
     /**
@@ -165,64 +140,85 @@ class PanelReferenceGenerator
     }
 
     /**
-     * Calcule le prochain numéro libre pour le préfixe, en s'appuyant
-     * sur l'inventaire existant (panneaux actifs ET soft-deleted, pour
-     * que les numéros supprimés ne soient JAMAIS recyclés — sécurité).
+     * Calcule le prochain numéro libre pour le couple (commune, cat).
      *
      * Stratégie :
-     *   1. On lit toutes les références existantes pour le préfixe et
-     *      on les indexe par numéro → faces présentes.
-     *   2. On détecte le padding utilisé (longueur la plus fréquente
-     *      des chiffres). Défaut : 3 chiffres (001, 002…).
+     *   1. On scanne TOUS les formats possibles (nouveau + legacy)
+     *      pour le couple, afin que la numérotation continue sans
+     *      collision sur les anciennes refs du parc (PBTCAIS-05A,
+     *      YOP-PAN-01, CDYC-03A, …).
+     *   2. On indexe les refs trouvées par numéro → faces présentes.
      *   3. **Appariement de face** (B/C/D) : si l'utilisateur demande
-     *      la face B et qu'il existe déjà une face A sans face B avec
-     *      le même numéro (cas typique : on enregistre le dos d'un
-     *      panneau dont la face avant existe déjà), on propose le
-     *      MÊME numéro pour que la nouvelle face complète le couple.
-     *      Idem pour C (qui s'apparie avec A/B partiels) et D.
-     *   4. **Incrémentation classique** : sinon, on prend MAX existant
-     *      + 1 (jamais le premier trou — un panneau supprimé garde
-     *      son numéro réservé à jamais).
+     *      la face B et qu'il existe déjà une face A sans face B
+     *      avec le même numéro, on propose ce numéro pour compléter
+     *      le couple. Idem pour C/D (trivision).
+     *   4. **MAX+1** : sinon, on prend max existant + 1. Les soft-
+     *      deleted sont comptés pour ne JAMAIS recycler un numéro.
+     *
+     * @param  string $communeCode  ex: PBT, YOP, ADJ
+     * @param  string $catCode      ex: CAIS, CH, LUP, P — vide pour Classique
      */
-    private function nextNumberFor(string $base, string $face, ?int $excludeId): string
-    {
-        // Le séparateur étant intégré au base prefix (CAIS-, -CH, -PAN-,
-        // …), on cherche toutes les refs commençant exactement par ce
-        // préfixe. Le filtrage strict est ensuite assuré par la regex
-        // qui valide que seuls des chiffres + une lettre optionnelle
-        // suivent — toute ref avec autre chose entre la base et le
-        // numéro est écartée (évite les faux positifs entre catégories
-        // proches).
-        $like = $this->escapeLike($base) . '%';
-        $query = Panel::query()
-            ->where('reference', 'like', $like)
-            ->withTrashed();
+    private function nextNumberFor(
+        string $communeCode,
+        string $catCode,
+        string $face,
+        ?int $excludeId
+    ): string {
+        // Patterns possibles pour la même catégorie selon les époques :
+        //   - Nouveau format : "{COMMUNE}-{CAT}{NN}{FACE?}"  → PBT-CAIS001A
+        //   - Legacy joined  : "{COMMUNE}{CAT}-{NN}{FACE?}"  → PBTCAIS-05A
+        //   - Legacy double  : "{COMMUNE}-{CAT}-{NN}{FACE?}" → YOP-PAN-01
+        //   - Legacy attach  : "{COMMUNE}-{CAT}{NN}{FACE?}"  (=nouveau)
+        //   - Pour Classique : "{COMMUNE}-{NN}{FACE?}"       → TVIL-002A
+        $cc = $this->escapeLike($communeCode);
+        $kc = $this->escapeLike($catCode);
+
+        $query = Panel::query()->withTrashed();
         if ($excludeId) {
             $query->where('id', '!=', $excludeId);
         }
+        if ($catCode === '') {
+            // Classique : seul format légitime → "{COMMUNE}-{NN}{FACE?}"
+            // On évite les faux positifs (ex: ADJ-CAIS-…) via la regex.
+            $query->where('reference', 'like', $cc . '-%');
+        } else {
+            // Avec catégorie : on accepte 3 formats. SQL "OR" permet de
+            // tout récupérer en une seule requête.
+            $query->where(function ($q) use ($cc, $kc) {
+                $q->where('reference', 'like', $cc . '-' . $kc . '%')   // PBT-CAIS001A
+                  ->orWhere('reference', 'like', $cc . $kc . '-%')      // PBTCAIS-05A
+                  ->orWhere('reference', 'like', $cc . '-' . $kc . '-%'); // YOP-PAN-01
+            });
+        }
 
-        // Map: numéro → set de faces présentes (ex : 7 → ['A'=>true])
-        $byNum      = [];
-        $padLengths = [];
+        // Regexes d'extraction du numéro selon le format détecté.
+        // L'ordre est important : le plus spécifique en premier.
+        $extractors = $catCode === ''
+            ? [
+                '/^' . preg_quote($communeCode, '/') . '-(\d+)([A-Z]?)$/',
+            ]
+            : [
+                '/^' . preg_quote($communeCode . '-' . $catCode . '-', '/') . '(\d+)([A-Z]?)$/', // legacy double
+                '/^' . preg_quote($communeCode . $catCode . '-', '/') . '(\d+)([A-Z]?)$/',       // legacy joined
+                '/^' . preg_quote($communeCode . '-' . $catCode, '/') . '(\d+)([A-Z]?)$/',       // nouveau
+            ];
+
+        // Map: numéro → set de faces présentes
+        $byNum = [];
         foreach ($query->pluck('reference') as $ref) {
-            if (!str_starts_with($ref, $base)) continue;
-            $tail = substr($ref, strlen($base)); // après la base complète
-            if (preg_match('/^(\d+)([A-Z]?)$/', $tail, $m)) {
-                $num                       = (int) $m[1];
-                $refFace                   = $m[2];
-                $byNum[$num][$refFace]     = true;
-                $padLengths[strlen($m[1])] = ($padLengths[strlen($m[1])] ?? 0) + 1;
+            foreach ($extractors as $rx) {
+                if (preg_match($rx, $ref, $m)) {
+                    $num                   = (int) $m[1];
+                    $refFace               = $m[2];
+                    $byNum[$num][$refFace] = true;
+                    break; // un seul format match par ref
+                }
             }
         }
 
-        // Padding : convention la plus fréquente pour ce préfixe.
-        // Sinon défaut 3 chiffres (001, 002 — convention CIBLE CI).
-        if (!empty($padLengths)) {
-            arsort($padLengths);
-            $padTo = (int) array_key_first($padLengths);
-        } else {
-            $padTo = 3;
-        }
+        // Padding : 3 chiffres fixes (001, 002 — convention CIBLE CI),
+        // auto-extension si on déborde 999.
+        $padTo = 3;
 
         // ── Appariement de face (B/C/D) ────────────────────────────
         // Cherche le plus grand numéro où la face demandée est libre
