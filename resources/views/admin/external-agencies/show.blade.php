@@ -129,9 +129,9 @@
     @if($agency->externalPanels->count() > 0)
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;padding:6px 10px;border:1px dashed var(--border);border-radius:8px;"
-               title="Cocher pour inclure tarif et statut dans les exports (usage interne)">
+               title="Cocher pour exclure tarif et statut des exports (transmission au client)">
           <input type="checkbox" id="ext-show-pricing" style="accent-color:var(--accent)">
-          <span>💰 Inclure prix + statut</span>
+          <span>💰 Exclure prix + statut</span>
         </label>
         <button type="button" class="btn btn-ghost btn-sm"
                 style="color:var(--green);border-color:rgba(34,197,94,.4)"
@@ -305,7 +305,7 @@ window.EXT_EXPORTS = (function () {
             const action = ENDPOINTS[type];
             if (!action) return;
 
-            const showPricing = document.getElementById('ext-show-pricing')?.checked ? '1' : '0';
+            const showPricing = document.getElementById('ext-show-pricing')?.checked ? '0' : '1';
             const form = buildForm(action, { show_pricing: showPricing });
 
             // Excel : ouvrir dans un nouvel onglet pour ne pas bloquer la page
