@@ -51,7 +51,6 @@ class PoseController extends Controller
 
         // Filtre "Masquer poses orphelines" (par défaut activé) : cache
         // celles dont la campagne est supprimée, annulée ou terminée.
-        // L'utilisateur peut décocher pour les voir (debug / audit).
         $hideOrphan = !$request->has('show_orphan') || !$request->boolean('show_orphan');
         if ($hideOrphan) {
             $query->whereHas('campaign', fn($q) =>
@@ -63,7 +62,9 @@ class PoseController extends Controller
             );
         }
 
-        // Filtres "neutres" appliqués à la query (et au calcul des compteurs)
+        // ⚠ Toutes les colonnes ambiguës (status, campaign_id…) sont
+        // préfixées 'pose_tasks.' car le join campaigns + panels (plus bas)
+        // introduit des homonymes dans le SELECT — sinon SQLSTATE 23000.
         if ($request->filled('q')) {
             $q = $request->q;
             $query->where(fn($sq) =>
@@ -72,18 +73,19 @@ class PoseController extends Controller
                 ->orWhereHas('technicien', fn($u) => $u->where('name', 'like', "%{$q}%"))
             );
         }
-        if ($request->filled('technicien_id')) $query->where('assigned_user_id', $request->technicien_id);
-        if ($request->filled('campaign_id'))   $query->where('campaign_id', $request->campaign_id);
-        if ($request->filled('date_from'))     $query->whereDate('scheduled_at', '>=', $request->date_from);
-        if ($request->filled('date_to'))       $query->whereDate('scheduled_at', '<=', $request->date_to);
+        if ($request->filled('technicien_id')) $query->where('pose_tasks.assigned_user_id', $request->technicien_id);
+        if ($request->filled('campaign_id'))   $query->where('pose_tasks.campaign_id',      $request->campaign_id);
+        if ($request->filled('date_from'))     $query->whereDate('pose_tasks.scheduled_at', '>=', $request->date_from);
+        if ($request->filled('date_to'))       $query->whereDate('pose_tasks.scheduled_at', '<=', $request->date_to);
 
         // ─── COMPTEURS KPI sur le périmètre AVANT filtre status ───
-        // (chaque carte garde sa vraie valeur quand on en clique une)
+        // (chaque carte garde sa vraie valeur quand on en clique une).
+        // 'pose_tasks.status' explicite + reorder() pour vider les ORDER BY.
         $countsRaw = (clone $query)
             ->setEagerLoads([])
             ->reorder()
-            ->select('status', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total'))
-            ->groupBy('status')
+            ->select('pose_tasks.status', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total'))
+            ->groupBy('pose_tasks.status')
             ->pluck('total', 'status');
 
         $stats = [
@@ -93,17 +95,16 @@ class PoseController extends Controller
             'annulee'   => (int) ($countsRaw['annulee']   ?? 0),
         ];
 
-        // Filtre status appliqué APRÈS le calcul des compteurs
+        // Filtre status appliqué APRÈS le calcul des compteurs.
+        // Préfixé 'pose_tasks.' pour éviter l'ambiguïté avec campaigns.status.
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('pose_tasks.status', $request->status);
         }
 
         // Tri optimisé pour le groupage par campagne dans la vue :
         //  1) Campagnes les plus récemment créées en HAUT (join campaigns)
-        //  2) À l'intérieur d'une campagne, panneaux par référence pour
-        //     un ordre lisible (ABG-001 avant ABG-002…).
-        // Note : on garde 'scheduled_at desc' en secondaire pour les
-        // poses-tasks orphelines (campaign_id NULL).
+        //  2) À l'intérieur d'une campagne, panneaux par référence
+        //  3) scheduled_at desc en secondaire (orphelines sans campagne)
         $poseTasks = $query
             ->leftJoin('campaigns', 'campaigns.id', '=', 'pose_tasks.campaign_id')
             ->leftJoin('panels',    'panels.id',    '=', 'pose_tasks.panel_id')
