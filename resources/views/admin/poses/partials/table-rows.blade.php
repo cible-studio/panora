@@ -1,3 +1,66 @@
+@once
+<style>
+    /* Badges Pige — design unifié pro */
+    .pige-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 9px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        text-decoration: none;
+        white-space: nowrap;
+        border: 1px solid transparent;
+        transition: transform .12s, box-shadow .12s;
+    }
+    .pige-badge:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    }
+    .pige-badge svg { flex-shrink: 0; }
+    .pige-badge-count { font-weight: 700; }
+    .pige-badge-sep { opacity: .35; margin: 0 1px; }
+    .pige-badge-verif {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        padding: 1px 5px;
+        background: rgba(255,255,255,.5);
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 700;
+    }
+    /* État "à ajouter" — orange action requise */
+    .pige-badge-todo {
+        background: rgba(249,115,22,.1);
+        border-color: rgba(249,115,22,.3);
+        color: #f97316;
+    }
+    /* État "en attente validation" — bleu informatif */
+    .pige-badge-pending {
+        background: rgba(59,130,246,.08);
+        border-color: rgba(59,130,246,.25);
+        color: #3b82f6;
+    }
+    /* État "partiellement validé" — jaune en progression */
+    .pige-badge-partial {
+        background: rgba(245,158,11,.1);
+        border-color: rgba(245,158,11,.3);
+        color: #b45309;
+    }
+    /* État "toutes validées" — vert OK */
+    .pige-badge-ok {
+        background: rgba(34,197,94,.1);
+        border-color: rgba(34,197,94,.3);
+        color: #16a34a;
+    }
+    .pige-badge-ok .pige-badge-verif {
+        background: rgba(34,197,94,.18);
+    }
+</style>
+@endonce
+
 @if($poseTasks->isEmpty())
 <div style="text-align:center;padding:60px 20px;color:var(--text3)">
     <div style="opacity:.15;margin-bottom:14px"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="display:block;margin:0 auto"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
@@ -122,10 +185,49 @@
                 @if($task->done_at)<div style="font-size:12px;color:#22c55e;font-weight:500">{{ $task->done_at->format('d/m/Y') }}</div><div style="font-size:10px;color:var(--text3)">{{ $task->done_at->format('H:i') }}</div>@else<span style="color:var(--text3);font-size:12px">—</span>@endif
             </td>
             <td style="padding:10px 12px">
-                @if(!$task->campaign_id)<span style="font-size:10px;color:var(--text3)">N/A</span>
-                @elseif($needsPige)<a href="{{ route('admin.piges.index', ['campaign_id'=>$task->campaign_id,'panel_id'=>$task->panel_id]) }}" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.3);color:#f97316;border-radius:8px;font-size:10px;font-weight:700;text-decoration:none;white-space:nowrap"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Ajouter</a>
-                @elseif($pigeCount > 0)<a href="{{ route('admin.piges.index', ['campaign_id'=>$task->campaign_id,'panel_id'=>$task->panel_id]) }}" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);color:#22c55e;border-radius:8px;font-size:10px;font-weight:700;text-decoration:none;white-space:nowrap"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> {{ $pigeCount }}@if($pigeVerif > 0)<span style="font-size:9px;opacity:.65;margin-left:2px">·{{ $pigeVerif }}✓</span>@endif</a>
-                @else<span style="font-size:10px;color:var(--text3)">—</span>@endif
+                @if(!$task->campaign_id)
+                    <span style="font-size:10px;color:var(--text3)">N/A</span>
+                @elseif($needsPige)
+                    {{-- Pose réalisée mais pas de pige — action requise --}}
+                    <a href="{{ route('admin.piges.index', ['campaign_id'=>$task->campaign_id,'panel_id'=>$task->panel_id]) }}"
+                       class="pige-badge pige-badge-todo"
+                       title="Pose réalisée — pige photo à ajouter">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        <span>À ajouter</span>
+                    </a>
+                @elseif($pigeCount > 0)
+                    @php
+                        $allVerified  = $pigeVerif > 0 && $pigeVerif >= $pigeCount;
+                        $partlyVerif  = $pigeVerif > 0 && $pigeVerif < $pigeCount;
+                        $stateClass   = $allVerified ? 'pige-badge-ok' : ($partlyVerif ? 'pige-badge-partial' : 'pige-badge-pending');
+                        $stateTitle   = $allVerified
+                            ? "Toutes les piges sont validées ({$pigeVerif}/{$pigeCount})"
+                            : ($partlyVerif
+                                ? "{$pigeVerif} pige(s) validée(s) sur {$pigeCount}"
+                                : "{$pigeCount} pige(s) en attente de validation");
+                    @endphp
+                    <a href="{{ route('admin.piges.index', ['campaign_id'=>$task->campaign_id,'panel_id'=>$task->panel_id]) }}"
+                       class="pige-badge {{ $stateClass }}"
+                       title="{{ $stateTitle }}">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        <span class="pige-badge-count">{{ $pigeCount }}</span>
+                        @if($pigeVerif > 0)
+                        <span class="pige-badge-sep">·</span>
+                        <span class="pige-badge-verif">
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            {{ $pigeVerif }}
+                        </span>
+                        @endif
+                    </a>
+                @else
+                    <span style="font-size:10px;color:var(--text3)">—</span>
+                @endif
             </td>
             <td style="padding:10px 12px;min-width:160px">
                 <span class="pose-status-pill" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;background:{{ $sCfg['bg'] }};color:{{ $sCfg['c'] }};border:1px solid {{ $sCfg['bd'] }}">{!! $sIcon !!} <span class="pose-status-label">{{ $sCfg['l'] }}</span></span>
