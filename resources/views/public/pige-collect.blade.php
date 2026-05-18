@@ -262,6 +262,31 @@
         font-weight: 700;
     }
 
+    /* Bandeau rejet : motif visible pour que le tech sache quoi corriger */
+    .rejet-banner {
+        margin-top: 10px;
+        background: #fee2e2;
+        border: 1px solid rgba(220,38,38,.3);
+        border-left: 3px solid #dc2626;
+        border-radius: 8px;
+        padding: 8px 10px;
+    }
+    .rejet-banner-title {
+        font-size: 11px;
+        font-weight: 800;
+        color: #dc2626;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+    }
+    .rejet-banner-reason {
+        font-size: 13px;
+        color: #0f172a;
+        line-height: 1.4;
+        font-style: italic;
+        margin-top: 2px;
+    }
+
     /* MODAL UPLOAD — photo GRANDE */
     .modal {
         display: none; position: fixed; inset: 0;
@@ -397,9 +422,9 @@
 
 <div class="header">
     <div class="header-inner">
-        <img src="{{ asset('images/logon.png') }}" alt="CIBLE CI" onerror="this.style.display='none'">
+        <img src="{{ asset('images/panora-blanc.png') }}" alt="Panora" onerror="this.style.display='none'">
         <div class="header-meta">
-            <span class="badge">📷 Pige terrain</span>
+            <span class="badge">PANORA · CIBLE CI · Terrain</span>
             <h1>{{ $campaign->name }}</h1>
         </div>
     </div>
@@ -563,6 +588,21 @@
                                             </div>
                                         @endforeach
                                     </div>
+
+                                    {{-- Affichage explicite du motif si au moins une pige
+                                         a été rejetée — le tech doit savoir pourquoi pour
+                                         refaire correctement la photo. --}}
+                                    @php $rejetedPiges = $panelPiges->where('status', 'rejete'); @endphp
+                                    @if($rejetedPiges->isNotEmpty())
+                                        <div class="rejet-banner">
+                                            <div class="rejet-banner-title">⚠️ Photo refusée — à refaire :</div>
+                                            @foreach($rejetedPiges as $rj)
+                                                <div class="rejet-banner-reason">
+                                                    « {{ $rj->rejection_reason ?: 'Aucun motif précisé par le superviseur.' }} »
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @endif
                                 @endif
                             </div>
                         </div>

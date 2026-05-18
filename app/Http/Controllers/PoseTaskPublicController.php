@@ -45,7 +45,7 @@ class PoseTaskPublicController extends Controller
             ->when($task->campaign_id, fn($q) => $q->where('campaign_id', $task->campaign_id))
             ->orderByDesc('taken_at')
             ->take(20)
-            ->get(['id', 'photo_path', 'status', 'taken_at', 'notes']);
+            ->get(['id', 'photo_path', 'status', 'taken_at', 'notes', 'rejection_reason']);
 
         return view('public.pose-task', [
             'task'        => $task,

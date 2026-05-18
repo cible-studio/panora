@@ -67,22 +67,15 @@
             font-size: 17px;
             letter-spacing: -.2px;
         }
-        .topbar-brand .brand-mark {
-            width: 30px;
-            height: 30px;
-            border-radius: 9px;
-            background: var(--orange);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            font-weight: 900;
-            box-shadow: 0 2px 6px rgba(194,87,13,.4);
+        .topbar-brand .brand-logo {
+            height: 32px;
+            width: auto;
+            display: block;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,.3));
         }
         .topbar-brand .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
-        .topbar-brand .brand-text .name { font-size: 14px; font-weight: 800; letter-spacing: -.1px; }
-        .topbar-brand .brand-text .sub  { font-size: 10px; opacity: .55; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; }
+        .topbar-brand .brand-text .name { font-size: 14px; font-weight: 800; letter-spacing: .3px; color: #fff; }
+        .topbar-brand .brand-text .sub  { font-size: 10px; opacity: .7; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--orange); }
         .topbar-tel {
             background: rgba(255,255,255,.10);
             color: #fff;
@@ -292,20 +285,67 @@
         .photos-indicator.empty { background: var(--warn-bg); color: var(--warn); border: 1px solid rgba(217,119,6,.18); }
         .photos-indicator.ok    { background: var(--green-bg); color: var(--green); border: 1px solid rgba(22,163,74,.18); }
         .photos-indicator .ic { font-size: 18px; }
-        .photos-hint {
-            display: flex;
-            gap: 8px;
-            padding: 12px 14px;
-            background: var(--orange-dim);
-            border: 1px dashed rgba(194,87,13,.3);
+
+        /* ── ZONE REJETS : motif visible, action immédiate ─────── */
+        .rejets-box {
+            background: var(--red-bg);
+            border: 1.5px solid rgba(220,38,38,.3);
             border-radius: 12px;
+            padding: 12px 14px;
             margin-bottom: 14px;
+        }
+        .rejets-title {
             font-size: 13px;
-            color: var(--orange);
+            font-weight: 800;
+            color: var(--red);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .rejet-item {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            background: #fff;
+            border: 1px solid rgba(220,38,38,.18);
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 8px;
+        }
+        .rejet-item:first-of-type { margin-top: 0; }
+        .rejet-thumb {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 2px solid var(--red);
+        }
+        .rejet-body { flex: 1; min-width: 0; }
+        .rejet-reason {
+            font-size: 13px;
+            color: var(--text);
             font-weight: 500;
             line-height: 1.4;
+            margin-bottom: 8px;
+            word-wrap: break-word;
         }
-        .photos-hint svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+        .rejet-btn-replace {
+            background: var(--red);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            min-height: 36px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .rejet-btn-replace:active { background: #b91c1c; }
 
         .photo-thumbs {
             display: grid;
@@ -605,10 +645,10 @@
 
 <header class="topbar">
     <div class="topbar-brand">
-        <div class="brand-mark">C</div>
+        <img src="{{ asset('images/panora-blanc.png') }}" alt="Panora" class="brand-logo">
         <div class="brand-text">
-            <span class="name">CIBLE CI</span>
-            <span class="sub">Pose technicien</span>
+            <span class="name">PANORA</span>
+            <span class="sub">CIBLE CI · Terrain</span>
         </div>
     </div>
     @if($task->technicien?->whatsapp_number)
@@ -760,20 +800,49 @@
             Photos terrain
         </div>
 
+        @php
+            $rejetes  = $piges->where('status', 'rejete');
+            $verifies = $piges->where('status', 'verifie')->count();
+            $attente  = $piges->where('status', 'en_attente')->count();
+        @endphp
+
+        {{-- ─── Compteur compact 3 valeurs ─────────────────────────── --}}
         <div class="photos-indicator {{ $hasPige ? 'ok' : 'empty' }}" id="photos-indicator">
             <span class="ic">{{ $hasPige ? '✓' : '⚠' }}</span>
-            <span><strong id="photos-count">{{ $piges->count() }}</strong>
-                  photo(s) {{ $hasPige ? 'transmise(s)' : '— aucune pige fournie' }}</span>
+            <span>
+                <strong id="photos-count">{{ $piges->count() }}</strong>
+                photo{{ $piges->count() > 1 ? 's' : '' }}
+                @if($hasPige)
+                    · {{ $verifies }} validée{{ $verifies > 1 ? 's' : '' }}
+                    @if($attente > 0) · {{ $attente }} en attente @endif
+                    @if($rejetes->count() > 0) · <span style="color:var(--red);font-weight:700;">{{ $rejetes->count() }} refusée{{ $rejetes->count() > 1 ? 's' : '' }}</span> @endif
+                @else
+                    — aucune pige fournie
+                @endif
+            </span>
         </div>
 
-        @if(!$isFinal)
-        <div class="photos-hint">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span>
-                <strong>Vous pouvez ajouter plusieurs photos.</strong>
-                Uploader une photo ne termine PAS la pose — confirmez avec
-                <strong>« ✓ Pose effectuée »</strong> en bas une fois prêt.
-            </span>
+        {{-- ─── ZONE REJETS : motif visible, action "remplacer" ───── --}}
+        @if($rejetes->count() > 0 && !$isFinal)
+        <div class="rejets-box">
+            <div class="rejets-title">
+                <span>⚠️ {{ $rejetes->count() }} photo{{ $rejetes->count() > 1 ? 's' : '' }} refusée{{ $rejetes->count() > 1 ? 's' : '' }} — à refaire</span>
+            </div>
+            @foreach($rejetes as $rj)
+                <div class="rejet-item">
+                    <img src="{{ \Illuminate\Support\Facades\Storage::url($rj->photo_path) }}"
+                         alt="Photo refusée" loading="lazy" class="rejet-thumb">
+                    <div class="rejet-body">
+                        <div class="rejet-reason">
+                            {{ $rj->rejection_reason ?: 'Photo refusée par le superviseur (aucun motif précisé).' }}
+                        </div>
+                        <button type="button" class="rejet-btn-replace photo-replace"
+                                data-pige-id="{{ $rj->id }}">
+                            📷 Refaire cette photo
+                        </button>
+                    </div>
+                </div>
+            @endforeach
         </div>
         @endif
 
@@ -791,19 +860,14 @@
                          alt="Pige {{ $pige->id }}" loading="lazy">
                     <span class="status-badge" title="{{ $pige->status }}">{{ $statusIcon }}</span>
                     @if($canDelete)
-                    <button type="button" class="photo-replace" aria-label="Remplacer la photo"
+                    <button type="button" class="photo-replace" aria-label="Remplacer"
                             data-pige-id="{{ $pige->id }}">↺</button>
-                    <button type="button" class="photo-del" aria-label="Supprimer la photo"
+                    <button type="button" class="photo-del" aria-label="Supprimer"
                             data-pige-id="{{ $pige->id }}">🗑</button>
                     @endif
                 </div>
             @endforeach
         </div>
-        @if($hasPige && !$isFinal)
-        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;text-align:center;">
-            ↺ Remplacer · 🗑 Supprimer
-        </div>
-        @endif
 
         @if(!$isFinal)
         <button type="button" class="photo-cta" id="btn-photo">
