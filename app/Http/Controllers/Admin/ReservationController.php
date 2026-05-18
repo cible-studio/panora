@@ -690,36 +690,81 @@ class ReservationController extends Controller
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
-        // Recalcul display_status + release_date sur la période demandée :
-        // sans ça, le statut est figé à `panels.status` et on perd l'info
-        // "Occupé jusqu'au …" indispensable pour le PDF proposition.
-        if ($startDate && $endDate) {
-            $internalBlocking = $internalIds
-                ? $this->availability->getInternalPanelBookingMap($internalIds, $startDate, $endDate)->keyBy('panel_id')
-                : collect();
-            $externalBlocking = $externalIds
-                ? $this->availability->getExternalPanelBookingMap($externalIds, $startDate, $endDate)->keyBy('id')
-                : collect();
+        // Recalcul display_status + release_date :
+        // - Si période fournie → blocking sur cette période.
+        // - Sinon → fallback today → +1 an pour toujours récupérer la
+        //   date de libération du panneau s'il est actuellement occupé.
+        $lookupStart = $startDate ?: now()->toDateString();
+        $lookupEnd   = $endDate   ?: now()->addYear()->toDateString();
 
-            $panels = $panels->map(function ($row) use ($internalBlocking, $externalBlocking) {
-                $isExt = ($row['source'] ?? null) === 'external';
-                $booking = $isExt
-                    ? $externalBlocking->get($row['id'] ?? null)
-                    : $internalBlocking->get($row['id'] ?? null);
+        $internalBlocking = $internalIds
+            ? $this->availability->getInternalPanelBookingMap($internalIds, $lookupStart, $lookupEnd)->keyBy('panel_id')
+            : collect();
+        $externalBlocking = $externalIds
+            ? $this->availability->getExternalPanelBookingMap($externalIds, $lookupStart, $lookupEnd)->keyBy('id')
+            : collect();
 
-                if ($booking) {
+        // Idem que pdfListe : ajout des campagnes actives (un panneau peut
+        // être marqué occupé via une campagne sans réservation associée).
+        if ($internalIds) {
+            $campaignRelease = \DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->whereIn('campaign_panels.panel_id', $internalIds)
+                ->where('campaign_panels.type', 'interne')
+                ->whereIn('campaigns.status', ['actif', 'pause'])
+                ->where('campaigns.end_date', '>=', $lookupStart)
+                ->select(
+                    'campaign_panels.panel_id',
+                    \DB::raw('MAX(campaigns.end_date) as release_date')
+                )
+                ->groupBy('campaign_panels.panel_id')
+                ->get()
+                ->keyBy('panel_id');
+
+            $internalBlocking = $internalBlocking->map(function ($b) use ($campaignRelease) {
+                $camp = $campaignRelease->get($b->panel_id);
+                if ($camp && (!$b->release_date || $camp->release_date > $b->release_date)) {
+                    $b->release_date  = $camp->release_date;
+                    $b->has_confirmed = 1;
+                }
+                return $b;
+            });
+
+            foreach ($campaignRelease as $panelId => $camp) {
+                if (!$internalBlocking->has($panelId)) {
+                    $internalBlocking->put($panelId, (object) [
+                        'panel_id'      => $panelId,
+                        'has_confirmed' => 1,
+                        'has_option'    => 0,
+                        'release_date'  => $camp->release_date,
+                    ]);
+                }
+            }
+        }
+
+        $panels = $panels->map(function ($row) use ($internalBlocking, $externalBlocking, $startDate, $endDate) {
+            $isExt = ($row['source'] ?? null) === 'external';
+            $booking = $isExt
+                ? $externalBlocking->get($row['id'] ?? null)
+                : $internalBlocking->get($row['id'] ?? null);
+
+            // Quand une période est explicitement fournie, on reconstitue
+            // display_status sur cette période — sinon on garde la valeur
+            // brute issue d'enrichPanel et on n'enrichit que release_date.
+            if ($booking) {
+                if ($startDate && $endDate) {
                     if (!empty($booking->has_confirmed)) {
                         $row['display_status'] = 'occupe';
                     } elseif (!empty($booking->has_option)) {
                         $row['display_status'] = 'option_periode';
                     }
-                    $row['release_date'] = $booking->release_date ?? null;
-                } else {
-                    $row['release_date'] = null;
                 }
-                return $row;
-            });
-        }
+                $row['release_date'] = $booking->release_date ?? null;
+            } else {
+                $row['release_date'] = null;
+            }
+            return $row;
+        });
 
         $filename = 'panneaux-' . now()->format('Ymd_His');
 
@@ -771,22 +816,64 @@ class ReservationController extends Controller
         $startDate = $request->input('start_date');
         $endDate   = $request->input('end_date');
 
-        // Pré-calcul du blocage interne+externe sur la période demandée pour
-        // retrouver le `display_status` réel de chaque panneau (libre /
-        // option_periode / occupe / maintenance). Sans ça, la colonne Statut
-        // afficherait toujours "libre" alors que des panneaux peuvent être
-        // En option pour cette période — qui est précisément ce qu'on veut
-        // distinguer dans le PDF.
+        // Pré-calcul du blocage interne+externe : si une période est fournie
+        // on l'utilise pour reconstruire le display_status. Sinon, fallback
+        // today → +1 an pour toujours récupérer la release_date des
+        // panneaux actuellement occupés (sans quoi le badge "Occupé"
+        // s'affiche sans la date "jusqu'au …").
+        $lookupStart = $startDate ?: now()->toDateString();
+        $lookupEnd   = $endDate   ?: now()->addYear()->toDateString();
+
         $internalBlocking = collect();
         $externalBlocking = collect();
-        if ($internalIds && $startDate && $endDate) {
+        if ($internalIds) {
             $internalBlocking = $this->availability
-                ->getInternalPanelBookingMap($internalIds, $startDate, $endDate)
+                ->getInternalPanelBookingMap($internalIds, $lookupStart, $lookupEnd)
                 ->keyBy('panel_id');
+
+            // Un panneau peut aussi être occupé par une campagne active (cf.
+            // syncPanelStatuses). On récupère la MAX(end_date) campagne et
+            // on l'aligne dans la même map pour que la vue affiche bien
+            // "Occupé jusqu'au …" même sans réservation associée.
+            $campaignRelease = \DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->whereIn('campaign_panels.panel_id', $internalIds)
+                ->where('campaign_panels.type', 'interne')
+                ->whereIn('campaigns.status', ['actif', 'pause'])
+                ->where('campaigns.end_date', '>=', $lookupStart)
+                ->select(
+                    'campaign_panels.panel_id',
+                    \DB::raw('MAX(campaigns.end_date) as release_date')
+                )
+                ->groupBy('campaign_panels.panel_id')
+                ->get()
+                ->keyBy('panel_id');
+
+            $internalBlocking = $internalBlocking->map(function ($b) use ($campaignRelease) {
+                $camp = $campaignRelease->get($b->panel_id);
+                if ($camp && (!$b->release_date || $camp->release_date > $b->release_date)) {
+                    $b->release_date  = $camp->release_date;
+                    $b->has_confirmed = 1;
+                }
+                return $b;
+            });
+
+            // Panneaux occupés UNIQUEMENT par campagne (pas de réservation) :
+            // on les ajoute dans la map avec has_confirmed=1 et release_date.
+            foreach ($campaignRelease as $panelId => $camp) {
+                if (!$internalBlocking->has($panelId)) {
+                    $internalBlocking->put($panelId, (object) [
+                        'panel_id'      => $panelId,
+                        'has_confirmed' => 1,
+                        'has_option'    => 0,
+                        'release_date'  => $camp->release_date,
+                    ]);
+                }
+            }
         }
-        if ($externalIds && $startDate && $endDate) {
+        if ($externalIds) {
             $externalBlocking = $this->availability
-                ->getExternalPanelBookingMap($externalIds, $startDate, $endDate)
+                ->getExternalPanelBookingMap($externalIds, $lookupStart, $lookupEnd)
                 ->keyBy('id');
         }
 
