@@ -39,7 +39,10 @@
             communes: {!! json_encode($communes->map(fn($c) => ['id' => $c->id, 'name' => $c->name])->values()) !!},
             zones: {!! json_encode($zones->map(fn($z) => ['id' => $z->id, 'name' => $z->name])->values()) !!},
             formats: {!! json_encode(
-                $formats->map(fn($f) => ['id' => $f->id, 'name' => $f->name, 'width' => $f->width, 'height' => $f->height])->values(),
+                $formats
+                    ->sortBy(fn($f) => (float) ($f->width ?? 0) * (float) ($f->height ?? 0))
+                    ->map(fn($f) => ['id' => $f->id, 'name' => $f->name, 'width' => $f->width, 'height' => $f->height])
+                    ->values(),
             ) !!},
             categories: {!! json_encode(($categories ?? collect())->map(fn($c) => ['id' => $c->id, 'name' => $c->name])->values()) !!},
             dimensions: {!! json_encode($dimensions) !!},

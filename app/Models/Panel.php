@@ -22,6 +22,7 @@ class Panel extends Model
         'longitude',
         'status',
         'is_lit',
+        'is_vip',
         'monthly_rate',
         'daily_traffic',
         'maintenance_status',
@@ -39,6 +40,7 @@ class Panel extends Model
 
     protected $casts = [
         'is_lit'       => 'boolean',
+        'is_vip'       => 'boolean',
         'monthly_rate' => 'decimal:2',
         'latitude'     => 'decimal:7',
         'longitude'    => 'decimal:7',
