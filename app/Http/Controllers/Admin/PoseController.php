@@ -135,6 +135,76 @@ class PoseController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // MAP — Vue carte GPS des poses (markers colorés par statut)
+    // ══════════════════════════════════════════════════════════════
+    public function map(Request $request)
+    {
+        $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
+        $campaigns   = Campaign::whereIn('status', ['actif', 'planifie'])
+            ->orderBy('name')->get(['id', 'name', 'status']);
+
+        return view('admin.poses.map', compact('techniciens', 'campaigns'));
+    }
+
+    /**
+     * JSON : pose-tasks avec GPS pour l'affichage carte.
+     * Filtres optionnels : status, technicien_id, campaign_id.
+     */
+    public function mapData(Request $request)
+    {
+        $query = PoseTask::query()
+            ->join('panels', 'panels.id', '=', 'pose_tasks.panel_id')
+            ->whereNotNull('panels.latitude')
+            ->whereNotNull('panels.longitude')
+            ->with([
+                'panel:id,reference,name,latitude,longitude,commune_id',
+                'panel.commune:id,name',
+                'campaign:id,name,status',
+                'technicien:id,name,whatsapp_number',
+            ]);
+
+        // Cache 60s pour limiter la charge (markers peuvent être nombreux)
+        if ($request->filled('status'))         $query->where('pose_tasks.status', $request->status);
+        if ($request->filled('technicien_id'))  $query->where('pose_tasks.assigned_user_id', $request->technicien_id);
+        if ($request->filled('campaign_id'))    $query->where('pose_tasks.campaign_id', $request->campaign_id);
+
+        $tasks = $query->select('pose_tasks.*')->limit(500)->get();
+
+        $markers = $tasks->map(function ($t) {
+            $statusColor = match ($t->status) {
+                'planifiee' => '#e8a020',
+                'en_cours'  => '#3b82f6',
+                'realisee'  => '#22c55e',
+                'annulee'   => '#ef4444',
+                default     => '#6b7280',
+            };
+            $isLate = $t->status === 'planifiee' && $t->scheduled_at?->isPast();
+            return [
+                'id'         => $t->id,
+                'lat'        => (float) $t->panel->latitude,
+                'lng'        => (float) $t->panel->longitude,
+                'reference'  => $t->panel->reference,
+                'name'       => $t->panel->name,
+                'commune'    => $t->panel->commune?->name,
+                'campaign'   => $t->campaign?->name,
+                'tech'       => $t->technicien?->name,
+                'tech_id'    => $t->assigned_user_id,
+                'status'     => $t->status,
+                'color'      => $isLate ? '#dc2626' : $statusColor, // rouge foncé si retard
+                'is_late'    => $isLate,
+                'scheduled'  => $t->scheduled_at?->format('d/m/Y H:i'),
+                'done_at'    => $t->done_at?->format('d/m/Y H:i'),
+                'show_url'   => route('admin.pose-tasks.show', $t),
+            ];
+        });
+
+        return response()->json([
+            'markers' => $markers,
+            'total'   => $markers->count(),
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // CREATE
     // ══════════════════════════════════════════════════════════════
     public function create(Request $request)

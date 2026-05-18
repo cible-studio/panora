@@ -1,6 +1,10 @@
 <x-admin-layout title="Pose OOH">
 
 <x-slot:topbarActions>
+    <a href="{{ route('admin.pose-tasks.map') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px" title="Visualiser les poses sur une carte">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        Vue Carte
+    </a>
     <a href="{{ route('admin.pose-tasks.create') }}" class="btn btn-primary" style="display:flex;align-items:center;gap:6px">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Nouvelle tâche
