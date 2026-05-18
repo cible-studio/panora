@@ -89,7 +89,79 @@
             </tr>
         </thead>
         <tbody id="pose-tbody">
+        @php $lastCampaignId = '__INIT__'; @endphp
         @foreach($poseTasks as $task)
+        @php
+            // ── Header de groupe : insérer une ligne de séparation
+            // quand on change de campagne. Permet de visualiser les
+            // panneaux regroupés par campagne dans le tableau.
+            $currentCampaignId = $task->campaign_id ?? 'none';
+            $showCampaignHeader = $currentCampaignId !== $lastCampaignId;
+            $lastCampaignId = $currentCampaignId;
+
+            // Compteurs au sein du groupe (calculés à la volée la 1re ligne)
+            if ($showCampaignHeader) {
+                $groupTasks = collect($poseTasks->items())
+                    ->filter(fn($t) => ($t->campaign_id ?? 'none') === $currentCampaignId);
+                $groupTotal    = $groupTasks->count();
+                $groupRealisee = $groupTasks->where('status', 'realisee')->count();
+                $groupPlanif   = $groupTasks->where('status', 'planifiee')->count();
+            }
+        @endphp
+
+        @if($showCampaignHeader)
+        <tr class="campaign-group-header">
+            <td colspan="9" style="padding:0;border:none">
+                <div style="padding:12px 16px;background:linear-gradient(135deg,rgba(232,160,32,.06),rgba(232,160,32,.015));
+                            border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+                            display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                        <div style="width:32px;height:32px;border-radius:8px;background:rgba(232,160,32,.12);
+                                    display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e8a020" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        </div>
+                        <div style="min-width:0">
+                            @if($task->campaign)
+                                <a href="{{ route('admin.campaigns.show', $task->campaign) }}"
+                                   style="font-size:13px;font-weight:700;color:var(--text);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px"
+                                   title="{{ $task->campaign->name }}">
+                                    {{ $task->campaign->name }}
+                                </a>
+                                <div style="font-size:10px;color:var(--text3);margin-top:1px">
+                                    @if($task->campaign->deleted_at)
+                                        🗑 Campagne supprimée
+                                    @else
+                                        Créée {{ $task->campaign->created_at?->diffForHumans() ?? '—' }}
+                                    @endif
+                                </div>
+                            @else
+                                <div style="font-size:13px;font-weight:700;color:var(--text3);font-style:italic">
+                                    Tâches sans campagne
+                                </div>
+                                <div style="font-size:10px;color:var(--text3);margin-top:1px">Interventions ponctuelles</div>
+                            @endif
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap">
+                        <span style="padding:3px 9px;background:var(--surface);border:1px solid var(--border);border-radius:20px;color:var(--text2);font-weight:600">
+                            {{ $groupTotal }} pose{{ $groupTotal > 1 ? 's' : '' }}
+                        </span>
+                        @if($groupRealisee > 0)
+                        <span style="padding:3px 9px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:20px;color:#16a34a;font-weight:700">
+                            ✓ {{ $groupRealisee }} réalisée{{ $groupRealisee > 1 ? 's' : '' }}
+                        </span>
+                        @endif
+                        @if($groupPlanif > 0)
+                        <span style="padding:3px 9px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:20px;color:#b45309;font-weight:700">
+                            ⏱ {{ $groupPlanif }} planifiée{{ $groupPlanif > 1 ? 's' : '' }}
+                        </span>
+                        @endif
+                    </div>
+                </div>
+            </td>
+        </tr>
+        @endif
+
         @php
             $sCfg = match($task->status) {
                 'planifiee' => ['c'=>'#e8a020','bg'=>'rgba(232,160,32,.1)','bd'=>'rgba(232,160,32,.3)','l'=>'Planifiée'],

@@ -98,7 +98,21 @@ class PoseController extends Controller
             $query->where('status', $request->status);
         }
 
-        $poseTasks = $query->latest('scheduled_at')->paginate(20)->withQueryString();
+        // Tri optimisé pour le groupage par campagne dans la vue :
+        //  1) Campagnes les plus récemment créées en HAUT (join campaigns)
+        //  2) À l'intérieur d'une campagne, panneaux par référence pour
+        //     un ordre lisible (ABG-001 avant ABG-002…).
+        // Note : on garde 'scheduled_at desc' en secondaire pour les
+        // poses-tasks orphelines (campaign_id NULL).
+        $poseTasks = $query
+            ->leftJoin('campaigns', 'campaigns.id', '=', 'pose_tasks.campaign_id')
+            ->leftJoin('panels',    'panels.id',    '=', 'pose_tasks.panel_id')
+            ->select('pose_tasks.*')
+            ->orderByRaw('campaigns.created_at IS NULL')      // nulls last
+            ->orderByDesc('campaigns.created_at')
+            ->orderBy('panels.reference')
+            ->orderByDesc('pose_tasks.scheduled_at')
+            ->paginate(20)->withQueryString();
         $stats['total'] = $poseTasks->total();
 
         $techniciens   = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
