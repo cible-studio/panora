@@ -197,13 +197,19 @@
     use Carbon\Carbon;
     $totalCount = count($panels);
 
-    $statusMap = fn($s) => match ($s) {
-        'libre'                    => ['label' => 'Disponible',  'class' => 'badge-libre'],
-        'occupe'                   => ['label' => 'Occupé',      'class' => 'badge-occupe'],
-        'option_periode', 'option' => ['label' => 'En option',   'class' => 'badge-option'],
-        'confirme'                 => ['label' => 'Confirmé',    'class' => 'badge-confirme'],
-        'maintenance'              => ['label' => 'Maintenance', 'class' => 'badge-maintenance'],
-        default                    => ['label' => 'Indisponible','class' => 'badge-occupe'],
+    // PDF proposition : on n'affiche le badge QUE si le panneau est réellement
+    // occupé (confirme/occupe), avec la date de libération. Pour tout autre
+    // statut (libre, option, maintenance…), renvoie null → pas de ligne statut.
+    $statusFor = function (array $p) {
+        $s = $p['display_status'] ?? null;
+        if (!in_array($s, ['occupe', 'occupé', 'confirme'], true)) {
+            return null;
+        }
+        $release = $p['release_date'] ?? null;
+        $label = $release
+            ? 'Occupé jusqu\'au ' . \Carbon\Carbon::parse($release)->format('d/m/Y')
+            : 'Occupé';
+        return ['label' => $label, 'class' => 'badge-occupe'];
     };
 
     // Logo CIBLE CI : passé par PdfAssets::getLogoPdf() — fallback inline
@@ -226,7 +232,7 @@
 @foreach ($panels as $index => $p)
     @php
         $pageNum  = $index + 1;
-        $status   = $statusMap($p['display_status'] ?? 'occupe');
+        $status   = $statusFor($p);
         $traffic  = (int) ($p['daily_traffic'] ?? 0);
         $zoneDesc = $p['zone_description'] ?? '';
 
@@ -384,10 +390,12 @@
                                     @endif
                                 </td>
                             </tr>
+                            @if($status)
                             <tr>
                                 <td class="lbl">Statut actuel</td>
                                 <td class="val"><span class="badge {{ $status['class'] }}">{{ $status['label'] }}</span></td>
                             </tr>
+                            @endif
                         @endif
                     </table>
                     </td>

@@ -690,6 +690,37 @@ class ReservationController extends Controller
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
+        // Recalcul display_status + release_date sur la période demandée :
+        // sans ça, le statut est figé à `panels.status` et on perd l'info
+        // "Occupé jusqu'au …" indispensable pour le PDF proposition.
+        if ($startDate && $endDate) {
+            $internalBlocking = $internalIds
+                ? $this->availability->getInternalPanelBookingMap($internalIds, $startDate, $endDate)->keyBy('panel_id')
+                : collect();
+            $externalBlocking = $externalIds
+                ? $this->availability->getExternalPanelBookingMap($externalIds, $startDate, $endDate)->keyBy('id')
+                : collect();
+
+            $panels = $panels->map(function ($row) use ($internalBlocking, $externalBlocking) {
+                $isExt = ($row['source'] ?? null) === 'external';
+                $booking = $isExt
+                    ? $externalBlocking->get($row['id'] ?? null)
+                    : $internalBlocking->get($row['id'] ?? null);
+
+                if ($booking) {
+                    if (!empty($booking->has_confirmed)) {
+                        $row['display_status'] = 'occupe';
+                    } elseif (!empty($booking->has_option)) {
+                        $row['display_status'] = 'option_periode';
+                    }
+                    $row['release_date'] = $booking->release_date ?? null;
+                } else {
+                    $row['release_date'] = null;
+                }
+                return $row;
+            });
+        }
+
         $filename = 'panneaux-' . now()->format('Ymd_His');
 
         // Règle métier : par défaut on cache prix + statut (proposition propre).
@@ -780,10 +811,14 @@ class ReservationController extends Controller
             $panels = $panels->merge($internals->map(function ($p) use ($internalBlocking, $resolveDisplay) {
                 // On garde le model original mais on attache display_status
                 // en attribut dynamique — la vue le lit via `$p->display_status`.
+                $booking = $internalBlocking->get($p->id);
                 $p->display_status = $resolveDisplay(
                     $p->status->value ?? 'libre',
-                    $internalBlocking->get($p->id)
+                    $booking
                 );
+                // Date de libération (dernière fin de résa bloquante) — pour
+                // l'affichage "Occupé jusqu'au …" dans les PDF.
+                $p->release_date = $booking->release_date ?? null;
                 return $p;
             }));
         }
@@ -795,9 +830,10 @@ class ReservationController extends Controller
                 ->get();
 
             $panels = $panels->merge($externals->map(function ($p) use ($externalBlocking, $resolveDisplay) {
+                $booking = $externalBlocking->get($p->id);
                 $displayStatus = $resolveDisplay(
                     $p->availability_status ?? 'disponible',
-                    $externalBlocking->get($p->id)
+                    $booking
                 );
 
                 return (object) [
@@ -812,6 +848,7 @@ class ReservationController extends Controller
                     'is_lit'         => (bool) $p->is_lit,
                     'status'         => (object) ['value' => $p->availability_status ?? 'libre'],
                     'display_status' => $displayStatus,
+                    'release_date'   => $booking->release_date ?? null,
                     'agency_name'    => $p->agency?->name,
                     '_external'      => true,
                 ];
