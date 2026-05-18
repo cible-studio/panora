@@ -291,7 +291,7 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
      style="display:none;position:fixed;top:120px;right:20px;
             background:var(--surface);border:1px solid var(--border);border-radius:14px;
             box-shadow:0 12px 36px rgba(0,0,0,.35);z-index:60;width:380px;max-width:95vw;
-            overflow:hidden;">
+            overflow:hidden;box-sizing:border-box;">
 
     {{-- Drag handle (header) --}}
     <div id="bulk-drag-handle"
@@ -582,7 +582,10 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
     function syncBar() {
         const n = selected.size;
         if (badge) badge.textContent = String(n);
-        if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
+        // Modal vertical (refonte) : display:block pour que le header
+        // et le corps s'empilent verticalement (avant c'était 'flex'
+        // pour la barre horizontale fixée en bas, devenu invalide).
+        if (bar) bar.style.display = n > 0 ? 'block' : 'none';
         syncCheckAllState();
     }
 
