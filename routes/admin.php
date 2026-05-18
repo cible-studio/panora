@@ -296,6 +296,8 @@ Route::prefix('admin')
             // Carte GPS des poses (markers colorés par statut)
             Route::get('map',              [PoseController::class, 'map'])            ->name('map');
             Route::get('map-data',         [PoseController::class, 'mapData'])        ->name('map.data');
+            // Dashboard SLA : KPI métier pose/pige + top techs/communes
+            Route::get('sla',              [PoseController::class, 'sla'])            ->name('sla');
 
             // ── CRUD standard ─────────────────────────────────────────
             Route::get('/',         [PoseController::class, 'index'])  ->name('index');
