@@ -9,13 +9,6 @@
     </a>
 </x-slot:topbarLeft>
 
-<x-slot:topbarActions>
-    <select onchange="window.location='?period=' + this.value" class="filter-select" style="min-width:130px">
-        @foreach([7=>'7 jours', 14=>'14 jours', 30=>'30 jours', 60=>'60 jours', 90=>'90 jours'] as $v => $l)
-            <option value="{{ $v }}" {{ $days === $v ? 'selected' : '' }}>{{ $l }}</option>
-        @endforeach
-    </select>
-</x-slot:topbarActions>
 
 <style>
     .sla-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:20px; }
@@ -57,6 +50,30 @@
     .sla-rank-3 { background:linear-gradient(135deg,#cd7f32,#a05a25); }
     .sla-rank-default { background:var(--surface2); color:var(--text2); }
 </style>
+
+{{-- ── Barre filtre période ──────────────────────────────────── --}}
+<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+            background:var(--surface);border:1px solid var(--border);border-radius:12px;
+            padding:12px 16px;margin-bottom:18px;">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0">
+        <div style="width:36px;height:36px;border-radius:10px;background:var(--accent-dim);
+                    display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div>
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px">Période d'analyse</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-top:1px">SLA Pose &amp; Pige sur les {{ $days }} derniers jours</div>
+        </div>
+    </div>
+    <select onchange="window.location='?period=' + this.value"
+            style="height:40px;padding:0 14px;background:var(--surface2);border:1px solid var(--border2);
+                   border-radius:10px;font-size:13px;font-weight:600;color:var(--text);outline:none;
+                   cursor:pointer;min-width:160px">
+        @foreach([7=>'7 derniers jours', 14=>'14 derniers jours', 30=>'30 derniers jours', 60=>'60 derniers jours', 90=>'90 derniers jours'] as $v => $l)
+            <option value="{{ $v }}" {{ $days === $v ? 'selected' : '' }}>{{ $l }}</option>
+        @endforeach
+    </select>
+</div>
 
 {{-- ── KPI cards (5) ─────────────────────────────────────────── --}}
 <div class="sla-grid">
@@ -156,7 +173,7 @@
             <div class="sla-rank-row">
                 <div class="sla-rank sla-rank-default" style="background:rgba(239,68,68,.1);color:#ef4444">{{ $i + 1 }}</div>
                 <div style="flex:1;min-width:0">
-                    <div style="font-size:13px;font-weight:600;color:var(--text)">📍 {{ $commune->name }}</div>
+                    <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ $commune->name }}">📍 {{ $commune->name }}</div>
                 </div>
                 <div style="text-align:right;flex-shrink:0">
                     <div style="font-size:14px;font-weight:700;color:#ef4444">{{ $commune->nb_retards }}</div>
