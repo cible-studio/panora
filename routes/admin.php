@@ -300,6 +300,8 @@ Route::prefix('admin')
             Route::get('sla',              [PoseController::class, 'sla'])            ->name('sla');
             // Calendrier hebdomadaire par technicien (planning visuel)
             Route::get('calendar',         [PoseController::class, 'calendar'])       ->name('calendar');
+            // Suggestion intelligente d'un tech (zone + charge + perf)
+            Route::get('suggest-tech',     [PoseController::class, 'suggestTech'])    ->name('suggest-tech');
 
             // ── CRUD standard ─────────────────────────────────────────
             Route::get('/',         [PoseController::class, 'index'])  ->name('index');

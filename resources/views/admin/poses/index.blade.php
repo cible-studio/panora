@@ -336,8 +336,16 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
 
         {{-- Technicien --}}
         <div>
-            <label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:5px">
-                🧑‍🔧 Technicien
+            <label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
+                <span>🧑‍🔧 Technicien</span>
+                <button type="button" id="bulk-suggest-tech"
+                        style="background:rgba(232,160,32,.12);border:1px solid rgba(232,160,32,.3);color:#b45309;
+                               padding:2px 8px;border-radius:6px;cursor:pointer;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+                               display:inline-flex;align-items:center;gap:4px"
+                        title="Suggère le meilleur tech selon zone + charge + perf">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    Suggérer
+                </button>
             </label>
             <div style="display:flex;gap:6px;">
                 <select id="bulk-tech" class="filter-select" style="flex:1;min-width:0">
@@ -350,6 +358,7 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                 <button type="button" id="bulk-tech-apply" class="btn btn-sm btn-primary" style="white-space:nowrap">Appliquer</button>
             </div>
             <div id="bulk-tech-hint" style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.3;display:none;"></div>
+            <div id="bulk-suggest-result" style="display:none;margin-top:6px;padding:8px 10px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.25);border-radius:8px;font-size:11px;line-height:1.45"></div>
         </div>
 
         {{-- Équipe --}}
@@ -511,6 +520,55 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         if (teamInp) { delete teamInp.dataset.userTouched; teamInp.value = ''; }
         const hint = document.getElementById('bulk-tech-hint');
         if (hint) hint.style.display = 'none';
+        const suggest = document.getElementById('bulk-suggest-result');
+        if (suggest) suggest.style.display = 'none';
+    });
+
+    // ── 3. Suggestion intelligente de tech ───────────────────
+    const SUGGEST_URL = @json(route('admin.pose-tasks.suggest-tech'));
+    document.getElementById('bulk-suggest-tech')?.addEventListener('click', async () => {
+        const checked = Array.from(document.querySelectorAll('.pose-check:checked'));
+        if (checked.length === 0) {
+            alert('Sélectionne au moins une tâche pour obtenir une suggestion.');
+            return;
+        }
+        const resultEl = document.getElementById('bulk-suggest-result');
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = '<span style="color:var(--text3)">⏳ Analyse en cours…</span>';
+
+        const params = new URLSearchParams();
+        checked.forEach(cb => params.append('task_ids[]', cb.value));
+
+        try {
+            const res = await fetch(SUGGEST_URL + '?' + params.toString(), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const data = await res.json();
+
+            if (data.message) {
+                resultEl.innerHTML = `<span style="color:#ef4444">${data.message}</span>`;
+                return;
+            }
+            const s = data.suggestion;
+            if (!s) {
+                resultEl.innerHTML = '<span style="color:#ef4444">Aucune suggestion disponible.</span>';
+                return;
+            }
+
+            resultEl.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+                    <strong style="color:#16a34a;font-size:12px">✨ ${s.name}</strong>
+                    <span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:800">${s.score}%</span>
+                </div>
+                <div style="color:var(--text3);font-size:10.5px">${s.reason}</div>
+                <button type="button" class="btn btn-sm btn-ghost" style="margin-top:6px;width:100%;font-size:11px"
+                        onclick="(function(){const sel=document.getElementById('bulk-tech');sel.value='${s.id}';sel.dataset.userTouched='1';})()">
+                    ➤ Pré-sélectionner ce tech
+                </button>
+            `;
+        } catch (e) {
+            resultEl.innerHTML = '<span style="color:#ef4444">Erreur de suggestion — réessaie.</span>';
+        }
     });
 })();
 </script>
