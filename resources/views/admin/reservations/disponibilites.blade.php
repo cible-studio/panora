@@ -304,8 +304,7 @@
         </div>
 
         {{-- ══ BARRE SÉLECTION ══ --}}
-        <div id="sel-bar"
-            style="display:none;position:fixed;bottom:0;left:235px;right:0;z-index:300;background:var(--surface);border-top:2px solid var(--accent);padding:12px 24px;box-shadow:0 -8px 32px rgba(0,0,0,.2)">
+        <div id="sel-bar" class="sel-bar-fixed" style="display:none">
             <div class="flex items-center justify-between flex-wrap gap-3">
                 <div class="flex items-center gap-4 flex-wrap">
                     <div>
@@ -334,9 +333,9 @@
                          Cocher pour révéler ces colonnes. --}}
                     <label
                         style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;padding:6px 10px;border:1px dashed var(--border);border-radius:8px;"
-                        title="Cocher pour inclure le tarif et le statut dans le PDF (usage interne uniquement)">
+                        title="Cocher pour exclure le tarif et le statut du PDF (PDF transmis au client)">
                         <input type="checkbox" id="pdf-show-pricing" style="accent-color:var(--accent)">
-                        <span>💰 Inclure prix + statut (interne)</span>
+                        <span>💰 Exclure prix + statut (client)</span>
                     </label>
                     <button class="btn btn-ghost btn-sm" onclick="DISPO.clearSelection()">✕ Vider</button>
                     <button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(34,197,94,.4)"
@@ -357,7 +356,7 @@
             <div id="pdf-images-inputs"></div>
             <input type="hidden" name="start_date" id="pdf-start">
             <input type="hidden" name="end_date" id="pdf-end">
-            <input type="hidden" name="show_pricing" id="pdf-images-show-pricing" value="0">
+            <input type="hidden" name="show_pricing" id="pdf-images-show-pricing" value="1">
         </form>
 
         <form id="form-pdf-liste" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}"
@@ -366,7 +365,7 @@
             <div id="pdf-liste-inputs"></div>
             <input type="hidden" name="start_date" id="pdf-liste-start">
             <input type="hidden" name="end_date" id="pdf-liste-end">
-            <input type="hidden" name="show_pricing" id="pdf-liste-show-pricing" value="0">
+            <input type="hidden" name="show_pricing" id="pdf-liste-show-pricing" value="1">
         </form>
 
     </div>
@@ -707,6 +706,36 @@
     </div>
 
     <style>
+        /* Barre de sélection fixe en bas — responsive */
+        .sel-bar-fixed {
+            position: fixed;
+            bottom: 0;
+            left: var(--sidebar-width, 235px);
+            right: 0;
+            z-index: 300;
+            background: var(--surface);
+            border-top: 2px solid var(--accent);
+            padding: 12px 24px;
+            box-shadow: 0 -8px 32px rgba(0,0,0,.2);
+        }
+        .sel-bar-fixed > div { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+        /* Mobile : sidebar masquée → la barre prend toute la largeur, padding réduit,
+           contenu empilé verticalement avec scroll horizontal pour les boutons. */
+        @media (max-width: 768px) {
+            .sel-bar-fixed {
+                left: 0;
+                padding: 10px 12px;
+                max-height: 50vh;
+                overflow-y: auto;
+            }
+            .sel-bar-fixed > div { flex-direction: column; align-items: stretch; gap: 8px; }
+            .sel-bar-fixed > div > div { flex-wrap: wrap; }
+            .sel-bar-fixed #sel-count { font-size: 20px; }
+            .sel-bar-fixed .btn { font-size: 11px; padding: 6px 10px; }
+            .sel-bar-fixed label { font-size: 10px; padding: 4px 8px; }
+        }
+
         #modal-client-select {
             display: block !important;
         }
@@ -1525,10 +1554,10 @@
                     },
 
                     // ── EXPORTS PDF ───────────────────────────────────────
-                    // Logique commune : par défaut, le PDF n'affiche NI prix NI statut.
-                    // L'admin coche "Inclure prix + statut" pour transmettre show_pricing=1.
+                    // Logique commune : par défaut, le PDF affiche prix + statut (usage interne).
+                    // L'admin coche "Exclure prix + statut" pour transmettre show_pricing=0 (PDF client).
                     _injectShowPricing(type) {
-                        const checked = document.getElementById('pdf-show-pricing')?.checked ? '1' : '0';
+                        const checked = document.getElementById('pdf-show-pricing')?.checked ? '0' : '1';
                         const fieldId = type === 'images' ? 'pdf-images-show-pricing' : 'pdf-liste-show-pricing';
                         const field = document.getElementById(fieldId);
                         if (field) field.value = checked;
@@ -1609,11 +1638,11 @@
                         ids.forEach(id => addInput('panel_ids[]', id));
                         if (S.f.du) addInput('start_date', S.f.du);
                         if (S.f.au) addInput('end_date', S.f.au);
-                        // Cohérence avec PDF : si la checkbox "Inclure prix + statut" est cochée,
-                        // on transmet show_pricing=1 à l'Excel aussi (le backend Excel peut l'ignorer
-                        // ou l'utiliser selon le besoin métier).
-                        const showP = document.getElementById('pdf-show-pricing')?.checked;
-                        if (showP) addInput('show_pricing', '1');
+                        // Cohérence avec PDF : par défaut show_pricing=1 (interne) ; si la checkbox
+                        // "Exclure prix + statut (client)" est cochée, on transmet show_pricing=0
+                        // pour générer un Excel sans prix ni statut, à destination du client.
+                        const exclude = document.getElementById('pdf-show-pricing')?.checked;
+                        addInput('show_pricing', exclude ? '0' : '1');
                         document.body.appendChild(form);
                         form.submit();
                         document.body.removeChild(form);

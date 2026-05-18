@@ -54,6 +54,9 @@
                 <input type="checkbox" class="pose-check"
                        value="{{ $task->id }}"
                        {{ $isFinal ? 'disabled' : '' }}
+                       data-tech-id="{{ $task->assigned_user_id ?? '' }}"
+                       data-team="{{ $task->team_name ?? '' }}"
+                       data-status="{{ $task->status }}"
                        title="{{ $isFinal ? 'Tâche terminée — non modifiable en masse' : 'Sélectionner' }}"
                        style="accent-color:var(--accent);width:14px;height:14px;cursor:{{ $isFinal ? 'not-allowed' : 'pointer' }};opacity:{{ $isFinal ? '.35' : '1' }};">
             </td>
@@ -88,8 +91,28 @@
                 @endif
             </td>
             <td style="padding:10px 12px">
-                <div style="font-size:12px;color:var(--text)">{{ $task->technicien?->name ?? '—' }}</div>
-                @if($task->team_name)<div style="font-size:10px;color:var(--text3)">{{ $task->team_name }}</div>@endif
+                @php
+                    $tech = $task->technicien;
+                    $techInitials = $tech ? mb_strtoupper(mb_substr(collect(explode(' ', $tech->name))->map(fn($w)=>$w[0] ?? '')->take(2)->implode(''), 0, 2)) : '';
+                    $hasWa = $tech && !empty($tech->whatsapp_number);
+                @endphp
+                @if($tech)
+                <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                    <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#e8a020,#fab80b);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;letter-spacing:-.3px">
+                        {{ $techInitials ?: '?' }}
+                    </div>
+                    <div style="min-width:0">
+                        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px" title="{{ $tech->name }}">{{ $tech->name }}</div>
+                        @if($task->team_name)
+                            <div style="font-size:10px;color:var(--text3)">👥 {{ $task->team_name }}</div>
+                        @elseif(!$hasWa)
+                            <div style="font-size:9px;color:#ef4444">⚠ Pas de WhatsApp</div>
+                        @endif
+                    </div>
+                </div>
+                @else
+                <span style="font-size:11px;color:var(--text3);font-style:italic">— Non assigné —</span>
+                @endif
             </td>
             <td style="padding:10px 12px;white-space:nowrap">
                 <div style="font-size:12px;font-weight:500;color:{{ $isLate ? '#ef4444' : 'var(--text)' }}">{{ $task->scheduled_at?->format('d/m/Y') ?? '—' }}</div>
@@ -136,6 +159,16 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                     </a>
                     @if(!in_array($task->status, ['realisee','annulee']))
+                    {{-- Renvoyer le lien WhatsApp (si tech assigné + numéro) --}}
+                    @if($task->assigned_user_id && $task->technicien?->whatsapp_number)
+                    <form method="POST" action="{{ route('admin.pose-tasks.notify', $task) }}" style="display:inline">
+                        @csrf
+                        <button type="submit" class="action-btn" title="{{ $task->whatsapp_sent_at ? 'Renvoyer' : 'Envoyer' }} le lien WhatsApp à {{ $task->technicien->name }}"
+                                style="color:#22c55e">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 3.5C18.2 1.2 15.2 0 12 0 5.4 0 0 5.4 0 12c0 2.1.6 4.2 1.6 6L0 24l6.2-1.6c1.7.9 3.7 1.5 5.7 1.5 6.6 0 12-5.4 12-12 0-3.2-1.2-6.2-3.4-8.4z"/></svg>
+                        </button>
+                    </form>
+                    @endif
                     <a href="{{ route('admin.pose-tasks.edit', $task) }}" class="action-btn" title="Modifier">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
                     </a>
