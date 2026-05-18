@@ -378,7 +378,11 @@
         .photo-thumb.verifie  { border-color: var(--green); }
         .photo-thumb.rejete   { border-color: var(--red); }
         .photo-thumb.en_attente { border-color: var(--warn); }
-        .photo-del, .photo-replace {
+        /* Boutons sur la vignette : scopés à `.photo-thumb` pour ne
+           PAS contaminer les autres usages de ces classes (ex: bouton
+           "Refaire" dans le bloc rejets, qui partage le hook JS). */
+        .photo-thumb .photo-del,
+        .photo-thumb .photo-replace {
             position: absolute;
             color: #fff;
             border: 0;
@@ -393,9 +397,10 @@
             font-family: inherit;
             line-height: 1;
         }
-        .photo-del     { bottom: 4px; right: 4px; background: rgba(220,38,38,.92); }
-        .photo-replace { bottom: 4px; left: 4px;  background: rgba(37,99,235,.88); }
-        .photo-del:active, .photo-replace:active { transform: scale(.92); }
+        .photo-thumb .photo-del     { bottom: 4px; right: 4px; background: rgba(220,38,38,.92); }
+        .photo-thumb .photo-replace { bottom: 4px; left: 4px;  background: rgba(37,99,235,.88); }
+        .photo-thumb .photo-del:active,
+        .photo-thumb .photo-replace:active { transform: scale(.92); }
 
         .photo-cta {
             display: flex;
@@ -722,7 +727,6 @@
         <div class="prog-row">
             <div class="prog-val">
                 <span id="prog-pct">{{ (int) $task->progress_percent }}</span>%
-                <small>avancement</small>
             </div>
             <div class="prog-bar">
                 <div class="prog-fill" id="prog-fill" style="width:{{ (int) $task->progress_percent }}%"></div>
@@ -735,11 +739,11 @@
             @endforeach
         </div>
         <div class="field">
-            <label for="note">Note pour le superviseur (optionnel)</label>
-            <textarea id="note" placeholder="Ex : difficultés rencontrées, panneau cassé..."></textarea>
+            <label for="note">Note pour le superviseur (facultatif)</label>
+            <textarea id="note" placeholder="Ex : panneau cassé, accès difficile…"></textarea>
         </div>
         <button type="button" class="btn-primary" id="btn-update" style="margin-top:14px;">
-            ⬆ Mettre à jour
+            Enregistrer la progression
         </button>
     </div>
     @endif
@@ -787,7 +791,7 @@
                         <div class="rejet-reason">
                             {{ $rj->rejection_reason ?: 'Photo refusée par le superviseur (aucun motif précisé).' }}
                         </div>
-                        <button type="button" class="rejet-btn-replace photo-replace"
+                        <button type="button" class="rejet-btn-replace"
                                 data-pige-id="{{ $rj->id }}">
                             📷 Refaire cette photo
                         </button>
@@ -848,10 +852,6 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             Pose effectuée — Confirmer
         </button>
-        <div style="text-align:center;font-size:11.5px;color:var(--text2);margin-top:8px;font-weight:500;line-height:1.45;">
-            Ne cliquez ici qu'une fois la bâche posée et toutes vos photos transmises.<br>
-            <span style="color:var(--text3);font-weight:400;">Cette action ferme la tâche.</span>
-        </div>
     </div>
 </div>
 @endif
@@ -1123,13 +1123,19 @@
             const data = await r.json();
             if (data.ok && data.pige) {
                 toast(data.message || 'Photo remplacée.', 'success');
-                // Met à jour la vignette en place
-                const img = thumb.querySelector('img');
-                if (img) img.src = data.pige.photo_url + '?t=' + Date.now();
-                thumb.dataset.url = data.pige.photo_url;
-                thumb.className   = 'photo-thumb ' + (data.pige.status || 'en_attente');
-                const badge = thumb.querySelector('.status-badge');
-                if (badge) badge.textContent = '⏳';
+                if (thumb) {
+                    // Cas vignette : met à jour en place
+                    const img = thumb.querySelector('img');
+                    if (img) img.src = data.pige.photo_url + '?t=' + Date.now();
+                    thumb.dataset.url = data.pige.photo_url;
+                    thumb.className   = 'photo-thumb ' + (data.pige.status || 'en_attente');
+                    const badge = thumb.querySelector('.status-badge');
+                    if (badge) badge.textContent = '⏳';
+                } else {
+                    // Cas bouton rejet : reload pour refléter le nouveau statut
+                    // (passage de "rejete" à "en_attente" → la box rejet disparaît)
+                    setTimeout(() => location.reload(), 800);
+                }
             } else {
                 toast(data.message || 'Échec du remplacement.', 'error');
             }
@@ -1200,6 +1206,24 @@
         });
     }
     document.querySelectorAll('.photo-thumb').forEach(bindThumb);
+
+    // Boutons "Refaire cette photo" dans le bloc rejets : même action
+    // que `.photo-replace` (ouvrir le file picker en mode "remplacer"),
+    // mais sans le scoping CSS de la vignette (position absolute).
+    document.querySelectorAll('.rejet-btn-replace').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const replInput = document.getElementById('photo-replace-input');
+            if (!replInput) return;
+            replInput._targetPigeId = btn.dataset.pigeId;
+            // Pas de thumb associée — la vue se rechargera après upload
+            // pour refléter le nouveau statut.
+            replInput._targetThumb  = null;
+            replInput.value = '';
+            replInput.click();
+        });
+    });
+
     document.getElementById('lightbox-close')?.addEventListener('click', () => lb.classList.remove('open'));
     lb?.addEventListener('click', e => { if (e.target === lb) lb.classList.remove('open'); });
 
