@@ -95,6 +95,9 @@ class PanelController extends Controller
             if ($request->filled('category_id')) {
                 $query->where('category_id', $request->category_id);
             }
+            if ($request->filled('format_id')) {
+                $query->where('format_id', $request->format_id);
+            }
             if ($request->filled('client_id')) {
                 $query->where(function ($q) use ($request) {
                     $q->whereHas('reservations', fn($r) => $r->where('client_id', $request->client_id)
@@ -132,6 +135,9 @@ class PanelController extends Controller
         if ($request->filled('zone_id')) {
             $externalQuery->where('zone_id', $request->zone_id);
         }
+        if ($request->filled('format_id')) {
+            $externalQuery->where('format_id', $request->format_id);
+        }
 
         $externalPanels = $externalQuery->get();
         $totalExternes = \App\Models\ExternalPanel::count();
@@ -154,6 +160,9 @@ class PanelController extends Controller
         $communes = Commune::orderBy('name')->get();
         $zones = Zone::orderBy('name')->get();
         $categories = PanelCategory::orderBy('name')->get();
+        // Formats triés par surface croissante (du plus petit au plus grand).
+        // Évite l'ordre alphabétique qui donne 10m² avant 2m².
+        $formats = PanelFormat::orderBy('surface')->orderBy('width')->orderBy('height')->get();
         $clients = \App\Models\Client::orderBy('name')->get(['id', 'name']);
 
         return view('admin.panels.index', compact(
@@ -161,6 +170,7 @@ class PanelController extends Controller
             'communes',
             'zones',
             'categories',
+            'formats',
             'clients',
             'totalPanneaux',
             'panneauxLibres',

@@ -119,6 +119,18 @@
                 </select>
             </div>
             <div class="filter-group">
+                <label class="filter-label">Format</label>
+                <select id="filter-format" class="filter-select" style="width:140px;">
+                    <option value="">Tous</option>
+                    @foreach ($formats as $fmt)
+                        @php
+                            $dim = ($fmt->width && $fmt->height) ? ' (' . rtrim(rtrim(number_format($fmt->width, 1, ',', ''), '0'), ',') . '×' . rtrim(rtrim(number_format($fmt->height, 1, ',', ''), '0'), ',') . 'm)' : '';
+                        @endphp
+                        <option value="{{ $fmt->id }}">{{ $fmt->name }}{{ $dim }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="filter-group">
                 <label class="filter-label">Client</label>
                 <select id="filter-client" class="filter-select" style="width:160px;">
                     <option value="">Tous les clients</option>
@@ -292,6 +304,7 @@
                     zone_id: '',
                     status: '',
                     category_id: '',
+                    format_id: '',
                     client_id: ''
                 };
                 let debounceTimer = null;
@@ -302,6 +315,7 @@
                     zone: document.getElementById('filter-zone'),
                     status: document.getElementById('filter-status'),
                     category: document.getElementById('filter-category'),
+                    format: document.getElementById('filter-format'),
                     client: document.getElementById('filter-client'),
                     resetBtn: document.getElementById('btn-reset'),
                     resetWrapper: document.getElementById('reset-wrapper'),
@@ -315,6 +329,7 @@
                         currentFilters.zone_id ||
                         currentFilters.status ||
                         currentFilters.category_id ||
+                        currentFilters.format_id ||
                         currentFilters.client_id ||
                         currentFilters.source !== 'all';
 
@@ -331,6 +346,7 @@
                     if (currentFilters.zone_id) params.set('zone_id', currentFilters.zone_id);
                     if (currentFilters.status) params.set('status', currentFilters.status);
                     if (currentFilters.category_id) params.set('category_id', currentFilters.category_id);
+                    if (currentFilters.format_id) params.set('format_id', currentFilters.format_id);
                     if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
                     params.set('ajax', '1');
 
@@ -389,13 +405,14 @@
                     });
                 }
 
-                [elements.commune, elements.zone, elements.status, elements.category, elements.client].forEach(el => {
+                [elements.commune, elements.zone, elements.status, elements.category, elements.format, elements.client].forEach(el => {
                     if (el) {
                         el.addEventListener('change', () => {
                             currentFilters.commune_id = elements.commune?.value || '';
                             currentFilters.zone_id = elements.zone?.value || '';
                             currentFilters.status = elements.status?.value || '';
                             currentFilters.category_id = elements.category?.value || '';
+                            currentFilters.format_id = elements.format?.value || '';
                             currentFilters.client_id = elements.client?.value || '';
                             updateResetButton();
                             applyFilters();
@@ -491,6 +508,7 @@
                             zone_id: '',
                             status: '',
                             category_id: '',
+                            format_id: '',
                             client_id: ''
                         };
 
@@ -500,6 +518,7 @@
                         if (elements.zone) elements.zone.value = '';
                         if (elements.status) elements.status.value = '';
                         if (elements.category) elements.category.value = '';
+                        if (elements.format) elements.format.value = '';
                         if (elements.client) elements.client.value = '';
 
                         // Réinitialiser l'apparence des boutons source
@@ -546,6 +565,7 @@
                     if (currentFilters.zone_id) params.set('zone_id', currentFilters.zone_id);
                     if (currentFilters.status) params.set('status', currentFilters.status);
                     if (currentFilters.category_id) params.set('category_id', currentFilters.category_id);
+                    if (currentFilters.format_id) params.set('format_id', currentFilters.format_id);
                     if (currentFilters.client_id) params.set('client_id', currentFilters.client_id);
                     params.set('page', page);
                     params.set('ajax', '1');

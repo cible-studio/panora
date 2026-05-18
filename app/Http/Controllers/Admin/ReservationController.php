@@ -53,7 +53,10 @@ class ReservationController extends Controller
         // les communes d'une même ville (typiquement Abidjan = 14 communes).
         $cities = Commune::whereNotNull('city')->where('city', '!=', '')
             ->select('city')->distinct()->orderBy('city')->pluck('city');
-        $formats = PanelFormat::orderBy('name')->get(['id', 'name', 'width', 'height']);
+        // Formats triés par SURFACE croissante (du plus petit au plus grand).
+        // L'ordre alphabétique mettait 10m² avant 2m² — incohérent UX.
+        $formats = PanelFormat::orderBy('surface')->orderBy('width')->orderBy('height')
+            ->get(['id', 'name', 'width', 'height', 'surface']);
         $zones = Zone::orderBy('name')->get(['id', 'name']);
         $categories = PanelCategory::orderBy('name')->get(['id', 'name']);
         $clients = Client::orderBy('name')->get(['id', 'name', 'ncc', 'email', 'phone']);
@@ -69,8 +72,11 @@ class ReservationController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
+        // Dimensions triées par SURFACE (du plus petit au plus grand),
+        // puis width pour départager les surfaces égales.
         $dimensions = PanelFormat::whereNotNull('width')->whereNotNull('height')
-            ->orderBy('width')->orderBy('height')->get(['width', 'height'])
+            ->orderBy('surface')->orderBy('width')->orderBy('height')
+            ->get(['width', 'height', 'surface'])
             ->map(function ($f) {
                 if (!$f->width || !$f->height)
                     return null;
@@ -1691,9 +1697,11 @@ class ReservationController extends Controller
         $reservation->load('panels');
         $clients = Client::orderBy('name')->get();
         $communes = Commune::orderBy('name')->get();
-        $formats = PanelFormat::orderBy('name')->get();
+        // Tri par surface croissante (cohérent avec /admin/disponibilites)
+        $formats = PanelFormat::orderBy('surface')->orderBy('width')->orderBy('height')->get();
         $zones = Zone::orderBy('name')->get();
-        $dimensions = PanelFormat::whereNotNull('width')->whereNotNull('height')->orderBy('width')->orderBy('height')->get()
+        $dimensions = PanelFormat::whereNotNull('width')->whereNotNull('height')
+            ->orderBy('surface')->orderBy('width')->orderBy('height')->get()
             ->map(function ($f) {
                 if (!$f->width || !$f->height)
                     return null;
