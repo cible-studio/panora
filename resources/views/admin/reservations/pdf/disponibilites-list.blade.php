@@ -234,7 +234,7 @@
                 <th style="width:8%">Dimensions</th>
                 <th style="width:10%">Catégorie</th>
                 <th style="width:5%">Éclair.</th>
-                <th class="num" style="width:7%">Trafic/j</th>
+                <th class="num" style="width:7%">Trafic/j (estimatif)</th>
                 {{-- Statut TOUJOURS affiché — l'admin doit pouvoir distinguer
                      un panneau Disponible d'un panneau En option dans le doc. --}}
                 <th style="width:8%">Statut</th>
@@ -247,22 +247,25 @@
             @php $hasOptionInList = false; @endphp
             @foreach($panels as $p)
                 @php
-                    // Le contrôleur passe désormais display_status pour les
-                    // internes (libre/option_periode/...). Pour les externes,
-                    // on retombe sur availability_status. Mapping unifié vers
-                    // un libellé propre + une classe de badge.
+                    // Le contrôleur passe display_status (libre/option_periode/occupe/...)
+                    // + release_date (dernière fin de résa bloquante). Règle métier
+                    // PDF proposition : on n'affiche le badge QUE si le panneau est
+                    // réellement occupé (confirme/occupe). Tout le reste reste vide
+                    // pour ne pas polluer le doc commercial transmis au client.
                     $statusValue = $p->display_status
                         ?? (is_object($p->status ?? null) ? ($p->status->value ?? null) : ($p->status ?? null))
                         ?? 'libre';
 
-                    $statusMeta  = match($statusValue) {
-                        'libre', 'disponible'        => ['label' => 'Disponible', 'class' => 'badge-libre'],
-                        'occupe', 'occupé'           => ['label' => 'Occupé',     'class' => 'badge-occupe'],
-                        'option', 'option_periode'   => ['label' => 'En option',  'class' => 'badge-option'],
-                        'confirme'                   => ['label' => 'Confirmé',   'class' => 'badge-confirme'],
-                        'maintenance'                => ['label' => 'Maintenance','class' => 'badge-maintenance'],
-                        default                      => ['label' => ucfirst((string) $statusValue), 'class' => 'badge-libre'],
-                    };
+                    $isOccupied = in_array($statusValue, ['occupe', 'occupé', 'confirme'], true);
+                    $releaseDate = $p->release_date ?? null;
+                    $releaseLabel = $releaseDate ? \Carbon\Carbon::parse($releaseDate)->format('d/m/Y') : null;
+
+                    $statusMeta = $isOccupied
+                        ? [
+                            'label' => $releaseLabel ? 'Occupé jusqu\'au ' . $releaseLabel : 'Occupé',
+                            'class' => 'badge-occupe',
+                        ]
+                        : null;
 
                     if (in_array($statusValue, ['option', 'option_periode'], true)) {
                         $hasOptionInList = true;
@@ -306,8 +309,12 @@
                         @endif
                     </td>
                     <td class="num">{{ $traffic > 0 ? number_format($traffic, 0, ',', ' ') : '—' }}</td>
-                    {{-- Statut toujours dans le tableau --}}
-                    <td><span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span></td>
+                    {{-- Statut affiché UNIQUEMENT si le panneau est réellement occupé --}}
+                    <td>
+                        @if($statusMeta)
+                            <span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span>
+                        @endif
+                    </td>
                     @if($showPricing)
                         <td class="num" style="font-weight:600;color:#c2570d">
                             {{ $rate > 0 ? number_format($rate, 0, ',', ' ') : '—' }}

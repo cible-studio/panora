@@ -88,17 +88,19 @@
         margin-bottom: 14px;
     }
     .photo-wrap img {
-        max-width: 100%;
-        max-height: 240px;
+        width: 100%;
+        max-height: 460px;
+        height: auto;
         border: 1px solid #e5e7eb;
         border-radius: 6px;
+        object-fit: cover;
     }
     .photo-empty {
         display: block;
         background: #f3f4f6;
         border: 1px solid #e5e7eb;
         border-radius: 6px;
-        padding: 60px 0;
+        padding: 180px 0;
         color: #9ca3af;
         font-size: 13px;
     }
@@ -197,13 +199,19 @@
     use Carbon\Carbon;
     $totalCount = count($panels);
 
-    $statusMap = fn($s) => match ($s) {
-        'libre'                    => ['label' => 'Disponible',  'class' => 'badge-libre'],
-        'occupe'                   => ['label' => 'Occupé',      'class' => 'badge-occupe'],
-        'option_periode', 'option' => ['label' => 'En option',   'class' => 'badge-option'],
-        'confirme'                 => ['label' => 'Confirmé',    'class' => 'badge-confirme'],
-        'maintenance'              => ['label' => 'Maintenance', 'class' => 'badge-maintenance'],
-        default                    => ['label' => 'Indisponible','class' => 'badge-occupe'],
+    // PDF proposition : on n'affiche le badge QUE si le panneau est réellement
+    // occupé (confirme/occupe), avec la date de libération. Pour tout autre
+    // statut (libre, option, maintenance…), renvoie null → pas de ligne statut.
+    $statusFor = function (array $p) {
+        $s = $p['display_status'] ?? null;
+        if (!in_array($s, ['occupe', 'occupé', 'confirme'], true)) {
+            return null;
+        }
+        $release = $p['release_date'] ?? null;
+        $label = $release
+            ? 'Occupé jusqu\'au ' . \Carbon\Carbon::parse($release)->format('d/m/Y')
+            : 'Occupé';
+        return ['label' => $label, 'class' => 'badge-occupe'];
     };
 
     // Logo CIBLE CI : passé par PdfAssets::getLogoPdf() — fallback inline
@@ -226,7 +234,7 @@
 @foreach ($panels as $index => $p)
     @php
         $pageNum  = $index + 1;
-        $status   = $statusMap($p['display_status'] ?? 'occupe');
+        $status   = $statusFor($p);
         $traffic  = (int) ($p['daily_traffic'] ?? 0);
         $zoneDesc = $p['zone_description'] ?? '';
 
@@ -359,7 +367,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td class="lbl">Trafic journalier</td>
+                            <td class="lbl">Trafic journalier (estimatif)</td>
                             <td class="val">
                                 @if($traffic > 0)
                                     <strong>{{ number_format($traffic, 0, ',', ' ') }}</strong>
@@ -384,10 +392,12 @@
                                     @endif
                                 </td>
                             </tr>
+                            @if($status)
                             <tr>
                                 <td class="lbl">Statut actuel</td>
                                 <td class="val"><span class="badge {{ $status['class'] }}">{{ $status['label'] }}</span></td>
                             </tr>
+                            @endif
                         @endif
                     </table>
                     </td>

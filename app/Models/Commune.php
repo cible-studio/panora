@@ -10,7 +10,7 @@ class Commune extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 'city', 'region', 'odp_rate', 'tm_rate', 'db_rate',
+        'name', 'code', 'city', 'region', 'odp_rate', 'tm_rate', 'db_rate',
     ];
 
     protected $casts = [

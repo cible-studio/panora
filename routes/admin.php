@@ -235,6 +235,10 @@ Route::prefix('admin')
         // Création / modification / suppression / photos = admin + MP.
         // Changement de statut (libre / maintenance) = admin + MP.
         Route::get('panels', [PanelController::class, 'index'])->name('panels.index');
+        // Aperçu de référence — utilisé par les vues create/edit pour
+        // générer un aperçu live de la référence sans recharger la page.
+        Route::get('panels/generate-reference', [PanelController::class, 'generateReference'])
+            ->name('panels.generate-reference');
         Route::get('panels/{panel}', [PanelController::class, 'show'])
             ->whereNumber('panel')->name('panels.show');
         Route::get('panels/{panel}/availability', [PanelController::class, 'availability'])

@@ -21,9 +21,12 @@ use Illuminate\Support\Facades\DB;
  *   php artisan panels:apply-grille --apply --force  # sans confirmation
  *
  * Avant d'appliquer, la commande s'assure que :
- *   - La catégorie VIP existe (créée vide pour les futures créations).
  *   - La catégorie Panoramique a été reclassée → Classique puis supprimée
  *     (cf. grille : "Entrée de ville" = 50m² = prix Classique 50m²).
+ *
+ * Note : la notion VIP est portée par le booléen `panels.is_vip`
+ * (toute catégorie peut être VIP). Le tarif premium est appliqué via
+ * ce flag, plus comme une catégorie séparée.
  */
 class ApplyPanelGrille extends Command
 {
@@ -43,7 +46,6 @@ class ApplyPanelGrille extends Command
 
         // ═══ ÉTAPE 1 — Nettoyage catégories ═══════════════════════
         $this->info('▶ Étape 1 — Nettoyage catégories');
-        $vip       = $this->ensureCategoryVip($apply);
         $reclassed = $this->retirePanoramique($apply);
         $this->newLine();
 
@@ -125,28 +127,6 @@ class ApplyPanelGrille extends Command
     }
 
     /**
-     * S'assure que la catégorie VIP existe. Vide au départ (à remplir via UI).
-     */
-    private function ensureCategoryVip(bool $apply): PanelCategory
-    {
-        $existing = PanelCategory::where('name', 'VIP')->first();
-        if ($existing) {
-            $this->line('  ✓ Catégorie VIP existe déjà.');
-            return $existing;
-        }
-
-        $this->line('  + Création catégorie « VIP »');
-        if ($apply) {
-            return PanelCategory::create([
-                'name'        => 'VIP',
-                'description' => 'Panneaux premium emplacement stratégique (12/18/36m² VIP)',
-            ]);
-        }
-        // Dry-run : retourne un placeholder pour ne pas casser la suite
-        return new PanelCategory(['id' => 0, 'name' => 'VIP']);
-    }
-
-    /**
      * Reclasse les panneaux Panoramique → Classique, puis supprime la catégorie.
      * "Panoramique" n'existe pas dans la grille — ses panneaux sont des
      * "Entrée de ville" 50m² → prix = 50m² Classique = 1 500 000 F.
@@ -185,20 +165,25 @@ class ApplyPanelGrille extends Command
         $surface = (int) round((float) ($p->format?->surface ?? 0));
         $city    = $p->commune?->city;
         $isAbj   = $city === 'Abidjan';
+        $isVip   = (bool) $p->is_vip;
+
+        // VIP : prix premium selon format, peu importe la catégorie réelle.
+        // Toute catégorie peut être VIP (Caisson VIP, Classique VIP, etc.).
+        if ($isVip) {
+            $vipRate = match ($surface) {
+                12      => 150_000,
+                18      => 850_000,
+                36      => 1_300_000,
+                default => null, // VIP sur format non prévu → manuel
+            };
+            if ($vipRate !== null) return $vipRate;
+            // Fallback : si on n'a pas de tarif VIP pour ce format,
+            // on retombe sur la grille classique pour ne pas mettre 0.
+        }
 
         // Catégories à prix uniforme peu importe le format
         if ($cat === 'Lumipub')   return 130_000;
         if ($cat === 'Trivision') return 120_000;
-
-        // VIP : prix selon format
-        if ($cat === 'VIP') {
-            return match ($surface) {
-                12      => 150_000,
-                18      => 850_000,
-                36      => 1_300_000,
-                default => null, // VIP autre format non prévu → manuel
-            };
-        }
 
         // Chevalet : 12m² = MOVE IT (800k), 15m²/20m² = ×4 faces (2.5M)
         // Tout autre format : fallback prix format classique.
