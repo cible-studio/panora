@@ -308,6 +308,7 @@ class PoseService
         $updated = 0;
         $skipped = count($taskIds) - $tasks->count(); // pré-filtre déjà terminées
 
+        $assignedTasks = collect(); // mémorisées pour la notif batch
         foreach ($tasks as $task) {
             // Garde campagne pour passage à IN_PROGRESS.
             if ($action === 'change_status'
@@ -322,17 +323,66 @@ class PoseService
 
             $task->update($payload);
             $updated++;
+            $assignedTasks->push($task);
+        }
+
+        // ── Notification batch — UN SEUL lien par technicien × campagne ──
+        // Quand on assigne 1 tech à N tâches (cas typique : MP sélectionne
+        // 50 panneaux d'une campagne et clique "Appliquer"), on envoie un
+        // SEUL message WhatsApp avec un lien campagne unique vers la page
+        // pige terrain qui liste tous les panneaux. Sans ce regroupement,
+        // le tech recevrait 50 notifs et 50 liens distincts — inutilisable
+        // dans la pratique (cf. retour terrain).
+        $notified = 0;
+        if ($action === 'assign_tech'
+            && !empty($payload['assigned_user_id'])
+            && $assignedTasks->isNotEmpty()) {
+            // On rafraîchit avec les relations utiles à la notif (tech +
+            // panel + campaign + commune) pour éviter un N+1.
+            $assignedTasks = PoseTask::with([
+                'technicien:id,name,whatsapp_number',
+                'panel:id,reference,name,adresse,quartier,commune_id',
+                'panel.commune:id,name',
+                'campaign:id,name,pige_token,pige_token_created_at',
+            ])->whereIn('id', $assignedTasks->pluck('id'))->get();
+
+            // Groupage : 1 message par (technicien × campagne). Si une
+            // tâche n'a pas de campagne (pose ad-hoc), elle tombe dans
+            // un groupe "sans-campagne" avec notif individuelle classique.
+            $groups = $assignedTasks->groupBy(function ($t) {
+                return $t->assigned_user_id . '|' . ($t->campaign_id ?? 'adhoc');
+            });
+
+            foreach ($groups as $group) {
+                if ($group->count() > 1 && $group->first()->campaign_id) {
+                    // Batch : lien campagne unique
+                    $this->notifyTechnicianBatch($group);
+                    $notified += $group->count();
+                } else {
+                    // Cas mono-tâche ou ad-hoc : notif individuelle
+                    foreach ($group as $t) {
+                        $this->notifyTechnicianOnWhatsApp($t);
+                        $notified++;
+                    }
+                }
+            }
         }
 
         Log::info('pose_task.bulk_updated', [
-            'action'  => $action,
-            'value'   => $value,
-            'updated' => $updated,
-            'skipped' => $skipped,
-            'by'      => $actor->id,
+            'action'   => $action,
+            'value'    => $value,
+            'updated'  => $updated,
+            'skipped'  => $skipped,
+            'notified' => $notified,
+            'by'       => $actor->id,
         ]);
 
-        return ['ok' => true, 'updated' => $updated, 'skipped' => $skipped];
+        return [
+            'ok'       => true,
+            'updated'  => $updated,
+            'skipped'  => $skipped,
+            'notified' => $notified,
+        ];
     }
 
     private function bulkError(string $msg): array

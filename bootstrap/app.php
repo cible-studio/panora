@@ -34,6 +34,17 @@ return Application::configure(basePath: dirname(__DIR__))
             'sync.reactive'         => \App\Http\Middleware\SyncReactiveState::class,
         ]);
 
+        // Routes publiques techniciens (page pige terrain) : exempter du
+        // CSRF — la sécurité est assurée par le token secret dans l'URL
+        // (32 chars random) + throttle agressif (60 req/min). Le CSRF
+        // standard Laravel ne s'adapte pas aux sessions longues du
+        // terrain (tech avec la page ouverte 1h+ entre 2 panneaux).
+        // Idem pour les redirections legacy /pose/{token}.
+        $middleware->validateCsrfTokens(except: [
+            'pige/*',
+            'pose/*',
+        ]);
+
         // Sync auto des statuts (campagnes, options) à chaque request web —
         // évite d'attendre le cron 01h30 pour voir une campagne passer en
         // "terminé" ou une option expirer. Mutex 60s côté middleware.

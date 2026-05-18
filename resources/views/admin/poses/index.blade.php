@@ -358,7 +358,7 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                     <option value="">— Choisir —</option>
                     <option value="__unset__">(retirer l'assignation)</option>
                     @foreach($techniciens as $tech)
-                        <option value="{{ $tech->id }}">{{ $tech->name }}{{ $tech->whatsapp_number ? '' : ' ⚠' }}</option>
+                        <option value="{{ $tech->id }}">{{ $tech->name }}</option>
                     @endforeach
                 </select>
                 <button type="button" id="bulk-tech-apply" class="btn btn-sm btn-primary" style="white-space:nowrap">Appliquer</button>
@@ -733,7 +733,13 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         }
         let msg = `${result.updated} tâche(s) mise(s) à jour`;
         if (result.skipped) msg += ` · ${result.skipped} ignorée(s)`;
-        showToast('success', msg, 3500, 'Action groupée');
+        // Feedback batch notif WhatsApp — 1 seul lien envoyé au tech
+        // par campagne, pas N liens. Précisé dans le toast pour rassurer
+        // l'admin que la notification a bien été déclenchée.
+        if (result.notified > 0) {
+            msg += ` · 📲 ${result.notified} notif(s) WhatsApp envoyée(s)`;
+        }
+        showToast('success', msg, 4000, 'Action groupée');
     }
 
     async function postBulk(action, value, confirmMsg) {
