@@ -304,8 +304,7 @@
         </div>
 
         {{-- ══ BARRE SÉLECTION ══ --}}
-        <div id="sel-bar"
-            style="display:none;position:fixed;bottom:0;left:235px;right:0;z-index:300;background:var(--surface);border-top:2px solid var(--accent);padding:12px 24px;box-shadow:0 -8px 32px rgba(0,0,0,.2)">
+        <div id="sel-bar" class="sel-bar-fixed" style="display:none">
             <div class="flex items-center justify-between flex-wrap gap-3">
                 <div class="flex items-center gap-4 flex-wrap">
                     <div>
@@ -707,6 +706,36 @@
     </div>
 
     <style>
+        /* Barre de sélection fixe en bas — responsive */
+        .sel-bar-fixed {
+            position: fixed;
+            bottom: 0;
+            left: var(--sidebar-width, 235px);
+            right: 0;
+            z-index: 300;
+            background: var(--surface);
+            border-top: 2px solid var(--accent);
+            padding: 12px 24px;
+            box-shadow: 0 -8px 32px rgba(0,0,0,.2);
+        }
+        .sel-bar-fixed > div { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+        /* Mobile : sidebar masquée → la barre prend toute la largeur, padding réduit,
+           contenu empilé verticalement avec scroll horizontal pour les boutons. */
+        @media (max-width: 768px) {
+            .sel-bar-fixed {
+                left: 0;
+                padding: 10px 12px;
+                max-height: 50vh;
+                overflow-y: auto;
+            }
+            .sel-bar-fixed > div { flex-direction: column; align-items: stretch; gap: 8px; }
+            .sel-bar-fixed > div > div { flex-wrap: wrap; }
+            .sel-bar-fixed #sel-count { font-size: 20px; }
+            .sel-bar-fixed .btn { font-size: 11px; padding: 6px 10px; }
+            .sel-bar-fixed label { font-size: 10px; padding: 4px 8px; }
+        }
+
         #modal-client-select {
             display: block !important;
         }
