@@ -215,6 +215,7 @@ class PanelController extends Controller
             'monthly_rate' => 'nullable|numeric|min:0',
             'daily_traffic' => 'nullable|integer|min:0',
             'is_lit' => 'boolean',
+            'is_vip' => 'boolean',
             'zone_description' => 'nullable|string',
         ]);
 
@@ -227,6 +228,7 @@ class PanelController extends Controller
             'status' => PanelStatus::LIBRE,
             'created_by' => auth()->id(),
             'is_lit' => $request->boolean('is_lit'),
+            'is_vip' => $request->boolean('is_vip'),
         ]);
 
         // Upload photos
@@ -379,6 +381,7 @@ class PanelController extends Controller
             'monthly_rate' => 'nullable|numeric|min:0',
             'daily_traffic' => 'nullable|integer|min:0',
             'is_lit' => 'boolean',
+            'is_vip' => 'boolean',
             'zone_description' => 'nullable|string',
             'new_images.*' => 'nullable|image|max:35840',// 35MB max
             'delete_photos' => 'nullable|array',
@@ -398,6 +401,7 @@ class PanelController extends Controller
             'monthly_rate' => $request->monthly_rate,
             'daily_traffic' => $request->daily_traffic,
             'is_lit' => $request->boolean('is_lit'),
+            'is_vip' => $request->boolean('is_vip'),
             'nombre_faces' => $request->nombre_faces,
             'type_support' => $request->type_support,
             'orientation' => $request->orientation,

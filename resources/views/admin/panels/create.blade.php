@@ -92,6 +92,7 @@
                             <select name="category_id">
                                 <option value="">— Aucune —</option>
                                 @foreach($categories as $cat)
+                                    @continue(strcasecmp($cat->name, 'VIP') === 0)
                                 <option value="{{ $cat->id }}"
                                     {{ old('category_id') == $cat->id ? 'selected' : '' }}>
                                     {{ $cat->name }}
@@ -202,6 +203,56 @@
                                 track.style.background = '#d1d5db';
                                 thumb.style.left = '3px';
                                 label.textContent = '🌑 Non éclairé';
+                                label.style.color = 'var(--text2)';
+                            }
+                        }
+                        </script>
+                    </div>
+
+                    {{-- VIP --}}
+                    <div class="mfg">
+                        <input type="checkbox" name="is_vip" value="1"
+                               id="is_vip_toggle"
+                               {{ old('is_vip') ? 'checked' : '' }}
+                               style="display:none;">
+
+                        <div style="display:flex; align-items:center; gap:12px; cursor:pointer;" onclick="toggleVip()">
+                            <div id="vip-track"
+                                 style="position:relative; width:52px; height:28px; border-radius:14px;
+                                        background: {{ old('is_vip') ? '#a855f7' : '#d1d5db' }};
+                                        transition: background .3s ease; flex-shrink:0;">
+                                <div id="vip-thumb"
+                                     style="position:absolute; top:3px;
+                                            left: {{ old('is_vip') ? '25px' : '3px' }};
+                                            width:22px; height:22px; border-radius:50%; background:white;
+                                            box-shadow:0 1px 4px rgba(0,0,0,.25);
+                                            transition: left .3s ease;"></div>
+                            </div>
+                            <div>
+                                <div id="vip-label"
+                                     style="font-size:14px; font-weight:600; color:{{ old('is_vip') ? '#a855f7' : 'var(--text2)' }};">
+                                    {{ old('is_vip') ? '⭐ Panneau VIP' : 'Panneau standard' }}
+                                </div>
+                                <div style="font-size:11px; color:var(--text3); margin-top:2px;">Cliquez pour basculer</div>
+                            </div>
+                        </div>
+
+                        <script>
+                        function toggleVip() {
+                            const cb    = document.getElementById('is_vip_toggle');
+                            const track = document.getElementById('vip-track');
+                            const thumb = document.getElementById('vip-thumb');
+                            const label = document.getElementById('vip-label');
+                            cb.checked = !cb.checked;
+                            if (cb.checked) {
+                                track.style.background = '#a855f7';
+                                thumb.style.left = '25px';
+                                label.textContent = '⭐ Panneau VIP';
+                                label.style.color = '#a855f7';
+                            } else {
+                                track.style.background = '#d1d5db';
+                                thumb.style.left = '3px';
+                                label.textContent = 'Panneau standard';
                                 label.style.color = 'var(--text2)';
                             }
                         }
