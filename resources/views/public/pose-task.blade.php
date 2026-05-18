@@ -397,30 +397,6 @@
         .photo-replace { bottom: 4px; left: 4px;  background: rgba(37,99,235,.88); }
         .photo-del:active, .photo-replace:active { transform: scale(.92); }
 
-        /* ── BOUTONS STATUT ─────────────────────────────────────── */
-        .status-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-        .btn-status {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 13px 12px;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: 700;
-            border: 0;
-            cursor: pointer;
-            min-height: 50px;
-            font-family: inherit;
-            min-width: 0;
-        }
-        .btn-status.en-route  { background: #7c3aed; color: #fff; }
-        .btn-status.commencer { background: var(--warn); color: #fff; }
-        .btn-status.annuler   { background: var(--border); color: var(--red); border: 1px solid rgba(220,38,38,.25); }
-        .btn-status:active { transform: translateY(1px); }
-        .btn-status:disabled { opacity: .5; cursor: not-allowed; }
-
         .photo-cta {
             display: flex;
             align-items: center;
@@ -637,10 +613,6 @@
         default     => ['ic' => '📋', 'lbl' => $statusVal,          'cls' => 'planifiee'],
     };
     $hasPige = $piges->isNotEmpty();
-    // Boutons de statut disponibles selon statut courant
-    $showEnRoute  = $statusVal === 'planifiee';
-    $showCommencer = in_array($statusVal, ['planifiee', 'en_route']);
-    $showAnnuler  = !$isFinal;
 @endphp
 
 <header class="topbar">
@@ -675,27 +647,6 @@
             @endif
         </div>
     </div>
-
-    {{-- ═══ BOUTONS DE STATUT (planifiee / en_route) ═══ --}}
-    @if(!$isFinal && ($showEnRoute || $showCommencer || $showAnnuler))
-    <div class="status-btns" id="status-btns">
-        @if($showEnRoute)
-        <button type="button" class="btn-status en-route" id="btn-en-route" data-status="en_route">
-            🚗 Je pars
-        </button>
-        @endif
-        @if($showCommencer)
-        <button type="button" class="btn-status commencer" id="btn-commencer" data-status="en_cours">
-            🔧 Je commence
-        </button>
-        @endif
-        @if($showAnnuler)
-        <button type="button" class="btn-status annuler" id="btn-annuler" data-status="annulee">
-            ✕ Annuler
-        </button>
-        @endif
-    </div>
-    @endif
 
     {{-- ═══ PANNEAU ═══ --}}
     <div class="card">
@@ -963,58 +914,11 @@
         });
     }
 
-    // ── Boutons de statut ────────────────────────────────────
-    const STATUS_LABELS = {
-        planifiee: { ic: '📅', lbl: 'Planifiée',      cls: 'planifiee' },
-        en_route:  { ic: '🚗', lbl: 'En route',        cls: 'en_route'  },
-        en_cours:  { ic: '🔧', lbl: 'En cours',        cls: 'en_cours'  },
-        realisee:  { ic: '✅', lbl: 'Pose effectuée',  cls: 'realisee'  },
-        annulee:   { ic: '🚫', lbl: 'Annulée',         cls: 'annulee'   },
-    };
-
-    async function doSetStatus(newStatus) {
-        const confirmMsg = newStatus === 'annulee'
-            ? 'Annuler cette tâche de pose ? Cette action est définitive.'
-            : null;
-        if (confirmMsg) {
-            const ok = await confirmModal('Confirmer', confirmMsg);
-            if (!ok) return;
-        }
-
-        document.querySelectorAll('.btn-status').forEach(b => b.disabled = true);
-        try {
-            const r = await fetch(ROUTE_STATUS, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json',
-                           'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ status: newStatus }).toString(),
-            });
-            const data = await r.json();
-            if (data.ok) {
-                toast(data.message || 'Statut mis à jour.', 'success');
-                // Met à jour le bandeau de statut sans rechargement
-                const ui = STATUS_LABELS[data.status] || STATUS_LABELS.planifiee;
-                const banner = document.getElementById('status-banner');
-                const lbl    = document.getElementById('status-label');
-                const icon   = document.getElementById('status-icon');
-                if (banner) { banner.className = 'status-banner ' + ui.cls; }
-                if (lbl)    { lbl.textContent = ui.lbl; }
-                if (icon)   { icon.textContent = ui.ic; }
-                // Reload pour mettre à jour les boutons disponibles
-                setTimeout(() => location.reload(), 900);
-            } else {
-                toast(data.message || 'Erreur.', 'error');
-                document.querySelectorAll('.btn-status').forEach(b => b.disabled = false);
-            }
-        } catch (e) {
-            toast('Réseau indisponible.', 'error');
-            document.querySelectorAll('.btn-status').forEach(b => b.disabled = false);
-        }
-    }
-
-    document.getElementById('btn-en-route')?.addEventListener('click',  () => doSetStatus('en_route'));
-    document.getElementById('btn-commencer')?.addEventListener('click', () => doSetStatus('en_cours'));
-    document.getElementById('btn-annuler')?.addEventListener('click',   () => doSetStatus('annulee'));
+    // Le statut "en_cours" est désormais auto-géré : il bascule
+    // automatiquement dès que le tech bouge la jauge de progression
+    // (côté serveur, voir PoseTaskPublicController::update). Le tech
+    // n'a donc plus à cliquer "Je commence" — il glisse la jauge et
+    // c'est l'action métier qui transite l'état.
 
     // ── Progression ──────────────────────────────────────────
     const slider = document.getElementById('prog-slider');

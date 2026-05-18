@@ -299,6 +299,13 @@ body {
 .nav-item.active { background: var(--accent-dim); color: var(--accent); font-weight: 500; }
 .nav-item .icon  { font-size: 15px; width: 20px; text-align: center; }
 
+/* Icônes nav : couleur uniforme (héritée du texte) pour éviter
+   l'aspect "patchwork" de couleurs vives par item. On override les
+   attributs `stroke="..."` codés en dur dans les SVG inline. */
+.sidebar .nav-icon { stroke: currentColor !important; opacity: .75; }
+.sidebar .nav-item:hover .nav-icon  { opacity: 1; }
+.sidebar .nav-item.active .nav-icon { opacity: 1; }
+
 .nav-badge {
   margin-left: auto;
   background: var(--accent);
