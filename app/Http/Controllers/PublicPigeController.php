@@ -59,7 +59,7 @@ class PublicPigeController extends Controller
         // Charge les piges existantes pour afficher l'état panneau par panneau.
         $existingPiges = Pige::where('campaign_id', $campaign->id)
             ->latest('taken_at')
-            ->get(['id', 'panel_id', 'status', 'taken_at', 'photo_path', 'gps_lat', 'gps_lng', 'notes'])
+            ->get(['id', 'panel_id', 'status', 'taken_at', 'photo_path', 'gps_lat', 'gps_lng', 'notes', 'rejection_reason'])
             ->groupBy('panel_id');
 
         // Lot 9.3 — Statut pose par panneau : index PoseTask par panel_id
