@@ -88,17 +88,19 @@
         margin-bottom: 14px;
     }
     .photo-wrap img {
-        max-width: 100%;
-        max-height: 240px;
+        width: 100%;
+        max-height: 460px;
+        height: auto;
         border: 1px solid #e5e7eb;
         border-radius: 6px;
+        object-fit: cover;
     }
     .photo-empty {
         display: block;
         background: #f3f4f6;
         border: 1px solid #e5e7eb;
         border-radius: 6px;
-        padding: 60px 0;
+        padding: 180px 0;
         color: #9ca3af;
         font-size: 13px;
     }
