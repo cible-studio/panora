@@ -321,6 +321,45 @@ class PigeController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // VALIDATION — page dédiée "Piges à valider" avec navigation clavier
+    //
+    // Affiche les piges en attente sous forme de carrousel : 1 photo
+    // plein écran + boutons V/R + navigation ←/→. Le MP/admin peut
+    // valider 50 piges en quelques minutes au lieu d'ouvrir chaque
+    // fiche individuellement.
+    //
+    // Raccourcis (gérés côté JS) :
+    //   V          → Valider la pige courante
+    //   R          → Rejeter (modal motif)
+    //   ←          → Pige précédente
+    //   →          → Pige suivante
+    // ══════════════════════════════════════════════════════════════
+    public function validation(Request $request)
+    {
+        $piges = Pige::with([
+            'panel:id,reference,name,commune_id,latitude,longitude',
+            'panel.commune:id,name',
+            'campaign:id,name,status',
+            'technicien:id,name,whatsapp_number',
+            'poseTask:id,scheduled_at,done_at,status',
+        ])
+        ->where('status', 'en_attente')
+        ->when($request->filled('campaign_id'),
+            fn($q) => $q->where('campaign_id', $request->campaign_id))
+        ->when($request->filled('technicien_id'),
+            fn($q) => $q->where('user_id', $request->technicien_id))
+        ->orderBy('taken_at')   // FIFO : on valide d'abord les plus anciennes
+        ->limit(100)             // borne perf : 100 piges/session max
+        ->get();
+
+        $campaigns = Campaign::whereIn('status', ['actif', 'planifie', 'pause'])
+            ->orderBy('name')->get(['id', 'name']);
+        $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
+
+        return view('admin.piges.validation', compact('piges', 'campaigns', 'techniciens'));
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // VERIFY — vérifier avec réponse JSON et mise à jour carte
     // ══════════════════════════════════════════════════════════════
     public function verify(Request $request, Pige $pige)

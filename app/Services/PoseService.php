@@ -375,8 +375,12 @@ class PoseService
 
     // ══════════════════════════════════════════════════════════════
     // NOTIFICATION WHATSAPP — best effort, n'échoue jamais le flux
+    //
+    // $options accepte :
+    //   - preamble : texte ajouté en tête du message (ex: motif rejet
+    //     pige pour re-pige auto). Optionnel.
     // ══════════════════════════════════════════════════════════════
-    public function notifyTechnicianOnWhatsApp(PoseTask $task): bool
+    public function notifyTechnicianOnWhatsApp(PoseTask $task, array $options = []): bool
     {
         if (!config('services.whatsapp.enabled', true)) {
             return false;
@@ -398,7 +402,14 @@ class PoseService
         $address   = trim(($panel?->adresse ?? '') . ($panel?->quartier ? ' · ' . $panel->quartier : ''));
         $scheduled = $task->scheduled_at?->format('d/m/Y à H:i') ?? '—';
 
-        $message = "Bonjour {$tech->name},\n\n"
+        // Préambule optionnel (utilisé pour la re-pige après rejet : motif
+        // affiché en tête, suivi du lien pour reprendre la photo).
+        $preamble = !empty($options['preamble'])
+            ? rtrim($options['preamble']) . "\n\n"
+            : '';
+
+        $message = $preamble
+                 . "Bonjour {$tech->name},\n\n"
                  . "Une tâche de pose vous est assignée par CIBLE CI :\n\n"
                  . "• Panneau : " . ($panel->reference ?? '—') . " — " . ($panel->name ?? '') . "\n"
                  . ($address ? "• Adresse : {$address}\n" : '')

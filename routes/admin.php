@@ -383,10 +383,13 @@ Route::prefix('admin')
         Route::prefix('piges')->name('piges.')
             ->middleware('role:admin,mediaplanner')
             ->group(function () {
-        
+
             // ── AJAX (avant les routes paramétriques) ──────────────────
             Route::get('campaign-panels', [PigeController::class, 'campaignPanels'])->name('campaign-panels');
             Route::post('verify-batch',   [PigeController::class, 'verifyBatch'])   ->name('verify-batch');
+
+            // Validation rapide : page dédiée avec navigation clavier V/R/←/→
+            Route::get('validation', [PigeController::class, 'validation'])->name('validation');
         
             // ── Actions sur une pige ───────────────────────────────────
             Route::post('{pige}/verify', [PigeController::class, 'verify']) ->name('verify');
