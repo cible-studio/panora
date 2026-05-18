@@ -110,49 +110,58 @@
         @endphp
 
         @if($showCampaignHeader)
+        {{-- Espace au-dessus du header pour bien séparer la campagne précédente --}}
+        @if(!$loop->first)
+        <tr aria-hidden="true"><td colspan="9" style="padding:0;border:none;height:14px;background:transparent"></td></tr>
+        @endif
         <tr class="campaign-group-header">
             <td colspan="9" style="padding:0;border:none">
-                <div style="padding:12px 16px;background:linear-gradient(135deg,rgba(232,160,32,.06),rgba(232,160,32,.015));
-                            border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+                <div style="padding:14px 18px 14px 22px;background:#0f172a;color:#fff;
+                            border-left:5px solid var(--accent);
+                            border-top-left-radius:10px;border-top-right-radius:10px;
+                            box-shadow:0 -2px 0 rgba(0,0,0,.04), inset 0 -1px 0 rgba(255,255,255,.05);
                             display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
-                    <div style="display:flex;align-items:center;gap:10px;min-width:0">
-                        <div style="width:32px;height:32px;border-radius:8px;background:rgba(232,160,32,.12);
-                                    display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e8a020" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <div style="display:flex;align-items:center;gap:12px;min-width:0">
+                        <div style="width:36px;height:36px;border-radius:9px;background:rgba(232,160,32,.18);
+                                    display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(232,160,32,.35)">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                         </div>
                         <div style="min-width:0">
+                            <div style="font-size:9px;font-weight:700;color:#fab80b;text-transform:uppercase;letter-spacing:1.3px;margin-bottom:3px">Campagne</div>
                             @if($task->campaign)
                                 <a href="{{ route('admin.campaigns.show', $task->campaign) }}"
-                                   style="font-size:13px;font-weight:700;color:var(--text);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px"
+                                   style="font-size:15px;font-weight:800;color:#fff;text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:380px;letter-spacing:-.2px"
                                    title="{{ $task->campaign->name }}">
                                     {{ $task->campaign->name }}
                                 </a>
-                                <div style="font-size:10px;color:var(--text3);margin-top:1px">
+                                <div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px">
                                     @if($task->campaign->deleted_at)
                                         🗑 Campagne supprimée
+                                    @elseif($task->campaign->client?->name)
+                                        Client&nbsp;: <strong style="color:rgba(255,255,255,.8);font-weight:600">{{ $task->campaign->client->name }}</strong>
                                     @else
                                         Créée {{ $task->campaign->created_at?->diffForHumans() ?? '—' }}
                                     @endif
                                 </div>
                             @else
-                                <div style="font-size:13px;font-weight:700;color:var(--text3);font-style:italic">
+                                <div style="font-size:15px;font-weight:800;color:rgba(255,255,255,.85);font-style:italic">
                                     Tâches sans campagne
                                 </div>
-                                <div style="font-size:10px;color:var(--text3);margin-top:1px">Interventions ponctuelles</div>
+                                <div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px">Interventions ponctuelles</div>
                             @endif
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap">
-                        <span style="padding:3px 9px;background:var(--surface);border:1px solid var(--border);border-radius:20px;color:var(--text2);font-weight:600">
+                        <span style="padding:4px 11px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:20px;color:#fff;font-weight:700">
                             {{ $groupTotal }} pose{{ $groupTotal > 1 ? 's' : '' }}
                         </span>
                         @if($groupRealisee > 0)
-                        <span style="padding:3px 9px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:20px;color:#16a34a;font-weight:700">
+                        <span style="padding:4px 11px;background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.4);border-radius:20px;color:#86efac;font-weight:700">
                             ✓ {{ $groupRealisee }} réalisée{{ $groupRealisee > 1 ? 's' : '' }}
                         </span>
                         @endif
                         @if($groupPlanif > 0)
-                        <span style="padding:3px 9px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:20px;color:#b45309;font-weight:700">
+                        <span style="padding:4px 11px;background:rgba(250,184,11,.15);border:1px solid rgba(250,184,11,.4);border-radius:20px;color:#fab80b;font-weight:700">
                             ⏱ {{ $groupPlanif }} planifiée{{ $groupPlanif > 1 ? 's' : '' }}
                         </span>
                         @endif
