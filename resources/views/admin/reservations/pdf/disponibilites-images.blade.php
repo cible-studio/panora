@@ -365,7 +365,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td class="lbl">Trafic journalier</td>
+                            <td class="lbl">Trafic journalier (estimatif)</td>
                             <td class="val">
                                 @if($traffic > 0)
                                     <strong>{{ number_format($traffic, 0, ',', ' ') }}</strong>

@@ -234,7 +234,7 @@
                 <th style="width:8%">Dimensions</th>
                 <th style="width:10%">Catégorie</th>
                 <th style="width:5%">Éclair.</th>
-                <th class="num" style="width:7%">Trafic/j</th>
+                <th class="num" style="width:7%">Trafic/j (estimatif)</th>
                 {{-- Statut TOUJOURS affiché — l'admin doit pouvoir distinguer
                      un panneau Disponible d'un panneau En option dans le doc. --}}
                 <th style="width:8%">Statut</th>
