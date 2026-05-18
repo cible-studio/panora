@@ -29,13 +29,21 @@
         text-transform: uppercase; letter-spacing: 2px; margin-top: 4px;
     }
     .doc-title { font-size: 13px; font-weight: 700; color: #fff; margin-top: 14px; }
-    .doc-ref {
+    .doc-meta {
+        margin-top: 8px;
+        font-size: 11px;
+        color: #cbd5e1;
+        line-height: 1.5;
+    }
+    .doc-meta .ref-badge {
         display: inline-block;
         background: #e8a020; color: #0a0c10;
-        padding: 4px 10px; border-radius: 4px;
+        padding: 3px 9px; border-radius: 4px;
         font-family: monospace, 'DejaVu Sans Mono', sans-serif;
-        font-weight: 800; font-size: 12px; margin-top: 6px;
+        font-weight: 800; font-size: 11px;
+        margin-right: 8px;
     }
+    .doc-meta .client-name { color: #fff; font-weight: 700; }
 
     .header-right { text-align: right; font-size: 10px; color: #cbd5e1; line-height: 1.7; }
     .header-right strong { color: #fff; }
@@ -142,7 +150,10 @@
                 <div class="logo">CIBLE CI</div>
                 <div class="logo-sub">Régie OOH — Côte d'Ivoire</div>
                 <div class="doc-title">Proposition commerciale</div>
-                <div class="doc-ref">{{ $reservation->reference }}</div>
+                <div class="doc-meta">
+                    <span class="ref-badge">{{ $reservation->reference }}</span>
+                    Client&nbsp;: <span class="client-name">{{ $reservation->client?->name ?? '—' }}</span>
+                </div>
             </td>
             <td class="header-right">
                 <strong>Date d'émission</strong><br>
