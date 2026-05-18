@@ -454,12 +454,9 @@
 
                         {{-- État 1 : combobox de sélection --}}
                         <div id="client-picker-combo">
-                            <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text3)] text-sm pointer-events-none">🔍</span>
-                                <input type="text" id="client-picker-search" autocomplete="off"
-                                    placeholder="Rechercher un client (nom · NCC · email)…"
-                                    class="modal-input w-full pl-9">
-                            </div>
+                            <input type="text" id="client-picker-search" autocomplete="off"
+                                placeholder="Rechercher un client (nom · NCC · email)…"
+                                class="modal-input w-full">
                             <div id="client-picker-list"
                                 class="mt-1 max-h-56 overflow-y-auto rounded-xl border border-[var(--border2)] bg-[var(--surface2)] hidden"></div>
                         </div>
@@ -1153,14 +1150,20 @@
                 function render() {
                     const all = (window.__DISPO__?.clients) || [];
                     const q   = state.query.trim().toLowerCase();
-                    const filtered = q
-                        ? all.filter(c => [c.name, c.ncc, c.email, c.phone]
-                            .filter(Boolean).some(v => String(v).toLowerCase().includes(q)))
-                        : all.slice(0, 50); // limite affichage initial
-
                     const listEl = $('client-picker-list');
                     if (!listEl) return;
-                    listEl.classList.toggle('hidden', !q && state.selectedId);
+
+                    // Le dropdown ne s'affiche que si l'utilisateur a saisi quelque chose.
+                    if (!q) {
+                        listEl.classList.add('hidden');
+                        listEl.innerHTML = '';
+                        return;
+                    }
+
+                    const filtered = all.filter(c => [c.name, c.ncc, c.email, c.phone]
+                        .filter(Boolean).some(v => String(v).toLowerCase().includes(q)));
+
+                    listEl.classList.remove('hidden');
                     if (!filtered.length) {
                         listEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--text3);font-size:12px">Aucun client</div>';
                         return;
@@ -1220,7 +1223,6 @@
                             state.query = e.target.value;
                             render();
                         });
-                        search.addEventListener('focus', () => render());
                     }
                     if (change && !change.dataset.bound) {
                         change.dataset.bound = '1';
