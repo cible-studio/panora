@@ -1,6 +1,17 @@
 <x-admin-layout title="Piges Photos">
 
 <x-slot:topbarActions>
+    @php
+        $pendingCount = \App\Models\Pige::where('status', 'en_attente')->count();
+    @endphp
+    @if($pendingCount > 0)
+    <a href="{{ route('admin.piges.validation') }}" class="btn btn-ghost btn-sm"
+       style="display:inline-flex;align-items:center;gap:6px"
+       title="Valider rapidement les piges en attente (raccourcis V/R/←/→)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Valider ({{ $pendingCount }})
+    </a>
+    @endif
     <a href="{{ route('admin.piges.create') }}" class="btn btn-primary" style="display:flex;align-items:center;gap:6px">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Uploader des piges

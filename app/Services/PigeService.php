@@ -102,6 +102,15 @@ class PigeService
 
     // ══════════════════════════════════════════════════════════════
     // REJETER une pige
+    //
+    // En plus du marquage 'rejete', on déclenche le "Re-pige auto" :
+    //   1. La PoseTask liée repasse à 'en_cours' (était COMPLETED après
+    //      l'upload via Observer) → le lien public se réactive.
+    //   2. Notification WhatsApp au technicien avec le motif + le lien
+    //      pour reprendre la photo.
+    //
+    // Élimine un aller-retour MP↔tech : avant, le MP devait demander
+    // manuellement au tech de refaire la photo (téléphone/SMS séparé).
     // ══════════════════════════════════════════════════════════════
     public function reject(Pige $pige, User $supervisor, string $reason): array
     {
@@ -124,6 +133,48 @@ class PigeService
         if (!$updated) return $this->error('Cette pige a déjà été traitée.');
 
         Log::info('pige.rejected', ['pige_id' => $pige->id, 'reason' => $reason, 'by' => $supervisor->id]);
+
+        // ─── Re-pige auto : réactiver la pose + notifier le tech ───
+        try {
+            $pige->loadMissing(['poseTask.technicien', 'poseTask.panel']);
+            $poseTask = $pige->poseTask;
+
+            if ($poseTask) {
+                // Réactive la pose (était passée à COMPLETED via Observer
+                // à l'upload). Le tech peut maintenant re-uploader via le
+                // même lien public.
+                $currentStatus = $poseTask->status?->value ?? $poseTask->status;
+                if ($currentStatus === \App\Enums\PoseTaskStatus::COMPLETED->value) {
+                    $poseTask->forceFill([
+                        'status'  => \App\Enums\PoseTaskStatus::IN_PROGRESS->value,
+                        'done_at' => null,
+                    ])->save();
+                }
+
+                // WhatsApp ciblé au technicien avec motif + lien
+                $tech = $poseTask->technicien;
+                if ($tech?->whatsapp_number) {
+                    try {
+                        app(\App\Services\PoseService::class)
+                            ->notifyTechnicianOnWhatsApp($poseTask, [
+                                'preamble' => "❌ Photo refusée — motif : {$reason}\n📷 Reprends une photo et upload-la via le lien :",
+                            ]);
+                    } catch (\Throwable $e) {
+                        Log::warning('pige.reject.whatsapp_failed', [
+                            'pige_id' => $pige->id,
+                            'tech_id' => $tech->id,
+                            'error'   => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('pige.reject.repige_auto_failed', [
+                'pige_id' => $pige->id,
+                'error'   => $e->getMessage(),
+            ]);
+        }
+
         return ['ok' => true];
     }
 
