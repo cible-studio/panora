@@ -307,15 +307,31 @@
                                         </td>
                                         <td>
                                             @if ($occ['type'] === 'campaign')
-                                                <a href="{{ route('admin.campaigns.show', $occ['source_id']) }}"
-                                                    style="font-size:12px;color:#3b82f6;text-decoration:none;font-weight:600;">
-                                                    📢 {{ $occ['reference'] }}
-                                                </a>
+                                                {{-- Badge type + lien : on identifie immédiatement
+                                                     que c'est une campagne (affichage en cours sur
+                                                     le terrain) et non une réservation commerciale. --}}
+                                                <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">
+                                                    <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;background:rgba(59,130,246,.12);color:#3b82f6;border:1px solid rgba(59,130,246,.3);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;">
+                                                        📢 Campagne
+                                                    </span>
+                                                    <a href="{{ route('admin.campaigns.show', $occ['source_id']) }}"
+                                                        style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#3b82f6;text-decoration:none;font-weight:700;">
+                                                        {{ $occ['reference'] }}
+                                                    </a>
+                                                </div>
                                             @else
-                                                <a href="{{ route('admin.reservations.show', $occ['source_id']) }}"
-                                                    style="font-size:12px;color:var(--accent);text-decoration:none;font-weight:600;">
-                                                    📋 {{ $occ['reference'] }}
-                                                </a>
+                                                {{-- Réservation = engagement commercial signé (sans
+                                                     affichage en cours forcément). À distinguer
+                                                     visuellement de la campagne active. --}}
+                                                <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">
+                                                    <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;background:rgba(194,87,13,.12);color:#c2570d;border:1px solid rgba(194,87,13,.3);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;">
+                                                        📋 Réservation
+                                                    </span>
+                                                    <a href="{{ route('admin.reservations.show', $occ['source_id']) }}"
+                                                        style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#c2570d;text-decoration:none;font-weight:700;">
+                                                        {{ $occ['reference'] }}
+                                                    </a>
+                                                </div>
                                             @endif
                                         </td>
                                         <td style="font-size:11px;color:var(--text3);white-space:nowrap;">
