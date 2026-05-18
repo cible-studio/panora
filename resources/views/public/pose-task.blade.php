@@ -13,13 +13,14 @@
         :root {
             --orange: #c2570d;
             --orange-2: #e26a17;
-            --orange-dim: #fff3e6;
-            --bg: #f3f4f6;
+            --orange-dim: #fff7ee;
+            --bg: #f6f7f9;
             --card: #ffffff;
-            --border: #e5e7eb;
-            --text: #111827;
-            --text2: #4b5563;
-            --text3: #9ca3af;
+            --border: #e8eaee;
+            --border-2: #d6dae0;
+            --text: #0f172a;
+            --text2: #475569;
+            --text3: #94a3b8;
             --green: #16a34a;
             --green-bg: #ecfdf5;
             --blue: #2563eb;
@@ -28,24 +29,27 @@
             --warn-bg: #fef3c7;
             --red: #dc2626;
             --red-bg: #fee2e2;
+            --shadow-sm: 0 1px 2px rgba(15,23,42,.04);
+            --shadow-md: 0 4px 16px rgba(15,23,42,.06);
+            --shadow-lg: 0 10px 30px rgba(15,23,42,.10);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
         html, body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
             background: var(--bg);
             color: var(--text);
-            line-height: 1.45;
-            font-size: 16px;
+            line-height: 1.5;
+            font-size: 15px;
             -webkit-font-smoothing: antialiased;
             -webkit-text-size-adjust: 100%;
         }
-        body { padding-bottom: 90px; }
+        body { padding-bottom: 110px; }
 
         /* ── TOP BAR ─────────────────────────────────────────────── */
         .topbar {
-            background: linear-gradient(180deg, var(--orange) 0%, var(--orange-2) 100%);
+            background: #0f172a;
             color: #fff;
-            padding: 12px 16px;
+            padding: 14px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -53,14 +57,36 @@
             position: sticky;
             top: 0;
             z-index: 50;
-            box-shadow: 0 2px 6px rgba(0,0,0,.08);
+            border-bottom: 3px solid var(--orange);
         }
-        .topbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; letter-spacing: -.2px; }
-        .topbar-brand img { height: 26px; }
-        .topbar-tel {
-            background: rgba(255,255,255,.18);
+        .topbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 800;
+            font-size: 17px;
+            letter-spacing: -.2px;
+        }
+        .topbar-brand .brand-mark {
+            width: 30px;
+            height: 30px;
+            border-radius: 9px;
+            background: var(--orange);
             color: #fff;
-            border: 1px solid rgba(255,255,255,.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 900;
+            box-shadow: 0 2px 6px rgba(194,87,13,.4);
+        }
+        .topbar-brand .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+        .topbar-brand .brand-text .name { font-size: 14px; font-weight: 800; letter-spacing: -.1px; }
+        .topbar-brand .brand-text .sub  { font-size: 10px; opacity: .55; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; }
+        .topbar-tel {
+            background: rgba(255,255,255,.10);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,.18);
             border-radius: 999px;
             padding: 8px 14px;
             font-size: 13px;
@@ -69,56 +95,75 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            min-height: 36px;
+            min-height: 38px;
+            transition: background .15s;
         }
+        .topbar-tel:active { background: rgba(255,255,255,.20); }
+        .topbar-tel svg { width: 14px; height: 14px; }
 
         /* ── CONTAINER ──────────────────────────────────────────── */
         .wrap {
-            max-width: 560px;
+            max-width: 580px;
             margin: 0 auto;
-            padding: 14px 14px 0;
+            padding: 16px 16px 0;
         }
 
         /* ── STATUS BANNER ──────────────────────────────────────── */
         .status-banner {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 14px 16px;
-            border-radius: 14px;
-            margin-bottom: 14px;
+            gap: 14px;
+            padding: 16px 18px;
+            border-radius: 16px;
+            margin-bottom: 16px;
             font-weight: 700;
             font-size: 16px;
             border: 1px solid transparent;
+            box-shadow: var(--shadow-sm);
         }
-        .status-banner.planifiee { background: var(--blue-bg); color: var(--blue); border-color: rgba(37,99,235,.2); }
-        .status-banner.en_route  { background: #f5f3ff; color: #7c3aed; border-color: rgba(124,58,237,.2); }
-        .status-banner.en_cours  { background: var(--warn-bg); color: var(--warn); border-color: rgba(217,119,6,.2); }
-        .status-banner.realisee  { background: var(--green-bg); color: var(--green); border-color: rgba(22,163,74,.2); }
-        .status-banner.annulee   { background: var(--red-bg); color: var(--red); border-color: rgba(220,38,38,.2); }
-        .status-banner .ic { font-size: 24px; line-height: 1; }
+        .status-banner.planifiee { background: var(--blue-bg); color: var(--blue); border-color: rgba(37,99,235,.18); }
+        .status-banner.en_route  { background: #f5f3ff; color: #7c3aed; border-color: rgba(124,58,237,.18); }
+        .status-banner.en_cours  { background: var(--warn-bg); color: var(--warn); border-color: rgba(217,119,6,.18); }
+        .status-banner.realisee  { background: var(--green-bg); color: var(--green); border-color: rgba(22,163,74,.18); }
+        .status-banner.annulee   { background: var(--red-bg); color: var(--red); border-color: rgba(220,38,38,.18); }
+        .status-banner .ic {
+            font-size: 22px;
+            line-height: 1;
+            width: 42px; height: 42px;
+            border-radius: 12px;
+            background: rgba(255,255,255,.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
         .status-banner .lbl { flex: 1; }
-        .status-banner .meta { font-size: 12px; font-weight: 500; opacity: .85; }
+        .status-banner .meta { font-size: 12px; font-weight: 500; opacity: .8; margin-top: 2px; }
 
         /* ── CARDS ──────────────────────────────────────────────── */
         .card {
             background: var(--card);
             border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 1px 2px rgba(0,0,0,.03);
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 14px;
+            box-shadow: var(--shadow-sm);
         }
         .card-title {
-            font-size: 13px;
-            font-weight: 700;
+            font-size: 11px;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: .5px;
+            letter-spacing: 1.2px;
             color: var(--text3);
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+        }
+        .card-title svg {
+            width: 14px; height: 14px;
+            color: var(--orange);
+            flex-shrink: 0;
         }
 
         /* ── PANNEAU INFO ───────────────────────────────────────── */
@@ -238,15 +283,29 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 10px 14px;
+            padding: 12px 14px;
             border-radius: 12px;
             font-weight: 600;
             font-size: 14px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
-        .photos-indicator.empty { background: var(--red-bg); color: var(--red); }
-        .photos-indicator.ok    { background: var(--green-bg); color: var(--green); }
+        .photos-indicator.empty { background: var(--warn-bg); color: var(--warn); border: 1px solid rgba(217,119,6,.18); }
+        .photos-indicator.ok    { background: var(--green-bg); color: var(--green); border: 1px solid rgba(22,163,74,.18); }
         .photos-indicator .ic { font-size: 18px; }
+        .photos-hint {
+            display: flex;
+            gap: 8px;
+            padding: 12px 14px;
+            background: var(--orange-dim);
+            border: 1px dashed rgba(194,87,13,.3);
+            border-radius: 12px;
+            margin-bottom: 14px;
+            font-size: 13px;
+            color: var(--orange);
+            font-weight: 500;
+            line-height: 1.4;
+        }
+        .photos-hint svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
 
         .photo-thumbs {
             display: grid;
@@ -546,12 +605,16 @@
 
 <header class="topbar">
     <div class="topbar-brand">
-        <span style="font-size:22px;">🪧</span>
-        <span>CIBLE&nbsp;CI</span>
+        <div class="brand-mark">C</div>
+        <div class="brand-text">
+            <span class="name">CIBLE CI</span>
+            <span class="sub">Pose technicien</span>
+        </div>
     </div>
     @if($task->technicien?->whatsapp_number)
         <a class="topbar-tel" href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $task->technicien->whatsapp_number) }}" target="_blank" rel="noopener">
-            📞 Superviseur
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            Superviseur
         </a>
     @endif
 </header>
@@ -596,7 +659,10 @@
 
     {{-- ═══ PANNEAU ═══ --}}
     <div class="card">
-        <div class="card-title">🪧 Panneau</div>
+        <div class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            Panneau
+        </div>
         <div class="panel-ref">{{ $task->panel?->reference ?? '—' }}</div>
         <div class="panel-name">{{ $task->panel?->name ?? '—' }}</div>
 
@@ -639,7 +705,10 @@
     {{-- ═══ CAMPAGNE / CLIENT ═══ --}}
     @if($task->campaign)
     <div class="card">
-        <div class="card-title">🎯 Campagne</div>
+        <div class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            Campagne
+        </div>
         <div style="font-size:16px;font-weight:700;margin-bottom:4px;">{{ $task->campaign->name }}</div>
         @if($task->campaign->client)
             <div style="font-size:14px;color:var(--text2);margin-bottom:8px;">Client : <strong>{{ $task->campaign->client->name }}</strong></div>
@@ -655,7 +724,10 @@
     {{-- ═══ PROGRESSION (cachée si terminé) ═══ --}}
     @if(!$isFinal)
     <div class="card" id="card-progress">
-        <div class="card-title">📊 Progression</div>
+        <div class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 5-5"/></svg>
+            Progression
+        </div>
         <div class="prog-row">
             <div class="prog-val">
                 <span id="prog-pct">{{ (int) $task->progress_percent }}</span>%
@@ -683,13 +755,27 @@
 
     {{-- ═══ PHOTOS ═══ --}}
     <div class="card">
-        <div class="card-title">📷 Photos terrain</div>
+        <div class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Photos terrain
+        </div>
 
         <div class="photos-indicator {{ $hasPige ? 'ok' : 'empty' }}" id="photos-indicator">
-            <span class="ic">{{ $hasPige ? '✅' : '⚠️' }}</span>
+            <span class="ic">{{ $hasPige ? '✓' : '⚠' }}</span>
             <span><strong id="photos-count">{{ $piges->count() }}</strong>
                   photo(s) {{ $hasPige ? 'transmise(s)' : '— aucune pige fournie' }}</span>
         </div>
+
+        @if(!$isFinal)
+        <div class="photos-hint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>
+                <strong>Vous pouvez ajouter plusieurs photos.</strong>
+                Uploader une photo ne termine PAS la pose — confirmez avec
+                <strong>« ✓ Pose effectuée »</strong> en bas une fois prêt.
+            </span>
+        </div>
+        @endif
 
         <div class="photo-thumbs" id="photo-thumbs" style="{{ $hasPige ? '' : 'display:none;' }}">
             @foreach($piges as $pige)
@@ -722,7 +808,7 @@
         @if(!$isFinal)
         <button type="button" class="photo-cta" id="btn-photo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            Prendre une photo
+            {{ $hasPige ? 'Ajouter une autre photo' : 'Prendre une photo' }}
         </button>
         <input type="file" id="photo-input"
                accept="image/*" capture="environment"
@@ -745,10 +831,11 @@
     <div class="inner">
         <button type="button" class="btn-done" id="btn-done">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-            ✓ Pose effectuée
+            Pose effectuée — Confirmer
         </button>
-        <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:6px;">
-            Confirmer une fois la bâche posée et photographiée.
+        <div style="text-align:center;font-size:11.5px;color:var(--text2);margin-top:8px;font-weight:500;line-height:1.45;">
+            Ne cliquez ici qu'une fois la bâche posée et toutes vos photos transmises.<br>
+            <span style="color:var(--text3);font-weight:400;">Cette action ferme la tâche.</span>
         </div>
     </div>
 </div>

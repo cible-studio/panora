@@ -2,21 +2,20 @@
 
 namespace App\Observers;
 
-use App\Enums\PoseTaskStatus;
 use App\Models\Pige;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Auto-transition PoseTask quand une Pige est uploadée par le technicien.
+ * Hooks Pige :
+ *   - Backfill du pose_task_id (lien legacy via panel+campaign)
+ *   - Alerte MP/admin à chaque nouvelle photo uploadée
  *
- * Workflow unifié :
- *   1. Tech upload sa photo → Pige::created
- *   2. Observer ici : la PoseTask liée bascule à COMPLETED
- *   3. Alerte MP/admin pour validation
- *
- * Si la pige est créée sans lien explicite (pose_task_id NULL), on tente
- * de la rattacher en cherchant la PoseTask (panel + campaign) — couvre
- * le cas legacy de l'ancien lien campagne.
+ * IMPORTANT : on ne marque PLUS automatiquement la PoseTask en COMPLETED
+ * sur création d'une pige. Le technicien doit confirmer explicitement
+ * la fin de la pose via le bouton "Marquer terminée" (markDone) sur la
+ * page publique — sinon une simple photo prise par erreur clôturait la
+ * tâche, et il était impossible d'uploader plusieurs photos sans que la
+ * pose repasse en re-traitement.
  */
 class PigeObserver
 {
@@ -37,42 +36,17 @@ class PigeObserver
 
     public function created(Pige $pige): void
     {
-        // Pas de PoseTask liée → rien à transitionner.
-        $poseTask = $pige->poseTask;
-        if (!$poseTask) return;
-
-        // Bascule la pose à TERMINEE si pas déjà à un statut final.
-        $finalStatuses = [
-            PoseTaskStatus::COMPLETED->value,
-            PoseTaskStatus::CANCELLED->value,
-        ];
-        $currentStatus = $poseTask->status?->value ?? $poseTask->status;
-
-        if (in_array($currentStatus, $finalStatuses, true)) {
-            return;
-        }
-
-        $poseTask->forceFill([
-            'status'  => PoseTaskStatus::COMPLETED->value,
-            'done_at' => $poseTask->done_at ?? now(),
-        ])->save();
-
-        Log::info('pose_task.auto_completed_from_pige', [
-            'pose_task_id' => $poseTask->id,
-            'pige_id'      => $pige->id,
-            'panel_id'     => $pige->panel_id,
-            'campaign_id'  => $pige->campaign_id,
-        ]);
-
-        // Alerte MP/admin : nouvelle pige à valider sur le terrain.
+        // Alerte MP/admin : nouvelle pige uploadée (pour visibilité). La
+        // PoseTask N'EST PAS basculée en COMPLETED — c'est le technicien
+        // qui décide via le bouton "Marquer terminée".
         try {
             \App\Services\AlertService::notify(
                 'avancement_pose',
-                '📸 Nouvelle pige à valider — ' . ($pige->panel?->reference ?? '#' . $pige->panel_id),
-                'Le technicien a uploadé une photo pour la pose du panneau '
+                '📸 Nouvelle photo uploadée — ' . ($pige->panel?->reference ?? '#' . $pige->panel_id),
+                'Le technicien a uploadé une photo pour le panneau '
                     . ($pige->panel?->reference ?? '#' . $pige->panel_id)
                     . ($pige->campaign ? ' (campagne « ' . $pige->campaign->name . ' »)' : '')
-                    . '. À valider depuis l\'admin.',
+                    . '.',
                 $pige,
                 ['lien' => route('admin.piges.show', $pige)]
             );
