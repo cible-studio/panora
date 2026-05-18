@@ -298,6 +298,8 @@ Route::prefix('admin')
             Route::get('map-data',         [PoseController::class, 'mapData'])        ->name('map.data');
             // Dashboard SLA : KPI métier pose/pige + top techs/communes
             Route::get('sla',              [PoseController::class, 'sla'])            ->name('sla');
+            // Calendrier hebdomadaire par technicien (planning visuel)
+            Route::get('calendar',         [PoseController::class, 'calendar'])       ->name('calendar');
 
             // ── CRUD standard ─────────────────────────────────────────
             Route::get('/',         [PoseController::class, 'index'])  ->name('index');

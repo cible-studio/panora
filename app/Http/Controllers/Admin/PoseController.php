@@ -136,6 +136,49 @@ class PoseController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // CALENDAR — Vue planning hebdomadaire par technicien
+    //
+    // Grille 7 jours × N techniciens. Chaque case = liste des poses
+    // assignées au tech à cette date. Navigation semaine précédente/
+    // suivante. Le MP voit immédiatement la charge des techs.
+    // ══════════════════════════════════════════════════════════════
+    public function calendar(Request $request)
+    {
+        // Semaine sélectionnée (lundi par défaut sur la semaine courante)
+        $weekStart = $request->filled('week')
+            ? \Carbon\Carbon::parse($request->week)->startOfWeek()
+            : now()->startOfWeek();
+        $weekEnd = $weekStart->copy()->endOfWeek();
+
+        // Tous les techniciens actifs + un slot "Non assigné"
+        $techniciens = User::where('role', 'technique')
+            ->orderBy('name')
+            ->get(['id', 'name', 'whatsapp_number']);
+
+        // Poses de la semaine (toutes statuses, on filtre côté grille)
+        $tasks = PoseTask::with(['panel:id,reference,name,commune_id', 'panel.commune:id,name', 'campaign:id,name'])
+            ->whereBetween('scheduled_at', [$weekStart, $weekEnd])
+            ->orderBy('scheduled_at')
+            ->get();
+
+        // Index : [tech_id][YYYY-MM-DD] = collection de PoseTasks
+        $grid = [];
+        foreach ($tasks as $t) {
+            $techKey = $t->assigned_user_id ?? 'none';
+            $day     = $t->scheduled_at?->format('Y-m-d');
+            if (!$day) continue;
+            $grid[$techKey][$day][] = $t;
+        }
+
+        $days = collect();
+        for ($i = 0; $i < 7; $i++) {
+            $days->push($weekStart->copy()->addDays($i));
+        }
+
+        return view('admin.poses.calendar', compact('weekStart', 'weekEnd', 'days', 'techniciens', 'grid'));
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // SLA — Dashboard performance opérationnelle pose/pige
     //
     // KPI métier :
