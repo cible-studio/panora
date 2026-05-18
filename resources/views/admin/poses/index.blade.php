@@ -290,15 +290,15 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
 <div id="bulk-bar"
      style="display:none;position:fixed;top:120px;right:20px;
             background:var(--surface);border:1px solid var(--border);border-radius:14px;
-            box-shadow:0 12px 36px rgba(0,0,0,.35);z-index:60;width:340px;max-width:95vw;
+            box-shadow:0 12px 36px rgba(0,0,0,.35);z-index:60;width:380px;max-width:95vw;
             overflow:hidden;">
 
     {{-- Drag handle (header) --}}
     <div id="bulk-drag-handle"
          style="display:flex;align-items:center;justify-content:space-between;gap:10px;
-                padding:11px 14px;background:linear-gradient(135deg,rgba(232,160,32,.10),rgba(232,160,32,.04));
-                border-bottom:1px solid var(--border);cursor:grab;user-select:none;">
-        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                padding:12px 14px;background:linear-gradient(135deg,rgba(232,160,32,.10),rgba(232,160,32,.04));
+                border-bottom:1px solid var(--border);cursor:grab;user-select:none;white-space:nowrap;">
+        <div style="display:flex;align-items:center;gap:9px;min-width:0;flex:1;">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2.5" style="flex-shrink:0">
                 <circle cx="9" cy="6"  r="1.2"/><circle cx="15" cy="6"  r="1.2"/>
                 <circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/>
@@ -306,12 +306,14 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
             </svg>
             <span id="bulk-count-badge"
                   style="background:var(--accent);color:#000;font-weight:800;font-size:12px;
-                         padding:3px 10px;border-radius:999px;line-height:1;flex-shrink:0;">0</span>
-            <span style="font-size:13px;font-weight:600;color:var(--text);">tâche(s) sélectionnée(s)</span>
+                         padding:3px 9px;border-radius:999px;line-height:1;flex-shrink:0;">0</span>
+            <span style="font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;">
+                sélectionnée(s)
+            </span>
         </div>
         <button type="button" id="bulk-clear"
                 style="background:transparent;border:none;color:var(--text3);cursor:pointer;
-                       padding:4px 8px;border-radius:6px;font-size:16px;line-height:1;"
+                       padding:4px 9px;border-radius:6px;font-size:15px;line-height:1;flex-shrink:0"
                 onmouseover="this.style.background='rgba(239,68,68,.1)';this.style.color='#ef4444'"
                 onmouseout="this.style.background='transparent';this.style.color='var(--text3)'"
                 title="Tout désélectionner">✕</button>
