@@ -106,6 +106,18 @@
                             <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">ÉCLAIRÉ</div>
                             <div style="font-weight:600;">{{ $panel->is_lit ? '💡 Oui' : 'Non' }}</div>
                         </div>
+                        <div>
+                            <div style="font-size:11px; color:var(--text3); margin-bottom:4px;">VIP</div>
+                            <div style="font-weight:600;">
+                                @if($panel->is_vip)
+                                    <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:20px;background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.3);font-size:12px;font-weight:700;">
+                                        ⭐ Oui
+                                    </span>
+                                @else
+                                    <span style="color:var(--text3);">Non</span>
+                                @endif
+                            </div>
+                        </div>
                     </div>
 
                     {{-- CARACTÉRISTIQUES TECHNIQUES --}}
