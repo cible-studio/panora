@@ -136,6 +136,119 @@ class PoseController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // SUGGEST-TECH — Suggestion intelligente d'un technicien
+    //
+    // Retourne le tech le plus pertinent pour une (ou plusieurs) pose(s)
+    // en se basant sur :
+    //   1. ZONE : qui a fait des poses dans cette commune récemment
+    //      (connaissance du terrain, économie déplacements)
+    //   2. CHARGE : qui a le moins de poses en cours / planifiées
+    //      (équilibrage et éviter la surcharge)
+    //   3. PERFORMANCE : qui a le meilleur taux de réalisation (30j)
+    //
+    // Le score combine les 3 axes (zone +0.5 / charge +0.3 / perf +0.2).
+    // Le MP reste libre de choisir un autre tech — c'est une suggestion.
+    //
+    // Endpoint AJAX : GET /admin/pose-tasks/suggest-tech?task_ids[]=…
+    // Réponse : { suggestion: {id, name, score, reason}, all: [...] }
+    // ══════════════════════════════════════════════════════════════
+    public function suggestTech(Request $request)
+    {
+        $data = $request->validate([
+            'task_ids'   => 'required|array|min:1|max:50',
+            'task_ids.*' => 'integer|exists:pose_tasks,id',
+        ]);
+
+        $tasks = PoseTask::with('panel:id,commune_id')
+            ->whereIn('id', $data['task_ids'])
+            ->get();
+
+        // Communes des panneaux concernés
+        $communeIds = $tasks->pluck('panel.commune_id')->filter()->unique()->values();
+
+        $techs = User::where('role', 'technique')
+            ->where('is_active', true)
+            ->whereNotNull('whatsapp_number')
+            ->get(['id', 'name', 'whatsapp_number']);
+
+        if ($techs->isEmpty()) {
+            return response()->json([
+                'suggestion' => null,
+                'all'        => [],
+                'message'    => 'Aucun technicien actif avec numéro WhatsApp.',
+            ]);
+        }
+
+        // Charge actuelle (poses en cours ou planifiées non finies) par tech
+        $loadByTech = \DB::table('pose_tasks')
+            ->whereIn('status', ['planifiee', 'en_cours'])
+            ->whereNotNull('assigned_user_id')
+            ->select('assigned_user_id', \DB::raw('COUNT(*) as load_count'))
+            ->groupBy('assigned_user_id')
+            ->pluck('load_count', 'assigned_user_id');
+
+        // Connaissance zone (poses réalisées sur les communes ciblées, 90j)
+        $zoneByTech = $communeIds->isEmpty()
+            ? collect()
+            : \DB::table('pose_tasks')
+                ->join('panels', 'panels.id', '=', 'pose_tasks.panel_id')
+                ->where('pose_tasks.status', 'realisee')
+                ->where('pose_tasks.done_at', '>=', now()->subDays(90))
+                ->whereIn('panels.commune_id', $communeIds)
+                ->whereNotNull('pose_tasks.assigned_user_id')
+                ->select('pose_tasks.assigned_user_id', \DB::raw('COUNT(*) as zone_count'))
+                ->groupBy('pose_tasks.assigned_user_id')
+                ->pluck('zone_count', 'assigned_user_id');
+
+        // Performance : taux réalisation 30j
+        $perfByTech = \DB::table('pose_tasks')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->whereNotNull('assigned_user_id')
+            ->select(
+                'assigned_user_id',
+                \DB::raw('SUM(CASE WHEN status = "realisee" THEN 1 ELSE 0 END) as done'),
+                \DB::raw('COUNT(*) as total')
+            )
+            ->groupBy('assigned_user_id')
+            ->get()
+            ->mapWithKeys(fn($r) => [$r->assigned_user_id => $r->total > 0 ? $r->done / $r->total : 0]);
+
+        // Normalisation et score
+        $maxZone = max($zoneByTech->max() ?: 1, 1);
+        $maxLoad = max($loadByTech->max() ?: 1, 1);
+
+        $scored = $techs->map(function ($tech) use ($zoneByTech, $loadByTech, $perfByTech, $maxZone, $maxLoad) {
+            $zone = ($zoneByTech[$tech->id] ?? 0) / $maxZone;          // 0..1
+            $load = 1 - (($loadByTech[$tech->id] ?? 0) / $maxLoad);    // 1 = tech libre, 0 = surchargé
+            $perf = $perfByTech[$tech->id] ?? 0.5;                     // 0..1, défaut neutre
+
+            $score = ($zone * 0.5) + ($load * 0.3) + ($perf * 0.2);
+
+            // Raison humaine (la plus marquante)
+            $reasons = [];
+            if (($zoneByTech[$tech->id] ?? 0) > 0)  $reasons[] = "{$zoneByTech[$tech->id]} pose(s) faite(s) dans cette zone";
+            if (($loadByTech[$tech->id] ?? 0) <= 3) $reasons[] = "tech disponible (charge faible)";
+            elseif (($loadByTech[$tech->id] ?? 0) <= 7) $reasons[] = "charge moyenne (" . ($loadByTech[$tech->id] ?? 0) . " poses en cours)";
+            if ($perf > 0.8) $reasons[] = "excellent taux de réalisation";
+
+            return [
+                'id'        => $tech->id,
+                'name'      => $tech->name,
+                'score'     => round($score * 100),
+                'load'      => (int) ($loadByTech[$tech->id] ?? 0),
+                'zone_done' => (int) ($zoneByTech[$tech->id] ?? 0),
+                'perf_pct'  => round($perf * 100),
+                'reason'    => implode(' · ', $reasons) ?: 'Tech disponible',
+            ];
+        })->sortByDesc('score')->values();
+
+        return response()->json([
+            'suggestion' => $scored->first(),
+            'all'        => $scored,
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // CALENDAR — Vue planning hebdomadaire par technicien
     //
     // Grille 7 jours × N techniciens. Chaque case = liste des poses
