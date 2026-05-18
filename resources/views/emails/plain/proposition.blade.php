@@ -11,13 +11,6 @@
     $months     = max(0.5, $fullMonths + $fraction);
     $monthsLabel = rtrim(rtrim(number_format($months, 1, ',', ''), '0'), ',');
 
-    // total_amount === null → ancienne réservation, on recompose.
-    // total_amount === 0 → choix explicite (campagne offerte) → on respecte.
-    $totalAmount = $reservation->total_amount === null
-        ? $panels->sum(fn($p) => (float) ($p['monthly_rate'] ?? 0) * $months)
-        : (float) $reservation->total_amount;
-    $hasAmount = $reservation->total_amount !== null;
-    $isOffert  = $hasAmount && $totalAmount === 0.0;
 @endphp
 @php $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')); @endphp
 PANORA · {{ $operator }} — Régie Publicitaire (Abidjan, Côte d'Ivoire)
@@ -32,10 +25,8 @@ Détails :
 - Période      : {{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}
 - Durée        : {{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }} ({{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }})
 - Emplacements : {{ $panelCount }} panneau{{ $panelCount > 1 ? 'x' : '' }}
-@if($hasAmount)
-- Montant total : @if($isOffert)0 FCFA — Offert (campagne offerte par {{ $operator }})@else{{ number_format($totalAmount, 0, ',', ' ') }} FCFA (pour la totalité de la campagne)@endif
 
-@endif
+Le tarif et les conditions complètes sont disponibles sur la page de la proposition.
 
 Consulter et répondre : {{ $lien }}
 

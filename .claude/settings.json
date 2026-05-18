@@ -87,7 +87,8 @@
       "Bash(php -l resources/views/admin/piges/index.blade.php)",
       "Bash(php -l app/Services/PigeService.php)",
       "Bash(php -l resources/views/admin/poses/sla.blade.php)",
-      "Bash(php -l resources/views/admin/poses/calendar.blade.php)"
+      "Bash(php -l resources/views/admin/poses/calendar.blade.php)",
+      "Bash(php -l resources/views/admin/panels/index.blade.php)"
     ]
   }
 }

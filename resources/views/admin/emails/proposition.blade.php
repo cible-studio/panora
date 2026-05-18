@@ -30,10 +30,7 @@
     $hasAmount = $reservation->total_amount !== null;
     $isOffert  = $hasAmount && $totalAmount === 0.0;
 
-    $preheader = "{$panelCount} emplacements · {$totalDays} jour" . ($totalDays > 1 ? 's' : '')
-        . ($hasAmount
-            ? ' · ' . ($isOffert ? 'Offert' : number_format($totalAmount, 0, ',', ' ') . ' FCFA')
-            : '');
+    $preheader = "{$panelCount} emplacements · {$totalDays} jour" . ($totalDays > 1 ? 's' : '');
 @endphp
 
 <x-mail.layout title="Proposition commerciale" :preheader="$preheader">
@@ -65,25 +62,6 @@
             <div class="lbl">Emplacements</div>
             <div class="val">{{ $panelCount }} panneau{{ $panelCount > 1 ? 'x' : '' }}</div>
         </div>
-        @if($hasAmount)
-            <div class="info-row">
-                <div class="lbl">{{ $isOffert ? 'Montant total' : 'Montant total à payer' }}</div>
-                <div class="val">
-                    @if($isOffert)
-                        <strong style="color:#16a34a;font-size:16px">0 FCFA</strong>
-                        <span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#dcfce7;color:#16a34a;letter-spacing:.4px;margin-left:6px;">OFFERT</span>
-                        <div style="font-size:11px;color:#6b7280;margin-top:2px">
-                            Campagne offerte par CIBLE CI ({{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }})
-                        </div>
-                    @else
-                        <strong style="color:#c2570d;font-size:16px">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</strong>
-                        <div style="font-size:11px;color:#6b7280;margin-top:2px">
-                            Pour la totalité de la campagne ({{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }})
-                        </div>
-                    @endif
-                </div>
-            </div>
-        @endif
     </div>
 
     @if($panels->count() > 0)
@@ -122,17 +100,11 @@
                                 📍 {{ $row['commune'] }}
                             </div>
                         </td>
-                        <td style="padding:11px 16px;text-align:right;vertical-align:top;white-space:nowrap;">
-                            @if($row['total'] > 0)
-                                <div style="font-size:13px;color:#111827;font-weight:600;">{{ number_format($row['total'], 0, ',', ' ') }} FCFA</div>
-                                <div style="font-size:11px;color:#9ca3af;">période</div>
-                            @endif
-                        </td>
                     </tr>
                 @endforeach
                 @if($grouped->count() > 8)
                     <tr style="border-top:1px solid #f1f5f9;background:#f9fafb;">
-                        <td colspan="2" style="padding:10px 16px;font-size:12px;color:#6b7280;text-align:center;">
+                        <td style="padding:10px 16px;font-size:12px;color:#6b7280;text-align:center;">
                             + {{ $grouped->count() - 8 }} autres regroupements géographiques
                         </td>
                     </tr>
@@ -148,10 +120,6 @@
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
                    style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:8px 0 18px;">
                 @foreach($panels->take(5) as $i => $panel)
-                    @php
-                        $unit  = (float) ($panel['monthly_rate'] ?? 0);
-                        $total = (float) ($panel['total'] ?? ($unit * $months));
-                    @endphp
                     <tr style="{{ $i > 0 ? 'border-top:1px solid #f1f5f9;' : '' }}">
                         <td style="padding:12px 16px;">
                             <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#c2570d;font-weight:600;">{{ $panel['reference'] }}</div>
@@ -161,33 +129,19 @@
                                 @if(!empty($panel['format']) && $panel['format'] !== '—') · {{ $panel['format'] }} @endif
                             </div>
                         </td>
-                        <td style="padding:12px 16px;text-align:right;vertical-align:top;white-space:nowrap;">
-                            @if($total > 0)
-                                <div style="font-size:14px;color:#111827;font-weight:700;">{{ number_format($total, 0, ',', ' ') }} FCFA</div>
-                                <div style="font-size:11px;color:#9ca3af;">total période</div>
-                                @if($unit > 0)
-                                    <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-                                        {{ number_format($unit, 0, ',', ' ') }} FCFA/mois
-                                    </div>
-                                @endif
-                            @else
-                                <div style="font-size:14px;color:#16a34a;font-weight:700;">0 FCFA</div>
-                                <div style="font-size:11px;color:#16a34a;font-weight:600;letter-spacing:.4px;">OFFERT</div>
-                            @endif
-                        </td>
                     </tr>
                 @endforeach
                 @if($panels->count() > 5)
                     <tr style="border-top:1px solid #f1f5f9;background:#f9fafb;">
-                        <td colspan="2" style="padding:10px 16px;font-size:12px;color:#6b7280;text-align:center;">
+                        <td style="padding:10px 16px;font-size:12px;color:#6b7280;text-align:center;">
                             + {{ $panels->count() - 5 }} autre{{ $panels->count() - 5 > 1 ? 's' : '' }} emplacement{{ $panels->count() - 5 > 1 ? 's' : '' }} —
-                            détails complets sur la page de la proposition.
+                            liste complète sur la page de la proposition.
                         </td>
                     </tr>
                 @endif
             </table>
             <p style="font-size:12px;color:#6b7280;margin:8px 0 18px;">
-                ℹ️ Le total prend en compte la durée réelle de votre campagne ({{ $totalDays }} jour{{ $totalDays > 1 ? 's' : '' }} = {{ $monthsLabel }} mois facturé{{ $months > 1 ? 's' : '' }}).
+                ℹ️ Le tarif et les conditions complètes sont disponibles sur la page de la proposition.
             </p>
         @endif
     @endif
