@@ -81,7 +81,8 @@
       "Bash(php -l database/migrations/2026_05_13_165323_add_pose_task_id_to_piges_table.php)",
       "Bash(php -l resources/views/emails/campaign-started.blade.php)",
       "Bash(php -l resources/views/admin/poses/index.blade.php)",
-      "Bash(php -l resources/views/admin/poses/partials/table-rows.blade.php)"
+      "Bash(php -l resources/views/admin/poses/partials/table-rows.blade.php)",
+      "Bash(php -l resources/views/admin/poses/map.blade.php)"
     ]
   }
 }

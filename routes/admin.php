@@ -293,6 +293,9 @@ Route::prefix('admin')
             Route::get('progress',         [PoseController::class, 'progress'])       ->name('progress');
             // Actions groupées (sélection multiple)
             Route::post('bulk-update',     [PoseController::class, 'bulkUpdate'])     ->name('bulk-update');
+            // Carte GPS des poses (markers colorés par statut)
+            Route::get('map',              [PoseController::class, 'map'])            ->name('map');
+            Route::get('map-data',         [PoseController::class, 'mapData'])        ->name('map.data');
 
             // ── CRUD standard ─────────────────────────────────────────
             Route::get('/',         [PoseController::class, 'index'])  ->name('index');
