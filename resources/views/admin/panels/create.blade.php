@@ -89,18 +89,109 @@
                         </div>
                         <div class="mfg">
                             <label>Catégorie</label>
-                            <select name="category_id">
-                                <option value="">— Aucune —</option>
+                            <select name="category_id" id="ref-category">
+                                <option value="">— Aucune (Classique) —</option>
                                 @foreach($categories as $cat)
                                     @continue(strcasecmp($cat->name, 'VIP') === 0)
                                 <option value="{{ $cat->id }}"
                                     {{ old('category_id') == $cat->id ? 'selected' : '' }}>
-                                    {{ $cat->name }}
+                                    {{ $cat->name }}@if($cat->code) ({{ $cat->code }})@endif
                                 </option>
                                 @endforeach
                             </select>
                         </div>
                     </div>
+
+                    {{-- RÉFÉRENCE — auto-générée, modifiable manuellement --}}
+                    <div class="section-label">Référence</div>
+
+                    <div class="form-2col" style="align-items:end;">
+                        <div class="mfg" style="margin-bottom:0;">
+                            <label>Face du support</label>
+                            <select name="face" id="ref-face">
+                                <option value=""  {{ old('face')==''  ? 'selected' : '' }}>— Aucune (panneau simple) —</option>
+                                <option value="A" {{ old('face')=='A' ? 'selected' : '' }}>A · Face</option>
+                                <option value="B" {{ old('face')=='B' ? 'selected' : '' }}>B · Dos</option>
+                                <option value="C" {{ old('face')=='C' ? 'selected' : '' }}>C · Trivision 3e face</option>
+                                <option value="D" {{ old('face')=='D' ? 'selected' : '' }}>D · Trivision 4e face</option>
+                            </select>
+                            <div style="font-size:11px;color:var(--text3);margin-top:4px;">
+                                Chaque face d'un panneau multi-faces (recto/verso, trivision) est enregistrée
+                                séparément. Créez d'abord la face A, puis la face B au prochain enregistrement.
+                            </div>
+                        </div>
+
+                        <div class="mfg" style="margin-bottom:0;">
+                            <label>Référence du panneau</label>
+                            <input type="text" name="reference" id="ref-input"
+                                   value="{{ old('reference') }}"
+                                   placeholder="Sera générée automatiquement"
+                                   maxlength="32"
+                                   style="font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;font-size:15px;letter-spacing:.5px;text-transform:uppercase;color:#c2570d;"
+                                   class="{{ $errors->has('reference') ? 'error' : '' }}">
+                            <div id="ref-hint" style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.4;">
+                                Choisissez la commune, la catégorie et la face — la référence se met à jour ici.
+                            </div>
+                            @error('reference')
+                                <div class="field-error">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+
+                    <script>
+                    (function() {
+                        const communeSel  = document.querySelector('select[name=commune_id]');
+                        const categorySel = document.getElementById('ref-category');
+                        const faceSel     = document.getElementById('ref-face');
+                        const refInput    = document.getElementById('ref-input');
+                        const refHint     = document.getElementById('ref-hint');
+                        const URL_GEN     = "{{ route('admin.panels.generate-reference') }}";
+
+                        // Un utilisateur qui a saisi manuellement ne doit pas être
+                        // écrasé. On suit la dernière valeur auto-générée et on
+                        // ne remplace que si l'input correspond toujours à elle.
+                        let lastAuto = refInput.value.trim();
+
+                        async function refresh() {
+                            if (!communeSel.value) {
+                                refHint.textContent = "Sélectionnez d'abord une commune.";
+                                return;
+                            }
+                            const params = new URLSearchParams({
+                                commune_id: communeSel.value,
+                                category_id: categorySel.value || '',
+                                face: faceSel.value || '',
+                            });
+                            try {
+                                const r = await fetch(URL_GEN + '?' + params.toString(), {
+                                    headers: { 'Accept':'application/json' }
+                                });
+                                if (!r.ok) throw new Error('http ' + r.status);
+                                const d = await r.json();
+                                const current = refInput.value.trim();
+                                // Si l'utilisateur n'a pas modifié manuellement,
+                                // on remplace par la nouvelle valeur auto.
+                                if (current === '' || current === lastAuto) {
+                                    refInput.value = d.reference;
+                                    lastAuto = d.reference;
+                                }
+                                let warn = '';
+                                if (d.commune_is_fallback)  warn += ' Code commune auto-dérivé (' + d.commune_code + ').';
+                                if (d.category_is_fallback) warn += ' Code catégorie auto-dérivé (' + d.category_code + ').';
+                                refHint.innerHTML = '✓ Référence proposée à partir des choix actuels.'
+                                    + (warn ? '<br><span style="color:#f59e0b;">⚠' + warn + ' Vous pouvez modifier la référence ci-dessus si besoin.</span>' : '');
+                            } catch (e) {
+                                refHint.textContent = "Génération impossible (réseau). Saisissez la référence manuellement.";
+                            }
+                        }
+
+                        communeSel.addEventListener('change', refresh);
+                        categorySel.addEventListener('change', refresh);
+                        faceSel.addEventListener('change', refresh);
+                        // Au chargement, si commune déjà sélectionnée (errors), on calcule.
+                        if (communeSel.value) refresh();
+                    })();
+                    </script>
 
                     {{-- CARACTÉRISTIQUES TECHNIQUES --}}
                     <div class="section-label">Caractéristiques techniques</div>

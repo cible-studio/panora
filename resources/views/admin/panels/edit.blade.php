@@ -68,15 +68,82 @@
                     </div>
                     <div class="mfg">
                         <label>Catégorie</label>
-                        <select name="category_id">
-                            <option value="">— Aucune —</option>
+                        <select name="category_id" id="ref-category">
+                            <option value="">— Aucune (Classique) —</option>
                             @foreach($categories as $cat)
                                 @continue(strcasecmp($cat->name, 'VIP') === 0)
-                            <option value="{{ $cat->id }}" {{ old('category_id', $panel->category_id) == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                            <option value="{{ $cat->id }}" {{ old('category_id', $panel->category_id) == $cat->id ? 'selected' : '' }}>{{ $cat->name }}@if($cat->code) ({{ $cat->code }})@endif</option>
                             @endforeach
                         </select>
                     </div>
                 </div>
+
+                {{-- RÉFÉRENCE — éditable, contrôle d'unicité côté serveur --}}
+                <div class="section-label">Référence</div>
+
+                <div class="mfg">
+                    <label>Référence du panneau *</label>
+                    <input type="text" name="reference" id="ref-input"
+                           value="{{ old('reference', $panel->reference) }}"
+                           maxlength="32"
+                           required
+                           style="font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;font-size:15px;letter-spacing:.5px;text-transform:uppercase;color:#c2570d;"
+                           class="{{ $errors->has('reference') ? 'error' : '' }}">
+                    <div id="ref-hint" style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.4;">
+                        Format recommandé : <code>{COMMUNE}{CATÉGORIE}-{NN}{FACE}</code> — ex. <code>PBTCAIS-05A</code>.
+                        L'unicité est vérifiée à l'enregistrement.
+                        <button type="button" id="ref-regen" style="background:none;border:none;color:#c2570d;cursor:pointer;text-decoration:underline;font-size:11px;padding:0;margin-left:6px;">
+                            Recalculer auto
+                        </button>
+                    </div>
+                    @error('reference')
+                        <div class="field-error">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <script>
+                (function() {
+                    const communeSel  = document.querySelector('select[name=commune_id]');
+                    const categorySel = document.getElementById('ref-category');
+                    const refInput    = document.getElementById('ref-input');
+                    const refHint     = document.getElementById('ref-hint');
+                    const regenBtn    = document.getElementById('ref-regen');
+                    const URL_GEN     = "{{ route('admin.panels.generate-reference') }}";
+                    const EXCLUDE_ID  = {{ $panel->id }};
+
+                    async function regen(face) {
+                        if (!communeSel.value) return;
+                        const params = new URLSearchParams({
+                            commune_id: communeSel.value,
+                            category_id: categorySel.value || '',
+                            face: face || '',
+                            exclude_id: EXCLUDE_ID,
+                        });
+                        try {
+                            const r = await fetch(URL_GEN + '?' + params.toString(), {
+                                headers: { 'Accept':'application/json' }
+                            });
+                            if (!r.ok) throw new Error('http ' + r.status);
+                            const d = await r.json();
+                            refInput.value = d.reference;
+                            let warn = '';
+                            if (d.commune_is_fallback)  warn += ' Code commune dérivé du nom (' + d.commune_code + ').';
+                            if (d.category_is_fallback) warn += ' Code catégorie dérivé du nom (' + d.category_code + ').';
+                            refHint.innerHTML = '✓ Référence proposée.'
+                                + (warn ? ' <span style="color:#f59e0b;">⚠' + warn + '</span>' : '')
+                                + ' <button type="button" id="ref-regen" style="background:none;border:none;color:#c2570d;cursor:pointer;text-decoration:underline;font-size:11px;padding:0;margin-left:6px;">Recalculer auto</button>';
+                            document.getElementById('ref-regen').addEventListener('click', () => regen());
+                        } catch (e) {
+                            refHint.textContent = "Génération impossible (réseau). Saisissez manuellement.";
+                        }
+                    }
+                    regenBtn.addEventListener('click', () => {
+                        // En edit, on tente de détecter la face depuis la réf actuelle (suffix A-D).
+                        const m = refInput.value.trim().match(/([A-D])$/i);
+                        regen(m ? m[1].toUpperCase() : '');
+                    });
+                })();
+                </script>
 
                 <div class="section-label">Caractéristiques techniques</div>
 

@@ -10,7 +10,7 @@ class PanelCategory extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 'description'
+        'name', 'code', 'description'
     ];
 
     public function panels()

@@ -21,6 +21,7 @@ use Illuminate\Support\Str;
 
 use App\Services\PdfExportService;
 use App\Services\AlertService;
+use App\Services\PanelReferenceGenerator;
 
 class PanelController extends Controller
 {
@@ -210,16 +211,49 @@ class PanelController extends Controller
         ));
     }
 
+    // ── APERÇU LIVE DE LA RÉFÉRENCE (AJAX) ──
+    //
+    // Endpoint appelé par la vue create / edit pour afficher la
+    // référence calculée sans recharger la page. Retourne aussi des
+    // flags pour signaler à l'UI si un code commune/catégorie a dû
+    // être dérivé (= invitation à le saisir manuellement dans
+    // /admin/communes ou /admin/panel-categories).
+    public function generateReference(Request $request, PanelReferenceGenerator $refGen)
+    {
+        $request->validate([
+            'commune_id'  => 'required|exists:communes,id',
+            'category_id' => 'nullable|exists:panel_categories,id',
+            'face'        => 'nullable|in:A,B,C,D',
+            'exclude_id'  => 'nullable|integer',
+        ]);
+
+        $commune  = Commune::find($request->commune_id);
+        $category = $request->category_id
+            ? PanelCategory::find($request->category_id)
+            : null;
+
+        $preview = $refGen->preview(
+            $commune,
+            $category,
+            $request->face,
+            $request->exclude_id ? (int) $request->exclude_id : null,
+        );
+
+        return response()->json($preview);
+    }
+
     // ── SAUVEGARDER ──
-    public function store(Request $request)
+    public function store(Request $request, PanelReferenceGenerator $refGen)
     {
         $request->validate([
             'name' => 'required|string|max:150',
+            'reference' => 'nullable|string|max:32|unique:panels,reference',
             'photos.*' => 'nullable|image|max:35840',// 35MB max
             'commune_id' => 'required|exists:communes,id',
             'zone_id' => 'nullable|exists:zones,id',
             'format_id' => 'required|exists:panel_formats,id',
             'category_id' => 'nullable|exists:panel_categories,id',
+            'face' => 'nullable|in:A,B,C,D',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'monthly_rate' => 'nullable|numeric|min:0',
@@ -229,11 +263,30 @@ class PanelController extends Controller
             'zone_description' => 'nullable|string',
         ]);
 
-        // Générer référence automatique
-        $reference = 'P-' . strtoupper(Str::random(3)) . '-' . rand(100, 999);
+        // Référence :
+        //   - Si l'utilisateur a saisi une valeur manuellement, on l'utilise.
+        //   - Sinon, on la génère selon le pattern {COMMUNE}{CAT}-{NN}{FACE}.
+        $reference = $request->filled('reference')
+            ? strtoupper(trim($request->reference))
+            : $refGen->generate(
+                Commune::findOrFail($request->commune_id),
+                $request->category_id ? PanelCategory::find($request->category_id) : null,
+                $request->face,
+            );
+
+        // Double-vérification anti-doublon (race condition possible si
+        // 2 créations simultanées) : si la ref proposée est déjà prise,
+        // on régénère.
+        if (!$refGen->isAvailable($reference)) {
+            $reference = $refGen->generate(
+                Commune::findOrFail($request->commune_id),
+                $request->category_id ? PanelCategory::find($request->category_id) : null,
+                $request->face,
+            );
+        }
 
         $panel = Panel::create([
-            ...$request->except('_token'),
+            ...$request->except(['_token', 'face', 'reference']),
             'reference' => $reference,
             'status' => PanelStatus::LIBRE,
             'created_by' => auth()->id(),
@@ -382,6 +435,12 @@ class PanelController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:150',
+            'reference' => [
+                'required',
+                'string',
+                'max:32',
+                \Illuminate\Validation\Rule::unique('panels', 'reference')->ignore($panel->id),
+            ],
             'commune_id' => 'required|exists:communes,id',
             'zone_id' => 'nullable|exists:zones,id',
             'format_id' => 'required|exists:panel_formats,id',
@@ -402,6 +461,7 @@ class PanelController extends Controller
 
         $panel->update([
             'name' => $request->name,
+            'reference' => strtoupper(trim($request->reference)),
             'commune_id' => $request->commune_id,
             'zone_id' => $request->zone_id,
             'format_id' => $request->format_id,
