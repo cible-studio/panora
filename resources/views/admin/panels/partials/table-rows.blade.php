@@ -38,25 +38,27 @@
                 'confirme' => 'badge-blue', 'occupe' => 'badge-purple',
                 default => 'badge-red',
             };
-            $statusLabel = match($statusVal) {
-                'libre' => 'Libre', 'option' => 'Option', 'confirme' => 'Confirmé',
-                'occupe' => 'Occupé', default => 'Maintenance',
-            };
+            // Labels courts pour tenir dans la cellule (cf. PanelStatus::shortLabel)
+            $statusLabel = $panel->status->shortLabel();
+            // Tooltip explicatif = description longue de l'enum
+            $statusDesc  = $panel->status->uiConfig()['description'] ?? '';
             // Seuls libre et maintenance sont basculables manuellement —
             // les autres statuts sont dérivés des réservations/campagnes
             // (voir AvailabilityService::syncPanelStatuses).
             $canToggleMaintenance = in_array($statusVal, ['libre', 'maintenance']);
+            // URL "Voir disponibilité" pour comprendre ce qui bloque
+            $availabilityUrl = route('admin.panels.availability', $panel);
         @endphp
         @if($canToggleMaintenance)
             <div class="panel-status-wrap" data-panel-id="{{ $panel->id }}" style="position:relative;display:inline-block;">
                 <button type="button" class="badge {{ $statusBadgeClass }} panel-status-trigger"
                         onclick="PanelStatus.toggleMenu({{ $panel->id }})"
-                        title="Cliquer pour gérer la maintenance"
+                        title="{{ $statusDesc }}{{ $statusVal === 'libre' ? ' · Cliquer pour gérer la maintenance' : ' · Cliquer pour sortir de maintenance' }}"
                         style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit;">
                     <span class="panel-status-label">{{ $statusLabel }}</span>
                     <span style="font-size:9px;opacity:.7;">▾</span>
                 </button>
-                <div class="panel-status-menu" id="panel-menu-{{ $panel->id }}" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px;min-width:180px;z-index:100;box-shadow:0 6px 20px rgba(0,0,0,.15);">
+                <div class="panel-status-menu" id="panel-menu-{{ $panel->id }}" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px;min-width:200px;z-index:100;box-shadow:0 6px 20px rgba(0,0,0,.15);">
                     @if($statusVal === 'libre')
                         <button type="button" class="panel-status-action" data-status="maintenance"
                                 onclick="PanelStatus.set({{ $panel->id }}, 'maintenance')"
@@ -72,10 +74,21 @@
                             ✅ Sortir de maintenance
                         </button>
                     @endif
+                    <a href="{{ $availabilityUrl }}"
+                       style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;text-decoration:none;border-radius:6px;font-size:12px;color:var(--text2);border-top:1px solid var(--border);margin-top:4px"
+                       onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='none'">
+                        📅 Voir disponibilité
+                    </a>
                 </div>
             </div>
         @else
-            <span class="badge {{ $statusBadgeClass }}" title="Statut dérivé des réservations/campagnes — non modifiable manuellement">{{ $statusLabel }}</span>
+            {{-- Statut auto (option/confirme/occupe) : badge cliquable qui pointe
+                 vers la fiche disponibilité pour comprendre qui bloque. --}}
+            <a href="{{ $availabilityUrl }}" class="badge {{ $statusBadgeClass }}"
+               title="{{ $statusDesc }} · Cliquer pour voir quelle réservation/campagne bloque ce panneau"
+               style="text-decoration:none;cursor:pointer">
+                {{ $statusLabel }}
+            </a>
         @endif
         @if(($showOccupants ?? false) && $panel->relationLoaded('campaigns') && $panel->campaigns->isNotEmpty())
             @php $occ = $panel->campaigns->first(); @endphp

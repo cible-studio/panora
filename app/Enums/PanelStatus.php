@@ -15,15 +15,29 @@ enum PanelStatus: string
     {
         return match($this) {
             self::LIBRE       => 'Libre',
-            self::OPTION      => 'En option',
-            self::CONFIRME    => 'Confirmé',
-            self::OCCUPE      => 'Occupé',
+            self::OPTION      => 'Réservé · Option',
+            self::CONFIRME    => 'Réservé · Ferme',
+            self::OCCUPE      => 'Affichage en cours',
             self::MAINTENANCE => 'Maintenance',
         };
     }
 
     /**
-     * Configuration UI pour l'affichage (couleurs, icônes)
+     * Label court (pour les espaces restreints : table compacte, mobile)
+     */
+    public function shortLabel(): string
+    {
+        return match($this) {
+            self::LIBRE       => 'Libre',
+            self::OPTION      => 'Option',
+            self::CONFIRME    => 'Ferme',
+            self::OCCUPE      => 'En affichage',
+            self::MAINTENANCE => 'Maintenance',
+        };
+    }
+
+    /**
+     * Configuration UI pour l'affichage (couleurs, icônes, description courte)
      */
     public function uiConfig(): array
     {
@@ -33,35 +47,35 @@ enum PanelStatus: string
                 'color'       => '#22c55e',
                 'bg'          => 'rgba(34,197,94,0.08)',
                 'border'      => 'rgba(34,197,94,0.3)',
-                'description' => 'Panneau disponible à la réservation',
+                'description' => 'Disponible à la réservation — aucun blocage en cours.',
             ],
             self::OCCUPE => [
                 'icon'        => '🔴',
                 'color'       => '#ef4444',
                 'bg'          => 'rgba(239,68,68,0.08)',
                 'border'      => 'rgba(239,68,68,0.3)',
-                'description' => 'Panneau actuellement occupé par une campagne',
+                'description' => 'Affichage physique en cours sur le terrain (campagne active).',
             ],
             self::OPTION => [
                 'icon'        => '⏳',
                 'color'       => '#f59e0b',
                 'bg'          => 'rgba(245,158,11,0.08)',
                 'border'      => 'rgba(245,158,11,0.3)',
-                'description' => 'Panneau en option — réservation temporaire',
+                'description' => 'Réservation en option — en attente de confirmation client (réversible).',
             ],
             self::CONFIRME => [
                 'icon'        => '🔒',
                 'color'       => '#8b5cf6',
                 'bg'          => 'rgba(139,92,246,0.08)',
                 'border'      => 'rgba(139,92,246,0.3)',
-                'description' => 'Panneau confirmé pour une réservation ferme',
+                'description' => 'Réservation ferme signée par le client — campagne planifiée.',
             ],
             self::MAINTENANCE => [
                 'icon'        => '🔧',
                 'color'       => '#6b7280',
                 'bg'          => 'rgba(107,114,128,0.08)',
                 'border'      => 'rgba(107,114,128,0.3)',
-                'description' => 'Panneau en maintenance — intervention en cours',
+                'description' => 'Intervention technique en cours — indisponible jusqu\'à résolution.',
             ],
         };
     }
