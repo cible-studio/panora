@@ -55,14 +55,6 @@
             <div class="lbl">Emplacements</div>
             <div class="val">{{ $panelCount }} panneau{{ $panelCount > 1 ? 'x' : '' }}</div>
         </div>
-        @if($totalAmount > 0)
-            <div class="info-row">
-                <div class="lbl">Montant total</div>
-                <div class="val">
-                    <strong style="color:#c2570d;font-size:16px">{{ number_format($totalAmount, 0, ',', ' ') }} FCFA</strong>
-                </div>
-            </div>
-        @endif
         <div class="info-row">
             <div class="lbl">Expire le</div>
             <div class="val">
