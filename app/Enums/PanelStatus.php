@@ -11,29 +11,30 @@ enum PanelStatus: string
     case CONFIRME    = 'confirme';
     case MAINTENANCE = 'maintenance';
     
+    /**
+     * Label par défaut — court et clair pour cohérence dans toute l'app.
+     * Décision UX (feedback terrain) : on évite les libellés à rallonge
+     * type "Réservé · Ferme" qui n'apportent pas plus d'info qu'un mot
+     * unique mais brouillent la lecture en table compacte.
+     */
     public function label(): string
     {
         return match($this) {
             self::LIBRE       => 'Libre',
-            self::OPTION      => 'Réservé · Option',
-            self::CONFIRME    => 'Réservé · Ferme',
-            self::OCCUPE      => 'Affichage en cours',
+            self::OPTION      => 'Option',
+            self::CONFIRME    => 'Réservé',
+            self::OCCUPE      => 'En affichage',
             self::MAINTENANCE => 'Maintenance',
         };
     }
 
     /**
-     * Label court (pour les espaces restreints : table compacte, mobile)
+     * Label court (alias de label() — conservé pour rétrocompat des
+     * vues qui appelaient shortLabel() explicitement).
      */
     public function shortLabel(): string
     {
-        return match($this) {
-            self::LIBRE       => 'Libre',
-            self::OPTION      => 'Option',
-            self::CONFIRME    => 'Ferme',
-            self::OCCUPE      => 'En affichage',
-            self::MAINTENANCE => 'Maintenance',
-        };
+        return $this->label();
     }
 
     /**
