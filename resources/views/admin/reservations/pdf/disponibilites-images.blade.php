@@ -87,13 +87,15 @@
         text-align: center;
         margin-bottom: 14px;
     }
+    /* DomPDF préserve le ratio uniquement avec max-width + max-height
+       (et SANS width/height/object-fit forcés, qui causent l'écrasement
+       horizontal). L'image grandit autant que possible en respectant
+       les deux bornes ET son ratio natif. */
     .photo-wrap img {
-        width: 100%;
+        max-width: 100%;
         max-height: 460px;
-        height: auto;
         border: 1px solid #e5e7eb;
         border-radius: 6px;
-        object-fit: cover;
     }
     .photo-empty {
         display: block;

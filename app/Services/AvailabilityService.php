@@ -679,48 +679,93 @@ class AvailabilityService
     // ── 7. Vérification rapide sans chargement modèle ────────────
     /**
      * Détecte les conflits ACTIFS actuellement en BD (panneaux engagés
-     * sur 2+ entités — réservations et/ou campagnes — chevauchantes).
+     * sur 2+ entités — réservations et/ou campagnes — qui se chevauchent
+     * RÉELLEMENT en tenant compte du démarrage différé par panneau).
      *
-     * Utilisé par la page admin "Conflits détectés" pour résolution
-     * rétroactive. Ne corrige rien — liste les cas pour qu'un humain
-     * décide quelle entité garder.
+     * Date EFFECTIVE prise en compte :
+     *   - Réservation : `COALESCE(panel_start_date, reservation.start_date)`
+     *   - Campagne    : `COALESCE(rp.panel_start_date, campaign.start_date)`
+     *     (lookup `reservation_panels` via campaign.reservation_id)
      *
-     * Retourne un array de groupes [
-     *   'panel_id'   => int,
-     *   'reference'  => string,
-     *   'engagements'=> array<{
-     *      type: 'reservation'|'campaign',
-     *      id: int,
-     *      ref: string,        // référence ou nom
-     *      client: ?string,
-     *      start: string,
-     *      end: string,
-     *      status: string,
-     *   }>
-     * ]
-     * Un groupe = 1 panneau avec ≥ 2 engagements qui se chevauchent.
+     * Sans ce COALESCE, une résa du 19→22 sur le même panneau qu'une résa
+     * du 19→21 serait flaguée — alors qu'avec un panel_start_date=22 sur
+     * la 2e, elles ne se chevauchent PAS réellement (panneau démarre
+     * après la libération de la 1re).
+     *
+     * Optimisation : pré-filtre SQL des panneaux ayant ≥ 2 engagements
+     * (UNION ALL + GROUP BY + HAVING). Évite de tirer 10 000 lignes
+     * d'engagements quand seuls quelques panneaux sont en conflit.
+     *
+     * Retourne :
+     *   [
+     *     'panel_id'   => int,
+     *     'reference'  => string,
+     *     'engagements'=> [{
+     *        type, id, ref, client, start (effective), end, status,
+     *        deferred: bool  // true si panel_start_date écrase start_date
+     *     }]
+     *   ]
      */
     public function detectActiveConflicts(): array
     {
-        // Récupère TOUS les engagements actifs (résa bloquante ou campagne
-        // bloquante). On groupe ensuite par panel et on détecte les
-        // chevauchements (paire-à-paire si nécessaire).
+        // ── ÉTAPE 1 — Pré-filtre SQL : panneaux à ≥ 2 engagements ─────
+        // Évite de charger tous les engagements actifs en mémoire si
+        // 99 % des panneaux n'en ont qu'un seul (cas normal).
+        $candidateIds = DB::query()
+            ->fromSub(function ($q) {
+                $q->from('reservation_panels')
+                  ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                  ->where('reservation_panels.source', 'interne')
+                  ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+                  ->select('reservation_panels.panel_id')
+                  ->unionAll(
+                      DB::table('campaign_panels')
+                          ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                          ->where('campaign_panels.type', 'interne')
+                          ->whereIn('campaigns.status', self::BLOCKING_CAMPAIGN_STATUSES)
+                          ->whereNull('campaigns.deleted_at')
+                          ->select('campaign_panels.panel_id')
+                  );
+            }, 'engagements')
+            ->select('panel_id')
+            ->groupBy('panel_id')
+            ->havingRaw('COUNT(*) >= 2')
+            ->pluck('panel_id')
+            ->all();
+
+        if (empty($candidateIds)) return [];
+
+        // ── ÉTAPE 2 — Détails des engagements pour ces panneaux ──────
+        // On utilise COALESCE pour calculer la date EFFECTIVE de
+        // démarrage de chaque engagement (panel_start_date prime).
         $resas = DB::table('reservation_panels as rp')
             ->join('reservations as r', 'r.id', '=', 'rp.reservation_id')
+            ->whereIn('rp.panel_id', $candidateIds)
             ->where('rp.source', 'interne')
             ->whereIn('r.status', self::BLOCKING_STATUSES)
             ->select('rp.panel_id',
                      'r.id as eid',
                      'r.reference as ref',
                      'r.client_id',
-                     'r.start_date',
+                     DB::raw('COALESCE(rp.panel_start_date, r.start_date) as effective_start'),
+                     'r.start_date as original_start',
                      'r.end_date',
                      'r.status',
                      DB::raw("'reservation' as type"))
             ->get();
 
+        // Pour les campagnes, le panel_start_date n'est PAS stocké
+        // dans campaign_panels (qui n'a pas cette colonne) — il vit
+        // dans reservation_panels via campaign.reservation_id. LEFT JOIN
+        // pour retomber sur campaign.start_date si pas de pivot trouvé.
         $camps = DB::table('campaign_panels as cp')
             ->join('campaigns as c', 'c.id', '=', 'cp.campaign_id')
+            ->leftJoin('reservation_panels as rpc', function ($j) {
+                $j->on('rpc.reservation_id', '=', 'c.reservation_id')
+                  ->on('rpc.panel_id', '=', 'cp.panel_id')
+                  ->where('rpc.source', '=', 'interne');
+            })
+            ->whereIn('cp.panel_id', $candidateIds)
             ->where('cp.type', 'interne')
             ->whereIn('c.status', self::BLOCKING_CAMPAIGN_STATUSES)
             ->whereNull('c.deleted_at')
@@ -728,7 +773,8 @@ class AvailabilityService
                      'c.id as eid',
                      'c.name as ref',
                      'c.client_id',
-                     'c.start_date',
+                     DB::raw('COALESCE(rpc.panel_start_date, c.start_date) as effective_start'),
+                     'c.start_date as original_start',
                      'c.end_date',
                      'c.status',
                      DB::raw("'campaign' as type"))
@@ -736,27 +782,27 @@ class AvailabilityService
 
         $all = $resas->concat($camps)->groupBy('panel_id');
 
-        // Enrichit avec clients + références panel en bulk
-        $panelIds  = $all->keys()->all();
-        $panelRefs = Panel::whereIn('id', $panelIds)->pluck('reference', 'id');
+        // ── ÉTAPE 3 — Bulk-load clients + références panel ───────────
+        $panelRefs = Panel::whereIn('id', $candidateIds)->pluck('reference', 'id');
         $clientIds = $all->flatten()->pluck('client_id')->filter()->unique()->all();
         $clients   = empty($clientIds)
             ? collect()
             : DB::table('clients')->whereIn('id', $clientIds)->pluck('name', 'id');
 
+        // ── ÉTAPE 4 — Détection paire-à-paire avec date effective ────
         $conflicts = [];
         foreach ($all as $pid => $engagements) {
             if ($engagements->count() < 2) continue;
 
-            // Détecte au moins UNE paire qui se chevauche
-            $sorted = $engagements->sortBy('start_date')->values();
+            $sorted = $engagements->sortBy('effective_start')->values();
             $hasOverlap = false;
             for ($i = 0; $i < $sorted->count() - 1 && !$hasOverlap; $i++) {
                 for ($j = $i + 1; $j < $sorted->count(); $j++) {
                     $a = $sorted[$i];
                     $b = $sorted[$j];
-                    // Overlap si a.start ≤ b.end ET a.end ≥ b.start
-                    if ($a->start_date <= $b->end_date && $a->end_date >= $b->start_date) {
+                    // Overlap réel si l'intervalle effectif chevauche
+                    if ($a->effective_start <= $b->end_date
+                        && $a->end_date >= $b->effective_start) {
                         $hasOverlap = true;
                         break;
                     }
@@ -768,13 +814,18 @@ class AvailabilityService
                 'panel_id'    => (int) $pid,
                 'reference'   => $panelRefs[$pid] ?? "#{$pid}",
                 'engagements' => $engagements->map(fn($e) => [
-                    'type'   => $e->type,
-                    'id'     => (int) $e->eid,
-                    'ref'    => $e->ref,
-                    'client' => $e->client_id ? ($clients[$e->client_id] ?? null) : null,
-                    'start'  => $e->start_date,
-                    'end'    => $e->end_date,
-                    'status' => $e->status,
+                    'type'     => $e->type,
+                    'id'       => (int) $e->eid,
+                    'ref'      => $e->ref,
+                    'client'   => $e->client_id ? ($clients[$e->client_id] ?? null) : null,
+                    'start'    => $e->effective_start,
+                    'end'      => $e->end_date,
+                    'status'   => $e->status,
+                    // Flag visuel pour l'UI : indique si la date affichée
+                    // diffère de la start_date "officielle" de l'entité
+                    // (cas démarrage différé). Permet au front d'ajouter
+                    // un badge "Démarrage différé du DD/MM".
+                    'deferred' => $e->effective_start !== $e->original_start,
                 ])->values()->all(),
             ];
         }
@@ -783,8 +834,12 @@ class AvailabilityService
     }
 
     /**
-     * Compte rapide pour les badges dashboard (sans charger les détails).
-     * Cache 5 min côté appelant si besoin.
+     * Compte rapide pour les badges dashboard.
+     * Optimisé : utilise le pré-filtre SQL de detectActiveConflicts
+     * sans matérialiser le résultat complet. Mais comme le check
+     * d'overlap se fait en PHP avec COALESCE, on doit quand même
+     * exécuter le pipeline complet — gardé en cache 5 min côté
+     * appelant (cf. layout admin.blade.php).
      */
     public function countActiveConflicts(): int
     {

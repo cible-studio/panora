@@ -587,4 +587,123 @@ class RapportController extends Controller
             'cancelledAll', 'total', 'byReason', 'reasonLabels', 'reasonColors'
         ));
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // RAPPORT CAMPAGNES — KPI, top performers, motifs annulation, tendance
+    // ════════════════════════════════════════════════════════════════
+    public function campagnes(Request $request)
+    {
+        $annee  = (int) ($request->annee  ?? date('Y'));
+        $moisDu = (int) ($request->mois_du ?? 1);
+        $moisAu = (int) ($request->mois_au ?? 12);
+
+        $dateFrom = Carbon::create($annee, $moisDu, 1)->startOfMonth();
+        $dateTo   = Carbon::create($annee, $moisAu, 1)->endOfMonth();
+        $anneesDisponibles = range(date('Y'), max(2020, date('Y') - 5));
+
+        // Périmètre : campagnes qui CHEVAUCHENT la période (commencent
+        // avant la fin et finissent après le début).
+        $baseQuery = fn() => Campaign::where('start_date', '<=', $dateTo)
+                                    ->where('end_date',   '>=', $dateFrom);
+
+        // ── 1. Comptes par statut ──────────────────────────────────
+        $byStatus = $baseQuery()
+            ->select('status', DB::raw('COUNT(*) as nb'))
+            ->groupBy('status')
+            ->pluck('nb', 'status');
+
+        $total        = (int) $byStatus->sum();
+        $actives      = (int) ($byStatus['actif']    ?? 0);
+        $terminees    = (int) ($byStatus['termine']  ?? 0);
+        $annulees     = (int) ($byStatus['annule']   ?? 0);
+        $planifiees   = (int) ($byStatus['planifie'] ?? 0);
+        $enPause      = (int) ($byStatus['pause']    ?? 0);
+        $tauxAnnulation = $total > 0 ? round(($annulees / $total) * 100, 1) : 0;
+
+        // ── 2. Motifs d'annulation (groupés) ───────────────────────
+        $reasonLabels = [
+            'budget'     => 'Budget insuffisant',
+            'zone'       => 'Zone non pertinente',
+            'strategie'  => 'Changement de stratégie',
+            'report'     => 'Report de campagne',
+            'concurrent' => 'Choix concurrent',
+            'autre'      => 'Autre',
+            ''           => 'Non renseigné',
+        ];
+        $reasonColors = [
+            'budget'     => '#ef4444',
+            'zone'       => '#f97316',
+            'strategie'  => '#8b5cf6',
+            'report'     => '#3b82f6',
+            'concurrent' => '#06b6d4',
+            'autre'      => '#6b7280',
+            ''           => '#374151',
+        ];
+
+        $cancelledOnPeriod = $baseQuery()
+            ->where('status', 'annule')
+            ->get(['id', 'cancellation_reason']);
+
+        $motifsAnnulation = $cancelledOnPeriod
+            ->groupBy(fn($c) => $c->cancellation_reason ?? '')
+            ->map(fn($group, $key) => [
+                'key'   => $key,
+                'label' => $reasonLabels[$key] ?? 'Autre',
+                'color' => $reasonColors[$key] ?? '#6b7280',
+                'count' => $group->count(),
+                'pct'   => $annulees > 0 ? round($group->count() / $annulees * 100) : 0,
+            ])
+            ->sortByDesc('count')
+            ->values();
+
+        // ── 3. Top 10 par chiffre d'affaires (total_amount) ────────
+        $topByCA = $baseQuery()
+            ->whereNotNull('total_amount')
+            ->where('total_amount', '>', 0)
+            ->with('client:id,name')
+            ->orderByDesc('total_amount')
+            ->limit(10)
+            ->get();
+
+        // ── 4. Top 10 par nombre de panneaux ───────────────────────
+        $topByPanels = $baseQuery()
+            ->whereNotNull('total_panels')
+            ->where('total_panels', '>', 0)
+            ->with('client:id,name')
+            ->orderByDesc('total_panels')
+            ->limit(10)
+            ->get();
+
+        // ── 5. Top 10 par durée (en jours) ─────────────────────────
+        $topByDuration = $baseQuery()
+            ->with('client:id,name')
+            ->select('*', DB::raw('DATEDIFF(end_date, start_date) + 1 as duree_jours'))
+            ->orderByDesc('duree_jours')
+            ->limit(10)
+            ->get();
+
+        // ── 6. Tendance mensuelle : lancées vs annulées par mois ──
+        $tendance = $baseQuery()
+            ->select(
+                DB::raw('DATE_FORMAT(start_date, "%Y-%m") as mois'),
+                DB::raw('SUM(CASE WHEN status = "annule"   THEN 1 ELSE 0 END) as annulees'),
+                DB::raw('SUM(CASE WHEN status <> "annule"  THEN 1 ELSE 0 END) as actives')
+            )
+            ->groupBy('mois')
+            ->orderBy('mois')
+            ->get();
+
+        // ── 7. CA total réalisé sur la période ─────────────────────
+        $caTotal = $baseQuery()
+            ->whereIn('status', ['actif', 'termine', 'pause'])
+            ->sum('total_amount');
+
+        return view('admin.rapports.campagnes', compact(
+            'annee', 'moisDu', 'moisAu', 'dateFrom', 'dateTo', 'anneesDisponibles',
+            'total', 'actives', 'terminees', 'annulees', 'planifiees', 'enPause',
+            'tauxAnnulation', 'motifsAnnulation',
+            'topByCA', 'topByPanels', 'topByDuration', 'tendance',
+            'caTotal'
+        ));
+    }
 }
