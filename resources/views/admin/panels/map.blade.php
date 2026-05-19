@@ -290,8 +290,16 @@ function filterMap() {
             // Label : priorité catégorie (ex "Chevalet"), sinon surface (ex "12m²"),
             // sinon format brut, sinon référence courte. Tronqué à 14 chars max
             // pour éviter les bulles trop larges sur la carte.
-            let label = panel.category
-                || (panel.surface ? `${Math.round(panel.surface)}m²` : null)
+            // Priorité label :
+            //   1. Surface en m² — varie selon panneau, info clé OOH
+            //   2. Catégorie SI elle n'est pas générique ("Panneau 4x3" sur 100%
+            //      des panneaux n'apporte rien — on saute)
+            //   3. Format brut (ex "4x3m")
+            //   4. Référence en dernier recours
+            const cat = panel.category;
+            const catIsGeneric = !cat || /panneau\s*4\s*x\s*3/i.test(cat);
+            let label = (panel.surface ? `${Math.round(panel.surface)}m²` : null)
+                || (!catIsGeneric ? cat : null)
                 || panel.format
                 || panel.reference;
             if (label && label.length > 14) label = label.slice(0, 12) + '…';
