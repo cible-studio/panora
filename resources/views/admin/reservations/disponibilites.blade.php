@@ -2002,9 +2002,15 @@
                     // ── MODAL ERREUR ──────────────────────────────────────
                     showError(msgs) {
                         _el('error-body').innerHTML = (Array.isArray(msgs) ? msgs : [msgs])
-                            .map(m =>
-                                `<div class="flex gap-2 items-start"><span class="text-red-500">•</span><span>${m}</span></div>`
-                                )
+                            .map(m => {
+                                // Si le message contient déjà sa propre structure
+                                // HTML (cas BookingConflictException::userMessage()),
+                                // on l'injecte tel quel sans ajouter de bullet.
+                                if (typeof m === 'string' && m.trim().startsWith('<div')) {
+                                    return m;
+                                }
+                                return `<div class="flex gap-2 items-start"><span class="text-red-500">•</span><span>${m}</span></div>`;
+                            })
                             .join('');
                         _show('modal-error');
                     },
