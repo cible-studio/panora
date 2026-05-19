@@ -612,9 +612,12 @@
 
     {{-- ══════════════════════════════════════════════════════
          BLOC UNIFIÉ : panneaux internes + externes en une table
+         + pagination JS côté front quand > 25 panneaux (évite le
+         scroll interminable sur grosses réservations).
     ══════════════════════════════════════════════════════ --}}
-    <div class="overflow-x-auto">
-        <table class="w-full border-collapse">
+    @php $reservPanelsCount = count($unifiedPanels); @endphp
+    <div class="overflow-x-auto" id="reserv-panels-wrap">
+        <table class="w-full border-collapse" id="reserv-panels-table">
             <thead>
                 <tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
                     <th style="width:64px;padding:10px 8px"></th>
@@ -734,6 +737,76 @@
                 </tr>
             </tfoot>
         </table>
+
+        {{-- Pagination JS — n'apparaît qu'au-delà de 25 panneaux.
+             Tout est rendu côté serveur ; on masque/affiche en JS pour
+             garder le tfoot TOTAL toujours visible (sans pagination
+             serveur on évite aussi un refacto du controller). --}}
+        @if($reservPanelsCount > 25)
+        <div id="reserv-panels-pager"
+             style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:12px 6px;font-size:12px;color:var(--text2);border-top:1px solid var(--border);margin-top:4px;">
+            <div id="reserv-pager-info">— sur {{ $reservPanelsCount }} panneaux</div>
+            <div id="reserv-pager-controls" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;"></div>
+        </div>
+
+        <script>
+        (function() {
+            const PAGE_SIZE = 25;
+            const total = {{ $reservPanelsCount }};
+            const pages = Math.ceil(total / PAGE_SIZE);
+            const rows = Array.from(document.querySelectorAll('#reserv-panels-table tbody tr'));
+            const info = document.getElementById('reserv-pager-info');
+            const ctrl = document.getElementById('reserv-pager-controls');
+            let current = 1;
+
+            function render() {
+                rows.forEach((tr, i) => {
+                    const page = Math.floor(i / PAGE_SIZE) + 1;
+                    tr.style.display = (page === current) ? '' : 'none';
+                });
+                const from = (current - 1) * PAGE_SIZE + 1;
+                const to   = Math.min(current * PAGE_SIZE, total);
+                info.textContent = `${from}–${to} sur ${total} panneaux`;
+                renderControls();
+            }
+            function btn(label, target, disabled, active) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.textContent = label;
+                b.disabled = !!disabled;
+                Object.assign(b.style, {
+                    padding: '5px 11px', borderRadius: '6px', fontSize: '12px', fontWeight: '600',
+                    border: '1px solid var(--border)',
+                    background: active ? 'var(--accent)' : 'var(--surface)',
+                    color: active ? '#fff' : 'var(--text2)',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    opacity: disabled ? '.4' : '1', minWidth: '32px',
+                });
+                if (!disabled && !active) b.addEventListener('click', () => { current = target; render(); });
+                return b;
+            }
+            function renderControls() {
+                ctrl.innerHTML = '';
+                ctrl.appendChild(btn('‹ Précédent', current - 1, current === 1, false));
+                // Pages : 1 ... current-1 current current+1 ... pages
+                const visible = new Set([1, pages, current, current - 1, current + 1]);
+                let last = 0;
+                for (let p = 1; p <= pages; p++) {
+                    if (!visible.has(p)) continue;
+                    if (p - last > 1) {
+                        const dots = document.createElement('span');
+                        dots.textContent = '…'; dots.style.padding = '0 4px'; dots.style.color = 'var(--text3)';
+                        ctrl.appendChild(dots);
+                    }
+                    ctrl.appendChild(btn(String(p), p, false, p === current));
+                    last = p;
+                }
+                ctrl.appendChild(btn('Suivant ›', current + 1, current === pages, false));
+            }
+            render();
+        })();
+        </script>
+        @endif
     </div>
 
     @if($extCount > 0)

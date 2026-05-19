@@ -104,10 +104,26 @@
     <span style="font-size:11px;color:var(--text3);">({{ count($panels) }})</span>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6" id="client-panels-grid">
     @foreach($panels as $index => $panel)
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .2s;position:relative;"
+    @php $canRemovePanel = ($canAct ?? false) && ($panel['source'] ?? 'interne') === 'interne'; @endphp
+    <div class="client-panel-card"
+         data-panel-id="{{ $panel['id'] }}"
+         style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .2s, box-shadow .2s;position:relative;"
          onmouseover="this.style.borderColor='rgba(226,6,19,.25)'" onmouseout="this.style.borderColor='var(--border)'">
+
+        @if($canRemovePanel)
+            {{-- Checkbox de sélection multiple (coin haut-droit pour ne pas
+                 chevaucher la pastille numéro à gauche) --}}
+            <label class="client-panel-select" title="Sélectionner pour retrait groupé"
+                   style="position:absolute;top:10px;right:10px;z-index:11;cursor:pointer;display:inline-flex;">
+                <input type="checkbox" class="client-panel-checkbox" value="{{ $panel['id'] }}" style="display:none;">
+                <span class="client-panel-select-box"
+                      style="width:26px;height:26px;border-radius:7px;background:rgba(255,255,255,.95);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.25);display:inline-flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s,transform .15s;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;opacity:0;transition:opacity .15s;"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+            </label>
+        @endif
 
         {{-- Numéro --}}
         <div style="position:absolute;top:10px;left:10px;z-index:10;width:26px;height:26px;border-radius:50%;background:#e20613;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);">
@@ -179,10 +195,107 @@
                     onmouseover="this.style.color='#e20613'" onmouseout="this.style.color='var(--text3)'">
                 Voir tous les détails →
             </button>
+
+            @if($canRemovePanel)
+                <form method="POST"
+                      action="{{ route('proposition.retirer-panneau', [$reservation->reference, $reservation->proposition_slug, $panel['id']]) }}"
+                      onsubmit="return confirm('Retirer ce panneau de la proposition ?')"
+                      style="padding:0 14px 12px;margin-top:-4px;">
+                    @csrf @method('DELETE')
+                    <button type="submit"
+                            style="width:100%;padding:7px;font-size:11px;font-weight:500;color:var(--text3);background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all .15s;"
+                            onmouseover="this.style.color='#ef4444';this.style.borderColor='rgba(239,68,68,.4)';this.style.background='rgba(239,68,68,.05)'"
+                            onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border)';this.style.background='transparent'">
+                        Retirer cet emplacement
+                    </button>
+                </form>
+            @endif
         </div>
     </div>
     @endforeach
 </div>
+
+{{-- ══ STYLES CHECKBOX SÉLECTION + BARRE BULK ══ --}}
+@if($canAct ?? false)
+<style>
+    .client-panel-card.selected { border-color: #dc2626 !important; box-shadow: 0 0 0 1px #dc2626; }
+    .client-panel-select input:checked + .client-panel-select-box { background: #dc2626; border-color: #dc2626; }
+    .client-panel-select input:checked + .client-panel-select-box svg { opacity: 1 !important; }
+    .client-panel-select:hover .client-panel-select-box { transform: scale(1.06); }
+    .client-bulk-bar {
+        position: fixed; bottom: 20px; left: 50%;
+        transform: translateX(-50%) translateY(160%);
+        z-index: 1000; background: #0f172a; color: #fff;
+        padding: 12px 16px 12px 20px; border-radius: 14px;
+        box-shadow: 0 10px 32px rgba(0,0,0,.35);
+        display: flex; align-items: center; gap: 14px;
+        transition: transform .25s ease;
+        max-width: calc(100vw - 32px); flex-wrap: wrap;
+    }
+    .client-bulk-bar.open { transform: translateX(-50%) translateY(0); }
+    .client-bulk-bar button {
+        background: #dc2626; color: #fff; border: 0;
+        padding: 9px 16px; border-radius: 9px;
+        font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    .client-bulk-bar button.secondary {
+        background: rgba(255,255,255,.1); color: #fff;
+    }
+</style>
+
+{{-- Barre d'action bulk (sticky en bas, visible si > 0 sélection) --}}
+<div class="client-bulk-bar" id="client-bulk-bar">
+    <div style="font-size:13px;font-weight:700;">
+        <strong id="client-bulk-count" style="color:#fab80b;">0</strong>
+        panneau<span id="client-bulk-plural"></span> sélectionné<span id="client-bulk-plural2"></span>
+    </div>
+    <form method="POST"
+          action="{{ route('proposition.bulk-retirer-panneaux', [$reservation->reference, $reservation->proposition_slug]) }}"
+          id="client-bulk-form"
+          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"
+          onsubmit="return clientBulkConfirm(event)">
+        @csrf
+        <div id="client-bulk-hidden-inputs"></div>
+        <button type="button" class="secondary" onclick="clientBulkClear()">Tout désélectionner</button>
+        <button type="submit">🗑 Retirer la sélection</button>
+    </form>
+</div>
+
+<script>
+(function() {
+    const checkboxes = document.querySelectorAll('.client-panel-checkbox');
+    const bar        = document.getElementById('client-bulk-bar');
+    const countEl    = document.getElementById('client-bulk-count');
+    const plural     = document.getElementById('client-bulk-plural');
+    const plural2    = document.getElementById('client-bulk-plural2');
+    const hidden     = document.getElementById('client-bulk-hidden-inputs');
+
+    function sync() {
+        const selected = Array.from(checkboxes).filter(cb => cb.checked);
+        countEl.textContent = selected.length;
+        plural.textContent  = selected.length > 1 ? 'x' : '';
+        plural2.textContent = selected.length > 1 ? 's' : '';
+        bar.classList.toggle('open', selected.length > 0);
+        hidden.innerHTML = selected.map(cb =>
+            `<input type="hidden" name="panel_ids[]" value="${cb.value}">`
+        ).join('');
+        checkboxes.forEach(cb => {
+            cb.closest('.client-panel-card')?.classList.toggle('selected', cb.checked);
+        });
+    }
+    checkboxes.forEach(cb => cb.addEventListener('change', sync));
+    window.clientBulkClear = function() {
+        checkboxes.forEach(cb => cb.checked = false);
+        sync();
+    };
+    window.clientBulkConfirm = function(e) {
+        const n = Array.from(checkboxes).filter(cb => cb.checked).length;
+        if (n === 0) { e.preventDefault(); return false; }
+        return confirm(`Retirer ${n} panneau${n > 1 ? 'x' : ''} de la proposition ?`);
+    };
+})();
+</script>
+@endif
 
 {{-- ══ TOTAL ══ --}}
 @php
@@ -449,17 +562,26 @@
         <div style="background:rgba(250,184,11,.08);border:1px solid rgba(250,184,11,.2);border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:#fab80b;">
             Cette action est définitive — elle déclenche la création de votre campagne.
         </div>
-        <form method="POST" action="{{ route('proposition.confirmer', [$reservation->reference, $reservation->proposition_slug]) }}">
+        {{-- target="_blank" : depuis l'espace client (authentifié), on
+             ouvre la page de confirmation dans un NOUVEL ONGLET pour
+             que le client conserve son contexte navigation côté espace
+             (panier, historique, etc.) tout en voyant son accusé de
+             confirmation. Le lien public email a un comportement
+             différent (même onglet) — d'où la divergence avec
+             admin/propositions/show.blade.php. --}}
+        <form method="POST"
+              action="{{ route('proposition.confirmer', [$reservation->reference, $reservation->proposition_slug]) }}"
+              target="_blank">
             @csrf
             <div style="display:flex;gap:10px;justify-content:center;">
                 <button type="button" onclick="closeConfirmModal()"
                         style="padding:10px 20px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:13px;color:var(--text2);cursor:pointer;transition:all .15s;"
                         onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">Annuler</button>
                 <button type="submit"
-                        style="padding:10px 24px;background:#22c55e;color:#fff;font-weight:700;border-radius:9px;font-size:13px;border:none;cursor:pointer;transition:opacity .15s;"
-                        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"
-                        onclick="this.disabled=true;this.textContent='En cours…';this.closest('form').submit()">
+                        style="padding:10px 22px;background:#22c55e;color:#fff;font-weight:700;border-radius:9px;font-size:13px;border:none;cursor:pointer;transition:opacity .15s;display:inline-flex;align-items:center;gap:7px;"
+                        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
                     Confirmer
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" title="S'ouvre dans un nouvel onglet"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 </button>
             </div>
         </form>

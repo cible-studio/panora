@@ -653,6 +653,66 @@ class PropositionController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // RETRAIT GROUPÉ — sélection multi-panneaux (lien public + espace
+    // client). Un seul POST, recalcul du total une seule fois.
+    //
+    // Garde : on refuse de retirer TOUS les panneaux (au moins 1
+    // doit rester sinon la proposition n'a plus de sens). On retire
+    // dans une transaction pour ne pas laisser un état partiel si
+    // la recalculation échoue.
+    // ══════════════════════════════════════════════════════════════
+    public function bulkRetirerPanneaux(\Illuminate\Http\Request $request, string $reference, string $slug)
+    {
+        $reservation = $this->findBySlug($reference, $slug);
+        if (!$reservation) abort(404);
+
+        if ($block = $this->assertActionable($reservation, $reference, $slug, 'retirer des panneaux de')) {
+            return $block;
+        }
+
+        $request->validate([
+            'panel_ids'   => 'required|array|min:1|max:500',
+            'panel_ids.*' => 'integer',
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $request->input('panel_ids'))));
+
+        // Garde : ne pas retirer le dernier panneau
+        $currentIds = $reservation->panels->pluck('id')->all();
+        $toKeep     = array_values(array_diff($currentIds, $ids));
+        if (count($toKeep) < 1) {
+            return back()->with('error', 'Impossible de retirer tous les panneaux — au moins un doit rester dans la proposition.');
+        }
+
+        // On ne touche qu'aux panneaux APPARTENANT à cette résa
+        $validToRemove = array_values(array_intersect($ids, $currentIds));
+        if (empty($validToRemove)) {
+            return back()->with('error', 'Aucun panneau valide à retirer.');
+        }
+
+        \DB::transaction(function () use ($reservation, $validToRemove) {
+            $reservation->panels()->detach($validToRemove);
+
+            $months   = $this->monthsBetween($reservation->start_date, $reservation->end_date);
+            $newTotal = $reservation->panels()
+                ->get()
+                ->sum(fn($p) => (float) ($p->pivot->total_price ?? ($p->monthly_rate * $months)));
+
+            $reservation->update(['total_amount' => $newTotal]);
+        });
+
+        Log::info('admin.propositions.panneaux_bulk_retires', [
+            'reservation_id' => $reservation->id,
+            'count'          => count($validToRemove),
+            'panel_ids'      => $validToRemove,
+        ]);
+
+        $n = count($validToRemove);
+        return redirect()->route('proposition.show', [$reference, $slug])
+            ->with('success', "{$n} panneau" . ($n > 1 ? 'x' : '') . " retiré" . ($n > 1 ? 's' : '') . " de la proposition.");
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // HELPERS
     // ══════════════════════════════════════════════════════════════
 

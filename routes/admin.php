@@ -146,6 +146,13 @@ Route::prefix('proposition')->name('proposition.')->middleware(\App\Http\Middlew
     Route::delete('/{reference}/{slug}/panneau/{panelId}', [PropositionController::class, 'retirerPanneau'])
         ->name('retirer-panneau')
         ->middleware('throttle:10,1');
+
+    // Retrait groupé (multi-select) — un seul appel pour N panneaux.
+    // Évite de lancer N appels DELETE en boucle côté navigateur et
+    // garantit l'idempotence du recalcul de total côté serveur.
+    Route::post('/{reference}/{slug}/panneaux/bulk-delete', [PropositionController::class, 'bulkRetirerPanneaux'])
+        ->name('bulk-retirer-panneaux')
+        ->middleware('throttle:10,1');
 });
 
 // ── Routes espace client (sans auth) ──────────────────────────

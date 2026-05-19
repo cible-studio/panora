@@ -231,8 +231,81 @@
         display: flex;
         flex-direction: column;
         transition: border-color .15s, box-shadow .15s;
+        position: relative;
     }
     .panel:hover { border-color: var(--border-strong); box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+    .panel.selected { border-color: #dc2626; box-shadow: 0 0 0 1px #dc2626; }
+
+    /* ── Checkbox de sélection multiple (coin haut-gauche) ── */
+    .panel-select {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 5;
+        cursor: pointer;
+        display: inline-flex;
+    }
+    .panel-select input { display: none; }
+    .panel-select-box {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        background: rgba(255,255,255,.95);
+        border: 2px solid #fff;
+        box-shadow: 0 1px 4px rgba(0,0,0,.25);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: background .15s, border-color .15s, transform .15s;
+    }
+    .panel-select-box svg { width: 14px; height: 14px; opacity: 0; transition: opacity .15s; }
+    .panel-select input:checked + .panel-select-box {
+        background: #dc2626;
+        border-color: #dc2626;
+    }
+    .panel-select input:checked + .panel-select-box svg { opacity: 1; }
+    .panel-select:hover .panel-select-box { transform: scale(1.06); }
+
+    /* ── Barre d'action bulk (sticky en bas, visible si > 0 sélection) ── */
+    .bulk-bar {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%) translateY(160%);
+        z-index: 1000;
+        background: #0f172a;
+        color: #fff;
+        padding: 12px 16px 12px 20px;
+        border-radius: 14px;
+        box-shadow: 0 10px 32px rgba(0,0,0,.35);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        transition: transform .25s ease;
+        max-width: calc(100vw - 32px);
+        flex-wrap: wrap;
+    }
+    .bulk-bar.open { transform: translateX(-50%) translateY(0); }
+    .bulk-bar-count {
+        font-size: 13px;
+        font-weight: 700;
+    }
+    .bulk-bar-count strong { color: #fab80b; }
+    .bulk-bar button {
+        background: #dc2626;
+        color: #fff;
+        border: 0;
+        padding: 9px 16px;
+        border-radius: 9px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .bulk-bar button.secondary {
+        background: rgba(255,255,255,.1);
+        color: #fff;
+    }
+    .bulk-bar button:active { transform: translateY(1px); }
 
     .panel-photo {
         height: 140px;
@@ -609,9 +682,18 @@
         <div class="count">{{ $panels->count() }} panneau{{ $panels->count() > 1 ? 'x' : '' }}</div>
     </div>
 
-    <div class="panels-grid">
+    <div class="panels-grid" id="panels-grid">
         @foreach($panels as $panel)
-            <div class="panel">
+            @php $canRemove = $isActif && ($panel['source'] ?? 'interne') === 'interne'; @endphp
+            <div class="panel" data-panel-id="{{ $panel['id'] }}">
+                @if($canRemove)
+                    <label class="panel-select" title="Sélectionner pour retrait groupé">
+                        <input type="checkbox" class="panel-checkbox" value="{{ $panel['id'] }}">
+                        <span class="panel-select-box" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </span>
+                    </label>
+                @endif
                 <div class="panel-photo">
                     @if($panel['photo_url'])
                         <img src="{{ $panel['photo_url'] }}" alt="{{ $panel['reference'] }}" loading="lazy"
@@ -662,7 +744,7 @@
                     </div>
                 </div>
 
-                @if($isActif && ($panel['source'] ?? 'interne') === 'interne')
+                @if($canRemove)
                     <div class="panel-remove">
                         <form method="POST"
                               action="{{ route('proposition.retirer-panneau', [$reference, $slug, $panel['id']]) }}"
@@ -675,6 +757,59 @@
             </div>
         @endforeach
     </div>
+
+    {{-- ────────── BARRE BULK ─────────── --}}
+    @if($isActif)
+    <div class="bulk-bar" id="bulk-bar">
+        <div class="bulk-bar-count"><strong id="bulk-count">0</strong> panneau<span id="bulk-plural"></span> sélectionné<span id="bulk-plural2"></span></div>
+        <form method="POST"
+              action="{{ route('proposition.bulk-retirer-panneaux', [$reference, $slug]) }}"
+              id="bulk-form"
+              style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"
+              onsubmit="return bulkConfirm(event)">
+            @csrf
+            <div id="bulk-hidden-inputs"></div>
+            <button type="button" class="secondary" onclick="bulkClear()">Tout désélectionner</button>
+            <button type="submit">🗑 Retirer la sélection</button>
+        </form>
+    </div>
+    <script>
+    (function() {
+        const checkboxes = document.querySelectorAll('.panel-checkbox');
+        const bar        = document.getElementById('bulk-bar');
+        const countEl    = document.getElementById('bulk-count');
+        const plural     = document.getElementById('bulk-plural');
+        const plural2    = document.getElementById('bulk-plural2');
+        const hidden     = document.getElementById('bulk-hidden-inputs');
+
+        function sync() {
+            const selected = Array.from(checkboxes).filter(cb => cb.checked);
+            countEl.textContent = selected.length;
+            plural.textContent  = selected.length > 1 ? 'x' : '';
+            plural2.textContent = selected.length > 1 ? 's' : '';
+            bar.classList.toggle('open', selected.length > 0);
+            // Mise à jour des inputs hidden pour le POST
+            hidden.innerHTML = selected.map(cb =>
+                `<input type="hidden" name="panel_ids[]" value="${cb.value}">`
+            ).join('');
+            // Highlight des cartes sélectionnées
+            checkboxes.forEach(cb => {
+                cb.closest('.panel')?.classList.toggle('selected', cb.checked);
+            });
+        }
+        checkboxes.forEach(cb => cb.addEventListener('change', sync));
+        window.bulkClear = function() {
+            checkboxes.forEach(cb => cb.checked = false);
+            sync();
+        };
+        window.bulkConfirm = function(e) {
+            const n = Array.from(checkboxes).filter(cb => cb.checked).length;
+            if (n === 0) { e.preventDefault(); return false; }
+            return confirm(`Retirer ${n} panneau${n > 1 ? 'x' : ''} de la proposition ?`);
+        };
+    })();
+    </script>
+    @endif
 
     {{-- ────────── TOTAL ────────── --}}
     @php
