@@ -88,7 +88,26 @@
       "Bash(php -l app/Services/PigeService.php)",
       "Bash(php -l resources/views/admin/poses/sla.blade.php)",
       "Bash(php -l resources/views/admin/poses/calendar.blade.php)",
-      "Bash(php -l resources/views/admin/panels/index.blade.php)"
+      "Bash(php -l resources/views/admin/panels/index.blade.php)",
+      "Bash(xargs grep -l \"Panel.*update.*status\\\\|panel.*update.*status\")",
+      "Bash(php -l app/Enums/PanelStatus.php)",
+      "Bash(php -l database/migrations/2026_05_19_100000_add_code_to_communes_and_panel_categories.php)",
+      "Bash(php -l app/Services/PanelReferenceGenerator.php)",
+      "Bash(php -l app/Models/Commune.php)",
+      "Bash(php -l app/Models/PanelCategory.php)",
+      "Bash(php -l app/Models/Panel.php)",
+      "Bash(php -l resources/views/admin/panels/create.blade.php)",
+      "Bash(php -l resources/views/admin/panels/edit.blade.php)",
+      "Bash(php -l database/migrations/2026_05_19_120000_normalize_panel_category_codes.php)",
+      "Bash(php -l database/migrations/2026_05_19_140000_simplify_panel_category_codes.php)",
+      "Bash(grep -n 'piges\\\\|rejection_reason\\\\|$piges' app/Http/Controllers/PublicPigeController.php app/Http/Controllers/PoseTaskPublicController.php)",
+      "Bash(php -l resources/views/public/pose-task.blade.php)",
+      "Bash(php -l resources/views/public/pige-collect.blade.php)",
+      "Bash(Get-ChildItem -Path \"c:\\\\wamp64\\\\www\\\\panora\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(Get-Content \"c:\\\\wamp64\\\\www\\\\panora\\\\routes\\\\web.php\")",
+      "Bash(Select-String -Pattern \"pige|pose\")",
+      "Bash(Head -100)"
     ]
   }
 }
