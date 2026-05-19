@@ -99,6 +99,12 @@
                         @if($e['client'])👤 {{ $e['client'] }} · @endif
                         📅 {{ \Carbon\Carbon::parse($e['start'])->format('d/m/Y') }} → {{ \Carbon\Carbon::parse($e['end'])->format('d/m/Y') }}
                         · Statut : <span style="font-weight:600">{{ $e['status'] }}</span>
+                        @if(!empty($e['deferred']))
+                            <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:8px;background:rgba(245,158,11,.10);color:#d97706;border:1px solid rgba(245,158,11,.25);font-size:9px;font-weight:700;letter-spacing:.3px"
+                                  title="Sur ce panneau, l'engagement démarre à une date différée (panel_start_date) par rapport à la start_date officielle.">
+                                📅 démarrage différé
+                            </span>
+                        @endif
                     </div>
                 </div>
             </label>
