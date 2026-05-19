@@ -199,7 +199,7 @@ class Reservation extends Model
         // par la relation externalPanels() ci-dessous.
         return $this->belongsToMany(Panel::class, 'reservation_panels')
                     ->wherePivot('source', 'interne')
-                    ->withPivot('unit_price', 'total_price', 'source')
+                    ->withPivot('unit_price', 'total_price', 'source', 'panel_start_date')
                     ->withTimestamps();
     }
 
@@ -213,7 +213,7 @@ class Reservation extends Model
     {
         return $this->belongsToMany(\App\Models\ExternalPanel::class, 'reservation_panels', 'reservation_id', 'external_panel_id')
                     ->wherePivot('source', 'externe')
-                    ->withPivot('unit_price', 'total_price', 'source')
+                    ->withPivot('unit_price', 'total_price', 'source', 'panel_start_date')
                     ->withTimestamps();
     }
 
