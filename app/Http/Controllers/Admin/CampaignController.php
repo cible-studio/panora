@@ -742,6 +742,108 @@ class CampaignController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // BULK ACTION — actions groupées sur plusieurs campagnes
+    //
+    // Actions :
+    //   - 'pause'  : ACTIF → PAUSE (chaque campagne)
+    //   - 'resume' : PAUSE → ACTIF
+    //   - 'cancel' : → ANNULE (déclenche le flow CampaignService::cancel
+    //                 qui libère panneaux + pose-tasks)
+    //   - 'delete' : suppression définitive (via CampaignService::delete
+    //                 qui a déjà ses gardes : pas de piges, etc.)
+    //
+    // Gardes : on traite chaque campagne avec ses contrôles, on skip
+    // silencieusement celles qui ne sont pas éligibles. Une seule
+    // alerte consolidée à la fin (pas N alertes spam).
+    // ══════════════════════════════════════════════════════════════
+    public function bulkAction(\Illuminate\Http\Request $request)
+    {
+        $data = $request->validate([
+            'action'        => 'required|in:pause,resume,cancel,delete',
+            'ids'           => 'required|array|min:1|max:200',
+            'ids.*'         => 'integer|exists:campaigns,id',
+            'cancel_reason' => 'nullable|string|max:500',
+        ]);
+
+        $campaigns = Campaign::whereIn('id', $data['ids'])->get();
+        $applied = 0;
+        $skipped = [];
+
+        foreach ($campaigns as $c) {
+            $statusValue = is_object($c->status) ? $c->status->value : $c->status;
+            try {
+                switch ($data['action']) {
+                    case 'pause':
+                        if ($statusValue !== \App\Enums\CampaignStatus::ACTIF->value) {
+                            $skipped[] = $c->name . ' (pas actif)';
+                            continue 2;
+                        }
+                        $c->update(['status' => \App\Enums\CampaignStatus::PAUSE->value]);
+                        $applied++;
+                        break;
+                    case 'resume':
+                        if ($statusValue !== \App\Enums\CampaignStatus::PAUSE->value) {
+                            $skipped[] = $c->name . ' (pas en pause)';
+                            continue 2;
+                        }
+                        $c->update(['status' => \App\Enums\CampaignStatus::ACTIF->value]);
+                        $applied++;
+                        break;
+                    case 'cancel':
+                        if (in_array($statusValue, [
+                            \App\Enums\CampaignStatus::ANNULE->value,
+                            \App\Enums\CampaignStatus::TERMINE->value,
+                        ], true)) {
+                            $skipped[] = $c->name . ' (statut terminal)';
+                            continue 2;
+                        }
+                        $this->campaignService->cancel(
+                            $c,
+                            $data['cancel_reason'] ?? 'Annulation groupée',
+                        );
+                        $applied++;
+                        break;
+                    case 'delete':
+                        $result = $this->campaignService->delete($c);
+                        if (!$result['ok']) {
+                            $skipped[] = $c->name . ' (' . ($result['error'] ?? 'erreur') . ')';
+                            continue 2;
+                        }
+                        $applied++;
+                        break;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('campaign.bulk.skipped', [
+                    'id' => $c->id, 'action' => $data['action'], 'err' => $e->getMessage(),
+                ]);
+                $skipped[] = $c->name . ' (erreur)';
+            }
+        }
+
+        AlertService::create(
+            'campagne',
+            'warning',
+            '⚡ Action groupée — ' . $applied . ' campagne(s)',
+            auth()->user()?->name . ' a effectué : ' . $data['action'] . ' sur ' . $applied . ' campagne(s).'
+                . (!empty($skipped) ? ' Ignorées : ' . count($skipped) . '.' : ''),
+            null
+        );
+
+        $verbs = [
+            'pause'  => 'mise(s) en pause',
+            'resume' => 'réactivée(s)',
+            'cancel' => 'annulée(s)',
+            'delete' => 'supprimée(s)',
+        ];
+        $msg = "{$applied} campagne(s) " . ($verbs[$data['action']] ?? '') . '.';
+        if (!empty($skipped)) {
+            $msg .= ' ' . count($skipped) . ' ignorée(s) : ' . implode(', ', array_slice($skipped, 0, 5))
+                  . (count($skipped) > 5 ? '…' : '');
+        }
+        return redirect()->route('admin.campaigns.index')->with('success', $msg);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // DESTROY
     // ══════════════════════════════════════════════════════════════
     public function destroy(Campaign $campaign)

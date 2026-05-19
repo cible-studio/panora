@@ -244,4 +244,71 @@ class UserController extends Controller
         
         return back()->with('success', "Compte {$statusText} !");
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // BULK ACTION — actions groupées sur plusieurs utilisateurs
+    //
+    // Actions :
+    //   - 'activate'   : passe N comptes en is_active=true
+    //   - 'deactivate' : passe N comptes en is_active=false (avec garde)
+    //
+    // GARDES CRITIQUES :
+    //   - Jamais se désactiver soi-même
+    //   - Jamais désactiver le DERNIER admin actif (vérif AVANT et
+    //     APRÈS chaque toggle pour rester safe en concurrence)
+    // ══════════════════════════════════════════════════════════════
+    public function bulkAction(\Illuminate\Http\Request $request)
+    {
+        $data = $request->validate([
+            'action' => 'required|in:activate,deactivate',
+            'ids'    => 'required|array|min:1|max:200',
+            'ids.*'  => 'integer|exists:users,id',
+        ]);
+
+        $users = User::whereIn('id', $data['ids'])->get();
+        $applied = 0;
+        $skipped = [];
+        $newActive = $data['action'] === 'activate';
+
+        foreach ($users as $u) {
+            // 1. Pas soi-même (sur deactivate uniquement — l'activer ne casse rien)
+            if (!$newActive && $u->id === auth()->id()) {
+                $skipped[] = $u->name . ' (vous-même)';
+                continue;
+            }
+            // 2. Pas le dernier admin actif (sur deactivate uniquement)
+            if (!$newActive && $u->role?->value === 'admin' && $u->is_active) {
+                $remainingActiveAdmins = User::where('role', 'admin')
+                    ->where('is_active', true)
+                    ->where('id', '!=', $u->id)
+                    ->count();
+                if ($remainingActiveAdmins < 1) {
+                    $skipped[] = $u->name . ' (dernier admin actif)';
+                    continue;
+                }
+            }
+            // 3. Skip silencieux si déjà dans l'état cible
+            if ((bool) $u->is_active === $newActive) {
+                continue;
+            }
+            $u->update(['is_active' => $newActive]);
+            $applied++;
+        }
+
+        AlertService::create(
+            'utilisateur',
+            $newActive ? 'info' : 'warning',
+            ($newActive ? '✅' : '🔒') . ' Action groupée — ' . $applied . ' utilisateur(s)',
+            auth()->user()->name . ' a ' . ($newActive ? 'activé' : 'désactivé') . ' ' . $applied . ' compte(s).'
+                . (!empty($skipped) ? ' Ignorés : ' . count($skipped) . '.' : ''),
+            null
+        );
+
+        $msg = "{$applied} compte(s) " . ($newActive ? 'activé(s)' : 'désactivé(s)') . '.';
+        if (!empty($skipped)) {
+            $msg .= ' ' . count($skipped) . ' ignoré(s) : ' . implode(', ', array_slice($skipped, 0, 5))
+                  . (count($skipped) > 5 ? '…' : '');
+        }
+        return redirect()->route('admin.users.index')->with('success', $msg);
+    }
 }

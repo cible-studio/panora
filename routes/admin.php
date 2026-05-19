@@ -351,6 +351,8 @@ Route::prefix('admin')
             Route::get('/',                       [AlertController::class, 'index'])     ->name('index');
             Route::post('read-all',               [AlertController::class, 'markAllRead'])->name('read-all');
             Route::post('clear-read',             [AlertController::class, 'clearRead'])  ->name('clear-read');
+            // Actions groupées : 'mark-read', 'delete', 'archive'
+            Route::post('bulk',                   [AlertController::class, 'bulkAction']) ->name('bulk');
             Route::get('summary',                 [AlertController::class, 'summary'])    ->name('summary');
             Route::post('{alert}/read',           [AlertController::class, 'markRead'])   ->name('read');
             Route::post('{alert}/archive',        [AlertController::class, 'archive'])    ->name('archive');
@@ -373,6 +375,10 @@ Route::prefix('admin')
         Route::middleware('role:admin')->group(function () {
             Route::resource('users', UserController::class);
             Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle');
+            // Actions groupées : 'activate', 'deactivate'.
+            // GARDE-FOU : ne peut JAMAIS désactiver le dernier admin actif
+            // ni se désactiver soi-même.
+            Route::post('users/bulk', [UserController::class, 'bulkAction'])->name('users.bulk');
             Route::get('audit-logs', [UserController::class, 'auditLogs'])->name('audit.logs');
         });
 
@@ -641,6 +647,11 @@ Route::prefix('admin')
         Route::middleware('role:admin,mediaplanner')->group(function () {
             Route::patch('reservations/{reservation}/status', [ReservationController::class, 'updateStatus'])->name('reservations.update-status');
             Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])->name('reservations.annuler');
+            // Actions groupées sur les réservations (admin + MP).
+            // Action acceptées : 'cancel' (annulation en masse), 'delete'
+            // (suppression — bloque si campagne active).
+            Route::post('reservations/bulk', [ReservationController::class, 'bulkAction'])
+                ->name('reservations.bulk');
         });
 
         // ── API interne — Liste des commerciaux pour la modale "Soumettre" ──
@@ -729,6 +740,12 @@ Route::prefix('admin')
                 ->whereNumber('campaign')->name('campaigns.update');
             Route::patch('campaigns/{campaign}', [CampaignController::class, 'update'])
                 ->whereNumber('campaign')->name('campaigns.update.patch');
+
+            // Actions groupées : 'pause' (actif→pause), 'resume' (pause→actif),
+            // 'cancel' (annulation avec motif), 'delete' (uniquement
+            // campagnes sans engagement actif — pose en cours / piges).
+            Route::post('campaigns/bulk', [CampaignController::class, 'bulkAction'])
+                ->name('campaigns.bulk');
 
             Route::patch('campaigns/{campaign}/status', [CampaignController::class, 'updateStatus'])
                 ->whereNumber('campaign')->name('campaigns.update-status');

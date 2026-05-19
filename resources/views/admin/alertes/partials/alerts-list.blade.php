@@ -30,6 +30,11 @@
                  style="display:flex;align-items:flex-start;gap:14px;padding:14px 18px;border-bottom:1px solid var(--border);transition:background .15s;
                     {{ $isUnread ? 'background:' . $niveauCfg['bg'] . ';border-left:3px solid ' . $niveauCfg['c'] . ';' : '' }}">
 
+                {{-- Checkbox de sélection multiple --}}
+                <div style="flex-shrink:0;display:flex;align-items:center;padding-top:10px">
+                    <input type="checkbox" class="bulk-checkbox" value="{{ $alerte->id }}" aria-label="Sélectionner cette alerte">
+                </div>
+
                 {{-- Icon module (couleur du type, depuis catalogue) --}}
                 <div style="flex-shrink:0;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:{{ $meta['color'] }}1a;border:1px solid {{ $meta['color'] }}33;border-radius:10px;font-size:18px">
                     {{ $meta['icon'] }}

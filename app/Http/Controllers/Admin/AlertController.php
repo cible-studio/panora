@@ -127,6 +127,41 @@ class AlertController extends Controller
     }
 
     /**
+     * Action groupée — mark-read, archive, ou delete pour N alertes.
+     * Idempotent : skip silencieusement les items déjà dans l'état cible.
+     */
+    public function bulkAction(\Illuminate\Http\Request $request)
+    {
+        $data = $request->validate([
+            'action' => 'required|in:mark-read,archive,delete',
+            'ids'    => 'required|array|min:1|max:500',
+            'ids.*'  => 'integer|exists:alerts,id',
+        ]);
+
+        $alerts = Alert::whereIn('id', $data['ids'])->get();
+        $applied = 0;
+
+        foreach ($alerts as $a) {
+            try {
+                match ($data['action']) {
+                    'mark-read' => $a->markRead(),
+                    'archive'   => $a->archive(),
+                    'delete'    => $a->delete(),
+                };
+                $applied++;
+            } catch (\Throwable) {
+                // Skip silencieux — l'alerte est déjà dans l'état cible
+                // ou pré-supprimée. Pas critique.
+            }
+        }
+
+        $verbs = ['mark-read' => 'marquée(s) comme lue(s)', 'archive' => 'archivée(s)', 'delete' => 'supprimée(s)'];
+        return $request->wantsJson() || $request->ajax()
+            ? response()->json(['success' => true, 'applied' => $applied])
+            : redirect()->route('admin.alerts.index')->with('success', "{$applied} alerte(s) " . $verbs[$data['action']] . '.');
+    }
+
+    /**
      * Purge toutes les alertes lues (vidage rapide). Garde les non lues.
      */
     public function clearRead()
