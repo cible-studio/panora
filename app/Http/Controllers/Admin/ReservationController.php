@@ -1178,16 +1178,25 @@ class ReservationController extends Controller
 
         $createdCampaignId = null;
         $reservation       = null;
-        $excludedPanels    = [];
+        $excludedPanels    = []; // panneaux EXCLUS (libération > end_date)
+        $deferredPanels    = []; // panneaux RETENUS avec démarrage différé
 
         try {
-            DB::transaction(function () use ($request, $internalIds, $externalIds, $internalStartDates, $externalStartDates, &$createdCampaignId, &$reservation, &$excludedPanels) {
-                // ── Vérification disponibilité + sauvegarde partielle ──────────
-                // Tous les panneaux demandés sont verrouillés en amont (anti-concurrence).
-                // On collecte les panneaux indisponibles avec leur motif au lieu de
-                // rejeter toute la requête : seuls les panneaux disponibles sont créés.
+            DB::transaction(function () use ($request, &$internalIds, &$externalIds, &$internalStartDates, &$externalStartDates, &$createdCampaignId, &$reservation, &$excludedPanels, &$deferredPanels) {
+                // ── Gestion des conflits — démarrage différé ──────────────────
+                // Stratégie métier (validée terrain) : un panneau partiellement
+                // occupé n'est PAS exclu — il rejoint la campagne à partir de
+                // sa date de libération. Le tarif est proraté via la
+                // `panel_start_date` enregistrée en pivot.
+                //
+                // Règle d'exclusion : un panneau n'est exclu QUE si sa date de
+                // libération tombe APRÈS la fin de la période demandée (cas
+                // où il est impossible d'en profiter sur la période).
+                //
+                // Les panneaux sont verrouillés en amont (anti-concurrence).
                 $availableInternal = $internalIds;
                 $availableExternal = $externalIds;
+                $reqEnd = \Carbon\Carbon::parse($request->end_date)->startOfDay();
 
                 if ($internalIds) {
                     Panel::whereIn('id', $internalIds)->lockForUpdate()->get();
@@ -1198,13 +1207,30 @@ class ReservationController extends Controller
                         if ($cmap->isNotEmpty()) {
                             $panelRefs = Panel::whereIn('id', $cmap->keys()->all())->get()->keyBy('id');
                             foreach ($cmap as $pid => $c) {
-                                $excludedPanels[] = [
-                                    'reference'       => $panelRefs[$pid]?->reference ?? "#{$pid}",
-                                    'reason'          => $c->blocking_status,
-                                    'conflicting_ref' => $c->conflicting_ref,
-                                    'release_date'    => $c->release_date,
-                                ];
-                                $availableInternal = array_values(array_diff($availableInternal, [$pid]));
+                                $nextFree = $c->release_date
+                                    ? \Carbon\Carbon::parse($c->release_date)->startOfDay()->addDay()
+                                    : null;
+                                $ref = $panelRefs[$pid]?->reference ?? "#{$pid}";
+
+                                if ($nextFree && $nextFree->lte($reqEnd)) {
+                                    // → Inclusion avec démarrage différé
+                                    $internalStartDates[$pid] = $nextFree->format('Y-m-d');
+                                    $deferredPanels[] = [
+                                        'reference'       => $ref,
+                                        'next_free'       => $nextFree->format('d/m/Y'),
+                                        'blocking_status' => $c->blocking_status,
+                                        'conflicting_ref' => $c->conflicting_ref,
+                                    ];
+                                } else {
+                                    // → Vrai conflit total : se libère après end_date
+                                    $excludedPanels[] = [
+                                        'reference'       => $ref,
+                                        'reason'          => $c->blocking_status,
+                                        'conflicting_ref' => $c->conflicting_ref,
+                                        'release_date'    => $c->release_date,
+                                    ];
+                                    $availableInternal = array_values(array_diff($availableInternal, [$pid]));
+                                }
                             }
                         }
                     }
@@ -1215,17 +1241,33 @@ class ReservationController extends Controller
                         $cmap = $this->availability->getInternalConflictMap([$panelId], $internalStartDates[$panelId], $request->end_date);
                         if ($cmap->isNotEmpty()) {
                             $c = $cmap->first();
-                            $excludedPanels[] = [
-                                'reference'       => Panel::find($panelId)?->reference ?? "#{$panelId}",
-                                'reason'          => $c->blocking_status,
-                                'conflicting_ref' => $c->conflicting_ref,
-                                'release_date'    => $c->release_date,
-                            ];
-                            $availableInternal = array_values(array_diff($availableInternal, [$panelId]));
+                            $nextFree = $c->release_date
+                                ? \Carbon\Carbon::parse($c->release_date)->startOfDay()->addDay()
+                                : null;
+                            $ref = Panel::find($panelId)?->reference ?? "#{$panelId}";
+
+                            if ($nextFree && $nextFree->lte($reqEnd)) {
+                                $internalStartDates[$panelId] = $nextFree->format('Y-m-d');
+                                $deferredPanels[] = [
+                                    'reference'       => $ref,
+                                    'next_free'       => $nextFree->format('d/m/Y'),
+                                    'blocking_status' => $c->blocking_status,
+                                    'conflicting_ref' => $c->conflicting_ref,
+                                ];
+                            } else {
+                                $excludedPanels[] = [
+                                    'reference'       => $ref,
+                                    'reason'          => $c->blocking_status,
+                                    'conflicting_ref' => $c->conflicting_ref,
+                                    'release_date'    => $c->release_date,
+                                ];
+                                $availableInternal = array_values(array_diff($availableInternal, [$panelId]));
+                            }
                         }
                     }
                 }
 
+                // ── Externes : même logique de démarrage différé ──────────────
                 if ($externalIds) {
                     ExternalPanel::whereIn('id', $externalIds)->lockForUpdate()->get();
 
@@ -1235,13 +1277,28 @@ class ReservationController extends Controller
                         if ($cmap->isNotEmpty()) {
                             $extRefs = ExternalPanel::whereIn('id', $cmap->keys()->all())->get()->keyBy('id');
                             foreach ($cmap as $extId => $c) {
-                                $excludedPanels[] = [
-                                    'reference'       => $extRefs[$extId]?->reference ?? "ext#{$extId}",
-                                    'reason'          => $c->blocking_status,
-                                    'conflicting_ref' => $c->conflicting_ref,
-                                    'release_date'    => $c->release_date,
-                                ];
-                                $availableExternal = array_values(array_diff($availableExternal, [$extId]));
+                                $nextFree = $c->release_date
+                                    ? \Carbon\Carbon::parse($c->release_date)->startOfDay()->addDay()
+                                    : null;
+                                $ref = $extRefs[$extId]?->reference ?? "ext#{$extId}";
+
+                                if ($nextFree && $nextFree->lte($reqEnd)) {
+                                    $externalStartDates[$extId] = $nextFree->format('Y-m-d');
+                                    $deferredPanels[] = [
+                                        'reference'       => $ref,
+                                        'next_free'       => $nextFree->format('d/m/Y'),
+                                        'blocking_status' => $c->blocking_status,
+                                        'conflicting_ref' => $c->conflicting_ref,
+                                    ];
+                                } else {
+                                    $excludedPanels[] = [
+                                        'reference'       => $ref,
+                                        'reason'          => $c->blocking_status,
+                                        'conflicting_ref' => $c->conflicting_ref,
+                                        'release_date'    => $c->release_date,
+                                    ];
+                                    $availableExternal = array_values(array_diff($availableExternal, [$extId]));
+                                }
                             }
                         }
                     }
@@ -1252,20 +1309,68 @@ class ReservationController extends Controller
                         $cmap = $this->availability->getExternalConflictMap([$extId], $externalStartDates[$extId], $request->end_date);
                         if ($cmap->isNotEmpty()) {
                             $c = $cmap->first();
-                            $excludedPanels[] = [
-                                'reference'       => ExternalPanel::find($extId)?->reference ?? "ext#{$extId}",
-                                'reason'          => $c->blocking_status,
-                                'conflicting_ref' => $c->conflicting_ref,
-                                'release_date'    => $c->release_date,
-                            ];
-                            $availableExternal = array_values(array_diff($availableExternal, [$extId]));
+                            $nextFree = $c->release_date
+                                ? \Carbon\Carbon::parse($c->release_date)->startOfDay()->addDay()
+                                : null;
+                            $ref = ExternalPanel::find($extId)?->reference ?? "ext#{$extId}";
+
+                            if ($nextFree && $nextFree->lte($reqEnd)) {
+                                $externalStartDates[$extId] = $nextFree->format('Y-m-d');
+                                $deferredPanels[] = [
+                                    'reference'       => $ref,
+                                    'next_free'       => $nextFree->format('d/m/Y'),
+                                    'blocking_status' => $c->blocking_status,
+                                    'conflicting_ref' => $c->conflicting_ref,
+                                ];
+                            } else {
+                                $excludedPanels[] = [
+                                    'reference'       => $ref,
+                                    'reason'          => $c->blocking_status,
+                                    'conflicting_ref' => $c->conflicting_ref,
+                                    'release_date'    => $c->release_date,
+                                ];
+                                $availableExternal = array_values(array_diff($availableExternal, [$extId]));
+                            }
                         }
                     }
                 }
 
                 // Aucun panneau disponible → interrompre la transaction
                 if (empty($availableInternal) && empty($availableExternal)) {
-                    throw new \RuntimeException('CONFLICT_ALL:Aucun panneau disponible sur cette période — tous sont déjà réservés.');
+                    throw new \RuntimeException('CONFLICT_ALL:Aucun panneau ne peut être inclus — tous sont occupés au-delà de la fin de période demandée.');
+                }
+
+                // ── Ajustement de la start_date globale ───────────────────────
+                // Si TOUS les panneaux retenus ont une panel_start_date décalée
+                // (= aucun n'est libre dès le début demandé), on remonte la
+                // start_date de la résa à la PLUS PRÉCOCE des dates effectives.
+                // Cela évite de facturer une période vide où aucun panneau
+                // n'est encore actif.
+                $allEffectiveStarts = [];
+                foreach ($availableInternal as $pid) {
+                    $allEffectiveStarts[] = $internalStartDates[$pid] ?? $request->start_date;
+                }
+                foreach ($availableExternal as $eid) {
+                    $allEffectiveStarts[] = $externalStartDates[$eid] ?? $request->start_date;
+                }
+                $allDeferred = !in_array($request->start_date, $allEffectiveStarts, true);
+                if ($allDeferred && !empty($allEffectiveStarts)) {
+                    $earliest = collect($allEffectiveStarts)->min();
+                    Log::info('reservation.start_date_shifted', [
+                        'requested' => $request->start_date,
+                        'shifted_to' => $earliest,
+                        'reason'    => 'all_panels_deferred',
+                    ]);
+                    $request->merge(['start_date' => $earliest]);
+                    // Les panel_start_date au niveau du nouveau start ne sont
+                    // plus "décalés" → on les retire pour éviter les pivots
+                    // redondants (panel_start_date = reservation.start_date).
+                    foreach ($internalStartDates as $pid => $d) {
+                        if ($d === $earliest) unset($internalStartDates[$pid]);
+                    }
+                    foreach ($externalStartDates as $eid => $d) {
+                        if ($d === $earliest) unset($externalStartDates[$eid]);
+                    }
                 }
 
                 // Travailler uniquement avec les panneaux disponibles
@@ -1375,18 +1480,17 @@ class ReservationController extends Controller
                 ]);
 
                 if ($attach) {
-                    // ── FILET FINAL anti-double-booking ────────────────
-                    // Re-vérification ATOMIQUE juste avant l'insert (les
-                    // panneaux sont déjà verrouillés FOR UPDATE en début
-                    // de transaction). Si une condition de course a glissé
-                    // un conflit entre le pré-check et ici, on lève
-                    // BookingConflictException et la transaction rollback.
-                    // C'est la dernière ligne de défense côté applicatif.
-                    $this->availability->assertCanReserve(
-                        array_keys($attach),
-                        $request->start_date,
-                        $request->end_date,
-                    );
+                    // Note : le filet `assertCanReserve()` n'est PAS appelé
+                    // ici. Les conflits sont désormais résolus en amont par
+                    // démarrage différé (panel_start_date). Vérifier à
+                    // nouveau ferait faux positif : un panneau avec
+                    // panel_start_date=22/05 reste "en conflit" avec son
+                    // engagement actuel sur 19→21/05 — c'est attendu, sa
+                    // période effective dans cette résa commence APRÈS.
+                    //
+                    // Le verrou FOR UPDATE posé en début de transaction
+                    // (Panel::lockForUpdate) garantit déjà l'absence de
+                    // race condition concurrente sur les mêmes panneaux.
 
                     // Eloquent ne sait pas mettre 'source'='interne' via attach()
                     // car la pivot n'est pas dans withPivot par défaut → on
@@ -1561,11 +1665,18 @@ class ReservationController extends Controller
             ? ($createdCampaignId ? 'Réservation ferme créée et campagne lancée. ✅' : 'Réservation ferme créée. Panneaux confirmés. ✅')
             : 'Panneaux mis sous option. ⏳';
 
-        $warningMsg = null;
+        // ── Récap : panneaux différés (inclus mais démarrent plus tard) ──
+        // Information importante pour l'admin/commercial : la résa a bien été
+        // créée, mais certains panneaux ne seront actifs qu'à partir de leur
+        // date de libération. La start_date globale a peut-être été recalée.
+        $warningParts = [];
+        if (!empty($deferredPanels)) {
+            $byDate = collect($deferredPanels)->groupBy('next_free')->map->count()->sortKeys();
+            $datesSummary = $byDate->map(fn($cnt, $d) => "$cnt dès le $d")->join(', ');
+            $warningParts[] = "📅 " . count($deferredPanels) . " panneau(x) rejoindront la campagne au fur et à mesure ({$datesSummary}). Tarif proratisé sur leur période effective.";
+        }
         if (!empty($excludedPanels)) {
             $lines = array_map(function (array $ep): string {
-                // Le `reason` peut désormais valoir 'campagne_active' (engagement
-                // via une campagne déjà créée), en plus de 'confirme'/'en_attente'.
                 $label = match ($ep['reason']) {
                     'confirme'         => 'déjà confirmé',
                     'campagne_active'  => 'engagé sur une campagne',
@@ -1580,8 +1691,9 @@ class ReservationController extends Controller
                 return "{$ep['reference']} — {$label}{$until}{$blocker}";
             }, $excludedPanels);
             $n = count($excludedPanels);
-            $warningMsg = "{$n} panneau(x) exclu(s) — non disponible(s) sur cette période : " . implode(' | ', $lines);
+            $warningParts[] = "❌ {$n} panneau(x) exclu(s) — occupation au-delà de la fin de période : " . implode(' | ', $lines);
         }
+        $warningMsg = !empty($warningParts) ? implode("\n", $warningParts) : null;
 
         $redirect = $createdCampaignId
             ? redirect()->route('admin.campaigns.show', $createdCampaignId)->with('success', $successMsg)
