@@ -518,9 +518,10 @@
         </div>
         @endif
 
-        {{-- Tableau panneaux --}}
-        <div class="overflow-x-auto">
-            <table class="w-full">
+        {{-- Tableau panneaux (avec pagination JS si > 25 panneaux) --}}
+        @php $totalPanelsRows = $campaign->panels->count() + $campaign->externalPanels->count(); @endphp
+        <div class="overflow-x-auto" id="camp-panels-wrap">
+            <table class="w-full" id="camp-panels-table">
                 <thead class="border-b" style="background:var(--surface2);border-color:var(--border)">
                     <tr class="text-left text-xs font-semibold uppercase tracking-wider" style="color:var(--text3)">
                         <th class="px-5 py-4">Référence</th>
@@ -548,7 +549,7 @@
                         };
                         $rate = (float) ($panel->monthly_rate ?? 0);
                     @endphp
-                    <tr class="border-b transition-all group" style="border-color:var(--border)"
+                    <tr class="border-b transition-all group" data-panel-row style="border-color:var(--border)"
                         onmouseover="this.style.background='var(--surface2)'"
                         onmouseout="this.style.background='transparent'">
                         <td class="px-5 py-4">
@@ -595,7 +596,7 @@
                      réservation pour préserver le verrou anti-double-booking. --}}
                 @foreach($campaign->externalPanels as $panel)
                     @php $rate = (float) ($panel->monthly_rate ?? 0); @endphp
-                    <tr class="border-b transition-all group" style="border-color:var(--border);background:rgba(124,58,237,0.025)"
+                    <tr class="border-b transition-all group" data-panel-row style="border-color:var(--border);background:rgba(124,58,237,0.025)"
                         onmouseover="this.style.background='rgba(124,58,237,0.06)'"
                         onmouseout="this.style.background='rgba(124,58,237,0.025)'">
                         <td class="px-5 py-4">
@@ -639,6 +640,73 @@
                 @endif
                 </tbody>
             </table>
+
+            {{-- Pagination JS — au-delà de 25 panneaux pour éviter
+                 un scroll interminable sur les grosses campagnes.
+                 Identique au pattern de la fiche réservation. --}}
+            @if($totalPanelsRows > 25)
+            <div id="camp-panels-pager"
+                 style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:14px 18px;font-size:12px;color:var(--text2);border-top:1px solid var(--border)">
+                <div id="camp-pager-info">— sur {{ $totalPanelsRows }} panneaux</div>
+                <div id="camp-pager-controls" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;"></div>
+            </div>
+            <script>
+            (function() {
+                const PAGE_SIZE = 25;
+                const total = {{ $totalPanelsRows }};
+                const pages = Math.ceil(total / PAGE_SIZE);
+                const rows  = Array.from(document.querySelectorAll('#camp-panels-table tbody tr[data-panel-row]'));
+                const info  = document.getElementById('camp-pager-info');
+                const ctrl  = document.getElementById('camp-pager-controls');
+                let current = 1;
+
+                function render() {
+                    rows.forEach((tr, i) => {
+                        const page = Math.floor(i / PAGE_SIZE) + 1;
+                        tr.style.display = (page === current) ? '' : 'none';
+                    });
+                    const from = (current - 1) * PAGE_SIZE + 1;
+                    const to   = Math.min(current * PAGE_SIZE, total);
+                    info.textContent = `${from}–${to} sur ${total} panneaux`;
+                    renderControls();
+                }
+                function btn(label, target, disabled, active) {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.textContent = label;
+                    b.disabled = !!disabled;
+                    Object.assign(b.style, {
+                        padding: '5px 11px', borderRadius: '6px', fontSize: '12px', fontWeight: '600',
+                        border: '1px solid var(--border)',
+                        background: active ? 'var(--accent)' : 'var(--surface)',
+                        color: active ? '#fff' : 'var(--text2)',
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                        opacity: disabled ? '.4' : '1', minWidth: '32px',
+                    });
+                    if (!disabled && !active) b.addEventListener('click', () => { current = target; render(); window.scrollTo({ top: document.getElementById('camp-panels-wrap').offsetTop - 80, behavior: 'smooth' }); });
+                    return b;
+                }
+                function renderControls() {
+                    ctrl.innerHTML = '';
+                    ctrl.appendChild(btn('‹ Précédent', current - 1, current === 1, false));
+                    const visible = new Set([1, pages, current, current - 1, current + 1]);
+                    let last = 0;
+                    for (let p = 1; p <= pages; p++) {
+                        if (!visible.has(p)) continue;
+                        if (p - last > 1) {
+                            const dots = document.createElement('span');
+                            dots.textContent = '…'; dots.style.padding = '0 4px'; dots.style.color = 'var(--text3)';
+                            ctrl.appendChild(dots);
+                        }
+                        ctrl.appendChild(btn(String(p), p, false, p === current));
+                        last = p;
+                    }
+                    ctrl.appendChild(btn('Suivant ›', current + 1, current === pages, false));
+                }
+                render();
+            })();
+            </script>
+            @endif
         </div>
     </div>
 
