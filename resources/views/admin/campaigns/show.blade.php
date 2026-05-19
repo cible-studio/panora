@@ -536,18 +536,50 @@
                     </tr>
                 </thead>
                 <tbody>
-                @php $billableMonths = $campaign->billableMonths(); @endphp
+                @php
+                    $billableMonths = $campaign->billableMonths();
+
+                    // ── Statut UNIFORME = statut de la CAMPAGNE ─────────
+                    // Décision UX : dans une vue campagne, tous les panneaux
+                    // partagent le même statut (celui de la campagne). On
+                    // n'affiche PLUS le statut global du panneau (qui peut
+                    // diverger s'il est engagé sur plusieurs campagnes).
+                    $campStatusValue = is_object($campaign->status)
+                        ? $campaign->status->value
+                        : $campaign->status;
+                    $campBadge = match($campStatusValue) {
+                        'planifie' => ['label' => 'Réservé',     'color' => '#3b82f6', 'bg' => 'rgba(59,130,246,.10)',  'border' => 'rgba(59,130,246,.30)'],
+                        'actif'    => ['label' => 'En affichage','color' => '#22c55e', 'bg' => 'rgba(34,197,94,.10)',   'border' => 'rgba(34,197,94,.30)'],
+                        'pause'    => ['label' => 'En pause',    'color' => '#f59e0b', 'bg' => 'rgba(245,158,11,.10)',  'border' => 'rgba(245,158,11,.30)'],
+                        'termine'  => ['label' => 'Terminée',    'color' => '#6b7280', 'bg' => 'rgba(107,114,128,.10)', 'border' => 'rgba(107,114,128,.30)'],
+                        'annule'   => ['label' => 'Annulée',     'color' => '#ef4444', 'bg' => 'rgba(239,68,68,.10)',   'border' => 'rgba(239,68,68,.30)'],
+                        default    => ['label' => ucfirst((string) $campStatusValue), 'color' => '#6b7280', 'bg' => 'rgba(107,114,128,.10)', 'border' => 'rgba(107,114,128,.30)'],
+                    };
+
+                    // ── Préchargement des panel_start_date différés ─────
+                    // Lit reservation_panels.panel_start_date pour la résa
+                    // parente de cette campagne. Permet d'afficher un badge
+                    // "Rejoint le DD/MM" sur les panneaux à démarrage différé.
+                    $deferredStartByPanel = [];
+                    if ($campaign->reservation_id) {
+                        $rows = \Illuminate\Support\Facades\DB::table('reservation_panels')
+                            ->where('reservation_id', $campaign->reservation_id)
+                            ->whereNotNull('panel_start_date')
+                            ->where('panel_start_date', '>', $campaign->start_date)
+                            ->get(['panel_id', 'external_panel_id', 'panel_start_date', 'source']);
+                        foreach ($rows as $r) {
+                            $key = $r->source === 'externe'
+                                ? 'ext_' . $r->external_panel_id
+                                : 'int_' . $r->panel_id;
+                            $deferredStartByPanel[$key] = $r->panel_start_date;
+                        }
+                    }
+                @endphp
                 @forelse($campaign->panels as $panel)
                     @php
-                        $ps = $panel->status->value;
-                        $psColor = match($ps) {
-                            'confirme'    => ['#10b981','rgba(16,185,129,0.1)','rgba(16,185,129,0.3)'],
-                            'option'      => ['#f59e0b','rgba(245,158,11,0.1)','rgba(245,158,11,0.3)'],
-                            'libre'       => ['#6b7280','rgba(107,114,128,0.1)','rgba(107,114,128,0.3)'],
-                            'maintenance' => ['#ef4444','rgba(239,68,68,0.1)','rgba(239,68,68,0.3)'],
-                            default       => ['#6b7280','rgba(107,114,128,0.1)','rgba(107,114,128,0.3)'],
-                        };
                         $rate = (float) ($panel->monthly_rate ?? 0);
+                        $deferKey = 'int_' . $panel->id;
+                        $deferredStart = $deferredStartByPanel[$deferKey] ?? null;
                     @endphp
                     <tr class="border-b transition-all group" data-panel-row style="border-color:var(--border)"
                         onmouseover="this.style.background='var(--surface2)'"
@@ -572,10 +604,18 @@
                             {{ $rate > 0 ? number_format($rate * $billableMonths, 0, ',', ' ') . ' FCFA' : '—' }}
                         </td>
                         <td class="px-5 py-4">
-                            <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold border"
-                                  style="background:{{ $psColor[1] }};color:{{ $psColor[0] }};border-color:{{ $psColor[2] }}">
-                                {{ $panel->status->label() }}
-                            </span>
+                            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">
+                                <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold border"
+                                      style="background:{{ $campBadge['bg'] }};color:{{ $campBadge['color'] }};border-color:{{ $campBadge['border'] }}">
+                                    {{ $campBadge['label'] }}
+                                </span>
+                                @if($deferredStart)
+                                    <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;background:rgba(245,158,11,.10);color:#d97706;border:1px solid rgba(245,158,11,.25);font-size:10px;font-weight:700;letter-spacing:.2px"
+                                          title="Ce panneau rejoint la campagne plus tard car il était occupé.">
+                                        📅 Rejoint le {{ \Carbon\Carbon::parse($deferredStart)->format('d/m/Y') }}
+                                    </span>
+                                @endif
+                            </div>
                         </td>
                         @if($can['managePanel'])
                             <td class="px-5 py-4">
@@ -595,7 +635,11 @@
                      seule dans cet écran : ajout/retrait passe par la fiche
                      réservation pour préserver le verrou anti-double-booking. --}}
                 @foreach($campaign->externalPanels as $panel)
-                    @php $rate = (float) ($panel->monthly_rate ?? 0); @endphp
+                    @php
+                        $rate = (float) ($panel->monthly_rate ?? 0);
+                        $deferKey = 'ext_' . $panel->id;
+                        $deferredStart = $deferredStartByPanel[$deferKey] ?? null;
+                    @endphp
                     <tr class="border-b transition-all group" data-panel-row style="border-color:var(--border);background:rgba(124,58,237,0.025)"
                         onmouseover="this.style.background='rgba(124,58,237,0.06)'"
                         onmouseout="this.style.background='rgba(124,58,237,0.025)'">
@@ -622,10 +666,18 @@
                             {{ $rate > 0 ? number_format($rate * $billableMonths, 0, ',', ' ') . ' FCFA' : '—' }}
                         </td>
                         <td class="px-5 py-4">
-                            <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold border"
-                                  style="background:rgba(124,58,237,.1);color:#7c3aed;border-color:rgba(124,58,237,.3)">
-                                Externe
-                            </span>
+                            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">
+                                <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold border"
+                                      style="background:{{ $campBadge['bg'] }};color:{{ $campBadge['color'] }};border-color:{{ $campBadge['border'] }}">
+                                    {{ $campBadge['label'] }}
+                                </span>
+                                @if($deferredStart)
+                                    <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;background:rgba(245,158,11,.10);color:#d97706;border:1px solid rgba(245,158,11,.25);font-size:10px;font-weight:700;letter-spacing:.2px"
+                                          title="Ce panneau rejoint la campagne plus tard car il était occupé.">
+                                        📅 Rejoint le {{ \Carbon\Carbon::parse($deferredStart)->format('d/m/Y') }}
+                                    </span>
+                                @endif
+                            </div>
                         </td>
                         @if($can['managePanel'])<td class="px-5 py-4"></td>@endif
                     </tr>
