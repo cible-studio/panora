@@ -104,61 +104,75 @@
 .leaflet-bar a:hover { background:#e20613 !important; color:#fff !important; }
 .active-card { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.2) !important; }
 
-/* ── PIN PANNEAU CUSTOM (style Google Maps screenshot) ─────────── */
-.panel-pin { background:transparent !important; border:none !important; }
+/* ── PIN PANNEAU CUSTOM (style Google Maps épuré) ─────────────── */
+.panel-pin {
+    background: transparent !important;
+    border: none !important;
+    transition: transform .15s ease, filter .15s ease;
+}
 .panel-pin-bubble {
-    background: #fde047;
+    background: #facc15;
     color: #111;
-    border: 1px solid #ca8a04;
-    border-radius: 6px;
-    padding: 3px 8px;
-    font-size: 11px;
-    font-weight: 800;
-    box-shadow: 0 2px 6px rgba(0,0,0,.35);
+    border: 1.5px solid #111;
+    border-radius: 4px;
+    padding: 4px 9px;
+    font-size: 11.5px;
+    font-weight: 700;
     white-space: nowrap;
     text-align: center;
-    line-height: 1.2;
-    font-family: 'DM Sans', sans-serif;
-    transition: transform .15s, background .15s, box-shadow .15s;
+    line-height: 1.15;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    letter-spacing: .1px;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.35));
 }
+/* Petite pointe sous la bulle — bordure noire + remplissage jaune. */
 .panel-pin-arrow {
+    width: 10px;
+    height: 6px;
+    margin: 0 auto;
+    position: relative;
+}
+.panel-pin-arrow::before,
+.panel-pin-arrow::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 0;
     width: 0; height: 0;
     border-left: 5px solid transparent;
     border-right: 5px solid transparent;
-    border-top: 7px solid #ca8a04;
-    margin: -1px auto 0;
-    position: relative;
 }
+/* Triangle noir (le bord) */
+.panel-pin-arrow::before {
+    border-top: 7px solid #111;
+    top: -1px;
+}
+/* Triangle jaune par-dessus, légèrement plus petit (le remplissage) */
 .panel-pin-arrow::after {
-    content: ''; position:absolute;
-    top: -8px; left: -4px;
-    width: 0; height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 6px solid #fde047;
+    border-top: 5px solid #facc15;
+    left: 1px;
 }
-/* Variantes couleur par statut — bord & flèche colorés, fond reste jaune
-   pour matcher le screenshot ; status code la bordure subtilement. */
-.panel-pin[data-status="libre"]       .panel-pin-bubble { border-color:#16a34a; }
-.panel-pin[data-status="libre"]       .panel-pin-arrow  { border-top-color:#16a34a; }
-.panel-pin[data-status="occupe"]      .panel-pin-bubble,
-.panel-pin[data-status="confirme"]    .panel-pin-bubble,
-.panel-pin[data-status="option"]      .panel-pin-bubble { border-color:#ea580c; background:#fed7aa; }
-.panel-pin[data-status="occupe"]      .panel-pin-arrow,
-.panel-pin[data-status="confirme"]    .panel-pin-arrow,
-.panel-pin[data-status="option"]      .panel-pin-arrow  { border-top-color:#ea580c; }
-.panel-pin[data-status="occupe"]      .panel-pin-arrow::after,
-.panel-pin[data-status="confirme"]    .panel-pin-arrow::after,
-.panel-pin[data-status="option"]      .panel-pin-arrow::after { border-top-color:#fed7aa; }
-.panel-pin[data-status="maintenance"] .panel-pin-bubble { border-color:#dc2626; background:#fecaca; }
-.panel-pin[data-status="maintenance"] .panel-pin-arrow  { border-top-color:#dc2626; }
-.panel-pin[data-status="maintenance"] .panel-pin-arrow::after { border-top-color:#fecaca; }
 
-.panel-pin:hover .panel-pin-bubble {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,.45);
+/* Hover : la bulle se soulève légèrement, ombre plus prononcée. */
+.panel-pin:hover {
+    transform: translateY(-3px);
+    filter: drop-shadow(0 6px 10px rgba(0,0,0,.45));
     z-index: 1000;
 }
+
+/* Indicateur statut discret en pastille en coin haut-droit. */
+.panel-pin-dot {
+    position: absolute;
+    top: -3px; right: -3px;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    border: 1.5px solid #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,.35);
+}
+.panel-pin-dot[data-status="libre"]       { background: #16a34a; }
+.panel-pin-dot[data-status="occupe"],
+.panel-pin-dot[data-status="confirme"],
+.panel-pin-dot[data-status="option"]      { background: #ea580c; }
+.panel-pin-dot[data-status="maintenance"] { background: #dc2626; }
 </style>
 
 <script>
@@ -288,7 +302,11 @@ function filterMap() {
 
             const icon = L.divIcon({
                 className: 'panel-pin',
-                html: `<div class="panel-pin-bubble">${label}</div><div class="panel-pin-arrow"></div>`,
+                html: `
+                    <div class="panel-pin-bubble">${label}</div>
+                    <div class="panel-pin-arrow"></div>
+                    <span class="panel-pin-dot" data-status="${panel.status}"></span>
+                `,
                 iconSize:   [w, h],
                 iconAnchor: [w / 2, h],   // pointe en bas-centre sur le lat/lng
             });
