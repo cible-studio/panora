@@ -203,14 +203,18 @@ class ReservationController extends Controller
                 $panels = $query->orderBy('reference')->get();
 
                 if ($startDate && $endDate && !$dateError && $panels->isNotEmpty()) {
+                    // ── Check 1 : RÉSERVATIONS (en_attente / confirme) ────
+                    // Chevauchement INCLUSIF (<=/>=) : cohérent avec
+                    // AvailabilityService. Le bout-à-bout est compté
+                    // comme conflit (jour de fin = jour facturé occupé).
                     $bookings = ReservationPanel::whereIn('panel_id', $panels->pluck('id'))
                         ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
                         ->whereIn('reservations.status', [
                             ReservationStatus::CONFIRME->value,
                             ReservationStatus::EN_ATTENTE->value,
                         ])
-                        ->where('reservations.start_date', '<', $endDate)
-                        ->where('reservations.end_date', '>', $startDate)
+                        ->where('reservations.start_date', '<=', $endDate)
+                        ->where('reservations.end_date',   '>=', $startDate)
                         ->select(
                             'reservation_panels.panel_id',
                             'reservations.status',
@@ -219,9 +223,44 @@ class ReservationController extends Controller
                         ->groupBy('reservation_panels.panel_id', 'reservations.status')
                         ->get();
 
-                    $occupiedIds = $bookings->where('status', ReservationStatus::CONFIRME->value)->pluck('panel_id')->unique();
-                    $optionIds = $bookings->where('status', ReservationStatus::EN_ATTENTE->value)->pluck('panel_id')->unique();
-                    $releaseDates = $bookings->groupBy('panel_id')->map(fn($g) => $g->max('release_date'));
+                    // ── Check 2 : CAMPAGNES actives (planifie/actif/pause)
+                    // Une résa confirmée a généré une campagne. Sans ce
+                    // check, le panneau "disparaît" du radar de la vue
+                    // dispo une fois la campagne créée → double-booking
+                    // possible. C'est le bug #4 du parc.
+                    $campaignBlocks = DB::table('campaign_panels')
+                        ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                        ->whereIn('campaign_panels.panel_id', $panels->pluck('id'))
+                        ->where('campaign_panels.type', 'interne')
+                        ->whereIn('campaigns.status', ['planifie', 'actif', 'pause'])
+                        ->where('campaigns.start_date', '<=', $endDate)
+                        ->where('campaigns.end_date',   '>=', $startDate)
+                        ->whereNull('campaigns.deleted_at')
+                        ->select(
+                            'campaign_panels.panel_id',
+                            DB::raw('MAX(campaigns.end_date) as release_date')
+                        )
+                        ->groupBy('campaign_panels.panel_id')
+                        ->get();
+
+                    $occupiedIds = $bookings
+                        ->where('status', ReservationStatus::CONFIRME->value)
+                        ->pluck('panel_id')
+                        ->merge($campaignBlocks->pluck('panel_id'))
+                        ->unique();
+                    $optionIds = $bookings
+                        ->where('status', ReservationStatus::EN_ATTENTE->value)
+                        ->pluck('panel_id')
+                        ->unique();
+                    $releaseDates = $bookings->groupBy('panel_id')
+                        ->map(fn($g) => $g->max('release_date'));
+                    // Merge release dates campagne (max entre résa et camp)
+                    foreach ($campaignBlocks as $cb) {
+                        $existing = $releaseDates->get($cb->panel_id);
+                        if (!$existing || $cb->release_date > $existing) {
+                            $releaseDates->put($cb->panel_id, $cb->release_date);
+                        }
+                    }
                 }
 
                 if (!$dateError && $startDate && $endDate) {
