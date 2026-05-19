@@ -103,6 +103,62 @@
 .leaflet-bar a { background:#fff !important; color:#333 !important; border-color:#ccc !important; }
 .leaflet-bar a:hover { background:#e20613 !important; color:#fff !important; }
 .active-card { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.2) !important; }
+
+/* ── PIN PANNEAU CUSTOM (style Google Maps screenshot) ─────────── */
+.panel-pin { background:transparent !important; border:none !important; }
+.panel-pin-bubble {
+    background: #fde047;
+    color: #111;
+    border: 1px solid #ca8a04;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 800;
+    box-shadow: 0 2px 6px rgba(0,0,0,.35);
+    white-space: nowrap;
+    text-align: center;
+    line-height: 1.2;
+    font-family: 'DM Sans', sans-serif;
+    transition: transform .15s, background .15s, box-shadow .15s;
+}
+.panel-pin-arrow {
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid #ca8a04;
+    margin: -1px auto 0;
+    position: relative;
+}
+.panel-pin-arrow::after {
+    content: ''; position:absolute;
+    top: -8px; left: -4px;
+    width: 0; height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 6px solid #fde047;
+}
+/* Variantes couleur par statut — bord & flèche colorés, fond reste jaune
+   pour matcher le screenshot ; status code la bordure subtilement. */
+.panel-pin[data-status="libre"]       .panel-pin-bubble { border-color:#16a34a; }
+.panel-pin[data-status="libre"]       .panel-pin-arrow  { border-top-color:#16a34a; }
+.panel-pin[data-status="occupe"]      .panel-pin-bubble,
+.panel-pin[data-status="confirme"]    .panel-pin-bubble,
+.panel-pin[data-status="option"]      .panel-pin-bubble { border-color:#ea580c; background:#fed7aa; }
+.panel-pin[data-status="occupe"]      .panel-pin-arrow,
+.panel-pin[data-status="confirme"]    .panel-pin-arrow,
+.panel-pin[data-status="option"]      .panel-pin-arrow  { border-top-color:#ea580c; }
+.panel-pin[data-status="occupe"]      .panel-pin-arrow::after,
+.panel-pin[data-status="confirme"]    .panel-pin-arrow::after,
+.panel-pin[data-status="option"]      .panel-pin-arrow::after { border-top-color:#fed7aa; }
+.panel-pin[data-status="maintenance"] .panel-pin-bubble { border-color:#dc2626; background:#fecaca; }
+.panel-pin[data-status="maintenance"] .panel-pin-arrow  { border-top-color:#dc2626; }
+.panel-pin[data-status="maintenance"] .panel-pin-arrow::after { border-top-color:#fecaca; }
+
+.panel-pin:hover .panel-pin-bubble {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,.45);
+    z-index: 1000;
+}
 </style>
 
 <script>
@@ -216,13 +272,32 @@ function filterMap() {
 
         panels.forEach(panel => {
             if (!panel.latitude || !panel.longitude) return;
-            const color  = getColor(panel.status);
-            const marker = L.circleMarker([panel.latitude, panel.longitude], {
-                color: '#fff', fillColor: color, fillOpacity: 0.95, radius: 10, weight: 2,
+
+            // Label : priorité catégorie (ex "Chevalet"), sinon surface (ex "12m²"),
+            // sinon format brut, sinon référence courte. Tronqué à 14 chars max
+            // pour éviter les bulles trop larges sur la carte.
+            let label = panel.category
+                || (panel.surface ? `${Math.round(panel.surface)}m²` : null)
+                || panel.format
+                || panel.reference;
+            if (label && label.length > 14) label = label.slice(0, 12) + '…';
+
+            // Largeur dynamique : ~7.5px par caractère + padding, bornée 40-150px.
+            const w = Math.min(150, Math.max(40, label.length * 7.5 + 18));
+            const h = 30;
+
+            const icon = L.divIcon({
+                className: 'panel-pin',
+                html: `<div class="panel-pin-bubble">${label}</div><div class="panel-pin-arrow"></div>`,
+                iconSize:   [w, h],
+                iconAnchor: [w / 2, h],   // pointe en bas-centre sur le lat/lng
+            });
+            const marker = L.marker([panel.latitude, panel.longitude], { icon, riseOnHover: true });
+            marker.on('add', function () {
+                const el = this.getElement();
+                if (el) el.setAttribute('data-status', panel.status);
             });
             marker.bindPopup(buildPopup(panel), { maxWidth: 240 });
-            marker.on('mouseover', function() { this.setStyle({ radius:13, weight:3 }); });
-            marker.on('mouseout',  function() { this.setStyle({ radius:10, weight:2 }); });
             markers.push(marker);
         });
 
