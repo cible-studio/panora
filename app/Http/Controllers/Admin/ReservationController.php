@@ -1356,20 +1356,39 @@ class ReservationController extends Controller
                 $allDeferred = !in_array($request->start_date, $allEffectiveStarts, true);
                 if ($allDeferred && !empty($allEffectiveStarts)) {
                     $earliest = collect($allEffectiveStarts)->min();
-                    Log::info('reservation.start_date_shifted', [
-                        'requested' => $request->start_date,
-                        'shifted_to' => $earliest,
-                        'reason'    => 'all_panels_deferred',
-                    ]);
-                    $request->merge(['start_date' => $earliest]);
-                    // Les panel_start_date au niveau du nouveau start ne sont
-                    // plus "décalés" → on les retire pour éviter les pivots
-                    // redondants (panel_start_date = reservation.start_date).
-                    foreach ($internalStartDates as $pid => $d) {
-                        if ($d === $earliest) unset($internalStartDates[$pid]);
-                    }
-                    foreach ($externalStartDates as $eid => $d) {
-                        if ($d === $earliest) unset($externalStartDates[$eid]);
+
+                    // GARDE — ne JAMAIS recaler la start_date à end_date ou
+                    // au-delà : la validation modèle exige `end > start`
+                    // strictement. Cas pathologique : tous les panneaux ont
+                    // un panel_start_date = end_date (occupés jusqu'à la
+                    // veille du dernier jour). Dans ce cas, on garde la
+                    // start_date demandée et les panel_start_date individuels
+                    // restent en pivot (les panneaux ne s'afficheront que le
+                    // dernier jour — c'est rare mais légitime).
+                    $endDate = $request->end_date;
+                    if ($earliest < $endDate) {
+                        Log::info('reservation.start_date_shifted', [
+                            'requested'  => $request->start_date,
+                            'shifted_to' => $earliest,
+                            'reason'     => 'all_panels_deferred',
+                        ]);
+                        $request->merge(['start_date' => $earliest]);
+                        // Les panel_start_date au niveau du nouveau start ne sont
+                        // plus "décalés" → on les retire pour éviter les pivots
+                        // redondants (panel_start_date = reservation.start_date).
+                        foreach ($internalStartDates as $pid => $d) {
+                            if ($d === $earliest) unset($internalStartDates[$pid]);
+                        }
+                        foreach ($externalStartDates as $eid => $d) {
+                            if ($d === $earliest) unset($externalStartDates[$eid]);
+                        }
+                    } else {
+                        Log::info('reservation.start_date_shift_skipped', [
+                            'requested'  => $request->start_date,
+                            'end_date'   => $endDate,
+                            'earliest'   => $earliest,
+                            'reason'     => 'shift_would_collide_with_end_date',
+                        ]);
                     }
                 }
 
