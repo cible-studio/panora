@@ -674,7 +674,7 @@ class PanelController extends Controller
     // ── DONNÉES CARTE JSON ──
     public function mapData(Request $request)
     {
-        $query = Panel::with('commune', 'category')
+        $query = Panel::with('commune', 'category', 'format')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude');
 
@@ -686,6 +686,11 @@ class PanelController extends Controller
         }
 
         $panels = $query->get()->map(function ($panel) {
+            // Surface en m² calculée si possible — sinon fallback sur format->name.
+            $surface = null;
+            if ($panel->format?->width && $panel->format?->height) {
+                $surface = (float) $panel->format->width * (float) $panel->format->height;
+            }
             return [
                 'id' => $panel->id,
                 'reference' => $panel->reference,
@@ -695,6 +700,9 @@ class PanelController extends Controller
                 'status' => $panel->status->value,
                 'commune' => $panel->commune->name,
                 'monthly_rate' => $panel->monthly_rate,
+                'category' => $panel->category?->name,
+                'format' => $panel->format?->name,
+                'surface' => $surface,
             ];
         });
 
