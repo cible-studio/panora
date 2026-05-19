@@ -121,7 +121,17 @@ class CampaignController extends Controller
         }
 
         $nonFactureesCount = Campaign::nonFacturees()->count();
-        $endingSoonCount   = Campaign::endingSoon(14)->count();
+
+        // ── Compteur "ending soon" — UNIQUEMENT les campagnes qui ne
+        // sont PAS déjà visibles dans la page courante ──────────────
+        // Sans ce filtre, on affichait un bandeau redondant "1 campagne
+        // se termine dans X jours" alors que cette même campagne avait
+        // déjà son badge ⚠️ "Dans X jour(s)" sur sa carte juste en
+        // dessous. Désormais on ne signale que les campagnes "à risque
+        // d'être loupées" (cachées par filtres ou pagination).
+        $endingSoonIds = Campaign::endingSoon(14)->pluck('id')->all();
+        $visibleIds    = $campaigns->pluck('id')->all();
+        $endingSoonCount = count(array_diff($endingSoonIds, $visibleIds));
 
         $clients  = Client::orderBy('name')->get(['id', 'name']);
         $communes = Commune::orderBy('name')->get(['id', 'name']);
