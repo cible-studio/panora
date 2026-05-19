@@ -51,6 +51,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\SyncReactiveState::class,
         ]);
+
+        // Empêche le navigateur de cacher les pages HTML — corrige le bug
+        // où le HTML caché référence d'anciens noms d'assets Vite après
+        // un déploiement, donnant un site sans CSS jusqu'à vidage manuel
+        // du cache par l'utilisateur. S'applique GLOBALEMENT (web + api)
+        // pour couvrir aussi les pages publiques /pige, /proposition, etc.
+        $middleware->append(\App\Http\Middleware\PreventStaleHtmlCache::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
