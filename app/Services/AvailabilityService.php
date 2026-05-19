@@ -592,6 +592,9 @@ class AvailabilityService
         // c'est CETTE campagne qui porte ensuite l'engagement. Sans
         // ce check, le panneau "disparaît" après confirmation et le
         // double-booking devient possible (bug critique terrain).
+        // Note : la table `campaigns` n'a pas de colonne `reference`
+        // (seulement `name`) — contrairement à `reservations`. On
+        // utilise donc `name` directement comme identifiant lisible.
         $fromCampaigns = DB::table('campaign_panels as cp')
             ->join('campaigns as c', 'c.id', '=', 'cp.campaign_id')
             ->whereIn('cp.panel_id', $panelIds)
@@ -603,7 +606,6 @@ class AvailabilityService
             ->when($excludeCampaignId, fn($q) => $q->where('c.id', '!=', $excludeCampaignId))
             ->select(
                 'cp.panel_id',
-                DB::raw('MAX(c.reference) as camp_ref'),
                 DB::raw('MAX(c.name) as camp_name'),
                 DB::raw('MAX(c.end_date) as release_date'),
             )
@@ -621,7 +623,7 @@ class AvailabilityService
             if ($c) {
                 $merged->put($pid, (object)[
                     'blocking_status' => 'campagne_active',
-                    'conflicting_ref' => $c->camp_ref ?: $c->camp_name,
+                    'conflicting_ref' => $c->camp_name,
                     'release_date'    => $r && $r->release_date > $c->release_date
                         ? $r->release_date
                         : $c->release_date,
