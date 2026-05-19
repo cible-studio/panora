@@ -1115,8 +1115,77 @@ class ReservationController extends Controller
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // VALIDATION STRICTE de cohérence panel_start_date vs request dates
+        // ───────────────────────────────────────────────────────────────
+        // Scénario corrigé : l'utilisateur sélectionne dans la vue dispo
+        // des panneaux avec démarrage différé (ex: période 19→22/05, le
+        // panneau ABG-001A a panel_start_date=22/05 car occupé jusqu'au
+        // 21/05). Puis dans le formulaire de création de résa, il change
+        // les dates à 19→21/05. Sans cette validation, on attache le
+        // panneau avec panel_start_date=22/05 ALORS QUE end_date=21/05 :
+        // le panneau ne sera jamais actif → double-booking silencieux.
+        //
+        // Règles appliquées :
+        //   - panel_start_date > request.end_date → EXCLU (incohérent)
+        //   - panel_start_date < request.start_date → normalisé (= start)
+        //   - panel_start_date entre start et end → conservé tel quel
+        // Les panneaux exclus alimentent $excludedPanels (remonté en
+        // warning post-création).
+        // ═══════════════════════════════════════════════════════════════
+        $reqStart = $request->input('start_date');
+        $reqEnd   = $request->input('end_date');
+        $preExcluded = [];
+        if ($reqStart && $reqEnd && preg_match('/^\d{4}-\d{2}-\d{2}$/', $reqEnd)) {
+            foreach ($internalStartDates as $pid => $d) {
+                if ($d > $reqEnd) {
+                    $ref = Panel::find($pid)?->reference ?? "#{$pid}";
+                    $preExcluded[] = [
+                        'reference'    => $ref,
+                        'reason'       => 'panel_start_after_end',
+                        'panel_start'  => $d,
+                        'end_date'     => $reqEnd,
+                    ];
+                    unset($internalStartDates[$pid]);
+                    $internalIds = array_values(array_diff($internalIds, [$pid]));
+                } elseif ($d < $reqStart) {
+                    // Normalise : panel_start_date avant request.start_date
+                    // n'a pas de sens → on retire l'override (= start_date).
+                    unset($internalStartDates[$pid]);
+                }
+            }
+            foreach ($externalStartDates as $eid => $d) {
+                if ($d > $reqEnd) {
+                    $ref = ExternalPanel::find($eid)?->reference ?? "ext#{$eid}";
+                    $preExcluded[] = [
+                        'reference'    => $ref,
+                        'reason'       => 'panel_start_after_end',
+                        'panel_start'  => $d,
+                        'end_date'     => $reqEnd,
+                    ];
+                    unset($externalStartDates[$eid]);
+                    $externalIds = array_values(array_diff($externalIds, [$eid]));
+                } elseif ($d < $reqStart) {
+                    unset($externalStartDates[$eid]);
+                }
+            }
+        }
+
         // 2) Au moins UN panneau (interne ou externe)
         if (empty($internalIds) && empty($externalIds)) {
+            // Si la pré-validation a tout exclu, on l'explique
+            if (!empty($preExcluded)) {
+                $msg = 'Aucun panneau ne peut être réservé : '
+                    . count($preExcluded) . ' panneau(x) demandé(s) ont une date de démarrage '
+                    . 'postérieure à la fin de période choisie. '
+                    . 'Étendez la période de réservation ou retirez ces panneaux : '
+                    . implode(', ', array_map(
+                        fn($p) => $p['reference'] . ' (démarre le ' . \Carbon\Carbon::parse($p['panel_start'])->format('d/m/Y') . ')',
+                        array_slice($preExcluded, 0, 5)
+                    ))
+                    . (count($preExcluded) > 5 ? '…' : '');
+                return back()->withErrors(['panel_ids' => $msg])->withInput();
+            }
             return back()->withErrors([
                 'panel_ids' => 'Aucun panneau sélectionné.',
             ])->withInput();
@@ -1180,6 +1249,17 @@ class ReservationController extends Controller
         $reservation       = null;
         $excludedPanels    = []; // panneaux EXCLUS (libération > end_date)
         $deferredPanels    = []; // panneaux RETENUS avec démarrage différé
+
+        // Ingest les exclusions pré-validation (panel_start_date > end_date)
+        // → elles seront remontées dans le warning final
+        foreach ($preExcluded as $pe) {
+            $excludedPanels[] = [
+                'reference'       => $pe['reference'],
+                'reason'          => 'incoherent_date',
+                'conflicting_ref' => null,
+                'release_date'    => $pe['panel_start'],
+            ];
+        }
 
         try {
             DB::transaction(function () use ($request, &$internalIds, &$externalIds, &$internalStartDates, &$externalStartDates, &$createdCampaignId, &$reservation, &$excludedPanels, &$deferredPanels) {
@@ -1499,17 +1579,49 @@ class ReservationController extends Controller
                 ]);
 
                 if ($attach) {
-                    // Note : le filet `assertCanReserve()` n'est PAS appelé
-                    // ici. Les conflits sont désormais résolus en amont par
-                    // démarrage différé (panel_start_date). Vérifier à
-                    // nouveau ferait faux positif : un panneau avec
-                    // panel_start_date=22/05 reste "en conflit" avec son
-                    // engagement actuel sur 19→21/05 — c'est attendu, sa
-                    // période effective dans cette résa commence APRÈS.
+                    // ── FILET FINAL anti-double-booking (par panneau) ──
+                    // Re-vérification atomique en pleine transaction (verrou
+                    // FOR UPDATE déjà posé). Pour CHAQUE panneau, on revalide
+                    // sa période effective `[panel_start_date OU resa.start_date,
+                    // resa.end_date]` contre tous les engagements existants
+                    // (résa + campagne), en excluant la résa qu'on est en
+                    // train de créer.
                     //
-                    // Le verrou FOR UPDATE posé en début de transaction
-                    // (Panel::lockForUpdate) garantit déjà l'absence de
-                    // race condition concurrente sur les mêmes panneaux.
+                    // Détecte les cas qui auraient échappé à la pré-validation :
+                    //   - User change la end_date après sélection dispo
+                    //   - Race condition entre 2 admins simultanés
+                    //   - Code legacy qui aurait bypassé getInternalConflictMap
+                    foreach ($attach as $pid => $cols) {
+                        $effStart = $cols['panel_start_date'] ?? $request->start_date;
+                        if ($effStart > $request->end_date) {
+                            // Ne devrait jamais arriver après la pré-validation,
+                            // mais filet défensif au cas où.
+                            throw new \RuntimeException(
+                                "INCOHERENT:Panel #{$pid} a panel_start_date={$effStart} > end_date={$request->end_date}"
+                            );
+                        }
+                        $conflicts = $this->availability->getInternalConflictMap(
+                            [$pid], $effStart, $request->end_date
+                        );
+                        if ($conflicts->isNotEmpty()) {
+                            $c   = $conflicts->first();
+                            $ref = Panel::find($pid)?->reference ?? "#{$pid}";
+                            throw new \App\Exceptions\BookingConflictException([
+                                [
+                                    'panel_id'        => $pid,
+                                    'reference'       => $ref,
+                                    'blocking_source' => $c->blocking_status === 'campagne_active' ? 'campaign' : 'reservation',
+                                    'blocking_ref'    => $c->conflicting_ref,
+                                    'release_date'    => $c->release_date
+                                        ? \Carbon\Carbon::parse($c->release_date)->format('d/m/Y')
+                                        : null,
+                                    'next_free'       => $c->release_date
+                                        ? \Carbon\Carbon::parse($c->release_date)->addDay()->format('d/m/Y')
+                                        : null,
+                                ],
+                            ]);
+                        }
+                    }
 
                     // Eloquent ne sait pas mettre 'source'='interne' via attach()
                     // car la pivot n'est pas dans withPivot par défaut → on
@@ -1674,6 +1786,11 @@ class ReservationController extends Controller
                 return back()->withErrors(['panel_ids' => substr($e->getMessage(), 13)])->withInput();
             if (str_starts_with($e->getMessage(), 'CONFLICT:'))
                 return back()->withErrors(['panel_ids' => 'Conflit : ' . substr($e->getMessage(), 9)])->withInput();
+            if (str_starts_with($e->getMessage(), 'INCOHERENT:'))
+                return back()->withErrors(['panel_ids' =>
+                    'Incohérence détectée : ' . substr($e->getMessage(), 11)
+                    . '. Étendez la période ou retirez ce panneau.'
+                ])->withInput();
             if (str_starts_with($e->getMessage(), 'CAMPAIGN_EXISTS:'))
                 return back()->withErrors(['campaign_name' => substr($e->getMessage(), 16)])->withInput();
             throw $e;
@@ -1699,10 +1816,11 @@ class ReservationController extends Controller
                 $label = match ($ep['reason']) {
                     'confirme'         => 'déjà confirmé',
                     'campagne_active'  => 'engagé sur une campagne',
+                    'incoherent_date'  => 'démarre après la fin de période',
                     default            => 'en option',
                 };
                 $until  = $ep['release_date']
-                    ? ' jusqu\'au ' . \Carbon\Carbon::parse($ep['release_date'])->format('d/m/Y')
+                    ? ' (démarre le ' . \Carbon\Carbon::parse($ep['release_date'])->format('d/m/Y') . ')'
                     : '';
                 $blocker = $ep['conflicting_ref']
                     ? ' (' . ($ep['reason'] === 'campagne_active' ? 'Camp. ' : 'Rés. ') . $ep['conflicting_ref'] . ')'
@@ -1710,7 +1828,7 @@ class ReservationController extends Controller
                 return "{$ep['reference']} — {$label}{$until}{$blocker}";
             }, $excludedPanels);
             $n = count($excludedPanels);
-            $warningParts[] = "❌ {$n} panneau(x) exclu(s) — occupation au-delà de la fin de période : " . implode(' | ', $lines);
+            $warningParts[] = "❌ {$n} panneau(x) exclu(s) : " . implode(' | ', $lines);
         }
         $warningMsg = !empty($warningParts) ? implode("\n", $warningParts) : null;
 
