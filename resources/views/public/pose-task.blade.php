@@ -623,10 +623,6 @@
 <header class="topbar">
     <div class="topbar-brand">
         <img src="{{ asset('images/panora-blanc.png') }}" alt="Panora" class="brand-logo">
-        <div class="brand-text">
-            <span class="name">PANORA</span>
-            <span class="sub">CIBLE CI · Terrain</span>
-        </div>
     </div>
     @if($task->technicien?->whatsapp_number)
         <a class="topbar-tel" href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $task->technicien->whatsapp_number) }}" target="_blank" rel="noopener">
