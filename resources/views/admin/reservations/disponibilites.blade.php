@@ -1847,6 +1847,30 @@
                         }
                         errEl.classList.add('hidden');
 
+                        // ── Garde cohérence : panel_start_date > end_date ──
+                        // Si l'utilisateur a sélectionné des panneaux à
+                        // démarrage différé puis change la date de fin pour
+                        // une date ANTÉRIEURE au démarrage de ces panneaux,
+                        // ils ne pourraient JAMAIS être actifs dans la résa.
+                        // On le signale clairement avant le submit pour éviter
+                        // un double-booking silencieux côté serveur.
+                        if (au && S.sel.start_dates) {
+                            const incoherent = Object.entries(S.sel.start_dates)
+                                .filter(([_, psd]) => psd > au);
+                            if (incoherent.length > 0) {
+                                errEl.classList.remove('hidden');
+                                const list = incoherent.slice(0, 3)
+                                    .map(([_, psd]) => 'démarre le ' + psd.split('-').reverse().join('/'))
+                                    .join(', ');
+                                const more = incoherent.length > 3
+                                    ? ' + ' + (incoherent.length - 3) + ' autre(s)' : '';
+                                errTxt.innerHTML = '⚠️ ' + incoherent.length
+                                    + ' panneau(x) ont un démarrage APRÈS la nouvelle date de fin ('
+                                    + list + more + '). Ils seront <strong>exclus</strong> de la réservation. '
+                                    + 'Étendez la période ou retirez-les depuis le tableau.';
+                            }
+                        }
+
                         if (!du || !au) {
                             totalEl.textContent = '—';
                             monthsEl.textContent = '';
