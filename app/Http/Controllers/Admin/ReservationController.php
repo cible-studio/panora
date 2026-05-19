@@ -1375,6 +1375,19 @@ class ReservationController extends Controller
                 ]);
 
                 if ($attach) {
+                    // ── FILET FINAL anti-double-booking ────────────────
+                    // Re-vérification ATOMIQUE juste avant l'insert (les
+                    // panneaux sont déjà verrouillés FOR UPDATE en début
+                    // de transaction). Si une condition de course a glissé
+                    // un conflit entre le pré-check et ici, on lève
+                    // BookingConflictException et la transaction rollback.
+                    // C'est la dernière ligne de défense côté applicatif.
+                    $this->availability->assertCanReserve(
+                        array_keys($attach),
+                        $request->start_date,
+                        $request->end_date,
+                    );
+
                     // Eloquent ne sait pas mettre 'source'='interne' via attach()
                     // car la pivot n'est pas dans withPivot par défaut → on
                     // insère directement les lignes pour garantir source.
@@ -1525,6 +1538,14 @@ class ReservationController extends Controller
                 }
             });
 
+        } catch (\App\Exceptions\BookingConflictException $e) {
+            // Filet final : conflit détecté en pleine transaction (race
+            // condition entre 2 admins, ou bug applicatif amont qui a
+            // raté la pré-validation). La transaction a été rollback ;
+            // on remonte la liste détaillée au formulaire.
+            return back()
+                ->withErrors(['panel_ids' => $e->userMessage()])
+                ->withInput();
         } catch (\RuntimeException $e) {
             if (str_starts_with($e->getMessage(), 'CONFLICT_ALL:'))
                 return back()->withErrors(['panel_ids' => substr($e->getMessage(), 13)])->withInput();
@@ -1543,11 +1564,20 @@ class ReservationController extends Controller
         $warningMsg = null;
         if (!empty($excludedPanels)) {
             $lines = array_map(function (array $ep): string {
-                $label  = $ep['reason'] === 'confirme' ? 'déjà confirmé' : 'en option';
+                // Le `reason` peut désormais valoir 'campagne_active' (engagement
+                // via une campagne déjà créée), en plus de 'confirme'/'en_attente'.
+                $label = match ($ep['reason']) {
+                    'confirme'         => 'déjà confirmé',
+                    'campagne_active'  => 'engagé sur une campagne',
+                    default            => 'en option',
+                };
                 $until  = $ep['release_date']
                     ? ' jusqu\'au ' . \Carbon\Carbon::parse($ep['release_date'])->format('d/m/Y')
                     : '';
-                return "{$ep['reference']} — {$label}{$until} (Rés. {$ep['conflicting_ref']})";
+                $blocker = $ep['conflicting_ref']
+                    ? ' (' . ($ep['reason'] === 'campagne_active' ? 'Camp. ' : 'Rés. ') . $ep['conflicting_ref'] . ')'
+                    : '';
+                return "{$ep['reference']} — {$label}{$until}{$blocker}";
             }, $excludedPanels);
             $n = count($excludedPanels);
             $warningMsg = "{$n} panneau(x) exclu(s) — non disponible(s) sur cette période : " . implode(' | ', $lines);

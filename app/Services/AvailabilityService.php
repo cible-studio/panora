@@ -3,6 +3,7 @@ namespace App\Services;
 
 use App\Enums\PanelStatus;
 use App\Enums\ReservationStatus;
+use App\Exceptions\BookingConflictException;
 use App\Models\ExternalPanel;
 use App\Models\Panel;
 use App\Models\ReservationPanel;
@@ -64,6 +65,58 @@ class AvailabilityService
         return empty($this->getUnavailablePanelIds(
             [$panelId], $startDate, $endDate, $excludeReservationId
         ));
+    }
+
+    /**
+     * FILET FINAL — lève BookingConflictException avec détails si conflit.
+     *
+     * À appeler JUSTE AVANT tout insert dans reservation_panels (transaction
+     * en cours). Sécurise les chemins qui contournent la pré-validation UI.
+     * Détaille chaque panneau conflictuel (source, ref bloqueuse, date de
+     * libération) pour que le frontend affiche un message exploitable.
+     *
+     * @throws BookingConflictException
+     */
+    public function assertCanReserve(
+        array  $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null,
+        ?int   $excludeCampaignId    = null,
+    ): void {
+        if (empty($panelIds)) return;
+
+        $conflicts = $this->getInternalConflictMap(
+            $panelIds, $startDate, $endDate, $excludeReservationId, $excludeCampaignId
+        );
+
+        if ($conflicts->isEmpty()) return;
+
+        $refs = Panel::whereIn('id', $conflicts->keys()->all())->pluck('reference', 'id');
+        $details = [];
+        foreach ($conflicts as $pid => $c) {
+            $rd = $c->release_date ? \Carbon\Carbon::parse($c->release_date) : null;
+            $details[] = [
+                'panel_id'         => $pid,
+                'reference'        => $refs[$pid] ?? null,
+                'blocking_source'  => $c->blocking_status === 'campagne_active' ? 'campaign' : 'reservation',
+                'blocking_ref'     => $c->conflicting_ref,
+                'release_date'     => $rd?->format('d/m/Y'),
+                'next_free'        => $rd?->copy()->addDay()->format('d/m/Y'),
+            ];
+        }
+
+        // Log pour traçabilité — on doit savoir si ce filet se déclenche
+        // souvent (= la pré-validation UI laisse passer trop de cas).
+        Log::warning('availability.assertCanReserve.conflict', [
+            'panel_ids'          => $panelIds,
+            'period'             => "$startDate → $endDate",
+            'conflicts_count'    => count($details),
+            'exclude_resa_id'    => $excludeReservationId,
+            'exclude_camp_id'    => $excludeCampaignId,
+        ]);
+
+        throw new BookingConflictException($details);
     }
 
     // Statuts de CAMPAGNE qui bloquent un panneau. Une fois la résa
@@ -622,6 +675,120 @@ class AvailabilityService
     }
 
     // ── 7. Vérification rapide sans chargement modèle ────────────
+    /**
+     * Détecte les conflits ACTIFS actuellement en BD (panneaux engagés
+     * sur 2+ entités — réservations et/ou campagnes — chevauchantes).
+     *
+     * Utilisé par la page admin "Conflits détectés" pour résolution
+     * rétroactive. Ne corrige rien — liste les cas pour qu'un humain
+     * décide quelle entité garder.
+     *
+     * Retourne un array de groupes [
+     *   'panel_id'   => int,
+     *   'reference'  => string,
+     *   'engagements'=> array<{
+     *      type: 'reservation'|'campaign',
+     *      id: int,
+     *      ref: string,        // référence ou nom
+     *      client: ?string,
+     *      start: string,
+     *      end: string,
+     *      status: string,
+     *   }>
+     * ]
+     * Un groupe = 1 panneau avec ≥ 2 engagements qui se chevauchent.
+     */
+    public function detectActiveConflicts(): array
+    {
+        // Récupère TOUS les engagements actifs (résa bloquante ou campagne
+        // bloquante). On groupe ensuite par panel et on détecte les
+        // chevauchements (paire-à-paire si nécessaire).
+        $resas = DB::table('reservation_panels as rp')
+            ->join('reservations as r', 'r.id', '=', 'rp.reservation_id')
+            ->where('rp.source', 'interne')
+            ->whereIn('r.status', self::BLOCKING_STATUSES)
+            ->select('rp.panel_id',
+                     'r.id as eid',
+                     'r.reference as ref',
+                     'r.client_id',
+                     'r.start_date',
+                     'r.end_date',
+                     'r.status',
+                     DB::raw("'reservation' as type"))
+            ->get();
+
+        $camps = DB::table('campaign_panels as cp')
+            ->join('campaigns as c', 'c.id', '=', 'cp.campaign_id')
+            ->where('cp.type', 'interne')
+            ->whereIn('c.status', self::BLOCKING_CAMPAIGN_STATUSES)
+            ->whereNull('c.deleted_at')
+            ->select('cp.panel_id',
+                     'c.id as eid',
+                     'c.name as ref',
+                     'c.client_id',
+                     'c.start_date',
+                     'c.end_date',
+                     'c.status',
+                     DB::raw("'campaign' as type"))
+            ->get();
+
+        $all = $resas->concat($camps)->groupBy('panel_id');
+
+        // Enrichit avec clients + références panel en bulk
+        $panelIds  = $all->keys()->all();
+        $panelRefs = Panel::whereIn('id', $panelIds)->pluck('reference', 'id');
+        $clientIds = $all->flatten()->pluck('client_id')->filter()->unique()->all();
+        $clients   = empty($clientIds)
+            ? collect()
+            : DB::table('clients')->whereIn('id', $clientIds)->pluck('name', 'id');
+
+        $conflicts = [];
+        foreach ($all as $pid => $engagements) {
+            if ($engagements->count() < 2) continue;
+
+            // Détecte au moins UNE paire qui se chevauche
+            $sorted = $engagements->sortBy('start_date')->values();
+            $hasOverlap = false;
+            for ($i = 0; $i < $sorted->count() - 1 && !$hasOverlap; $i++) {
+                for ($j = $i + 1; $j < $sorted->count(); $j++) {
+                    $a = $sorted[$i];
+                    $b = $sorted[$j];
+                    // Overlap si a.start ≤ b.end ET a.end ≥ b.start
+                    if ($a->start_date <= $b->end_date && $a->end_date >= $b->start_date) {
+                        $hasOverlap = true;
+                        break;
+                    }
+                }
+            }
+            if (!$hasOverlap) continue;
+
+            $conflicts[] = [
+                'panel_id'    => (int) $pid,
+                'reference'   => $panelRefs[$pid] ?? "#{$pid}",
+                'engagements' => $engagements->map(fn($e) => [
+                    'type'   => $e->type,
+                    'id'     => (int) $e->eid,
+                    'ref'    => $e->ref,
+                    'client' => $e->client_id ? ($clients[$e->client_id] ?? null) : null,
+                    'start'  => $e->start_date,
+                    'end'    => $e->end_date,
+                    'status' => $e->status,
+                ])->values()->all(),
+            ];
+        }
+
+        return $conflicts;
+    }
+
+    /**
+     * Compte rapide pour les badges dashboard (sans charger les détails).
+     * Cache 5 min côté appelant si besoin.
+     */
+    public function countActiveConflicts(): int
+    {
+        return count($this->detectActiveConflicts());
+    }
+
     public function quickCheck(int $panelId, string $start, string $end): bool
     {
         $blockedByResa = DB::table('reservation_panels')

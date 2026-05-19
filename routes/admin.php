@@ -573,6 +573,16 @@ Route::prefix('admin')
                 [ReservationController::class, 'resetExternalPanelPrice'])->name('reservations.external-panels.price.reset');
         });
 
+        // ── Page admin "Conflits détectés" (double-bookings BD) ──
+        // Liste les panneaux engagés sur 2+ entités chevauchantes.
+        // Visible admin + MP, mais SEUL l'admin peut trancher (resolve).
+        Route::get('conflicts', [\App\Http\Controllers\Admin\ConflictsController::class, 'index'])
+            ->middleware('role:admin,mediaplanner')
+            ->name('conflicts.index');
+        Route::post('conflicts/resolve', [\App\Http\Controllers\Admin\ConflictsController::class, 'resolve'])
+            ->middleware('role:admin')
+            ->name('conflicts.resolve');
+
         // ── Disponibilités ──────────────────── (admin + MP only) ──
         // Le commercial ne crée pas de réservation (matrice DISPONIBILITÉS).
         // Bloquer toute la section dispo (consultation + création) au
