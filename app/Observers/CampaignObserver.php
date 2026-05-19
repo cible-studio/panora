@@ -7,6 +7,7 @@ use App\Jobs\SendSatisfactionSurvey;
 use App\Models\Campaign;
 use App\Models\PoseTask;
 use App\Services\AlertService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -86,18 +87,41 @@ class CampaignObserver
             ->pluck('panel_id')
             ->flip();
 
+        // ── Chargement des `panel_start_date` différés ────────────────
+        // Cas typique : résa avec des panneaux qui rejoignent la campagne
+        // plus tard (cf. logique "démarrage différé" du contrôleur résa).
+        // La pose-task doit utiliser la date EFFECTIVE du panneau, pas
+        // celle de la campagne — sinon le tech est convoqué AVANT que
+        // le panneau soit disponible (faux retard, pose impossible).
+        $panelStartDates = [];
+        if ($campaign->reservation_id) {
+            $panelStartDates = \DB::table('reservation_panels')
+                ->where('reservation_id', $campaign->reservation_id)
+                ->where('source', 'interne')
+                ->whereIn('panel_id', $internalIds)
+                ->whereNotNull('panel_start_date')
+                ->pluck('panel_start_date', 'panel_id')
+                ->toArray();
+        }
+
         $created = 0;
         foreach ($internalIds as $panelId) {
             if (isset($existing[$panelId])) continue;
+
+            // Date effective : panel_start_date si défini, sinon
+            // campaign.start_date.
+            $scheduled = $panelStartDates[$panelId] ?? $campaign->start_date;
 
             $task = PoseTask::create([
                 'panel_id'         => $panelId,
                 'campaign_id'      => $campaign->id,
                 'assigned_user_id' => null,
                 'team_name'        => null,
-                'scheduled_at'     => $campaign->start_date,
+                'scheduled_at'     => $scheduled,
                 'status'           => PoseTaskStatus::PLANNED->value,
-                'notes'            => 'Tâche auto-créée à partir de la campagne',
+                'notes'            => isset($panelStartDates[$panelId])
+                    ? 'Tâche auto-créée — démarrage différé sur ce panneau (occupé au début de campagne).'
+                    : 'Tâche auto-créée à partir de la campagne',
             ]);
             $task->ensurePublicToken();
             $created++;
