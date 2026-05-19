@@ -66,16 +66,28 @@ class AvailabilityService
         ));
     }
 
+    // Statuts de CAMPAGNE qui bloquent un panneau. Une fois la résa
+    // confirmée et la campagne créée, c'est cette dernière qui porte
+    // l'engagement sur la période. Sans inclure ce check, on perd la
+    // trace après confirmation (bug critique de double-booking).
+    public const BLOCKING_CAMPAIGN_STATUSES = [
+        'planifie',
+        'actif',
+        'pause',  // pause = engagement maintenu, retour possible
+    ];
+
     // ── 2. IDs bloqués parmi une liste — requête optimisée ────────
     public function getUnavailablePanelIds(
         array  $panelIds,
         string $startDate,
         string $endDate,
-        ?int   $excludeReservationId = null
+        ?int   $excludeReservationId = null,
+        ?int   $excludeCampaignId    = null
     ): array {
         if (empty($panelIds)) return [];
 
-        return ReservationPanel::select('reservation_panels.panel_id')
+        // Check 1 — Réservations actives (en_attente / confirme) qui chevauchent
+        $fromReservations = ReservationPanel::select('reservation_panels.panel_id')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->whereIn('reservation_panels.panel_id', $panelIds)
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
@@ -90,6 +102,112 @@ class AvailabilityService
             ->distinct()
             ->pluck('reservation_panels.panel_id')
             ->toArray();
+
+        // Check 2 — Campagnes (planifiée / active / pause) qui chevauchent
+        // Une résa peut être confirmée mais sa campagne pas encore active —
+        // ou la résa peut transiter (ex: TERMINE) tandis que la campagne
+        // reste engagée. Sans ce 2e check, le panneau apparaît libre alors
+        // qu'il est déjà attribué à une campagne contractuellement actée.
+        $fromCampaigns = DB::table('campaign_panels')
+            ->select('campaign_panels.panel_id')
+            ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+            ->whereIn('campaign_panels.panel_id', $panelIds)
+            ->where('campaign_panels.type', 'interne')
+            ->whereIn('campaigns.status', self::BLOCKING_CAMPAIGN_STATUSES)
+            ->where('campaigns.start_date', '<=', $endDate)
+            ->where('campaigns.end_date',   '>=', $startDate)
+            ->whereNull('campaigns.deleted_at')
+            ->when($excludeCampaignId, fn($q) =>
+                $q->where('campaigns.id', '!=', $excludeCampaignId)
+            )
+            ->distinct()
+            ->pluck('campaign_panels.panel_id')
+            ->toArray();
+
+        return array_values(array_unique(array_merge($fromReservations, $fromCampaigns)));
+    }
+
+    // ── 2.b — Map panel_id → ['end_date'=>Carbon, 'source'=>'reservation|campaign']
+    // Utilisé pour suggérer "Libre à partir du XX/XX" en UI quand un
+    // panneau est partiellement occupé sur la période demandée.
+    public function getOccupationDetails(
+        array  $panelIds,
+        string $startDate,
+        string $endDate,
+        ?int   $excludeReservationId = null,
+        ?int   $excludeCampaignId    = null
+    ): array {
+        if (empty($panelIds)) return [];
+
+        $details = [];
+
+        // Réservations qui occupent
+        $rResults = DB::table('reservation_panels')
+            ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+            ->whereIn('reservation_panels.panel_id', $panelIds)
+            ->whereIn('reservations.status', self::BLOCKING_STATUSES)
+            ->where('reservations.start_date', '<=', $endDate)
+            ->where('reservations.end_date',   '>=', $startDate)
+            ->when($excludeReservationId, fn($q) =>
+                $q->where('reservations.id', '!=', $excludeReservationId)
+            )
+            ->select('reservation_panels.panel_id',
+                     'reservations.id as res_id',
+                     'reservations.reference',
+                     'reservations.start_date',
+                     'reservations.end_date',
+                     'reservations.status')
+            ->get();
+
+        foreach ($rResults as $r) {
+            $pid = (int) $r->panel_id;
+            $end = \Carbon\Carbon::parse($r->end_date);
+            if (!isset($details[$pid]) || $end->gt($details[$pid]['end_date'])) {
+                $details[$pid] = [
+                    'end_date'  => $end,
+                    'next_free' => $end->copy()->addDay(),
+                    'source'    => 'reservation',
+                    'reference' => $r->reference,
+                    'status'    => $r->status,
+                ];
+            }
+        }
+
+        // Campagnes qui occupent
+        $cResults = DB::table('campaign_panels')
+            ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+            ->whereIn('campaign_panels.panel_id', $panelIds)
+            ->where('campaign_panels.type', 'interne')
+            ->whereIn('campaigns.status', self::BLOCKING_CAMPAIGN_STATUSES)
+            ->where('campaigns.start_date', '<=', $endDate)
+            ->where('campaigns.end_date',   '>=', $startDate)
+            ->whereNull('campaigns.deleted_at')
+            ->when($excludeCampaignId, fn($q) =>
+                $q->where('campaigns.id', '!=', $excludeCampaignId)
+            )
+            ->select('campaign_panels.panel_id',
+                     'campaigns.id as camp_id',
+                     'campaigns.name',
+                     'campaigns.start_date',
+                     'campaigns.end_date',
+                     'campaigns.status')
+            ->get();
+
+        foreach ($cResults as $c) {
+            $pid = (int) $c->panel_id;
+            $end = \Carbon\Carbon::parse($c->end_date);
+            if (!isset($details[$pid]) || $end->gt($details[$pid]['end_date'])) {
+                $details[$pid] = [
+                    'end_date'  => $end,
+                    'next_free' => $end->copy()->addDay(),
+                    'source'    => 'campaign',
+                    'reference' => $c->name,
+                    'status'    => $c->status,
+                ];
+            }
+        }
+
+        return $details;
     }
 
     // ── 3. Panneaux disponibles avec données de libération ────────
@@ -99,8 +217,8 @@ class AvailabilityService
         ?int   $excludeReservationId = null,
         array  $filters = []
     ): Collection {
-        // Sous-requête : IDs des panneaux bloqués sur la période (overlap inclusif)
-        $blockedSubQuery = ReservationPanel::select('panel_id')
+        // Sous-requête : IDs bloqués via RÉSERVATIONS (overlap inclusif)
+        $blockedByReservations = ReservationPanel::select('panel_id')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
             ->where('reservations.start_date', '<=', $endDate)
@@ -109,7 +227,21 @@ class AvailabilityService
                 $q->where('reservations.id', '!=', $excludeReservationId)
             );
 
-        $query = Panel::whereNotIn('id', $blockedSubQuery)
+        // Sous-requête : IDs bloqués via CAMPAGNES — indispensable car
+        // après confirmation d'une résa et création de campagne, c'est
+        // cette dernière qui porte l'engagement actif. Sans ce filtre,
+        // le panneau réapparaît "disponible" sur la dispo.
+        $blockedByCampaigns = DB::table('campaign_panels')
+            ->select('panel_id')
+            ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+            ->where('campaign_panels.type', 'interne')
+            ->whereIn('campaigns.status', self::BLOCKING_CAMPAIGN_STATUSES)
+            ->where('campaigns.start_date', '<=', $endDate)
+            ->where('campaigns.end_date',   '>=', $startDate)
+            ->whereNull('campaigns.deleted_at');
+
+        $query = Panel::whereNotIn('id', $blockedByReservations)
+            ->whereNotIn('id', $blockedByCampaigns)
             ->where('status', '!=', PanelStatus::MAINTENANCE->value)
             ->whereNull('deleted_at')
             ->with(['commune:id,name', 'format:id,name,width,height', 'zone:id,name']);
@@ -378,11 +510,13 @@ class AvailabilityService
         array  $panelIds,
         string $startDate,
         string $endDate,
-        ?int   $excludeReservationId = null
+        ?int   $excludeReservationId = null,
+        ?int   $excludeCampaignId    = null
     ): Collection {
         if (empty($panelIds)) return collect();
 
-        return DB::table('reservation_panels as rp')
+        // ── Source 1 : RÉSERVATIONS en_attente / confirme ─────────
+        $fromReservations = DB::table('reservation_panels as rp')
             ->join('reservations as r', 'r.id', '=', 'rp.reservation_id')
             ->whereIn('rp.panel_id', $panelIds)
             ->whereIn('r.status', self::BLOCKING_STATUSES)
@@ -398,12 +532,56 @@ class AvailabilityService
             )
             ->groupBy('rp.panel_id')
             ->get()
-            ->keyBy('panel_id')
-            ->map(fn($row) => (object)[
-                'blocking_status' => (bool) $row->has_confirmed ? 'confirme' : 'en_attente',
-                'conflicting_ref' => (bool) $row->has_confirmed ? $row->confirme_ref : $row->option_ref,
-                'release_date'    => $row->release_date,
-            ]);
+            ->keyBy('panel_id');
+
+        // ── Source 2 : CAMPAGNES planifie / actif / pause ─────────
+        // Indispensable : une résa confirmée crée une campagne, et
+        // c'est CETTE campagne qui porte ensuite l'engagement. Sans
+        // ce check, le panneau "disparaît" après confirmation et le
+        // double-booking devient possible (bug critique terrain).
+        $fromCampaigns = DB::table('campaign_panels as cp')
+            ->join('campaigns as c', 'c.id', '=', 'cp.campaign_id')
+            ->whereIn('cp.panel_id', $panelIds)
+            ->where('cp.type', 'interne')
+            ->whereIn('c.status', self::BLOCKING_CAMPAIGN_STATUSES)
+            ->where('c.start_date', '<=', $endDate)
+            ->where('c.end_date',   '>=', $startDate)
+            ->whereNull('c.deleted_at')
+            ->when($excludeCampaignId, fn($q) => $q->where('c.id', '!=', $excludeCampaignId))
+            ->select(
+                'cp.panel_id',
+                DB::raw('MAX(c.reference) as camp_ref'),
+                DB::raw('MAX(c.name) as camp_name'),
+                DB::raw('MAX(c.end_date) as release_date'),
+            )
+            ->groupBy('cp.panel_id')
+            ->get()
+            ->keyBy('panel_id');
+
+        // ── Merge : union des deux sources, plus tardif gagne ──
+        $merged = collect();
+        $allKeys = $fromReservations->keys()->merge($fromCampaigns->keys())->unique();
+        foreach ($allKeys as $pid) {
+            $r = $fromReservations->get($pid);
+            $c = $fromCampaigns->get($pid);
+            // Campagne = engagement signé → priorité sur réservation
+            if ($c) {
+                $merged->put($pid, (object)[
+                    'blocking_status' => 'campagne_active',
+                    'conflicting_ref' => $c->camp_ref ?: $c->camp_name,
+                    'release_date'    => $r && $r->release_date > $c->release_date
+                        ? $r->release_date
+                        : $c->release_date,
+                ]);
+            } else {
+                $merged->put($pid, (object)[
+                    'blocking_status' => (bool) $r->has_confirmed ? 'confirme' : 'en_attente',
+                    'conflicting_ref' => (bool) $r->has_confirmed ? $r->confirme_ref : $r->option_ref,
+                    'release_date'    => $r->release_date,
+                ]);
+            }
+        }
+        return $merged;
     }
 
     /**
@@ -446,13 +624,27 @@ class AvailabilityService
     // ── 7. Vérification rapide sans chargement modèle ────────────
     public function quickCheck(int $panelId, string $start, string $end): bool
     {
-        return !DB::table('reservation_panels')
+        $blockedByResa = DB::table('reservation_panels')
             ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
             ->where('reservation_panels.panel_id', $panelId)
             ->whereIn('reservations.status', self::BLOCKING_STATUSES)
             ->where('reservations.start_date', '<=', $end)
             ->where('reservations.end_date',   '>=', $start)
             ->exists();
+        if ($blockedByResa) return false;
+
+        // 2e source : campagnes actives (planifie/actif/pause)
+        $blockedByCamp = DB::table('campaign_panels')
+            ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+            ->where('campaign_panels.panel_id', $panelId)
+            ->where('campaign_panels.type', 'interne')
+            ->whereIn('campaigns.status', self::BLOCKING_CAMPAIGN_STATUSES)
+            ->where('campaigns.start_date', '<=', $end)
+            ->where('campaigns.end_date',   '>=', $start)
+            ->whereNull('campaigns.deleted_at')
+            ->exists();
+
+        return !$blockedByCamp;
     }
 
     /**
