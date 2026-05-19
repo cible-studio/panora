@@ -53,19 +53,27 @@
         align-items: center;
         justify-content: space-between;
     }
-    .brand-logo {
-        font-weight: 700;
-        font-size: 18px;
-        color: var(--text);
-        letter-spacing: -0.3px;
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
-    .brand-logo .accent { color: var(--accent); }
-    .brand-sub {
-        font-size: 11px;
+    .brand-logo-img {
+        height: 38px;
+        width: auto;
+        display: block;
+    }
+    .brand-by {
+        font-size: 10px;
         color: var(--text3);
         text-transform: uppercase;
-        letter-spacing: 0.8px;
-        margin-top: -2px;
+        letter-spacing: 1.2px;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+    .brand-by strong {
+        color: var(--accent);
+        font-weight: 800;
     }
     .header-meta {
         font-size: 12px;
@@ -210,9 +218,11 @@
 {{-- Header --}}
 <header class="header">
     <div class="header-inner">
-        <div>
-            <div class="brand-logo">CIBLE <span class="accent">CI</span></div>
-            <div class="brand-sub">Régie Publicitaire</div>
+        <div class="brand">
+            <img src="{{ asset('images/panora.png') }}" alt="Panora" class="brand-logo-img">
+            <div class="brand-by">
+                by <strong>CIBLE CI</strong>
+            </div>
         </div>
         <div class="header-meta">
             Réf. <span class="ref">{{ $reservation->reference }}</span>
