@@ -66,21 +66,29 @@ class PanelController extends Controller
                 $query->whereIn('status', ['occupe', 'option', 'confirme']);
             }
 
-            // 🔍 RECHERCHE EXACTE SUR MOT ENTIER
+            // 🔍 RECHERCHE EXACTE SUR MOT ENTIER, INSENSIBLE AUX ACCENTS
             // Exemple : "ABG" trouve "ABG-002" mais pas "CABG-001"
+            // "port bouet" trouve "Port Bouët" (les accents sont normalisés
+            // des deux côtés via unaccentSql/stripAccents).
            if ($request->filled('search')) {
-                $search = strtolower(trim($request->search));
+                $search = $this->stripAccents(trim($request->search));
                 $escapedSearch = preg_quote($search, '/');
-                $pattern = '(^|[^a-zA-ZÀ-ÿ0-9])' . $escapedSearch . '([^a-zA-ZÀ-ÿ0-9]|$)';
+                $pattern = '(^|[^a-zA-Z0-9])' . $escapedSearch . '([^a-zA-Z0-9]|$)';
 
-                $query->where(function ($q) use ($pattern) {
-                    $q->whereRaw('LOWER(reference) REGEXP ?', [$pattern])
-                    ->orWhereRaw('LOWER(name) REGEXP ?', [$pattern])
-                    ->orWhereRaw('LOWER(quartier) REGEXP ?', [$pattern])
-                    ->orWhereRaw('LOWER(adresse) REGEXP ?', [$pattern])
-                    ->orWhereHas('commune', function($c) use ($pattern) {
-                        $c->whereRaw('LOWER(name) REGEXP ?', [$pattern]);
-                    });
+                $refExpr      = $this->unaccentSql('reference');
+                $nameExpr     = $this->unaccentSql('name');
+                $quartierExpr = $this->unaccentSql('quartier');
+                $adresseExpr  = $this->unaccentSql('adresse');
+                $communeExpr  = $this->unaccentSql('name');
+
+                $query->where(function ($q) use ($pattern, $refExpr, $nameExpr, $quartierExpr, $adresseExpr, $communeExpr) {
+                    $q->whereRaw("$refExpr REGEXP ?", [$pattern])
+                      ->orWhereRaw("$nameExpr REGEXP ?", [$pattern])
+                      ->orWhereRaw("$quartierExpr REGEXP ?", [$pattern])
+                      ->orWhereRaw("$adresseExpr REGEXP ?", [$pattern])
+                      ->orWhereHas('commune', function($c) use ($pattern, $communeExpr) {
+                          $c->whereRaw("$communeExpr REGEXP ?", [$pattern]);
+                      });
                 });
             }
             
@@ -121,13 +129,16 @@ class PanelController extends Controller
         $externalQuery = \App\Models\ExternalPanel::with(['agency', 'commune', 'format', 'category']);
 
         if ($request->filled('search')) {
-            $search = strtolower(trim($request->search));
+            $search = $this->stripAccents(trim($request->search));
             $escapedSearch = preg_quote($search, '/');
-            $pattern = '(^|[^a-zA-ZÀ-ÿ0-9])' . $escapedSearch . '([^a-zA-ZÀ-ÿ0-9]|$)';
+            $pattern = '(^|[^a-zA-Z0-9])' . $escapedSearch . '([^a-zA-Z0-9]|$)';
 
-            $externalQuery->where(function ($q) use ($pattern) {
-                $q->whereRaw('LOWER(code_panneau) REGEXP ?', [$pattern])
-                ->orWhereRaw('LOWER(designation) REGEXP ?', [$pattern]);
+            $codeExpr = $this->unaccentSql('code_panneau');
+            $desigExpr = $this->unaccentSql('designation');
+
+            $externalQuery->where(function ($q) use ($pattern, $codeExpr, $desigExpr) {
+                $q->whereRaw("$codeExpr REGEXP ?", [$pattern])
+                  ->orWhereRaw("$desigExpr REGEXP ?", [$pattern]);
             });
         }
         if ($request->filled('commune_id')) {
@@ -728,5 +739,52 @@ class PanelController extends Controller
     {
         $service = new PdfExportService();
         return $service->exportNetworkReport();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // HELPERS — Recherche insensible aux accents
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Retire les accents et passe en minuscules — pour normaliser le terme
+     * de recherche côté PHP avant de construire la regex.
+     */
+    private function stripAccents(string $s): string
+    {
+        return strtr(mb_strtolower($s, 'UTF-8'), [
+            'à'=>'a','á'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a',
+            'ç'=>'c',
+            'è'=>'e','é'=>'e','ê'=>'e','ë'=>'e',
+            'ì'=>'i','í'=>'i','î'=>'i','ï'=>'i',
+            'ñ'=>'n',
+            'ò'=>'o','ó'=>'o','ô'=>'o','õ'=>'o','ö'=>'o',
+            'ù'=>'u','ú'=>'u','û'=>'u','ü'=>'u',
+            'ý'=>'y','ÿ'=>'y',
+        ]);
+    }
+
+    /**
+     * Construit une expression SQL qui retire les accents d'une colonne
+     * (chaîne REPLACE imbriquées + LOWER). Portable sur MySQL/MariaDB
+     * sans dépendre de la collation configurée — la recherche fonctionne
+     * que la base soit en utf8mb4_unicode_ci, _general_ci ou _bin.
+     */
+    private function unaccentSql(string $column): string
+    {
+        $map = [
+            'à'=>'a','á'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a',
+            'ç'=>'c',
+            'è'=>'e','é'=>'e','ê'=>'e','ë'=>'e',
+            'ì'=>'i','í'=>'i','î'=>'i','ï'=>'i',
+            'ñ'=>'n',
+            'ò'=>'o','ó'=>'o','ô'=>'o','õ'=>'o','ö'=>'o',
+            'ù'=>'u','ú'=>'u','û'=>'u','ü'=>'u',
+            'ý'=>'y','ÿ'=>'y',
+        ];
+        $expr = "LOWER($column)";
+        foreach ($map as $from => $to) {
+            $expr = "REPLACE($expr, '$from', '$to')";
+        }
+        return $expr;
     }
 }
