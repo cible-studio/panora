@@ -209,7 +209,16 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
 
     {{-- Photo --}}
     <div style="position:relative;aspect-ratio:16/10;background:var(--surface2);border-radius:10px 10px 0 0;overflow:hidden">
-        <a href="{{ $pige->getPhotoUrl() }}" target="_blank" style="display:block;height:100%">
+        <a href="{{ $pige->getPhotoUrl() }}"
+           onclick="event.preventDefault();PigeLightbox.open(this);"
+           data-photo-url="{{ $pige->getPhotoUrl() }}"
+           data-panel-ref="{{ $pige->panel?->reference ?? '—' }}"
+           data-panel-name="{{ $pige->panel?->name ?? '' }}"
+           data-taken-at="{{ ($pige->taken_at ?? $pige->created_at)?->format('d/m/Y H:i') }}"
+           data-tech="{{ $pige->technicien?->name ?? '—' }}"
+           data-campaign="{{ $pige->campaign?->name ?? '' }}"
+           title="Voir l'image en grand"
+           style="display:block;height:100%;cursor:zoom-in">
             <img src="{{ $pige->getThumbUrl() }}" alt="Pige {{ $pige->panel?->reference }}"
                  style="width:100%;height:100%;object-fit:cover;transition:transform .3s"
                  loading="lazy"
@@ -380,6 +389,31 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
     </div>
 </div>
 
+{{-- ════ LIGHTBOX IMAGE PIGE ════ --}}
+<div id="pige-lightbox" role="dialog" aria-modal="true" aria-labelledby="pige-lightbox-ref"
+     style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.92);align-items:center;justify-content:center;padding:24px;flex-direction:column;gap:14px">
+    <button type="button" onclick="PigeLightbox.close()"
+            aria-label="Fermer"
+            style="position:absolute;top:18px;right:18px;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.25);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <img id="pige-lightbox-img" src="" alt=""
+         style="max-width:min(100%,1400px);max-height:calc(100vh - 130px);border-radius:10px;box-shadow:0 24px 60px rgba(0,0,0,.5);object-fit:contain">
+    <div style="background:rgba(0,0,0,.55);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px 16px;color:#fff;font-size:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;max-width:90%">
+        <div>
+            <div id="pige-lightbox-ref" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:800;font-size:13px;color:#fab80b"></div>
+            <div id="pige-lightbox-name" style="font-size:11px;opacity:.85;margin-top:1px"></div>
+        </div>
+        <div style="height:24px;width:1px;background:rgba(255,255,255,.18)"></div>
+        <div id="pige-lightbox-meta" style="font-size:11px;opacity:.8;line-height:1.5"></div>
+        <a id="pige-lightbox-newtab" href="#" target="_blank" rel="noopener"
+           style="margin-left:auto;font-size:11px;color:#fab80b;text-decoration:none;padding:5px 11px;border:1px solid rgba(250,184,11,.45);border-radius:8px;font-weight:600;display:inline-flex;align-items:center;gap:5px">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Nouvel onglet
+        </a>
+    </div>
+</div>
+
 {{-- ════ MODAL CONFIRMATION ════ --}}
 <div id="modal-confirm" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.4)">
@@ -410,6 +444,56 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
 
 @push('scripts')
 <script>
+// ════════════════════════════════════════════════════════════
+// LIGHTBOX IMAGE PIGE — affichage popup sur la même page
+// ════════════════════════════════════════════════════════════
+window.PigeLightbox = {
+    open(trigger) {
+        const lb     = document.getElementById('pige-lightbox');
+        const img    = document.getElementById('pige-lightbox-img');
+        const ref    = document.getElementById('pige-lightbox-ref');
+        const name   = document.getElementById('pige-lightbox-name');
+        const meta   = document.getElementById('pige-lightbox-meta');
+        const newtab = document.getElementById('pige-lightbox-newtab');
+        if (!lb || !img) return;
+
+        const url   = trigger.dataset.photoUrl || trigger.getAttribute('href');
+        const pref  = trigger.dataset.panelRef  || '—';
+        const pname = trigger.dataset.panelName || '';
+        const taken = trigger.dataset.takenAt   || '';
+        const tech  = trigger.dataset.tech      || '—';
+        const camp  = trigger.dataset.campaign  || '';
+
+        img.src        = url;
+        img.alt        = 'Pige ' + pref;
+        ref.textContent  = pref;
+        name.textContent = pname;
+        meta.innerHTML   = (camp ? `<strong>${camp}</strong> · ` : '')
+                         + `Par ${tech}` + (taken ? ` · ${taken}` : '');
+        newtab.href = url;
+
+        lb.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    },
+    close() {
+        const lb = document.getElementById('pige-lightbox');
+        if (!lb) return;
+        lb.style.display = 'none';
+        document.getElementById('pige-lightbox-img').src = '';
+        document.body.style.overflow = '';
+    },
+};
+// Fermer au clic sur le fond
+document.getElementById('pige-lightbox')?.addEventListener('click', function (e) {
+    if (e.target === this) PigeLightbox.close();
+});
+// Fermer avec Escape
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && document.getElementById('pige-lightbox')?.style.display === 'flex') {
+        PigeLightbox.close();
+    }
+});
+
 // ════════════════════════════════════════════════════════════
 // MODAL CONFIRM
 // ════════════════════════════════════════════════════════════
