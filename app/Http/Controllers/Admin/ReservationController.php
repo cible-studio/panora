@@ -2118,6 +2118,78 @@ class ReservationController extends Controller
             ->with('success', "Réservation annulée. {$panelCount} panneau(x) libéré(s).");
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // BULK ACTION — actions groupées sur plusieurs réservations
+    //
+    // Actions :
+    //   - 'cancel' : annule N réservations (status passe à annule)
+    //   - 'delete' : supprime N réservations (uniquement isDeletable)
+    //
+    // Respect des gardes métier : on traite chaque résa avec sa propre
+    // logique de validation, on SKIP silencieusement celles qui ne sont
+    // pas éligibles, et on remonte le détail dans la session flash.
+    // ══════════════════════════════════════════════════════════════
+    public function bulkAction(Request $request)
+    {
+        $data = $request->validate([
+            'action' => 'required|in:cancel,delete',
+            'ids'    => 'required|array|min:1|max:200',
+            'ids.*'  => 'integer|exists:reservations,id',
+            'cancel_reason' => 'nullable|string|max:500',
+        ]);
+
+        $reservations = Reservation::whereIn('id', $data['ids'])->get();
+        $applied = 0;
+        $skipped = [];
+
+        foreach ($reservations as $r) {
+            try {
+                if ($data['action'] === 'cancel') {
+                    if (!$r->isCancellable() || $r->client?->trashed()) {
+                        $skipped[] = $r->reference . ' (non annulable)';
+                        continue;
+                    }
+                    $this->reservationService->cancel($r, [
+                        'cancel_type'   => 'autre',
+                        'cancel_reason' => $data['cancel_reason'] ?? 'Annulation groupée',
+                        'cancelled_at'  => now(),
+                        'cancelled_by'  => auth()->id(),
+                    ]);
+                    $applied++;
+                } elseif ($data['action'] === 'delete') {
+                    if (!$r->isDeletable()) {
+                        $skipped[] = $r->reference . ' (active/avec campagne)';
+                        continue;
+                    }
+                    $this->reservationService->delete($r);
+                    $applied++;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('reservation.bulk.skipped', [
+                    'id' => $r->id, 'action' => $data['action'], 'err' => $e->getMessage(),
+                ]);
+                $skipped[] = $r->reference . ' (erreur)';
+            }
+        }
+
+        // 1 seule alerte consolidée plutôt que N alertes individuelles
+        AlertService::create(
+            'reservation',
+            'warning',
+            ($data['action'] === 'cancel' ? '🚫' : '🗑') . ' Action groupée — ' . $applied . ' réservation(s)',
+            auth()->user()->name . ' a effectué : ' . $data['action'] . ' sur ' . $applied . ' réservation(s).'
+                . (!empty($skipped) ? ' Ignorées : ' . count($skipped) . '.' : ''),
+            null
+        );
+
+        $msg = "{$applied} réservation(s) " . ($data['action'] === 'cancel' ? 'annulée(s)' : 'supprimée(s)') . '.';
+        if (!empty($skipped)) {
+            $msg .= ' ' . count($skipped) . ' ignorée(s) : ' . implode(', ', array_slice($skipped, 0, 5))
+                  . (count($skipped) > 5 ? '…' : '');
+        }
+        return redirect()->route('admin.reservations.index')->with('success', $msg);
+    }
+
     public function destroy(Reservation $reservation)
     {
         if (!$reservation->isDeletable())

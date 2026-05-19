@@ -15,9 +15,12 @@
         <div class="card-title">👥 Utilisateurs ({{ $users->total() }})</div>
     </div>
     <div class="table-wrap">
-        <table>
+        <table id="users-table">
             <thead>
                 <tr>
+                    <th style="width:36px;text-align:center;">
+                        <input type="checkbox" data-bulk-select-all aria-label="Tout sélectionner">
+                    </th>
                     <th>Utilisateur</th>
                     <th>Email</th>
                     <th>Rôle</th>
@@ -29,6 +32,11 @@
             <tbody>
                 @forelse($users as $user)
                 <tr>
+                    <td style="text-align:center;">
+                        @if($user->id !== auth()->id())
+                            <input type="checkbox" class="bulk-checkbox" value="{{ $user->id }}" aria-label="Sélectionner {{ $user->name }}">
+                        @endif
+                    </td>
                     <td>
                         <div style="display:flex; align-items:center; gap:10px;">
                             <div class="avatar-circle">
@@ -103,7 +111,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" style="text-align:center; color:var(--text3); padding:32px;">
+                    <td colspan="7" style="text-align:center; color:var(--text3); padding:32px;">
                         Aucun utilisateur
                     </td>
                 </tr>
@@ -115,5 +123,37 @@
         {{ $users->links() }}
     </div>
 </div>
+
+{{-- ── Barre d'action groupée utilisateurs (admin uniquement) ── --}}
+<div class="bulk-bar" id="user-bulk-bar">
+    <div class="bulk-count">
+        <strong class="bulk-count-num">0</strong> utilisateur(s) sélectionné(s)
+    </div>
+    <div class="bulk-actions">
+        <button type="button" data-bulk-clear class="secondary">Désélectionner</button>
+        <button type="button" onclick="bulkUser('activate')">✅ Activer</button>
+        <button type="button" onclick="bulkUser('deactivate')" class="danger">🔒 Désactiver</button>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const helper = window.BulkBar.init({
+        barId: 'user-bulk-bar',
+        checkboxSelector: '#users-table .bulk-checkbox',
+    });
+    window.bulkUser = async function(action) {
+        const ids = helper?.getSelectedIds() || [];
+        if (ids.length === 0) return;
+        const verbs = { activate: 'ACTIVER', deactivate: 'DÉSACTIVER' };
+        if (!confirm(`Confirmer : ${verbs[action]} ${ids.length} compte(s) ? ` +
+                     (action === 'deactivate' ? "Garde-fou : le dernier admin et vous-même ne seront pas désactivés." : ''))) return;
+        await window.BulkBar.submit({
+            url: '{{ route('admin.users.bulk') }}',
+            ids,
+            payload: { action },
+        });
+    };
+});
+</script>
 
 </x-admin-layout>

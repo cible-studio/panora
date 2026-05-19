@@ -132,6 +132,9 @@
         <div class="table-responsive">
             <table class="data-table" id="reservations-table">
                 <thead>
+                        <th style="width:36px;text-align:center;">
+                            <input type="checkbox" data-bulk-select-all aria-label="Tout sélectionner">
+                        </th>
                         <th style="width:8px"></th>
                         <th>Référence</th>
                         <th>Client</th>
@@ -149,6 +152,48 @@
                 </tbody>
             </table>
         </div>
+
+        {{-- ── Barre d'action groupée (apparaît si ≥1 sélectionné) ── --}}
+        @if(auth()->user()->role?->value === 'admin' || auth()->user()->role?->value === 'mediaplanner')
+        <div class="bulk-bar" id="resa-bulk-bar">
+            <div class="bulk-count">
+                <strong class="bulk-count-num">0</strong> réservation(s) sélectionnée(s)
+            </div>
+            <div class="bulk-actions">
+                <button type="button" data-bulk-clear class="secondary">Désélectionner</button>
+                <button type="button" onclick="bulkResa('cancel')" class="danger">
+                    🚫 Annuler la sélection
+                </button>
+                <button type="button" onclick="bulkResa('delete')" class="danger">
+                    🗑 Supprimer la sélection
+                </button>
+            </div>
+        </div>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const helper = window.BulkBar.init({
+                barId: 'resa-bulk-bar',
+                checkboxSelector: '#reservations-table .bulk-checkbox',
+            });
+            window.bulkResa = async function(action) {
+                if (!helper) return;
+                const ids = helper.getSelectedIds();
+                if (ids.length === 0) return;
+                const verb = action === 'cancel' ? 'annuler' : 'SUPPRIMER';
+                const reason = action === 'cancel'
+                    ? prompt(`Motif d'annulation (optionnel) pour ${ids.length} réservation(s) :`)
+                    : null;
+                if (action === 'cancel' && reason === null) return; // annulé
+                if (!confirm(`Confirmer : ${verb} ${ids.length} réservation(s) ? Cette action est irréversible.`)) return;
+                await window.BulkBar.submit({
+                    url: '{{ route('admin.reservations.bulk') }}',
+                    ids,
+                    payload: { action, cancel_reason: reason ?? '' },
+                });
+            };
+        });
+        </script>
+        @endif
 
        {{-- Pagination --}}
         <!-- <div id="pagination-container" class="pagination-container">

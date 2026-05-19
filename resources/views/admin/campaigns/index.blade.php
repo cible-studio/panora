@@ -207,6 +207,11 @@
             <table class="data-table" id="campaigns-table">
                 <thead>
                     <tr>
+                        @if(in_array($authRole, ['admin', 'mediaplanner'], true))
+                        <th style="width:36px;text-align:center;">
+                            <input type="checkbox" data-bulk-select-all aria-label="Tout sélectionner">
+                        </th>
+                        @endif
                         <th>Campagne</th>
                         <th>Client</th>
                         <th>Période</th>
@@ -232,6 +237,46 @@
             {{ $campaigns->links() }}
         </div>
     </div>
+
+    {{-- ── Barre d'action groupée campagnes (admin + MP) ── --}}
+    @if(in_array($authRole, ['admin', 'mediaplanner'], true))
+    <div class="bulk-bar" id="camp-bulk-bar">
+        <div class="bulk-count">
+            <strong class="bulk-count-num">0</strong> campagne(s) sélectionnée(s)
+        </div>
+        <div class="bulk-actions">
+            <button type="button" data-bulk-clear class="secondary">Désélectionner</button>
+            <button type="button" onclick="bulkCamp('pause')">⏸ Mettre en pause</button>
+            <button type="button" onclick="bulkCamp('resume')">▶ Reprendre</button>
+            <button type="button" onclick="bulkCamp('cancel')" class="danger">🚫 Annuler</button>
+            <button type="button" onclick="bulkCamp('delete')" class="danger">🗑 Supprimer</button>
+        </div>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const helper = window.BulkBar.init({
+            barId: 'camp-bulk-bar',
+            checkboxSelector: '#campaigns-table .bulk-checkbox',
+        });
+        window.bulkCamp = async function(action) {
+            if (!helper) return;
+            const ids = helper.getSelectedIds();
+            if (ids.length === 0) return;
+            const labels = { pause: 'METTRE EN PAUSE', resume: 'REPRENDRE', cancel: 'ANNULER', delete: 'SUPPRIMER' };
+            const reason = action === 'cancel'
+                ? prompt(`Motif d'annulation (optionnel) pour ${ids.length} campagne(s) :`)
+                : null;
+            if (action === 'cancel' && reason === null) return;
+            if (!confirm(`Confirmer : ${labels[action]} ${ids.length} campagne(s) ?`)) return;
+            await window.BulkBar.submit({
+                url: '{{ route('admin.campaigns.bulk') }}',
+                ids,
+                payload: { action, cancel_reason: reason ?? '' },
+            });
+        };
+    });
+    </script>
+    @endif
 
     {{-- ══ MODAL SUPPRESSION ══ --}}
     <div id="modal-delete-campaign" class="modal-overlay" style="display:none;">

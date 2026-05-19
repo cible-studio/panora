@@ -1486,3 +1486,80 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
     content: "☀️";
 }
 
+/* ═══════════════════════════════════════════════════════════
+   BULK ACTION BAR — sélection multiple + barre flottante
+   Pattern partagé : resa, campagne, alertes, users, factures.
+   ═══════════════════════════════════════════════════════════ */
+.bulk-bar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(160%);
+    z-index: 1000;
+    background: #0f172a;
+    color: #fff;
+    padding: 12px 16px 12px 20px;
+    border-radius: 14px;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: transform 0.25s ease;
+    max-width: calc(100vw - 32px);
+    flex-wrap: wrap;
+}
+.bulk-bar.open {
+    transform: translateX(-50%) translateY(0);
+}
+.bulk-bar .bulk-count {
+    font-size: 13px;
+    font-weight: 700;
+}
+.bulk-bar .bulk-count-num {
+    color: #fab80b;
+}
+.bulk-bar .bulk-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.bulk-bar button {
+    background: var(--accent);
+    color: #fff;
+    border: 0;
+    padding: 9px 16px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.bulk-bar button.danger {
+    background: #dc2626;
+}
+.bulk-bar button.secondary {
+    background: rgba(255, 255, 255, 0.10);
+    color: #fff;
+}
+.bulk-bar button:active {
+    transform: translateY(1px);
+}
+
+/* Checkbox des lignes en mode sélection multiple */
+tr.bulk-selected {
+    background: rgba(220, 38, 38, 0.06) !important;
+}
+tr.bulk-selected td {
+    border-color: rgba(220, 38, 38, 0.15) !important;
+}
+.bulk-checkbox,
+[data-bulk-select-all] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent);
+}
+

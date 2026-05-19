@@ -105,6 +105,47 @@
         @include('admin.alertes.partials.alerts-list', ['alertes' => $alertes])
     </div>
 
+    {{-- ── Barre d'action groupée alertes ── --}}
+    <div class="bulk-bar" id="alert-bulk-bar">
+        <div class="bulk-count">
+            <strong class="bulk-count-num">0</strong> alerte(s) sélectionnée(s)
+        </div>
+        <div class="bulk-actions">
+            <button type="button" data-bulk-clear class="secondary">Désélectionner</button>
+            <button type="button" onclick="bulkAlert('mark-read')">✓ Marquer lues</button>
+            <button type="button" onclick="bulkAlert('archive')">📦 Archiver</button>
+            <button type="button" onclick="bulkAlert('delete')" class="danger">🗑 Supprimer</button>
+        </div>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Réinitialise la barre à chaque rechargement AJAX de la liste
+        function initBulk() {
+            return window.BulkBar.init({
+                barId: 'alert-bulk-bar',
+                checkboxSelector: '#alerts-container .bulk-checkbox',
+            });
+        }
+        let helper = initBulk();
+        // Re-bind après refresh AJAX (le container est remplacé par innerHTML)
+        const obs = new MutationObserver(() => { helper = initBulk(); });
+        const target = document.getElementById('alerts-container');
+        if (target) obs.observe(target, { childList: true, subtree: true });
+
+        window.bulkAlert = async function(action) {
+            const ids = helper?.getSelectedIds() || [];
+            if (ids.length === 0) return;
+            const labels = { 'mark-read': 'MARQUER COMME LUES', 'archive': 'ARCHIVER', 'delete': 'SUPPRIMER' };
+            if (!confirm(`Confirmer : ${labels[action]} ${ids.length} alerte(s) ?`)) return;
+            await window.BulkBar.submit({
+                url: '{{ route('admin.alerts.bulk') }}',
+                ids,
+                payload: { action },
+            });
+        };
+    });
+    </script>
+
     <style>
         .filter-bar { font-size: 12px; }
         .filter-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); display: block; margin-bottom: 4px; }
