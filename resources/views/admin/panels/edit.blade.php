@@ -279,26 +279,18 @@
                     <label style="font-weight:600;margin-bottom:12px;display:block;font-size:13px;color:var(--text2);">
                         Images existantes ({{ $panel->photos->count() }})
                     </label>
-                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;">
+                    <div id="photos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;">
                         @foreach($panel->photos->sortBy('ordre') as $photo)
-                        <div id="photo-card-{{ $photo->id }}"
-                             style="position:relative;border:2px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface2);transition:border-color .2s;">
+                        <div id="photo-card-{{ $photo->id }}" class="photo-card"
+                             style="position:relative;border:2px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface2);transition:opacity .2s, transform .2s;">
 
                             {{-- Image --}}
                             <img src="{{ asset('storage/' . $photo->path) }}"
                                  alt="Photo panneau"
                                  style="width:100%;height:120px;object-fit:cover;display:block;">
 
-                            {{-- Overlay suppression en cours --}}
-                            <div id="overlay-{{ $photo->id }}"
-                                 style="display:none;position:absolute;inset:0;background:rgba(239,68,68,.85);align-items:center;justify-content:center;flex-direction:column;gap:8px;">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                                <span style="color:white;font-size:11px;font-weight:600;">À supprimer</span>
-                            </div>
-
                             {{-- Footer --}}
                             <div style="padding:8px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:6px;">
-                                {{-- Ordre --}}
                                 <div style="display:flex;align-items:center;gap:4px;">
                                     <span style="font-size:10px;color:var(--text3);">#</span>
                                     <select name="ordre[{{ $photo->id }}]"
@@ -309,15 +301,13 @@
                                     </select>
                                 </div>
 
-                                {{-- Bouton supprimer --}}
                                 <input type="checkbox"
                                        name="delete_photos[]"
                                        value="{{ $photo->id }}"
                                        id="del-{{ $photo->id }}"
                                        style="display:none;">
                                 <button type="button"
-                                        id="del-btn-{{ $photo->id }}"
-                                        onclick="toggleDeletePhoto({{ $photo->id }})"
+                                        onclick="deletePhoto({{ $photo->id }})"
                                         style="padding:5px 8px;border-radius:6px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08);color:#ef4444;cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;display:flex;align-items:center;gap:4px;">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
                                     Suppr.
@@ -326,9 +316,19 @@
                         </div>
                         @endforeach
                     </div>
-                    <div style="font-size:12px;color:var(--text3);margin-top:10px;display:flex;align-items:center;gap:6px;">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                        Cliquez sur "Suppr." pour marquer une image à supprimer — elle sera supprimée à l'enregistrement.
+
+                    {{-- Bannière "X image(s) supprimée(s)" + bouton Annuler tout --}}
+                    <div id="deleted-banner"
+                         style="display:none;margin-top:10px;padding:10px 14px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                        <div style="display:flex;align-items:center;gap:8px;color:#ef4444;font-size:12px;font-weight:600">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                            <span><strong id="deleted-count">0</strong> image(s) seront supprimée(s) à l'enregistrement.</span>
+                        </div>
+                        <button type="button" onclick="restoreAllPhotos()"
+                                style="padding:6px 12px;background:transparent;border:1px solid rgba(239,68,68,.4);border-radius:8px;color:#ef4444;cursor:pointer;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:5px">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>
+                            Restaurer tout
+                        </button>
                     </div>
                 </div>
                 @else
@@ -350,26 +350,41 @@
 </div>
 
 <script>
-function toggleDeletePhoto(id) {
-    const cb      = document.getElementById('del-' + id);
-    const card    = document.getElementById('photo-card-' + id);
-    const overlay = document.getElementById('overlay-' + id);
-    const btn     = document.getElementById('del-btn-' + id);
-    const svgIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>`;
+// Marque une image à supprimer : la card disparaît + checkbox coché
+// (le serveur traitera la suppression à l'enregistrement). Une bannière
+// "X images supprimées · Restaurer tout" permet d'annuler globalement
+// avant de soumettre.
+function deletePhoto(id) {
+    const cb   = document.getElementById('del-' + id);
+    const card = document.getElementById('photo-card-' + id);
+    if (!cb || !card) return;
 
-    cb.checked = !cb.checked;
+    cb.checked = true;
+    card.style.opacity   = '0';
+    card.style.transform = 'scale(.9)';
+    setTimeout(() => { card.style.display = 'none'; updateDeletedBanner(); }, 200);
+}
 
-    if (cb.checked) {
-        card.style.borderColor = '#ef4444';
-        overlay.style.display  = 'flex';
-        btn.style.background   = 'rgba(239,68,68,.2)';
-        btn.innerHTML = svgIcon + ' Annuler';
-    } else {
-        card.style.borderColor = 'var(--border)';
-        overlay.style.display  = 'none';
-        btn.style.background   = 'rgba(239,68,68,.08)';
-        btn.innerHTML = svgIcon + ' Suppr.';
-    }
+function restoreAllPhotos() {
+    document.querySelectorAll('input[name="delete_photos[]"]:checked').forEach(cb => {
+        const card = document.getElementById('photo-card-' + cb.value);
+        if (card) {
+            card.style.display   = '';
+            card.style.opacity   = '1';
+            card.style.transform = '';
+        }
+        cb.checked = false;
+    });
+    updateDeletedBanner();
+}
+
+function updateDeletedBanner() {
+    const banner  = document.getElementById('deleted-banner');
+    const countEl = document.getElementById('deleted-count');
+    if (!banner || !countEl) return;
+    const nb = document.querySelectorAll('input[name="delete_photos[]"]:checked').length;
+    countEl.textContent = nb;
+    banner.style.display = nb > 0 ? 'flex' : 'none';
 }
 </script>
 
