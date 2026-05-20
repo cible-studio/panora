@@ -341,12 +341,16 @@ class RapportController extends Controller
         $inactivePanels = $kpi->inactivePanels(60, 30);
         $panelAlerts    = $kpi->panelAlerts();
 
-        // Analyse clients (top CA + inactifs par tranche)
-        $topClientsKpi    = $kpi->topClients(10);
-        $inactivityBucket = $kpi->inactivityBuckets();
-        $inactiveClients3  = $kpi->inactiveClients(3, 50);
-        $inactiveClients6  = $kpi->inactiveClients(6, 50);
-        $inactiveClients12 = $kpi->inactiveClients(12, 50);
+        // Analyse clients (top CA + volume + fréquence + inactifs)
+        $topClientsKpi      = $kpi->topClients(10);
+        $topClientsByRev    = $kpi->topClientsByCriteria('revenue', 5);
+        $topClientsByVol    = $kpi->topClientsByCriteria('volume', 5);
+        $topClientsByFreq   = $kpi->topClientsByCriteria('frequency', 5);
+        $clientRevenueDist  = $kpi->clientRevenueDistribution(8);
+        $inactivityBucket   = $kpi->inactivityBuckets();
+        $inactiveClients3   = $kpi->inactiveClients(3, 50);
+        $inactiveClients6   = $kpi->inactiveClients(6, 50);
+        $inactiveClients12  = $kpi->inactiveClients(12, 50);
 
         // Campagnes (stats + motifs annulation)
         $campaignStats   = $kpi->campaignStats();
@@ -414,6 +418,10 @@ class RapportController extends Controller
             'inactivePanels',
             'panelAlerts',
             'topClientsKpi',
+            'topClientsByRev',
+            'topClientsByVol',
+            'topClientsByFreq',
+            'clientRevenueDist',
             'inactivityBucket',
             'inactiveClients3',
             'inactiveClients6',
