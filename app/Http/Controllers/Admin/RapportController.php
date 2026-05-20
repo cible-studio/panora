@@ -1153,12 +1153,27 @@ class RapportController extends Controller
             ->limit(10)
             ->get();
 
-        // ── 4. Top 10 par nombre de panneaux ───────────────────────
-        $topByPanels = $baseQuery()
-            ->whereNotNull('total_panels')
-            ->where('total_panels', '>', 0)
-            ->with('client:id,name')
-            ->orderByDesc('total_panels')
+        // ── 4. Top 10 PANNEAUX (références) les plus utilisés ─────
+        // Compte le nombre de campagnes distinctes (sur la période) dans
+        // lesquelles chaque panneau apparaît via campaign_panels. Permet
+        // d'identifier les emplacements stars du parc — info plus utile
+        // pour la direction que "quelle campagne a le plus de panneaux".
+        $topPanels = DB::table('panels')
+            ->join('campaign_panels', 'campaign_panels.panel_id', '=', 'panels.id')
+            ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+            ->where('campaigns.start_date', '<=', $dateTo)
+            ->where('campaigns.end_date',   '>=', $dateFrom)
+            ->whereNull('campaigns.deleted_at')
+            ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
+            ->select(
+                'panels.id',
+                'panels.reference',
+                'panels.name',
+                'communes.name as commune_name',
+                DB::raw('COUNT(DISTINCT campaigns.id) as nb_campagnes')
+            )
+            ->groupBy('panels.id', 'panels.reference', 'panels.name', 'communes.name')
+            ->orderByDesc('nb_campagnes')
             ->limit(10)
             ->get();
 
@@ -1190,7 +1205,7 @@ class RapportController extends Controller
             'annee', 'moisDu', 'moisAu', 'dateFrom', 'dateTo', 'anneesDisponibles',
             'total', 'actives', 'terminees', 'annulees', 'planifiees', 'enPause',
             'tauxAnnulation', 'motifsAnnulation',
-            'topByCA', 'topByPanels', 'topByDuration', 'tendance',
+            'topByCA', 'topPanels', 'topByDuration', 'tendance',
             'caTotal'
         ));
     }

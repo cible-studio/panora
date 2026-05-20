@@ -251,26 +251,26 @@
         @endif
     </div>
 
-    {{-- Top par nb panneaux --}}
+    {{-- Top panneaux les plus utilisés --}}
     <div class="rcamp-section" style="margin-bottom:0">
         <div class="rcamp-section-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-            Top panneaux
+            Panneaux les plus utilisés
         </div>
-        @if($topByPanels->isEmpty())
+        @if($topPanels->isEmpty())
             <div style="text-align:center;padding:24px 0;color:var(--text3);font-size:12px">Aucune donnée</div>
         @else
-            @foreach($topByPanels as $i => $c)
+            @foreach($topPanels as $i => $p)
             @php $rank = $i + 1; $rankClass = match($rank){1=>'rcamp-rank-1',2=>'rcamp-rank-2',3=>'rcamp-rank-3',default=>'rcamp-rank-default'}; @endphp
             <div class="rcamp-rank-row">
                 <div class="rcamp-rank {{ $rankClass }}">{{ $rank }}</div>
                 <div style="flex:1;min-width:0">
-                    <a href="{{ route('admin.campaigns.show', $c) }}" style="font-size:12px;font-weight:600;color:var(--text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">{{ $c->name }}</a>
-                    <div style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $c->client?->name ?? '—' }}</div>
+                    <a href="{{ route('admin.panels.show', $p->id) }}" style="font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:var(--accent);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">{{ $p->reference }}</a>
+                    <div style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $p->commune_name ?? '—' }}{{ $p->name ? ' · '.$p->name : '' }}</div>
                 </div>
                 <div style="text-align:right;flex-shrink:0">
-                    <div style="font-size:14px;font-weight:700;color:#3b82f6">{{ $c->total_panels }}</div>
-                    <div style="font-size:9px;color:var(--text3);text-transform:uppercase">panneaux</div>
+                    <div style="font-size:14px;font-weight:700;color:#3b82f6">{{ $p->nb_campagnes }}</div>
+                    <div style="font-size:9px;color:var(--text3);text-transform:uppercase">campagne{{ $p->nb_campagnes > 1 ? 's' : '' }}</div>
                 </div>
             </div>
             @endforeach
