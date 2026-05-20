@@ -191,11 +191,14 @@ $kpiCards = [
 <div style="display:flex;gap:4px;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:6px">
     @php
     $onglets = [
-        ['id'=>'occupation','icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>','label'=>"Taux d'occupation"],
+        ['id'=>'occupation','icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>','label'=>"Occupation"],
+        ['id'=>'panneaux',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>','label'=>'Performance panneaux'],
         ['id'=>'periodes',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>','label'=>'Périodes'],
         ['id'=>'ca',        'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>','label'=>'CA & Revenus'],
         ['id'=>'zones',     'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>','label'=>'Zones & Communes'],
         ['id'=>'clients',   'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>','label'=>'Clients'],
+        ['id'=>'decap',     'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>','label'=>'Décappages'],
+        ['id'=>'insights',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11h.01M15 11h.01M18 21l-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3l-3 3z"/></svg>','label'=>'Insights & Alertes'],
     ];
     @endphp
     @foreach($onglets as $o)
@@ -618,6 +621,252 @@ $kpiCards = [
             <div id="cm-panels" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;"></div>
         </div>
     </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════
+     ONGLET — PERFORMANCE PANNEAUX (top + low)
+══════════════════════════════════════════════════════════════ --}}
+<div id="panel-panneaux" class="rpt-panel" style="display:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        @media (max-width:900px) { .rpt-grid-2 { grid-template-columns:1fr; } }
+
+        {{-- Top 20 plus loués ──────────────────────────────────────── --}}
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px">
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>
+                Top 20 panneaux les plus loués
+            </div>
+            @if($topPanels->isEmpty())
+                <div style="padding:32px;text-align:center;color:var(--text3);font-size:12px;font-style:italic">Aucune donnée sur la période.</div>
+            @else
+                <div style="overflow-x:auto">
+                    <table style="width:100%;border-collapse:collapse;font-size:12px">
+                        <thead>
+                            <tr style="background:var(--surface2)">
+                                <th style="padding:8px;text-align:left;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">#</th>
+                                <th style="padding:8px;text-align:left;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Panneau</th>
+                                <th style="padding:8px;text-align:right;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Jours occupé</th>
+                                <th style="padding:8px;text-align:right;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Camp.</th>
+                                <th style="padding:8px;text-align:right;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">CA estimé</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($topPanels as $i => $p)
+                            <tr style="border-bottom:1px solid var(--border)">
+                                <td style="padding:8px;color:var(--text3);font-weight:700">{{ $i+1 }}</td>
+                                <td style="padding:8px">
+                                    <a href="{{ route('admin.panels.show', $p->id) }}" style="font-family:ui-monospace,monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $p->reference }}</a>
+                                    <div style="font-size:10px;color:var(--text3)">{{ \Illuminate\Support\Str::limit($p->name ?? '', 40) }} · {{ $p->commune_name ?? '—' }}</div>
+                                </td>
+                                <td style="padding:8px;text-align:right;font-weight:700;color:#16a34a">{{ $p->days_occupied }}j</td>
+                                <td style="padding:8px;text-align:right;color:var(--text2)">{{ $p->campaigns_count }}</td>
+                                <td style="padding:8px;text-align:right;color:var(--text2);font-family:ui-monospace,monospace;font-size:11px">{{ number_format((float) $p->estimated_revenue, 0, ',', ' ') }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+
+        {{-- Top 20 sous-performants ────────────────────────────────── --}}
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px">
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+                Panneaux sous-performants
+            </div>
+            @if($lowPanels->isEmpty())
+                <div style="padding:32px;text-align:center;color:var(--text3);font-size:12px;font-style:italic">Tous les panneaux ont au moins une campagne.</div>
+            @else
+                <div style="overflow-x:auto">
+                    <table style="width:100%;border-collapse:collapse;font-size:12px">
+                        <thead>
+                            <tr style="background:var(--surface2)">
+                                <th style="padding:8px;text-align:left;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Panneau</th>
+                                <th style="padding:8px;text-align:right;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Camp.</th>
+                                <th style="padding:8px;text-align:right;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Tarif/mois</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($lowPanels as $p)
+                            <tr style="border-bottom:1px solid var(--border)">
+                                <td style="padding:8px">
+                                    <a href="{{ route('admin.panels.show', $p->id) }}" style="font-family:ui-monospace,monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $p->reference }}</a>
+                                    <div style="font-size:10px;color:var(--text3)">{{ \Illuminate\Support\Str::limit($p->name ?? '', 40) }} · {{ $p->commune_name ?? '—' }}</div>
+                                </td>
+                                <td style="padding:8px;text-align:right">
+                                    @if($p->campaigns_count == 0)
+                                        <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(239,68,68,.1);color:#ef4444">0 — jamais loué</span>
+                                    @else
+                                        <span style="color:#f97316;font-weight:700">{{ $p->campaigns_count }}</span>
+                                    @endif
+                                </td>
+                                <td style="padding:8px;text-align:right;color:var(--text2);font-family:ui-monospace,monospace;font-size:11px">{{ $p->monthly_rate > 0 ? number_format($p->monthly_rate, 0, ',', ' ') : '—' }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════
+     ONGLET — DÉCAPPAGES (campagnes terminées + à venir)
+══════════════════════════════════════════════════════════════ --}}
+<div id="panel-decap" class="rpt-panel" style="display:none">
+    {{-- Campagnes terminées récemment (à décaper) --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><polyline points="9 11 12 14 22 4"/></svg>
+            Campagnes terminées — à décaper ({{ $decapList->count() }})
+        </div>
+        @if($decapList->isEmpty())
+            <div style="padding:32px;text-align:center;color:var(--text3);font-size:12px;font-style:italic">Aucune campagne récemment terminée.</div>
+        @else
+            <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                    <thead>
+                        <tr style="background:var(--surface2)">
+                            <th style="padding:8px;text-align:left;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Campagne</th>
+                            <th style="padding:8px;text-align:left;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Client</th>
+                            <th style="padding:8px;text-align:right;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Panneaux</th>
+                            <th style="padding:8px;text-align:right;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Fin</th>
+                            <th style="padding:8px;text-align:right;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Retard</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($decapList as $c)
+                            @php
+                                $daysOverdue = (int) $c->end_date->diffInDays(now(), false);
+                                $isOverdue = $daysOverdue > 7;
+                            @endphp
+                            <tr style="border-bottom:1px solid var(--border)">
+                                <td style="padding:8px">
+                                    <a href="{{ route('admin.campaigns.show', $c->id) }}" style="color:var(--accent);text-decoration:none;font-weight:600">{{ $c->name }}</a>
+                                </td>
+                                <td style="padding:8px;color:var(--text2)">{{ $c->client?->name ?? '—' }}</td>
+                                <td style="padding:8px;text-align:right;font-weight:700">{{ $c->panels->count() }}</td>
+                                <td style="padding:8px;text-align:right;color:var(--text2);font-family:ui-monospace,monospace;font-size:11px">{{ $c->end_date->format('d/m/Y') }}</td>
+                                <td style="padding:8px;text-align:right">
+                                    @if($isOverdue)
+                                        <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(220,38,38,.1);color:#dc2626">+{{ $daysOverdue }}j</span>
+                                    @else
+                                        <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(245,158,11,.1);color:#f59e0b">{{ $daysOverdue }}j</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
+
+    {{-- Campagnes à venir (J+14) --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Campagnes finissant dans les 14 jours ({{ $upcomingEndings->count() }})
+        </div>
+        @if($upcomingEndings->isEmpty())
+            <div style="padding:24px;text-align:center;color:var(--text3);font-size:12px;font-style:italic">Aucune campagne active ne se termine dans les 14 jours.</div>
+        @else
+            <div style="display:flex;flex-direction:column;gap:6px">
+                @foreach($upcomingEndings as $c)
+                    @php $daysLeft = (int) now()->startOfDay()->diffInDays($c->end_date->startOfDay(), false); @endphp
+                    <a href="{{ route('admin.campaigns.show', $c->id) }}" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;text-decoration:none">
+                        <div>
+                            <div style="font-size:12px;font-weight:600;color:var(--text)">{{ $c->name }}</div>
+                            <div style="font-size:10px;color:var(--text3)">{{ $c->client?->name ?? '—' }} · Fin : {{ $c->end_date->format('d/m/Y') }}</div>
+                        </div>
+                        <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;background:rgba(59,130,246,.1);color:#3b82f6">Dans {{ $daysLeft }}j</span>
+                    </a>
+                @endforeach
+            </div>
+        @endif
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════
+     ONGLET — INSIGHTS & ALERTES
+══════════════════════════════════════════════════════════════ --}}
+<div id="panel-insights" class="rpt-panel" style="display:none">
+    {{-- Liste des insights générés automatiquement --}}
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+        @foreach($insights as $insight)
+            @php
+                $colors = match($insight['severity']) {
+                    'danger'  => ['bg' => 'rgba(220,38,38,.06)',  'border' => 'rgba(220,38,38,.3)',  'color' => '#dc2626'],
+                    'warning' => ['bg' => 'rgba(245,158,11,.06)', 'border' => 'rgba(245,158,11,.3)', 'color' => '#d97706'],
+                    'success' => ['bg' => 'rgba(34,197,94,.06)',  'border' => 'rgba(34,197,94,.3)',  'color' => '#16a34a'],
+                    default   => ['bg' => 'rgba(59,130,246,.06)', 'border' => 'rgba(59,130,246,.3)', 'color' => '#3b82f6'],
+                };
+            @endphp
+            <div style="background:{{ $colors['bg'] }};border:1px solid {{ $colors['border'] }};border-radius:12px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px">
+                <span style="font-size:22px;line-height:1;flex-shrink:0">{{ $insight['icon'] }}</span>
+                <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:700;color:{{ $colors['color'] }};margin-bottom:4px">{{ $insight['title'] }}</div>
+                    <div style="font-size:12px;color:var(--text2);line-height:1.5">{{ $insight['message'] }}</div>
+                    @if(!empty($insight['details']))
+                        <div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic">{{ $insight['details'] }}</div>
+                    @endif
+                </div>
+                @if(!empty($insight['cta_label']) && !empty($insight['cta_url']))
+                    <a href="{{ $insight['cta_url'] }}" style="font-size:11px;font-weight:700;padding:5px 12px;background:{{ $colors['color'] }};color:#fff;border-radius:8px;text-decoration:none;flex-shrink:0;white-space:nowrap">
+                        {{ $insight['cta_label'] }} →
+                    </a>
+                @endif
+            </div>
+        @endforeach
+    </div>
+
+    {{-- Tranches d'inactivité clients --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">📉 Clients inactifs — par tranche</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+            <div style="text-align:center;padding:14px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:10px">
+                <div style="font-size:24px;font-weight:800;color:#d97706">{{ $inactivityBucket['3_to_6'] }}</div>
+                <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">Inactifs 3-6 mois</div>
+            </div>
+            <div style="text-align:center;padding:14px;background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.25);border-radius:10px">
+                <div style="font-size:24px;font-weight:800;color:#ea580c">{{ $inactivityBucket['6_to_12'] }}</div>
+                <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">Inactifs 6-12 mois</div>
+            </div>
+            <div style="text-align:center;padding:14px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.25);border-radius:10px">
+                <div style="font-size:24px;font-weight:800;color:#dc2626">{{ $inactivityBucket['12_plus'] }}</div>
+                <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">Inactifs > 12 mois</div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Motifs d'annulation campagnes --}}
+    @if($cancelReasons->isNotEmpty())
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">📋 Motifs d'annulation campagnes ({{ $campaignStats['cancel_rate'] }}% sur {{ $campaignStats['total'] }} campagnes)</div>
+        @php
+            $reasonLabels = [
+                'budget' => '💸 Budget client', 'zone' => '📍 Choix zone', 'strategie' => '🎯 Changement stratégie',
+                'report' => '⏰ Report client', 'concurrent' => '🤝 Choix concurrent', 'autre' => '❓ Autre',
+            ];
+            $totalCancel = $cancelReasons->sum('count');
+        @endphp
+        <div style="display:flex;flex-direction:column;gap:6px">
+            @foreach($cancelReasons as $r)
+                @php $pct = $totalCancel > 0 ? round(($r->count / $totalCancel) * 100, 1) : 0; @endphp
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:8px">
+                    <span style="font-size:12px;color:var(--text);min-width:160px">{{ $reasonLabels[$r->cancellation_reason] ?? ucfirst($r->cancellation_reason) }}</span>
+                    <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+                        <div style="height:100%;background:linear-gradient(90deg,#ef4444,#f97316);width:{{ $pct }}%"></div>
+                    </div>
+                    <span style="font-size:11px;font-weight:700;color:var(--text);min-width:40px;text-align:right">{{ $r->count }}</span>
+                    <span style="font-size:10px;color:var(--text3);min-width:40px;text-align:right">{{ $pct }}%</span>
+                </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
 </div>
 
 {{-- ════ STYLES ════ --}}

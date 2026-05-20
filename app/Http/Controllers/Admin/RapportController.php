@@ -7,13 +7,14 @@ use App\Models\Campaign;
 use App\Models\Client;
 use App\Models\Commune;
 use App\Models\CampaignPanel;
+use App\Services\DashboardKpiService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class RapportController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, DashboardKpiService $kpi)
     {
         $annee = (int) ($request->annee ?? date('Y'));
         $moisDu = (int) ($request->mois_du ?? 1);
@@ -229,6 +230,42 @@ class RapportController extends Controller
             ORDER BY cp.end_date ASC
         "));
 
+        // ── Nouveaux KPIs analytics via DashboardKpiService ─────────
+        // Le service est instancié avec la période sélectionnée et cache
+        // automatiquement chaque KPI (TTL 5 min). Performance acceptable
+        // même sur gros parc (cf. Service docblock).
+        $kpi->setPeriod($dateFrom, $dateTo);
+
+        // Performance panneaux (top loués / sous-performants)
+        $topPanels   = $kpi->topPanels(20);
+        $lowPanels   = $kpi->lowPanels(20);
+
+        // Analyse clients (top CA + inactifs par tranche)
+        $topClientsKpi    = $kpi->topClients(10);
+        $inactivityBucket = $kpi->inactivityBuckets();
+        $inactiveClients3  = $kpi->inactiveClients(3, 50);
+        $inactiveClients6  = $kpi->inactiveClients(6, 50);
+        $inactiveClients12 = $kpi->inactiveClients(12, 50);
+
+        // Campagnes (stats + motifs annulation)
+        $campaignStats   = $kpi->campaignStats();
+        $cancelReasons   = $kpi->cancelReasons();
+
+        // Décappages
+        $decapList         = $kpi->decapList(50);
+        $upcomingEndings   = $kpi->upcomingEndings(14);
+
+        // Financier
+        $totalRevenueKpi   = $kpi->totalRevenue();
+        $revenueByMonth    = $kpi->revenueByMonth(12);
+        $revenueByCommune  = $kpi->revenueByCommune(15);
+
+        // Taxes par commune
+        $taxesByCommune    = $kpi->taxesByCommune();
+
+        // Insights auto
+        $insights          = $kpi->insights();
+
         return view('admin.rapports.index', compact(
             'annee',
             'moisDu',
@@ -250,7 +287,24 @@ class RapportController extends Controller
             'statsCommunes',
             'statsClients',
             'repartitionDurees',
-            'aDecaper'
+            'aDecaper',
+            // Nouveaux KPIs analytics
+            'topPanels',
+            'lowPanels',
+            'topClientsKpi',
+            'inactivityBucket',
+            'inactiveClients3',
+            'inactiveClients6',
+            'inactiveClients12',
+            'campaignStats',
+            'cancelReasons',
+            'decapList',
+            'upcomingEndings',
+            'totalRevenueKpi',
+            'revenueByMonth',
+            'revenueByCommune',
+            'taxesByCommune',
+            'insights',
         ));
     }
 
