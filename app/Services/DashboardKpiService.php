@@ -757,6 +757,92 @@ class DashboardKpiService
     }
 
     /**
+     * Top clients selon 3 critères : 'revenue' (CA), 'volume' (nb campagnes),
+     * 'frequency' (campagnes / mois d'activité). Utilisé pour comparer les
+     * clients sous différents angles dans l'onglet Clients.
+     */
+    public function topClientsByCriteria(string $criteria = 'revenue', int $limit = 10): Collection
+    {
+        return $this->cached("top_clients_by.{$criteria}.{$limit}", function () use ($criteria, $limit) {
+            $from = $this->from->toDateString();
+            $to   = $this->to->toDateString();
+
+            $q = DB::table('clients')
+                ->leftJoin('reservations', function ($j) use ($from, $to) {
+                    $j->on('reservations.client_id', '=', 'clients.id')
+                      ->whereIn('reservations.status', ['confirme', 'termine'])
+                      ->where('reservations.start_date', '<=', $to)
+                      ->where('reservations.end_date',   '>=', $from)
+                      ->whereNull('reservations.deleted_at');
+                })
+                ->whereNull('clients.deleted_at')
+                ->groupBy('clients.id', 'clients.name', 'clients.email');
+
+            if (!empty($this->filters['client_id'])) {
+                $q->where('clients.id', $this->filters['client_id']);
+            }
+
+            // Calcul fréquence : nb campagnes / nb mois entre 1ʳᵉ et dernière
+            $q->select(
+                'clients.id',
+                'clients.name',
+                'clients.email',
+                DB::raw('COUNT(DISTINCT reservations.id) as campaigns_count'),
+                DB::raw('COALESCE(SUM(reservations.total_amount), 0) as total_revenue'),
+                DB::raw('MIN(reservations.start_date) as first_campaign_at'),
+                DB::raw('MAX(reservations.start_date) as last_campaign_at'),
+                DB::raw('TIMESTAMPDIFF(MONTH, MIN(reservations.start_date), MAX(reservations.start_date)) + 1 as active_months'),
+            );
+
+            // Tri selon critère
+            $q->havingRaw('COUNT(DISTINCT reservations.id) > 0');
+            switch ($criteria) {
+                case 'volume':
+                    $q->orderByDesc('campaigns_count');
+                    break;
+                case 'frequency':
+                    $q->orderByRaw('(COUNT(DISTINCT reservations.id) / GREATEST(TIMESTAMPDIFF(MONTH, MIN(reservations.start_date), MAX(reservations.start_date)) + 1, 1)) DESC');
+                    break;
+                default:
+                    $q->orderByDesc('total_revenue');
+            }
+
+            $rows = $q->limit($limit)->get();
+            // Calcule la fréquence en PHP (campagnes / mois actifs)
+            return $rows->map(function ($r) {
+                $months = max(1, (int) ($r->active_months ?? 1));
+                $r->frequency = round($r->campaigns_count / $months, 2);
+                return $r;
+            });
+        });
+    }
+
+    /**
+     * Répartition des revenus par client (top N + autres) — pour doughnut.
+     */
+    public function clientRevenueDistribution(int $topN = 8): array
+    {
+        return $this->cached("client_revenue_dist.{$topN}", function () use ($topN) {
+            $top = $this->topClientsByCriteria('revenue', $topN);
+            $totalAll = (float) $this->totalRevenue();
+            $topSum   = (float) $top->sum('total_revenue');
+            $others   = max(0, $totalAll - $topSum);
+
+            return [
+                'top'    => $top->map(fn($r) => [
+                    'id'      => $r->id,
+                    'name'    => $r->name,
+                    'revenue' => (float) $r->total_revenue,
+                    'share'   => $totalAll > 0 ? round(($r->total_revenue / $totalAll) * 100, 1) : 0,
+                ])->values(),
+                'others' => $others,
+                'others_share' => $totalAll > 0 ? round(($others / $totalAll) * 100, 1) : 0,
+                'total'  => $totalAll,
+            ];
+        });
+    }
+
+    /**
      * Comptage des clients inactifs par tranche (3-6 / 6-12 / 12+ mois).
      */
     public function inactivityBuckets(): array
