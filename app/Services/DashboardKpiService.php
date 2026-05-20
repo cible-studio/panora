@@ -53,6 +53,24 @@ class DashboardKpiService
         $this->to   = $to   ?? now()->endOfDay();
     }
 
+    /**
+     * Résolution rapide via preset : 'today', 'week', 'month',
+     * 'quarter', 'year', 'all'. Pratique pour les filtres UI.
+     */
+    public function setPreset(string $preset): self
+    {
+        [$from, $to] = match ($preset) {
+            'today'   => [now()->startOfDay(),     now()->endOfDay()],
+            'week'    => [now()->startOfWeek(),    now()->endOfWeek()],
+            'month'   => [now()->startOfMonth(),   now()->endOfMonth()],
+            'quarter' => [now()->startOfQuarter(), now()->endOfQuarter()],
+            'year'    => [now()->startOfYear(),    now()->endOfYear()],
+            'all'     => [Carbon::create(2020, 1, 1), now()->endOfDay()],
+            default   => [$this->from, $this->to],
+        };
+        return $this->setPeriod($from, $to);
+    }
+
     public function setPeriod(Carbon $from, Carbon $to): self
     {
         $this->from = $from;

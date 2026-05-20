@@ -16,12 +16,56 @@ class RapportController extends Controller
 {
     public function index(Request $request, DashboardKpiService $kpi)
     {
-        $annee = (int) ($request->annee ?? date('Y'));
-        $moisDu = (int) ($request->mois_du ?? 1);
-        $moisAu = (int) ($request->mois_au ?? 12);
+        // ── Résolution de la période : presets OU dates custom ─────
+        // Presets : today, week, month, quarter, year, all
+        // Sinon : annee + mois_du/mois_au (rétrocompat)
+        // Override : from/to en YYYY-MM-DD pour date picker custom
+        $preset = $request->input('preset');
+        if ($request->filled('from') && $request->filled('to')) {
+            // Date picker custom (priorité 1)
+            try {
+                $dateFrom = Carbon::parse($request->input('from'))->startOfDay();
+                $dateTo   = Carbon::parse($request->input('to'))->endOfDay();
+                $annee = $dateFrom->year;
+                $moisDu = $dateFrom->month;
+                $moisAu = $dateTo->month;
+            } catch (\Throwable) {
+                $preset = 'year';
+            }
+        }
+        if (in_array($preset, ['today', 'week', 'month', 'quarter', 'year', 'all'], true)) {
+            $kpi->setPreset($preset);
+            ['from' => $dateFrom, 'to' => $dateTo] = $kpi->getPeriod();
+            $annee = $dateFrom->year;
+            $moisDu = $dateFrom->month;
+            $moisAu = $dateTo->month;
+        } elseif (!isset($dateFrom)) {
+            // Fallback rétrocompat : annee + mois
+            $annee  = (int) ($request->annee ?? date('Y'));
+            $moisDu = (int) ($request->mois_du ?? 1);
+            $moisAu = (int) ($request->mois_au ?? 12);
+            $dateFrom = Carbon::create($annee, $moisDu, 1)->startOfMonth();
+            $dateTo   = Carbon::create($annee, $moisAu, 1)->endOfMonth();
+        }
 
-        $dateFrom = Carbon::create($annee, $moisDu, 1)->startOfMonth();
-        $dateTo = Carbon::create($annee, $moisAu, 1)->endOfMonth();
+        // ── Filtres additionnels (commune, ville, client, type panneau) ──
+        $filterCommune  = $request->input('filter_commune_id');
+        $filterCity     = $request->input('filter_city');
+        $filterClient   = $request->input('filter_client_id');
+        $filterCategory = $request->input('filter_category_id');
+
+        $kpi->setFilters([
+            'commune_id'  => $filterCommune,
+            'city'        => $filterCity,
+            'client_id'   => $filterClient,
+            'category_id' => $filterCategory,
+        ]);
+
+        // Variables pour les selects du formulaire
+        $allCommunes   = Commune::orderBy('name')->get(['id', 'name', 'city']);
+        $allClients    = Client::orderBy('name')->get(['id', 'name']);
+        $allCategories = \App\Models\PanelCategory::orderBy('name')->get(['id', 'name']);
+        $allCities     = $allCommunes->pluck('city')->filter()->unique()->sort()->values();
 
         $anneesDisponibles = range(date('Y'), max(2020, date('Y') - 5));
 
@@ -263,8 +307,17 @@ class RapportController extends Controller
         // Taxes par commune
         $taxesByCommune    = $kpi->taxesByCommune();
 
+        // Évolution mensuelle occupation (12 mois)
+        $occupationTrend   = $kpi->occupationTrend(12);
+
+        // Répartition du parc par commune (pour graphique Chart.js)
+        $parcByCommune     = $kpi->parcByCommune();
+
         // Insights auto
         $insights          = $kpi->insights();
+
+        // Variables filtres exposées à la vue
+        $currentPreset = $preset ?? null;
 
         return view('admin.rapports.index', compact(
             'annee',
@@ -305,6 +358,18 @@ class RapportController extends Controller
             'revenueByCommune',
             'taxesByCommune',
             'insights',
+            'occupationTrend',
+            'parcByCommune',
+            // Filtres exposés
+            'currentPreset',
+            'filterCommune',
+            'filterCity',
+            'filterClient',
+            'filterCategory',
+            'allCommunes',
+            'allClients',
+            'allCategories',
+            'allCities',
         ));
     }
 
