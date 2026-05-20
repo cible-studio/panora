@@ -1233,6 +1233,30 @@ class DashboardKpiService
     }
 
     /**
+     * Marque TOUS les panneaux d'une campagne comme décappés en une seule
+     * opération (bulk action). Retourne le nombre de pivots affectés.
+     */
+    public function markAllDecapped(int $campaignId, int $userId, ?string $notes = null): int
+    {
+        $affected = DB::table('campaign_panels')
+            ->where('campaign_id', $campaignId)
+            ->whereNull('decapped_at')
+            ->update([
+                'decapped_at'         => now(),
+                'decapped_by_user_id' => $userId,
+                'decap_notes'         => $notes,
+                'updated_at'          => now(),
+            ]);
+
+        if ($affected > 0) {
+            Cache::forget($this->cacheKey('decap.v2.50'));
+            Cache::forget($this->cacheKey('decap.v2.99999'));
+            Cache::forget($this->cacheKey('decap_stats'));
+        }
+        return $affected;
+    }
+
+    /**
      * Annule le décappage d'un panneau (en cas d'erreur de saisie).
      */
     public function unmarkDecapped(int $campaignId, int $panelId): bool
