@@ -786,6 +786,10 @@ Route::prefix('admin')
             ->whereNumber('client')->name('rapports.clients.detail');
         Route::post('/rapports/decap/mark', [RapportController::class, 'markDecapped'])
             ->name('rapports.decap.mark');
+        Route::get('/rapports/export/excel', [RapportController::class, 'exportExcel'])
+            ->name('rapports.export.excel');
+        Route::get('/rapports/export/pdf', [RapportController::class, 'exportPdf'])
+            ->name('rapports.export.pdf');
         Route::get('/rapports/taxes', [RapportController::class, 'taxes'])->name('rapports.taxes');
         Route::get('/rapports/campagnes', [RapportController::class, 'campagnes'])->name('rapports.campagnes');
 

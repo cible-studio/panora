@@ -28,6 +28,22 @@ window.__RPT__ = {
 };
 </script>
 
+{{-- ════ ACTIONS RAPIDES — exports (COMMIT D) ════ --}}
+<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <a href="{{ route('admin.rapports.export.excel', request()->only(['preset','from','to','annee','mois_du','mois_au','filter_commune_id','filter_city','filter_client_id','filter_category_id'])) }}"
+       style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#16a34a;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700"
+       title="Télécharger le dashboard complet en Excel (8 feuilles)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exporter Excel
+    </a>
+    <a href="{{ route('admin.rapports.export.pdf', request()->only(['preset','from','to','annee','mois_du','mois_au','filter_commune_id','filter_city','filter_client_id','filter_category_id'])) }}"
+       style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#dc2626;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700"
+       title="Télécharger une synthèse exécutive PDF (1 page)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8M16 17H8"/></svg>
+        Synthèse PDF
+    </a>
+</div>
+
 {{-- ════ FILTRES AVANCÉS (presets + dates custom + filtres) ════ --}}
 <form id="form-periode" method="GET" action="{{ route('admin.rapports.index') }}"
       style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 20px;margin-bottom:20px">
@@ -1058,6 +1074,85 @@ $kpiCards = [
      ONGLET — INSIGHTS & ALERTES
 ══════════════════════════════════════════════════════════════ --}}
 <div id="panel-insights" class="rpt-panel" style="display:none">
+
+    {{-- Prévisions régression linéaire 3 mois (COMMIT D) --}}
+    <div style="background:linear-gradient(135deg,rgba(59,130,246,.05),rgba(168,85,247,.05));border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">🔮 Prévisions 3 mois — régression linéaire</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-style:italic">Statistique simple, pas d'IA · basé sur les 12 derniers mois</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+            {{-- Prévision CA --}}
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                    <span style="font-size:11px;font-weight:700;color:var(--text)">💰 CA projeté</span>
+                    @php
+                        $rev = $forecastRevenue;
+                        $revBadge = $rev['trend_direction'] === 'up'   ? ['#16a34a','rgba(34,197,94,.12)','↗ Hausse']
+                                  : ($rev['trend_direction'] === 'down' ? ['#dc2626','rgba(220,38,38,.12)','↘ Baisse']
+                                                                       : ['#6b7280','rgba(107,114,128,.12)','→ Stable']);
+                    @endphp
+                    <span style="margin-left:auto;padding:2px 8px;border-radius:10px;background:{{ $revBadge[1] }};color:{{ $revBadge[0] }};font-size:10px;font-weight:700">{{ $revBadge[2] }} {{ abs($rev['trend_pct_per_month']) }}%/mois</span>
+                </div>
+                @if(empty($rev['forecast']))
+                    <div style="padding:14px;text-align:center;color:var(--text3);font-size:11px;font-style:italic">{{ $rev['message'] ?? 'Pas assez de données.' }}</div>
+                @else
+                    <table style="width:100%;font-size:12px;border-collapse:collapse">
+                        <tbody>
+                            @foreach($rev['forecast'] as $f)
+                                <tr style="border-bottom:1px solid var(--border)">
+                                    <td style="padding:7px 0;color:var(--text2);font-weight:600">{{ $f['label'] }}</td>
+                                    <td style="padding:7px 0;text-align:right;font-weight:700;color:#16a34a;font-variant-numeric:tabular-nums">{{ number_format($f['value'], 0, ',', ' ') }} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                    <div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.5">
+                        Confiance modèle : <strong style="color:{{ $rev['confidence'] >= 60 ? '#16a34a' : ($rev['confidence'] >= 30 ? '#f59e0b' : '#dc2626') }}">{{ $rev['confidence'] }}%</strong>
+                        (R² = {{ $rev['r_squared'] }})
+                    </div>
+                @endif
+            </div>
+
+            {{-- Prévision Occupation --}}
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                    <span style="font-size:11px;font-weight:700;color:var(--text)">📊 Taux d'occupation projeté</span>
+                    @php
+                        $occ = $forecastOccupation;
+                        $occBadge = $occ['trend_direction'] === 'up'   ? ['#16a34a','rgba(34,197,94,.12)','↗ Hausse']
+                                  : ($occ['trend_direction'] === 'down' ? ['#dc2626','rgba(220,38,38,.12)','↘ Baisse']
+                                                                       : ['#6b7280','rgba(107,114,128,.12)','→ Stable']);
+                    @endphp
+                    <span style="margin-left:auto;padding:2px 8px;border-radius:10px;background:{{ $occBadge[1] }};color:{{ $occBadge[0] }};font-size:10px;font-weight:700">{{ $occBadge[2] }} {{ abs($occ['trend_pct_per_month']) }}%/mois</span>
+                </div>
+                @if(empty($occ['forecast']))
+                    <div style="padding:14px;text-align:center;color:var(--text3);font-size:11px;font-style:italic">{{ $occ['message'] ?? 'Pas assez de données.' }}</div>
+                @else
+                    <table style="width:100%;font-size:12px;border-collapse:collapse">
+                        <tbody>
+                            @foreach($occ['forecast'] as $f)
+                                <tr style="border-bottom:1px solid var(--border)">
+                                    <td style="padding:7px 0;color:var(--text2);font-weight:600">{{ $f['label'] }}</td>
+                                    <td style="padding:7px 0;text-align:right;font-weight:700;color:#3b82f6;font-variant-numeric:tabular-nums">{{ round($f['value'], 1) }}%</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                    <div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.5">
+                        Confiance modèle : <strong style="color:{{ $occ['confidence'] >= 60 ? '#16a34a' : ($occ['confidence'] >= 30 ? '#f59e0b' : '#dc2626') }}">{{ $occ['confidence'] }}%</strong>
+                        (R² = {{ $occ['r_squared'] }})
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <div style="font-size:10px;color:var(--text3);margin-top:12px;padding:8px 12px;background:var(--surface2);border-radius:8px;line-height:1.5">
+            ⓘ <strong>Méthode :</strong> régression linéaire des moindres carrés sur l'historique 12 mois. Le modèle projette une tendance linéaire — il ne capture pas la saisonnalité (Ramadan, fêtes de fin d'année, etc.). À interpréter comme une <em>orientation</em>, pas comme une valeur exacte. Un R² élevé indique que la tendance est nette dans les données passées.
+        </div>
+    </div>
 
     {{-- Suggestions reconquête : templates prêts à l'emploi (COMMIT B) --}}
     @if(($inactivityBucket['6_to_12'] ?? 0) + ($inactivityBucket['12_plus'] ?? 0) > 0)

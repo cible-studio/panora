@@ -300,6 +300,11 @@ class RapportController extends Controller
         $upcomingEndings   = $kpi->upcomingEndings(14);
         $decapStats        = $kpi->decapStats();
 
+        // Prévisions (COMMIT D — régression linéaire 3 mois)
+        $forecaster        = new \App\Services\KpiForecastService($kpi);
+        $forecastRevenue   = $forecaster->revenueForecast(3);
+        $forecastOccupation= $forecaster->occupationForecast(3);
+
         // Financier
         $totalRevenueKpi   = $kpi->totalRevenue();
         $revenueByMonth    = $kpi->revenueByMonth(12);
@@ -359,6 +364,8 @@ class RapportController extends Controller
             'decapList',
             'upcomingEndings',
             'decapStats',
+            'forecastRevenue',
+            'forecastOccupation',
             'totalRevenueKpi',
             'revenueByMonth',
             'revenueByCommune',
@@ -763,6 +770,88 @@ class RapportController extends Controller
             'message' => $ok ? 'Panneau marqué comme décappé.' : "Aucune ligne à mettre à jour.",
             'at'      => now()->format('d/m/Y H:i'),
             'by'      => $request->user()->name,
+        ]);
+    }
+
+    /**
+     * Export Excel multi-feuilles du dashboard analytique (COMMIT D).
+     * Une feuille par module : synthèse, panneaux, clients, campagnes,
+     * communes, décappages, CA mensuel, prévisions.
+     */
+    public function exportExcel(Request $request, DashboardKpiService $kpi)
+    {
+        $this->applyPeriodAndFilters($request, $kpi);
+        $filename = 'dashboard-panora-' . now()->format('Ymd_His') . '.xlsx';
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\RapportDashboardExport($kpi),
+            $filename
+        );
+    }
+
+    /**
+     * Export PDF — synthèse exécutive 1 page (COMMIT D).
+     * Reprend les KPIs clés + prévisions linéaires sur 3 mois.
+     */
+    public function exportPdf(Request $request, DashboardKpiService $kpi)
+    {
+        $this->applyPeriodAndFilters($request, $kpi);
+
+        $parc       = $kpi->parcOverview();
+        $stats      = $kpi->campaignStats();
+        $revenue    = $kpi->totalRevenue();
+        $inactivity = $kpi->inactivityBuckets();
+        $decapStats = $kpi->decapStats();
+        $topClients = $kpi->topClients(10);
+        $insights   = $kpi->insights();
+        $period     = $kpi->getPeriod();
+        $forecaster = new \App\Services\KpiForecastService($kpi);
+        $forecast   = [
+            'revenue'    => $forecaster->revenueForecast(3),
+            'occupation' => $forecaster->occupationForecast(3),
+        ];
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.synthese-pdf', compact(
+            'parc', 'stats', 'revenue', 'inactivity', 'decapStats',
+            'topClients', 'insights', 'period', 'forecast',
+        ) + ['user' => $request->user()])
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->download('synthese-executive-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    /**
+     * Helper : applique période + filtres au service KPI à partir du
+     * Request (mêmes paramètres que la vue principale).
+     * Permet aux exports de respecter les filtres de la page rapports.
+     */
+    private function applyPeriodAndFilters(Request $request, DashboardKpiService $kpi): void
+    {
+        $preset = $request->input('preset');
+        if ($request->filled('from') && $request->filled('to')) {
+            try {
+                $from = Carbon::parse($request->input('from'))->startOfDay();
+                $to   = Carbon::parse($request->input('to'))->endOfDay();
+                $kpi->setPeriod($from, $to);
+            } catch (\Throwable) {
+                $kpi->setPreset('year');
+            }
+        } elseif (in_array($preset, ['today', 'week', 'month', 'quarter', 'year', 'all'], true)) {
+            $kpi->setPreset($preset);
+        } else {
+            $annee  = (int) ($request->annee ?? date('Y'));
+            $moisDu = (int) ($request->mois_du ?? 1);
+            $moisAu = (int) ($request->mois_au ?? 12);
+            $kpi->setPeriod(
+                Carbon::create($annee, $moisDu, 1)->startOfMonth(),
+                Carbon::create($annee, $moisAu, 1)->endOfMonth(),
+            );
+        }
+
+        $kpi->setFilters([
+            'commune_id'  => $request->input('filter_commune_id'),
+            'city'        => $request->input('filter_city'),
+            'client_id'   => $request->input('filter_client_id'),
+            'category_id' => $request->input('filter_category_id'),
         ]);
     }
 
