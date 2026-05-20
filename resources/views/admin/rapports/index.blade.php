@@ -14,46 +14,91 @@ window.__RPT__ = {
     annee:         {{ $annee }},
     moisDu:        {{ $moisDu }},
     moisAu:        {{ $moisAu }},
+    // Données pour les nouveaux graphiques Chart.js
+    occupationTrend: {!! json_encode($occupationTrend->values()) !!},
+    topPanels:       {!! json_encode($topPanels->values()) !!},
+    cancelReasons:   {!! json_encode($cancelReasons->values()) !!},
+    revenueByMonth:  {!! json_encode($revenueByMonth->values()) !!},
+    inactivityBucket:{!! json_encode($inactivityBucket) !!},
+    parcByCommune:   {!! json_encode($parcByCommune->values()) !!},
 };
 </script>
 
-{{-- ════ FILTRES PÉRIODE ════ --}}
+{{-- ════ FILTRES AVANCÉS (presets + dates custom + filtres) ════ --}}
 <form id="form-periode" method="GET" action="{{ route('admin.rapports.index') }}"
       style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 20px;margin-bottom:20px">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
 
+    {{-- Ligne 1 : Presets période ───────────────────────────────── --}}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:12px;">
         <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:flex;align-items:center;gap:6px">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-            Période
+            Période rapide
         </span>
-
-        <select name="annee" onchange="this.form.submit()"
-                style="height:36px;padding:0 10px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--text)">
-            @foreach($anneesDisponibles as $a)
-                <option value="{{ $a }}" {{ $a == $annee ? 'selected' : '' }}>{{ $a }}</option>
-            @endforeach
-        </select>
-
-        <select name="mois_du" onchange="this.form.submit()"
-                style="height:36px;padding:0 10px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--text)">
-            @foreach(['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'] as $i => $m)
-                <option value="{{ $i+1 }}" {{ ($i+1) == $moisDu ? 'selected' : '' }}>{{ $m }}</option>
-            @endforeach
-        </select>
-
+        @foreach([
+            'today'   => "Aujourd'hui",
+            'week'    => 'Cette semaine',
+            'month'   => 'Ce mois',
+            'quarter' => 'Ce trimestre',
+            'year'    => 'Cette année',
+            'all'     => 'Tout',
+        ] as $key => $label)
+            <a href="{{ route('admin.rapports.index', array_merge(request()->except(['preset','from','to','annee','mois_du','mois_au']), ['preset' => $key])) }}"
+               style="padding:6px 12px;font-size:11px;font-weight:600;border-radius:8px;text-decoration:none;border:1px solid {{ $currentPreset === $key ? 'var(--accent)' : 'var(--border)' }};background:{{ $currentPreset === $key ? 'var(--accent)' : 'var(--surface2)' }};color:{{ $currentPreset === $key ? '#fff' : 'var(--text2)' }};">
+                {{ $label }}
+            </a>
+        @endforeach
+        <span style="color:var(--border);">|</span>
+        <input type="date" name="from" value="{{ $dateFrom->format('Y-m-d') }}" onchange="this.form.submit()"
+               style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text)">
         <span style="color:var(--text3);font-size:12px">→</span>
+        <input type="date" name="to" value="{{ $dateTo->format('Y-m-d') }}" onchange="this.form.submit()"
+               style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text)">
+        <span style="font-size:11px;color:var(--text3);margin-left:auto;">
+            {{ $dateFrom->format('d/m/Y') }} → {{ $dateTo->format('d/m/Y') }}
+            ({{ (int) $dateFrom->diffInDays($dateTo) + 1 }} jours)
+        </span>
+    </div>
 
-        <select name="mois_au" onchange="this.form.submit()"
-                style="height:36px;padding:0 10px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--text)">
-            @foreach(['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'] as $i => $m)
-                <option value="{{ $i+1 }}" {{ ($i+1) == $moisAu ? 'selected' : '' }}>{{ $m }}</option>
+    {{-- Ligne 2 : Filtres dimensionnels ────────────────────────── --}}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:flex;align-items:center;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Filtres
+        </span>
+        <select name="filter_commune_id" onchange="this.form.submit()"
+                style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);min-width:140px;">
+            <option value="">Toutes communes</option>
+            @foreach($allCommunes as $c)
+                <option value="{{ $c->id }}" {{ $filterCommune == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
             @endforeach
         </select>
-
-        <span style="font-size:11px;color:var(--text3)">
-            {{ $dateFrom->format('d/m/Y') }} → {{ $dateTo->format('d/m/Y') }}
-        </span>
-
+        <select name="filter_city" onchange="this.form.submit()"
+                style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);min-width:120px;">
+            <option value="">Toutes villes</option>
+            @foreach($allCities as $city)
+                <option value="{{ $city }}" {{ $filterCity == $city ? 'selected' : '' }}>{{ $city }}</option>
+            @endforeach
+        </select>
+        <select name="filter_client_id" onchange="this.form.submit()"
+                style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);min-width:140px;">
+            <option value="">Tous clients</option>
+            @foreach($allClients as $c)
+                <option value="{{ $c->id }}" {{ $filterClient == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+            @endforeach
+        </select>
+        <select name="filter_category_id" onchange="this.form.submit()"
+                style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);min-width:140px;">
+            <option value="">Tous types de panneau</option>
+            @foreach($allCategories as $cat)
+                <option value="{{ $cat->id }}" {{ $filterCategory == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+            @endforeach
+        </select>
+        @if($filterCommune || $filterCity || $filterClient || $filterCategory || $currentPreset)
+            <a href="{{ route('admin.rapports.index') }}"
+               style="font-size:11px;color:var(--text3);text-decoration:underline;margin-left:8px;">
+                ✕ Réinitialiser
+            </a>
+        @endif
         <div style="margin-left:auto;font-size:11px;color:var(--text3)">
             {{ number_format($totalPanneaux) }} panneaux ·
             {{ number_format($totalClients) }} clients ·
@@ -257,14 +302,26 @@ $kpiCards = [
         @endforelse
     </div>
 
-    {{-- Évolution mensuelle --}}
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px">
+    {{-- Évolution mensuelle (barres custom) --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             <span style="font-size:13px;font-weight:700;color:var(--text)">Évolution mensuelle — 12 derniers mois</span>
         </div>
         <div id="chart-evol" style="display:flex;align-items:flex-end;gap:4px;height:120px"></div>
         <div id="chart-evol-labels" style="display:flex;gap:4px;margin-top:6px"></div>
+    </div>
+
+    {{-- Courbe Chart.js : tendance occupation 12 mois (analyse parc) --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">Tendance d'occupation du parc — 12 derniers mois</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-style:italic">Pourcentage moyen mensuel</span>
+        </div>
+        <div style="position:relative;width:100%;height:260px">
+            <canvas id="chart-occupation-trend" role="img" aria-label="Tendance d'occupation 12 mois"></canvas>
+        </div>
     </div>
 </div>
 
@@ -367,6 +424,18 @@ $kpiCards = [
         </div>
         <div id="chart-ca" style="display:flex;align-items:flex-end;gap:6px;height:140px"></div>
         <div id="chart-ca-labels" style="display:flex;gap:6px;margin-top:6px"></div>
+    </div>
+
+    {{-- Courbe Chart.js : CA mensuel sur 12 mois glissants (réservations) --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">Évolution du CA — 12 derniers mois</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-style:italic">Réservations confirmées + terminées</span>
+        </div>
+        <div style="position:relative;width:100%;height:260px">
+            <canvas id="chart-revenue-trend" role="img" aria-label="CA mensuel 12 mois"></canvas>
+        </div>
     </div>
 
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
@@ -627,6 +696,21 @@ $kpiCards = [
      ONGLET — PERFORMANCE PANNEAUX (top + low)
 ══════════════════════════════════════════════════════════════ --}}
 <div id="panel-panneaux" class="rpt-panel" style="display:none">
+
+    {{-- Classement visuel Chart.js (top 15 panneaux les plus loués) --}}
+    @if($topPanels->isNotEmpty())
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">Classement visuel — top 15 panneaux les plus loués</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-style:italic">Jours occupés sur la période</span>
+        </div>
+        <div style="position:relative;width:100%;height:380px">
+            <canvas id="chart-top-panels" role="img" aria-label="Top panneaux"></canvas>
+        </div>
+    </div>
+    @endif
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         @media (max-width:900px) { .rpt-grid-2 { grid-template-columns:1fr; } }
 
@@ -822,9 +906,10 @@ $kpiCards = [
         @endforeach
     </div>
 
-    {{-- Tranches d'inactivité clients --}}
+    {{-- Tranches d'inactivité clients (cards + Chart.js bar) --}}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">📉 Clients inactifs — par tranche</div>
+        <div style="display:grid;grid-template-columns:2fr 3fr;gap:16px;align-items:start">
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
             <div style="text-align:center;padding:14px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:10px">
                 <div style="font-size:24px;font-weight:800;color:#d97706">{{ $inactivityBucket['3_to_6'] }}</div>
@@ -839,9 +924,13 @@ $kpiCards = [
                 <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">Inactifs > 12 mois</div>
             </div>
         </div>
+        <div style="position:relative;width:100%;height:180px">
+            <canvas id="chart-inactivity" role="img" aria-label="Tranches d'inactivité"></canvas>
+        </div>
+        </div>
     </div>
 
-    {{-- Motifs d'annulation campagnes --}}
+    {{-- Motifs d'annulation campagnes (doughnut Chart.js + liste détaillée) --}}
     @if($cancelReasons->isNotEmpty())
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px">
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">📋 Motifs d'annulation campagnes ({{ $campaignStats['cancel_rate'] }}% sur {{ $campaignStats['total'] }} campagnes)</div>
@@ -852,18 +941,23 @@ $kpiCards = [
             ];
             $totalCancel = $cancelReasons->sum('count');
         @endphp
-        <div style="display:flex;flex-direction:column;gap:6px">
-            @foreach($cancelReasons as $r)
-                @php $pct = $totalCancel > 0 ? round(($r->count / $totalCancel) * 100, 1) : 0; @endphp
-                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:8px">
-                    <span style="font-size:12px;color:var(--text);min-width:160px">{{ $reasonLabels[$r->cancellation_reason] ?? ucfirst($r->cancellation_reason) }}</span>
-                    <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-                        <div style="height:100%;background:linear-gradient(90deg,#ef4444,#f97316);width:{{ $pct }}%"></div>
+        <div style="display:grid;grid-template-columns:280px 1fr;gap:20px;align-items:center">
+            <div style="position:relative;width:280px;height:240px">
+                <canvas id="chart-cancel-reasons" role="img" aria-label="Motifs d'annulation"></canvas>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+                @foreach($cancelReasons as $r)
+                    @php $pct = $totalCancel > 0 ? round(($r->count / $totalCancel) * 100, 1) : 0; @endphp
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:8px">
+                        <span style="font-size:12px;color:var(--text);min-width:160px">{{ $reasonLabels[$r->cancellation_reason] ?? ucfirst($r->cancellation_reason) }}</span>
+                        <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+                            <div style="height:100%;background:linear-gradient(90deg,#ef4444,#f97316);width:{{ $pct }}%"></div>
+                        </div>
+                        <span style="font-size:11px;font-weight:700;color:var(--text);min-width:40px;text-align:right">{{ $r->count }}</span>
+                        <span style="font-size:10px;color:var(--text3);min-width:40px;text-align:right">{{ $pct }}%</span>
                     </div>
-                    <span style="font-size:11px;font-weight:700;color:var(--text);min-width:40px;text-align:right">{{ $r->count }}</span>
-                    <span style="font-size:10px;color:var(--text3);min-width:40px;text-align:right">{{ $pct }}%</span>
-                </div>
-            @endforeach
+                @endforeach
+            </div>
         </div>
     </div>
     @endif
@@ -1027,9 +1121,11 @@ window.RPT = {
         document.querySelectorAll('.rpt-panel').forEach(p=>p.style.display='none');
         document.getElementById('tab-'+id).classList.add('active');
         document.getElementById('panel-'+id).style.display='block';
-        if (id==='occupation'&&!this._evolDone) { this.renderEvol(); this._evolDone=true; }
-        if (id==='ca'        &&!this._caDone)   { this.renderCa();   this._caDone=true; }
-        if (id==='zones'     &&!this._hmDone)   { HM.init();         this._hmDone=true; }
+        if (id==='occupation'&&!this._evolDone)     { this.renderEvol(); this.renderOccupationTrend(); this._evolDone=true; }
+        if (id==='ca'        &&!this._caDone)       { this.renderCa();   this.renderRevenueTrend();    this._caDone=true; }
+        if (id==='zones'     &&!this._hmDone)       { HM.init();         this._hmDone=true; }
+        if (id==='panneaux'  &&!this._panneauxDone) { this.renderTopPanels();    this._panneauxDone=true; }
+        if (id==='insights'  &&!this._insightsDone) { this.renderInsightsCharts();this._insightsDone=true; }
     },
 
     renderEvol() {
@@ -1069,10 +1165,191 @@ window.RPT = {
         labels.style.cssText='display:flex;gap:6px;margin-top:4px';
         labels.innerHTML=data.map(d=>`<div style="flex:1;text-align:center;font-size:9px;color:var(--text3)">${d.label}</div>`).join('');
     },
+
+    // ── Chart.js — tendance d'occupation 12 mois ─────────────────────
+    renderOccupationTrend() {
+        const canvas = document.getElementById('chart-occupation-trend');
+        const data = D.occupationTrend;
+        if (!canvas || !data?.length || typeof Chart === 'undefined') return;
+        const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+        const gridC  = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
+        const tickC  = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
+        new Chart(canvas, {
+            type:'line',
+            data:{
+                labels: data.map(d=>d.label),
+                datasets:[{
+                    label: "Taux d'occupation",
+                    data: data.map(d=>d.rate),
+                    borderColor:'#3b82f6',
+                    backgroundColor:'rgba(59,130,246,.18)',
+                    borderWidth:2.5, tension:.35, fill:true,
+                    pointBackgroundColor:'#3b82f6', pointRadius:4, pointHoverRadius:6,
+                }],
+            },
+            options:{
+                responsive:true, maintainAspectRatio:false,
+                plugins:{ legend:{display:false}, tooltip:{ callbacks:{
+                    label: ctx => ` ${ctx.parsed.y}% d'occupation`,
+                }}},
+                scales:{
+                    x:{ ticks:{color:tickC,font:{size:11}}, grid:{display:false} },
+                    y:{ beginAtZero:true, max:100, ticks:{color:tickC,font:{size:11},callback:v=>v+'%'}, grid:{color:gridC} },
+                }
+            }
+        });
+    },
+
+    // ── Chart.js — évolution CA 12 mois glissants ─────────────────────
+    renderRevenueTrend() {
+        const canvas = document.getElementById('chart-revenue-trend');
+        const data = D.revenueByMonth;
+        if (!canvas || !data?.length || typeof Chart === 'undefined') return;
+        const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+        const gridC  = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
+        const tickC  = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
+        new Chart(canvas, {
+            type:'line',
+            data:{
+                labels: data.map(d=>d.label),
+                datasets:[{
+                    label: 'CA mensuel',
+                    data: data.map(d=>d.total),
+                    borderColor:'#16a34a',
+                    backgroundColor:'rgba(22,163,74,.18)',
+                    borderWidth:2.5, tension:.35, fill:true,
+                    pointBackgroundColor:'#16a34a', pointRadius:4, pointHoverRadius:6,
+                }],
+            },
+            options:{
+                responsive:true, maintainAspectRatio:false,
+                plugins:{ legend:{display:false}, tooltip:{ callbacks:{
+                    label: ctx => ' ' + new Intl.NumberFormat('fr-FR').format(Math.round(ctx.parsed.y)) + ' FCFA',
+                }}},
+                scales:{
+                    x:{ ticks:{color:tickC,font:{size:11}}, grid:{display:false} },
+                    y:{ beginAtZero:true, ticks:{color:tickC,font:{size:11},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'M':(v>=1e3?(v/1e3).toFixed(0)+'K':v)}, grid:{color:gridC} },
+                }
+            }
+        });
+    },
+
+    // ── Chart.js — classement top panneaux (barres horizontales) ──────
+    renderTopPanels() {
+        const canvas = document.getElementById('chart-top-panels');
+        const data = D.topPanels;
+        if (!canvas || !data?.length || typeof Chart === 'undefined') return;
+        const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+        const gridC  = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
+        const tickC  = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
+        const top = data.slice(0, 15);
+        // Dégradé vert (le plus loué = vert vif → vert pâle)
+        const colors = top.map((_, i) => {
+            const t = i / Math.max(top.length - 1, 1);
+            const r = Math.round(22 + (134 - 22) * t);
+            const g = Math.round(163 + (239 - 163) * t);
+            const b = Math.round(74 + (172 - 74) * t);
+            return `rgb(${r},${g},${b})`;
+        });
+        new Chart(canvas, {
+            type:'bar',
+            data:{
+                labels: top.map(p => p.reference + (p.commune_name ? ' — ' + p.commune_name : '')),
+                datasets:[{
+                    label:'Jours occupés',
+                    data: top.map(p => Number(p.days_occupied) || 0),
+                    backgroundColor: colors,
+                    borderRadius:6, borderSkipped:false,
+                }],
+            },
+            options:{
+                indexAxis:'y',
+                responsive:true, maintainAspectRatio:false,
+                plugins:{ legend:{display:false}, tooltip:{ callbacks:{
+                    label: ctx => {
+                        const p = top[ctx.dataIndex];
+                        return [` ${ctx.parsed.x} jours occupés`, ` ${p.campaigns_count} campagne(s)`, ` CA estimé : ${new Intl.NumberFormat('fr-FR').format(Math.round(p.estimated_revenue || 0))} FCFA`];
+                    },
+                }}},
+                scales:{
+                    x:{ beginAtZero:true, ticks:{color:tickC,font:{size:11}}, grid:{color:gridC} },
+                    y:{ ticks:{color:tickC,font:{size:10},autoSkip:false}, grid:{display:false} },
+                }
+            }
+        });
+    },
+
+    // ── Chart.js — doughnut motifs annulation + bar tranches inactivité ──
+    renderInsightsCharts() {
+        if (typeof Chart === 'undefined') return;
+        const reasonLabels = {
+            budget:'💸 Budget', zone:'📍 Zone', strategie:'🎯 Stratégie',
+            report:'⏰ Report', concurrent:'🤝 Concurrent', autre:'❓ Autre',
+        };
+        const palette = ['#ef4444','#f97316','#e8a020','#3b82f6','#a855f7','#6b7280'];
+
+        // Doughnut motifs d'annulation
+        const cd = D.cancelReasons || [];
+        const cCanvas = document.getElementById('chart-cancel-reasons');
+        if (cCanvas && cd.length) {
+            const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+            new Chart(cCanvas, {
+                type:'doughnut',
+                data:{
+                    labels: cd.map(r => reasonLabels[r.cancellation_reason] || r.cancellation_reason),
+                    datasets:[{
+                        data: cd.map(r => Number(r.count) || 0),
+                        backgroundColor: palette,
+                        borderWidth: 2,
+                        borderColor: isDark ? '#1e293b' : '#ffffff',
+                    }],
+                },
+                options:{
+                    responsive:true, maintainAspectRatio:false, cutout:'62%',
+                    plugins:{ legend:{display:false}, tooltip:{ callbacks:{
+                        label: ctx => ` ${ctx.label} : ${ctx.parsed} campagne(s)`,
+                    }}},
+                }
+            });
+        }
+
+        // Bar tranches inactivité
+        const ib = D.inactivityBucket || {};
+        const iCanvas = document.getElementById('chart-inactivity');
+        if (iCanvas) {
+            const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+            const tickC  = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
+            new Chart(iCanvas, {
+                type:'bar',
+                data:{
+                    labels:['3-6 mois','6-12 mois','> 12 mois'],
+                    datasets:[{
+                        data:[Number(ib['3_to_6']||0), Number(ib['6_to_12']||0), Number(ib['12_plus']||0)],
+                        backgroundColor:['#d97706','#ea580c','#dc2626'],
+                        borderRadius:6, borderSkipped:false,
+                    }],
+                },
+                options:{
+                    responsive:true, maintainAspectRatio:false,
+                    plugins:{ legend:{display:false}, tooltip:{ callbacks:{
+                        label: ctx => ` ${ctx.parsed.y} client(s)`,
+                    }}},
+                    scales:{
+                        x:{ ticks:{color:tickC,font:{size:11}}, grid:{display:false} },
+                        y:{ beginAtZero:true, ticks:{color:tickC,font:{size:11},precision:0}, grid:{display:false} },
+                    }
+                }
+            });
+        }
+    },
 };
 
-// Init graphique évolution au chargement (onglet 1 actif par défaut)
-document.addEventListener('DOMContentLoaded', ()=>{ RPT.renderEvol(); RPT._evolDone=true; });
+// Init graphiques de l'onglet par défaut (occupation) au chargement
+document.addEventListener('DOMContentLoaded', () => {
+    RPT.renderEvol();
+    RPT.renderOccupationTrend();
+    RPT._evolDone = true;
+});
 
 // ══════════════════════════════
 // DRILLDOWN COMMUNE — module
