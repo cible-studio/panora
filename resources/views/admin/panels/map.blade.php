@@ -6,40 +6,48 @@
     <button onclick="toggleView('heatmap')" id="btn-heatmap" class="btn btn-ghost btn-sm">🔥 Heatmap</button>
 </x-slot>
 
-{{-- STATS CLIQUABLES --}}
-<div class="stats-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom:16px;">
-    <div class="stat-card" onclick="filterByStatus('')" id="card-all"
-         style="cursor:pointer;transition:all .15s;border:2px solid transparent;"
-         onmouseover="this.style.borderColor='var(--accent)'"
-         onmouseout="if(!this.classList.contains('active-card')) this.style.borderColor='transparent'">
-        <div class="stat-label">Total Panneaux</div>
-        <div class="stat-value" id="stat-total">—</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Voir tous →</div>
-    </div>
-    <div class="stat-card" onclick="filterByStatus('libre')" id="card-libre"
-         style="cursor:pointer;transition:all .15s;border:2px solid transparent;"
-         onmouseover="this.style.borderColor='#3aa835'"
-         onmouseout="if(!this.classList.contains('active-card')) this.style.borderColor='transparent'">
-        <div class="stat-label">Libres</div>
-        <div class="stat-value" style="color:#3aa835;" id="stat-libres">—</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </div>
-    <div class="stat-card" onclick="filterByStatus('occupe')" id="card-occupe"
-         style="cursor:pointer;transition:all .15s;border:2px solid transparent;"
-         onmouseover="this.style.borderColor='var(--accent)'"
-         onmouseout="if(!this.classList.contains('active-card')) this.style.borderColor='transparent'">
-        <div class="stat-label">Occupés</div>
-        <div class="stat-value" style="color:var(--accent);" id="stat-occupes">—</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </div>
-    <div class="stat-card" onclick="filterByStatus('maintenance')" id="card-maintenance"
-         style="cursor:pointer;transition:all .15s;border:2px solid transparent;"
-         onmouseover="this.style.borderColor='#e20613'"
-         onmouseout="if(!this.classList.contains('active-card')) this.style.borderColor='transparent'">
-        <div class="stat-label">Maintenance</div>
-        <div class="stat-value" style="color:#e20613;" id="stat-maintenance">—</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </div>
+{{-- KPI cards — design unifié --}}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+    <button type="button" onclick="filterByStatus('')" id="card-all" class="kpi-card" style="--kpi-color:var(--accent)"
+            onmouseenter="if(!this.classList.contains('is-active')){this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'}"
+            onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
+        <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <div class="kpi-card__value" style="color:var(--accent)" id="stat-total">—</div>
+        <div class="kpi-card__label">Total panneaux</div>
+        <div class="kpi-card__sub">Voir tous</div>
+        <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
+    </button>
+    <button type="button" onclick="filterByStatus('libre')" id="card-libre" class="kpi-card" style="--kpi-color:#3aa835"
+            onmouseenter="if(!this.classList.contains('is-active')){this.style.borderColor='#3aa835';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'}"
+            onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#3aa835"></div>
+        <div class="kpi-card__icon" style="color:#3aa835"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="kpi-card__value" style="color:#3aa835" id="stat-libres">—</div>
+        <div class="kpi-card__label">Libres</div>
+        <div class="kpi-card__sub">disponibles</div>
+        <div class="kpi-card__arrow" style="color:#3aa835">→</div>
+    </button>
+    <button type="button" onclick="filterByStatus('occupe')" id="card-occupe" class="kpi-card" style="--kpi-color:var(--accent)"
+            onmouseenter="if(!this.classList.contains('is-active')){this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'}"
+            onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
+        <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/></svg></div>
+        <div class="kpi-card__value" style="color:var(--accent)" id="stat-occupes">—</div>
+        <div class="kpi-card__label">Occupés</div>
+        <div class="kpi-card__sub">en affichage</div>
+        <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
+    </button>
+    <button type="button" onclick="filterByStatus('maintenance')" id="card-maintenance" class="kpi-card" style="--kpi-color:#e20613"
+            onmouseenter="if(!this.classList.contains('is-active')){this.style.borderColor='#e20613';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'}"
+            onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#e20613"></div>
+        <div class="kpi-card__icon" style="color:#e20613"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
+        <div class="kpi-card__value" style="color:#e20613" id="stat-maintenance">—</div>
+        <div class="kpi-card__label">Maintenance</div>
+        <div class="kpi-card__sub">indisponibles</div>
+        <div class="kpi-card__arrow" style="color:#e20613">→</div>
+    </button>
 </div>
 
 {{-- CARTE --}}

@@ -13,31 +13,59 @@
 </x-slot>
 
 {{-- STATS CLIQUABLES (filtres AJAX) --}}
-<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
-    <div data-status="en_attente" class="stat-card filter-stat {{ request('status') === 'en_attente' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">En attente</div>
-        <div class="stat-value" style="color:var(--accent);">{{ $totalEnAttente }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </div>
-    <div data-status="payee" class="stat-card filter-stat {{ request('status') === 'payee' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">Payées</div>
-        <div class="stat-value" style="color:var(--green);">{{ $totalPayees }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </div>
-    <div data-status="en_retard" class="stat-card filter-stat {{ request('status') === 'en_retard' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">En retard</div>
-        <div class="stat-value" style="color:var(--red);">{{ $totalEnRetard }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </div>
-    <div data-status="" class="stat-card filter-stat {{ !request('status') ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">Montant dû</div>
-        <div class="stat-value" style="font-size:18px; color:var(--accent);">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Voir tout →</div>
-    </div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+    <a href="#" data-status="en_attente"
+       class="kpi-card filter-stat {{ request('status') === 'en_attente' ? 'is-active' : '' }}"
+       style="--kpi-color:#f97316"
+       onclick="event.preventDefault()"
+       onmouseenter="this.style.borderColor='#f97316';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#f97316"></div>
+        <div class="kpi-card__icon" style="color:#f97316"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="kpi-card__value" style="color:#f97316">{{ $totalEnAttente }}</div>
+        <div class="kpi-card__label">En attente</div>
+        <div class="kpi-card__sub">à régler</div>
+        <div class="kpi-card__arrow" style="color:#f97316">→</div>
+    </a>
+    <a href="#" data-status="payee"
+       class="kpi-card filter-stat {{ request('status') === 'payee' ? 'is-active' : '' }}"
+       style="--kpi-color:#22c55e"
+       onclick="event.preventDefault()"
+       onmouseenter="this.style.borderColor='#22c55e';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#22c55e"></div>
+        <div class="kpi-card__icon" style="color:#22c55e"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <div class="kpi-card__value" style="color:#22c55e">{{ $totalPayees }}</div>
+        <div class="kpi-card__label">Payées</div>
+        <div class="kpi-card__sub">taxes réglées</div>
+        <div class="kpi-card__arrow" style="color:#22c55e">→</div>
+    </a>
+    <a href="#" data-status="en_retard"
+       class="kpi-card filter-stat {{ request('status') === 'en_retard' ? 'is-active' : '' }}"
+       style="--kpi-color:#ef4444"
+       onclick="event.preventDefault()"
+       onmouseenter="this.style.borderColor='#ef4444';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#ef4444"></div>
+        <div class="kpi-card__icon" style="color:#ef4444"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+        <div class="kpi-card__value" style="color:#ef4444">{{ $totalEnRetard }}</div>
+        <div class="kpi-card__label">En retard</div>
+        <div class="kpi-card__sub">échéance dépassée</div>
+        <div class="kpi-card__arrow" style="color:#ef4444">→</div>
+    </a>
+    <a href="#" data-status=""
+       class="kpi-card filter-stat {{ !request('status') ? 'is-active' : '' }}"
+       style="--kpi-color:var(--accent)"
+       onclick="event.preventDefault()"
+       onmouseenter="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
+        <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <div class="kpi-card__value" style="color:var(--accent);font-size:18px">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
+        <div class="kpi-card__label">Montant dû</div>
+        <div class="kpi-card__sub">FCFA cumul</div>
+        <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
+    </a>
 </div>
 
 {{-- FILTRES AJAX DYNAMIQUES --}}
@@ -142,9 +170,6 @@
 .filter-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:block;margin-bottom:4px; }
 .filter-group { display:flex;flex-direction:column; }
 .result-badge { height:38px;display:flex;align-items:center;font-size:12px;color:var(--text3);white-space:nowrap; }
-.stat-card { cursor:pointer; transition:all .15s; border:2px solid transparent; }
-.stat-card:hover { transform:translateY(-2px); }
-.stat-card.active { border-color:var(--accent) !important; }
 .spinner { display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:8px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -306,12 +331,12 @@
                 applyFilters();
                 
                 // Mettre à jour l'apparence des cartes stats
-                document.querySelectorAll('.stat-card').forEach(card => {
+                document.querySelectorAll('.kpi-card.filter-stat').forEach(card => {
                     const status = card.dataset.status;
                     if (status === currentFilters.status) {
-                        card.classList.add('active');
+                        card.classList.add('is-active');
                     } else {
-                        card.classList.remove('active');
+                        card.classList.remove('is-active');
                     }
                 });
             });
@@ -319,7 +344,7 @@
     });
 
     // Cartes stats
-    document.querySelectorAll('.stat-card').forEach(card => {
+    document.querySelectorAll('.kpi-card.filter-stat').forEach(card => {
         card.addEventListener('click', (e) => {
             e.preventDefault();
             const status = card.dataset.status;
@@ -328,12 +353,12 @@
                 currentFilters.status = status;
                 updateResetButton();
                 applyFilters();
-                
-                document.querySelectorAll('.stat-card').forEach(c => {
+
+                document.querySelectorAll('.kpi-card.filter-stat').forEach(c => {
                     if (c.dataset.status === status) {
-                        c.classList.add('active');
+                        c.classList.add('is-active');
                     } else {
-                        c.classList.remove('active');
+                        c.classList.remove('is-active');
                     }
                 });
             }
@@ -348,8 +373,8 @@
             if (elements.type) elements.type.value = '';
             if (elements.year) elements.year.value = '';
             if (elements.status) elements.status.value = '';
-            
-            document.querySelectorAll('.stat-card').forEach(card => card.classList.remove('active'));
+
+            document.querySelectorAll('.kpi-card.filter-stat').forEach(card => card.classList.remove('is-active'));
             
             updateResetButton();
             applyFilters();

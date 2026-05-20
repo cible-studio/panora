@@ -33,21 +33,37 @@
 </div>
 @endif
 
-{{-- ════ KPI cards (pattern unifié projet : bordure latérale colorée,
+{{-- ════ KPI cards (pattern unifié projet : design canonique .kpi-card,
      toggle, état actif, counts qui gardent leur valeur indépendamment
      du filtre KPI courant). ════ --}}
 @php
 $kpis = [
-    ['s'=>'',           'k'=>'total',      'l'=>'Total',      'v'=>$stats['total']      ?? 0, 'c'=>'var(--accent)', 'icon'=>'📋'],
-    ['s'=>'en_attente', 'k'=>'en_attente', 'l'=>'En attente', 'v'=>$stats['en_attente'] ?? 0, 'c'=>'#f97316',       'icon'=>'⏳'],
-    ['s'=>'verifie',    'k'=>'verifie',    'l'=>'Vérifiées',  'v'=>$stats['verifie']    ?? 0, 'c'=>'#22c55e',       'icon'=>'✅'],
-    ['s'=>'rejete',     'k'=>'rejete',     'l'=>'Rejetées',   'v'=>$stats['rejete']     ?? 0, 'c'=>'#ef4444',       'icon'=>'🚫'],
+    [
+        's'=>'', 'k'=>'total', 'l'=>'Total', 'sub'=>'piges uploadées',
+        'v'=>$stats['total'] ?? 0, 'c'=>'var(--accent)',
+        'svg'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+    ],
+    [
+        's'=>'en_attente', 'k'=>'en_attente', 'l'=>'En attente', 'sub'=>'à vérifier',
+        'v'=>$stats['en_attente'] ?? 0, 'c'=>'#f97316',
+        'svg'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+    ],
+    [
+        's'=>'verifie', 'k'=>'verifie', 'l'=>'Vérifiées', 'sub'=>'validées et archivées',
+        'v'=>$stats['verifie'] ?? 0, 'c'=>'#22c55e',
+        'svg'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    ],
+    [
+        's'=>'rejete', 'k'=>'rejete', 'l'=>'Rejetées', 'sub'=>'non conformes',
+        'v'=>$stats['rejete'] ?? 0, 'c'=>'#ef4444',
+        'svg'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>',
+    ],
 ];
 $activeStatus = request('status');
 $hasAnyFilter = request('q') || request('status') || request('campaign_id') || request('panel_id')
               || request('technicien_id') || request('date_from') || request('date_to');
 @endphp
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:20px">
 @foreach($kpis as $k)
 @php
     $isTotal  = $k['s'] === '';
@@ -60,11 +76,16 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
 @endphp
 <a href="{{ $url }}"
    data-kpi="{{ $k['k'] }}"
-   class="stat-card {{ $isActive ? 'active' : '' }}"
-   style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['c'] }};border-radius:14px;padding:14px 18px;text-decoration:none;display:block;transition:all .15s;{{ $isActive ? 'box-shadow:0 0 0 2px '.$k['c'].'33;' : '' }}">
-    <div style="font-size:18px;color:{{ $k['c'] }};margin-bottom:4px">{{ $k['icon'] }}</div>
-    <div data-kpi-value="{{ $k['k'] }}" style="font-size:26px;font-weight:800;color:{{ $k['c'] }};line-height:1;margin-bottom:6px">{{ number_format($k['v']) }}</div>
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">{{ $k['l'] }}</div>
+   class="kpi-card {{ $isActive ? 'is-active' : '' }}"
+   style="--kpi-color:{{ $k['c'] }}"
+   onmouseenter="this.style.borderColor='{{ $k['c'] }}';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+   onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+    <div class="kpi-card__top-bar" style="background:{{ $k['c'] }}"></div>
+    <div class="kpi-card__icon" style="color:{{ $k['c'] }}">{!! $k['svg'] !!}</div>
+    <div data-kpi-value="{{ $k['k'] }}" class="kpi-card__value" style="color:{{ $k['c'] }}">{{ number_format($k['v']) }}</div>
+    <div class="kpi-card__label">{{ $k['l'] }}</div>
+    <div class="kpi-card__sub">{{ $k['sub'] }}</div>
+    <div class="kpi-card__arrow" style="color:{{ $k['c'] }}">→</div>
 </a>
 @endforeach
 </div>

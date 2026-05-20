@@ -104,47 +104,59 @@
     </div>
 </form>
 
-{{-- ── KPI cards (6) ─────────────────────────────────────────── --}}
-<div class="rcamp-grid">
-    <div class="rcamp-card" style="border-left-color:var(--accent)">
-        <div class="rcamp-card-label">📋 Total campagnes</div>
-        <div class="rcamp-card-value" style="color:var(--accent)">{{ $total }}</div>
-        <div class="rcamp-card-sub">Sur la période sélectionnée</div>
+{{-- ── KPI cards (6) — design KPI unifié ─────────────────────── --}}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:20px">
+    <div class="kpi-card" style="--kpi-color:var(--accent)">
+        <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
+        <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg></div>
+        <div class="kpi-card__value" style="color:var(--accent)">{{ $total }}</div>
+        <div class="kpi-card__label">Total campagnes</div>
+        <div class="kpi-card__sub">Sur la période sélectionnée</div>
     </div>
 
-    <div class="rcamp-card" style="border-left-color:#22c55e">
-        <div class="rcamp-card-label">📡 Actives</div>
-        <div class="rcamp-card-value" style="color:#22c55e">{{ $actives }}</div>
-        <div class="rcamp-card-sub">En cours d'affichage</div>
+    <div class="kpi-card" style="--kpi-color:#22c55e">
+        <div class="kpi-card__top-bar" style="background:#22c55e"></div>
+        <div class="kpi-card__icon" style="color:#22c55e"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg></div>
+        <div class="kpi-card__value" style="color:#22c55e">{{ $actives }}</div>
+        <div class="kpi-card__label">Actives</div>
+        <div class="kpi-card__sub">En cours d'affichage</div>
     </div>
 
-    <div class="rcamp-card" style="border-left-color:#6b7280">
-        <div class="rcamp-card-label">✅ Terminées</div>
-        <div class="rcamp-card-value" style="color:#6b7280">{{ $terminees }}</div>
-        <div class="rcamp-card-sub">Achevées avec succès</div>
+    <div class="kpi-card" style="--kpi-color:#6b7280">
+        <div class="kpi-card__top-bar" style="background:#6b7280"></div>
+        <div class="kpi-card__icon" style="color:#6b7280"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="kpi-card__value" style="color:#6b7280">{{ $terminees }}</div>
+        <div class="kpi-card__label">Terminées</div>
+        <div class="kpi-card__sub">Achevées avec succès</div>
     </div>
 
-    <div class="rcamp-card" style="border-left-color:#ef4444">
-        <div class="rcamp-card-label">🚫 Annulées</div>
-        <div class="rcamp-card-value" style="color:#ef4444">{{ $annulees }}</div>
-        <div class="rcamp-card-sub">{{ $tauxAnnulation }}% du total</div>
+    <div class="kpi-card" style="--kpi-color:#ef4444">
+        <div class="kpi-card__top-bar" style="background:#ef4444"></div>
+        <div class="kpi-card__icon" style="color:#ef4444"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+        <div class="kpi-card__value" style="color:#ef4444">{{ $annulees }}</div>
+        <div class="kpi-card__label">Annulées</div>
+        <div class="kpi-card__sub">{{ $tauxAnnulation }}% du total</div>
     </div>
 
-    <div class="rcamp-card" style="border-left-color:#f97316">
-        <div class="rcamp-card-label">📅 Planifiées</div>
-        <div class="rcamp-card-value" style="color:#f97316">{{ $planifiees }}</div>
-        <div class="rcamp-card-sub">À démarrer prochainement</div>
+    <div class="kpi-card" style="--kpi-color:#f97316">
+        <div class="kpi-card__top-bar" style="background:#f97316"></div>
+        <div class="kpi-card__icon" style="color:#f97316"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+        <div class="kpi-card__value" style="color:#f97316">{{ $planifiees }}</div>
+        <div class="kpi-card__label">Planifiées</div>
+        <div class="kpi-card__sub">À démarrer prochainement</div>
     </div>
 
-    <div class="rcamp-card" style="border-left-color:#fab80b">
-        <div class="rcamp-card-label">💰 CA réalisé</div>
-        <div class="rcamp-card-value" style="color:#fab80b;font-size:22px">
+    <div class="kpi-card" style="--kpi-color:#fab80b">
+        <div class="kpi-card__top-bar" style="background:#fab80b"></div>
+        <div class="kpi-card__icon" style="color:#fab80b"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <div class="kpi-card__value" style="color:#fab80b">
             @if($caTotal >= 1000000){{ number_format($caTotal/1000000, 1, ',', ' ') }}M
             @elseif($caTotal >= 1000){{ number_format($caTotal/1000, 0, ',', ' ') }}K
             @else{{ number_format($caTotal, 0, ',', ' ') }}@endif
             <span style="font-size:12px;font-weight:600">FCFA</span>
         </div>
-        <div class="rcamp-card-sub">Actives + terminées + pause</div>
+        <div class="kpi-card__label">CA réalisé</div>
+        <div class="kpi-card__sub">Actives + terminées + pause</div>
     </div>
 </div>
 

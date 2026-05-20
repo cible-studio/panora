@@ -54,12 +54,12 @@
          toggle, état actif, counts qui suivent les filtres) ══ --}}
     @php
     $statCards = [
-        ['key'=>'all',      'label'=>'Total',      'icon'=>'📋', 'color'=>'var(--accent)'],
-        ['key'=>'planifie', 'label'=>'Planifiées', 'icon'=>'📅', 'color'=>'#f97316'],
-        ['key'=>'actif',    'label'=>'En cours',   'icon'=>'📡', 'color'=>'#22c55e'],
-        ['key'=>'pause',    'label'=>'En pause',   'icon'=>'⏸',  'color'=>'#f59e0b'],
-        ['key'=>'termine',  'label'=>'Terminées',  'icon'=>'✅', 'color'=>'#3b82f6'],
-        ['key'=>'annule',   'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'#ef4444'],
+        ['key'=>'all',      'label'=>'Total',      'sub'=>'toutes campagnes',    'color'=>'var(--accent)', 'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>'],
+        ['key'=>'planifie', 'label'=>'Planifiées', 'sub'=>'à démarrer',           'color'=>'#f97316',       'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'],
+        ['key'=>'actif',    'label'=>'En cours',   'sub'=>'en affichage',         'color'=>'#22c55e',       'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>'],
+        ['key'=>'pause',    'label'=>'En pause',   'sub'=>'temporairement gelées','color'=>'#f59e0b',       'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>'],
+        ['key'=>'termine',  'label'=>'Terminées',  'sub'=>'achevées',             'color'=>'#3b82f6',       'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'],
+        ['key'=>'annule',   'label'=>'Annulées',   'sub'=>'campagnes annulées',   'color'=>'#ef4444',       'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/></svg>'],
     ];
     $activeStatus = request('status');
     $hasAnyFilter = request('search') || request('status') || request('client_id')
@@ -67,27 +67,25 @@
                   || request('date_fin') || request('non_facturee')
                   || request('commune_id') || request('zone_id');
     @endphp
-    {{-- Compact : icone à gauche, chiffre + label à droite, sur 1 seule ligne.
-         6 cartes alignées sans étirement excessif. --}}
-    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-bottom:18px">
+    {{-- KPI cards — design unifié --}}
+    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:20px">
         @foreach($statCards as $sc)
         @php
             $isAll    = $sc['key'] === 'all';
             $isActive = $isAll ? !$hasAnyFilter : ($activeStatus === $sc['key']);
             $val      = $isAll ? $campaigns->total() : ($counts[$sc['key']] ?? 0);
         @endphp
-        <a href="#"
-           class="stat-card {{ $isActive ? 'active' : '' }}"
-           data-filter="status"
-           data-kpi="{{ $sc['key'] }}"
-           data-value="{{ $isAll ? '' : $sc['key'] }}"
-           title="{{ $sc['label'] }}"
-           style="background:var(--surface);border:1px solid var(--border);border-left:3px solid {{ $sc['color'] }};border-radius:10px;padding:10px 12px;text-decoration:none;display:flex;align-items:center;gap:10px;transition:all .15s;min-width:0;{{ $isActive ? 'box-shadow:0 0 0 2px '.$sc['color'].'33;' : '' }}">
-            <div class="stat-icon" style="font-size:18px;color:{{ $sc['color'] }};flex-shrink:0;line-height:1">{{ $sc['icon'] }}</div>
-            <div style="min-width:0;line-height:1.1">
-                <div class="stat-number" data-kpi-value="{{ $sc['key'] }}" style="font-size:20px;font-weight:800;color:{{ $sc['color'] }}">{{ number_format($val) }}</div>
-                <div class="stat-label" style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ $sc['label'] }}</div>
-            </div>
+        <a href="#" class="kpi-card {{ $isActive ? 'is-active' : '' }}"
+           data-filter="status" data-kpi="{{ $sc['key'] }}" data-value="{{ $isAll ? '' : $sc['key'] }}"
+           style="--kpi-color:{{ $sc['color'] }};{{ $isActive ? 'border-color:'.$sc['color'].';' : '' }}"
+           onmouseenter="if(!this.classList.contains('is-active')){this.style.borderColor='{{ $sc['color'] }}';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'}"
+           onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+            <div class="kpi-card__top-bar" style="background:{{ $sc['color'] }}"></div>
+            <div class="kpi-card__icon" style="color:{{ $sc['color'] }}">{!! $sc['icon'] !!}</div>
+            <div class="kpi-card__value" data-kpi-value="{{ $sc['key'] }}" style="color:{{ $sc['color'] }}">{{ number_format($val) }}</div>
+            <div class="kpi-card__label">{{ $sc['label'] }}</div>
+            <div class="kpi-card__sub">{{ $sc['sub'] }}</div>
+            <div class="kpi-card__arrow" style="color:{{ $sc['color'] }}">→</div>
         </a>
         @endforeach
     </div>
@@ -821,7 +819,7 @@ document.addEventListener('keydown', e => {
         document.getElementById('filter-zone').addEventListener('change', applyFilters);
         
         // Cartes stats
-        document.querySelectorAll('.stat-card').forEach(card => {
+        document.querySelectorAll('.kpi-card[data-filter]').forEach(card => {
             card.addEventListener('click', (e) => {
                 e.preventDefault();
                 const filterValue = card.dataset.value;
@@ -905,12 +903,12 @@ document.addEventListener('keydown', e => {
 
     function updateActiveStat() {
         const activeStatus = currentFilters.status;
-        document.querySelectorAll('.stat-card').forEach(card => {
+        document.querySelectorAll('.kpi-card[data-filter]').forEach(card => {
             const cardValue = card.dataset.value;
             if ((!activeStatus && !cardValue) || (cardValue === activeStatus)) {
-                card.classList.add('active');
+                card.classList.add('is-active');
             } else {
-                card.classList.remove('active');
+                card.classList.remove('is-active');
             }
         });
     }
@@ -965,8 +963,8 @@ document.addEventListener('keydown', e => {
                 document.getElementById('total-count').textContent = data.stats.total + ' résultat(s)';
 
                 // Met à jour le KPI "Total" (carte data-value vide = 'all')
-                document.querySelectorAll('.stat-card').forEach(card => {
-                    const numEl = card.querySelector('.stat-number');
+                document.querySelectorAll('.kpi-card[data-filter]').forEach(card => {
+                    const numEl = card.querySelector('.kpi-card__value');
                     if (!numEl) return;
                     const v = card.dataset.value;
                     if (!v) {

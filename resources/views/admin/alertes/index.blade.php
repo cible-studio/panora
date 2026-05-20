@@ -20,25 +20,44 @@
         // Carte 'total' = action "tout afficher" (reset des filtres niveau).
         // Cartes danger/warning/info = filtrent la liste sur le niveau.
         $kpis = [
-            ['key' => 'total',   'label' => 'Total alertes',   'val' => $summary['total'],   'color' => '#e8a020', 'filter' => 'all',
-             'icon' => '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'],
-            ['key' => 'danger',  'label' => 'Danger',          'val' => $summary['danger'],  'color' => '#ef4444', 'filter' => 'danger',
-             'icon' => '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'],
-            ['key' => 'warning', 'label' => 'Avertissements',  'val' => $summary['warning'], 'color' => '#f97316', 'filter' => 'warning',
-             'icon' => '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'],
-            ['key' => 'info',    'label' => 'Informations',    'val' => $summary['info'],    'color' => '#3b82f6', 'filter' => 'info',
-             'icon' => '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'],
+            [
+                'key' => 'total', 'label' => 'Total alertes', 'sub' => 'alertes actives',
+                'val' => $summary['total'], 'color' => 'var(--accent)', 'filter' => 'all',
+                'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+            ],
+            [
+                'key' => 'danger', 'label' => 'Danger', 'sub' => 'action immédiate',
+                'val' => $summary['danger'], 'color' => '#ef4444', 'filter' => 'danger',
+                'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+            ],
+            [
+                'key' => 'warning', 'label' => 'Avertissements', 'sub' => 'à surveiller',
+                'val' => $summary['warning'], 'color' => '#f97316', 'filter' => 'warning',
+                'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+            ],
+            [
+                'key' => 'info', 'label' => 'Informations', 'sub' => 'pour information',
+                'val' => $summary['info'], 'color' => '#3b82f6', 'filter' => 'info',
+                'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+            ],
         ];
     @endphp
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:20px">
         @foreach ($kpis as $k)
-            <button data-filter="{{ $k['filter'] }}"
+            @php $isActive = ($k['filter'] === 'all' && !request('niveau') && !request('type') && !request()->boolean('non_lues')) || request('niveau') === $k['filter']; @endphp
+            <button type="button"
+                    data-filter="{{ $k['filter'] }}"
                     data-kpi="{{ $k['key'] }}"
-                    class="kpi-card {{ ($k['filter'] === 'all' && !request('niveau') && !request('type') && !request()->boolean('non_lues')) || request('niveau') === $k['filter'] ? 'active' : '' }}"
-                    style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;border-left:4px solid {{ $k['color'] }};cursor:pointer;text-align:left;transition:all .15s">
-                <div style="color:{{ $k['color'] }};margin-bottom:8px">{!! $k['icon'] !!}</div>
-                <div data-kpi-value style="font-size:28px;font-weight:800;color:{{ $k['color'] }};line-height:1">{{ number_format($k['val']) }}</div>
-                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-top:6px">{{ $k['label'] }}</div>
+                    class="kpi-card {{ $isActive ? 'is-active' : '' }}"
+                    style="--kpi-color:{{ $k['color'] }};text-align:left"
+                    onmouseenter="this.style.borderColor='{{ $k['color'] }}';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+                    onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+                <div class="kpi-card__top-bar" style="background:{{ $k['color'] }}"></div>
+                <div class="kpi-card__icon" style="color:{{ $k['color'] }}">{!! $k['icon'] !!}</div>
+                <div data-kpi-value class="kpi-card__value" style="color:{{ $k['color'] }}">{{ number_format($k['val']) }}</div>
+                <div class="kpi-card__label">{{ $k['label'] }}</div>
+                <div class="kpi-card__sub">{{ $k['sub'] }}</div>
+                <div class="kpi-card__arrow" style="color:{{ $k['color'] }}">→</div>
             </button>
         @endforeach
     </div>
@@ -156,10 +175,6 @@
         .btn-reset:hover { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); color: #ef4444; }
         .result-badge { height: 38px; display: flex; align-items: center; font-size: 12px; color: var(--text3); white-space: nowrap; }
 
-        .kpi-card { cursor: pointer; transition: all .15s; border: 2px solid transparent; }
-        .kpi-card:hover { transform: translateY(-2px); }
-        .kpi-card.active { box-shadow: 0 0 0 2px var(--accent); }
-
         @keyframes alertFade { to { opacity: 0; transform: translateX(10px); } }
     </style>
 
@@ -244,7 +259,7 @@
                     const noFilter = !filters.niveau && !filters.type && !filters.non_lues;
                     document.querySelectorAll('.kpi-card').forEach(c => {
                         const f = c.dataset.filter;
-                        c.classList.toggle('active',
+                        c.classList.toggle('is-active',
                             (f === 'all' && noFilter) ||
                             (f !== 'all' && f === filters.niveau)
                         );

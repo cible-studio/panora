@@ -17,31 +17,59 @@
 </x-slot>
 
 {{-- STATS CLIQUABLES (filtres AJAX) --}}
-<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
-    <div data-status="brouillon" class="stat-card filter-stat {{ request('status') === 'brouillon' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">Brouillons</div>
-        <div class="stat-value" data-kpi="brouillon" style="color:var(--text3);">{{ $totalBrouillons }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </div>
-    <div data-status="envoyee" class="stat-card filter-stat {{ request('status') === 'envoyee' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">Envoyées</div>
-        <div class="stat-value" data-kpi="envoyee" style="color:var(--blue);">{{ $totalEnvoyees }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </div>
-    <div data-status="payee" class="stat-card filter-stat {{ request('status') === 'payee' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">Payées</div>
-        <div class="stat-value" data-kpi="payee" style="color:var(--green);">{{ $totalPayees }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
-    </div>
-    <div data-status="" class="stat-card filter-stat {{ !request('status') ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
-        <div class="stat-label">CA Encaissé</div>
-        <div class="stat-value" data-kpi="ca" style="font-size:16px; color:var(--accent);">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Voir tout →</div>
-    </div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+    <a href="#" data-status="brouillon"
+       class="kpi-card filter-stat {{ request('status') === 'brouillon' ? 'is-active' : '' }}"
+       style="--kpi-color:#6b7280"
+       onclick="event.preventDefault()"
+       onmouseenter="this.style.borderColor='#6b7280';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#6b7280"></div>
+        <div class="kpi-card__icon" style="color:#6b7280"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
+        <div class="kpi-card__value" data-kpi="brouillon" data-kpi-value="brouillon" style="color:#6b7280">{{ $totalBrouillons }}</div>
+        <div class="kpi-card__label">Brouillons</div>
+        <div class="kpi-card__sub">à finaliser</div>
+        <div class="kpi-card__arrow" style="color:#6b7280">→</div>
+    </a>
+    <a href="#" data-status="envoyee"
+       class="kpi-card filter-stat {{ request('status') === 'envoyee' ? 'is-active' : '' }}"
+       style="--kpi-color:#3b82f6"
+       onclick="event.preventDefault()"
+       onmouseenter="this.style.borderColor='#3b82f6';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#3b82f6"></div>
+        <div class="kpi-card__icon" style="color:#3b82f6"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div>
+        <div class="kpi-card__value" data-kpi="envoyee" data-kpi-value="envoyee" style="color:#3b82f6">{{ $totalEnvoyees }}</div>
+        <div class="kpi-card__label">Envoyées</div>
+        <div class="kpi-card__sub">en attente paiement</div>
+        <div class="kpi-card__arrow" style="color:#3b82f6">→</div>
+    </a>
+    <a href="#" data-status="payee"
+       class="kpi-card filter-stat {{ request('status') === 'payee' ? 'is-active' : '' }}"
+       style="--kpi-color:#22c55e"
+       onclick="event.preventDefault()"
+       onmouseenter="this.style.borderColor='#22c55e';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#22c55e"></div>
+        <div class="kpi-card__icon" style="color:#22c55e"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <div class="kpi-card__value" data-kpi="payee" data-kpi-value="payee" style="color:#22c55e">{{ $totalPayees }}</div>
+        <div class="kpi-card__label">Payées</div>
+        <div class="kpi-card__sub">factures encaissées</div>
+        <div class="kpi-card__arrow" style="color:#22c55e">→</div>
+    </a>
+    <a href="#" data-status=""
+       class="kpi-card filter-stat {{ !request('status') ? 'is-active' : '' }}"
+       style="--kpi-color:var(--accent)"
+       onclick="event.preventDefault()"
+       onmouseenter="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
+        <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <div class="kpi-card__value" data-kpi="ca" data-kpi-value="ca" style="color:var(--accent);font-size:18px">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
+        <div class="kpi-card__label">CA Encaissé</div>
+        <div class="kpi-card__sub">FCFA total</div>
+        <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
+    </a>
 </div>
 
 {{-- FILTRES AJAX DYNAMIQUES --}}
@@ -131,9 +159,6 @@ cursor: pointer;
 .filter-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:block;margin-bottom:4px; }
 .filter-group { display:flex;flex-direction:column; }
 .result-badge { height:38px;display:flex;align-items:center;font-size:12px;color:var(--text3);white-space:nowrap; }
-.stat-card { cursor:pointer; transition:all .15s; border:2px solid transparent; }
-.stat-card:hover { transform:translateY(-2px); }
-.stat-card.active { border-color:var(--accent) !important; }
 .spinner { display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:8px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .btn-blue { background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:#3b82f6; }
@@ -238,19 +263,19 @@ cursor: pointer;
             applyFilters();
             
             // Mettre à jour l'apparence des cartes stats
-            document.querySelectorAll('.stat-card').forEach(card => {
+            document.querySelectorAll('.kpi-card[data-kpi]').forEach(card => {
                 const status = card.dataset.status;
                 if (status === currentFilters.status) {
-                    card.classList.add('active');
+                    card.classList.add('is-active');
                 } else {
-                    card.classList.remove('active');
+                    card.classList.remove('is-active');
                 }
             });
         });
     }
 
     // Cartes stats
-    document.querySelectorAll('.stat-card').forEach(card => {
+    document.querySelectorAll('.kpi-card[data-kpi]').forEach(card => {
         card.addEventListener('click', (e) => {
             e.preventDefault();
             const status = card.dataset.status;
@@ -259,12 +284,12 @@ cursor: pointer;
                 currentFilters.status = status;
                 updateResetButton();
                 applyFilters();
-                
-                document.querySelectorAll('.stat-card').forEach(c => {
+
+                document.querySelectorAll('.kpi-card[data-kpi]').forEach(c => {
                     if (c.dataset.status === status) {
-                        c.classList.add('active');
+                        c.classList.add('is-active');
                     } else {
-                        c.classList.remove('active');
+                        c.classList.remove('is-active');
                     }
                 });
             }
@@ -277,8 +302,8 @@ cursor: pointer;
             currentFilters = { client_id: '', status: '' };
             if (elements.client) elements.client.value = '';
             if (elements.status) elements.status.value = '';
-            
-            document.querySelectorAll('.stat-card').forEach(card => card.classList.remove('active'));
+
+            document.querySelectorAll('.kpi-card[data-kpi]').forEach(card => card.classList.remove('is-active'));
             
             updateResetButton();
             applyFilters();
