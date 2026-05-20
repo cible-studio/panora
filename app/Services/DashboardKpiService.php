@@ -82,13 +82,83 @@ class DashboardKpiService
     {
         // Garde seulement les filtres connus pour stabiliser la clé cache
         $allowed = ['commune_id', 'city', 'client_id', 'category_id'];
-        $this->filters = array_intersect_key($filters, array_flip($allowed));
+        $this->filters = array_filter(array_intersect_key($filters, array_flip($allowed)));
         return $this;
     }
 
     public function getPeriod(): array
     {
         return ['from' => $this->from, 'to' => $this->to];
+    }
+
+    public function getFilters(): array
+    {
+        return $this->filters;
+    }
+
+    /**
+     * Helper — applique les filtres dimensionnels à une query qui
+     * référence (ou peut référencer) la table `panels` ET/OU `campaigns`.
+     *
+     * @param  \Illuminate\Database\Query\Builder $q
+     * @param  array  $options
+     *   - panel_alias    : alias de panels dans la query (défaut 'panels')
+     *   - campaign_alias : alias de campaigns (défaut 'campaigns')
+     *   - join_communes  : true si on doit joindre communes pour filtrer par city
+     * @return \Illuminate\Database\Query\Builder
+     */
+    protected function applyFilters($q, array $options = [])
+    {
+        if (empty($this->filters)) return $q;
+
+        $panelAlias    = $options['panel_alias']    ?? 'panels';
+        $campaignAlias = $options['campaign_alias'] ?? 'campaigns';
+
+        if (!empty($this->filters['commune_id']) && in_array('panel', $options['targets'] ?? ['panel'], true)) {
+            $q->where("{$panelAlias}.commune_id", $this->filters['commune_id']);
+        }
+        if (!empty($this->filters['category_id']) && in_array('panel', $options['targets'] ?? ['panel'], true)) {
+            $q->where("{$panelAlias}.category_id", $this->filters['category_id']);
+        }
+        if (!empty($this->filters['city']) && in_array('panel', $options['targets'] ?? ['panel'], true)) {
+            // Sous-requête pour ne pas obliger un join communes
+            $q->whereIn("{$panelAlias}.commune_id", function ($sub) {
+                $sub->select('id')->from('communes')->where('city', $this->filters['city']);
+            });
+        }
+        if (!empty($this->filters['client_id']) && in_array('campaign', $options['targets'] ?? ['campaign'], true)) {
+            $q->where("{$campaignAlias}.client_id", $this->filters['client_id']);
+        }
+        return $q;
+    }
+
+    /** Helper Eloquent — applique les filtres à un Builder Eloquent sur Panel */
+    protected function applyPanelEloquentFilters($query)
+    {
+        if (!empty($this->filters['commune_id'])) {
+            $query->where('commune_id', $this->filters['commune_id']);
+        }
+        if (!empty($this->filters['category_id'])) {
+            $query->where('category_id', $this->filters['category_id']);
+        }
+        if (!empty($this->filters['city'])) {
+            $query->whereHas('commune', fn($c) => $c->where('city', $this->filters['city']));
+        }
+        return $query;
+    }
+
+    /** Helper Eloquent — applique les filtres à un Builder Eloquent sur Campaign */
+    protected function applyCampaignEloquentFilters($query)
+    {
+        if (!empty($this->filters['client_id'])) {
+            $query->where('client_id', $this->filters['client_id']);
+        }
+        if (!empty($this->filters['commune_id']) || !empty($this->filters['city']) || !empty($this->filters['category_id'])) {
+            $query->whereHas('panels', function ($p) {
+                $this->applyPanelEloquentFilters($p);
+            });
+        }
+        return $query;
     }
 
     /**
@@ -132,11 +202,13 @@ class DashboardKpiService
     public function parcOverview(): array
     {
         return $this->cached('parc_overview', function () {
-            $total       = Panel::whereNull('deleted_at')->count();
-            $occupied    = Panel::whereIn('status', ['occupe', 'confirme'])->whereNull('deleted_at')->count();
-            $available   = Panel::where('status', 'libre')->whereNull('deleted_at')->count();
-            $option      = Panel::where('status', 'option')->whereNull('deleted_at')->count();
-            $maintenance = Panel::where('status', 'maintenance')->whereNull('deleted_at')->count();
+            $base = fn() => $this->applyPanelEloquentFilters(Panel::whereNull('deleted_at'));
+
+            $total       = $base()->count();
+            $occupied    = $base()->whereIn('status', ['occupe', 'confirme'])->count();
+            $available   = $base()->where('status', 'libre')->count();
+            $option      = $base()->where('status', 'option')->count();
+            $maintenance = $base()->where('status', 'maintenance')->count();
 
             return [
                 'total'           => $total,
@@ -156,11 +228,25 @@ class DashboardKpiService
     public function parcByCommune(): Collection
     {
         return $this->cached('parc_commune', function () {
-            return Commune::withCount([
-                    'panels' => fn($q) => $q->whereNull('deleted_at'),
-                    'panels as occupied_count' => fn($q) => $q
-                        ->whereNull('deleted_at')
-                        ->whereIn('status', ['occupe', 'confirme']),
+            $q = Commune::query();
+            // Filtre par commune ou ville depuis les filtres dashboard
+            if (!empty($this->filters['commune_id'])) {
+                $q->where('id', $this->filters['commune_id']);
+            }
+            if (!empty($this->filters['city'])) {
+                $q->where('city', $this->filters['city']);
+            }
+            $categoryId = $this->filters['category_id'] ?? null;
+
+            return $q->withCount([
+                    'panels' => function ($q) use ($categoryId) {
+                        $q->whereNull('deleted_at');
+                        if ($categoryId) $q->where('category_id', $categoryId);
+                    },
+                    'panels as occupied_count' => function ($q) use ($categoryId) {
+                        $q->whereNull('deleted_at')->whereIn('status', ['occupe', 'confirme']);
+                        if ($categoryId) $q->where('category_id', $categoryId);
+                    },
                 ])
                 ->having('panels_count', '>', 0)
                 ->orderByDesc('panels_count')
@@ -186,21 +272,25 @@ class DashboardKpiService
     public function occupationTrend(int $months = 12): Collection
     {
         return $this->cached("occupation_trend.{$months}", function () use ($months) {
-            $totalParc = Panel::whereNull('deleted_at')->count();
+            $totalParc = $this->applyPanelEloquentFilters(Panel::whereNull('deleted_at'))->count();
             $result = collect();
 
             for ($i = $months - 1; $i >= 0; $i--) {
                 $month = now()->subMonths($i)->startOfMonth();
                 $endMonth = $month->copy()->endOfMonth();
-                $occupied = DB::table('campaign_panels')
+
+                $q = DB::table('campaign_panels')
                     ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                    ->join('panels', 'panels.id', '=', 'campaign_panels.panel_id')
                     ->where('campaign_panels.type', 'interne')
                     ->whereIn('campaigns.status', ['actif', 'planifie', 'pause', 'termine'])
                     ->where('campaigns.start_date', '<=', $endMonth)
                     ->where('campaigns.end_date',   '>=', $month)
                     ->whereNull('campaigns.deleted_at')
-                    ->distinct('campaign_panels.panel_id')
-                    ->count('campaign_panels.panel_id');
+                    ->whereNull('panels.deleted_at');
+
+                $this->applyFilters($q, ['targets' => ['panel', 'campaign']]);
+                $occupied = $q->distinct('campaign_panels.panel_id')->count('campaign_panels.panel_id');
 
                 $result->push([
                     'label' => $month->translatedFormat('M Y'),
@@ -225,7 +315,7 @@ class DashboardKpiService
             $from = $this->from->toDateString();
             $to   = $this->to->toDateString();
 
-            $rows = DB::table('campaign_panels')
+            $q = DB::table('campaign_panels')
                 ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
                 ->join('panels', 'panels.id', '=', 'campaign_panels.panel_id')
                 ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
@@ -234,8 +324,11 @@ class DashboardKpiService
                 ->where('campaigns.start_date', '<=', $to)
                 ->where('campaigns.end_date',   '>=', $from)
                 ->whereNull('campaigns.deleted_at')
-                ->whereNull('panels.deleted_at')
-                ->select(
+                ->whereNull('panels.deleted_at');
+
+            $this->applyFilters($q, ['targets' => ['panel', 'campaign']]);
+
+            return $q->select(
                     'panels.id',
                     'panels.reference',
                     'panels.name',
@@ -248,8 +341,6 @@ class DashboardKpiService
                 ->orderByDesc('days_occupied')
                 ->limit($limit)
                 ->get();
-
-            return $rows;
         });
     }
 
@@ -263,7 +354,7 @@ class DashboardKpiService
             $from = $this->from->toDateString();
             $to   = $this->to->toDateString();
 
-            return DB::table('panels')
+            $q = DB::table('panels')
                 ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
                 ->leftJoin('campaign_panels', function ($j) {
                     $j->on('campaign_panels.panel_id', '=', 'panels.id')
@@ -277,8 +368,11 @@ class DashboardKpiService
                       ->whereNull('campaigns.deleted_at');
                 })
                 ->whereNull('panels.deleted_at')
-                ->where('panels.status', '!=', 'maintenance')
-                ->select(
+                ->where('panels.status', '!=', 'maintenance');
+
+            $this->applyFilters($q, ['targets' => ['panel', 'campaign']]);
+
+            return $q->select(
                     'panels.id',
                     'panels.reference',
                     'panels.name',
@@ -308,7 +402,7 @@ class DashboardKpiService
             $from = $this->from->toDateString();
             $to   = $this->to->toDateString();
 
-            return DB::table('clients')
+            $q = DB::table('clients')
                 ->leftJoin('reservations', function ($j) use ($from, $to) {
                     $j->on('reservations.client_id', '=', 'clients.id')
                       ->whereIn('reservations.status', ['confirme', 'termine'])
@@ -316,8 +410,27 @@ class DashboardKpiService
                       ->where('reservations.end_date',   '>=', $from)
                       ->whereNull('reservations.deleted_at');
                 })
-                ->whereNull('clients.deleted_at')
-                ->select(
+                ->whereNull('clients.deleted_at');
+
+            if (!empty($this->filters['client_id'])) {
+                $q->where('clients.id', $this->filters['client_id']);
+            }
+            // Filtres par commune/ville/category s'appliquent aux panneaux loués
+            if (!empty($this->filters['commune_id']) || !empty($this->filters['city']) || !empty($this->filters['category_id'])) {
+                $q->whereExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('reservation_panels')
+                        ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
+                        ->whereColumn('reservation_panels.reservation_id', 'reservations.id');
+                    if (!empty($this->filters['commune_id'])) $sub->where('panels.commune_id', $this->filters['commune_id']);
+                    if (!empty($this->filters['category_id'])) $sub->where('panels.category_id', $this->filters['category_id']);
+                    if (!empty($this->filters['city'])) {
+                        $sub->whereIn('panels.commune_id', fn($s) => $s->select('id')->from('communes')->where('city', $this->filters['city']));
+                    }
+                });
+            }
+
+            return $q->select(
                     'clients.id',
                     'clients.name',
                     'clients.email',
@@ -392,9 +505,11 @@ class DashboardKpiService
     public function campaignStats(): array
     {
         return $this->cached('campaign_stats', function () {
-            $base = Campaign::query()
-                ->whereBetween('start_date', [$this->from, $this->to])
-                ->whereNull('deleted_at');
+            $base = $this->applyCampaignEloquentFilters(
+                Campaign::query()
+                    ->whereBetween('start_date', [$this->from, $this->to])
+                    ->whereNull('deleted_at')
+            );
 
             $total     = (clone $base)->count();
             $active    = (clone $base)->where('status', 'actif')->count();
@@ -422,11 +537,13 @@ class DashboardKpiService
     public function cancelReasons(): Collection
     {
         return $this->cached('cancel_reasons', function () {
-            return Campaign::whereNotNull('cancellation_reason')
+            $q = Campaign::whereNotNull('cancellation_reason')
                 ->where('status', 'annule')
                 ->whereBetween('updated_at', [$this->from, $this->to])
-                ->whereNull('deleted_at')
-                ->select('cancellation_reason', DB::raw('COUNT(*) as count'))
+                ->whereNull('deleted_at');
+            $this->applyCampaignEloquentFilters($q);
+
+            return $q->select('cancellation_reason', DB::raw('COUNT(*) as count'))
                 ->groupBy('cancellation_reason')
                 ->orderByDesc('count')
                 ->get();
@@ -451,7 +568,7 @@ class DashboardKpiService
     public function decapList(int $limit = 50): Collection
     {
         return $this->cached("decap.v2.{$limit}", function () use ($limit) {
-            $campaigns = Campaign::with([
+            $q = Campaign::with([
                     'client:id,name',
                     'panels:id,reference,name,commune_id',
                     'panels.commune:id,name',
@@ -460,9 +577,11 @@ class DashboardKpiService
                 ->where('end_date', '<=', now())
                 ->where('end_date', '>=', now()->subDays(60))
                 ->whereNull('deleted_at')
-                ->orderBy('end_date')
-                ->limit($limit)
-                ->get();
+                ->orderBy('end_date');
+
+            $this->applyCampaignEloquentFilters($q);
+
+            $campaigns = $q->limit($limit)->get();
 
             // Chargement du statut décappage en une seule query
             $campaignIds = $campaigns->pluck('id');
@@ -556,10 +675,14 @@ class DashboardKpiService
         return $this->cached('decap_stats', function () {
             $base = DB::table('campaign_panels')
                 ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->join('panels', 'panels.id', '=', 'campaign_panels.panel_id')
                 ->where('campaigns.status', 'termine')
                 ->whereNull('campaigns.deleted_at')
+                ->whereNull('panels.deleted_at')
                 ->where('campaigns.end_date', '>=', now()->subDays(90))
                 ->where('campaigns.end_date', '<=', now());
+
+            $this->applyFilters($base, ['targets' => ['panel', 'campaign']]);
 
             $total     = (clone $base)->count();
             $decapped  = (clone $base)->whereNotNull('campaign_panels.decapped_at')->count();
@@ -633,12 +756,29 @@ class DashboardKpiService
     public function totalRevenue(): float
     {
         return (float) $this->cached('total_revenue', function () {
-            return DB::table('reservations')
+            $q = DB::table('reservations')
                 ->whereIn('status', ['confirme', 'termine'])
                 ->where('start_date', '<=', $this->to)
                 ->where('end_date',   '>=', $this->from)
-                ->whereNull('deleted_at')
-                ->sum('total_amount');
+                ->whereNull('deleted_at');
+
+            if (!empty($this->filters['client_id'])) {
+                $q->where('client_id', $this->filters['client_id']);
+            }
+            if (!empty($this->filters['commune_id']) || !empty($this->filters['city']) || !empty($this->filters['category_id'])) {
+                $q->whereExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('reservation_panels')
+                        ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
+                        ->whereColumn('reservation_panels.reservation_id', 'reservations.id');
+                    if (!empty($this->filters['commune_id']))  $sub->where('panels.commune_id', $this->filters['commune_id']);
+                    if (!empty($this->filters['category_id'])) $sub->where('panels.category_id', $this->filters['category_id']);
+                    if (!empty($this->filters['city'])) {
+                        $sub->whereIn('panels.commune_id', fn($s) => $s->select('id')->from('communes')->where('city', $this->filters['city']));
+                    }
+                });
+            }
+            return $q->sum('total_amount');
         });
     }
 
@@ -649,11 +789,29 @@ class DashboardKpiService
     {
         return $this->cached("revenue_month.{$months}", function () use ($months) {
             $start = now()->subMonths($months - 1)->startOfMonth();
-            $rows = DB::table('reservations')
+            $q = DB::table('reservations')
                 ->whereIn('status', ['confirme', 'termine'])
                 ->where('start_date', '>=', $start)
-                ->whereNull('deleted_at')
-                ->select(
+                ->whereNull('deleted_at');
+
+            if (!empty($this->filters['client_id'])) {
+                $q->where('client_id', $this->filters['client_id']);
+            }
+            if (!empty($this->filters['commune_id']) || !empty($this->filters['city']) || !empty($this->filters['category_id'])) {
+                $q->whereExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('reservation_panels')
+                        ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
+                        ->whereColumn('reservation_panels.reservation_id', 'reservations.id');
+                    if (!empty($this->filters['commune_id']))  $sub->where('panels.commune_id', $this->filters['commune_id']);
+                    if (!empty($this->filters['category_id'])) $sub->where('panels.category_id', $this->filters['category_id']);
+                    if (!empty($this->filters['city'])) {
+                        $sub->whereIn('panels.commune_id', fn($s) => $s->select('id')->from('communes')->where('city', $this->filters['city']));
+                    }
+                });
+            }
+
+            $rows = $q->select(
                     DB::raw('YEAR(start_date) as y'),
                     DB::raw('MONTH(start_date) as m'),
                     DB::raw('SUM(total_amount) as total'),
@@ -686,7 +844,7 @@ class DashboardKpiService
             $from = $this->from->toDateString();
             $to   = $this->to->toDateString();
 
-            return DB::table('reservation_panels')
+            $q = DB::table('reservation_panels')
                 ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
                 ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
                 ->join('communes', 'communes.id', '=', 'panels.commune_id')
@@ -695,8 +853,14 @@ class DashboardKpiService
                 ->where('reservations.start_date', '<=', $to)
                 ->where('reservations.end_date',   '>=', $from)
                 ->whereNull('reservations.deleted_at')
-                ->whereNull('panels.deleted_at')
-                ->select(
+                ->whereNull('panels.deleted_at');
+
+            if (!empty($this->filters['commune_id']))  $q->where('panels.commune_id', $this->filters['commune_id']);
+            if (!empty($this->filters['category_id'])) $q->where('panels.category_id', $this->filters['category_id']);
+            if (!empty($this->filters['city']))        $q->where('communes.city', $this->filters['city']);
+            if (!empty($this->filters['client_id']))   $q->where('reservations.client_id', $this->filters['client_id']);
+
+            return $q->select(
                     'communes.id',
                     'communes.name as commune',
                     DB::raw('SUM(reservation_panels.total_price) as revenue'),
@@ -720,7 +884,7 @@ class DashboardKpiService
             $from = $this->from->toDateString();
             $to   = $this->to->toDateString();
 
-            return DB::table('reservation_panels')
+            $q = DB::table('reservation_panels')
                 ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
                 ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
                 ->join('communes', 'communes.id', '=', 'panels.commune_id')
@@ -730,8 +894,14 @@ class DashboardKpiService
                 ->where('reservations.end_date',   '>=', $from)
                 ->whereNotNull('communes.city')
                 ->whereNull('reservations.deleted_at')
-                ->whereNull('panels.deleted_at')
-                ->select(
+                ->whereNull('panels.deleted_at');
+
+            if (!empty($this->filters['commune_id']))  $q->where('panels.commune_id', $this->filters['commune_id']);
+            if (!empty($this->filters['category_id'])) $q->where('panels.category_id', $this->filters['category_id']);
+            if (!empty($this->filters['city']))        $q->where('communes.city', $this->filters['city']);
+            if (!empty($this->filters['client_id']))   $q->where('reservations.client_id', $this->filters['client_id']);
+
+            return $q->select(
                     'communes.city as city',
                     DB::raw('SUM(reservation_panels.total_price) as revenue'),
                     DB::raw('COUNT(DISTINCT reservation_panels.panel_id) as panels_engaged'),

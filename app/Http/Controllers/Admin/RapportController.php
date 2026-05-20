@@ -69,33 +69,50 @@ class RapportController extends Controller
 
         $anneesDisponibles = range(date('Y'), max(2020, date('Y') - 5));
 
+        // Helpers pour appliquer les filtres dimensionnels aux queries legacy
+        $applyPanelFilters = function ($query) use ($filterCommune, $filterCity, $filterCategory) {
+            if ($filterCommune)  $query->where('commune_id', $filterCommune);
+            if ($filterCategory) $query->where('category_id', $filterCategory);
+            if ($filterCity)     $query->whereHas('commune', fn($c) => $c->where('city', $filterCity));
+            return $query;
+        };
+        $applyCampaignFilters = function ($query) use ($filterClient, $filterCommune, $filterCity, $filterCategory, $applyPanelFilters) {
+            if ($filterClient) $query->where('client_id', $filterClient);
+            if ($filterCommune || $filterCity || $filterCategory) {
+                $query->whereHas('panels', fn($p) => $applyPanelFilters($p));
+            }
+            return $query;
+        };
+
         // ── Stats globales ──────────────────────────────────────
-        // Périmètre du parc : intemporel (le parc lui-même ne change pas
-        // selon la période sélectionnée). En revanche occupation, CA,
-        // clients actifs sont scopés sur [dateFrom, dateTo] pour que le
-        // filtre Période ait un vrai effet (Lot 8.1).
-        $totalPanneaux  = Panel::count();
-        $totalCampagnes = Campaign::where('start_date', '<=', $dateTo)
-                                  ->where('end_date',   '>=', $dateFrom)
-                                  ->count();
+        $totalPanneaux  = $applyPanelFilters(Panel::query())->count();
+        $totalCampagnes = $applyCampaignFilters(
+            Campaign::where('start_date', '<=', $dateTo)
+                    ->where('end_date',   '>=', $dateFrom)
+        )->count();
 
         // Clients actifs sur la période = clients ayant au moins 1
-        // campagne qui chevauche la période.
-        $totalClients = Client::whereHas('campaigns', fn($q) =>
-            $q->where('start_date', '<=', $dateTo)
-              ->where('end_date',   '>=', $dateFrom)
-        )->count();
+        // campagne qui chevauche la période (filtre dimensionnel appliqué).
+        $totalClients = Client::query()
+            ->when($filterClient, fn($q) => $q->where('id', $filterClient))
+            ->whereHas('campaigns', fn($q) =>
+                $applyCampaignFilters(
+                    $q->where('start_date', '<=', $dateTo)
+                      ->where('end_date',   '>=', $dateFrom)
+                )
+            )->count();
 
         // ── Occupation globale SUR LA PÉRIODE ───────────────────
-        // Un panneau est "occupé sur la période" s'il appartient à au
-        // moins 1 campagne actif/pose qui chevauche [dateFrom, dateTo].
-        $occupes = Panel::whereHas('campaigns', fn($q) =>
-            $q->whereIn('status', ['actif', 'planifie', 'termine'])
-              ->where('start_date', '<=', $dateTo)
-              ->where('end_date',   '>=', $dateFrom)
-        )->count();
+        $occupes = $applyPanelFilters(Panel::query())
+            ->whereHas('campaigns', fn($q) =>
+                $applyCampaignFilters(
+                    $q->whereIn('status', ['actif', 'planifie', 'termine'])
+                      ->where('start_date', '<=', $dateTo)
+                      ->where('end_date',   '>=', $dateFrom)
+                )
+            )->count();
 
-        $maintenance = Panel::where('status', 'maintenance')->count();
+        $maintenance = $applyPanelFilters(Panel::where('status', 'maintenance'))->count();
         $libres      = max(0, $totalPanneaux - $occupes - $maintenance);
         $taux        = $totalPanneaux > 0 ? round(($occupes / $totalPanneaux) * 100) : 0;
 
@@ -107,60 +124,75 @@ class RapportController extends Controller
             'total'       => $totalPanneaux,
         ];
 
-        // ── CA total période ────────────────────────────────────
-        // Inclut toute campagne qui chevauche la période (pas seulement
-        // celles qui démarrent dans la période). Cohérent avec occupes.
-        $caTotal = Campaign::where('start_date', '<=', $dateTo)
-            ->where('end_date',   '>=', $dateFrom)
-            ->sum('total_amount');
+        // ── CA total période (filtres appliqués) ────────────────
+        $caTotal = $applyCampaignFilters(
+            Campaign::where('start_date', '<=', $dateTo)
+                    ->where('end_date',   '>=', $dateFrom)
+        )->sum('total_amount');
 
         $caTicketMoy = $totalCampagnes > 0 ? round($caTotal / $totalCampagnes) : 0;
 
-        // ── Occupation par commune SUR LA PÉRIODE ───────────────
-        $communes = Commune::withCount(['panels as total_panels'])->get();
-        $occParCommune = $communes->filter(fn($c) => $c->total_panels > 0)
-            ->map(function ($commune) use ($dateFrom, $dateTo) {
-                $total = Panel::where('commune_id', $commune->id)->count();
-                $occ = Panel::where('commune_id', $commune->id)
-                    ->whereHas('campaigns', fn($q) =>
+        // ── Occupation par commune SUR LA PÉRIODE (filtres appliqués) ──
+        $communeQuery = Commune::query();
+        if ($filterCommune) $communeQuery->where('id', $filterCommune);
+        if ($filterCity)    $communeQuery->where('city', $filterCity);
+        $communes = $communeQuery->get();
+
+        $occParCommune = $communes->map(function ($commune) use ($dateFrom, $dateTo, $filterCategory, $filterClient, $applyCampaignFilters) {
+            $total = Panel::where('commune_id', $commune->id)
+                ->when($filterCategory, fn($q) => $q->where('category_id', $filterCategory))
+                ->count();
+            if ($total === 0) return null;
+            $occ = Panel::where('commune_id', $commune->id)
+                ->when($filterCategory, fn($q) => $q->where('category_id', $filterCategory))
+                ->whereHas('campaigns', fn($q) =>
+                    $applyCampaignFilters(
                         $q->whereIn('status', ['actif', 'planifie', 'termine'])
                           ->where('start_date', '<=', $dateTo)
                           ->where('end_date',   '>=', $dateFrom)
-                    )->count();
-                $taux = $total > 0 ? round(($occ / $total) * 100) : 0;
-                $color = $taux >= 75 ? '#ef4444' : ($taux >= 50 ? '#f97316' : ($taux >= 25 ? '#e8a020' : '#22c55e'));
-                return ['id' => $commune->id, 'commune' => $commune->name, 'total' => $total, 'occupes' => $occ, 'taux' => $taux, 'color' => $color];
-            })->sortByDesc('taux')->values();
+                    )
+                )->count();
+            $taux = $total > 0 ? round(($occ / $total) * 100) : 0;
+            $color = $taux >= 75 ? '#ef4444' : ($taux >= 50 ? '#f97316' : ($taux >= 25 ? '#e8a020' : '#22c55e'));
+            return ['id' => $commune->id, 'commune' => $commune->name, 'total' => $total, 'occupes' => $occ, 'taux' => $taux, 'color' => $color];
+        })->filter()->sortByDesc('taux')->values();
 
-        // ── Évolution mensuelle (12 derniers mois) ──────────────
+        // ── Évolution mensuelle (12 derniers mois, filtres appliqués) ──
         $evolMensuelle = collect();
+        $totalParcFiltered = $totalPanneaux;
         for ($i = 11; $i >= 0; $i--) {
             $date = now()->subMonths($i);
             $start = $date->copy()->startOfMonth();
             $end = $date->copy()->endOfMonth();
-            $total = Panel::count();
-            $occ = Campaign::where('status', 'actif')
-                ->where('start_date', '<=', $end)
-                ->where('end_date', '>=', $start)
-                ->withCount('panels')->get()->sum('panels_count');
-            $taux = $total > 0 ? min(round(($occ / $total) * 100), 100) : 0;
+            $occ = $applyCampaignFilters(
+                Campaign::where('status', 'actif')
+                    ->where('start_date', '<=', $end)
+                    ->where('end_date', '>=', $start)
+            )->withCount('panels')->get()->sum('panels_count');
+            $taux = $totalParcFiltered > 0 ? min(round(($occ / $totalParcFiltered) * 100), 100) : 0;
             $evolMensuelle->push(['label' => $date->format('M'), 'taux' => $taux, 'mois' => $date->month, 'annee' => $date->year]);
         }
 
-        // ── CA mensuel ──────────────────────────────────────────
+        // ── CA mensuel (filtres appliqués) ──────────────────────
         $caMensuel = collect();
         for ($m = 1; $m <= 12; $m++) {
-            $ca = Campaign::whereYear('start_date', $annee)->whereMonth('start_date', $m)->sum('total_amount');
+            $ca = $applyCampaignFilters(
+                Campaign::whereYear('start_date', $annee)->whereMonth('start_date', $m)
+            )->sum('total_amount');
             $caMensuel->push(['label' => Carbon::create($annee, $m, 1)->format('M'), 'ca' => (float) $ca]);
         }
 
-        // ── Tableau mensuel ─────────────────────────────────────
+        // ── Tableau mensuel (filtres appliqués) ─────────────────
         $tableauMensuel = collect();
         for ($m = 1; $m <= 12; $m++) {
             $start = Carbon::create($annee, $m, 1)->startOfMonth();
             $end = Carbon::create($annee, $m, 1)->endOfMonth();
-            $camps = Campaign::where('start_date', '<=', $end)->where('end_date', '>=', $start)->get();
-            $ca = Campaign::whereYear('start_date', $annee)->whereMonth('start_date', $m)->sum('total_amount');
+            $camps = $applyCampaignFilters(
+                Campaign::where('start_date', '<=', $end)->where('end_date', '>=', $start)
+            )->get();
+            $ca = $applyCampaignFilters(
+                Campaign::whereYear('start_date', $annee)->whereMonth('start_date', $m)
+            )->sum('total_amount');
             $panneaux = $camps->sum(fn($c) => $c->panels()->count());
             $taux = $totalPanneaux > 0 ? min(round(($panneaux / $totalPanneaux) * 100), 100) : 0;
             $tableauMensuel->push([
@@ -172,14 +204,18 @@ class RapportController extends Controller
             ]);
         }
 
-        // ── Top clients SUR LA PÉRIODE ─────────────────────────
-        $topClients = Client::with(['campaigns' => fn($q) =>
-                $q->where('start_date', '<=', $dateTo)
-                  ->where('end_date',   '>=', $dateFrom)
-            ])
+        // ── Top clients SUR LA PÉRIODE (filtres appliqués) ─────
+        $topClients = Client::query()
+            ->when($filterClient, fn($q) => $q->where('id', $filterClient))
+            ->with(['campaigns' => function ($q) use ($dateFrom, $dateTo, $applyCampaignFilters) {
+                $applyCampaignFilters(
+                    $q->where('start_date', '<=', $dateTo)
+                      ->where('end_date',   '>=', $dateFrom)
+                );
+            }])
             ->get()
             ->map(function ($client) {
-                $camps = $client->campaigns; // déjà filtrées par eager load
+                $camps = $client->campaigns;
                 return (object) [
                     'id' => $client->id,
                     'name' => $client->name,
@@ -193,25 +229,34 @@ class RapportController extends Controller
             ->take(10)
             ->values();
 
-        // ── Stats communes (occupation ET CA scopés période) ────
-        $statsCommunes = Commune::withCount('panels')->get()->map(function ($commune) use ($dateFrom, $dateTo) {
-            $total = Panel::where('commune_id', $commune->id)->count();
-            $occ = Panel::where('commune_id', $commune->id)
-                ->whereHas('campaigns', fn($q) =>
+        // ── Stats communes (occupation ET CA scopés période, filtres) ──
+        $communesForStats = Commune::query()
+            ->when($filterCommune, fn($q) => $q->where('id', $filterCommune))
+            ->when($filterCity,    fn($q) => $q->where('city', $filterCity))
+            ->get();
+
+        $statsCommunes = $communesForStats->map(function ($commune) use ($dateFrom, $dateTo, $filterCategory, $applyCampaignFilters) {
+            $base = Panel::where('commune_id', $commune->id)
+                ->when($filterCategory, fn($q) => $q->where('category_id', $filterCategory));
+            $total = (clone $base)->count();
+            $occ = (clone $base)->whereHas('campaigns', fn($q) =>
+                $applyCampaignFilters(
                     $q->whereIn('status', ['actif', 'planifie', 'termine'])
                       ->where('start_date', '<=', $dateTo)
                       ->where('end_date',   '>=', $dateFrom)
-                )->count();
-            $maint  = Panel::where('commune_id', $commune->id)->where('status', 'maintenance')->count();
+                )
+            )->count();
+            $maint  = (clone $base)->where('status', 'maintenance')->count();
             $libres = max(0, $total - $occ - $maint);
             $taux = $total > 0 ? round(($occ / $total) * 100) : 0;
-            $tarifMoyen = Panel::where('commune_id', $commune->id)->avg('monthly_rate') ?? 0;
-            $caAnnee = Campaign::where('start_date', '<=', $dateTo)
-                ->where('end_date',   '>=', $dateFrom)
-                ->whereHas('panels', fn($q) => $q->where('commune_id', $commune->id))
-                ->sum('total_amount');
+            $tarifMoyen = (clone $base)->avg('monthly_rate') ?? 0;
+            $caAnnee = $applyCampaignFilters(
+                Campaign::where('start_date', '<=', $dateTo)
+                        ->where('end_date',   '>=', $dateFrom)
+            )->whereHas('panels', fn($q) => $q->where('commune_id', $commune->id))
+              ->sum('total_amount');
             return [
-                'id' => $commune->id, // utilisé pour le drilldown AJAX
+                'id' => $commune->id,
                 'commune' => $commune->name,
                 'total' => $total,
                 'occupes' => $occ,
@@ -223,24 +268,30 @@ class RapportController extends Controller
             ];
         })->filter(fn($r) => $r['total'] > 0)->sortByDesc('taux')->values();
 
-        // ── Stats clients ───────────────────────────────────────
-        $statsClients = Client::with('campaigns')->get()->map(function ($client) {
-            $campagnesActives = $client->campaigns->where('status', 'actif')->count();
-            $derniere = $client->campaigns->sortByDesc('created_at')->first()?->created_at;
-            return [
-                'id' => $client->id,
-                'name' => $client->name,
-                'ncc' => $client->ncc,
-                'total_campagnes' => $client->campaigns->count(),
-                'campagnes_actives' => $campagnesActives,
-                'ca_total' => $client->campaigns->sum('total_amount'),
-                'total_panneaux' => $client->campaigns->sum(fn($c) => $c->panels()->count()),
-                'derniere_campagne' => $derniere,
-            ];
-        })->sortByDesc('ca_total')->values();
+        // ── Stats clients (filtres appliqués) ───────────────────
+        $statsClients = Client::query()
+            ->when($filterClient, fn($q) => $q->where('id', $filterClient))
+            ->with(['campaigns' => fn($q) => $applyCampaignFilters($q)])
+            ->get()
+            ->map(function ($client) {
+                $campagnesActives = $client->campaigns->where('status', 'actif')->count();
+                $derniere = $client->campaigns->sortByDesc('created_at')->first()?->created_at;
+                return [
+                    'id' => $client->id,
+                    'name' => $client->name,
+                    'ncc' => $client->ncc,
+                    'total_campagnes' => $client->campaigns->count(),
+                    'campagnes_actives' => $campagnesActives,
+                    'ca_total' => $client->campaigns->sum('total_amount'),
+                    'total_panneaux' => $client->campaigns->sum(fn($c) => $c->panels()->count()),
+                    'derniere_campagne' => $derniere,
+                ];
+            })->sortByDesc('ca_total')->values();
 
-        // ── Répartition durées ──────────────────────────────────
-        $camps = Campaign::whereBetween('start_date', [$dateFrom, $dateTo])->get();
+        // ── Répartition durées (filtres appliqués) ──────────────
+        $camps = $applyCampaignFilters(
+            Campaign::whereBetween('start_date', [$dateFrom, $dateTo])
+        )->get();
         $durees = ['< 1 mois' => 0, '1-3 mois' => 0, '3-6 mois' => 0, '> 6 mois' => 0];
         foreach ($camps as $c) {
             $j = $c->start_date->diffInDays($c->end_date);
@@ -260,19 +311,23 @@ class RapportController extends Controller
             'pct' => $total > 0 ? round(($count / $total) * 100) : 0,
         ])->values();
 
-        // ── Panneaux à décaper (30j) ────────────────────────────
-        $aDecaper = collect(DB::select("
-            SELECT p.reference, c2.name as commune, cl.name as client_name, cp.end_date,
-                   DATEDIFF(cp.end_date, NOW()) as jours_restants
-            FROM campaigns cp
-            JOIN clients cl ON cl.id = cp.client_id
-            LEFT JOIN campaign_panels cpan ON cpan.campaign_id = cp.id
-            LEFT JOIN panels p ON p.id = cpan.panel_id
-            LEFT JOIN communes c2 ON c2.id = p.commune_id
-            WHERE cp.status = 'actif'
-              AND cp.end_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY)
-            ORDER BY cp.end_date ASC
-        "));
+        // ── Panneaux à décaper (30j, filtres appliqués) ─────────
+        $decapQuery = DB::table('campaigns as cp')
+            ->join('clients as cl', 'cl.id', '=', 'cp.client_id')
+            ->leftJoin('campaign_panels as cpan', 'cpan.campaign_id', '=', 'cp.id')
+            ->leftJoin('panels as p', 'p.id', '=', 'cpan.panel_id')
+            ->leftJoin('communes as c2', 'c2.id', '=', 'p.commune_id')
+            ->where('cp.status', 'actif')
+            ->whereBetween('cp.end_date', [now(), now()->addDays(30)])
+            ->orderBy('cp.end_date');
+        if ($filterClient)   $decapQuery->where('cp.client_id', $filterClient);
+        if ($filterCommune)  $decapQuery->where('p.commune_id', $filterCommune);
+        if ($filterCategory) $decapQuery->where('p.category_id', $filterCategory);
+        if ($filterCity)     $decapQuery->where('c2.city', $filterCity);
+        $aDecaper = $decapQuery
+            ->select('p.reference', 'c2.name as commune', 'cl.name as client_name', 'cp.end_date',
+                     DB::raw('DATEDIFF(cp.end_date, NOW()) as jours_restants'))
+            ->get();
 
         // ── Nouveaux KPIs analytics via DashboardKpiService ─────────
         // Le service est instancié avec la période sélectionnée et cache
