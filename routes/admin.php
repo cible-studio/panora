@@ -784,6 +784,8 @@ Route::prefix('admin')
             ->name('rapports.communes.detail');
         Route::get('/rapports/clients/{client}/detail', [RapportController::class, 'clientDetail'])
             ->whereNumber('client')->name('rapports.clients.detail');
+        Route::get('/rapports/panels/{panel}/detail', [RapportController::class, 'panelDetail'])
+            ->whereNumber('panel')->name('rapports.panels.detail');
         Route::post('/rapports/decap/mark', [RapportController::class, 'markDecapped'])
             ->name('rapports.decap.mark');
         Route::get('/rapports/export/excel', [RapportController::class, 'exportExcel'])

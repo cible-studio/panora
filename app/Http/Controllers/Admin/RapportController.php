@@ -335,9 +335,11 @@ class RapportController extends Controller
         // même sur gros parc (cf. Service docblock).
         $kpi->setPeriod($dateFrom, $dateTo);
 
-        // Performance panneaux (top loués / sous-performants)
-        $topPanels   = $kpi->topPanels(20);
-        $lowPanels   = $kpi->lowPanels(20);
+        // Performance panneaux (top loués / sous-performants / inactifs / alertes)
+        $topPanels      = $kpi->topPanels(20);
+        $lowPanels      = $kpi->lowPanels(20);
+        $inactivePanels = $kpi->inactivePanels(60, 30);
+        $panelAlerts    = $kpi->panelAlerts();
 
         // Analyse clients (top CA + inactifs par tranche)
         $topClientsKpi    = $kpi->topClients(10);
@@ -409,6 +411,8 @@ class RapportController extends Controller
             // Nouveaux KPIs analytics
             'topPanels',
             'lowPanels',
+            'inactivePanels',
+            'panelAlerts',
             'topClientsKpi',
             'inactivityBucket',
             'inactiveClients3',
@@ -908,6 +912,18 @@ class RapportController extends Controller
             'client_id'   => $request->input('filter_client_id'),
             'category_id' => $request->input('filter_category_id'),
         ]);
+    }
+
+    /**
+     * Drill-down panneau (AJAX) — historique des occupations.
+     * Délègue à DashboardKpiService::panelDetail() (cacheable).
+     */
+    public function panelDetail(Request $request, \App\Models\Panel $panel, DashboardKpiService $kpi)
+    {
+        $this->applyPeriodAndFilters($request, $kpi);
+        $data = $kpi->panelDetail($panel->id);
+        if (!$data) return response()->json(['error' => 'Panneau introuvable'], 404);
+        return response()->json($data);
     }
 
     public function clientDetail(Request $request, \App\Models\Client $client, DashboardKpiService $kpi)

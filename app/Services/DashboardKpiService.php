@@ -388,6 +388,281 @@ class DashboardKpiService
         });
     }
 
+    /**
+     * Détail complet d'un panneau (drill-down) — historique des occupations.
+     * Retourne :
+     *   - info de base (référence, nom, commune, statut, tarif)
+     *   - synthèse (jours occupés / période, taux, CA généré, nb campagnes, top clients)
+     *   - timeline campagnes (toutes celles passées sur le panneau)
+     *   - série mensuelle 12 mois (jours occupés par mois)
+     *   - longue plage d'inactivité (plus long gap entre 2 campagnes)
+     */
+    public function panelDetail(int $panelId): ?array
+    {
+        return $this->cached("panel_detail.{$panelId}", function () use ($panelId) {
+            $panel = Panel::with('commune:id,name,city', 'category:id,name')
+                ->whereNull('deleted_at')
+                ->find($panelId);
+            if (!$panel) return null;
+
+            $from = $this->from->copy();
+            $to   = $this->to->copy();
+
+            // Campagnes ayant utilisé ce panneau
+            $campaigns = DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->leftJoin('clients', 'clients.id', '=', 'campaigns.client_id')
+                ->where('campaign_panels.panel_id', $panelId)
+                ->where('campaign_panels.type', 'interne')
+                ->whereNull('campaigns.deleted_at')
+                ->select(
+                    'campaigns.id',
+                    'campaigns.name',
+                    'campaigns.status',
+                    'campaigns.start_date',
+                    'campaigns.end_date',
+                    'campaigns.total_amount',
+                    'clients.id as client_id',
+                    'clients.name as client_name',
+                    'campaign_panels.decapped_at',
+                )
+                ->orderByDesc('campaigns.start_date')
+                ->get();
+
+            // Top clients pour ce panneau
+            $topClients = $campaigns
+                ->filter(fn($c) => $c->status !== 'annule' && $c->client_id)
+                ->groupBy('client_id')
+                ->map(fn($rows) => [
+                    'client_id' => $rows->first()->client_id,
+                    'name'      => $rows->first()->client_name,
+                    'count'     => $rows->count(),
+                    'revenue'   => (float) $rows->sum('total_amount'),
+                ])
+                ->sortByDesc('revenue')
+                ->take(5)
+                ->values();
+
+            // Série mensuelle (12 mois) — jours occupés
+            $monthly = collect();
+            for ($i = 11; $i >= 0; $i--) {
+                $mStart = now()->subMonths($i)->startOfMonth();
+                $mEnd   = $mStart->copy()->endOfMonth();
+                $days = 0;
+                foreach ($campaigns as $c) {
+                    if (in_array($c->status, ['annule'], true)) continue;
+                    $cs = \Carbon\Carbon::parse($c->start_date);
+                    $ce = \Carbon\Carbon::parse($c->end_date);
+                    $start = $cs->lt($mStart) ? $mStart : $cs;
+                    $end   = $ce->gt($mEnd)   ? $mEnd   : $ce;
+                    if ($start->lte($end)) $days += (int) $start->diffInDays($end) + 1;
+                }
+                $totalDays = (int) $mStart->diffInDays($mEnd) + 1;
+                $days = min($days, $totalDays);
+                $monthly->push([
+                    'label' => $mStart->translatedFormat('M Y'),
+                    'days_occupied' => $days,
+                    'total_days'    => $totalDays,
+                    'rate'          => $totalDays > 0 ? round(($days / $totalDays) * 100, 1) : 0,
+                ]);
+            }
+
+            // Sur la période active : jours occupés / total
+            $periodDays = (int) $from->diffInDays($to) + 1;
+            $busyDays   = 0;
+            $periodRevenue = 0;
+            foreach ($campaigns as $c) {
+                if (in_array($c->status, ['annule'], true)) continue;
+                $cs = \Carbon\Carbon::parse($c->start_date);
+                $ce = \Carbon\Carbon::parse($c->end_date);
+                $start = $cs->lt($from) ? $from->copy() : $cs;
+                $end   = $ce->gt($to)   ? $to->copy()   : $ce;
+                if ($start->lte($end)) {
+                    $d = (int) $start->diffInDays($end) + 1;
+                    $busyDays += $d;
+                    // CA prorata (jours dans période / durée totale campagne)
+                    $totalCamp = max(1, (int) $cs->diffInDays($ce) + 1);
+                    $periodRevenue += ($c->total_amount * $d) / $totalCamp;
+                }
+            }
+            $busyDays = min($busyDays, $periodDays);
+            $rate = $periodDays > 0 ? round(($busyDays / $periodDays) * 100, 1) : 0;
+
+            // Plus longue plage d'inactivité (gap entre 2 campagnes)
+            $longestGap = 0;
+            $sorted = $campaigns->filter(fn($c) => $c->status !== 'annule')
+                ->sortBy('start_date')->values();
+            $lastEnd = null;
+            $gapStart = null; $gapEnd = null;
+            foreach ($sorted as $c) {
+                $cs = \Carbon\Carbon::parse($c->start_date);
+                if ($lastEnd && $cs->gt($lastEnd)) {
+                    $gap = (int) $lastEnd->diffInDays($cs);
+                    if ($gap > $longestGap) {
+                        $longestGap = $gap;
+                        $gapStart   = $lastEnd->copy();
+                        $gapEnd     = $cs->copy();
+                    }
+                }
+                $ce = \Carbon\Carbon::parse($c->end_date);
+                if (!$lastEnd || $ce->gt($lastEnd)) $lastEnd = $ce;
+            }
+            // Inactivité depuis la dernière campagne jusqu'à aujourd'hui
+            $sinceLast = $lastEnd ? (int) $lastEnd->diffInDays(now(), false) : null;
+
+            return [
+                'panel' => [
+                    'id'        => $panel->id,
+                    'reference' => $panel->reference,
+                    'name'      => $panel->name,
+                    'commune'   => $panel->commune?->name,
+                    'city'      => $panel->commune?->city,
+                    'category'  => $panel->category?->name,
+                    'status'    => $panel->status,
+                    'rate'      => (float) ($panel->monthly_rate ?? 0),
+                    'url'       => route('admin.panels.show', $panel->id),
+                ],
+                'summary' => [
+                    'campaigns_total'    => $campaigns->count(),
+                    'campaigns_active'   => $campaigns->whereIn('status', ['actif','planifie'])->count(),
+                    'campaigns_done'     => $campaigns->where('status', 'termine')->count(),
+                    'campaigns_cancelled'=> $campaigns->where('status', 'annule')->count(),
+                    'period_days'        => $periodDays,
+                    'busy_days'          => $busyDays,
+                    'rate'               => $rate,
+                    'revenue_period'     => round($periodRevenue),
+                    'revenue_total'      => (float) $campaigns->where('status', '!=', 'annule')->sum('total_amount'),
+                    'days_since_last'    => $sinceLast !== null ? max(0, $sinceLast) : null,
+                    'longest_gap_days'   => $longestGap,
+                    'longest_gap_start'  => $gapStart?->format('d/m/Y'),
+                    'longest_gap_end'    => $gapEnd?->format('d/m/Y'),
+                ],
+                'monthly'     => $monthly,
+                'top_clients' => $topClients,
+                'campaigns'   => $campaigns->map(fn($c) => [
+                    'id'           => $c->id,
+                    'name'         => $c->name,
+                    'client'       => $c->client_name ?? '—',
+                    'status'       => $c->status,
+                    'start_date'   => \Carbon\Carbon::parse($c->start_date)->format('d/m/Y'),
+                    'end_date'     => \Carbon\Carbon::parse($c->end_date)->format('d/m/Y'),
+                    'amount'       => (float) $c->total_amount,
+                    'decapped_at'  => $c->decapped_at,
+                    'url'          => route('admin.campaigns.show', $c->id),
+                ])->values(),
+            ];
+        });
+    }
+
+    /**
+     * Panneaux avec une longue période d'inactivité (>60 jours sans
+     * campagne). Aide à identifier les "périodes creuses" sur le parc.
+     */
+    public function inactivePanels(int $thresholdDays = 60, int $limit = 30): Collection
+    {
+        return $this->cached("inactive_panels.{$thresholdDays}.{$limit}", function () use ($thresholdDays, $limit) {
+            $q = DB::table('panels')
+                ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
+                ->leftJoinSub(
+                    DB::table('campaign_panels')
+                        ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                        ->where('campaign_panels.type', 'interne')
+                        ->whereNotIn('campaigns.status', ['annule'])
+                        ->whereNull('campaigns.deleted_at')
+                        ->select('campaign_panels.panel_id', DB::raw('MAX(campaigns.end_date) as last_end'))
+                        ->groupBy('campaign_panels.panel_id'),
+                    'last_use', 'last_use.panel_id', '=', 'panels.id'
+                )
+                ->whereNull('panels.deleted_at')
+                ->where('panels.status', '!=', 'maintenance')
+                ->where(function ($q) use ($thresholdDays) {
+                    $q->whereNull('last_use.last_end')
+                      ->orWhere('last_use.last_end', '<', now()->subDays($thresholdDays));
+                });
+
+            $this->applyFilters($q, ['targets' => ['panel']]);
+
+            return $q->select(
+                    'panels.id',
+                    'panels.reference',
+                    'panels.name',
+                    'panels.monthly_rate',
+                    'panels.status',
+                    'communes.name as commune_name',
+                    'last_use.last_end',
+                    DB::raw('DATEDIFF(NOW(), last_use.last_end) as days_inactive'),
+                )
+                ->orderByRaw('CASE WHEN last_use.last_end IS NULL THEN 99999 ELSE DATEDIFF(NOW(), last_use.last_end) END DESC')
+                ->limit($limit)
+                ->get();
+        });
+    }
+
+    /**
+     * Alertes automatiques spécifiques aux panneaux : sous-tarification
+     * détectée, longue inactivité, ratio CA/tarif suspect.
+     */
+    public function panelAlerts(): Collection
+    {
+        return $this->cached('panel_alerts', function () {
+            $alerts = collect();
+
+            // 1. Panneaux jamais loués alors qu'ils ne sont pas en maintenance
+            $never = $this->lowPanels(200)->where('campaigns_count', 0);
+            if ($never->count() > 0) {
+                $alerts->push([
+                    'severity' => 'danger',
+                    'icon'     => '🔴',
+                    'title'    => $never->count() . ' panneau(x) jamais loué(s) sur la période',
+                    'detail'   => 'Action recommandée : promotion ciblée, baisse tarifaire ou ré-évaluation visuelle.',
+                    'count'    => $never->count(),
+                ]);
+            }
+
+            // 2. Panneaux avec longue inactivité (>60 jours)
+            $longInactive = $this->inactivePanels(60, 200);
+            if ($longInactive->count() > 0) {
+                $alerts->push([
+                    'severity' => 'warning',
+                    'icon'     => '🟠',
+                    'title'    => $longInactive->count() . ' panneau(x) sans campagne depuis > 60 jours',
+                    'detail'   => 'Vérifiez l\'attractivité de ces emplacements ou révisez la grille tarifaire.',
+                    'count'    => $longInactive->count(),
+                ]);
+            }
+
+            // 3. Détection sous-tarification : top 10 panneaux les plus loués
+            // ayant un tarif anormalement bas (< 70% de la médiane des autres panneaux)
+            $top = $this->topPanels(20);
+            if ($top->isNotEmpty()) {
+                $allRates = Panel::whereNull('deleted_at')
+                    ->where('monthly_rate', '>', 0)
+                    ->pluck('monthly_rate')->sort()->values();
+                $median = $allRates->isNotEmpty()
+                    ? ($allRates[(int) floor($allRates->count() / 2)] ?? 0)
+                    : 0;
+                $underpriced = collect();
+                foreach ($top as $p) {
+                    $rate = Panel::find($p->id)?->monthly_rate ?? 0;
+                    if ($rate > 0 && $median > 0 && $rate < $median * 0.7 && $p->days_occupied > 30) {
+                        $underpriced->push($p->reference);
+                    }
+                }
+                if ($underpriced->isNotEmpty()) {
+                    $alerts->push([
+                        'severity' => 'info',
+                        'icon'     => '💡',
+                        'title'    => $underpriced->count() . ' panneau(x) potentiellement sous-tarifés',
+                        'detail'   => 'Tarif < 70% médiane mais > 30 jours loués : opportunité de revalorisation. Ex : ' . $underpriced->take(5)->join(', '),
+                        'count'    => $underpriced->count(),
+                    ]);
+                }
+            }
+
+            return $alerts;
+        });
+    }
+
     // ══════════════════════════════════════════════════════════════
     // MODULE 3 — ANALYSE CLIENTS
     // ══════════════════════════════════════════════════════════════

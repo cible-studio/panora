@@ -826,6 +826,36 @@ $kpiCards = [
 ══════════════════════════════════════════════════════════════ --}}
 <div id="panel-panneaux" class="rpt-panel" style="display:none">
 
+    {{-- Alertes performance panneaux (COMMIT E) --}}
+    @if($panelAlerts->isNotEmpty())
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">Alertes performance panneaux</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-style:italic">Détection automatique</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px">
+            @foreach($panelAlerts as $a)
+                @php
+                    $col = match($a['severity']) {
+                        'danger'  => ['#dc2626', 'rgba(220,38,38,.06)',  'rgba(220,38,38,.3)'],
+                        'warning' => ['#d97706', 'rgba(245,158,11,.06)', 'rgba(245,158,11,.3)'],
+                        'success' => ['#16a34a', 'rgba(34,197,94,.06)',  'rgba(34,197,94,.3)'],
+                        default   => ['#3b82f6', 'rgba(59,130,246,.06)', 'rgba(59,130,246,.3)'],
+                    };
+                @endphp
+                <div style="background:{{ $col[1] }};border:1px solid {{ $col[2] }};border-radius:10px;padding:10px 12px">
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                        <span style="font-size:14px">{{ $a['icon'] }}</span>
+                        <span style="font-size:11.5px;font-weight:700;color:{{ $col[0] }}">{{ $a['title'] }}</span>
+                    </div>
+                    <div style="font-size:10.5px;color:var(--text2);line-height:1.5">{{ $a['detail'] }}</div>
+                </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
     {{-- Classement visuel Chart.js (top 15 panneaux les plus loués) --}}
     @if($topPanels->isNotEmpty())
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">
@@ -840,8 +870,7 @@ $kpiCards = [
     </div>
     @endif
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-        @media (max-width:900px) { .rpt-grid-2 { grid-template-columns:1fr; } }
+    <div class="rpt-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
 
         {{-- Top 20 plus loués ──────────────────────────────────────── --}}
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px">
@@ -865,10 +894,13 @@ $kpiCards = [
                         </thead>
                         <tbody>
                             @foreach($topPanels as $i => $p)
-                            <tr style="border-bottom:1px solid var(--border)">
+                            <tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s"
+                                onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''"
+                                onclick="PanelDrilldown.open({{ $p->id }})" title="Cliquer pour l'historique d'occupation">
                                 <td style="padding:8px;color:var(--text3);font-weight:700">{{ $i+1 }}</td>
                                 <td style="padding:8px">
-                                    <a href="{{ route('admin.panels.show', $p->id) }}" style="font-family:ui-monospace,monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $p->reference }}</a>
+                                    <a href="{{ route('admin.panels.show', $p->id) }}" onclick="event.stopPropagation()" style="font-family:ui-monospace,monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $p->reference }}</a>
+                                    <span style="font-size:11px;color:var(--text3);margin-left:6px;opacity:.6">↗</span>
                                     <div style="font-size:10px;color:var(--text3)">{{ \Illuminate\Support\Str::limit($p->name ?? '', 40) }} · {{ $p->commune_name ?? '—' }}</div>
                                 </td>
                                 <td style="padding:8px;text-align:right;font-weight:700;color:#16a34a">{{ $p->days_occupied }}j</td>
@@ -902,9 +934,12 @@ $kpiCards = [
                         </thead>
                         <tbody>
                             @foreach($lowPanels as $p)
-                            <tr style="border-bottom:1px solid var(--border)">
+                            <tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s"
+                                onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''"
+                                onclick="PanelDrilldown.open({{ $p->id }})" title="Cliquer pour l'historique d'occupation">
                                 <td style="padding:8px">
-                                    <a href="{{ route('admin.panels.show', $p->id) }}" style="font-family:ui-monospace,monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $p->reference }}</a>
+                                    <a href="{{ route('admin.panels.show', $p->id) }}" onclick="event.stopPropagation()" style="font-family:ui-monospace,monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $p->reference }}</a>
+                                    <span style="font-size:11px;color:var(--text3);margin-left:6px;opacity:.6">↗</span>
                                     <div style="font-size:10px;color:var(--text3)">{{ \Illuminate\Support\Str::limit($p->name ?? '', 40) }} · {{ $p->commune_name ?? '—' }}</div>
                                 </td>
                                 <td style="padding:8px;text-align:right">
@@ -921,6 +956,92 @@ $kpiCards = [
                     </table>
                 </div>
             @endif
+        </div>
+    </div>
+
+    {{-- Périodes creuses détectées (panneaux > 60j sans campagne) — COMMIT E --}}
+    @if($inactivePanels->isNotEmpty())
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">Périodes creuses — panneaux > 60 jours sans campagne</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--text3)">{{ $inactivePanels->count() }} panneau(x)</span>
+        </div>
+        <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead>
+                    <tr style="background:var(--surface2)">
+                        <th style="padding:8px;text-align:left;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Panneau</th>
+                        <th style="padding:8px;text-align:left;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Commune</th>
+                        <th style="padding:8px;text-align:left;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Dernière campagne</th>
+                        <th style="padding:8px;text-align:right;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Inactivité</th>
+                        <th style="padding:8px;text-align:right;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Tarif/mois</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($inactivePanels as $p)
+                        @php
+                            $days = (int) ($p->days_inactive ?? 0);
+                            $color = $p->last_end === null ? '#dc2626' : ($days > 180 ? '#dc2626' : '#d97706');
+                            $bg    = $p->last_end === null ? 'rgba(220,38,38,.12)' : ($days > 180 ? 'rgba(220,38,38,.12)' : 'rgba(245,158,11,.12)');
+                        @endphp
+                        <tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s"
+                            onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''"
+                            onclick="PanelDrilldown.open({{ $p->id }})" title="Voir l'historique">
+                            <td style="padding:8px">
+                                <a href="{{ route('admin.panels.show', $p->id) }}" onclick="event.stopPropagation()" style="font-family:ui-monospace,monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $p->reference }}</a>
+                                <span style="font-size:11px;color:var(--text3);margin-left:6px;opacity:.6">↗</span>
+                                <div style="font-size:10px;color:var(--text3)">{{ \Illuminate\Support\Str::limit($p->name ?? '', 40) }}</div>
+                            </td>
+                            <td style="padding:8px;color:var(--text2)">{{ $p->commune_name ?? '—' }}</td>
+                            <td style="padding:8px;color:var(--text3);font-family:ui-monospace,monospace;font-size:11px">
+                                {{ $p->last_end ? \Carbon\Carbon::parse($p->last_end)->format('d/m/Y') : 'Jamais loué' }}
+                            </td>
+                            <td style="padding:8px;text-align:right">
+                                <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:{{ $bg }};color:{{ $color }}">
+                                    {{ $p->last_end === null ? 'Jamais loué' : $days . 'j' }}
+                                </span>
+                            </td>
+                            <td style="padding:8px;text-align:right;color:var(--text2);font-family:ui-monospace,monospace;font-size:11px">{{ $p->monthly_rate > 0 ? number_format($p->monthly_rate, 0, ',', ' ') : '—' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
+</div>
+
+{{-- ════ MODAL DRILLDOWN PANNEAU (historique occupations) — COMMIT E ════ --}}
+<div id="panel-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center;padding:20px;"
+     onclick="if(event.target===this)PanelDrilldown.close()">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:1080px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;"
+         onclick="event.stopPropagation()">
+        <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div>
+                <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;">Panneau</div>
+                <h2 id="pl-name" style="font-size:18px;font-weight:800;color:var(--text);margin-top:3px;">…</h2>
+                <div id="pl-meta" style="font-size:11px;color:var(--text3);margin-top:2px;"></div>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <a id="pl-link" href="#" style="font-size:11px;font-weight:700;padding:6px 12px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;">Fiche panneau →</a>
+                <button type="button" onclick="PanelDrilldown.close()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);padding:6px 10px;border-radius:8px;" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='none'">✕</button>
+            </div>
+        </div>
+        <div id="pl-loading" style="padding:60px;text-align:center;color:var(--text3);font-size:13px;">
+            <div class="rpt-spinner" style="display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:rpt-spin .7s linear infinite;vertical-align:middle;margin-right:8px;"></div>
+            Chargement…
+        </div>
+        <div id="pl-body" style="display:none;padding:18px 22px;overflow-y:auto;flex:1;">
+            <div id="pl-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px;"></div>
+            <h3 style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Jours occupés mensuel — 12 derniers mois</h3>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:18px;position:relative;height:200px;">
+                <canvas id="pl-monthly-chart" role="img" aria-label="Occupation mensuelle panneau"></canvas>
+            </div>
+            <h3 style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Top clients sur ce panneau</h3>
+            <div id="pl-top-clients" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:18px;"></div>
+            <h3 style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Historique campagnes (<span id="pl-camp-count">0</span>)</h3>
+            <div id="pl-campaigns" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;"></div>
         </div>
     </div>
 </div>
@@ -1330,6 +1451,7 @@ CIBLE CI — Affichage urbain</div>
 .cm-status-option      { background:rgba(232,160,32,.12);color:#c2570d; }
 .cm-status-confirme    { background:rgba(59,130,246,.12);color:#1d4ed8; }
 .cm-status-maintenance { background:rgba(107,114,128,.12);color:#374151; }
+@media (max-width: 900px) { .rpt-grid-2 { grid-template-columns: 1fr !important; } }
 </style>
 
 {{-- ════ JAVASCRIPT ════ --}}
@@ -2071,6 +2193,140 @@ window.ClientDrilldown = (function () {
 })();
 
 // ══════════════════════════════
+// DRILLDOWN PANNEAU — module (historique occupations)
+// ══════════════════════════════
+window.PanelDrilldown = (function () {
+    const overlay = document.getElementById('panel-modal');
+    const body    = document.getElementById('pl-body');
+    const loading = document.getElementById('pl-loading');
+    const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
+    let monthlyChart = null;
+
+    const statusColors = {
+        actif:'#22c55e', termine:'#6b7280', planifie:'#3b82f6',
+        confirme:'#3b82f6', pause:'#f97316', annule:'#ef4444', option:'#e8a020',
+    };
+
+    function renderSummary(s, p) {
+        const cards = [
+            ['Statut',         (p.status || '—').toUpperCase(),                          'var(--accent)'],
+            ['Tarif / mois',   p.rate > 0 ? fmt(p.rate) + ' FCFA' : '—',                 '#3b82f6'],
+            ['Campagnes',      fmt(s.campaigns_total),                                   'var(--accent)'],
+            ['Jours occupés (période)', fmt(s.busy_days) + ' / ' + fmt(s.period_days),   '#16a34a'],
+            ["Taux période",   s.rate + '%',                                              s.rate >= 75 ? '#ef4444' : (s.rate >= 50 ? '#f97316' : (s.rate >= 25 ? '#e8a020' : '#22c55e'))],
+            ['CA généré (période)', s.revenue_period > 0 ? fmt(s.revenue_period) + ' FCFA' : '—', '#a855f7'],
+            ['Inactivité actuelle', s.days_since_last !== null ? s.days_since_last + ' jours' : 'Jamais loué', (s.days_since_last ?? 0) > 60 ? '#dc2626' : ((s.days_since_last ?? 0) > 30 ? '#f59e0b' : '#22c55e')],
+            ['Plus longue plage creuse', s.longest_gap_days > 0 ? s.longest_gap_days + ' j' + (s.longest_gap_start ? ' (' + s.longest_gap_start + '→' + s.longest_gap_end + ')' : '') : '—', '#6b7280'],
+        ];
+        return cards.map(([lbl, val, color]) => `
+            <div class="cm-stat" style="border-left-color:${color}">
+                <div class="lbl">${lbl}</div>
+                <div class="val" style="color:${color};font-size:14px">${val}</div>
+            </div>
+        `).join('');
+    }
+
+    function renderTopClients(rows) {
+        if (!rows?.length) return '<div style="padding:14px;color:var(--text3);font-size:12px;text-align:center">Aucun client identifié.</div>';
+        return `<table class="cm-table">
+            <thead><tr><th>#</th><th>Client</th><th class="r">Campagnes</th><th class="r">CA cumulé</th></tr></thead>
+            <tbody>${rows.map((r,i) => `
+                <tr>
+                    <td style="width:36px;">${i===0?'🥇':(i===1?'🥈':(i===2?'🥉':i+1))}</td>
+                    <td><strong>${r.name}</strong></td>
+                    <td class="r">${fmt(r.count)}</td>
+                    <td class="r"><strong style="color:var(--accent)">${fmt(r.revenue)} FCFA</strong></td>
+                </tr>
+            `).join('')}</tbody></table>`;
+    }
+
+    function renderCampaigns(rows) {
+        if (!rows?.length) return '<div style="padding:14px;color:var(--text3);font-size:12px;text-align:center">Aucune campagne sur ce panneau.</div>';
+        return `<table class="cm-table">
+            <thead><tr><th>Campagne</th><th>Client</th><th>Période</th><th>Statut</th><th>Décap.</th><th class="r">Montant</th></tr></thead>
+            <tbody>${rows.map(c => `
+                <tr>
+                    <td><a href="${c.url}"><strong>${c.name || '—'}</strong></a></td>
+                    <td>${c.client}</td>
+                    <td style="font-size:11px;color:var(--text3)">${c.start_date} → ${c.end_date}</td>
+                    <td><span class="cm-status-pill" style="background:${(statusColors[c.status]||'#6b7280')}22;color:${statusColors[c.status]||'#6b7280'}">${c.status}</span></td>
+                    <td>${c.decapped_at ? '<span style="font-size:10px;color:#16a34a;font-weight:700">✓ ' + new Date(c.decapped_at).toLocaleDateString('fr-FR') + '</span>' : '<span style="font-size:10px;color:var(--text3)">—</span>'}</td>
+                    <td class="r"><strong>${c.amount > 0 ? fmt(c.amount) + ' FCFA' : '—'}</strong></td>
+                </tr>
+            `).join('')}</tbody></table>`;
+    }
+
+    function renderMonthlyChart(rows) {
+        const canvas = document.getElementById('pl-monthly-chart');
+        if (!canvas || !rows?.length || typeof Chart === 'undefined') return;
+        if (monthlyChart) { monthlyChart.destroy(); monthlyChart = null; }
+        const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+        const tickC = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
+        const gridC = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
+        const colors = rows.map(r => r.rate >= 75 ? '#ef4444' : (r.rate >= 50 ? '#f97316' : (r.rate >= 25 ? '#e8a020' : (r.days_occupied > 0 ? '#22c55e' : '#cbd5e1'))));
+        monthlyChart = new Chart(canvas, {
+            type:'bar',
+            data:{
+                labels: rows.map(r => r.label),
+                datasets:[{ label:'Jours occupés', data: rows.map(r => r.days_occupied), backgroundColor: colors, borderRadius:5, borderSkipped:false }],
+            },
+            options:{
+                responsive:true, maintainAspectRatio:false,
+                plugins:{ legend:{display:false}, tooltip:{ callbacks:{
+                    label: ctx => {
+                        const r = rows[ctx.dataIndex];
+                        return [` ${r.days_occupied} / ${r.total_days} jours`, ` Taux : ${r.rate}%`];
+                    },
+                }}},
+                scales:{
+                    x:{ ticks:{color:tickC,font:{size:10}}, grid:{display:false} },
+                    y:{ beginAtZero:true, ticks:{color:tickC,font:{size:10},precision:0}, grid:{color:gridC} },
+                }
+            }
+        });
+    }
+
+    return {
+        async open(panelId) {
+            overlay.style.display = 'flex';
+            body.style.display = 'none';
+            loading.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+
+            try {
+                // Conserve la période active (ex. preset year) pour cohérence
+                const params = new URLSearchParams(window.location.search);
+                const r = await fetch(`/admin/rapports/panels/${panelId}/detail?${params}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+
+                document.getElementById('pl-name').textContent = data.panel.reference + (data.panel.name ? ' — ' + data.panel.name : '');
+                document.getElementById('pl-meta').textContent = [data.panel.commune, data.panel.city, data.panel.category].filter(Boolean).join(' · ');
+                document.getElementById('pl-link').href = data.panel.url;
+                document.getElementById('pl-summary').innerHTML = renderSummary(data.summary, data.panel);
+                document.getElementById('pl-top-clients').innerHTML = renderTopClients(data.top_clients);
+                document.getElementById('pl-campaigns').innerHTML = renderCampaigns(data.campaigns);
+                document.getElementById('pl-camp-count').textContent = (data.campaigns || []).length;
+
+                loading.style.display = 'none';
+                body.style.display = 'block';
+                requestAnimationFrame(() => renderMonthlyChart(data.monthly));
+            } catch (e) {
+                console.error(e);
+                loading.innerHTML = '<div style="color:#ef4444;">Erreur de chargement. Réessayez.</div>';
+            }
+        },
+        close() {
+            overlay.style.display = 'none';
+            document.body.style.overflow = '';
+            if (monthlyChart) { monthlyChart.destroy(); monthlyChart = null; }
+        },
+    };
+})();
+
+// ══════════════════════════════
 // DECAP — module marquage décappage (COMMIT C)
 // ══════════════════════════════
 window.Decap = (function () {
@@ -2143,6 +2399,9 @@ document.addEventListener('keydown', (e) => {
         }
         if (document.getElementById('client-modal')?.style.display === 'flex') {
             window.ClientDrilldown.close();
+        }
+        if (document.getElementById('panel-modal')?.style.display === 'flex') {
+            window.PanelDrilldown.close();
         }
     }
 });
