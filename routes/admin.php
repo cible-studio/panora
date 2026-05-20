@@ -484,6 +484,10 @@ Route::prefix('admin')
         Route::post('clients/quick-store', [ClientController::class, 'storeQuick'])
             ->middleware('role:admin,commercial')
             ->name('clients.quick-store');
+        // Suppression groupée (sélection multiple) — admin uniquement
+        Route::post('clients/bulk-destroy', [ClientController::class, 'bulkDestroy'])
+            ->middleware('role:admin')
+            ->name('clients.bulk-destroy');
         // Import Excel (avant les routes paramétriques pour éviter conflit)
         // Lecture template = staff, import = admin + commercial.
         Route::get('clients/import/template', [ClientController::class, 'importTemplate'])
