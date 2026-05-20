@@ -257,15 +257,12 @@
                     });
                     history.pushState({}, '', url);
 
-                    // Met à jour active state des KPI
-                    //   - "all"  : actif quand AUCUN filtre n'est posé
-                    //   - autre  : actif quand son code === filters.niveau
-                    const noFilter = !filters.niveau && !filters.type && !filters.non_lues;
+                    // is-active UNIQUEMENT pour un niveau précis filtré.
+                    // "Total"/"all" reste neutre dans tous les cas.
                     document.querySelectorAll('.kpi-card').forEach(c => {
                         const f = c.dataset.filter;
                         c.classList.toggle('is-active',
-                            (f === 'all' && noFilter) ||
-                            (f !== 'all' && f === filters.niveau)
+                            f !== 'all' && f === filters.niveau
                         );
                     });
                 } catch (e) {

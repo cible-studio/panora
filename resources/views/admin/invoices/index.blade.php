@@ -262,10 +262,11 @@ cursor: pointer;
             updateResetButton();
             applyFilters();
             
-            // Mettre à jour l'apparence des cartes stats
+            // is-active uniquement pour le statut précis filtré.
+            // La carte "Total" (data-status="") reste neutre.
             document.querySelectorAll('.kpi-card[data-kpi]').forEach(card => {
                 const status = card.dataset.status;
-                if (status === currentFilters.status) {
+                if (status && status === currentFilters.status) {
                     card.classList.add('is-active');
                 } else {
                     card.classList.remove('is-active');
@@ -286,7 +287,7 @@ cursor: pointer;
                 applyFilters();
 
                 document.querySelectorAll('.kpi-card[data-kpi]').forEach(c => {
-                    if (c.dataset.status === status) {
+                    if (status && c.dataset.status === status) {
                         c.classList.add('is-active');
                     } else {
                         c.classList.remove('is-active');

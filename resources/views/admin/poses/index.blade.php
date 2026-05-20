@@ -1084,10 +1084,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
             updateResetButton();
             applyFilters();
             
-            // Mettre à jour l'apparence des cartes KPI
+            // is-active UNIQUEMENT pour le statut précis filtré.
+            // "Total" (data-status="") reste neutre.
             document.querySelectorAll('.kpi-card.filter-stat').forEach(card => {
                 const status = card.dataset.status;
-                if (status === currentFilters.status || (status && !currentFilters.status)) {
+                if (currentFilters.status && status === currentFilters.status) {
                     card.classList.add('is-active');
                 } else {
                     card.classList.remove('is-active');
@@ -1150,11 +1151,12 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
     });
 
     function updateActiveKpi() {
-        const noStatus = !currentFilters.status;
         document.querySelectorAll('.kpi-card.filter-stat').forEach(c => {
             const k = c.dataset.kpi;
             const s = c.dataset.status;
-            const active = k === 'total' ? noStatus : (currentFilters.status === s);
+            // is-active uniquement pour le statut précis filtré.
+            // "Total" reste neutre dans tous les cas.
+            const active = k !== 'total' && !!currentFilters.status && currentFilters.status === s;
             c.classList.toggle('is-active', active);
         });
     }

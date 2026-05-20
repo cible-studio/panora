@@ -905,7 +905,9 @@ document.addEventListener('keydown', e => {
         const activeStatus = currentFilters.status;
         document.querySelectorAll('.kpi-card[data-filter]').forEach(card => {
             const cardValue = card.dataset.value;
-            if ((!activeStatus && !cardValue) || (cardValue === activeStatus)) {
+            // is-active UNIQUEMENT pour le statut précis filtré. Carte
+            // "Tous" (cardValue vide) reste neutre.
+            if (activeStatus && cardValue === activeStatus) {
                 card.classList.add('is-active');
             } else {
                 card.classList.remove('is-active');

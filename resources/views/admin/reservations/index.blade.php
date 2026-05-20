@@ -1020,7 +1020,9 @@
             const activeStatus = currentFilters.status;
             document.querySelectorAll('.kpi-card[data-kpi]').forEach(card => {
                 const cardValue = card.dataset.value;
-                if ((activeStatus === '' && cardValue === '') || (cardValue === activeStatus)) {
+                // is-active UNIQUEMENT quand un statut précis est filtré ET que
+                // la card correspond. La card "Total" (cardValue='') reste neutre.
+                if (activeStatus && cardValue === activeStatus) {
                     card.classList.add('is-active');
                 } else {
                     card.classList.remove('is-active');
