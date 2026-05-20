@@ -303,6 +303,10 @@ class RapportController extends Controller
         $totalRevenueKpi   = $kpi->totalRevenue();
         $revenueByMonth    = $kpi->revenueByMonth(12);
         $revenueByCommune  = $kpi->revenueByCommune(15);
+        $revenueByCity     = $kpi->revenueByCity(15);
+
+        // Corrélation occupation × revenus par commune (scatter chart)
+        $occVsRevenue      = $kpi->occupationVsRevenue();
 
         // Taxes par commune
         $taxesByCommune    = $kpi->taxesByCommune();
@@ -356,6 +360,8 @@ class RapportController extends Controller
             'totalRevenueKpi',
             'revenueByMonth',
             'revenueByCommune',
+            'revenueByCity',
+            'occVsRevenue',
             'taxesByCommune',
             'insights',
             'occupationTrend',
@@ -655,6 +661,41 @@ class RapportController extends Controller
                 'url'  => $r->client_id ? route('admin.clients.show', $r->client_id) : null,
             ]),
         ]);
+    }
+
+    /**
+     * Drill-down client (COMMIT B) — historique complet d'un client :
+     * campagnes (toutes confondues), top panneaux loués, communes
+     * exploitées, CA mensuel 12 mois, synthèse churn.
+     *
+     * Délègue intégralement à DashboardKpiService::clientDetail() qui est
+     * mis en cache. Permet d'éviter de surcharger la vue principale.
+     */
+    public function clientDetail(Request $request, \App\Models\Client $client, DashboardKpiService $kpi)
+    {
+        $data = $kpi->clientDetail($client->id);
+        if (!$data) {
+            return response()->json(['error' => 'Client introuvable'], 404);
+        }
+
+        // Format dates en français pour affichage direct dans le modal
+        $data['campaigns'] = collect($data['campaigns'])->map(fn($c) => [
+            'id'                 => $c->id,
+            'name'               => $c->name,
+            'status'             => $c->status,
+            'start_date'         => $c->start_date ? Carbon::parse($c->start_date)->format('d/m/Y') : '—',
+            'end_date'           => $c->end_date   ? Carbon::parse($c->end_date)->format('d/m/Y')   : '—',
+            'total_amount'       => (float) $c->total_amount,
+            'panels_count'       => (int) $c->panels_count,
+            'cancellation_reason'=> $c->cancellation_reason,
+            'url'                => route('admin.campaigns.show', $c->id),
+        ])->values();
+
+        if ($data['summary']['last_campaign']) {
+            $data['summary']['last_campaign'] = Carbon::parse($data['summary']['last_campaign'])->format('d/m/Y');
+        }
+
+        return response()->json($data);
     }
 
     // ── Rapport motifs d'annulation ────────────────────────────

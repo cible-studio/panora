@@ -591,6 +591,202 @@ class DashboardKpiService
         });
     }
 
+    /**
+     * CA agrégé par ville (un niveau au-dessus de la commune). Permet
+     * d'identifier rapidement les marchés moteurs (Abidjan, Bouaké, …).
+     */
+    public function revenueByCity(int $limit = 20): Collection
+    {
+        return $this->cached("revenue_city.{$limit}", function () use ($limit) {
+            $from = $this->from->toDateString();
+            $to   = $this->to->toDateString();
+
+            return DB::table('reservation_panels')
+                ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
+                ->join('communes', 'communes.id', '=', 'panels.commune_id')
+                ->whereIn('reservations.status', ['confirme', 'termine'])
+                ->where('reservation_panels.source', 'interne')
+                ->where('reservations.start_date', '<=', $to)
+                ->where('reservations.end_date',   '>=', $from)
+                ->whereNotNull('communes.city')
+                ->whereNull('reservations.deleted_at')
+                ->whereNull('panels.deleted_at')
+                ->select(
+                    'communes.city as city',
+                    DB::raw('SUM(reservation_panels.total_price) as revenue'),
+                    DB::raw('COUNT(DISTINCT reservation_panels.panel_id) as panels_engaged'),
+                    DB::raw('COUNT(DISTINCT reservations.id) as campaigns_count'),
+                    DB::raw('COUNT(DISTINCT communes.id) as communes_count'),
+                )
+                ->groupBy('communes.city')
+                ->orderByDesc('revenue')
+                ->limit($limit)
+                ->get();
+        });
+    }
+
+    /**
+     * Corrélation occupation × revenus par commune. Pour chaque commune
+     * actif sur la période, retourne (rate, revenue, total, panels_engaged).
+     * Le scatter chart en sortie aide à détecter :
+     *   - Quadrant "rouge" : occupation haute, CA faible → tarif sous-évalué
+     *   - Quadrant "vert"  : occupation haute, CA fort → zone à scaler
+     *   - Quadrant "gris"  : occupation faible, CA faible → à dynamiser
+     */
+    public function occupationVsRevenue(): Collection
+    {
+        return $this->cached('occ_vs_revenue', function () {
+            $parc    = $this->parcByCommune()->keyBy('id');
+            $revenue = $this->revenueByCommune(99999)->keyBy('id');
+
+            return $parc->map(fn($p) => [
+                'id'             => $p['id'],
+                'commune'        => $p['commune'],
+                'city'           => $p['city'],
+                'rate'           => (float) $p['rate'],
+                'total'          => (int) $p['total'],
+                'occupied'       => (int) $p['occupied'],
+                'revenue'        => (float) ($revenue->get($p['id'])->revenue ?? 0),
+                'panels_engaged' => (int)   ($revenue->get($p['id'])->panels_engaged ?? 0),
+                'campaigns'      => (int)   ($revenue->get($p['id'])->campaigns_count ?? 0),
+            ])->filter(fn($r) => $r['total'] > 0)->values();
+        });
+    }
+
+    /**
+     * Détail complet d'un client (drill-down).
+     * Retourne : info de base, historique des campagnes, top panneaux loués,
+     * communes les plus utilisées, CA par mois sur 12 mois.
+     */
+    public function clientDetail(int $clientId): ?array
+    {
+        return $this->cached("client_detail.{$clientId}", function () use ($clientId) {
+            $client = Client::find($clientId);
+            if (!$client) return null;
+
+            // Historique campagnes (toutes confondues, triées date desc)
+            $campaigns = DB::table('reservations')
+                ->leftJoin('reservation_panels', 'reservation_panels.reservation_id', '=', 'reservations.id')
+                ->where('reservations.client_id', $clientId)
+                ->whereNull('reservations.deleted_at')
+                ->select(
+                    'reservations.id',
+                    'reservations.name',
+                    'reservations.status',
+                    'reservations.start_date',
+                    'reservations.end_date',
+                    'reservations.total_amount',
+                    'reservations.cancellation_reason',
+                    DB::raw('COUNT(DISTINCT reservation_panels.panel_id) as panels_count'),
+                )
+                ->groupBy(
+                    'reservations.id', 'reservations.name', 'reservations.status',
+                    'reservations.start_date', 'reservations.end_date',
+                    'reservations.total_amount', 'reservations.cancellation_reason',
+                )
+                ->orderByDesc('reservations.start_date')
+                ->limit(100)
+                ->get();
+
+            // Top panneaux les plus loués par ce client
+            $topPanels = DB::table('reservation_panels')
+                ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
+                ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
+                ->where('reservations.client_id', $clientId)
+                ->whereIn('reservations.status', ['confirme', 'termine', 'actif'])
+                ->whereNull('reservations.deleted_at')
+                ->whereNull('panels.deleted_at')
+                ->select(
+                    'panels.id', 'panels.reference', 'panels.name',
+                    'communes.name as commune',
+                    DB::raw('COUNT(DISTINCT reservations.id) as campaigns_count'),
+                    DB::raw('SUM(reservation_panels.total_price) as revenue'),
+                )
+                ->groupBy('panels.id', 'panels.reference', 'panels.name', 'communes.name')
+                ->orderByDesc('campaigns_count')
+                ->limit(10)
+                ->get();
+
+            // Communes les plus exploitées
+            $topCommunes = DB::table('reservation_panels')
+                ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
+                ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
+                ->join('communes', 'communes.id', '=', 'panels.commune_id')
+                ->where('reservations.client_id', $clientId)
+                ->whereIn('reservations.status', ['confirme', 'termine', 'actif'])
+                ->whereNull('reservations.deleted_at')
+                ->select(
+                    'communes.name as commune',
+                    DB::raw('COUNT(DISTINCT panels.id) as panels_count'),
+                    DB::raw('COUNT(DISTINCT reservations.id) as campaigns_count'),
+                    DB::raw('SUM(reservation_panels.total_price) as revenue'),
+                )
+                ->groupBy('communes.name')
+                ->orderByDesc('revenue')
+                ->limit(8)
+                ->get();
+
+            // CA par mois sur 12 mois glissants
+            $revenueMonth = collect();
+            $start = now()->subMonths(11)->startOfMonth();
+            $rows = DB::table('reservations')
+                ->where('client_id', $clientId)
+                ->whereIn('status', ['confirme', 'termine'])
+                ->where('start_date', '>=', $start)
+                ->whereNull('deleted_at')
+                ->select(
+                    DB::raw('YEAR(start_date) as y'),
+                    DB::raw('MONTH(start_date) as m'),
+                    DB::raw('SUM(total_amount) as total'),
+                )
+                ->groupBy('y', 'm')
+                ->get()
+                ->keyBy(fn($r) => $r->y . '-' . str_pad((string) $r->m, 2, '0', STR_PAD_LEFT));
+
+            for ($i = 11; $i >= 0; $i--) {
+                $date = now()->subMonths($i);
+                $k = $date->format('Y-m');
+                $revenueMonth->push([
+                    'label' => $date->translatedFormat('M Y'),
+                    'total' => (float) ($rows->get($k)?->total ?? 0),
+                ]);
+            }
+
+            // Synthèse
+            $totalCampaigns = $campaigns->count();
+            $totalRevenue   = (float) $campaigns->where('status', '!=', 'annule')->sum('total_amount');
+            $cancelled      = $campaigns->where('status', 'annule')->count();
+            $lastCampaign   = $campaigns->first()?->start_date;
+            $monthsInactive = $lastCampaign ? (int) Carbon::parse($lastCampaign)->diffInMonths(now()) : null;
+
+            return [
+                'client' => [
+                    'id'    => $client->id,
+                    'name'  => $client->name,
+                    'ncc'   => $client->ncc,
+                    'email' => $client->email,
+                    'phone' => $client->phone,
+                    'url'   => route('admin.clients.show', $client->id),
+                ],
+                'summary' => [
+                    'total_campaigns'  => $totalCampaigns,
+                    'total_revenue'    => $totalRevenue,
+                    'cancelled'        => $cancelled,
+                    'cancel_rate'      => $totalCampaigns > 0 ? round(($cancelled / $totalCampaigns) * 100, 1) : 0,
+                    'avg_ticket'       => $totalCampaigns > 0 ? round($totalRevenue / max($totalCampaigns - $cancelled, 1)) : 0,
+                    'last_campaign'    => $lastCampaign,
+                    'months_inactive'  => $monthsInactive,
+                ],
+                'campaigns'     => $campaigns,
+                'top_panels'    => $topPanels,
+                'top_communes'  => $topCommunes,
+                'revenue_month' => $revenueMonth,
+            ];
+        });
+    }
+
     // ══════════════════════════════════════════════════════════════
     // MODULE 8 — INSIGHTS & RECOMMANDATIONS
     // ══════════════════════════════════════════════════════════════
