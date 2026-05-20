@@ -7,38 +7,40 @@
         @endcan
     </x-slot:topbarActions>
 
-    {{-- ══ STATS AVEC FILTRES DYNAMIQUES (design uniformisé) ══ --}}
-    @php
-    $statCards = [
-        ['key'=>'total',      'label'=>'Total',      'icon'=>'📋', 'color'=>'orange'],
-        ['key'=>'en_attente', 'label'=>'En option',  'icon'=>'⏳', 'color'=>'amber'],
-        ['key'=>'confirme',   'label'=>'Confirmées', 'icon'=>'✅', 'color'=>'green'],
-        ['key'=>'termine',    'label'=>'Terminées',  'icon'=>'🏁', 'color'=>'blue'],
-        ['key'=>'refuse',     'label'=>'Refusées',   'icon'=>'❌', 'color'=>'red'],
-        ['key'=>'annule',     'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'gray'],
-    ];
-    $activeStatus = request('status');
-    $assignedMe   = request()->boolean('assigned_me');
-    $hasAnyFilter = request('search') || request('status') || request('type') || request('client_id') || request('periode') || $assignedMe;
-    @endphp
-    <div class="stat-cards-row">
+    {{-- ══ STATS AVEC FILTRES DYNAMIQUES ══ --}}
+    <div class="stats-grid">
+        @php
+        // Pattern unifié style Alertes/Inventaire : carte cliquable avec
+        // bordure latérale colorée, état actif (toggle), couleurs distinctes.
+        $statCards = [
+            ['key'=>'total',      'label'=>'Total',      'icon'=>'📋', 'color'=>'var(--accent)'],
+            ['key'=>'en_attente', 'label'=>'En option',  'icon'=>'⏳', 'color'=>'#f97316'],
+            ['key'=>'confirme',   'label'=>'Confirmées', 'icon'=>'✅', 'color'=>'#22c55e'],
+            ['key'=>'termine',    'label'=>'Terminées',  'icon'=>'🏁', 'color'=>'#3b82f6'],
+            ['key'=>'refuse',     'label'=>'Refusées',   'icon'=>'❌', 'color'=>'#ef4444'],
+            ['key'=>'annule',     'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'#6b7280'],
+        ];
+        $activeStatus = request('status');
+        $assignedMe   = request()->boolean('assigned_me');
+        $hasAnyFilter = request('search') || request('status') || request('type') || request('client_id') || request('periode') || $assignedMe;
+        @endphp
         @foreach($statCards as $sc)
-            @php
-                $isTotal  = $sc['key'] === 'total';
-                $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $sc['key']);
-            @endphp
-            <x-stat-card
-                :value="number_format($counts[$sc['key']] ?? 0)"
-                :label="$sc['label']"
-                :icon="$sc['icon']"
-                :color="$sc['color']"
-                :active="$isActive"
-                :kpi-key="$sc['key']"
-                filter="status"
-                :filter-value="$isTotal ? '' : $sc['key']"
-                href="#"
-                :sub="$sc['key'] === 'en_attente' && ($newCount ?? 0) > 0 ? '✦ ' . $newCount . ' nouvelle(s)' : null"
-            />
+        @php
+            $isTotal  = $sc['key'] === 'total';
+            $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $sc['key']);
+        @endphp
+        <a href="#"
+           class="stat-card {{ $isActive ? 'active' : '' }}"
+           data-kpi="{{ $sc['key'] }}"
+           data-value="{{ $isTotal ? '' : $sc['key'] }}"
+           style="border-left:4px solid {{ $sc['color'] }};">
+            <div class="stat-icon" style="color:{{ $sc['color'] }}">{{ $sc['icon'] }}</div>
+            <div class="stat-number" data-kpi-value="{{ $sc['key'] }}" style="color:{{ $sc['color'] }}">{{ $counts[$sc['key']] ?? 0 }}</div>
+            <div class="stat-label">{{ strtoupper($sc['label']) }}</div>
+            @if($sc['key'] === 'en_attente' && ($newCount ?? 0) > 0)
+            <div class="stat-badge">✦ {{ $newCount }} nouvelle(s)</div>
+            @endif
+        </a>
         @endforeach
     </div>
 
@@ -490,7 +492,28 @@
     </style>
 
     <style>
-        /* Stats : géré désormais par .stat-card global (CSS app.css) */
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 14px 16px;
+            text-decoration: none;
+            transition: transform 0.15s, box-shadow 0.15s;
+            cursor: pointer;
+            position: relative;
+        }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .stat-card.active { box-shadow: 0 0 0 2px var(--accent); }
+        .stat-icon { font-size: 20px; margin-bottom: 6px; }
+        .stat-number { font-size: 24px; font-weight: 800; line-height: 1; }
+        .stat-label { font-size: 11px; color: var(--text3); font-weight: 600; letter-spacing: 0.4px; margin-top: 4px; }
+        .stat-badge { font-size: 10px; color: var(--accent); font-weight: 700; margin-top: 3px; }
 
         /* Filters */
         .filters-card {
