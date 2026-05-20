@@ -21,6 +21,10 @@ window.__RPT__ = {
     revenueByMonth:  {!! json_encode($revenueByMonth->values()) !!},
     inactivityBucket:{!! json_encode($inactivityBucket) !!},
     parcByCommune:   {!! json_encode($parcByCommune->values()) !!},
+    // Données COMMIT B : corrélation, CA par ville
+    occVsRevenue:    {!! json_encode($occVsRevenue->values()) !!},
+    revenueByCity:   {!! json_encode($revenueByCity->values()) !!},
+    revenueByCommune:{!! json_encode($revenueByCommune->values()) !!},
 };
 </script>
 
@@ -438,6 +442,57 @@ $kpiCards = [
         </div>
     </div>
 
+    {{-- Corrélation occupation × revenus (scatter) — COMMIT B --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="9" cy="14" r="1"/><circle cx="14" cy="9" r="1"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">Corrélation occupation × revenus par commune</span>
+            <span style="margin-left:auto;font-size:10px;color:var(--text3);font-style:italic">Identifier les zones sous-monétisées</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.5">
+            Chaque point = une commune. <strong style="color:#22c55e">Haut-droite</strong> : occupation forte + CA élevé (zones moteurs).
+            <strong style="color:#ef4444">Bas-droite</strong> : occupation forte mais CA faible (tarif sous-évalué).
+            <strong style="color:#f59e0b">Haut-gauche</strong> : CA élevé sur peu de panneaux occupés (rareté précieuse).
+        </div>
+        <div style="position:relative;width:100%;height:340px">
+            <canvas id="chart-occ-revenue" role="img" aria-label="Corrélation occupation revenus"></canvas>
+        </div>
+    </div>
+
+    {{-- CA par ville (vue agrégée) — COMMIT B --}}
+    @if($revenueByCity->isNotEmpty())
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">CA par ville (vue agrégée)</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--text3)">{{ $revenueByCity->count() }} villes</span>
+        </div>
+        <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--border)">
+                        @foreach(['#','Ville','CA','Campagnes','Panneaux loués','Communes'] as $h)
+                        <th style="padding:10px 16px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">{{ $h }}</th>
+                        @endforeach
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($revenueByCity as $i => $r)
+                    <tr style="border-bottom:1px solid var(--border);transition:background .1s" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
+                        <td style="padding:10px 16px;font-size:13px;color:var(--text3);font-weight:700">{{ $i === 0 ? '🥇' : ($i === 1 ? '🥈' : ($i === 2 ? '🥉' : $i + 1)) }}</td>
+                        <td style="padding:10px 16px;font-size:13px;font-weight:600;color:var(--text)">{{ $r->city }}</td>
+                        <td style="padding:10px 16px;font-size:13px;font-weight:700;color:var(--accent)">{{ number_format((float) $r->revenue, 0, ',', ' ') }} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></td>
+                        <td style="padding:10px 16px;font-size:12px;color:var(--text)">{{ number_format($r->campaigns_count) }}</td>
+                        <td style="padding:10px 16px;font-size:12px;color:var(--text)">{{ number_format($r->panels_engaged) }}</td>
+                        <td style="padding:10px 16px;font-size:11px;color:var(--text3)">{{ $r->communes_count }} commune(s)</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
+
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
         <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -628,9 +683,16 @@ $kpiCards = [
                 </thead>
                 <tbody>
                     @forelse($statsClients as $client)
-                    <tr style="border-bottom:1px solid var(--border);transition:background .1s" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
+                    <tr data-client-id="{{ $client['id'] }}"
+                        onclick="ClientDrilldown.open({{ $client['id'] }})"
+                        title="Cliquer pour voir l'historique complet du client"
+                        style="border-bottom:1px solid var(--border);transition:background .1s;cursor:pointer"
+                        onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
                         <td style="padding:10px 16px">
-                            <a href="{{ route('admin.clients.show', $client['id']) }}" style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:none">{{ $client['name'] }}</a>
+                            <a href="{{ route('admin.clients.show', $client['id']) }}"
+                               onclick="event.stopPropagation()"
+                               style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:none">{{ $client['name'] }}</a>
+                            <span style="font-size:11px;color:var(--text3);margin-left:6px;opacity:.6">↗</span>
                         </td>
                         <td style="padding:10px 16px;font-family:monospace;font-size:11px;color:var(--text3)">{{ $client['ncc'] ?? '—' }}</td>
                         <td style="padding:10px 16px;font-size:13px;color:var(--text)">{{ number_format($client['total_campagnes']) }}</td>
@@ -688,6 +750,57 @@ $kpiCards = [
             {{-- Panneaux --}}
             <h3 style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Panneaux installés (<span id="cm-panels-count">0</span>)</h3>
             <div id="cm-panels" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;"></div>
+        </div>
+    </div>
+</div>
+
+{{-- ════ MODAL DRILLDOWN CLIENT (COMMIT B) ════ --}}
+<div id="client-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center;padding:20px;"
+     onclick="if(event.target===this)ClientDrilldown.close()">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:1080px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;"
+         onclick="event.stopPropagation()">
+        <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div>
+                <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;">Client</div>
+                <h2 id="cl-name" style="font-size:18px;font-weight:800;color:var(--text);margin-top:3px;">…</h2>
+                <div id="cl-meta" style="font-size:11px;color:var(--text3);margin-top:2px;"></div>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <a id="cl-link" href="#" style="font-size:11px;font-weight:700;padding:6px 12px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;">Fiche client →</a>
+                <button type="button" onclick="ClientDrilldown.close()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);padding:6px 10px;border-radius:8px;" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='none'">✕</button>
+            </div>
+        </div>
+
+        <div id="cl-loading" style="padding:60px;text-align:center;color:var(--text3);font-size:13px;">
+            <div class="rpt-spinner" style="display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:rpt-spin .7s linear infinite;vertical-align:middle;margin-right:8px;"></div>
+            Chargement…
+        </div>
+
+        <div id="cl-body" style="display:none;padding:18px 22px;overflow-y:auto;flex:1;">
+            {{-- Synthèse cards --}}
+            <div id="cl-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px;"></div>
+
+            {{-- CA mensuel 12 mois (mini chart) --}}
+            <h3 style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">CA mensuel — 12 derniers mois</h3>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:18px;position:relative;height:200px;">
+                <canvas id="cl-revenue-chart" role="img" aria-label="CA mensuel client"></canvas>
+            </div>
+
+            {{-- Top communes + top panneaux --}}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;">
+                <div>
+                    <h3 style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Top communes exploitées</h3>
+                    <div id="cl-communes" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;"></div>
+                </div>
+                <div>
+                    <h3 style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Panneaux favoris (top 10)</h3>
+                    <div id="cl-panels" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;"></div>
+                </div>
+            </div>
+
+            {{-- Historique campagnes --}}
+            <h3 style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Historique campagnes (<span id="cl-camp-count">0</span>)</h3>
+            <div id="cl-campaigns" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;"></div>
         </div>
     </div>
 </div>
@@ -877,6 +990,72 @@ $kpiCards = [
      ONGLET — INSIGHTS & ALERTES
 ══════════════════════════════════════════════════════════════ --}}
 <div id="panel-insights" class="rpt-panel" style="display:none">
+
+    {{-- Suggestions reconquête : templates prêts à l'emploi (COMMIT B) --}}
+    @if(($inactivityBucket['6_to_12'] ?? 0) + ($inactivityBucket['12_plus'] ?? 0) > 0)
+    <div style="background:linear-gradient(135deg,rgba(239,68,68,.04),rgba(168,85,247,.04));border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">🎯 Reconquête clients — templates prêts à l'emploi</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px">
+            {{ ($inactivityBucket['6_to_12'] ?? 0) + ($inactivityBucket['12_plus'] ?? 0) }} client(s) en zone de churn — utilisez ces messages directement.
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            {{-- Template MAIL --}}
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span style="font-size:12px;font-weight:700;color:var(--text)">📧 Modèle e-mail (J0)</span>
+                    <button type="button"
+                            onclick="navigator.clipboard.writeText(document.getElementById('tpl-mail').innerText);this.textContent='✓ Copié';setTimeout(()=>this.textContent='Copier',1500)"
+                            style="margin-left:auto;font-size:10px;font-weight:600;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:6px;cursor:pointer">Copier</button>
+                </div>
+                <div id="tpl-mail" style="font-size:11px;line-height:1.55;color:var(--text2);font-family:Georgia,serif;background:var(--surface2);padding:10px 12px;border-radius:8px;white-space:pre-wrap">Objet : Une opportunité en or vous attend chez CIBLE CI
+
+Bonjour [PRENOM],
+
+Cela fait plusieurs mois que nous n'avons pas eu le plaisir de collaborer avec [SOCIETE]. Vos précédentes campagnes ont eu un excellent impact sur le terrain, et nous tenons à vous proposer une offre privilégiée pour votre retour :
+
+• 15 % de remise sur votre prochaine campagne (>1 mois)
+• Choix prioritaire sur nos panneaux stratégiques
+• Suivi dédié par votre commercial habituel
+
+Souhaitez-vous que nous échangions cette semaine pour évoquer vos prochains objectifs de communication ?
+
+Cordialement,
+[VOTRE NOM]
+CIBLE CI — Affichage urbain</div>
+            </div>
+
+            {{-- Template APPEL --}}
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                    <span style="font-size:12px;font-weight:700;color:var(--text)">📞 Script appel commercial</span>
+                    <button type="button"
+                            onclick="navigator.clipboard.writeText(document.getElementById('tpl-call').innerText);this.textContent='✓ Copié';setTimeout(()=>this.textContent='Copier',1500)"
+                            style="margin-left:auto;font-size:10px;font-weight:600;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:6px;cursor:pointer">Copier</button>
+                </div>
+                <div id="tpl-call" style="font-size:11px;line-height:1.55;color:var(--text2);font-family:Georgia,serif;background:var(--surface2);padding:10px 12px;border-radius:8px;white-space:pre-wrap">🎯 OUVERTURE (15 sec)
+"Bonjour [PRENOM], c'est [VOTRE NOM] de CIBLE CI. Je vous appelle car cela fait [X mois] que nous n'avons pas eu l'occasion de travailler ensemble. Avez-vous 2 minutes ?"
+
+🔍 DÉCOUVERTE
+• Comment se portent vos actions de communication actuellement ?
+• Quels sont vos objectifs prioritaires pour les prochains mois ?
+• Avez-vous testé d'autres canaux (digital, presse) entre-temps ?
+
+💡 PROPOSITION
+"J'ai justement repéré [N] emplacements stratégiques disponibles dans la zone [VILLE/COMMUNE] — exactement le profil de vos précédentes campagnes qui ont bien performé. Je vous propose une offre de retour : 15 % de remise + suivi VIP."
+
+✅ CLÔTURE
+"Quand serait le meilleur moment cette semaine pour vous envoyer un dossier sur mesure ?"</div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     {{-- Liste des insights générés automatiquement --}}
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
         @foreach($insights as $insight)
@@ -1122,7 +1301,7 @@ window.RPT = {
         document.getElementById('tab-'+id).classList.add('active');
         document.getElementById('panel-'+id).style.display='block';
         if (id==='occupation'&&!this._evolDone)     { this.renderEvol(); this.renderOccupationTrend(); this._evolDone=true; }
-        if (id==='ca'        &&!this._caDone)       { this.renderCa();   this.renderRevenueTrend();    this._caDone=true; }
+        if (id==='ca'        &&!this._caDone)       { this.renderCa();   this.renderRevenueTrend();    this.renderOccVsRevenue(); this._caDone=true; }
         if (id==='zones'     &&!this._hmDone)       { HM.init();         this._hmDone=true; }
         if (id==='panneaux'  &&!this._panneauxDone) { this.renderTopPanels();    this._panneauxDone=true; }
         if (id==='insights'  &&!this._insightsDone) { this.renderInsightsCharts();this._insightsDone=true; }
@@ -1274,6 +1453,70 @@ window.RPT = {
                 scales:{
                     x:{ beginAtZero:true, ticks:{color:tickC,font:{size:11}}, grid:{color:gridC} },
                     y:{ ticks:{color:tickC,font:{size:10},autoSkip:false}, grid:{display:false} },
+                }
+            }
+        });
+    },
+
+    // ── Chart.js — scatter occupation × revenus par commune (COMMIT B) ──
+    renderOccVsRevenue() {
+        const canvas = document.getElementById('chart-occ-revenue');
+        const data = D.occVsRevenue || [];
+        if (!canvas || !data.length || typeof Chart === 'undefined') return;
+        const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+        const gridC  = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
+        const tickC  = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
+        // Catégoriser chaque commune par quadrant
+        const maxRev = Math.max(...data.map(d => d.revenue), 1);
+        const points = data.map(d => {
+            const occHigh = d.rate >= 50;
+            const revHigh = d.revenue >= maxRev * 0.4;
+            const color = occHigh && revHigh ? '#22c55e' :
+                          occHigh && !revHigh ? '#ef4444' :
+                          !occHigh && revHigh ? '#f59e0b' : '#94a3b8';
+            return { x: d.rate, y: d.revenue, r: Math.min(Math.max(Math.sqrt(d.total) * 2.5, 5), 22), color, data: d };
+        });
+        new Chart(canvas, {
+            type:'bubble',
+            data:{
+                datasets: points.map(p => ({
+                    data:[{ x:p.x, y:p.y, r:p.r }],
+                    backgroundColor: p.color + '99',
+                    borderColor: p.color,
+                    borderWidth: 1.5,
+                    label: p.data.commune,
+                })),
+            },
+            options:{
+                responsive:true, maintainAspectRatio:false,
+                plugins:{
+                    legend:{display:false},
+                    tooltip:{ callbacks:{
+                        title: ctx => points[ctx[0].datasetIndex].data.commune,
+                        label: ctx => {
+                            const d = points[ctx.datasetIndex].data;
+                            return [
+                                ` Taux occupation : ${d.rate}%`,
+                                ` CA : ${new Intl.NumberFormat('fr-FR').format(Math.round(d.revenue))} FCFA`,
+                                ` Parc : ${d.total} pann. (${d.occupied} occupés)`,
+                                ` Campagnes : ${d.campaigns}`,
+                            ];
+                        },
+                    }},
+                },
+                scales:{
+                    x:{
+                        title:{display:true,text:"Taux d'occupation (%)",color:tickC,font:{size:11}},
+                        beginAtZero:true, max:100,
+                        ticks:{color:tickC,font:{size:11},callback:v=>v+'%'},
+                        grid:{color:gridC},
+                    },
+                    y:{
+                        title:{display:true,text:'CA (FCFA)',color:tickC,font:{size:11}},
+                        beginAtZero:true,
+                        ticks:{color:tickC,font:{size:11},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'M':(v>=1e3?(v/1e3).toFixed(0)+'K':v)},
+                        grid:{color:gridC},
+                    },
                 }
             }
         });
@@ -1514,10 +1757,165 @@ window.CommuneDrilldown = (function () {
     };
 })();
 
+// ══════════════════════════════
+// DRILLDOWN CLIENT — module (COMMIT B)
+// ══════════════════════════════
+window.ClientDrilldown = (function () {
+    const overlay = document.getElementById('client-modal');
+    const body    = document.getElementById('cl-body');
+    const loading = document.getElementById('cl-loading');
+    const fmt = n => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
+    let revChart = null;
+
+    const statusColors = {
+        actif:'#22c55e', termine:'#6b7280', planifie:'#3b82f6',
+        confirme:'#3b82f6', pause:'#f97316', annule:'#ef4444',
+        option:'#e8a020',
+    };
+
+    function renderSummary(s) {
+        const cards = [
+            ['Campagnes',      fmt(s.total_campaigns),                                'var(--accent)'],
+            ['CA total',       s.total_revenue > 0 ? fmt(s.total_revenue) + ' FCFA' : '—', '#16a34a'],
+            ['Ticket moyen',   s.avg_ticket > 0    ? fmt(s.avg_ticket)    + ' FCFA' : '—', '#3b82f6'],
+            ['Annulées',       fmt(s.cancelled) + ' (' + s.cancel_rate + '%)',       s.cancel_rate > 20 ? '#ef4444' : '#a855f7'],
+            ['Dernière camp.', s.last_campaign || '—',                               '#0ea5e9'],
+            ['Inactivité',     s.months_inactive !== null ? s.months_inactive + ' mois' : '—',
+                               (s.months_inactive ?? 0) > 6 ? '#dc2626' : ((s.months_inactive ?? 0) > 3 ? '#f59e0b' : '#22c55e')],
+        ];
+        return cards.map(([lbl, val, color]) => `
+            <div class="cm-stat" style="border-left-color:${color}">
+                <div class="lbl">${lbl}</div>
+                <div class="val" style="color:${color};font-size:16px">${val}</div>
+            </div>
+        `).join('');
+    }
+
+    function renderCommunes(rows) {
+        if (!rows?.length) return '<div style="padding:14px;color:var(--text3);font-size:12px;text-align:center">Aucune commune exploitée.</div>';
+        return `<table class="cm-table">
+            <thead><tr><th>Commune</th><th class="r">Pann.</th><th class="r">Camp.</th><th class="r">CA</th></tr></thead>
+            <tbody>${rows.map(r => `
+                <tr>
+                    <td><strong>${r.commune}</strong></td>
+                    <td class="r">${fmt(r.panels_count)}</td>
+                    <td class="r">${fmt(r.campaigns_count)}</td>
+                    <td class="r"><strong style="color:var(--accent)">${fmt(r.revenue)}</strong></td>
+                </tr>
+            `).join('')}</tbody></table>`;
+    }
+
+    function renderPanels(rows) {
+        if (!rows?.length) return '<div style="padding:14px;color:var(--text3);font-size:12px;text-align:center">Aucun panneau loué.</div>';
+        return `<table class="cm-table">
+            <thead><tr><th>Réf.</th><th>Commune</th><th class="r">Loc.</th><th class="r">CA</th></tr></thead>
+            <tbody>${rows.map(r => `
+                <tr>
+                    <td><strong style="font-family:monospace">${r.reference}</strong></td>
+                    <td style="color:var(--text3);font-size:11px">${r.commune || '—'}</td>
+                    <td class="r">${fmt(r.campaigns_count)}</td>
+                    <td class="r"><strong style="color:var(--accent)">${fmt(r.revenue)}</strong></td>
+                </tr>
+            `).join('')}</tbody></table>`;
+    }
+
+    function renderCampaigns(rows) {
+        if (!rows?.length) return '<div style="padding:14px;color:var(--text3);font-size:12px;text-align:center">Aucune campagne.</div>';
+        return `<table class="cm-table">
+            <thead><tr><th>Campagne</th><th>Période</th><th>Statut</th><th class="r">Pann.</th><th class="r">Montant</th></tr></thead>
+            <tbody>${rows.map(c => `
+                <tr>
+                    <td><a href="${c.url}"><strong>${c.name || '—'}</strong></a>${c.cancellation_reason ? `<div style="font-size:10px;color:#ef4444;margin-top:2px">Motif : ${c.cancellation_reason}</div>` : ''}</td>
+                    <td style="font-size:11px;color:var(--text3)">${c.start_date} → ${c.end_date}</td>
+                    <td><span class="cm-status-pill" style="background:${(statusColors[c.status]||'#6b7280')}22;color:${statusColors[c.status]||'#6b7280'}">${c.status}</span></td>
+                    <td class="r">${fmt(c.panels_count)}</td>
+                    <td class="r"><strong>${c.total_amount > 0 ? fmt(c.total_amount) + ' FCFA' : '—'}</strong></td>
+                </tr>
+            `).join('')}</tbody></table>`;
+    }
+
+    function renderRevenueChart(rows) {
+        const canvas = document.getElementById('cl-revenue-chart');
+        if (!canvas || !rows?.length || typeof Chart === 'undefined') return;
+        if (revChart) { revChart.destroy(); revChart = null; }
+        const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+        const gridC  = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
+        const tickC  = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
+        revChart = new Chart(canvas, {
+            type:'bar',
+            data:{
+                labels: rows.map(r => r.label),
+                datasets:[{
+                    label:'CA',
+                    data: rows.map(r => Number(r.total) || 0),
+                    backgroundColor:'rgba(232,160,32,.8)',
+                    borderRadius:5, borderSkipped:false,
+                }],
+            },
+            options:{
+                responsive:true, maintainAspectRatio:false,
+                plugins:{ legend:{display:false}, tooltip:{ callbacks:{
+                    label: ctx => ' ' + new Intl.NumberFormat('fr-FR').format(Math.round(ctx.parsed.y)) + ' FCFA',
+                }}},
+                scales:{
+                    x:{ ticks:{color:tickC,font:{size:10}}, grid:{display:false} },
+                    y:{ beginAtZero:true, ticks:{color:tickC,font:{size:10},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'M':(v>=1e3?(v/1e3).toFixed(0)+'K':v)}, grid:{color:gridC} },
+                }
+            }
+        });
+    }
+
+    return {
+        async open(clientId) {
+            overlay.style.display = 'flex';
+            body.style.display = 'none';
+            loading.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+
+            try {
+                const url = `/admin/rapports/clients/${clientId}/detail`;
+                const r = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+
+                document.getElementById('cl-name').textContent = data.client.name;
+                document.getElementById('cl-meta').textContent =
+                    (data.client.ncc ? 'NCC : ' + data.client.ncc : '') +
+                    (data.client.email ? (data.client.ncc ? ' · ' : '') + data.client.email : '') +
+                    (data.client.phone ? ' · ' + data.client.phone : '');
+                document.getElementById('cl-link').href = data.client.url;
+                document.getElementById('cl-summary').innerHTML = renderSummary(data.summary);
+                document.getElementById('cl-communes').innerHTML = renderCommunes(data.top_communes);
+                document.getElementById('cl-panels').innerHTML = renderPanels(data.top_panels);
+                document.getElementById('cl-campaigns').innerHTML = renderCampaigns(data.campaigns);
+                document.getElementById('cl-camp-count').textContent = (data.campaigns || []).length;
+
+                loading.style.display = 'none';
+                body.style.display = 'block';
+                // Le canvas a besoin d'être visible avant que Chart.js mesure ses dimensions
+                requestAnimationFrame(() => renderRevenueChart(data.revenue_month));
+            } catch (e) {
+                console.error(e);
+                loading.innerHTML = '<div style="color:#ef4444;">Erreur de chargement. Réessayez.</div>';
+            }
+        },
+        close() {
+            overlay.style.display = 'none';
+            document.body.style.overflow = '';
+            if (revChart) { revChart.destroy(); revChart = null; }
+        },
+    };
+})();
+
 // Échap = fermer le drilldown
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && document.getElementById('commune-modal')?.style.display === 'flex') {
-        window.CommuneDrilldown.close();
+    if (e.key === 'Escape') {
+        if (document.getElementById('commune-modal')?.style.display === 'flex') {
+            window.CommuneDrilldown.close();
+        }
+        if (document.getElementById('client-modal')?.style.display === 'flex') {
+            window.ClientDrilldown.close();
+        }
     }
 });
 

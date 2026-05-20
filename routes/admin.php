@@ -782,6 +782,8 @@ Route::prefix('admin')
         Route::get('/rapports/annulations', [RapportController::class, 'annulations'])->name('rapports.annulations');
         Route::get('/rapports/communes/{commune}/detail', [RapportController::class, 'communeDetail'])
             ->name('rapports.communes.detail');
+        Route::get('/rapports/clients/{client}/detail', [RapportController::class, 'clientDetail'])
+            ->whereNumber('client')->name('rapports.clients.detail');
         Route::get('/rapports/taxes', [RapportController::class, 'taxes'])->name('rapports.taxes');
         Route::get('/rapports/campagnes', [RapportController::class, 'campagnes'])->name('rapports.campagnes');
 
