@@ -33,9 +33,24 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
     public int $imported = 0;
     public int $skipped  = 0;
 
+    /** Numéro de la ligne d'entête détectée (1 par défaut). */
+    protected int $headingRow = 1;
+
+    public function setHeadingRow(int $row): self
+    {
+        $this->headingRow = max(1, $row);
+        return $this;
+    }
+
+    public function headingRow(): int
+    {
+        return $this->headingRow;
+    }
+
     public function model(array $row): ?Client
     {
         // Normalisation des entêtes (insensible casse / espaces / accents simples)
+        // Cast explicite en string pour gérer les NCC numériques (ex: 64525874558)
         $name       = trim((string) ($row['nom']        ?? $row['name']        ?? ''));
         $email      = strtolower(trim((string) ($row['email']  ?? '')));
         $phone      = trim((string) ($row['telephone']  ?? $row['phone']       ?? $row['tel']    ?? ''));
@@ -86,31 +101,36 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
 
         $this->imported++;
 
+        // Note : la table clients n'a pas de colonne 'company' — si l'import
+        // fournit "entreprise", on l'agrège au nom si différent.
+        $finalName = $name;
+        if ($company !== '' && mb_strtoupper($company) !== mb_strtoupper($name)) {
+            $finalName = $name . ' / ' . $company;
+        }
+
         return new Client([
-            'name'         => mb_strtoupper($name),
+            'name'         => mb_strtoupper($finalName),
             'email'        => $email !== '' ? $email : null,
             'phone'        => $phone !== '' ? $phone : null,
             'ncc'          => $ncc !== '' ? $ncc : null,
             'contact_name' => $contact !== '' ? $contact : null,
             'sector'       => $sector !== '' ? $sector : null,
             'address'      => $address !== '' ? $address : null,
-            'company'      => $company !== '' ? $company : null,
         ]);
     }
 
     /** Validation par ligne — TOLÉRANTE (objectif : importer un maximum
      *  de lignes ; les imperfections sont traitées dans model()).
-     *  L'email était `nullable|email|max:200` → trop strict. Le validator
-     *  Laravel email rejette des adresses pourtant utilisables (TLD
-     *  inconnus, ASCII étendu, etc.). Désormais on accepte n'importe
-     *  quelle string ici et on filtre via filter_var dans model(). */
+     *  Les contraintes `string` sont retirées car Maatwebsite parse les
+     *  cellules numériques (NCC, téléphone) en int/float et la validation
+     *  les rejetterait. Tout est cast en (string) dans model(). */
     public function rules(): array
     {
         return [
-            'nom'        => 'nullable|string|max:200',
-            'email'      => 'nullable|string|max:200',
-            'telephone'  => 'nullable|string|max:25',
-            'ncc'        => 'nullable|string|max:50',
+            'nom'        => 'nullable|max:200',
+            'email'      => 'nullable|max:200',
+            'telephone'  => 'nullable|max:50',
+            'ncc'        => 'nullable|max:80',
         ];
     }
 
