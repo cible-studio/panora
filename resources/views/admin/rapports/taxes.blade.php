@@ -209,10 +209,113 @@
     </div>
 </div>
 
+{{-- ════ COMPARAISON DÛ vs REVERSÉ (COMMIT C) ════ --}}
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-top:18px;">
+    <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;font-weight:700;color:var(--text);">⚖️ Taxes dues vs reversées — état des paiements {{ $year }}</span>
+        <a href="{{ route('admin.taxes.index') }}" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;">Gérer les paiements →</a>
+    </div>
+
+    {{-- KPIs comparaison --}}
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid var(--border);">
+        <div style="padding:16px 20px;border-right:1px solid var(--border);">
+            <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">À reverser</div>
+            <div style="font-size:18px;font-weight:800;color:#a855f7;font-variant-numeric:tabular-nums;">{{ $fmt($comparisonTotals['due']) }} <span style="font-size:11px;color:var(--text3);font-weight:400;">FCFA</span></div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;">Calculé sur campagnes {{ $year }}</div>
+        </div>
+        <div style="padding:16px 20px;border-right:1px solid var(--border);">
+            <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Déjà reversé</div>
+            <div style="font-size:18px;font-weight:800;color:#16a34a;font-variant-numeric:tabular-nums;">{{ $fmt($comparisonTotals['paid']) }} <span style="font-size:11px;color:var(--text3);font-weight:400;">FCFA</span></div>
+            <div style="font-size:10px;color:#16a34a;margin-top:3px;font-weight:600;">{{ $comparisonTotals['rate'] }}% complétés</div>
+        </div>
+        <div style="padding:16px 20px;border-right:1px solid var(--border);">
+            <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Solde restant</div>
+            <div style="font-size:18px;font-weight:800;color:{{ $comparisonTotals['balance'] > 0 ? '#dc2626' : '#16a34a' }};font-variant-numeric:tabular-nums;">{{ $fmt($comparisonTotals['balance']) }} <span style="font-size:11px;color:var(--text3);font-weight:400;">FCFA</span></div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;">{{ $comparisonTotals['balance'] > 0 ? 'À régler' : 'Tout est à jour' }}</div>
+        </div>
+        <div style="padding:16px 20px;">
+            <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">État communes</div>
+            <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;">
+                <span style="font-size:14px;font-weight:700;color:#16a34a;">{{ $comparisonTotals['paid_communes'] }}</span><span style="font-size:10px;color:var(--text3);">à jour</span>
+                <span style="font-size:14px;font-weight:700;color:#f59e0b;">{{ $comparisonTotals['partial_communes'] }}</span><span style="font-size:10px;color:var(--text3);">partielles</span>
+                <span style="font-size:14px;font-weight:700;color:#dc2626;">{{ $comparisonTotals['pending_communes'] }}</span><span style="font-size:10px;color:var(--text3);">en attente</span>
+            </div>
+        </div>
+    </div>
+
+    {{-- Tableau détaillé --}}
+    <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+                <tr style="background:var(--surface2);">
+                    <th style="padding:10px 14px;text-align:left;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">Commune</th>
+                    <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">À reverser</th>
+                    <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">ODP reversé</th>
+                    <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">TM reversé</th>
+                    <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">Total reversé</th>
+                    <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">% versé</th>
+                    <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">Solde</th>
+                    <th style="padding:10px 14px;text-align:left;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($comparison as $row)
+                    @php
+                        $statusColors = [
+                            'paid'    => ['#16a34a', 'rgba(34,197,94,.12)',  '✓ À jour'],
+                            'partial' => ['#f59e0b', 'rgba(245,158,11,.12)', '◐ Partiel'],
+                            'pending' => ['#dc2626', 'rgba(220,38,38,.12)',  '⚠ En attente'],
+                        ];
+                        [$color, $bg, $label] = $statusColors[$row['status']] ?? $statusColors['pending'];
+                    @endphp
+                    <tr style="border-bottom:1px solid var(--border);" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
+                        <td style="padding:10px 14px;font-weight:600;color:var(--text);">{{ $row['commune'] }}</td>
+                        <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:#a855f7;">{{ $fmt($row['due_total']) }}</td>
+                        <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text3);">{{ $fmt($row['paid_odp']) }}</td>
+                        <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text3);">{{ $fmt($row['paid_tm']) }}</td>
+                        <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:#16a34a;">{{ $fmt($row['paid_total']) }}</td>
+                        <td style="padding:10px 14px;text-align:right;">
+                            <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+                                <div style="width:50px;height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
+                                    <div style="height:100%;width:{{ min($row['rate'], 100) }}%;background:{{ $color }};"></div>
+                                </div>
+                                <span style="font-size:11px;font-weight:700;color:{{ $color }};min-width:36px;text-align:right;">{{ $row['rate'] }}%</span>
+                            </div>
+                        </td>
+                        <td style="padding:10px 14px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:{{ $row['balance'] > 0 ? '#dc2626' : '#16a34a' }};">{{ $fmt($row['balance']) }}</td>
+                        <td style="padding:10px 14px;">
+                            <span style="padding:3px 10px;border-radius:12px;background:{{ $bg }};color:{{ $color }};font-size:10px;font-weight:700;white-space:nowrap;">{{ $label }}</span>
+                            @if($row['last_paid_at'])
+                                <div style="font-size:9px;color:var(--text3);margin-top:2px;">Dernier paiement : {{ \Carbon\Carbon::parse($row['last_paid_at'])->format('d/m/Y') }}</div>
+                            @endif
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="8" style="text-align:center;padding:36px;color:var(--text3);">Aucune commune avec des taxes à reverser.</td></tr>
+                @endforelse
+            </tbody>
+            @if($comparison->isNotEmpty())
+            <tfoot>
+                <tr style="background:#0f172a;">
+                    <td style="padding:12px 14px;font-weight:800;color:#e8a020;text-transform:uppercase;letter-spacing:1px;font-size:11px;">TOTAL</td>
+                    <td style="padding:12px 14px;text-align:right;color:#e8a020;font-weight:700;font-variant-numeric:tabular-nums;">{{ $fmt($comparisonTotals['due']) }}</td>
+                    <td colspan="2"></td>
+                    <td style="padding:12px 14px;text-align:right;color:#16a34a;font-weight:700;font-variant-numeric:tabular-nums;">{{ $fmt($comparisonTotals['paid']) }}</td>
+                    <td style="padding:12px 14px;text-align:right;color:#e8a020;font-weight:700;">{{ $comparisonTotals['rate'] }}%</td>
+                    <td style="padding:12px 14px;text-align:right;color:{{ $comparisonTotals['balance'] > 0 ? '#dc2626' : '#16a34a' }};font-weight:700;font-variant-numeric:tabular-nums;">{{ $fmt($comparisonTotals['balance']) }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+            @endif
+        </table>
+    </div>
+</div>
+
 <div style="font-size:11px;color:var(--text3);margin-top:14px;line-height:1.6;">
     <strong>Méthode de calcul :</strong> tarif annuel mairie ÷ 12 × nombre de panneaux distincts occupés au moins 1 jour
     dans le mois (campagnes statut planifié / actif / pose / terminé). Les campagnes annulées sont exclues.
     Cliquez une commune pour voir le détail des panneaux et campagnes contributifs.
+    <br><strong>Reversement :</strong> les montants "déjà reversés" proviennent de la table <code>taxes</code> où <code>paid_at</code> est renseigné. Gérez les paiements depuis la liste taxes.
 </div>
 
 </x-admin-layout>

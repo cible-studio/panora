@@ -441,15 +441,21 @@ class DashboardKpiService
      * Liste les campagnes dont la date de fin est passée mais qui ont
      * encore des panneaux à décaper. Trié par urgence (date de fin asc).
      *
-     * Pour l'instant : on liste les campagnes terminées dans les
-     * derniers 30 jours. Le statut de décappage par panneau pourra
-     * être ajouté plus tard (table dédiée ou champ `decapped_at` sur
-     * pivot campaign_panels).
+     * Depuis COMMIT C, on track le statut décappage panneau par panneau
+     * via la colonne `decapped_at` sur le pivot `campaign_panels`.
+     * Pour chaque campagne, on calcule :
+     *   - decapped_count    : panneaux marqués comme décappés
+     *   - pending_count     : panneaux encore en attente
+     *   - is_overdue        : > 7 jours après end_date sans décappage complet
      */
     public function decapList(int $limit = 50): Collection
     {
-        return $this->cached("decap.{$limit}", function () use ($limit) {
-            return Campaign::with(['client:id,name', 'panels:id,reference,name,commune_id', 'panels.commune:id,name'])
+        return $this->cached("decap.v2.{$limit}", function () use ($limit) {
+            $campaigns = Campaign::with([
+                    'client:id,name',
+                    'panels:id,reference,name,commune_id',
+                    'panels.commune:id,name',
+                ])
                 ->where('status', 'termine')
                 ->where('end_date', '<=', now())
                 ->where('end_date', '>=', now()->subDays(60))
@@ -457,6 +463,119 @@ class DashboardKpiService
                 ->orderBy('end_date')
                 ->limit($limit)
                 ->get();
+
+            // Chargement du statut décappage en une seule query
+            $campaignIds = $campaigns->pluck('id');
+            $decapStatus = DB::table('campaign_panels')
+                ->whereIn('campaign_id', $campaignIds)
+                ->select('campaign_id', 'panel_id', 'decapped_at', 'decapped_by_user_id', 'decap_notes')
+                ->get()
+                ->groupBy('campaign_id');
+
+            return $campaigns->map(function ($campaign) use ($decapStatus) {
+                $statuses = $decapStatus->get($campaign->id, collect());
+                $byPanel  = $statuses->keyBy('panel_id');
+                $decapped = $statuses->filter(fn($s) => $s->decapped_at !== null)->count();
+                $total    = $campaign->panels->count();
+
+                // Enrichit chaque panneau avec son statut de décappage
+                $campaign->panels->each(function ($p) use ($byPanel) {
+                    $row = $byPanel->get($p->id);
+                    $p->decapped_at = $row?->decapped_at;
+                    $p->decap_notes = $row?->decap_notes;
+                });
+
+                $campaign->decapped_count = $decapped;
+                $campaign->pending_count  = $total - $decapped;
+                $campaign->total_panels   = $total;
+                $campaign->is_overdue     = $campaign->pending_count > 0
+                    && $campaign->end_date->diffInDays(now(), false) > 7;
+                $campaign->decap_progress = $total > 0 ? round(($decapped / $total) * 100) : 0;
+
+                return $campaign;
+            });
+        });
+    }
+
+    /**
+     * Marque un panneau comme décappé pour une campagne donnée.
+     * Met à jour decapped_at, decapped_by_user_id, decap_notes sur le
+     * pivot campaign_panels. Invalide les caches associés.
+     *
+     * @return bool true si succès, false si le pivot n'existe pas
+     */
+    public function markDecapped(int $campaignId, int $panelId, int $userId, ?string $notes = null): bool
+    {
+        $affected = DB::table('campaign_panels')
+            ->where('campaign_id', $campaignId)
+            ->where('panel_id', $panelId)
+            ->update([
+                'decapped_at'         => now(),
+                'decapped_by_user_id' => $userId,
+                'decap_notes'         => $notes,
+                'updated_at'          => now(),
+            ]);
+
+        if ($affected > 0) {
+            // Invalide tout cache lié au décappage / insights
+            Cache::forget($this->cacheKey('decap.v2.50'));
+            Cache::forget($this->cacheKey('decap.v2.99999'));
+        }
+
+        return $affected > 0;
+    }
+
+    /**
+     * Annule le décappage d'un panneau (en cas d'erreur de saisie).
+     */
+    public function unmarkDecapped(int $campaignId, int $panelId): bool
+    {
+        $affected = DB::table('campaign_panels')
+            ->where('campaign_id', $campaignId)
+            ->where('panel_id', $panelId)
+            ->update([
+                'decapped_at'         => null,
+                'decapped_by_user_id' => null,
+                'decap_notes'         => null,
+                'updated_at'          => now(),
+            ]);
+
+        if ($affected > 0) {
+            Cache::forget($this->cacheKey('decap.v2.50'));
+            Cache::forget($this->cacheKey('decap.v2.99999'));
+        }
+
+        return $affected > 0;
+    }
+
+    /**
+     * Synthèse globale du décappage : combien faits / en attente / en retard.
+     */
+    public function decapStats(): array
+    {
+        return $this->cached('decap_stats', function () {
+            $base = DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->where('campaigns.status', 'termine')
+                ->whereNull('campaigns.deleted_at')
+                ->where('campaigns.end_date', '>=', now()->subDays(90))
+                ->where('campaigns.end_date', '<=', now());
+
+            $total     = (clone $base)->count();
+            $decapped  = (clone $base)->whereNotNull('campaign_panels.decapped_at')->count();
+            $pending   = $total - $decapped;
+            $overdue   = (clone $base)
+                ->whereNull('campaign_panels.decapped_at')
+                ->where('campaigns.end_date', '<', now()->subDays(7))
+                ->count();
+
+            return [
+                'total'    => $total,
+                'decapped' => $decapped,
+                'pending'  => $pending,
+                'overdue'  => $overdue,
+                'rate'     => $total > 0 ? round(($decapped / $total) * 100, 1) : 0,
+            ];
         });
     }
 
