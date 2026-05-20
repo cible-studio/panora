@@ -64,7 +64,7 @@
             @if(request()->hasAny(['search', 'statut', 'priorite']))
             <div class="filter-group" style="justify-content:flex-end;">
                 <label class="filter-label">&nbsp;</label>
-                <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm">✕ Reset</a>
+                <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm">✕ Réinitialiser</a>
             </div>
             @endif
         </div>

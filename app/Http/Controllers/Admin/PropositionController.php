@@ -117,7 +117,7 @@ class PropositionController extends Controller
         return back()->with('success', 'Statut mis à jour.');
     }
 
-    public function exportPdf(Reservation $proposition)
+    public function exportPdf(Reservation $proposition, \Illuminate\Http\Request $request)
     {
         $proposition->load([
             'client',
@@ -133,7 +133,19 @@ class PropositionController extends Controller
             'months'      => $months,
         ])->setPaper('A4', 'portrait');
 
-        return $pdf->stream("proposition-{$proposition->reference}.pdf");
+        // Nom du fichier — personnalisable via ?filename=mon-nom (sanitisé :
+        // on retire tout caractère non sûr pour un nom de fichier, on borne
+        // à 120 chars et on force l'extension .pdf). Fallback sur la réf.
+        $custom = (string) $request->input('filename', '');
+        $custom = preg_replace('/[^A-Za-z0-9._\- ]+/u', '', $custom);
+        $custom = trim($custom);
+        $filename = $custom !== '' ? $custom : "proposition-{$proposition->reference}";
+        $filename = mb_substr($filename, 0, 120);
+        if (!str_ends_with(strtolower($filename), '.pdf')) {
+            $filename .= '.pdf';
+        }
+
+        return $pdf->stream($filename);
     }
 
     // ══════════════════════════════════════════════════════════════

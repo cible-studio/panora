@@ -126,7 +126,9 @@
                             <a href="{{ route('admin.propositions.show', $proposition) }}"
                                class="btn btn-ghost btn-sm">👁️</a>
                             <a href="{{ route('admin.propositions.pdf', $proposition) }}"
-                               class="btn btn-ghost btn-sm">📄</a>
+                               onclick="return downloadPropositionPdf(event, this, '{{ $proposition->reference }}', @js($proposition->client?->name ?? ''))"
+                               class="btn btn-ghost btn-sm"
+                               title="Télécharger le PDF (renommer possible)">📄</a>
                             <a href="{{ route('admin.propositions.edit', $proposition) }}"
                                class="btn btn-ghost btn-sm">✏️</a>
                             <form method="POST"
@@ -153,5 +155,33 @@
         {{ $propositions->links() }}
     </div>
 </div>
+
+<script>
+// Téléchargement PDF proposition avec nom personnalisable.
+// On propose un nom par défaut "proposition-{client}-{ref}" (slugifié),
+// l'admin peut l'éditer dans le prompt avant le DL. Annuler → rien.
+function downloadPropositionPdf(e, link, ref, clientName) {
+    e.preventDefault();
+    const slug = (s) => String(s || '')
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')   // retire accents
+        .replace(/[^A-Za-z0-9]+/g, '-')                     // espaces/spéciaux → tiret
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase();
+    const defaultName = clientName
+        ? `proposition-${slug(clientName)}-${ref}`
+        : `proposition-${ref}`;
+    const name = prompt('Nom du fichier PDF (sans extension) :', defaultName);
+    if (name === null) return false;           // Annuler
+    const clean = name.trim();
+    if (!clean) {                              // Vide → on garde le défaut
+        window.location.href = link.href;
+        return false;
+    }
+    const url = new URL(link.href, window.location.origin);
+    url.searchParams.set('filename', clean);
+    window.location.href = url.toString();
+    return false;
+}
+</script>
 
 </x-admin-layout>

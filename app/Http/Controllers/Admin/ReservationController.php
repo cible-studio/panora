@@ -2229,15 +2229,29 @@ class ReservationController extends Controller
             abort(403, 'Impossible : client supprimé.');
         if (!$reservation->isCancellable())
             abort(403, 'Réservation non annulable.');
-        
+
+        // Motif d'annulation OBLIGATOIRE (demande métier réunion 20/05).
+        // L'auditabilité des annulations est critique : sans motif, on ne
+        // peut pas comprendre rétroactivement pourquoi une résa a été
+        // annulée. Le `cancel_type` (catégorie) ET `cancel_reason` (libre)
+        // sont tous deux requis.
+        $request->validate([
+            'cancel_type'   => 'required|string|max:50',
+            'cancel_reason' => 'required|string|min:5|max:500',
+        ], [
+            'cancel_type.required'   => 'Choisissez une catégorie d\'annulation.',
+            'cancel_reason.required' => 'Le motif d\'annulation est obligatoire.',
+            'cancel_reason.min'      => 'Le motif doit faire au moins 5 caractères (soyez précis).',
+        ]);
+
         $panelCount = $reservation->panels->count() + $reservation->externalPanels->count();
 
         // Extraire les données d'annulation
         $cancelData = [
-            'cancel_type' => $request->input('cancel_type', 'autre'),
-            'cancel_reason' => $request->input('cancel_reason', ''),
-            'cancelled_at' => now(),
-            'cancelled_by' => auth()->id(),
+            'cancel_type'   => $request->input('cancel_type'),
+            'cancel_reason' => $request->input('cancel_reason'),
+            'cancelled_at'  => now(),
+            'cancelled_by'  => auth()->id(),
         ];
         
         $this->reservationService->cancel($reservation, $cancelData);

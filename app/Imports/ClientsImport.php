@@ -45,6 +45,22 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
         $sector     = trim((string) ($row['secteur']    ?? $row['sector']      ?? ''));
         $address    = trim((string) ($row['adresse']    ?? $row['address']     ?? ''));
 
+        // ── Validation tolérante de l'email ──────────────────────────────
+        // Maatwebsite Excel applique les règles `rules()` AVANT model() et
+        // skippe la ligne entière si invalid. Pour les imports en masse,
+        // c'est trop strict : un client avec "n/a" ou "—" dans la colonne
+        // email faisait perdre TOUTE la ligne. Désormais on accepte la
+        // ligne avec un email = null si invalide, plutôt que tout
+        // perdre. Le format est validé par filter_var (plus permissif que
+        // le validator Laravel basé sur Symfony Email).
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            Log::info('clients.import.email_ignored', [
+                'name'     => $name,
+                'bad_email' => $email,
+            ]);
+            $email = '';
+        }
+
         // Ligne vide ou sans nom → ignorée
         if ($name === '') {
             $this->skipped++;
@@ -82,12 +98,17 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
         ]);
     }
 
-    /** Validation par ligne (Maatwebsite Excel injecte la ligne courante) */
+    /** Validation par ligne — TOLÉRANTE (objectif : importer un maximum
+     *  de lignes ; les imperfections sont traitées dans model()).
+     *  L'email était `nullable|email|max:200` → trop strict. Le validator
+     *  Laravel email rejette des adresses pourtant utilisables (TLD
+     *  inconnus, ASCII étendu, etc.). Désormais on accepte n'importe
+     *  quelle string ici et on filtre via filter_var dans model(). */
     public function rules(): array
     {
         return [
             'nom'        => 'nullable|string|max:200',
-            'email'      => 'nullable|email|max:200',
+            'email'      => 'nullable|string|max:200',
             'telephone'  => 'nullable|string|max:25',
             'ncc'        => 'nullable|string|max:50',
         ];

@@ -80,9 +80,9 @@
 
                 <div class="nav-section">
                     <div class="nav-label">Opérations</div>
-                    <a href="{{ route('admin.reservations.index') }}" data-tooltip="Confirmations" class="nav-item {{ request()->routeIs('admin.reservations.*') && !request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
+                    <a href="{{ route('admin.reservations.index') }}" data-tooltip="Réservations" class="nav-item {{ request()->routeIs('admin.reservations.*') && !request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
-                        <span class="nav-text">Confirmations</span>
+                        <span class="nav-text">Réservations</span>
                     </a>
                     @if($isAdmin || $isMP)
                     <a href="{{ route('admin.pose-tasks.index') }}" data-tooltip="Gestion Pose OOH" class="nav-item {{ request()->routeIs('admin.pose-tasks.*') ? 'active' : '' }}">
