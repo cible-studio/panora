@@ -588,10 +588,40 @@ class RapportController extends Controller
             'pending_communes' => $comparison->where('status', 'pending')->count(),
         ];
 
+        // Évolution multi-années : 5 dernières années — ODP / TM / Reversé
+        $yearlyTrend = collect();
+        for ($y = $year - 4; $y <= $year; $y++) {
+            try {
+                $yTotals = $service->totals($y);
+                $yPaid = DB::table('taxes')
+                    ->where('year', $y)->whereNotNull('paid_at')
+                    ->select(
+                        DB::raw("SUM(CASE WHEN type = 'odp' THEN amount ELSE 0 END) as paid_odp"),
+                        DB::raw("SUM(CASE WHEN type = 'tm'  THEN amount ELSE 0 END) as paid_tm"),
+                        DB::raw("SUM(amount) as paid_total"),
+                    )->first();
+                $yearlyTrend->push([
+                    'year'       => $y,
+                    'odp'        => (float) ($yTotals['odp'] ?? 0),
+                    'tm'         => (float) ($yTotals['tm'] ?? 0),
+                    'total'      => (float) ($yTotals['total'] ?? 0),
+                    'paid_odp'   => (float) ($yPaid->paid_odp ?? 0),
+                    'paid_tm'    => (float) ($yPaid->paid_tm ?? 0),
+                    'paid_total' => (float) ($yPaid->paid_total ?? 0),
+                ]);
+            } catch (\Throwable) {
+                // Année non encore initialisée
+                $yearlyTrend->push([
+                    'year' => $y, 'odp' => 0, 'tm' => 0, 'total' => 0,
+                    'paid_odp' => 0, 'paid_tm' => 0, 'paid_total' => 0,
+                ]);
+            }
+        }
+
         return view('admin.rapports.taxes', compact(
             'year', 'months', 'matrix', 'totals', 'anneesDisponibles',
             'clients', 'campaigns', 'communes', 'filters',
-            'comparison', 'comparisonTotals'
+            'comparison', 'comparisonTotals', 'yearlyTrend'
         ));
     }
 

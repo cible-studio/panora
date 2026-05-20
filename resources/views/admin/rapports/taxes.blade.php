@@ -209,29 +209,41 @@
     </div>
 </div>
 
+{{-- ════ ÉVOLUTION MULTI-ANNÉES (Chart.js) ════ --}}
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-top:18px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span style="font-size:13px;font-weight:700;color:var(--text)">📈 Évolution annuelle — 5 dernières années</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--text3);font-style:italic">ODP + TM facturable aux clients vs effectivement reversé aux communes</span>
+    </div>
+    <div style="position:relative;width:100%;height:280px">
+        <canvas id="chart-yearly-tax-evolution" role="img" aria-label="Évolution annuelle taxes"></canvas>
+    </div>
+</div>
+
 {{-- ════ COMPARAISON DÛ vs REVERSÉ (COMMIT C) ════ --}}
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-top:18px;">
     <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:13px;font-weight:700;color:var(--text);">⚖️ Taxes dues vs reversées — état des paiements {{ $year }}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--text);">⚖️ Taxes facturables clients vs reversées aux communes — {{ $year }}</span>
         <a href="{{ route('admin.taxes.index') }}" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;">Gérer les paiements →</a>
     </div>
 
     {{-- KPIs comparaison --}}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid var(--border);">
-        <div style="padding:16px 20px;border-right:1px solid var(--border);">
-            <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">À reverser</div>
+        <div style="padding:16px 20px;border-right:1px solid var(--border);" title="Montant théorique facturable aux clients pour couvrir les taxes communales — base : campagnes actives × tarifs mairie">
+            <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Taxes facturables clients</div>
             <div style="font-size:18px;font-weight:800;color:#a855f7;font-variant-numeric:tabular-nums;">{{ $fmt($comparisonTotals['due']) }} <span style="font-size:11px;color:var(--text3);font-weight:400;">FCFA</span></div>
-            <div style="font-size:10px;color:var(--text3);margin-top:3px;">Calculé sur campagnes {{ $year }}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;">ODP + TM dus pour {{ $year }}</div>
         </div>
-        <div style="padding:16px 20px;border-right:1px solid var(--border);">
-            <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Déjà reversé</div>
+        <div style="padding:16px 20px;border-right:1px solid var(--border);" title="Montant effectivement payé aux mairies — table taxes.paid_at">
+            <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Reversé aux communes</div>
             <div style="font-size:18px;font-weight:800;color:#16a34a;font-variant-numeric:tabular-nums;">{{ $fmt($comparisonTotals['paid']) }} <span style="font-size:11px;color:var(--text3);font-weight:400;">FCFA</span></div>
             <div style="font-size:10px;color:#16a34a;margin-top:3px;font-weight:600;">{{ $comparisonTotals['rate'] }}% complétés</div>
         </div>
-        <div style="padding:16px 20px;border-right:1px solid var(--border);">
+        <div style="padding:16px 20px;border-right:1px solid var(--border);" title="Différence = ce qu'il reste à payer aux mairies (en plus = à régler, en moins = sur-versement)">
             <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Solde restant</div>
             <div style="font-size:18px;font-weight:800;color:{{ $comparisonTotals['balance'] > 0 ? '#dc2626' : '#16a34a' }};font-variant-numeric:tabular-nums;">{{ $fmt($comparisonTotals['balance']) }} <span style="font-size:11px;color:var(--text3);font-weight:400;">FCFA</span></div>
-            <div style="font-size:10px;color:var(--text3);margin-top:3px;">{{ $comparisonTotals['balance'] > 0 ? 'À régler' : 'Tout est à jour' }}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;">{{ $comparisonTotals['balance'] > 0 ? 'À régler aux mairies' : 'Tout est à jour' }}</div>
         </div>
         <div style="padding:16px 20px;">
             <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">État communes</div>
@@ -249,7 +261,7 @@
             <thead>
                 <tr style="background:var(--surface2);">
                     <th style="padding:10px 14px;text-align:left;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">Commune</th>
-                    <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">À reverser</th>
+                    <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;" title="Montant facturable aux clients pour couvrir la taxe">Facturable client</th>
                     <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">ODP reversé</th>
                     <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">TM reversé</th>
                     <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">Total reversé</th>
@@ -311,11 +323,103 @@
     </div>
 </div>
 
-<div style="font-size:11px;color:var(--text3);margin-top:14px;line-height:1.6;">
-    <strong>Méthode de calcul :</strong> tarif annuel mairie ÷ 12 × nombre de panneaux distincts occupés au moins 1 jour
+<div style="font-size:11px;color:var(--text3);margin-top:14px;line-height:1.6;padding:10px 14px;background:var(--surface2);border-radius:8px">
+    <strong>📐 Méthode de calcul :</strong> tarif annuel mairie ÷ 12 × nombre de panneaux distincts occupés au moins 1 jour
     dans le mois (campagnes statut planifié / actif / pose / terminé). Les campagnes annulées sont exclues.
-    Cliquez une commune pour voir le détail des panneaux et campagnes contributifs.
-    <br><strong>Reversement :</strong> les montants "déjà reversés" proviennent de la table <code>taxes</code> où <code>paid_at</code> est renseigné. Gérez les paiements depuis la liste taxes.
+    <br><strong>💰 Facturable client :</strong> montant que vous devez théoriquement facturer aux clients pour couvrir la taxe communale due. Inclut ODP (occupation domaine public) + TM (taxe municipale).
+    <br><strong>🏛️ Reversé aux mairies :</strong> montants effectivement payés (table <code>taxes</code> où <code>paid_at</code> est renseigné). Gérez les paiements depuis la liste taxes.
+    <br><strong>⚖️ Solde :</strong> positif = à régler aux mairies, négatif = sur-versement.
 </div>
+
+@push('scripts')
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const yearlyData = {!! json_encode($yearlyTrend ?? collect()) !!};
+    const canvas = document.getElementById('chart-yearly-tax-evolution');
+    if (!canvas || !yearlyData.length || typeof Chart === 'undefined') return;
+    const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+    const gridC = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
+    const tickC = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
+    new Chart(canvas, {
+        data: {
+            labels: yearlyData.map(y => y.year),
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'ODP facturable',
+                    data: yearlyData.map(y => y.odp),
+                    backgroundColor: 'rgba(59,130,246,.7)',
+                    borderRadius: 5,
+                    stack: 'due',
+                },
+                {
+                    type: 'bar',
+                    label: 'TM facturable',
+                    data: yearlyData.map(y => y.tm),
+                    backgroundColor: 'rgba(168,85,247,.7)',
+                    borderRadius: 5,
+                    stack: 'due',
+                },
+                {
+                    type: 'bar',
+                    label: 'Reversé aux communes',
+                    data: yearlyData.map(y => y.paid_total),
+                    backgroundColor: 'rgba(22,163,74,.85)',
+                    borderRadius: 5,
+                    stack: 'paid',
+                },
+                {
+                    type: 'line',
+                    label: '% reversé',
+                    data: yearlyData.map(y => y.total > 0 ? (y.paid_total / y.total) * 100 : 0),
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245,158,11,.15)',
+                    borderWidth: 2.5,
+                    tension: 0.3,
+                    pointBackgroundColor: '#f59e0b',
+                    pointRadius: 4,
+                    yAxisID: 'y1',
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'bottom', labels: { color: tickC, font: { size: 11 }, boxWidth: 10, padding: 10 } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            const v = ctx.parsed.y;
+                            if (ctx.dataset.label.includes('%')) {
+                                return ` ${ctx.dataset.label} : ${v.toFixed(1)}%`;
+                            }
+                            return ` ${ctx.dataset.label} : ${new Intl.NumberFormat('fr-FR').format(Math.round(v))} FCFA`;
+                        },
+                    },
+                },
+            },
+            scales: {
+                x: { stacked: true, ticks: { color: tickC, font: { size: 12, weight: 'bold' } }, grid: { display: false } },
+                y: {
+                    stacked: true, beginAtZero: true,
+                    ticks: { color: tickC, font: { size: 11 }, callback: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : (v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v) },
+                    grid: { color: gridC },
+                    title: { display: true, text: 'FCFA', color: tickC, font: { size: 10 } },
+                },
+                y1: {
+                    beginAtZero: true, max: 100, position: 'right',
+                    ticks: { color: tickC, font: { size: 11 }, callback: v => v + '%' },
+                    grid: { display: false },
+                    title: { display: true, text: '% reversé', color: tickC, font: { size: 10 } },
+                },
+            },
+        },
+    });
+});
+</script>
+@endpush
 
 </x-admin-layout>
