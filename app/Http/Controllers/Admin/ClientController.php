@@ -533,6 +533,17 @@ class ClientController extends Controller
 
         $importer = new ClientsImport();
 
+        // Auto-détection de la ligne d'entête (gère les fichiers Excel exportés
+        // de Panora qui ont des lignes décoratives — logo, titre — au-dessus
+        // des entêtes). On scanne les 10 premières lignes à la recherche d'une
+        // cellule contenant "nom" / "name".
+        try {
+            $detectedRow = $this->detectHeadingRow($request->file('file')->getRealPath());
+            $importer->setHeadingRow($detectedRow);
+        } catch (\Throwable $e) {
+            Log::warning('clients.import.heading_detect_failed', ['error' => $e->getMessage()]);
+        }
+
         try {
             Excel::import($importer, $request->file('file'));
         } catch (\Throwable $e) {
@@ -569,6 +580,78 @@ class ClientController extends Controller
 
         return redirect()->route('admin.clients.index')
             ->with($importer->imported > 0 ? 'success' : 'warning', $msg);
+    }
+
+    /**
+     * Scanne les 15 premières lignes d'un fichier (CSV ou Excel) et retourne
+     * le numéro de la ligne contenant les entêtes (celle qui contient "nom"
+     * ou "name" dans une cellule). Permet d'importer un Excel exporté de
+     * Panora même s'il a un bandeau décoratif (logo, titre, date) au-dessus.
+     *
+     * @return int Numéro 1-based de la ligne d'entête (1 par défaut).
+     */
+    private function detectHeadingRow(string $path): int
+    {
+        $rows = [];
+
+        // Charge les 15 premières lignes selon le format
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (in_array($ext, ['csv', 'txt'], true)) {
+            $handle = @fopen($path, 'r');
+            if (!$handle) return 1;
+            // BOM UTF-8 éventuel
+            $first = fread($handle, 3);
+            if ($first !== "\xEF\xBB\xBF") { rewind($handle); }
+            // Détection du séparateur (; ou ,) sur la 1ère ligne lue
+            $sample = fgets($handle);
+            $sep = (substr_count($sample, ';') > substr_count($sample, ',')) ? ';' : ',';
+            rewind($handle);
+            if ($first !== "\xEF\xBB\xBF") { rewind($handle); } else { fread($handle, 3); }
+            $i = 0;
+            while ($i < 15 && ($row = fgetcsv($handle, 0, $sep)) !== false) {
+                $rows[] = $row;
+                $i++;
+            }
+            fclose($handle);
+        } else {
+            // Excel — utilise PhpSpreadsheet via Maatwebsite
+            try {
+                $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path);
+                $sheet = $spreadsheet->getActiveSheet();
+                $highestRow = min(15, $sheet->getHighestRow());
+                for ($r = 1; $r <= $highestRow; $r++) {
+                    $rows[] = $sheet->rangeToArray('A' . $r . ':L' . $r, null, false, false)[0] ?? [];
+                }
+            } catch (\Throwable $e) {
+                return 1;
+            }
+        }
+
+        // Cherche la ligne contenant "nom" ou "name" dans une cellule
+        foreach ($rows as $idx => $row) {
+            foreach ($row as $cell) {
+                if ($cell === null) continue;
+                $normalized = mb_strtolower(trim((string) $cell));
+                // Strip accents pour matcher "nom"/"name"
+                $normalized = $this->removeAccents($normalized);
+                if ($normalized === 'nom' || $normalized === 'name') {
+                    return $idx + 1; // 1-based
+                }
+            }
+        }
+        return 1;
+    }
+
+    private function removeAccents(string $s): string
+    {
+        return strtr($s, [
+            'à'=>'a','á'=>'a','â'=>'a','ä'=>'a','ã'=>'a',
+            'é'=>'e','è'=>'e','ê'=>'e','ë'=>'e',
+            'í'=>'i','ì'=>'i','î'=>'i','ï'=>'i',
+            'ó'=>'o','ò'=>'o','ô'=>'o','ö'=>'o','õ'=>'o',
+            'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u',
+            'ç'=>'c',
+        ]);
     }
 
     /**
