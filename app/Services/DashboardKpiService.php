@@ -678,12 +678,12 @@ class DashboardKpiService
             $to   = $this->to->toDateString();
 
             $q = DB::table('clients')
-                ->leftJoin('reservations', function ($j) use ($from, $to) {
-                    $j->on('reservations.client_id', '=', 'clients.id')
-                      ->whereIn('reservations.status', ['confirme', 'termine'])
-                      ->where('reservations.start_date', '<=', $to)
-                      ->where('reservations.end_date',   '>=', $from)
-                      ->whereNull('reservations.deleted_at');
+                ->leftJoin('campaigns', function ($j) use ($from, $to) {
+                    $j->on('campaigns.client_id', '=', 'clients.id')
+                      ->whereIn('campaigns.status', ['actif', 'planifie', 'pause', 'termine'])
+                      ->where('campaigns.start_date', '<=', $to)
+                      ->where('campaigns.end_date',   '>=', $from)
+                      ->whereNull('campaigns.deleted_at');
                 })
                 ->whereNull('clients.deleted_at');
 
@@ -694,9 +694,9 @@ class DashboardKpiService
             if (!empty($this->filters['commune_id']) || !empty($this->filters['city']) || !empty($this->filters['category_id'])) {
                 $q->whereExists(function ($sub) {
                     $sub->select(DB::raw(1))
-                        ->from('reservation_panels')
-                        ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
-                        ->whereColumn('reservation_panels.reservation_id', 'reservations.id');
+                        ->from('campaign_panels')
+                        ->join('panels', 'panels.id', '=', 'campaign_panels.panel_id')
+                        ->whereColumn('campaign_panels.campaign_id', 'campaigns.id');
                     if (!empty($this->filters['commune_id'])) $sub->where('panels.commune_id', $this->filters['commune_id']);
                     if (!empty($this->filters['category_id'])) $sub->where('panels.category_id', $this->filters['category_id']);
                     if (!empty($this->filters['city'])) {
@@ -709,9 +709,9 @@ class DashboardKpiService
                     'clients.id',
                     'clients.name',
                     'clients.email',
-                    DB::raw('COUNT(DISTINCT reservations.id) as campaigns_count'),
-                    DB::raw('COALESCE(SUM(reservations.total_amount), 0) as total_revenue'),
-                    DB::raw('MAX(reservations.start_date) as last_campaign_at'),
+                    DB::raw('COUNT(DISTINCT campaigns.id) as campaigns_count'),
+                    DB::raw('COALESCE(SUM(campaigns.total_amount), 0) as total_revenue'),
+                    DB::raw('MAX(campaigns.start_date) as last_campaign_at'),
                 )
                 ->groupBy('clients.id', 'clients.name', 'clients.email')
                 ->orderByDesc('total_revenue')
@@ -733,22 +733,22 @@ class DashboardKpiService
             return DB::table('clients')
                 ->whereNull('clients.deleted_at')
                 ->whereExists(function ($q) {
-                    $q->select(DB::raw(1))->from('reservations')
-                      ->whereColumn('reservations.client_id', 'clients.id')
-                      ->whereNull('reservations.deleted_at');
+                    $q->select(DB::raw(1))->from('campaigns')
+                      ->whereColumn('campaigns.client_id', 'clients.id')
+                      ->whereNull('campaigns.deleted_at');
                 })
                 ->whereNotExists(function ($q) use ($threshold) {
-                    $q->select(DB::raw(1))->from('reservations')
-                      ->whereColumn('reservations.client_id', 'clients.id')
-                      ->where('reservations.created_at', '>=', $threshold)
-                      ->whereNull('reservations.deleted_at');
+                    $q->select(DB::raw(1))->from('campaigns')
+                      ->whereColumn('campaigns.client_id', 'clients.id')
+                      ->where('campaigns.created_at', '>=', $threshold)
+                      ->whereNull('campaigns.deleted_at');
                 })
                 ->select(
                     'clients.id',
                     'clients.name',
                     'clients.email',
                     'clients.phone',
-                    DB::raw('(SELECT MAX(start_date) FROM reservations WHERE client_id = clients.id AND deleted_at IS NULL) as last_campaign_at'),
+                    DB::raw('(SELECT MAX(start_date) FROM campaigns WHERE client_id = clients.id AND deleted_at IS NULL) as last_campaign_at'),
                 )
                 ->orderBy('last_campaign_at')
                 ->limit($limit)
@@ -768,12 +768,12 @@ class DashboardKpiService
             $to   = $this->to->toDateString();
 
             $q = DB::table('clients')
-                ->leftJoin('reservations', function ($j) use ($from, $to) {
-                    $j->on('reservations.client_id', '=', 'clients.id')
-                      ->whereIn('reservations.status', ['confirme', 'termine'])
-                      ->where('reservations.start_date', '<=', $to)
-                      ->where('reservations.end_date',   '>=', $from)
-                      ->whereNull('reservations.deleted_at');
+                ->leftJoin('campaigns', function ($j) use ($from, $to) {
+                    $j->on('campaigns.client_id', '=', 'clients.id')
+                      ->whereIn('campaigns.status', ['actif', 'planifie', 'pause', 'termine'])
+                      ->where('campaigns.start_date', '<=', $to)
+                      ->where('campaigns.end_date',   '>=', $from)
+                      ->whereNull('campaigns.deleted_at');
                 })
                 ->whereNull('clients.deleted_at')
                 ->groupBy('clients.id', 'clients.name', 'clients.email');
@@ -787,21 +787,21 @@ class DashboardKpiService
                 'clients.id',
                 'clients.name',
                 'clients.email',
-                DB::raw('COUNT(DISTINCT reservations.id) as campaigns_count'),
-                DB::raw('COALESCE(SUM(reservations.total_amount), 0) as total_revenue'),
-                DB::raw('MIN(reservations.start_date) as first_campaign_at'),
-                DB::raw('MAX(reservations.start_date) as last_campaign_at'),
-                DB::raw('TIMESTAMPDIFF(MONTH, MIN(reservations.start_date), MAX(reservations.start_date)) + 1 as active_months'),
+                DB::raw('COUNT(DISTINCT campaigns.id) as campaigns_count'),
+                DB::raw('COALESCE(SUM(campaigns.total_amount), 0) as total_revenue'),
+                DB::raw('MIN(campaigns.start_date) as first_campaign_at'),
+                DB::raw('MAX(campaigns.start_date) as last_campaign_at'),
+                DB::raw('TIMESTAMPDIFF(MONTH, MIN(campaigns.start_date), MAX(campaigns.start_date)) + 1 as active_months'),
             );
 
             // Tri selon critère
-            $q->havingRaw('COUNT(DISTINCT reservations.id) > 0');
+            $q->havingRaw('COUNT(DISTINCT campaigns.id) > 0');
             switch ($criteria) {
                 case 'volume':
                     $q->orderByDesc('campaigns_count');
                     break;
                 case 'frequency':
-                    $q->orderByRaw('(COUNT(DISTINCT reservations.id) / GREATEST(TIMESTAMPDIFF(MONTH, MIN(reservations.start_date), MAX(reservations.start_date)) + 1, 1)) DESC');
+                    $q->orderByRaw('(COUNT(DISTINCT campaigns.id) / GREATEST(TIMESTAMPDIFF(MONTH, MIN(campaigns.start_date), MAX(campaigns.start_date)) + 1, 1)) DESC');
                     break;
                 default:
                     $q->orderByDesc('total_revenue');
@@ -1117,8 +1117,8 @@ class DashboardKpiService
     public function totalRevenue(): float
     {
         return (float) $this->cached('total_revenue', function () {
-            $q = DB::table('reservations')
-                ->whereIn('status', ['confirme', 'termine'])
+            $q = DB::table('campaigns')
+                ->whereIn('status', ['actif', 'planifie', 'pause', 'termine'])
                 ->where('start_date', '<=', $this->to)
                 ->where('end_date',   '>=', $this->from)
                 ->whereNull('deleted_at');
@@ -1129,9 +1129,9 @@ class DashboardKpiService
             if (!empty($this->filters['commune_id']) || !empty($this->filters['city']) || !empty($this->filters['category_id'])) {
                 $q->whereExists(function ($sub) {
                     $sub->select(DB::raw(1))
-                        ->from('reservation_panels')
-                        ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
-                        ->whereColumn('reservation_panels.reservation_id', 'reservations.id');
+                        ->from('campaign_panels')
+                        ->join('panels', 'panels.id', '=', 'campaign_panels.panel_id')
+                        ->whereColumn('campaign_panels.campaign_id', 'campaigns.id');
                     if (!empty($this->filters['commune_id']))  $sub->where('panels.commune_id', $this->filters['commune_id']);
                     if (!empty($this->filters['category_id'])) $sub->where('panels.category_id', $this->filters['category_id']);
                     if (!empty($this->filters['city'])) {
@@ -1150,8 +1150,8 @@ class DashboardKpiService
     {
         return $this->cached("revenue_month.{$months}", function () use ($months) {
             $start = now()->subMonths($months - 1)->startOfMonth();
-            $q = DB::table('reservations')
-                ->whereIn('status', ['confirme', 'termine'])
+            $q = DB::table('campaigns')
+                ->whereIn('status', ['actif', 'planifie', 'pause', 'termine'])
                 ->where('start_date', '>=', $start)
                 ->whereNull('deleted_at');
 
@@ -1161,9 +1161,9 @@ class DashboardKpiService
             if (!empty($this->filters['commune_id']) || !empty($this->filters['city']) || !empty($this->filters['category_id'])) {
                 $q->whereExists(function ($sub) {
                     $sub->select(DB::raw(1))
-                        ->from('reservation_panels')
-                        ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
-                        ->whereColumn('reservation_panels.reservation_id', 'reservations.id');
+                        ->from('campaign_panels')
+                        ->join('panels', 'panels.id', '=', 'campaign_panels.panel_id')
+                        ->whereColumn('campaign_panels.campaign_id', 'campaigns.id');
                     if (!empty($this->filters['commune_id']))  $sub->where('panels.commune_id', $this->filters['commune_id']);
                     if (!empty($this->filters['category_id'])) $sub->where('panels.category_id', $this->filters['category_id']);
                     if (!empty($this->filters['city'])) {
@@ -1205,28 +1205,29 @@ class DashboardKpiService
             $from = $this->from->toDateString();
             $to   = $this->to->toDateString();
 
-            $q = DB::table('reservation_panels')
-                ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-                ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
+            $q = DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->join('panels', 'panels.id', '=', 'campaign_panels.panel_id')
                 ->join('communes', 'communes.id', '=', 'panels.commune_id')
-                ->whereIn('reservations.status', ['confirme', 'termine'])
-                ->where('reservation_panels.source', 'interne')
-                ->where('reservations.start_date', '<=', $to)
-                ->where('reservations.end_date',   '>=', $from)
-                ->whereNull('reservations.deleted_at')
+                ->whereIn('campaigns.status', ['actif', 'planifie', 'pause', 'termine'])
+                ->where('campaign_panels.type', 'interne')
+                ->where('campaigns.start_date', '<=', $to)
+                ->where('campaigns.end_date',   '>=', $from)
+                ->whereNull('campaigns.deleted_at')
                 ->whereNull('panels.deleted_at');
 
             if (!empty($this->filters['commune_id']))  $q->where('panels.commune_id', $this->filters['commune_id']);
             if (!empty($this->filters['category_id'])) $q->where('panels.category_id', $this->filters['category_id']);
             if (!empty($this->filters['city']))        $q->where('communes.city', $this->filters['city']);
-            if (!empty($this->filters['client_id']))   $q->where('reservations.client_id', $this->filters['client_id']);
+            if (!empty($this->filters['client_id']))   $q->where('campaigns.client_id', $this->filters['client_id']);
 
             return $q->select(
                     'communes.id',
                     'communes.name as commune',
-                    DB::raw('SUM(reservation_panels.total_price) as revenue'),
-                    DB::raw('COUNT(DISTINCT reservation_panels.panel_id) as panels_engaged'),
-                    DB::raw('COUNT(DISTINCT reservations.id) as campaigns_count'),
+                    // CA proraté par panneau : montant_camp / nb_panneaux_camp
+                    DB::raw('SUM(campaigns.total_amount / GREATEST((SELECT COUNT(*) FROM campaign_panels cp2 WHERE cp2.campaign_id = campaigns.id), 1)) as revenue'),
+                    DB::raw('COUNT(DISTINCT campaign_panels.panel_id) as panels_engaged'),
+                    DB::raw('COUNT(DISTINCT campaigns.id) as campaigns_count'),
                 )
                 ->groupBy('communes.id', 'communes.name')
                 ->orderByDesc('revenue')
@@ -1245,28 +1246,28 @@ class DashboardKpiService
             $from = $this->from->toDateString();
             $to   = $this->to->toDateString();
 
-            $q = DB::table('reservation_panels')
-                ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-                ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
+            $q = DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->join('panels', 'panels.id', '=', 'campaign_panels.panel_id')
                 ->join('communes', 'communes.id', '=', 'panels.commune_id')
-                ->whereIn('reservations.status', ['confirme', 'termine'])
-                ->where('reservation_panels.source', 'interne')
-                ->where('reservations.start_date', '<=', $to)
-                ->where('reservations.end_date',   '>=', $from)
+                ->whereIn('campaigns.status', ['actif', 'planifie', 'pause', 'termine'])
+                ->where('campaign_panels.type', 'interne')
+                ->where('campaigns.start_date', '<=', $to)
+                ->where('campaigns.end_date',   '>=', $from)
                 ->whereNotNull('communes.city')
-                ->whereNull('reservations.deleted_at')
+                ->whereNull('campaigns.deleted_at')
                 ->whereNull('panels.deleted_at');
 
             if (!empty($this->filters['commune_id']))  $q->where('panels.commune_id', $this->filters['commune_id']);
             if (!empty($this->filters['category_id'])) $q->where('panels.category_id', $this->filters['category_id']);
             if (!empty($this->filters['city']))        $q->where('communes.city', $this->filters['city']);
-            if (!empty($this->filters['client_id']))   $q->where('reservations.client_id', $this->filters['client_id']);
+            if (!empty($this->filters['client_id']))   $q->where('campaigns.client_id', $this->filters['client_id']);
 
             return $q->select(
                     'communes.city as city',
-                    DB::raw('SUM(reservation_panels.total_price) as revenue'),
-                    DB::raw('COUNT(DISTINCT reservation_panels.panel_id) as panels_engaged'),
-                    DB::raw('COUNT(DISTINCT reservations.id) as campaigns_count'),
+                    DB::raw('SUM(campaigns.total_amount / GREATEST((SELECT COUNT(*) FROM campaign_panels cp2 WHERE cp2.campaign_id = campaigns.id), 1)) as revenue'),
+                    DB::raw('COUNT(DISTINCT campaign_panels.panel_id) as panels_engaged'),
+                    DB::raw('COUNT(DISTINCT campaigns.id) as campaigns_count'),
                     DB::raw('COUNT(DISTINCT communes.id) as communes_count'),
                 )
                 ->groupBy('communes.city')
@@ -1315,44 +1316,44 @@ class DashboardKpiService
             $client = Client::find($clientId);
             if (!$client) return null;
 
-            // Historique campagnes (toutes confondues, triées date desc)
-            $campaigns = DB::table('reservations')
-                ->leftJoin('reservation_panels', 'reservation_panels.reservation_id', '=', 'reservations.id')
-                ->where('reservations.client_id', $clientId)
-                ->whereNull('reservations.deleted_at')
+            // Historique campagnes (table campaigns — système legacy actif)
+            $campaigns = DB::table('campaigns')
+                ->leftJoin('campaign_panels', 'campaign_panels.campaign_id', '=', 'campaigns.id')
+                ->where('campaigns.client_id', $clientId)
+                ->whereNull('campaigns.deleted_at')
                 ->select(
-                    'reservations.id',
-                    'reservations.name',
-                    'reservations.status',
-                    'reservations.start_date',
-                    'reservations.end_date',
-                    'reservations.total_amount',
-                    'reservations.cancellation_reason',
-                    DB::raw('COUNT(DISTINCT reservation_panels.panel_id) as panels_count'),
+                    'campaigns.id',
+                    'campaigns.name',
+                    'campaigns.status',
+                    'campaigns.start_date',
+                    'campaigns.end_date',
+                    'campaigns.total_amount',
+                    'campaigns.cancellation_reason',
+                    DB::raw('COUNT(DISTINCT campaign_panels.panel_id) as panels_count'),
                 )
                 ->groupBy(
-                    'reservations.id', 'reservations.name', 'reservations.status',
-                    'reservations.start_date', 'reservations.end_date',
-                    'reservations.total_amount', 'reservations.cancellation_reason',
+                    'campaigns.id', 'campaigns.name', 'campaigns.status',
+                    'campaigns.start_date', 'campaigns.end_date',
+                    'campaigns.total_amount', 'campaigns.cancellation_reason',
                 )
-                ->orderByDesc('reservations.start_date')
+                ->orderByDesc('campaigns.start_date')
                 ->limit(100)
                 ->get();
 
             // Top panneaux les plus loués par ce client
-            $topPanels = DB::table('reservation_panels')
-                ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-                ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
+            $topPanels = DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->join('panels', 'panels.id', '=', 'campaign_panels.panel_id')
                 ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
-                ->where('reservations.client_id', $clientId)
-                ->whereIn('reservations.status', ['confirme', 'termine', 'actif'])
-                ->whereNull('reservations.deleted_at')
+                ->where('campaigns.client_id', $clientId)
+                ->whereIn('campaigns.status', ['actif', 'planifie', 'pause', 'termine'])
+                ->whereNull('campaigns.deleted_at')
                 ->whereNull('panels.deleted_at')
                 ->select(
                     'panels.id', 'panels.reference', 'panels.name',
                     'communes.name as commune',
-                    DB::raw('COUNT(DISTINCT reservations.id) as campaigns_count'),
-                    DB::raw('SUM(reservation_panels.total_price) as revenue'),
+                    DB::raw('COUNT(DISTINCT campaigns.id) as campaigns_count'),
+                    DB::raw('SUM(campaigns.total_amount / GREATEST(DATEDIFF(campaigns.end_date, campaigns.start_date) + 1, 1) * (DATEDIFF(campaigns.end_date, campaigns.start_date) + 1)) as revenue'),
                 )
                 ->groupBy('panels.id', 'panels.reference', 'panels.name', 'communes.name')
                 ->orderByDesc('campaigns_count')
@@ -1360,30 +1361,30 @@ class DashboardKpiService
                 ->get();
 
             // Communes les plus exploitées
-            $topCommunes = DB::table('reservation_panels')
-                ->join('reservations', 'reservations.id', '=', 'reservation_panels.reservation_id')
-                ->join('panels', 'panels.id', '=', 'reservation_panels.panel_id')
+            $topCommunes = DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->join('panels', 'panels.id', '=', 'campaign_panels.panel_id')
                 ->join('communes', 'communes.id', '=', 'panels.commune_id')
-                ->where('reservations.client_id', $clientId)
-                ->whereIn('reservations.status', ['confirme', 'termine', 'actif'])
-                ->whereNull('reservations.deleted_at')
+                ->where('campaigns.client_id', $clientId)
+                ->whereIn('campaigns.status', ['actif', 'planifie', 'pause', 'termine'])
+                ->whereNull('campaigns.deleted_at')
                 ->select(
                     'communes.name as commune',
                     DB::raw('COUNT(DISTINCT panels.id) as panels_count'),
-                    DB::raw('COUNT(DISTINCT reservations.id) as campaigns_count'),
-                    DB::raw('SUM(reservation_panels.total_price) as revenue'),
+                    DB::raw('COUNT(DISTINCT campaigns.id) as campaigns_count'),
+                    DB::raw('SUM(campaigns.total_amount / GREATEST(DATEDIFF(campaigns.end_date, campaigns.start_date) + 1, 1) * (DATEDIFF(campaigns.end_date, campaigns.start_date) + 1)) as revenue'),
                 )
                 ->groupBy('communes.name')
                 ->orderByDesc('revenue')
                 ->limit(8)
                 ->get();
 
-            // CA par mois sur 12 mois glissants
+            // CA par mois sur 12 mois glissants (depuis campaigns)
             $revenueMonth = collect();
             $start = now()->subMonths(11)->startOfMonth();
-            $rows = DB::table('reservations')
+            $rows = DB::table('campaigns')
                 ->where('client_id', $clientId)
-                ->whereIn('status', ['confirme', 'termine'])
+                ->whereIn('status', ['actif', 'planifie', 'pause', 'termine'])
                 ->where('start_date', '>=', $start)
                 ->whereNull('deleted_at')
                 ->select(
