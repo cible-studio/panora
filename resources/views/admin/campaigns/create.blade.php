@@ -68,11 +68,17 @@
 
                 {{-- Client --}}
                 <div>
-                    <label style="font-size:11px;font-weight:700;color:var(--text3);
-                                  letter-spacing:.5px;display:block;margin-bottom:6px;">
-                        CLIENT *
-                    </label>
-                    <select name="client_id" x-model="selectedClientId"
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <label style="font-size:11px;font-weight:700;color:var(--text3);
+                                      letter-spacing:.5px;">
+                            CLIENT *
+                        </label>
+                        <button type="button" onclick="openQuickClient()"
+                                style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:700;text-decoration:underline;padding:0;">
+                            + Créer un client
+                        </button>
+                    </div>
+                    <select name="client_id" id="campaign-client-select" x-model="selectedClientId"
                             style="width:100%;background:var(--surface2);
                                    border:1px solid {{ $errors->has('client_id') ? 'var(--red)' : 'var(--border2)' }};
                                    border-radius:8px;padding:10px 14px;color:var(--text);
@@ -219,5 +225,152 @@ function campaignCreate() {
 }
 </script>
 @endpush
+
+{{-- ══ MODALE CRÉATION CLIENT RAPIDE ══════════════════════════════
+     Permet de créer un client à la volée pendant la création d'une
+     campagne sans quitter la page. Endpoint : admin.clients.quick-store
+     (déjà utilisé sur /admin/disponibilites). ─────────────────────── --}}
+<div id="quick-client-modal"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
+            backdrop-filter:blur(4px);z-index:9999;align-items:center;
+            justify-content:center;padding:16px;"
+     onclick="if(event.target===this)closeQuickClient()">
+    <div style="background:var(--surface);border:1px solid var(--border);
+                border-radius:14px;width:100%;max-width:480px;padding:24px;
+                position:relative;"
+         onclick="event.stopPropagation()">
+        <button type="button" onclick="closeQuickClient()"
+                style="position:absolute;top:12px;right:14px;background:none;
+                       border:none;color:var(--text3);cursor:pointer;font-size:20px;">✕</button>
+        <h3 style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px;">
+            + Créer un nouveau client
+        </h3>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:18px;">
+            Le client sera créé et automatiquement sélectionné pour cette campagne.
+        </p>
+        <div id="quick-client-errors"
+             style="display:none;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);
+                    border-radius:8px;padding:10px 12px;font-size:12px;color:#ef4444;margin-bottom:12px;"></div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <div>
+                <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px;">NOM *</label>
+                <input id="qc-name" type="text" required
+                       style="width:100%;background:var(--surface2);border:1px solid var(--border2);
+                              border-radius:8px;padding:9px 12px;font-size:13px;color:var(--text);">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px;">NCC</label>
+                    <input id="qc-ncc" type="text"
+                           style="width:100%;background:var(--surface2);border:1px solid var(--border2);
+                                  border-radius:8px;padding:9px 12px;font-size:13px;color:var(--text);">
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px;">TÉLÉPHONE</label>
+                    <input id="qc-phone" type="text"
+                           style="width:100%;background:var(--surface2);border:1px solid var(--border2);
+                                  border-radius:8px;padding:9px 12px;font-size:13px;color:var(--text);">
+                </div>
+            </div>
+            <div>
+                <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px;">EMAIL</label>
+                <input id="qc-email" type="email"
+                       style="width:100%;background:var(--surface2);border:1px solid var(--border2);
+                              border-radius:8px;padding:9px 12px;font-size:13px;color:var(--text);">
+            </div>
+            <div>
+                <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px;">INTERLOCUTEUR</label>
+                <input id="qc-contact" type="text"
+                       style="width:100%;background:var(--surface2);border:1px solid var(--border2);
+                              border-radius:8px;padding:9px 12px;font-size:13px;color:var(--text);">
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;">
+            <button type="button" onclick="closeQuickClient()"
+                    style="padding:9px 16px;background:var(--surface2);border:1px solid var(--border2);
+                           border-radius:8px;font-size:13px;color:var(--text2);cursor:pointer;">
+                Annuler
+            </button>
+            <button id="qc-submit" type="button" onclick="submitQuickClient()"
+                    style="padding:9px 20px;background:var(--accent);color:#fff;font-weight:700;
+                           border-radius:8px;font-size:13px;border:none;cursor:pointer;
+                           display:inline-flex;align-items:center;gap:6px;">
+                <span id="qc-submit-icon">+</span>
+                <span id="qc-submit-txt">Créer le client</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openQuickClient() {
+    document.getElementById('quick-client-errors').style.display = 'none';
+    ['qc-name','qc-ncc','qc-phone','qc-email','qc-contact'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    document.getElementById('qc-submit').disabled = false;
+    document.getElementById('qc-submit-txt').textContent = 'Créer le client';
+    document.getElementById('qc-submit-icon').textContent = '+';
+    document.getElementById('quick-client-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('qc-name')?.focus(), 100);
+}
+function closeQuickClient() {
+    document.getElementById('quick-client-modal').style.display = 'none';
+}
+async function submitQuickClient() {
+    const errBox = document.getElementById('quick-client-errors');
+    const name = document.getElementById('qc-name').value.trim();
+    if (!name) {
+        errBox.textContent = '⚠️ Le nom est obligatoire.';
+        errBox.style.display = 'block';
+        document.getElementById('qc-name').focus();
+        return;
+    }
+    const btn = document.getElementById('qc-submit');
+    btn.disabled = true;
+    document.getElementById('qc-submit-icon').textContent = '⟳';
+    document.getElementById('qc-submit-txt').textContent = 'Création…';
+    try {
+        const r = await fetch('{{ route('admin.clients.quick-store') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+            },
+            body: JSON.stringify({
+                name,
+                ncc: document.getElementById('qc-ncc').value.trim() || null,
+                phone: document.getElementById('qc-phone').value.trim() || null,
+                email: document.getElementById('qc-email').value.trim() || null,
+                contact_name: document.getElementById('qc-contact').value.trim() || null,
+            }),
+        });
+        const data = await r.json();
+        if (!r.ok || data.success === false) {
+            errBox.textContent = '⚠️ ' + (data.message || 'Erreur lors de la création.');
+            errBox.style.display = 'block';
+            btn.disabled = false;
+            document.getElementById('qc-submit-icon').textContent = '+';
+            document.getElementById('qc-submit-txt').textContent = 'Créer le client';
+            return;
+        }
+        // Injecte la nouvelle option dans le select + sélectionne
+        const sel = document.getElementById('campaign-client-select');
+        const opt = new Option(data.client.name, data.client.id, true, true);
+        sel.add(opt);
+        // Déclenche le binding Alpine (x-model)
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        closeQuickClient();
+    } catch (e) {
+        errBox.textContent = '⚠️ Erreur réseau : ' + e.message;
+        errBox.style.display = 'block';
+        btn.disabled = false;
+        document.getElementById('qc-submit-icon').textContent = '+';
+        document.getElementById('qc-submit-txt').textContent = 'Créer le client';
+    }
+}
+</script>
 
 </x-admin-layout>

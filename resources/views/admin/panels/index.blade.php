@@ -161,6 +161,29 @@
             </div>
             <a href="{{ route('admin.map') }}" class="btn btn-ghost btn-sm">🗺️ Voir carte</a>
         </div>
+
+        {{-- Légende statuts — déplacée EN HAUT (au-dessus de la table)
+             pour éviter à l'utilisateur de scroller toute la liste avant
+             de comprendre les couleurs/statuts. Demande terrain réunion 20/05. --}}
+        <div style="padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface2)">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:8px">
+                Légende statuts panneaux
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:11px">
+                @foreach(\App\Enums\PanelStatus::cases() as $st)
+                    @php $cfg = $st->uiConfig(); @endphp
+                    <div title="{{ $cfg['description'] }}"
+                         style="display:flex;align-items:flex-start;gap:7px;max-width:220px;cursor:help">
+                        <span style="width:8px;height:8px;border-radius:50%;background:{{ $cfg['color'] }};margin-top:5px;flex-shrink:0;box-shadow:0 0 0 2px {{ $cfg['color'] }}22"></span>
+                        <div>
+                            <div style="font-weight:700;color:{{ $cfg['color'] }};line-height:1.2">{{ $st->label() }}</div>
+                            <div style="color:var(--text3);font-size:10px;margin-top:2px;line-height:1.3">{{ $cfg['description'] }}</div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
         <div class="table-wrap">
             <table id="panels-table">
                 <thead>
@@ -186,27 +209,6 @@
                     ])
                 </tbody>
             </table>
-        </div>
-
-        {{-- Légende statuts : clarification métier pour éviter la confusion
-             entre option / ferme / occupé. Cliquable pour filtrer. --}}
-        <div style="padding:14px 18px;border-top:1px solid var(--border);background:var(--surface2)">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px">
-                Légende statuts panneaux
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:11px">
-                @foreach(\App\Enums\PanelStatus::cases() as $st)
-                    @php $cfg = $st->uiConfig(); @endphp
-                    <div title="{{ $cfg['description'] }}"
-                         style="display:flex;align-items:flex-start;gap:7px;max-width:220px;cursor:help">
-                        <span style="width:8px;height:8px;border-radius:50%;background:{{ $cfg['color'] }};margin-top:5px;flex-shrink:0;box-shadow:0 0 0 2px {{ $cfg['color'] }}22"></span>
-                        <div>
-                            <div style="font-weight:700;color:{{ $cfg['color'] }};line-height:1.2">{{ $st->label() }}</div>
-                            <div style="color:var(--text3);font-size:10px;margin-top:2px;line-height:1.3">{{ $cfg['description'] }}</div>
-                        </div>
-                    </div>
-                @endforeach
-            </div>
         </div>
 
         <div id="pagination-links" style="padding:16px;">

@@ -332,13 +332,14 @@
                     </div>
                 </div>
                 <div class="flex gap-2 items-center flex-wrap">
-                    {{-- Par défaut, le PDF n'affiche NI prix NI statut (proposition commerciale propre).
-                         Cocher pour révéler ces colonnes. --}}
+                    {{-- Par défaut le PDF est destiné au CLIENT : ni prix
+                         ni statut. L'admin coche "Inclure prix + statut"
+                         uniquement pour un usage interne. --}}
                     <label
                         style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;padding:6px 10px;border:1px dashed var(--border);border-radius:8px;"
-                        title="Cocher pour exclure le tarif et le statut du PDF (PDF transmis au client)">
+                        title="Cochez UNIQUEMENT pour un PDF interne (équipe CIBLE). Décoché = PDF transmis au client, sans prix ni statut.">
                         <input type="checkbox" id="pdf-show-pricing" style="accent-color:var(--accent)">
-                        <span>💰 Exclure prix + statut (client)</span>
+                        <span>📊 Inclure prix + statut (usage interne)</span>
                     </label>
                     <button class="btn btn-ghost btn-sm" onclick="DISPO.clearSelection()">✕ Vider</button>
                     <button class="btn btn-ghost btn-sm" style="color:var(--green);border-color:rgba(34,197,94,.4)"
@@ -359,7 +360,7 @@
             <div id="pdf-images-inputs"></div>
             <input type="hidden" name="start_date" id="pdf-start">
             <input type="hidden" name="end_date" id="pdf-end">
-            <input type="hidden" name="show_pricing" id="pdf-images-show-pricing" value="1">
+            <input type="hidden" name="show_pricing" id="pdf-images-show-pricing" value="0">
         </form>
 
         <form id="form-pdf-liste" method="POST" action="{{ route('admin.reservations.disponibilites.pdf-liste') }}"
@@ -368,7 +369,7 @@
             <div id="pdf-liste-inputs"></div>
             <input type="hidden" name="start_date" id="pdf-liste-start">
             <input type="hidden" name="end_date" id="pdf-liste-end">
-            <input type="hidden" name="show_pricing" id="pdf-liste-show-pricing" value="1">
+            <input type="hidden" name="show_pricing" id="pdf-liste-show-pricing" value="0">
         </form>
 
     </div>
@@ -1559,10 +1560,12 @@
                     },
 
                     // ── EXPORTS PDF ───────────────────────────────────────
-                    // Logique commune : par défaut, le PDF affiche prix + statut (usage interne).
-                    // L'admin coche "Exclure prix + statut" pour transmettre show_pricing=0 (PDF client).
+                    // Logique : par défaut, PDF destiné au CLIENT (ni prix
+                    // ni statut). L'admin coche "Inclure prix + statut"
+                    // pour générer un PDF interne avec ces colonnes.
                     _injectShowPricing(type) {
-                        const checked = document.getElementById('pdf-show-pricing')?.checked ? '0' : '1';
+                        // Coché → show_pricing=1 (afficher) ; décoché → 0 (masquer)
+                        const checked = document.getElementById('pdf-show-pricing')?.checked ? '1' : '0';
                         const fieldId = type === 'images' ? 'pdf-images-show-pricing' : 'pdf-liste-show-pricing';
                         const field = document.getElementById(fieldId);
                         if (field) field.value = checked;

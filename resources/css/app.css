@@ -969,11 +969,20 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
   transition: border-color .18s var(--easing), transform .18s var(--easing), box-shadow .18s var(--easing);
   cursor: pointer;
   will-change: transform;
+  outline: none;
+  /* Évite la "double bordure" au clic/focus : on supprime l'outline
+     navigateur par défaut et on utilise un ring uniquement quand
+     l'utilisateur navigue au clavier (:focus-visible). */
 }
 .stat-card:hover {
   border-color: var(--accent);
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.stat-card:focus-visible {
+  /* Anneau accessibilité (clavier uniquement). Pas de border en plus
+     pour ne pas doubler avec celle déjà présente. */
+  box-shadow: 0 0 0 3px var(--accent-dim);
 }
 .stat-card.is-active {
   border-color: var(--accent);
@@ -1484,6 +1493,23 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
 [data-theme="light"] .slider::before {
     transform: translateX(24px);
     content: "☀️";
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UNIFORMITÉ DES POLICES — force l'héritage sur les form elements
+   ───────────────────────────────────────────────────────────────
+   Sans cette règle, button/input/select/textarea utilisent la
+   police système par défaut (Arial sur Windows, Helvetica sur Mac…)
+   au lieu de DM Sans. Conséquence visible : Gestion Pose OOH,
+   Réservations, Régies externes affichaient des polices différentes.
+   Demande métier réunion 20/05 — homogénéiser sur toute l'app.
+   ═══════════════════════════════════════════════════════════ */
+button,
+input,
+select,
+textarea,
+optgroup {
+    font-family: inherit;
 }
 
 /* ═══════════════════════════════════════════════════════════
