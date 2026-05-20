@@ -1690,6 +1690,164 @@ class DashboardKpiService
     }
 
     // ══════════════════════════════════════════════════════════════
+    // MODULE 7b — BENCHMARKS SECTORIELS (données marché)
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Charge les benchmarks sectoriels depuis config/market_benchmarks.php
+     * et compare la performance Panora aux moyennes du marché OOH CI/Afrique.
+     */
+    public function marketBenchmarks(): array
+    {
+        return $this->cached('market_benchmarks', function () {
+            $bench = config('market_benchmarks');
+            $parc  = $this->parcOverview();
+            $stats = $this->campaignStats();
+
+            // Comparaison occupation Panora vs marché
+            $ourOcc       = (float) $parc['occupation_rate'];
+            $marketOccCI  = (float) ($bench['occupation']['ci_average'] ?? 55);
+            $marketOccTop = (float) ($bench['occupation']['ci_top_performers'] ?? 75);
+            $occDeltaCI   = $ourOcc - $marketOccCI;
+            $occPosition  = $ourOcc >= $marketOccTop ? 'leader'
+                          : ($ourOcc >= $marketOccCI ? 'above_average' : 'below_average');
+
+            // Comparaison taux annulation
+            $ourCancel    = (float) ($stats['cancel_rate'] ?? 0);
+            $marketCancel = (float) ($bench['cancel_rate']['industry_average'] ?? 12);
+            $cancelDelta  = $ourCancel - $marketCancel;
+            $cancelPosition = $ourCancel <= ($bench['cancel_rate']['industry_healthy'] ?? 8) ? 'healthy'
+                            : ($ourCancel <= ($bench['cancel_rate']['industry_warning'] ?? 18) ? 'average' : 'critical');
+
+            return [
+                'meta'  => [
+                    'last_updated' => $bench['last_updated']  ?? null,
+                    'notes'        => $bench['source_notes']  ?? null,
+                ],
+                'occupation'  => [
+                    'our_value'      => round($ourOcc, 1),
+                    'market_ci'      => $marketOccCI,
+                    'market_top'     => $marketOccTop,
+                    'market_africa'  => $bench['occupation']['africa_average'] ?? null,
+                    'delta_vs_ci'    => round($occDeltaCI, 1),
+                    'position'       => $occPosition,
+                    'note'           => $bench['occupation']['note'] ?? '',
+                ],
+                'cancel_rate' => [
+                    'our_value'        => round($ourCancel, 1),
+                    'industry_healthy' => $bench['cancel_rate']['industry_healthy'] ?? 8,
+                    'industry_average' => $marketCancel,
+                    'industry_warning' => $bench['cancel_rate']['industry_warning'] ?? 18,
+                    'delta_vs_market'  => round($cancelDelta, 1),
+                    'position'         => $cancelPosition,
+                ],
+                'growth'      => $bench['growth']        ?? [],
+                'pricing'     => $bench['pricing']       ?? [],
+                'industry_mix'=> $bench['industry_mix']  ?? [],
+                'competitors' => $bench['competitors']   ?? [],
+                'trends'      => $bench['trends']        ?? [],
+            ];
+        });
+    }
+
+    /**
+     * Synthèse exécutive (pour la direction) — agrège les KPIs et alertes
+     * les plus stratégiques en 4 blocs : performance / risques / opportunités /
+     * actions prioritaires.
+     */
+    public function executiveSummary(): array
+    {
+        return $this->cached('executive_summary', function () {
+            $parc       = $this->parcOverview();
+            $revenue    = $this->totalRevenue();
+            $stats      = $this->campaignStats();
+            $patterns   = $this->cancellationPatterns();
+            $decapStats = $this->decapStats();
+            $inactivityBucket = $this->inactivityBuckets();
+            $bench      = $this->marketBenchmarks();
+            $forecast   = (new KpiForecastService($this))->revenueForecast(3);
+
+            // Performance globale (note /10)
+            $score = 5;
+            if ($bench['occupation']['position'] === 'leader')        $score += 2;
+            elseif ($bench['occupation']['position'] === 'above_average') $score += 1;
+            elseif ($bench['occupation']['position'] === 'below_average') $score -= 1;
+            if ($bench['cancel_rate']['position'] === 'healthy')      $score += 1;
+            elseif ($bench['cancel_rate']['position'] === 'critical') $score -= 2;
+            if ($forecast['trend_direction'] === 'up')                $score += 1;
+            elseif ($forecast['trend_direction'] === 'down')          $score -= 1;
+            if ($decapStats['overdue'] === 0)                         $score += 1;
+            elseif ($decapStats['overdue'] > 5)                       $score -= 1;
+            $score = max(0, min(10, $score));
+
+            // Risques majeurs
+            $risks = collect();
+            if ($decapStats['overdue'] > 0) {
+                $risks->push("⚠️ {$decapStats['overdue']} décappage(s) en retard — risque amende municipale + plainte client");
+            }
+            if ($patterns['trend_direction'] === 'up' && abs($patterns['trend_pct']) > 15) {
+                $risks->push("📉 Annulations en hausse de {$patterns['trend_pct']}% — revue commerciale urgente");
+            }
+            if ($inactivityBucket['12_plus'] > 5) {
+                $risks->push("👥 {$inactivityBucket['12_plus']} clients inactifs > 12 mois — risque churn élevé");
+            }
+            if ($stats['cancel_rate'] > 18) {
+                $risks->push("❌ Taux d'annulation à {$stats['cancel_rate']}% (seuil critique 18%)");
+            }
+            if ($risks->isEmpty()) {
+                $risks->push("✅ Aucun risque majeur identifié sur la période");
+            }
+
+            // Opportunités stratégiques
+            $opportunities = collect();
+            if ($bench['occupation']['delta_vs_ci'] < 0) {
+                $gap = abs($bench['occupation']['delta_vs_ci']);
+                $opportunities->push("📈 Occupation {$gap} pts sous la moyenne marché — potentiel de gain via campagne de prospection");
+            }
+            if ($bench['occupation']['position'] === 'leader') {
+                $opportunities->push("🏆 Position de leader sur l'occupation — opportunité de revaloriser les tarifs (+10-15 %)");
+            }
+            $opportunities->push("💼 " . ($bench['growth']['ci_yoy_2025_2026'] ?? 11) . "% de croissance projetée sur le secteur OOH CI — fenêtre de rattrapage si en retard");
+            if (($inactivityBucket['6_to_12'] ?? 0) > 0) {
+                $opportunities->push("🎯 " . ($inactivityBucket['6_to_12'] + $inactivityBucket['12_plus']) . " clients à reconquérir — templates mail/appel prêts dans l'onglet Insights");
+            }
+
+            // Actions prioritaires (top 3)
+            $actions = collect();
+            if ($decapStats['overdue'] > 0) {
+                $actions->push(['priority' => 'high', 'action' => "Planifier décappages en retard (J+7)"]);
+            }
+            if ($patterns['dominant_reason'] && $patterns['dominant_reason']['pct'] >= 30) {
+                $code = $patterns['dominant_reason']['code'];
+                $actions->push(['priority' => 'high', 'action' => "Traiter motif annulation dominant : {$code} ({$patterns['dominant_reason']['pct']}%)"]);
+            }
+            if (($inactivityBucket['12_plus'] ?? 0) > 0) {
+                $actions->push(['priority' => 'medium', 'action' => "Lancer campagne reconquête sur {$inactivityBucket['12_plus']} clients inactifs > 12 mois"]);
+            }
+            if ($actions->count() < 3) {
+                $actions->push(['priority' => 'low', 'action' => "Continuer le suivi mensuel et documenter les bonnes pratiques actuelles"]);
+            }
+
+            return [
+                'score'         => $score,
+                'score_label'   => $score >= 8 ? 'Excellent' : ($score >= 6 ? 'Bon' : ($score >= 4 ? 'Moyen' : 'À redresser')),
+                'score_color'   => $score >= 8 ? '#16a34a'   : ($score >= 6 ? '#3b82f6' : ($score >= 4 ? '#f59e0b' : '#dc2626')),
+                'kpis' => [
+                    'revenue'         => $revenue,
+                    'occupation_rate' => $parc['occupation_rate'],
+                    'cancel_rate'     => $stats['cancel_rate'],
+                    'campaigns_total' => $stats['total'],
+                ],
+                'forecast_3m_revenue' => collect($forecast['forecast'] ?? [])->sum('value'),
+                'forecast_confidence' => $forecast['confidence'] ?? 0,
+                'risks'         => $risks->take(4)->values(),
+                'opportunities' => $opportunities->take(4)->values(),
+                'actions'       => $actions->take(3)->values(),
+            ];
+        });
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // MODULE 8 — INSIGHTS & RECOMMANDATIONS
     // ══════════════════════════════════════════════════════════════
 
