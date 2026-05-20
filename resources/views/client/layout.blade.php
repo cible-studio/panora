@@ -12,7 +12,7 @@
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         html { -webkit-text-size-adjust: 100%; }
-        body { font-family:'Inter',sans-serif; }
+        body { font-family:'DM Sans',system-ui,sans-serif; }
 
         /* ── DARK MODE (défaut) ── */
         :root, [data-theme="dark"] {

@@ -252,7 +252,7 @@ function buildPopup(panel) {
     const label = getLabel(panel.status);
     return `<div style="width:220px;font-family:'DM Sans',sans-serif;border-radius:12px;overflow:hidden;">
         <div style="background:${color}22;border-bottom:2px solid ${color};padding:12px 14px;">
-            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:${color};">${panel.reference}</div>
+            <div style="font-weight:800;font-size:15px;color:${color};">${panel.reference}</div>
             <div style="font-size:12px;color:#eaedf5;margin-top:3px;font-weight:500;">${panel.name}</div>
         </div>
         <div style="padding:12px 14px;display:flex;flex-direction:column;gap:8px;">

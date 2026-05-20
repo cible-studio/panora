@@ -68,6 +68,7 @@
                 ['👤 Contact',   $client->contact_name],
                 ['📧 Email',     $client->email],
                 ['📞 Téléphone', $client->phone],
+                ['🏷️ Secteur',   $client->sector],
                 ['📍 Adresse',   $client->address],
                 ['📅 Depuis',    $client->created_at->format('d/m/Y')],
             ] as [$label, $value])
