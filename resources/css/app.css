@@ -38,8 +38,9 @@
   --orange: #f97316;
   --teal:   #14b8a6;
 
-  /* Typographie — changer ici pour la charte */
-  --font-display: 'Syne', sans-serif;
+  /* Typographie — une seule famille partout (DM Sans).
+     Les titres se distinguent par font-weight et size, pas par font-family. */
+  --font-display: 'DM Sans', sans-serif;
   --font-body:    'DM Sans', sans-serif;
 }
 

@@ -22,7 +22,7 @@
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            font-family: 'DM Sans', system-ui, sans-serif;
             background: var(--bg);
             color: var(--text);
             -webkit-font-smoothing: antialiased;

@@ -59,7 +59,7 @@
 
         .auth-image-tagline {
             color:rgba(255,255,255,0.92);
-            font-family:'Syne',sans-serif;
+            font-family:'DM Sans',sans-serif;
             font-size:28px;
             font-weight:700;
             line-height:1.25;
@@ -113,7 +113,7 @@
             border-radius:0 0 16px 16px; padding:32px;
             box-shadow:0 20px 60px rgba(0,0,0,.15);
         }
-        .card-title { font-family:'Syne',sans-serif; font-size:20px; font-weight:700; color:var(--text); margin-bottom:5px; }
+        .card-title { font-family:'DM Sans',sans-serif; font-size:20px; font-weight:700; color:var(--text); margin-bottom:5px; }
         .card-sub { font-size:13px; color:var(--text2); margin-bottom:24px; line-height:1.5; }
 
         /* ── Alerts ── */
@@ -143,7 +143,7 @@
             width:100%; background:#e20613; color:#fff;
             font-weight:700; font-size:14px; padding:13px;
             border-radius:10px; border:none; cursor:pointer;
-            font-family:'Syne',sans-serif; letter-spacing:.2px;
+            font-family:'DM Sans',sans-serif; letter-spacing:.2px;
             transition:opacity .15s, transform .1s;
             display:flex; align-items:center; justify-content:center; gap:8px;
         }

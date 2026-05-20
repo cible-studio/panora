@@ -38,7 +38,7 @@
     body, html { margin: 0; padding: 0; }
 
     body {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        font-family: 'DM Sans', system-ui, sans-serif;
         background: var(--bg);
         color: var(--text);
         font-size: 14px;
@@ -72,7 +72,6 @@
         gap: 10px;
     }
     .brand-logo {
-        font-family: 'Inter', sans-serif;
         font-weight: 700;
         font-size: 18px;
         color: var(--text);
