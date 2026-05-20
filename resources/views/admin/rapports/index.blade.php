@@ -607,25 +607,26 @@ $kpiCards = [
 ══════════════════════════════════ --}}
 <div id="panel-ca" class="rpt-panel" style="display:none">
 
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+    {{-- 5 KPIs financiers : CA, ticket moyen, CA/panneau, CA/client, top client --}}
+    @php
+        $caParPanneau = $occupation['occupes'] > 0 ? round($caTotal / $occupation['occupes']) : 0;
+        $caParClient  = $totalClients > 0 ? round($caTotal / $totalClients) : 0;
+    @endphp
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px" class="rpt-grid-5">
         @php
         $caKpis = [
-            ['CA Période', number_format($caTotal, 0, ',', ' ') . ' FCFA', '#e8a020',
-             '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>'],
-            ['Ticket moyen / campagne', number_format($caTicketMoy, 0, ',', ' ') . ' FCFA', '#3b82f6',
-             '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'],
-            ['Top client', ($topClients->first()?->name ?? '—'), '#a855f7',
-             '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>'],
+            ['CA Période',          number_format($caTotal, 0, ',', ' ') . ' FCFA', '#e8a020', 'FCFA · ' . $totalCampagnes . ' campagnes'],
+            ['Ticket moyen',        number_format($caTicketMoy, 0, ',', ' ') . ' FCFA', '#3b82f6', 'par campagne'],
+            ['CA / panneau loué',   number_format($caParPanneau, 0, ',', ' ') . ' FCFA', '#16a34a', 'sur ' . number_format($occupation['occupes']) . ' panneaux occupés'],
+            ['CA moyen / client',   number_format($caParClient, 0, ',', ' ') . ' FCFA', '#06b6d4', 'sur ' . number_format($totalClients) . ' clients actifs'],
+            ['Top client',          $topClients->first()?->name ?? '—', '#a855f7', $topClients->first() ? number_format($topClients->first()->ca_total, 0, ',', ' ') . ' FCFA' : '—'],
         ];
         @endphp
-        @foreach($caKpis as [$lbl, $val, $col, $ico])
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;border-top:3px solid {{ $col }}">
-            <div style="color:{{ $col }};margin-bottom:10px">{!! $ico !!}</div>
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:6px">{{ $lbl }}</div>
-            <div style="font-size:16px;font-weight:800;color:{{ $col }}">{{ $val }}</div>
-            @if($lbl === 'Top client' && $topClients->first())
-            <div style="font-size:10px;color:var(--text3);margin-top:4px">{{ number_format($topClients->first()->ca_total, 0, ',', ' ') }} FCFA</div>
-            @endif
+        @foreach($caKpis as [$lbl, $val, $col, $sub])
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;border-top:3px solid {{ $col }}">
+            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:5px">{{ $lbl }}</div>
+            <div style="font-size:14px;font-weight:800;color:{{ $col }};line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ $val }}">{{ $val }}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;line-height:1.3">{{ $sub }}</div>
         </div>
         @endforeach
     </div>
@@ -667,6 +668,44 @@ $kpiCards = [
             <canvas id="chart-occ-revenue" role="img" aria-label="Corrélation occupation revenus"></canvas>
         </div>
     </div>
+
+    {{-- 🏆 Classement communes les plus rentables (top 15) --}}
+    @if($revenueByCommune->isNotEmpty())
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">Classement communes les plus rentables</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--text3)">Top {{ $revenueByCommune->count() }}</span>
+        </div>
+        <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--border)">
+                        @foreach(['#','Commune','CA généré','Campagnes','Panneaux loués','CA / panneau'] as $h)
+                        <th style="padding:10px 16px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">{{ $h }}</th>
+                        @endforeach
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($revenueByCommune as $i => $r)
+                        @php $caPerPanel = $r->panels_engaged > 0 ? round((float)$r->revenue / $r->panels_engaged) : 0; @endphp
+                        <tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s"
+                            onclick="CommuneDrilldown.open({{ $r->id }})"
+                            title="Cliquer pour voir le détail commune"
+                            onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
+                            <td style="padding:10px 16px;font-size:13px;color:var(--text3);font-weight:700">{{ $i === 0 ? '🥇' : ($i === 1 ? '🥈' : ($i === 2 ? '🥉' : $i + 1)) }}</td>
+                            <td style="padding:10px 16px;font-size:13px;font-weight:600;color:var(--text)">{{ $r->commune }}</td>
+                            <td style="padding:10px 16px;font-size:13px;font-weight:700;color:#16a34a;font-variant-numeric:tabular-nums">{{ number_format((float) $r->revenue, 0, ',', ' ') }} <span style="font-size:10px;font-weight:400;color:var(--text3)">FCFA</span></td>
+                            <td style="padding:10px 16px;font-size:12px;color:var(--text)">{{ number_format($r->campaigns_count) }}</td>
+                            <td style="padding:10px 16px;font-size:12px;color:var(--text)">{{ number_format($r->panels_engaged) }}</td>
+                            <td style="padding:10px 16px;font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums">{{ $caPerPanel > 0 ? number_format($caPerPanel, 0, ',', ' ') . ' FCFA' : '—' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
 
     {{-- CA par ville (vue agrégée) — COMMIT B --}}
     @if($revenueByCity->isNotEmpty())
