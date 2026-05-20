@@ -9,35 +9,39 @@
         </a>
     </x-slot:topbarActions>
 
-    {{-- ══ STATS — KPI cliquables (design uniformisé) ════════ --}}
-    <div class="stat-cards-row">
-        <a href="{{ route('admin.clients.index') }}"
-           class="stat-card stat-card-orange {{ !request()->boolean('active_only') ? 'active' : '' }}"
-           data-active-filter="0"
-           title="Afficher tous les clients">
-            <div class="stat-icon">👥</div>
-            <div class="stat-value">{{ $stats['total'] }}</div>
-            <div class="stat-label">Total clients</div>
-        </a>
-        <a href="{{ route('admin.clients.index', ['active_only' => 1]) }}"
-           class="stat-card stat-card-green {{ request()->boolean('active_only') ? 'active' : '' }}"
-           data-active-filter="1"
-           title="Filtrer sur clients ayant au moins une campagne active ou en pose">
-            <div class="stat-icon">📡</div>
-            <div class="stat-value">{{ $stats['actifs'] }}</div>
-            <div class="stat-label">Avec campagne active</div>
-        </a>
-    </div>
-
-    {{-- ══ ACTIONS EXPORT / IMPORT (séparées des KPIs) ════════ --}}
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">Exports &amp; Import</span>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
-            <a class="ci-export-btn" href="#" id="export-excel" style="text-decoration:none" title="Export Excel">📊 Excel</a>
-            <a class="ci-export-btn" href="#" id="export-csv" style="text-decoration:none" title="Export CSV">📋 CSV</a>
-            <a class="ci-export-btn" href="#" id="export-pdf" style="text-decoration:none" title="Export PDF">📄 PDF</a>
-            <button class="ci-export-btn" onclick="document.getElementById('modal-import-clients').style.display='flex'">📥 Import</button>
-            <a class="ci-export-btn" href="{{ route('admin.clients.import.template') }}" style="text-decoration:none">📋 Modèle</a>
+    {{-- ══ STATS — KPI cliquables qui pilotent le filtre actif ════════ --}}
+    <div class="ci-stats-grid">
+        <button type="button"
+                class="ci-stat ci-stat-clickable {{ !request()->boolean('active_only') ? 'ci-stat-active' : '' }}"
+                data-active-filter="0"
+                title="Afficher tous les clients">
+            <div class="ci-stat-icon">👥</div>
+            <div class="ci-stat-body">
+                <div class="ci-stat-num">{{ $stats['total'] }}</div>
+                <div class="ci-stat-label">Total clients</div>
+            </div>
+        </button>
+        <button type="button"
+                class="ci-stat ci-stat-clickable {{ request()->boolean('active_only') ? 'ci-stat-active' : '' }}"
+                data-active-filter="1"
+                title="Filtrer sur clients ayant au moins une campagne active ou en pose">
+            <div class="ci-stat-icon">📡</div>
+            <div class="ci-stat-body">
+                <div class="ci-stat-num">{{ $stats['actifs'] }}</div>
+                <div class="ci-stat-label">Avec campagne active</div>
+            </div>
+        </button>
+        <div class="ci-stat ci-stat-actions">
+            <div class="ci-stat-label" style="margin-bottom:10px">Exports & Import</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                {{-- Les exports respectent les filtres courants — la fonction
+                     buildExportUrl() en JS injecte search/sector/active_only. --}}
+                <a class="ci-export-btn" href="#" id="export-excel" style="text-decoration:none" title="Export Excel (xlsx — logo + mise en forme)">📊 Excel</a>
+                <a class="ci-export-btn" href="#" id="export-csv" style="text-decoration:none" title="Export CSV (UTF-8)">📋 CSV</a>
+                <a class="ci-export-btn" href="#" id="export-pdf" style="text-decoration:none" title="Export PDF (paysage A4)">📄 PDF</a>
+                <button class="ci-export-btn" onclick="document.getElementById('modal-import-clients').style.display='flex'">📥 Import</button>
+                <a class="ci-export-btn" href="{{ route('admin.clients.import.template') }}" style="text-decoration:none">📋 Modèle</a>
+            </div>
         </div>
     </div>
 
