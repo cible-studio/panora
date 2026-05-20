@@ -847,6 +847,29 @@ class RapportController extends Controller
     }
 
     /**
+     * Bulk action — marque tous les panneaux d'une campagne comme décappés.
+     */
+    public function markAllDecapped(Request $request, DashboardKpiService $kpi)
+    {
+        $request->validate([
+            'campaign_id' => 'required|integer|exists:campaigns,id',
+            'notes'       => 'nullable|string|max:500',
+        ]);
+
+        $count = $kpi->markAllDecapped(
+            $request->campaign_id,
+            $request->user()->id,
+            $request->notes,
+        );
+
+        return response()->json([
+            'ok'      => $count > 0,
+            'count'   => $count,
+            'message' => $count > 0 ? "{$count} panneaux marqués décappés." : "Aucun panneau à décapper.",
+        ]);
+    }
+
+    /**
      * Export Excel multi-feuilles du dashboard analytique (COMMIT D).
      * Une feuille par module : synthèse, panneaux, clients, campagnes,
      * communes, décappages, CA mensuel, prévisions.

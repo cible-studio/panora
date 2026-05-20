@@ -788,6 +788,8 @@ Route::prefix('admin')
             ->whereNumber('panel')->name('rapports.panels.detail');
         Route::post('/rapports/decap/mark', [RapportController::class, 'markDecapped'])
             ->name('rapports.decap.mark');
+        Route::post('/rapports/decap/mark-all', [RapportController::class, 'markAllDecapped'])
+            ->name('rapports.decap.markAll');
         Route::get('/rapports/export/excel', [RapportController::class, 'exportExcel'])
             ->name('rapports.export.excel');
         Route::get('/rapports/export/pdf', [RapportController::class, 'exportPdf'])

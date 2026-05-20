@@ -275,7 +275,13 @@ $kpiCards = [
     @foreach($onglets as $o)
     <button id="tab-{{ $o['id'] }}" onclick="RPT.switchTab('{{ $o['id'] }}')"
             class="rpt-tab {{ $loop->first ? 'active' : '' }}">
-        <span style="display:flex;align-items:center;gap:6px">{!! $o['icon'] !!} {{ $o['label'] }}</span>
+        <span style="display:flex;align-items:center;gap:6px">
+            {!! $o['icon'] !!} {{ $o['label'] }}
+            @if($o['id'] === 'decap' && ($decapStats['overdue'] ?? 0) > 0)
+                <span title="Décappages en retard"
+                      style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#dc2626;color:#fff;font-size:10px;font-weight:800;line-height:1;animation:rpt-pulse 1.6s ease-in-out infinite">{{ $decapStats['overdue'] }}</span>
+            @endif
+        </span>
     </button>
     @endforeach
 </div>
@@ -1341,6 +1347,21 @@ $kpiCards = [
 ══════════════════════════════════════════════════════════════ --}}
 <div id="panel-decap" class="rpt-panel" style="display:none">
 
+    {{-- ⚠ BANDEAU CRITIQUE : campagnes expirées non décappées --}}
+    @if(($decapStats['overdue'] ?? 0) > 0)
+    <div style="background:linear-gradient(135deg,rgba(220,38,38,.12),rgba(220,38,38,.06));border:1.5px solid rgba(220,38,38,.4);border-radius:14px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
+        <div style="font-size:32px;line-height:1;animation:rpt-pulse 1.6s ease-in-out infinite;width:44px;height:44px;border-radius:50%;background:rgba(220,38,38,.15);display:flex;align-items:center;justify-content:center">⚠️</div>
+        <div style="flex:1">
+            <div style="font-size:14px;font-weight:800;color:#dc2626;margin-bottom:3px">{{ $decapStats['overdue'] }} panneau(x) en retard de décappage</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.5">Campagne(s) terminée(s) depuis plus de <strong>7 jours</strong> avec affichage non retiré sur le terrain. Risque d'amende municipale et de plainte client. Planifiez les tournées de décappage en priorité.</div>
+        </div>
+        <a href="#" onclick="event.preventDefault();document.getElementById('decap-overdue-list')?.scrollIntoView({behavior:'smooth',block:'start'});"
+           style="padding:8px 14px;background:#dc2626;color:#fff;border-radius:8px;text-decoration:none;font-size:11px;font-weight:700;white-space:nowrap">
+            Voir les retards →
+        </a>
+    </div>
+    @endif
+
     {{-- Bandeau stats décappage (COMMIT C) --}}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
         <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:12px;padding:14px">
@@ -1381,7 +1402,9 @@ $kpiCards = [
                         $isOverdue     = $c->is_overdue;
                         $isComplete    = $c->decapped_count === $c->total_panels;
                     @endphp
-                    <details style="background:var(--surface2);border:1px solid {{ $isOverdue ? 'rgba(220,38,38,.3)' : 'var(--border)' }};border-radius:10px;overflow:hidden">
+                    <details {{ $loop->first || $isOverdue ? '' : '' }}
+                        @if($isOverdue && !isset($firstOverdueShown)) id="decap-overdue-list" @php $firstOverdueShown = true; @endphp @endif
+                        style="background:var(--surface2);border:1px solid {{ $isOverdue ? 'rgba(220,38,38,.3)' : 'var(--border)' }};border-radius:10px;overflow:hidden">
                         <summary style="padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;list-style:none">
                             <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:{{ $isComplete ? '#22c55e' : ($isOverdue ? '#dc2626' : '#f59e0b') }};box-shadow:0 0 0 3px {{ $isComplete ? 'rgba(34,197,94,.2)' : ($isOverdue ? 'rgba(220,38,38,.2)' : 'rgba(245,158,11,.2)') }}"></span>
                             <div style="flex:1;min-width:0">
@@ -1408,6 +1431,14 @@ $kpiCards = [
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" style="flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
                         </summary>
                         <div style="padding:0 14px 12px;border-top:1px solid var(--border);background:var(--surface)">
+                            @if($c->pending_count > 1)
+                                <div style="display:flex;justify-content:flex-end;padding:10px 0 2px">
+                                    <button type="button" onclick="Decap.markAll({{ $c->id }})"
+                                            style="font-size:10.5px;font-weight:700;padding:6px 14px;border:1px solid #22c55e;background:rgba(34,197,94,.1);color:#16a34a;border-radius:6px;cursor:pointer">
+                                        ✓✓ Marquer tous décappés ({{ $c->pending_count }})
+                                    </button>
+                                </div>
+                            @endif
                             <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px">
                                 <thead>
                                     <tr style="border-bottom:1px solid var(--border)">
@@ -1742,6 +1773,7 @@ CIBLE CI — Affichage urbain</div>
 .cm-status-confirme    { background:rgba(59,130,246,.12);color:#1d4ed8; }
 .cm-status-maintenance { background:rgba(107,114,128,.12);color:#374151; }
 @media (max-width: 900px) { .rpt-grid-2 { grid-template-columns: 1fr !important; } .rpt-grid-clients { grid-template-columns: 1fr !important; } .rpt-grid-5 { grid-template-columns: repeat(2, 1fr) !important; } }
+@keyframes rpt-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.6); } 50% { box-shadow: 0 0 0 4px rgba(220,38,38,0); } }
 </style>
 
 {{-- ════ JAVASCRIPT ════ --}}
@@ -2794,13 +2826,28 @@ window.Decap = (function () {
         }, 2200);
     }
 
+    async function postBulk(campaignId) {
+        const body = new URLSearchParams({ campaign_id: campaignId });
+        const r = await fetch('{{ route("admin.rapports.decap.markAll") }}', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body,
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    }
+
     return {
         async mark(campaignId, panelId) {
             try {
                 const res = await postUpdate(campaignId, panelId, 'mark');
                 if (!res.ok) { toast(res.message || 'Erreur.', 'error'); return; }
                 toast('✓ Panneau marqué décappé');
-                // Refresh la page après 600ms pour rafraîchir les compteurs
                 setTimeout(() => location.reload(), 600);
             } catch (e) {
                 console.error(e);
@@ -2814,6 +2861,18 @@ window.Decap = (function () {
                 if (!res.ok) { toast(res.message || 'Erreur.', 'error'); return; }
                 toast('Décappage annulé');
                 setTimeout(() => location.reload(), 600);
+            } catch (e) {
+                console.error(e);
+                toast('Erreur réseau.', 'error');
+            }
+        },
+        async markAll(campaignId) {
+            if (!confirm('Marquer TOUS les panneaux de cette campagne comme décappés ?')) return;
+            try {
+                const res = await postBulk(campaignId);
+                if (!res.ok) { toast(res.message || 'Erreur.', 'error'); return; }
+                toast('✓ ' + res.count + ' panneaux décappés');
+                setTimeout(() => location.reload(), 800);
             } catch (e) {
                 console.error(e);
                 toast('Erreur réseau.', 'error');
