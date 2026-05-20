@@ -44,7 +44,11 @@
     @endphp
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:20px">
         @foreach ($kpis as $k)
-            @php $isActive = ($k['filter'] === 'all' && !request('niveau') && !request('type') && !request()->boolean('non_lues')) || request('niveau') === $k['filter']; @endphp
+            @php
+                // is-active uniquement si l'utilisateur a cliqué sur un niveau
+                // précis — pas sur "Total" / "all" par défaut.
+                $isActive = $k['filter'] !== 'all' && request('niveau') === $k['filter'];
+            @endphp
             <button type="button"
                     data-filter="{{ $k['filter'] }}"
                     data-kpi="{{ $k['key'] }}"

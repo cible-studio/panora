@@ -72,7 +72,7 @@
         @foreach($statCards as $sc)
         @php
             $isAll    = $sc['key'] === 'all';
-            $isActive = $isAll ? !$hasAnyFilter : ($activeStatus === $sc['key']);
+            $isActive = !$isAll && $activeStatus === $sc['key'];
             $val      = $isAll ? $campaigns->total() : ($counts[$sc['key']] ?? 0);
         @endphp
         <a href="#" class="kpi-card {{ $isActive ? 'is-active' : '' }}"

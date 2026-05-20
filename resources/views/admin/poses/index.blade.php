@@ -177,7 +177,7 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
 @foreach($kpis as $k)
 @php
     $isTotal  = $k['s'] === 'total';
-    $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $k['s']);
+    $isActive = !$isTotal && $activeStatus === $k['s'];
 @endphp
 <a href="#" data-kpi="{{ $k['s'] }}" data-status="{{ $isTotal ? '' : $k['s'] }}"
    class="kpi-card filter-stat {{ $isActive ? 'is-active' : '' }}"

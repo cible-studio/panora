@@ -25,7 +25,9 @@
         @foreach($statCards as $sc)
         @php
             $isTotal  = $sc['key'] === 'total';
-            $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $sc['key']);
+            // is-active uniquement quand l'utilisateur a cliqué sur un statut
+            // précis (pas sur "Total" par défaut).
+            $isActive = !$isTotal && $activeStatus === $sc['key'];
         @endphp
         <a href="#" class="kpi-card {{ $isActive ? 'is-active' : '' }}"
            data-kpi="{{ $sc['key'] }}" data-value="{{ $isTotal ? '' : $sc['key'] }}"

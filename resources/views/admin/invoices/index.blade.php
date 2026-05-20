@@ -58,7 +58,7 @@
         <div class="kpi-card__arrow" style="color:#22c55e">→</div>
     </a>
     <a href="#" data-status=""
-       class="kpi-card filter-stat {{ !request('status') ? 'is-active' : '' }}"
+       class="kpi-card filter-stat"
        style="--kpi-color:var(--accent)"
        onclick="event.preventDefault()"
        onmouseenter="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
