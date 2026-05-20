@@ -25,37 +25,36 @@
     {{-- COLONNE GAUCHE --}}
     <div style="flex:1; min-width:0;">
 
-        {{-- STAT CARDS CLIQUABLES --}}
-        <div class="stats-grid" style="grid-template-columns: repeat(3,1fr);">
-
-            {{-- Card 1 : Total panneaux --}}
-            <a href="{{ route('admin.panels.index') }}"
-               id="card-all"
-               onclick="filterByStatus('all', this)"
-               style="text-decoration:none;"
-               class="stat-card stat-card-clickable">
-                <div class="stat-label">Panneaux Actifs</div>
-                <div class="stat-value">{{ $totalPanneaux }}</div>
-                <div class="stat-delta up">↑ Voir tous les panneaux →</div>
+        {{-- STAT CARDS — design KPI unifié --}}
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
+            <a href="{{ route('admin.panels.index') }}" id="card-all" onclick="filterByStatus('all', this)" class="kpi-card" style="--kpi-color:var(--accent)"
+               onmouseenter="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'"
+               onmouseleave="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
+                <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
+                <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+                <div class="kpi-card__value" style="color:var(--accent)">{{ $totalPanneaux }}</div>
+                <div class="kpi-card__label">Panneaux actifs</div>
+                <div class="kpi-card__sub">Voir tous les panneaux</div>
+                <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
             </a>
 
-            {{-- Card 2 : Disponibles --}}
-            <a href="{{ route('admin.panels.index', ['status' => 'libre']) }}"
-               id="card-libre"
-               style="text-decoration:none;"
-               class="stat-card stat-card-clickable">
-                <div class="stat-label">Disponibles</div>
-                <div class="stat-value" style="color:var(--green);">{{ $panneauxLibres }}</div>
-                <div class="stat-delta" style="color:var(--text2);">Libres à la réservation →</div>
+            <a href="{{ route('admin.panels.index', ['status' => 'libre']) }}" id="card-libre" class="kpi-card" style="--kpi-color:var(--green)"
+               onmouseenter="this.style.borderColor='var(--green)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'"
+               onmouseleave="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
+                <div class="kpi-card__top-bar" style="background:var(--green)"></div>
+                <div class="kpi-card__icon" style="color:var(--green)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="kpi-card__value" style="color:var(--green)">{{ $panneauxLibres }}</div>
+                <div class="kpi-card__label">Disponibles</div>
+                <div class="kpi-card__sub">Libres à la réservation</div>
+                <div class="kpi-card__arrow" style="color:var(--green)">→</div>
             </a>
 
-            {{-- Card 3 : CA Mensuel --}}
-            <a href="{{ route('admin.panels.index', ['status' => 'occupe']) }}"
-               id="card-occupe"
-               style="text-decoration:none;"
-               class="stat-card stat-card-clickable">
-                <div class="stat-label">CA Mensuel (FCFA)</div>
-                <div class="stat-value">
+            <a href="{{ route('admin.panels.index', ['status' => 'occupe']) }}" id="card-occupe" class="kpi-card" style="--kpi-color:var(--accent)"
+               onmouseenter="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'"
+               onmouseleave="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
+                <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
+                <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+                <div class="kpi-card__value" style="color:var(--accent)">
                     @php
                         $ca = $caMensuel ?? 0;
                         echo $ca >= 1000000
@@ -63,15 +62,16 @@
                             : number_format($ca, 0, ',', ' ');
                     @endphp
                 </div>
-                <div class="stat-delta up">
+                <div class="kpi-card__label">CA Mensuel (FCFA)</div>
+                <div class="kpi-card__sub">
                     @if(isset($variationCA) && $variationCA !== null)
-                        {{ $variationCA >= 0 ? '↑' : '↓' }} {{ abs($variationCA) }}% vs mois précédent →
+                        {{ $variationCA >= 0 ? '↑' : '↓' }} {{ abs($variationCA) }}% vs mois précédent
                     @else
-                        ↑ Voir panneaux occupés →
+                        Voir panneaux occupés
                     @endif
                 </div>
+                <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
             </a>
-
         </div>
 
         {{-- CAMPAGNES ACTIVES --}}

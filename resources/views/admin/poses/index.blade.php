@@ -163,30 +163,33 @@
      du filtre KPI courant). ════ --}}
 @php
 $kpis = [
-    ['s'=>'total',     'l'=>'Total',      'c'=>'var(--accent)', 'icon'=>'📋'],
-    ['s'=>'planifiee', 'l'=>'Planifiées', 'c'=>'#f97316',       'icon'=>'📅'],
-    ['s'=>'en_cours',  'l'=>'En cours',   'c'=>'#3b82f6',       'icon'=>'🔧'],
-    ['s'=>'realisee',  'l'=>'Réalisées',  'c'=>'#22c55e',       'icon'=>'✅'],
-    ['s'=>'annulee',   'l'=>'Annulées',   'c'=>'#ef4444',       'icon'=>'🚫'],
+    ['s'=>'total',     'l'=>'Total',      'c'=>'var(--accent)', 'sub'=>'toutes les tâches', 'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>'],
+    ['s'=>'planifiee', 'l'=>'Planifiées', 'c'=>'#f97316',       'sub'=>'à venir',           'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'],
+    ['s'=>'en_cours',  'l'=>'En cours',   'c'=>'#3b82f6',       'sub'=>'sur le terrain',    'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>'],
+    ['s'=>'realisee',  'l'=>'Réalisées',  'c'=>'#22c55e',       'sub'=>'poses terminées',   'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'],
+    ['s'=>'annulee',   'l'=>'Annulées',   'c'=>'#ef4444',       'sub'=>'tâches annulées',   'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/></svg>'],
 ];
 $activeStatus = request('status');
 $hasAnyFilter = request('q') || request('status') || request('technicien_id')
               || request('campaign_id') || request('date_from') || request('date_to');
 @endphp
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px" class="stats-grid">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:20px">
 @foreach($kpis as $k)
 @php
     $isTotal  = $k['s'] === 'total';
-    $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $k['s']);
+    $isActive = !$isTotal && $activeStatus === $k['s'];
 @endphp
-<a href="#"
-   data-kpi="{{ $k['s'] }}"
-   data-status="{{ $isTotal ? '' : $k['s'] }}"
-   class="stat-card filter-stat {{ $isActive ? 'active' : '' }}"
-   style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['c'] }};border-radius:14px;padding:14px 18px;text-decoration:none;display:block;transition:all .15s;{{ $isActive ? 'box-shadow:0 0 0 2px '.$k['c'].'33;' : '' }}">
-    <div style="font-size:18px;color:{{ $k['c'] }};margin-bottom:4px">{{ $k['icon'] }}</div>
-    <div data-kpi-value="{{ $k['s'] }}" style="font-size:26px;font-weight:800;color:{{ $k['c'] }};line-height:1;margin-bottom:6px">{{ number_format($stats[$k['s']] ?? 0) }}</div>
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">{{ $k['l'] }}</div>
+<a href="#" data-kpi="{{ $k['s'] }}" data-status="{{ $isTotal ? '' : $k['s'] }}"
+   class="kpi-card filter-stat {{ $isActive ? 'is-active' : '' }}"
+   style="--kpi-color:{{ $k['c'] }};{{ $isActive ? 'border-color:'.$k['c'].';' : '' }}"
+   onmouseenter="if(!this.classList.contains('is-active')){this.style.borderColor='{{ $k['c'] }}';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'}"
+   onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+    <div class="kpi-card__top-bar" style="background:{{ $k['c'] }}"></div>
+    <div class="kpi-card__icon" style="color:{{ $k['c'] }}">{!! $k['icon'] !!}</div>
+    <div data-kpi-value="{{ $k['s'] }}" class="kpi-card__value" style="color:{{ $k['c'] }}">{{ number_format($stats[$k['s']] ?? 0) }}</div>
+    <div class="kpi-card__label">{{ $k['l'] }}</div>
+    <div class="kpi-card__sub">{{ $k['sub'] }}</div>
+    <div class="kpi-card__arrow" style="color:{{ $k['c'] }}">→</div>
 </a>
 @endforeach
 </div>
@@ -1081,13 +1084,14 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
             updateResetButton();
             applyFilters();
             
-            // Mettre à jour l'apparence des cartes KPI
-            document.querySelectorAll('.stat-card').forEach(card => {
+            // is-active UNIQUEMENT pour le statut précis filtré.
+            // "Total" (data-status="") reste neutre.
+            document.querySelectorAll('.kpi-card.filter-stat').forEach(card => {
                 const status = card.dataset.status;
-                if (status === currentFilters.status || (status && !currentFilters.status)) {
-                    card.classList.add('active');
+                if (currentFilters.status && status === currentFilters.status) {
+                    card.classList.add('is-active');
                 } else {
-                    card.classList.remove('active');
+                    card.classList.remove('is-active');
                 }
             });
         });
@@ -1126,7 +1130,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
 
     // Cartes KPI — toggle (re-cliquer = retire le filtre).
     // La carte "total" reset le filtre status.
-    document.querySelectorAll('.stat-card').forEach(card => {
+    document.querySelectorAll('.kpi-card.filter-stat').forEach(card => {
         card.addEventListener('click', (e) => {
             e.preventDefault();
             const kpi    = card.dataset.kpi;
@@ -1147,12 +1151,13 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
     });
 
     function updateActiveKpi() {
-        const noStatus = !currentFilters.status;
-        document.querySelectorAll('.stat-card').forEach(c => {
+        document.querySelectorAll('.kpi-card.filter-stat').forEach(c => {
             const k = c.dataset.kpi;
             const s = c.dataset.status;
-            const active = k === 'total' ? noStatus : (currentFilters.status === s);
-            c.classList.toggle('active', active);
+            // is-active uniquement pour le statut précis filtré.
+            // "Total" reste neutre dans tous les cas.
+            const active = k !== 'total' && !!currentFilters.status && currentFilters.status === s;
+            c.classList.toggle('is-active', active);
         });
     }
 
@@ -1188,7 +1193,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
             if (elements.dateTo) elements.dateTo.value = '';
             if (elements.showOrphan) elements.showOrphan.checked = false;
 
-            document.querySelectorAll('.stat-card').forEach(card => card.classList.remove('active'));
+            document.querySelectorAll('.kpi-card.filter-stat').forEach(card => card.classList.remove('is-active'));
 
             updateResetButton();
             applyFilters();

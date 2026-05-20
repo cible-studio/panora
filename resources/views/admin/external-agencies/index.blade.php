@@ -12,22 +12,50 @@
 @php
     $currentStatus = request('status');
     $kpis = [
-        ['key' => null,        'label' => 'Total',     'icon' => '🏢', 'value' => $stats['total']    ?? 0, 'color' => 'var(--text)'],
-        ['key' => 'active',    'label' => 'Actives',   'icon' => '✅', 'value' => $stats['active']   ?? 0, 'color' => '#22c55e'],
-        ['key' => 'inactive',  'label' => 'Inactives', 'icon' => '⏸',  'value' => $stats['inactive'] ?? 0, 'color' => '#ef4444'],
+        [
+            'key'   => null,
+            'label' => 'Total',
+            'sub'   => 'régies partenaires',
+            'value' => $stats['total']    ?? 0,
+            'color' => 'var(--accent)',
+            'svg'   => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h.01"/><path d="M9 13h.01"/><path d="M9 17h.01"/><path d="M15 9h.01"/><path d="M15 13h.01"/><path d="M15 17h.01"/></svg>',
+        ],
+        [
+            'key'   => 'active',
+            'label' => 'Actives',
+            'sub'   => 'régies opérationnelles',
+            'value' => $stats['active']   ?? 0,
+            'color' => '#22c55e',
+            'svg'   => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+        ],
+        [
+            'key'   => 'inactive',
+            'label' => 'Inactives',
+            'sub'   => 'régies suspendues',
+            'value' => $stats['inactive'] ?? 0,
+            'color' => '#ef4444',
+            'svg'   => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="10" y1="9" x2="10" y2="15"/><line x1="14" y1="9" x2="14" y2="15"/></svg>',
+        ],
     ];
 @endphp
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
     @foreach($kpis as $k)
-        @php $isActive = ($currentStatus ?? '') === ($k['key'] ?? ''); @endphp
+        @php
+            // is-active uniquement quand l'utilisateur a cliqué sur un statut
+            // précis (pas sur "Total" par défaut). key=null → carte Total.
+            $isActive = $k['key'] !== null && $currentStatus === $k['key'];
+        @endphp
         <a href="{{ route('admin.external-agencies.index', $k['key'] ? ['status' => $k['key']] : []) }}"
-           class="stat-card {{ $isActive ? 'is-active' : '' }}"
-           style="text-decoration:none;border:1px solid {{ $isActive ? $k['color'] : 'var(--border)' }};background:{{ $isActive ? 'var(--accent-dim)' : 'var(--surface)' }};border-radius:14px;padding:16px;display:flex;align-items:center;gap:14px;transition:all .15s">
-            <div style="font-size:24px">{{ $k['icon'] }}</div>
-            <div>
-                <div style="font-size:22px;font-weight:700;color:{{ $k['color'] }};line-height:1.1">{{ $k['value'] }}</div>
-                <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600">{{ $k['label'] }}</div>
-            </div>
+           class="kpi-card {{ $isActive ? 'is-active' : '' }}"
+           style="--kpi-color:{{ $k['color'] }}"
+           onmouseenter="this.style.borderColor='{{ $k['color'] }}';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+           onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+            <div class="kpi-card__top-bar" style="background:{{ $k['color'] }}"></div>
+            <div class="kpi-card__icon" style="color:{{ $k['color'] }}">{!! $k['svg'] !!}</div>
+            <div class="kpi-card__value" style="color:{{ $k['color'] }}">{{ $k['value'] }}</div>
+            <div class="kpi-card__label">{{ $k['label'] }}</div>
+            <div class="kpi-card__sub">{{ $k['sub'] }}</div>
+            <div class="kpi-card__arrow" style="color:{{ $k['color'] }}">→</div>
         </a>
     @endforeach
 </div>

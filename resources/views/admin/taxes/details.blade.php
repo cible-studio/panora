@@ -118,22 +118,43 @@
     </div>
 
     {{-- ═══ KPI ═══ --}}
-    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;">
-        @php
-            $kpis = [
-                ['label' => 'Total taxes', 'val' => $totals['total'],            'color' => 'var(--accent)'],
-                ['label' => 'TM',          'val' => $totals['by_type']['tm']  ?? 0, 'color' => '#16a34a'],
-                ['label' => 'ODP',         'val' => $totals['by_type']['odp'] ?? 0, 'color' => '#ea580c'],
-                ['label' => 'DB',          'val' => $totals['by_type']['db']  ?? 0, 'color' => '#2563eb'],
-                ['label' => 'Panneaux',    'val' => $totals['panels_count'],    'color' => 'var(--text2)', 'unit' => ''],
-            ];
-        @endphp
+    @php
+        $kpis = [
+            [
+                'label' => 'Total taxes', 'val' => $totals['total'], 'sub' => 'cumul période',
+                'color' => 'var(--accent)', 'unit' => ' FCFA',
+                'svg' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+            ],
+            [
+                'label' => 'TM', 'val' => $totals['by_type']['tm']  ?? 0, 'sub' => 'taxe municipale',
+                'color' => '#22c55e', 'unit' => ' FCFA',
+                'svg' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M10 21V11h4v10"/></svg>',
+            ],
+            [
+                'label' => 'ODP', 'val' => $totals['by_type']['odp'] ?? 0, 'sub' => 'domaine public',
+                'color' => '#f97316', 'unit' => ' FCFA',
+                'svg' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+            ],
+            [
+                'label' => 'DB', 'val' => $totals['by_type']['db']  ?? 0, 'sub' => 'droits de bord',
+                'color' => '#3b82f6', 'unit' => ' FCFA',
+                'svg' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+            ],
+            [
+                'label' => 'Panneaux', 'val' => $totals['panels_count'], 'sub' => 'concernés période',
+                'color' => '#6b7280', 'unit' => '',
+                'svg' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+            ],
+        ];
+    @endphp
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:20px">
         @foreach($kpis as $k)
-        <div class="stat-card" style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['color'] }};border-radius:14px;padding:14px 18px;">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:6px;">{{ $k['label'] }}</div>
-            <div style="font-size:22px;font-weight:800;color:{{ $k['color'] }};line-height:1;">
-                {{ number_format($k['val'], 0, ',', ' ') }}{!! ($k['unit'] ?? ' FCFA') !!}
-            </div>
+        <div class="kpi-card" style="--kpi-color:{{ $k['color'] }}">
+            <div class="kpi-card__top-bar" style="background:{{ $k['color'] }}"></div>
+            <div class="kpi-card__icon" style="color:{{ $k['color'] }}">{!! $k['svg'] !!}</div>
+            <div class="kpi-card__value" style="color:{{ $k['color'] }}">{{ number_format($k['val'], 0, ',', ' ') }}{{ $k['unit'] }}</div>
+            <div class="kpi-card__label">{{ $k['label'] }}</div>
+            <div class="kpi-card__sub">{{ $k['sub'] }}</div>
         </div>
         @endforeach
     </div>

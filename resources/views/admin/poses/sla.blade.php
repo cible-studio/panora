@@ -75,44 +75,54 @@
     </select>
 </div>
 
-{{-- ── KPI cards (5) ─────────────────────────────────────────── --}}
-<div class="sla-grid">
-    <div class="sla-card" style="border-left-color:#22c55e">
-        <div class="sla-card-label">📊 Taux de pose à temps</div>
-        <div class="sla-card-value" style="color:#22c55e">
+{{-- ── KPI cards (5) — design KPI unifié ─────────────────────── --}}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:20px">
+    <div class="kpi-card" style="--kpi-color:#22c55e">
+        <div class="kpi-card__top-bar" style="background:#22c55e"></div>
+        <div class="kpi-card__icon" style="color:#22c55e"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div>
+        <div class="kpi-card__value" style="color:#22c55e">
             @if($onTimeRate !== null){{ $onTimeRate }}<span style="font-size:14px;font-weight:600">%</span>@else<span style="color:var(--text3)">—</span>@endif
         </div>
-        <div class="sla-card-sub">{{ $onTime }} à temps · {{ $late }} en retard</div>
+        <div class="kpi-card__label">Taux de pose à temps</div>
+        <div class="kpi-card__sub">{{ $onTime }} à temps · {{ $late }} en retard</div>
     </div>
 
-    <div class="sla-card" style="border-left-color:#f97316">
-        <div class="sla-card-label">⏱ Médiane retard</div>
-        <div class="sla-card-value" style="color:#f97316">
+    <div class="kpi-card" style="--kpi-color:#f97316">
+        <div class="kpi-card__top-bar" style="background:#f97316"></div>
+        <div class="kpi-card__icon" style="color:#f97316"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="kpi-card__value" style="color:#f97316">
             {{ $medianDelay }}<span style="font-size:14px;font-weight:600">j</span>
         </div>
-        <div class="sla-card-sub">Sur les poses en retard ({{ $late }})</div>
+        <div class="kpi-card__label">Médiane retard</div>
+        <div class="kpi-card__sub">Sur les poses en retard ({{ $late }})</div>
     </div>
 
-    <div class="sla-card" style="border-left-color:#3b82f6">
-        <div class="sla-card-label">✅ Validation 1ère fois</div>
-        <div class="sla-card-value" style="color:#3b82f6">
+    <div class="kpi-card" style="--kpi-color:#3b82f6">
+        <div class="kpi-card__top-bar" style="background:#3b82f6"></div>
+        <div class="kpi-card__icon" style="color:#3b82f6"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="kpi-card__value" style="color:#3b82f6">
             @if($firstTimeRate !== null){{ $firstTimeRate }}<span style="font-size:14px;font-weight:600">%</span>@else<span style="color:var(--text3)">—</span>@endif
         </div>
-        <div class="sla-card-sub">{{ $pigesVerifiees }} validées · {{ $pigesRejetees }} rejetées</div>
+        <div class="kpi-card__label">Validation 1ère fois</div>
+        <div class="kpi-card__sub">{{ $pigesVerifiees }} validées · {{ $pigesRejetees }} rejetées</div>
     </div>
 
-    <div class="sla-card" style="border-left-color:#8b5cf6">
-        <div class="sla-card-label">⌛ Délai validation</div>
-        <div class="sla-card-value" style="color:#8b5cf6">
+    <div class="kpi-card" style="--kpi-color:#8b5cf6">
+        <div class="kpi-card__top-bar" style="background:#8b5cf6"></div>
+        <div class="kpi-card__icon" style="color:#8b5cf6"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v6h.01L6 8.01 10 12l-4 4 .01.01H6V22h12v-5.99h-.01L18 16l-4-4 4-3.99-.01-.01H18V2H6z"/></svg></div>
+        <div class="kpi-card__value" style="color:#8b5cf6">
             @if($avgValidationHours !== null){{ $avgValidationHours }}<span style="font-size:14px;font-weight:600">h</span>@else<span style="color:var(--text3)">—</span>@endif
         </div>
-        <div class="sla-card-sub">Upload tech → validation MP</div>
+        <div class="kpi-card__label">Délai validation</div>
+        <div class="kpi-card__sub">Upload tech → validation MP</div>
     </div>
 
-    <div class="sla-card" style="border-left-color:var(--accent)">
-        <div class="sla-card-label">📋 Volume total</div>
-        <div class="sla-card-value" style="color:var(--accent)">{{ $totalPoses }}</div>
-        <div class="sla-card-sub">Poses · {{ $pigesTotal }} piges sur {{ $days }}j</div>
+    <div class="kpi-card" style="--kpi-color:var(--accent)">
+        <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
+        <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+        <div class="kpi-card__value" style="color:var(--accent)">{{ $totalPoses }}</div>
+        <div class="kpi-card__label">Volume total</div>
+        <div class="kpi-card__sub">Poses · {{ $pigesTotal }} piges sur {{ $days }}j</div>
     </div>
 </div>
 

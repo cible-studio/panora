@@ -9,33 +9,43 @@
         </a>
     </x-slot:topbarActions>
 
-    {{-- ══ STATS — KPI cliquables qui pilotent le filtre actif ════════ --}}
-    <div class="ci-stats-grid">
+    {{-- ══ KPI cards (design unifié) ════════════════════════════════ --}}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:20px;align-items:stretch">
         <button type="button"
-                class="ci-stat ci-stat-clickable {{ !request()->boolean('active_only') ? 'ci-stat-active' : '' }}"
+                class="kpi-card"
                 data-active-filter="0"
+                style="--kpi-color:var(--accent)"
+                onmouseenter="if(!this.classList.contains('is-active')){this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'}"
+                onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}"
                 title="Afficher tous les clients">
-            <div class="ci-stat-icon">👥</div>
-            <div class="ci-stat-body">
-                <div class="ci-stat-num">{{ $stats['total'] }}</div>
-                <div class="ci-stat-label">Total clients</div>
-            </div>
+            <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
+            <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+            <div class="kpi-card__value" style="color:var(--accent)">{{ $stats['total'] }}</div>
+            <div class="kpi-card__label">Total clients</div>
+            <div class="kpi-card__sub">portefeuille complet</div>
+            <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
         </button>
+
         <button type="button"
-                class="ci-stat ci-stat-clickable {{ request()->boolean('active_only') ? 'ci-stat-active' : '' }}"
+                class="kpi-card {{ request()->boolean('active_only') ? 'is-active' : '' }}"
                 data-active-filter="1"
+                style="--kpi-color:#22c55e;{{ request()->boolean('active_only') ? 'border-color:#22c55e;' : '' }}"
+                onmouseenter="if(!this.classList.contains('is-active')){this.style.borderColor='#22c55e';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'}"
+                onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}"
                 title="Filtrer sur clients ayant au moins une campagne active ou en pose">
-            <div class="ci-stat-icon">📡</div>
-            <div class="ci-stat-body">
-                <div class="ci-stat-num">{{ $stats['actifs'] }}</div>
-                <div class="ci-stat-label">Avec campagne active</div>
-            </div>
+            <div class="kpi-card__top-bar" style="background:#22c55e"></div>
+            <div class="kpi-card__icon" style="color:#22c55e"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg></div>
+            <div class="kpi-card__value" style="color:#22c55e">{{ $stats['actifs'] }}</div>
+            <div class="kpi-card__label">Avec campagne active</div>
+            <div class="kpi-card__sub">portefeuille en activité</div>
+            <div class="kpi-card__arrow" style="color:#22c55e">→</div>
         </button>
-        <div class="ci-stat ci-stat-actions">
-            <div class="ci-stat-label" style="margin-bottom:10px">Exports & Import</div>
+
+        {{-- Bloc Exports & Import — visuellement aligné aux KPI cards mais
+             fonctionnellement c'est un panneau d'actions, pas un KPI. --}}
+        <div style="background:var(--surface);border:2px solid var(--border);border-radius:14px;padding:16px 18px;position:relative;display:flex;flex-direction:column;gap:10px;grid-column:span 2">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">Exports &amp; Import</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-                {{-- Les exports respectent les filtres courants — la fonction
-                     buildExportUrl() en JS injecte search/sector/active_only. --}}
                 <a class="ci-export-btn" href="#" id="export-excel" style="text-decoration:none" title="Export Excel (xlsx — logo + mise en forme)">📊 Excel</a>
                 <a class="ci-export-btn" href="#" id="export-csv" style="text-decoration:none" title="Export CSV (UTF-8)">📋 CSV</a>
                 <a class="ci-export-btn" href="#" id="export-pdf" style="text-decoration:none" title="Export PDF (paysage A4)">📄 PDF</a>
@@ -1060,16 +1070,17 @@
                     srt.addEventListener('change', applyFilters);
                     rst.addEventListener('click', resetFilters);
 
-                    // Cartes KPI cliquables — bascule du filtre "active_only"
-                    document.querySelectorAll('.ci-stat-clickable').forEach(card => {
+                    // Cartes KPI cliquables — bascule du filtre "active_only".
+                    // is-active uniquement sur "Avec campagne active" quand
+                    // active_only=true. "Total" reste neutre.
+                    document.querySelectorAll('.kpi-card[data-active-filter]').forEach(card => {
                         card.addEventListener('click', () => {
                             const wantActive = card.dataset.activeFilter === '1';
                             if (filters.active_only === wantActive) return;
                             filters.active_only = wantActive;
-                            // Visuel actif/inactif sans attendre le fetch
-                            document.querySelectorAll('.ci-stat-clickable').forEach(c => {
-                                c.classList.toggle('ci-stat-active',
-                                    (c.dataset.activeFilter === '1') === filters.active_only);
+                            document.querySelectorAll('.kpi-card[data-active-filter]').forEach(c => {
+                                c.classList.toggle('is-active',
+                                    c.dataset.activeFilter === '1' && filters.active_only);
                             });
                             filters.page = 1;
                             updateReset();
@@ -1146,8 +1157,12 @@
                     document.getElementById('filter-search').value = '';
                     document.getElementById('filter-sector').value = '';
                     document.getElementById('filter-sort').value = 'name';
-                    document.querySelectorAll('.ci-stat-clickable').forEach(c => {
-                        c.classList.toggle('ci-stat-active', c.dataset.activeFilter === '0');
+                    // Reset → toutes les KPI cards reviennent en état neutre
+                    document.querySelectorAll('.kpi-card[data-active-filter]').forEach(c => {
+                        c.classList.remove('is-active');
+                        c.style.borderColor = '';
+                        c.style.transform = '';
+                        c.style.boxShadow = '';
                     });
                     updateReset();
                     updateExportLinks();
