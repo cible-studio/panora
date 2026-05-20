@@ -67,7 +67,9 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
 @foreach($kpis as $k)
 @php
     $isTotal  = $k['s'] === '';
-    $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $k['s']);
+    // is-active uniquement si l'utilisateur a cliqué sur un statut précis
+    // (pas sur "Total" / "Toutes" par défaut).
+    $isActive = !$isTotal && $activeStatus === $k['s'];
     $url = $isTotal
         ? route('admin.piges.index', request()->except(['status','page']))
         : ($isActive

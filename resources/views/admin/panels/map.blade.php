@@ -210,19 +210,24 @@ function filterByStatus(status) {
     // Mettre à jour le select
     document.getElementById('filterStatus').value = status;
 
-    // Style cards actives
+    // Reset visuel — toutes les cards reviennent en état neutre
     ['card-all','card-libre','card-occupe','card-maintenance'].forEach(id => {
         const el = document.getElementById(id);
-        el.classList.remove('active-card');
-        el.style.borderColor = 'transparent';
+        if (!el) return;
+        el.classList.remove('active-card', 'is-active');
+        el.style.borderColor = '';
     });
 
-    const cardMap = { '': 'card-all', 'libre': 'card-libre', 'occupe': 'card-occupe', 'maintenance': 'card-maintenance' };
-    const activeCard = document.getElementById(cardMap[status] || 'card-all');
-    if (activeCard) {
-        activeCard.classList.add('active-card');
-        const colors = { 'card-all':'var(--accent)', 'card-libre':'#3aa835', 'card-occupe':'var(--accent)', 'card-maintenance':'#e20613' };
-        activeCard.style.borderColor = colors[cardMap[status]] || 'var(--accent)';
+    // is-active UNIQUEMENT pour un statut précis filtré.
+    // Status vide ("") = "Total" → on reste en état neutre.
+    if (status) {
+        const cardMap = { 'libre': 'card-libre', 'occupe': 'card-occupe', 'maintenance': 'card-maintenance' };
+        const activeCard = document.getElementById(cardMap[status]);
+        if (activeCard) {
+            activeCard.classList.add('is-active');
+            const colors = { 'card-libre':'#3aa835', 'card-occupe':'var(--accent)', 'card-maintenance':'#e20613' };
+            activeCard.style.borderColor = colors[cardMap[status]];
+        }
     }
 
     filterMap();

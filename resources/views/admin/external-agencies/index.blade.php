@@ -40,7 +40,11 @@
 @endphp
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
     @foreach($kpis as $k)
-        @php $isActive = ($currentStatus ?? '') === ($k['key'] ?? ''); @endphp
+        @php
+            // is-active uniquement quand l'utilisateur a cliqué sur un statut
+            // précis (pas sur "Total" par défaut). key=null → carte Total.
+            $isActive = $k['key'] !== null && $currentStatus === $k['key'];
+        @endphp
         <a href="{{ route('admin.external-agencies.index', $k['key'] ? ['status' => $k['key']] : []) }}"
            class="kpi-card {{ $isActive ? 'is-active' : '' }}"
            style="--kpi-color:{{ $k['color'] }}"
