@@ -356,9 +356,19 @@ async function submitQuickClient() {
             document.getElementById('qc-submit-txt').textContent = 'Créer le client';
             return;
         }
+        // Le payload peut être { client: {...} } ou {id, name, ...} directement
+        const created = data.client || data;
+        if (!created || !created.id || !created.name) {
+            errBox.textContent = '⚠️ Réponse inattendue du serveur — client créé mais non sélectionnable.';
+            errBox.style.display = 'block';
+            btn.disabled = false;
+            document.getElementById('qc-submit-icon').textContent = '+';
+            document.getElementById('qc-submit-txt').textContent = 'Créer le client';
+            return;
+        }
         // Injecte la nouvelle option dans le select + sélectionne
         const sel = document.getElementById('campaign-client-select');
-        const opt = new Option(data.client.name, data.client.id, true, true);
+        const opt = new Option(created.name, created.id, true, true);
         sel.add(opt);
         // Déclenche le binding Alpine (x-model)
         sel.dispatchEvent(new Event('change', { bubbles: true }));

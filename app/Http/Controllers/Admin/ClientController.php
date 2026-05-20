@@ -498,23 +498,94 @@ class ClientController extends Controller
 
     public function storeQuick(Request $request)
     {
-        $data = $request->validate([
-            'name' => 'required|string|max:150',
-            'email' => 'nullable|email|unique:clients,email',
-            'phone' => 'nullable|string|max:20',
-            'contact_name' => 'nullable|string|max:150',
-            'ncc' => 'nullable|string|max:50|unique:clients,ncc',
+        try {
+            $data = $request->validate([
+                'name'         => 'required|string|max:150',
+                'email'        => 'nullable|email|unique:clients,email',
+                'phone'        => 'nullable|string|max:25',
+                'contact_name' => 'nullable|string|max:150',
+                'ncc'          => 'nullable|string|max:80|unique:clients,ncc',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Premier message d'erreur lisible (ex: "Le NCC existe déjà")
+            $first = collect($e->errors())->flatten()->first() ?? 'Données invalides.';
+            return response()->json([
+                'success' => false,
+                'message' => $first,
+                'errors'  => $e->errors(),
+            ], 422);
+        }
 
-        ]);
+        // Auto-NCC si non fourni (cohérent avec StoreClientRequest)
+        if (empty($data['ncc'] ?? null)) {
+            try { $data['ncc'] = Client::generateNcc(); } catch (\Throwable) {}
+        }
 
         $client = Client::create($data);
 
+        // Structure attendue par le JS du modal campagne : { success, client: {...} }
         return response()->json([
-            'id' => $client->id,
+            'success' => true,
+            'client'  => [
+                'id'           => $client->id,
+                'name'         => $client->name,
+                'text'         => $client->name,
+                'ncc'          => $client->ncc,
+                'phone'        => $client->phone,
+                'email'        => $client->email,
+                'contact_name' => $client->contact_name,
+            ],
+            // Champs racine conservés pour rétro-compat avec d'autres appelants
+            'id'   => $client->id,
             'name' => $client->name,
             'text' => $client->name,
-            'ncc' => $client->ncc,
+            'ncc'  => $client->ncc,
+        ]);
+    }
 
+    // ══════════════════════════════════════════════════════════════
+    // SUPPRESSION GROUPÉE — admin/clients/bulk-destroy (POST AJAX)
+    // ══════════════════════════════════════════════════════════════
+    public function bulkDestroy(Request $request)
+    {
+        $data = $request->validate([
+            'ids'   => 'required|array|min:1|max:200',
+            'ids.*' => 'integer|exists:clients,id',
+        ]);
+
+        $ids = $data['ids'];
+
+        // On exclut les clients ayant des campagnes actives (sécurité métier
+        // — éviter de casser des opérations en cours). À la place, on
+        // renvoie la liste des clients refusés pour info utilisateur.
+        $blocked = Client::whereIn('id', $ids)
+            ->whereHas('campaigns', fn($q) => $q->whereIn('status', ['actif', 'planifie', 'pause']))
+            ->pluck('name', 'id');
+
+        $deletable = collect($ids)->reject(fn($id) => $blocked->has($id))->values()->all();
+
+        $deleted = 0;
+        if (!empty($deletable)) {
+            $deleted = Client::whereIn('id', $deletable)->delete(); // soft delete
+        }
+
+        AlertService::create(
+            'client',
+            'warning',
+            '🗑 Suppression groupée — ' . $deleted . ' client(s)',
+            auth()->user()?->name . ' a supprimé ' . $deleted . ' client(s) en lot.',
+            null
+        );
+
+        return response()->json([
+            'success'      => true,
+            'deleted'      => $deleted,
+            'blocked'      => $blocked->values(),
+            'blocked_count'=> $blocked->count(),
+            'message'      => $deleted . ' client(s) supprimé(s)' .
+                              ($blocked->count() > 0
+                                  ? ' · ' . $blocked->count() . ' bloqué(s) (campagnes actives)'
+                                  : ''),
         ]);
     }
 

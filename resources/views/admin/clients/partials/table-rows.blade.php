@@ -6,7 +6,13 @@
     $colors     = ['#e8a020','#22c55e','#3b82f6','#ec4899','#8b5cf6','#06b6d4','#f97316'];
     $color      = $colors[crc32($client->name) % count($colors)];
 @endphp
-<tr>
+<tr data-client-id="{{ $client->id }}">
+    {{-- Sélection multiple --}}
+    <td style="width:36px;text-align:center;padding:0 6px">
+        <input type="checkbox" class="ci-row-check" value="{{ $client->id }}" data-name="{{ $client->name }}"
+               onclick="event.stopPropagation()"
+               style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">
+    </td>
     {{-- Client --}}
     <td>
         <div style="display:flex;align-items:center;gap:10px">
@@ -104,7 +110,7 @@
     {{-- Actions dropdown --}}
     <td>
         <div class="ci-dd" style="position:relative;display:inline-block">
-            <button onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('open')"
+            <button type="button" class="ci-dd-toggle" data-dd-toggle
                     style="background:transparent;border:1px solid transparent;color:var(--text3);cursor:pointer;padding:6px 8px;border-radius:8px;transition:all .15s"
                     onmouseover="this.style.background='var(--surface2)';this.style.borderColor='var(--border)'"
                     onmouseout="this.style.background='transparent';this.style.borderColor='transparent'">
@@ -112,7 +118,7 @@
                     <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
                 </svg>
             </button>
-            <div class="ci-dd-menu" style="position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:12px;min-width:180px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.35);display:none;overflow:hidden">
+            <div class="ci-dd-menu" style="position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:12px;min-width:200px;z-index:200;box-shadow:0 12px 32px rgba(0,0,0,.45);display:none;overflow:hidden">
                 <a href="{{ route('admin.clients.show', $client) }}" class="ci-dd-item">
                     <span>👁</span> Voir les détails
                 </a>
@@ -120,16 +126,16 @@
                     <span>✏️</span> Modifier
                 </a>
                 @if($hasAccount)
-                <button onclick="openAccountModal({{ $client->id }}, '{{ addslashes($client->name) }}', true)" class="ci-dd-item">
+                <button type="button" onclick="openAccountModal({{ $client->id }}, '{{ addslashes($client->name) }}', true)" class="ci-dd-item">
                     <span>🔐</span> Gérer le compte
                 </button>
                 @else
-                <button onclick="openAccountModal({{ $client->id }}, '{{ addslashes($client->name) }}', false)" class="ci-dd-item">
+                <button type="button" onclick="openAccountModal({{ $client->id }}, '{{ addslashes($client->name) }}', false)" class="ci-dd-item">
                     <span>📧</span> Créer un compte
                 </button>
                 @endif
                 <div style="height:1px;background:var(--border);margin:4px 0"></div>
-                <button onclick="openDeleteClient({{ $client->id }}, '{{ addslashes($client->name) }}', {{ $client->active_campaigns_count ?? 0 }})" class="ci-dd-item ci-dd-item-danger">
+                <button type="button" onclick="openDeleteClient({{ $client->id }}, '{{ addslashes($client->name) }}', {{ $client->active_campaigns_count ?? 0 }})" class="ci-dd-item ci-dd-item-danger">
                     <span>🗑</span> Supprimer
                 </button>
             </div>
@@ -138,7 +144,7 @@
 </tr>
 @empty
 <tr>
-    <td colspan="7" style="text-align:center;padding:60px 20px">
+    <td colspan="8" style="text-align:center;padding:60px 20px">
         <div style="font-size:40px;margin-bottom:12px;opacity:.4">👥</div>
         <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:6px">Aucun client trouvé</div>
         <div style="font-size:13px;color:var(--text3)">

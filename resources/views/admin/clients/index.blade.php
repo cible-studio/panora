@@ -93,6 +93,10 @@
             <table class="ci-table" id="clients-table">
                 <thead>
                     <tr>
+                        <th style="width:36px;text-align:center;padding:0 6px">
+                            <input type="checkbox" id="ci-check-all" title="Tout sélectionner"
+                                   style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">
+                        </th>
                         <th>Client</th>
                         <th class="ci-hide-sm">Secteur</th>
                         <th>Campagnes</th>
@@ -106,6 +110,19 @@
                     @include('admin.clients.partials.table-rows', ['clients' => $clients])
                 </tbody>
             </table>
+        </div>
+
+        {{-- ══ Barre d'actions groupées (flottante) ══ --}}
+        <div id="ci-bulk-bar" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:300;background:var(--surface);border:1.5px solid var(--accent);border-radius:14px;padding:12px 18px;box-shadow:0 12px 36px rgba(0,0,0,.5);align-items:center;gap:14px">
+            <span style="font-size:13px;font-weight:700;color:var(--text)">
+                <span id="ci-bulk-count">0</span> client(s) sélectionné(s)
+            </span>
+            <button type="button" id="ci-bulk-cancel" class="ci-export-btn" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2)">
+                ✕ Annuler
+            </button>
+            <button type="button" id="ci-bulk-delete" class="ci-export-btn" style="background:#dc2626;border:1px solid #dc2626;color:#fff;font-weight:700">
+                🗑 Supprimer la sélection
+            </button>
         </div>
 
         {{-- Skeleton loader --}}
@@ -1183,6 +1200,125 @@
 
                 init();
             })();
+        </script>
+
+        {{-- ══ Dropdown menu + bulk selection (sélection multiple) ══ --}}
+        <script>
+        (function () {
+            'use strict';
+
+            // ── Dropdown actions : toggle + click outside pour fermer ──
+            function closeAllDropdowns(except) {
+                document.querySelectorAll('.ci-dd-menu.open').forEach(m => {
+                    if (m !== except) m.classList.remove('open');
+                });
+            }
+            document.addEventListener('click', function (e) {
+                const toggle = e.target.closest('[data-dd-toggle]');
+                if (toggle) {
+                    e.stopPropagation();
+                    const menu = toggle.nextElementSibling;
+                    const wasOpen = menu.classList.contains('open');
+                    closeAllDropdowns();
+                    if (!wasOpen) menu.classList.add('open');
+                    return;
+                }
+                // Click ailleurs → ferme tous les dropdowns ouverts
+                if (!e.target.closest('.ci-dd-menu')) {
+                    closeAllDropdowns();
+                }
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') closeAllDropdowns();
+            });
+
+            // ── Bulk selection ──
+            const bulkBar    = document.getElementById('ci-bulk-bar');
+            const bulkCount  = document.getElementById('ci-bulk-count');
+            const checkAll   = document.getElementById('ci-check-all');
+            const cancelBtn  = document.getElementById('ci-bulk-cancel');
+            const deleteBtn  = document.getElementById('ci-bulk-delete');
+
+            function getChecks() {
+                return document.querySelectorAll('.ci-row-check');
+            }
+            function getSelected() {
+                return Array.from(getChecks()).filter(c => c.checked);
+            }
+            function refreshBulkBar() {
+                const sel = getSelected();
+                bulkCount.textContent = sel.length;
+                bulkBar.style.display = sel.length > 0 ? 'flex' : 'none';
+                // Sync checkAll : indéterminé si partiel
+                if (checkAll) {
+                    const all = getChecks();
+                    if (sel.length === 0) {
+                        checkAll.checked = false;
+                        checkAll.indeterminate = false;
+                    } else if (sel.length === all.length) {
+                        checkAll.checked = true;
+                        checkAll.indeterminate = false;
+                    } else {
+                        checkAll.checked = false;
+                        checkAll.indeterminate = true;
+                    }
+                }
+            }
+            // Délégation : capte les changements même après ré-injection AJAX
+            document.addEventListener('change', function (e) {
+                if (e.target.classList.contains('ci-row-check')) {
+                    refreshBulkBar();
+                }
+            });
+            if (checkAll) {
+                checkAll.addEventListener('change', function () {
+                    getChecks().forEach(c => { c.checked = checkAll.checked; });
+                    refreshBulkBar();
+                });
+            }
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', function () {
+                    getChecks().forEach(c => { c.checked = false; });
+                    refreshBulkBar();
+                });
+            }
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', async function () {
+                    const sel = getSelected();
+                    if (sel.length === 0) return;
+                    const ids = sel.map(c => c.value);
+                    const names = sel.map(c => c.dataset.name).slice(0, 3).join(', ')
+                                + (sel.length > 3 ? ', …' : '');
+                    if (!confirm(`Supprimer définitivement ${sel.length} client(s) ?\n\n${names}\n\nCette action est irréversible.`)) return;
+                    deleteBtn.disabled = true;
+                    deleteBtn.textContent = '⏳ Suppression…';
+                    try {
+                        const r = await fetch('{{ route('admin.clients.bulk-destroy') }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                            },
+                            body: JSON.stringify({ ids }),
+                        });
+                        const data = await r.json();
+                        if (!r.ok || data.success === false) {
+                            alert('⚠️ ' + (data.message || 'Erreur lors de la suppression.'));
+                            deleteBtn.disabled = false;
+                            deleteBtn.innerHTML = '🗑 Supprimer la sélection';
+                            return;
+                        }
+                        // Recharge la page pour actualiser le tableau + KPIs
+                        window.location.reload();
+                    } catch (e) {
+                        alert('⚠️ Erreur réseau : ' + e.message);
+                        deleteBtn.disabled = false;
+                        deleteBtn.innerHTML = '🗑 Supprimer la sélection';
+                    }
+                });
+            }
+        })();
         </script>
     @endpush
 </x-admin-layout>
