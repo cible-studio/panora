@@ -16,31 +16,27 @@
     <a href="{{ route('admin.invoices.create') }}" class="btn btn-primary btn-sm">＋ Nouvelle facture</a>
 </x-slot>
 
-{{-- STATS CLIQUABLES (filtres AJAX) --}}
-<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
-    <div data-status="brouillon" class="stat-card filter-stat {{ request('status') === 'brouillon' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
+{{-- STATS CLIQUABLES (design uniformisé — filtres AJAX) --}}
+<div class="stat-cards-row">
+    <div data-status="brouillon" class="stat-card stat-card-gray filter-stat {{ request('status') === 'brouillon' ? 'active' : '' }}">
+        <div class="stat-icon">📝</div>
+        <div class="stat-value" data-kpi="brouillon">{{ $totalBrouillons }}</div>
         <div class="stat-label">Brouillons</div>
-        <div class="stat-value" data-kpi="brouillon" style="color:var(--text3);">{{ $totalBrouillons }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
     </div>
-    <div data-status="envoyee" class="stat-card filter-stat {{ request('status') === 'envoyee' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
+    <div data-status="envoyee" class="stat-card stat-card-blue filter-stat {{ request('status') === 'envoyee' ? 'active' : '' }}">
+        <div class="stat-icon">📄</div>
+        <div class="stat-value" data-kpi="envoyee">{{ $totalEnvoyees }}</div>
         <div class="stat-label">Envoyées</div>
-        <div class="stat-value" data-kpi="envoyee" style="color:var(--blue);">{{ $totalEnvoyees }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
     </div>
-    <div data-status="payee" class="stat-card filter-stat {{ request('status') === 'payee' ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
+    <div data-status="payee" class="stat-card stat-card-green filter-stat {{ request('status') === 'payee' ? 'active' : '' }}">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value" data-kpi="payee">{{ $totalPayees }}</div>
         <div class="stat-label">Payées</div>
-        <div class="stat-value" data-kpi="payee" style="color:var(--green);">{{ $totalPayees }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Filtrer →</div>
     </div>
-    <div data-status="" class="stat-card filter-stat {{ !request('status') ? 'active' : '' }}"
-         style="text-decoration:none;cursor:pointer;transition:all .15s;">
+    <div data-status="" class="stat-card stat-card-orange filter-stat {{ !request('status') ? 'active' : '' }}">
+        <div class="stat-icon">💰</div>
+        <div class="stat-value" data-kpi="ca" style="font-size:18px">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
         <div class="stat-label">CA Encaissé</div>
-        <div class="stat-value" data-kpi="ca" style="font-size:16px; color:var(--accent);">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Voir tout →</div>
     </div>
 </div>
 

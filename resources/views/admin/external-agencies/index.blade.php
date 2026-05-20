@@ -8,27 +8,26 @@
   </button>
 </x-slot:topbarActions>
 
-{{-- ── KPI cliquables (filtre par status) ── --}}
+{{-- ── KPI cliquables (design uniformisé — <x-stat-card>) ── --}}
 @php
     $currentStatus = request('status');
     $kpis = [
-        ['key' => null,        'label' => 'Total',     'icon' => '🏢', 'value' => $stats['total']    ?? 0, 'color' => 'var(--text)'],
-        ['key' => 'active',    'label' => 'Actives',   'icon' => '✅', 'value' => $stats['active']   ?? 0, 'color' => '#22c55e'],
-        ['key' => 'inactive',  'label' => 'Inactives', 'icon' => '⏸',  'value' => $stats['inactive'] ?? 0, 'color' => '#ef4444'],
+        ['key' => null,        'label' => 'Total régies',  'icon' => '🏢', 'value' => $stats['total']    ?? 0, 'color' => 'orange'],
+        ['key' => 'active',    'label' => 'Actives',       'icon' => '✅', 'value' => $stats['active']   ?? 0, 'color' => 'green'],
+        ['key' => 'inactive',  'label' => 'Inactives',     'icon' => '⏸',  'value' => $stats['inactive'] ?? 0, 'color' => 'red'],
     ];
 @endphp
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+<div class="stat-cards-row">
     @foreach($kpis as $k)
         @php $isActive = ($currentStatus ?? '') === ($k['key'] ?? ''); @endphp
-        <a href="{{ route('admin.external-agencies.index', $k['key'] ? ['status' => $k['key']] : []) }}"
-           class="stat-card {{ $isActive ? 'is-active' : '' }}"
-           style="text-decoration:none;border:1px solid {{ $isActive ? $k['color'] : 'var(--border)' }};background:{{ $isActive ? 'var(--accent-dim)' : 'var(--surface)' }};border-radius:14px;padding:16px;display:flex;align-items:center;gap:14px;transition:all .15s">
-            <div style="font-size:24px">{{ $k['icon'] }}</div>
-            <div>
-                <div style="font-size:22px;font-weight:700;color:{{ $k['color'] }};line-height:1.1">{{ $k['value'] }}</div>
-                <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600">{{ $k['label'] }}</div>
-            </div>
-        </a>
+        <x-stat-card
+            :value="number_format($k['value'])"
+            :label="$k['label']"
+            :icon="$k['icon']"
+            :color="$k['color']"
+            :active="$isActive"
+            :href="route('admin.external-agencies.index', $k['key'] ? ['status' => $k['key']] : [])"
+        />
     @endforeach
 </div>
 

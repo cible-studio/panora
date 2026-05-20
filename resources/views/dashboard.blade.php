@@ -25,37 +25,36 @@
     {{-- COLONNE GAUCHE --}}
     <div style="flex:1; min-width:0;">
 
-        {{-- STAT CARDS CLIQUABLES --}}
-        <div class="stats-grid" style="grid-template-columns: repeat(3,1fr);">
+        {{-- STAT CARDS CLIQUABLES (design uniformisé) --}}
+        <div class="stat-cards-row">
 
             {{-- Card 1 : Total panneaux --}}
             <a href="{{ route('admin.panels.index') }}"
                id="card-all"
                onclick="filterByStatus('all', this)"
-               style="text-decoration:none;"
-               class="stat-card stat-card-clickable">
-                <div class="stat-label">Panneaux Actifs</div>
+               class="stat-card stat-card-orange">
+                <div class="stat-icon">🪧</div>
                 <div class="stat-value">{{ $totalPanneaux }}</div>
-                <div class="stat-delta up">↑ Voir tous les panneaux →</div>
+                <div class="stat-label">Panneaux actifs</div>
+                <div class="stat-sub">Voir tous les panneaux →</div>
             </a>
 
             {{-- Card 2 : Disponibles --}}
             <a href="{{ route('admin.panels.index', ['status' => 'libre']) }}"
                id="card-libre"
-               style="text-decoration:none;"
-               class="stat-card stat-card-clickable">
+               class="stat-card stat-card-green">
+                <div class="stat-icon">🟢</div>
+                <div class="stat-value">{{ $panneauxLibres }}</div>
                 <div class="stat-label">Disponibles</div>
-                <div class="stat-value" style="color:var(--green);">{{ $panneauxLibres }}</div>
-                <div class="stat-delta" style="color:var(--text2);">Libres à la réservation →</div>
+                <div class="stat-sub">Libres à la réservation →</div>
             </a>
 
             {{-- Card 3 : CA Mensuel --}}
             <a href="{{ route('admin.panels.index', ['status' => 'occupe']) }}"
                id="card-occupe"
-               style="text-decoration:none;"
-               class="stat-card stat-card-clickable">
-                <div class="stat-label">CA Mensuel (FCFA)</div>
-                <div class="stat-value">
+               class="stat-card stat-card-blue">
+                <div class="stat-icon">💰</div>
+                <div class="stat-value" style="font-size:22px">
                     @php
                         $ca = $caMensuel ?? 0;
                         echo $ca >= 1000000
@@ -63,11 +62,12 @@
                             : number_format($ca, 0, ',', ' ');
                     @endphp
                 </div>
-                <div class="stat-delta up">
+                <div class="stat-label">CA Mensuel (FCFA)</div>
+                <div class="stat-sub">
                     @if(isset($variationCA) && $variationCA !== null)
-                        {{ $variationCA >= 0 ? '↑' : '↓' }} {{ abs($variationCA) }}% vs mois précédent →
+                        {{ $variationCA >= 0 ? '↑' : '↓' }} {{ abs($variationCA) }}% vs mois précédent
                     @else
-                        ↑ Voir panneaux occupés →
+                        Voir panneaux occupés →
                     @endif
                 </div>
             </a>

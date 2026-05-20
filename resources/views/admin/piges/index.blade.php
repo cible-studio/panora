@@ -38,34 +38,35 @@
      du filtre KPI courant). ════ --}}
 @php
 $kpis = [
-    ['s'=>'',           'k'=>'total',      'l'=>'Total',      'v'=>$stats['total']      ?? 0, 'c'=>'var(--accent)', 'icon'=>'📋'],
-    ['s'=>'en_attente', 'k'=>'en_attente', 'l'=>'En attente', 'v'=>$stats['en_attente'] ?? 0, 'c'=>'#f97316',       'icon'=>'⏳'],
-    ['s'=>'verifie',    'k'=>'verifie',    'l'=>'Vérifiées',  'v'=>$stats['verifie']    ?? 0, 'c'=>'#22c55e',       'icon'=>'✅'],
-    ['s'=>'rejete',     'k'=>'rejete',     'l'=>'Rejetées',   'v'=>$stats['rejete']     ?? 0, 'c'=>'#ef4444',       'icon'=>'🚫'],
+    ['s'=>'',           'k'=>'total',      'l'=>'Total',      'v'=>$stats['total']      ?? 0, 'c'=>'orange', 'icon'=>'📸'],
+    ['s'=>'en_attente', 'k'=>'en_attente', 'l'=>'À valider',  'v'=>$stats['en_attente'] ?? 0, 'c'=>'amber',  'icon'=>'⏳'],
+    ['s'=>'verifie',    'k'=>'verifie',    'l'=>'Validées',   'v'=>$stats['verifie']    ?? 0, 'c'=>'green',  'icon'=>'✅'],
+    ['s'=>'rejete',     'k'=>'rejete',     'l'=>'Rejetées',   'v'=>$stats['rejete']     ?? 0, 'c'=>'red',    'icon'=>'❌'],
 ];
 $activeStatus = request('status');
 $hasAnyFilter = request('q') || request('status') || request('campaign_id') || request('panel_id')
               || request('technicien_id') || request('date_from') || request('date_to');
 @endphp
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px">
+<div class="stat-cards-row">
 @foreach($kpis as $k)
-@php
-    $isTotal  = $k['s'] === '';
-    $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $k['s']);
-    $url = $isTotal
-        ? route('admin.piges.index', request()->except(['status','page']))
-        : ($isActive
-            ? route('admin.piges.index', request()->except(['status','page'])) // toggle off
-            : route('admin.piges.index', array_merge(request()->except(['status','page']), ['status'=>$k['s']])));
-@endphp
-<a href="{{ $url }}"
-   data-kpi="{{ $k['k'] }}"
-   class="stat-card {{ $isActive ? 'active' : '' }}"
-   style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['c'] }};border-radius:14px;padding:14px 18px;text-decoration:none;display:block;transition:all .15s;{{ $isActive ? 'box-shadow:0 0 0 2px '.$k['c'].'33;' : '' }}">
-    <div style="font-size:18px;color:{{ $k['c'] }};margin-bottom:4px">{{ $k['icon'] }}</div>
-    <div data-kpi-value="{{ $k['k'] }}" style="font-size:26px;font-weight:800;color:{{ $k['c'] }};line-height:1;margin-bottom:6px">{{ number_format($k['v']) }}</div>
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">{{ $k['l'] }}</div>
-</a>
+    @php
+        $isTotal  = $k['s'] === '';
+        $isActive = $isTotal ? !$hasAnyFilter : ($activeStatus === $k['s']);
+        $url = $isTotal
+            ? route('admin.piges.index', request()->except(['status','page']))
+            : ($isActive
+                ? route('admin.piges.index', request()->except(['status','page']))
+                : route('admin.piges.index', array_merge(request()->except(['status','page']), ['status'=>$k['s']])));
+    @endphp
+    <x-stat-card
+        :value="number_format($k['v'])"
+        :label="$k['l']"
+        :icon="$k['icon']"
+        :color="$k['c']"
+        :active="$isActive"
+        :kpi-key="$k['k']"
+        :href="$url"
+    />
 @endforeach
 </div>
 
