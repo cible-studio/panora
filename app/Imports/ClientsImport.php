@@ -101,11 +101,23 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
 
         $this->imported++;
 
-        // Note : la table clients n'a pas de colonne 'company' — si l'import
-        // fournit "entreprise", on l'agrège au nom si différent.
-        $finalName = $name;
-        if ($company !== '' && mb_strtoupper($company) !== mb_strtoupper($name)) {
-            $finalName = $name . ' / ' . $company;
+        // Règle métier : si l'import fournit une "entreprise" (raison sociale),
+        // c'est elle qui devient le `name` du client (ex: SUCAF, BEM…).
+        // Le "nom" de la ligne (souvent la personne interlocutrice) devient
+        // alors le `contact_name`, sauf si une colonne "contact" explicite
+        // est déjà remplie — auquel cas celle-ci prime.
+        //
+        // Sans "entreprise", on garde l'ancien comportement : `name` = nom
+        // de la ligne, `contact_name` = colonne contact.
+        $finalName    = $company !== '' ? $company : $name;
+        $finalContact = $contact;
+        if (
+            $finalContact === ''
+            && $company !== ''
+            && $name !== ''
+            && mb_strtoupper($name) !== mb_strtoupper($company)
+        ) {
+            $finalContact = $name;
         }
 
         return new Client([
@@ -113,7 +125,7 @@ class ClientsImport implements ToModel, WithHeadingRow, WithChunkReading, SkipsO
             'email'        => $email !== '' ? $email : null,
             'phone'        => $phone !== '' ? $phone : null,
             'ncc'          => $ncc !== '' ? $ncc : null,
-            'contact_name' => $contact !== '' ? $contact : null,
+            'contact_name' => $finalContact !== '' ? $finalContact : null,
             'sector'       => $sector !== '' ? $sector : null,
             'address'      => $address !== '' ? $address : null,
         ]);
