@@ -390,6 +390,10 @@ class RapportController extends Controller
         // Insights auto
         $insights          = $kpi->insights();
 
+        // Benchmarks sectoriels + synthèse exécutive direction (COMMIT E)
+        $marketBenchmarks  = $kpi->marketBenchmarks();
+        $execSummary       = $kpi->executiveSummary();
+
         // Variables filtres exposées à la vue
         $currentPreset = $preset ?? null;
 
@@ -446,6 +450,8 @@ class RapportController extends Controller
             'occVsRevenue',
             'taxesByCommune',
             'insights',
+            'marketBenchmarks',
+            'execSummary',
             'occupationTrend',
             'parcByCommune',
             // Filtres exposés
