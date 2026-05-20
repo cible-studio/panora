@@ -784,6 +784,8 @@ Route::prefix('admin')
             ->name('rapports.communes.detail');
         Route::get('/rapports/clients/{client}/detail', [RapportController::class, 'clientDetail'])
             ->whereNumber('client')->name('rapports.clients.detail');
+        Route::post('/rapports/decap/mark', [RapportController::class, 'markDecapped'])
+            ->name('rapports.decap.mark');
         Route::get('/rapports/taxes', [RapportController::class, 'taxes'])->name('rapports.taxes');
         Route::get('/rapports/campagnes', [RapportController::class, 'campagnes'])->name('rapports.campagnes');
 

@@ -298,6 +298,7 @@ class RapportController extends Controller
         // Décappages
         $decapList         = $kpi->decapList(50);
         $upcomingEndings   = $kpi->upcomingEndings(14);
+        $decapStats        = $kpi->decapStats();
 
         // Financier
         $totalRevenueKpi   = $kpi->totalRevenue();
@@ -357,6 +358,7 @@ class RapportController extends Controller
             'cancelReasons',
             'decapList',
             'upcomingEndings',
+            'decapStats',
             'totalRevenueKpi',
             'revenueByMonth',
             'revenueByCommune',
@@ -458,9 +460,58 @@ class RapportController extends Controller
             ->get(['id', 'name', 'client_id']);
         $communes  = \App\Models\Commune::orderBy('name')->get(['id', 'name']);
 
+        // COMMIT C — Comparaison collectées (théoriques) vs reversées (payées)
+        // Récupère depuis la table `taxes` les montants déjà reversés à la commune.
+        $paidByCommune = DB::table('taxes')
+            ->where('year', $year)
+            ->whereNotNull('paid_at')
+            ->select('commune_id',
+                DB::raw("SUM(CASE WHEN type = 'odp' THEN amount ELSE 0 END) as paid_odp"),
+                DB::raw("SUM(CASE WHEN type = 'tm'  THEN amount ELSE 0 END) as paid_tm"),
+                DB::raw('SUM(amount) as paid_total'),
+                DB::raw('MAX(paid_at) as last_paid_at'),
+                DB::raw('COUNT(*) as paid_count'),
+            )
+            ->groupBy('commune_id')
+            ->get()
+            ->keyBy('commune_id');
+
+        // Synthèse comparaison par commune : enrichit le matrix
+        $comparison = $matrix->map(function ($row) use ($paidByCommune) {
+            $paid = $paidByCommune->get($row['commune_id']);
+            $paidTotal = (float) ($paid->paid_total ?? 0);
+            $due       = (float) $row['total'];
+            $balance   = $due - $paidTotal;
+            return [
+                'commune_id'   => $row['commune_id'],
+                'commune'      => $row['commune'],
+                'due_total'    => $due,
+                'paid_odp'     => (float) ($paid->paid_odp ?? 0),
+                'paid_tm'      => (float) ($paid->paid_tm  ?? 0),
+                'paid_total'   => $paidTotal,
+                'balance'      => $balance,
+                'rate'         => $due > 0 ? round(($paidTotal / $due) * 100, 1) : ($paidTotal > 0 ? 100 : 0),
+                'last_paid_at' => $paid->last_paid_at ?? null,
+                'status'       => $balance <= 0 && $due > 0 ? 'paid' : ($paidTotal > 0 ? 'partial' : 'pending'),
+            ];
+        })->sortByDesc('due_total')->values();
+
+        $comparisonTotals = [
+            'due'     => (float) $comparison->sum('due_total'),
+            'paid'    => (float) $comparison->sum('paid_total'),
+            'balance' => (float) $comparison->sum('balance'),
+            'rate'    => $comparison->sum('due_total') > 0
+                ? round(($comparison->sum('paid_total') / $comparison->sum('due_total')) * 100, 1)
+                : 0,
+            'paid_communes'    => $comparison->where('status', 'paid')->count(),
+            'partial_communes' => $comparison->where('status', 'partial')->count(),
+            'pending_communes' => $comparison->where('status', 'pending')->count(),
+        ];
+
         return view('admin.rapports.taxes', compact(
             'year', 'months', 'matrix', 'totals', 'anneesDisponibles',
-            'clients', 'campaigns', 'communes', 'filters'
+            'clients', 'campaigns', 'communes', 'filters',
+            'comparison', 'comparisonTotals'
         ));
     }
 
@@ -671,6 +722,50 @@ class RapportController extends Controller
      * Délègue intégralement à DashboardKpiService::clientDetail() qui est
      * mis en cache. Permet d'éviter de surcharger la vue principale.
      */
+    /**
+     * Marque (ou démarque) un panneau comme décappé pour une campagne donnée.
+     * Endpoint AJAX appelé depuis le rapport décappage.
+     *
+     * Vérifications :
+     *   - Le pivot doit exister (campaign × panel)
+     *   - La campagne doit être terminée (status='termine' && end_date <= now)
+     *   - L'utilisateur doit avoir le droit (admin ou superadmin)
+     */
+    public function markDecapped(Request $request, DashboardKpiService $kpi)
+    {
+        $request->validate([
+            'campaign_id' => 'required|integer|exists:campaigns,id',
+            'panel_id'    => 'required|integer|exists:panels,id',
+            'action'      => 'nullable|in:mark,unmark',
+            'notes'       => 'nullable|string|max:500',
+        ]);
+
+        $action = $request->input('action', 'mark');
+        $userId = $request->user()->id;
+
+        if ($action === 'unmark') {
+            $ok = $kpi->unmarkDecapped($request->campaign_id, $request->panel_id);
+            return response()->json([
+                'ok'      => $ok,
+                'message' => $ok ? 'Décappage annulé.' : "Aucune ligne à mettre à jour.",
+            ]);
+        }
+
+        $ok = $kpi->markDecapped(
+            $request->campaign_id,
+            $request->panel_id,
+            $userId,
+            $request->notes,
+        );
+
+        return response()->json([
+            'ok'      => $ok,
+            'message' => $ok ? 'Panneau marqué comme décappé.' : "Aucune ligne à mettre à jour.",
+            'at'      => now()->format('d/m/Y H:i'),
+            'by'      => $request->user()->name,
+        ]);
+    }
+
     public function clientDetail(Request $request, \App\Models\Client $client, DashboardKpiService $kpi)
     {
         $data = $kpi->clientDetail($client->id);
