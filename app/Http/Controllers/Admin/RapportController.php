@@ -352,9 +352,12 @@ class RapportController extends Controller
         $inactiveClients6   = $kpi->inactiveClients(6, 50);
         $inactiveClients12  = $kpi->inactiveClients(12, 50);
 
-        // Campagnes (stats + motifs annulation)
-        $campaignStats   = $kpi->campaignStats();
-        $cancelReasons   = $kpi->cancelReasons();
+        // Campagnes (stats + motifs annulation + analyse patterns)
+        $campaignStats         = $kpi->campaignStats();
+        $cancelReasons         = $kpi->cancelReasons();
+        $cancellationTrend     = $kpi->cancellationTrend(12);
+        $cancellationPatterns  = $kpi->cancellationPatterns();
+        $cancellationRecos     = $kpi->cancellationRecommendations();
 
         // Décappages
         $decapList         = $kpi->decapList(50);
@@ -428,6 +431,9 @@ class RapportController extends Controller
             'inactiveClients12',
             'campaignStats',
             'cancelReasons',
+            'cancellationTrend',
+            'cancellationPatterns',
+            'cancellationRecos',
             'decapList',
             'upcomingEndings',
             'decapStats',

@@ -911,6 +911,233 @@ class DashboardKpiService
         });
     }
 
+    /**
+     * Évolution mensuelle des annulations (12 derniers mois).
+     * Pour chaque mois : nb total campagnes créées + nb annulées + taux %.
+     * Permet de détecter une tendance à la hausse ou un pic ponctuel.
+     */
+    public function cancellationTrend(int $months = 12): Collection
+    {
+        return $this->cached("cancel_trend.{$months}", function () use ($months) {
+            $start = now()->subMonths($months - 1)->startOfMonth();
+            $rows = DB::table('campaigns')
+                ->where('created_at', '>=', $start)
+                ->whereNull('deleted_at')
+                ->select(
+                    DB::raw('YEAR(created_at) as y'),
+                    DB::raw('MONTH(created_at) as m'),
+                    DB::raw('COUNT(*) as total'),
+                    DB::raw("SUM(CASE WHEN status = 'annule' THEN 1 ELSE 0 END) as cancelled"),
+                )
+                ->groupBy('y', 'm')
+                ->get()
+                ->keyBy(fn($r) => $r->y . '-' . str_pad((string) $r->m, 2, '0', STR_PAD_LEFT));
+
+            $result = collect();
+            for ($i = $months - 1; $i >= 0; $i--) {
+                $date = now()->subMonths($i);
+                $k = $date->format('Y-m');
+                $row = $rows->get($k);
+                $total     = (int) ($row->total ?? 0);
+                $cancelled = (int) ($row->cancelled ?? 0);
+                $result->push([
+                    'label'      => $date->translatedFormat('M Y'),
+                    'total'      => $total,
+                    'cancelled'  => $cancelled,
+                    'rate'       => $total > 0 ? round(($cancelled / $total) * 100, 1) : 0,
+                ]);
+            }
+            return $result;
+        });
+    }
+
+    /**
+     * Patterns d'annulation détectés automatiquement :
+     *   - dominant_reason : motif le plus fréquent
+     *   - trend_direction : up/down/stable sur 3 derniers mois vs 9 précédents
+     *   - repeat_offenders : clients qui ont annulé > 1 campagne
+     *   - peak_months : mois avec annulations > 2× la moyenne
+     */
+    public function cancellationPatterns(): array
+    {
+        return $this->cached('cancel_patterns', function () {
+            $reasons = $this->cancelReasons();
+            $totalCanc = $reasons->sum('count');
+
+            $dominant = $reasons->first();
+            $dominantPct = $totalCanc > 0 && $dominant
+                ? round(($dominant->count / $totalCanc) * 100, 1)
+                : 0;
+
+            // Tendance : compare moyenne 3 derniers mois vs 9 précédents
+            $trend = $this->cancellationTrend(12);
+            $recent3   = $trend->slice(-3)->avg('cancelled');
+            $previous9 = $trend->slice(0, 9)->avg('cancelled');
+            $trendDir  = 'stable';
+            $trendPct  = 0;
+            if ($previous9 > 0) {
+                $delta = (($recent3 - $previous9) / $previous9) * 100;
+                $trendPct = round($delta, 1);
+                if ($delta > 15) $trendDir = 'up';
+                elseif ($delta < -15) $trendDir = 'down';
+            } elseif ($recent3 > 0) {
+                $trendDir = 'up';
+            }
+
+            // Clients récidivistes (>1 annulation)
+            $repeatOffenders = DB::table('campaigns')
+                ->join('clients', 'clients.id', '=', 'campaigns.client_id')
+                ->where('campaigns.status', 'annule')
+                ->whereBetween('campaigns.updated_at', [$this->from, $this->to])
+                ->whereNull('campaigns.deleted_at')
+                ->select(
+                    'clients.id', 'clients.name',
+                    DB::raw('COUNT(*) as cancellations'),
+                    DB::raw("SUM(campaigns.total_amount) as lost_revenue"),
+                )
+                ->groupBy('clients.id', 'clients.name')
+                ->having('cancellations', '>', 1)
+                ->orderByDesc('cancellations')
+                ->limit(10)
+                ->get();
+
+            // Mois de pic (>2× moyenne)
+            $avgMonthly = $trend->avg('cancelled');
+            $peakMonths = $trend->filter(fn($m) => $avgMonthly > 0 && $m['cancelled'] > $avgMonthly * 2)->values();
+
+            // CA perdu total (sommé sur la période)
+            $lostRevenue = (float) DB::table('campaigns')
+                ->where('status', 'annule')
+                ->whereBetween('updated_at', [$this->from, $this->to])
+                ->whereNull('deleted_at')
+                ->sum('total_amount');
+
+            return [
+                'dominant_reason'      => $dominant ? [
+                    'code'  => $dominant->cancellation_reason,
+                    'count' => $dominant->count,
+                    'pct'   => $dominantPct,
+                ] : null,
+                'trend_direction'      => $trendDir,
+                'trend_pct'            => $trendPct,
+                'recent_avg'           => round($recent3 ?? 0, 1),
+                'previous_avg'         => round($previous9 ?? 0, 1),
+                'repeat_offenders'     => $repeatOffenders,
+                'peak_months'          => $peakMonths,
+                'lost_revenue'         => $lostRevenue,
+                'total_cancellations'  => $totalCanc,
+            ];
+        });
+    }
+
+    /**
+     * Recommandations actionnables générées à partir des patterns détectés.
+     * Chaque reco a : titre, action concrète, motif détecté, sévérité.
+     */
+    public function cancellationRecommendations(): Collection
+    {
+        $patterns = $this->cancellationPatterns();
+        $recos = collect();
+
+        $reasonLabels = [
+            'budget' => 'budget client',
+            'zone' => 'choix de zone',
+            'strategie' => 'changement stratégique',
+            'report' => 'report client',
+            'concurrent' => 'choix concurrent',
+            'autre' => 'motif divers',
+        ];
+
+        // Reco basée sur motif dominant
+        if ($patterns['dominant_reason'] && $patterns['dominant_reason']['pct'] >= 30) {
+            $code = $patterns['dominant_reason']['code'];
+            $pct  = $patterns['dominant_reason']['pct'];
+            $action = match($code) {
+                'budget'     => "Proposer un échelonnement de paiement ou des forfaits plus accessibles. Discuter des budgets en début de cycle commercial pour aligner les attentes.",
+                'zone'       => "Étoffer le catalogue : présenter systématiquement 2-3 zones alternatives avec mockups visuels. Refaire un audit terrain des emplacements à forte demande.",
+                'strategie'  => "Demander un brief stratégique plus poussé en amont (objectifs, cible, période). Adapter la proposition à l'évolution business du client.",
+                'report'     => "Sécuriser des acomptes plus élevés en proposition. Adapter la fenêtre de validité de l'offre (J+30 max). Relances anticipées avant échéance.",
+                'concurrent' => "Cartographier les offres concurrentes par zone. Ajuster la grille tarifaire ou ajouter des avantages (gratuits, exclusivités) pour les comptes à risque.",
+                'autre'      => "Analyser au cas par cas les annulations 'autres' pour identifier de nouveaux motifs à formaliser dans le système.",
+                default      => "Approfondir l'analyse de ce motif récurrent en interview client.",
+            };
+            $recos->push([
+                'severity' => 'danger',
+                'icon'     => '🎯',
+                'title'    => "Motif dominant : " . ($reasonLabels[$code] ?? $code) . " ({$pct}%)",
+                'pattern'  => "Plus du tiers des annulations sont liées à ce seul motif. C'est le levier le plus rentable à activer.",
+                'action'   => $action,
+            ]);
+        }
+
+        // Reco basée sur tendance
+        if ($patterns['trend_direction'] === 'up' && abs($patterns['trend_pct']) > 15) {
+            $recos->push([
+                'severity' => 'danger',
+                'icon'     => '📈',
+                'title'    => "Annulations en hausse (+{$patterns['trend_pct']}%)",
+                'pattern'  => "Sur les 3 derniers mois, la moyenne d'annulations a augmenté de {$patterns['trend_pct']}% vs les 9 mois précédents.",
+                'action'   => "Réunion de revue commerciale urgente : passer en revue les pipelines à risque, identifier les comptes vulnérables, recadrer le pitch.",
+            ]);
+        } elseif ($patterns['trend_direction'] === 'down') {
+            $recos->push([
+                'severity' => 'success',
+                'icon'     => '✅',
+                'title'    => "Annulations en baisse ({$patterns['trend_pct']}%)",
+                'pattern'  => "Les pratiques actuelles fonctionnent : la moyenne d'annulations baisse de " . abs($patterns['trend_pct']) . "% sur les 3 derniers mois.",
+                'action'   => "Documenter ce qui a changé récemment (process, équipe, offre) pour le standardiser.",
+            ]);
+        }
+
+        // Reco clients récidivistes
+        if ($patterns['repeat_offenders']->count() > 0) {
+            $top = $patterns['repeat_offenders']->first();
+            $recos->push([
+                'severity' => 'warning',
+                'icon'     => '⚠️',
+                'title'    => "{$patterns['repeat_offenders']->count()} client(s) récidiviste(s) — top : {$top->name} ({$top->cancellations} annul.)",
+                'pattern'  => "Certains clients annulent récurremment. Ce comportement signale un problème de qualification en amont.",
+                'action'   => "Ajouter un score de risque par client. Mettre en pause les propositions sans pré-acompte pour les comptes >2 annulations dans l'année.",
+            ]);
+        }
+
+        // Reco CA perdu
+        if ($patterns['lost_revenue'] > 0) {
+            $recos->push([
+                'severity' => 'info',
+                'icon'     => '💸',
+                'title'    => "CA perdu sur la période : " . number_format($patterns['lost_revenue'], 0, ',', ' ') . " FCFA",
+                'pattern'  => "Montant cumulé des campagnes annulées sur la fenêtre d'analyse.",
+                'action'   => "Inclure ce montant dans le reporting mensuel commercial. Chaque % de taux d'annulation réduit = " . number_format($patterns['lost_revenue'] * 0.01, 0, ',', ' ') . " FCFA récupérables.",
+            ]);
+        }
+
+        // Pic mensuel
+        if ($patterns['peak_months']->count() > 0) {
+            $month = $patterns['peak_months']->first();
+            $recos->push([
+                'severity' => 'warning',
+                'icon'     => '🔥',
+                'title'    => "Pic d'annulations en {$month['label']} ({$month['cancelled']} annul.)",
+                'pattern'  => "Plus de 2× la moyenne mensuelle — anomalie à investiguer.",
+                'action'   => "Réunion post-mortem sur ce mois précis : événement externe, changement interne, motif récurrent.",
+            ]);
+        }
+
+        // Si rien à signaler
+        if ($recos->isEmpty()) {
+            $recos->push([
+                'severity' => 'success',
+                'icon'     => '✅',
+                'title'    => "Aucun pattern d'annulation préoccupant détecté",
+                'pattern'  => "Les annulations sont rares et dispersées sur la période.",
+                'action'   => "Continuer le suivi mensuel pour détecter rapidement toute déviation.",
+            ]);
+        }
+
+        return $recos;
+    }
+
     // ══════════════════════════════════════════════════════════════
     // MODULE 5 — DÉCAPPAGES (campagnes terminées à décaper)
     // ══════════════════════════════════════════════════════════════
