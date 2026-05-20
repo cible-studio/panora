@@ -7,26 +7,27 @@
     </a>
 </x-slot>
 
-{{-- ════ KPI cards (pattern unifié : bordure latérale colorée, état actif) ══ --}}
+{{-- ════ KPI cards (design uniformisé — <x-stat-card>) ══ --}}
 @php
     $hasAnyMaintFilter = request('statut') || request('priorite') || request('search');
     $kpis = [
-        ['key'=>'all',      'label'=>'Total signalées', 'icon'=>'🔔', 'color'=>'var(--accent)', 'value'=>$totalSignales + $totalEnCours + $totalResolus, 'url'=>route('admin.maintenances.index'), 'active'=>!$hasAnyMaintFilter],
-        ['key'=>'signale',  'label'=>'Signalées',       'icon'=>'⚠️', 'color'=>'#f97316',       'value'=>$totalSignales, 'url'=>route('admin.maintenances.index', ['statut'=>'signale']), 'active'=>request('statut')==='signale'],
-        ['key'=>'en_cours', 'label'=>'En cours',        'icon'=>'🔧', 'color'=>'#3b82f6',       'value'=>$totalEnCours,  'url'=>route('admin.maintenances.index', ['statut'=>'en_cours']), 'active'=>request('statut')==='en_cours'],
-        ['key'=>'urgentes', 'label'=>'Urgentes',        'icon'=>'🚨', 'color'=>'#ef4444',       'value'=>$totalUrgentes, 'url'=>route('admin.maintenances.index', ['priorite'=>'urgente']), 'active'=>request('priorite')==='urgente'],
-        ['key'=>'resolu',   'label'=>'Résolues',        'icon'=>'✅', 'color'=>'#22c55e',       'value'=>$totalResolus,  'url'=>route('admin.maintenances.index', ['statut'=>'resolu']), 'active'=>request('statut')==='resolu'],
+        ['key'=>'all',      'label'=>'Total signalées', 'icon'=>'🔔', 'color'=>'orange', 'value'=>$totalSignales + $totalEnCours + $totalResolus, 'url'=>route('admin.maintenances.index'), 'active'=>!$hasAnyMaintFilter],
+        ['key'=>'signale',  'label'=>'Signalées',       'icon'=>'⚠️', 'color'=>'amber',  'value'=>$totalSignales, 'url'=>route('admin.maintenances.index', ['statut'=>'signale']), 'active'=>request('statut')==='signale'],
+        ['key'=>'en_cours', 'label'=>'En cours',        'icon'=>'🔧', 'color'=>'blue',   'value'=>$totalEnCours,  'url'=>route('admin.maintenances.index', ['statut'=>'en_cours']), 'active'=>request('statut')==='en_cours'],
+        ['key'=>'urgentes', 'label'=>'Urgentes',        'icon'=>'🚨', 'color'=>'red',    'value'=>$totalUrgentes, 'url'=>route('admin.maintenances.index', ['priorite'=>'urgente']), 'active'=>request('priorite')==='urgente'],
+        ['key'=>'resolu',   'label'=>'Résolues',        'icon'=>'✅', 'color'=>'green',  'value'=>$totalResolus,  'url'=>route('admin.maintenances.index', ['statut'=>'resolu']), 'active'=>request('statut')==='resolu'],
     ];
 @endphp
-<div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px">
+<div class="stat-cards-row">
     @foreach($kpis as $k)
-    <a href="{{ $k['url'] }}"
-       class="stat-card {{ $k['active'] ? 'active' : '' }}"
-       style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['color'] }};border-radius:14px;padding:14px 18px;text-decoration:none;display:block;transition:all .15s;{{ $k['active'] ? 'box-shadow:0 0 0 2px '.$k['color'].'33;' : '' }}">
-        <div style="font-size:18px;color:{{ $k['color'] }};margin-bottom:4px">{{ $k['icon'] }}</div>
-        <div style="font-size:26px;font-weight:800;color:{{ $k['color'] }};line-height:1;margin-bottom:6px">{{ number_format($k['value']) }}</div>
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">{{ $k['label'] }}</div>
-    </a>
+        <x-stat-card
+            :value="number_format($k['value'])"
+            :label="$k['label']"
+            :icon="$k['icon']"
+            :color="$k['color']"
+            :active="$k['active']"
+            :href="$k['url']"
+        />
     @endforeach
 </div>
 

@@ -50,16 +50,15 @@
     </script>
     @endif
 
-    {{-- ══ KPI cards (pattern unifié projet : bordure latérale colorée,
-         toggle, état actif, counts qui suivent les filtres) ══ --}}
+    {{-- ══ KPI cards (design uniformisé — composant <x-stat-card>) ══ --}}
     @php
     $statCards = [
-        ['key'=>'all',      'label'=>'Total',      'icon'=>'📋', 'color'=>'var(--accent)'],
-        ['key'=>'planifie', 'label'=>'Planifiées', 'icon'=>'📅', 'color'=>'#f97316'],
-        ['key'=>'actif',    'label'=>'En cours',   'icon'=>'📡', 'color'=>'#22c55e'],
-        ['key'=>'pause',    'label'=>'En pause',   'icon'=>'⏸',  'color'=>'#f59e0b'],
-        ['key'=>'termine',  'label'=>'Terminées',  'icon'=>'✅', 'color'=>'#3b82f6'],
-        ['key'=>'annule',   'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'#ef4444'],
+        ['key'=>'all',      'label'=>'Total',      'icon'=>'📋', 'color'=>'orange'],
+        ['key'=>'planifie', 'label'=>'Planifiées', 'icon'=>'📅', 'color'=>'amber'],
+        ['key'=>'actif',    'label'=>'En cours',   'icon'=>'📡', 'color'=>'green'],
+        ['key'=>'pause',    'label'=>'En pause',   'icon'=>'⏸',  'color'=>'amber'],
+        ['key'=>'termine',  'label'=>'Terminées',  'icon'=>'✅', 'color'=>'blue'],
+        ['key'=>'annule',   'label'=>'Annulées',   'icon'=>'🚫', 'color'=>'red'],
     ];
     $activeStatus = request('status');
     $hasAnyFilter = request('search') || request('status') || request('client_id')
@@ -67,28 +66,24 @@
                   || request('date_fin') || request('non_facturee')
                   || request('commune_id') || request('zone_id');
     @endphp
-    {{-- Compact : icone à gauche, chiffre + label à droite, sur 1 seule ligne.
-         6 cartes alignées sans étirement excessif. --}}
-    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-bottom:18px">
+    <div class="stat-cards-row">
         @foreach($statCards as $sc)
-        @php
-            $isAll    = $sc['key'] === 'all';
-            $isActive = $isAll ? !$hasAnyFilter : ($activeStatus === $sc['key']);
-            $val      = $isAll ? $campaigns->total() : ($counts[$sc['key']] ?? 0);
-        @endphp
-        <a href="#"
-           class="stat-card {{ $isActive ? 'active' : '' }}"
-           data-filter="status"
-           data-kpi="{{ $sc['key'] }}"
-           data-value="{{ $isAll ? '' : $sc['key'] }}"
-           title="{{ $sc['label'] }}"
-           style="background:var(--surface);border:1px solid var(--border);border-left:3px solid {{ $sc['color'] }};border-radius:10px;padding:10px 12px;text-decoration:none;display:flex;align-items:center;gap:10px;transition:all .15s;min-width:0;{{ $isActive ? 'box-shadow:0 0 0 2px '.$sc['color'].'33;' : '' }}">
-            <div class="stat-icon" style="font-size:18px;color:{{ $sc['color'] }};flex-shrink:0;line-height:1">{{ $sc['icon'] }}</div>
-            <div style="min-width:0;line-height:1.1">
-                <div class="stat-number" data-kpi-value="{{ $sc['key'] }}" style="font-size:20px;font-weight:800;color:{{ $sc['color'] }}">{{ number_format($val) }}</div>
-                <div class="stat-label" style="font-size:10px;font-weight:600;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ $sc['label'] }}</div>
-            </div>
-        </a>
+            @php
+                $isAll    = $sc['key'] === 'all';
+                $isActive = $isAll ? !$hasAnyFilter : ($activeStatus === $sc['key']);
+                $val      = $isAll ? $campaigns->total() : ($counts[$sc['key']] ?? 0);
+            @endphp
+            <x-stat-card
+                :value="number_format($val)"
+                :label="$sc['label']"
+                :icon="$sc['icon']"
+                :color="$sc['color']"
+                :active="$isActive"
+                :kpi-key="$sc['key']"
+                filter="status"
+                :filter-value="$isAll ? '' : $sc['key']"
+                href="#"
+            />
         @endforeach
     </div>
 

@@ -34,27 +34,32 @@
         <a href="{{ route('admin.panels.create') }}" class="btn btn-primary btn-sm">＋ Nouveau panneau</a>
     </x-slot>
 
-    {{-- STATS --}}
-    <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
-        <a href="#" data-source="all" class="stat-card filter-stat">
-            <div class="stat-label">Total CIBLE CI</div>
+    {{-- STATS (design uniformisé — <x-stat-card>) --}}
+    <div class="stat-cards-row">
+        <a href="#" data-source="all" class="stat-card stat-card-orange filter-stat">
+            <div class="stat-icon">🪧</div>
             <div class="stat-value">{{ $totalPanneaux }}</div>
+            <div class="stat-label">Total CIBLE CI</div>
         </a>
-        <a href="#" data-status="libre" class="stat-card filter-stat">
+        <a href="#" data-status="libre" class="stat-card stat-card-green filter-stat">
+            <div class="stat-icon">🟢</div>
+            <div class="stat-value">{{ $panneauxLibres }}</div>
             <div class="stat-label">Libres</div>
-            <div class="stat-value" style="color:var(--green);">{{ $panneauxLibres }}</div>
         </a>
-        <a href="#" data-source="occupes" class="stat-card filter-stat">
+        <a href="#" data-source="occupes" class="stat-card stat-card-red filter-stat">
+            <div class="stat-icon">🔴</div>
+            <div class="stat-value">{{ $panneauxOccupes }}</div>
             <div class="stat-label">Occupés</div>
-            <div class="stat-value" style="color:#ef4444;">{{ $panneauxOccupes }}</div>
         </a>
-        <a href="#" data-status="maintenance" class="stat-card filter-stat">
+        <a href="#" data-status="maintenance" class="stat-card stat-card-gray filter-stat">
+            <div class="stat-icon">🔧</div>
+            <div class="stat-value">{{ $enMaintenance }}</div>
             <div class="stat-label">Maintenance</div>
-            <div class="stat-value" style="color:var(--red);">{{ $enMaintenance }}</div>
         </a>
-        <a href="#" data-source="externe" class="stat-card filter-stat">
-            <div class="stat-label" style="color:var(--purple);">Régies externes</div>
-            <div class="stat-value" style="color:var(--purple);">{{ $totalExternes }}</div>
+        <a href="#" data-source="externe" class="stat-card stat-card-purple filter-stat">
+            <div class="stat-icon">🏢</div>
+            <div class="stat-value">{{ $totalExternes }}</div>
+            <div class="stat-label">Régies externes</div>
         </a>
     </div>
 
