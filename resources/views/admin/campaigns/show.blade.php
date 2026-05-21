@@ -354,109 +354,44 @@
                     </div>
                 </div>
 
-                {{-- ── Opérationnel · barre compacte multi-progression ── --}}
-                @php
-                    $nbPoses     = \App\Models\PoseTask::where('campaign_id', $campaign->id)->whereNotIn('status', ['annulee'])->count();
-                    $nbPosesDone = \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'realisee')->count();
-                    $nbPigesOk   = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'verifie')->count();
-                    $nbPigesPend = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'en_attente')->count();
-                    $nbInt       = $campaign->panels->count();
-                    $nbExt       = $campaign->externalPanels->count();
-                    $nbPanels    = $nbInt + $nbExt;
-                    $pctPoses    = $nbPoses > 0 ? round(($nbPosesDone / $nbPoses) * 100) : 0;
-                    $pctPiges    = $nbPanels > 0 ? round(($nbPigesOk / max($nbPanels, 1)) * 100) : 0;
-                @endphp
+                {{-- ── Facturation — intégrée dans la fiche Informations
+                     (l'ancien bloc 4 mini-stats Panneaux/Poses/Piges/Contact
+                     est désormais en Quick Actions tout en haut de la page,
+                     pas la peine de le dupliquer ici). ── --}}
                 <div class="mt-6 pt-6 border-t" style="border-color:var(--border)">
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-
-                        {{-- Panneaux --}}
-                        <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
-                           class="group flex items-center gap-3 px-4 py-3 rounded-xl border transition-all"
-                           style="background:var(--surface2);border-color:var(--border);text-decoration:none"
-                           onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--surface3)'"
-                           onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--surface2)'">
-                            <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                                 style="background:rgba(59,130,246,.10);color:#3b82f6;font-size:18px">🪧</div>
-                            <div class="flex-1 min-w-0">
-                                <div class="text-[10px] font-bold uppercase tracking-wider" style="color:var(--text3)">Panneaux</div>
-                                <div class="flex items-baseline gap-1.5">
-                                    <span class="text-lg font-bold leading-none" style="color:var(--text)">{{ $nbPanels }}</span>
-                                    @if($nbExt > 0)
-                                        <span class="text-[10px] font-medium" style="color:var(--text3)">{{ $nbInt }} interne · {{ $nbExt }} externe</span>
-                                    @else
-                                        <span class="text-[10px] font-medium" style="color:var(--text3)">tous internes</span>
-                                    @endif
-                                </div>
-                            </div>
-                        </a>
-
-                        {{-- Poses --}}
-                        <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
-                           class="group block px-4 py-3 rounded-xl border transition-all"
-                           style="background:var(--surface2);border-color:var(--border);text-decoration:none"
-                           onmouseover="this.style.borderColor='#f59e0b';this.style.background='var(--surface3)'"
-                           onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--surface2)'">
-                            <div class="flex items-center gap-3">
-                                <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                                     style="background:rgba(245,158,11,.10);color:#f59e0b;font-size:16px">🔧</div>
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex items-baseline justify-between gap-2">
-                                        <div class="text-[10px] font-bold uppercase tracking-wider" style="color:var(--text3)">Poses</div>
-                                        <div class="text-[11px] font-bold" style="color:{{ $pctPoses === 100 ? '#16a34a' : '#f59e0b' }}">{{ $pctPoses }}%</div>
-                                    </div>
-                                    <div class="flex items-baseline gap-1.5">
-                                        <span class="text-lg font-bold leading-none" style="color:var(--text)">{{ $nbPosesDone }}<span class="text-xs font-medium" style="color:var(--text3)">/{{ $nbPoses }}</span></span>
-                                        <span class="text-[10px] font-medium" style="color:var(--text3)">réalisées</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mt-2 h-1 rounded-full overflow-hidden" style="background:var(--surface3)">
-                                <div class="h-full rounded-full transition-all"
-                                     style="background:{{ $pctPoses === 100 ? '#16a34a' : '#f59e0b' }};width:{{ $pctPoses }}%"></div>
-                            </div>
-                        </a>
-
-                        {{-- Piges --}}
-                        <a href="{{ route('admin.piges.index', ['campaign_id' => $campaign->id]) }}"
-                           class="group block px-4 py-3 rounded-xl border transition-all"
-                           style="background:var(--surface2);border-color:var(--border);text-decoration:none"
-                           onmouseover="this.style.borderColor='#a855f7';this.style.background='var(--surface3)'"
-                           onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--surface2)'">
-                            <div class="flex items-center gap-3">
-                                <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                                     style="background:rgba(168,85,247,.10);color:#a855f7;font-size:16px">📸</div>
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex items-baseline justify-between gap-2">
-                                        <div class="text-[10px] font-bold uppercase tracking-wider" style="color:var(--text3)">Piges photo</div>
-                                        @if($nbPigesPend > 0)
-                                            <div class="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style="background:rgba(245,158,11,.15);color:#f59e0b">⏳ {{ $nbPigesPend }}</div>
-                                        @endif
-                                    </div>
-                                    <div class="flex items-baseline gap-1.5">
-                                        <span class="text-lg font-bold leading-none" style="color:var(--text)">{{ $nbPigesOk }}</span>
-                                        <span class="text-[10px] font-medium" style="color:var(--text3)">validées</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mt-2 h-1 rounded-full overflow-hidden" style="background:var(--surface3)">
-                                <div class="h-full rounded-full transition-all"
-                                     style="background:#a855f7;width:{{ min(100, $pctPiges) }}%"></div>
-                            </div>
-                        </a>
+                    <div class="text-xs uppercase font-semibold mb-3 flex items-center gap-2" style="color:var(--text3)">
+                        💰 Facturation
+                        @if($campaign->invoices->isNotEmpty())
+                            <span class="text-[10px] px-2 py-0.5 rounded-full" style="background:var(--surface3);color:var(--text3)">{{ $campaign->invoices->count() }} facture{{ $campaign->invoices->count() > 1 ? 's' : '' }}</span>
+                        @endif
                     </div>
-
-                    {{-- Contact client — bandeau discret en dessous --}}
-                    @if($campaign->client?->email)
-                    <a href="mailto:{{ $campaign->client->email }}?subject={{ urlencode('Campagne « ' . $campaign->name . ' »') }}"
-                       class="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg border transition-all"
-                       style="background:var(--surface);border-color:var(--border);text-decoration:none"
-                       onmouseover="this.style.borderColor='var(--accent)'"
-                       onmouseout="this.style.borderColor='var(--border)'">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text3);flex-shrink:0"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                        <span class="text-[11px] font-semibold uppercase tracking-wider" style="color:var(--text3)">Contact</span>
-                        <span class="text-xs font-medium flex-1 min-w-0 truncate" style="color:var(--text)">{{ $campaign->client->email }}</span>
-                        <span class="text-[10px]" style="color:var(--accent)">Écrire →</span>
-                    </a>
+                    @if($campaign->invoices->isNotEmpty())
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            @foreach($campaign->invoices as $inv)
+                                <a href="{{ route('admin.invoices.show', $inv) }}"
+                                   class="flex justify-between items-center py-3 px-4 rounded-xl border transition group"
+                                   style="background:var(--surface2);border-color:var(--border);text-decoration:none"
+                                   onmouseover="this.style.borderColor='var(--accent)'"
+                                   onmouseout="this.style.borderColor='var(--border)'"
+                                   title="Ouvrir la facture {{ $inv->reference ?? '#'.$inv->id }}">
+                                    <span class="font-mono text-sm group-hover:underline" style="color:var(--accent)">
+                                        {{ $inv->reference ?? '#'.$inv->id }}
+                                    </span>
+                                    <div class="flex items-center gap-3">
+                                        <span class="font-bold text-sm" style="color:var(--text)">
+                                            {{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA
+                                        </span>
+                                        <span style="color:var(--text3);font-size:14px">→</span>
+                                    </div>
+                                </a>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-center py-6 rounded-xl border border-dashed" style="border-color:var(--border)">
+                            <div class="text-3xl mb-2">💰</div>
+                            <div class="text-sm font-semibold" style="color:var(--accent)">À facturer</div>
+                            <div class="text-xs mt-1" style="color:var(--text3)">Aucune facture émise pour le moment</div>
+                        </div>
                     @endif
                 </div>
 
@@ -464,7 +399,7 @@
             </div>
         </div>
 
-        {{-- Actions + Facturation --}}
+        {{-- Actions (la Facturation a été intégrée dans le card Informations à gauche) --}}
         <div class="space-y-6">
 
             {{-- Actions --}}
@@ -585,42 +520,6 @@
                 </div>
             </div>
 
-            {{-- Facturation --}}
-            <div class="rounded-2xl border overflow-hidden shadow-xl" style="background:var(--surface);border-color:var(--border)">
-                <div class="px-6 py-4 border-b" style="background:var(--surface2);border-color:var(--border)">
-                    <h2 class="font-bold text-lg flex items-center gap-2" style="color:var(--text)">
-                        <span class="text-2xl">💰</span> Facturation
-                    </h2>
-                </div>
-                <div class="p-5">
-                    @if($campaign->invoices->isNotEmpty())
-                        <div class="space-y-3">
-                            @foreach($campaign->invoices as $inv)
-                                <a href="{{ route('admin.invoices.show', $inv) }}"
-                                   class="flex justify-between items-center py-3 px-4 rounded-xl border transition hover:border-[#e8a020]/60 hover:bg-[#e8a020]/5 group"
-                                   style="background:var(--surface2);border-color:var(--border);text-decoration:none;"
-                                   title="Ouvrir la facture {{ $inv->reference ?? '#'.$inv->id }}">
-                                    <span class="font-mono text-sm group-hover:underline" style="color:var(--accent)">
-                                        {{ $inv->reference ?? '#'.$inv->id }}
-                                    </span>
-                                    <div class="flex items-center gap-3">
-                                        <span class="font-bold" style="color:var(--text)">
-                                            {{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA
-                                        </span>
-                                        <span style="color:var(--text3);font-size:14px;" class="group-hover:translate-x-0.5 transition-transform">→</span>
-                                    </div>
-                                </a>
-                            @endforeach
-                        </div>
-                    @else
-                        <div class="text-center py-8 rounded-xl border border-dashed" style="border-color:var(--border)">
-                            <div class="text-4xl mb-3">💰</div>
-                            <div class="text-sm font-semibold" style="color:var(--accent)">À facturer</div>
-                            <div class="text-xs mt-1" style="color:var(--text3)">Aucune facture émise</div>
-                        </div>
-                    @endif
-                </div>
-            </div>
         </div>
     </div>
 
