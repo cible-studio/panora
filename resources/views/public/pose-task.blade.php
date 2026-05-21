@@ -35,7 +35,7 @@
         }
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
         html, body {
-            font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+            font-family: 'DM Sans', system-ui, sans-serif;
             background: var(--bg);
             color: var(--text);
             line-height: 1.5;

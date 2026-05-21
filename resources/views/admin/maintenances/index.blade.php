@@ -11,21 +11,60 @@
 @php
     $hasAnyMaintFilter = request('statut') || request('priorite') || request('search');
     $kpis = [
-        ['key'=>'all',      'label'=>'Total signalées', 'icon'=>'🔔', 'color'=>'var(--accent)', 'value'=>$totalSignales + $totalEnCours + $totalResolus, 'url'=>route('admin.maintenances.index'), 'active'=>!$hasAnyMaintFilter],
-        ['key'=>'signale',  'label'=>'Signalées',       'icon'=>'⚠️', 'color'=>'#f97316',       'value'=>$totalSignales, 'url'=>route('admin.maintenances.index', ['statut'=>'signale']), 'active'=>request('statut')==='signale'],
-        ['key'=>'en_cours', 'label'=>'En cours',        'icon'=>'🔧', 'color'=>'#3b82f6',       'value'=>$totalEnCours,  'url'=>route('admin.maintenances.index', ['statut'=>'en_cours']), 'active'=>request('statut')==='en_cours'],
-        ['key'=>'urgentes', 'label'=>'Urgentes',        'icon'=>'🚨', 'color'=>'#ef4444',       'value'=>$totalUrgentes, 'url'=>route('admin.maintenances.index', ['priorite'=>'urgente']), 'active'=>request('priorite')==='urgente'],
-        ['key'=>'resolu',   'label'=>'Résolues',        'icon'=>'✅', 'color'=>'#22c55e',       'value'=>$totalResolus,  'url'=>route('admin.maintenances.index', ['statut'=>'resolu']), 'active'=>request('statut')==='resolu'],
+        [
+            'key'=>'all', 'label'=>'Total signalées', 'sub'=>'toutes maintenances',
+            'color'=>'var(--accent)',
+            'value'=>$totalSignales + $totalEnCours + $totalResolus,
+            'url'=>route('admin.maintenances.index'), 'active'=>false,
+            'svg'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+        ],
+        [
+            'key'=>'signale', 'label'=>'Signalées', 'sub'=>'à traiter',
+            'color'=>'#f97316',
+            'value'=>$totalSignales,
+            'url'=>route('admin.maintenances.index', ['statut'=>'signale']),
+            'active'=>request('statut')==='signale',
+            'svg'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+        ],
+        [
+            'key'=>'en_cours', 'label'=>'En cours', 'sub'=>'interventions actives',
+            'color'=>'#3b82f6',
+            'value'=>$totalEnCours,
+            'url'=>route('admin.maintenances.index', ['statut'=>'en_cours']),
+            'active'=>request('statut')==='en_cours',
+            'svg'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+        ],
+        [
+            'key'=>'urgentes', 'label'=>'Urgentes', 'sub'=>'priorité maximale',
+            'color'=>'#ef4444',
+            'value'=>$totalUrgentes,
+            'url'=>route('admin.maintenances.index', ['priorite'=>'urgente']),
+            'active'=>request('priorite')==='urgente',
+            'svg'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+        ],
+        [
+            'key'=>'resolu', 'label'=>'Résolues', 'sub'=>'pannes corrigées',
+            'color'=>'#22c55e',
+            'value'=>$totalResolus,
+            'url'=>route('admin.maintenances.index', ['statut'=>'resolu']),
+            'active'=>request('statut')==='resolu',
+            'svg'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+        ],
     ];
 @endphp
-<div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:20px">
     @foreach($kpis as $k)
     <a href="{{ $k['url'] }}"
-       class="stat-card {{ $k['active'] ? 'active' : '' }}"
-       style="background:var(--surface);border:1px solid var(--border);border-left:4px solid {{ $k['color'] }};border-radius:14px;padding:14px 18px;text-decoration:none;display:block;transition:all .15s;{{ $k['active'] ? 'box-shadow:0 0 0 2px '.$k['color'].'33;' : '' }}">
-        <div style="font-size:18px;color:{{ $k['color'] }};margin-bottom:4px">{{ $k['icon'] }}</div>
-        <div style="font-size:26px;font-weight:800;color:{{ $k['color'] }};line-height:1;margin-bottom:6px">{{ number_format($k['value']) }}</div>
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)">{{ $k['label'] }}</div>
+       class="kpi-card {{ $k['active'] ? 'is-active' : '' }}"
+       style="--kpi-color:{{ $k['color'] }}"
+       onmouseenter="this.style.borderColor='{{ $k['color'] }}';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:{{ $k['color'] }}"></div>
+        <div class="kpi-card__icon" style="color:{{ $k['color'] }}">{!! $k['svg'] !!}</div>
+        <div class="kpi-card__value" style="color:{{ $k['color'] }}">{{ number_format($k['value']) }}</div>
+        <div class="kpi-card__label">{{ $k['label'] }}</div>
+        <div class="kpi-card__sub">{{ $k['sub'] }}</div>
+        <div class="kpi-card__arrow" style="color:{{ $k['color'] }}">→</div>
     </a>
     @endforeach
 </div>

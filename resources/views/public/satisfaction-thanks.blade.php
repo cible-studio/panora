@@ -9,7 +9,7 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            font-family: 'DM Sans', system-ui, sans-serif;
             background: #f4f6f8;
             color: #1f2937;
             min-height: 100vh;

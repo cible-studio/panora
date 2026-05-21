@@ -34,27 +34,57 @@
         <a href="{{ route('admin.panels.create') }}" class="btn btn-primary btn-sm">＋ Nouveau panneau</a>
     </x-slot>
 
-    {{-- STATS --}}
-    <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
-        <a href="#" data-source="all" class="stat-card filter-stat">
-            <div class="stat-label">Total CIBLE CI</div>
-            <div class="stat-value">{{ $totalPanneaux }}</div>
+    {{-- STATS — design KPI unifié --}}
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px">
+        <a href="#" data-source="all" class="kpi-card filter-stat" style="--kpi-color:var(--accent)"
+           onmouseenter="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'"
+           onmouseleave="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
+            <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
+            <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+            <div class="kpi-card__value" style="color:var(--accent)">{{ $totalPanneaux }}</div>
+            <div class="kpi-card__label">Total CIBLE CI</div>
+            <div class="kpi-card__sub">parc complet</div>
+            <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
         </a>
-        <a href="#" data-status="libre" class="stat-card filter-stat">
-            <div class="stat-label">Libres</div>
-            <div class="stat-value" style="color:var(--green);">{{ $panneauxLibres }}</div>
+        <a href="#" data-status="libre" class="kpi-card filter-stat" style="--kpi-color:var(--green)"
+           onmouseenter="this.style.borderColor='var(--green)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'"
+           onmouseleave="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
+            <div class="kpi-card__top-bar" style="background:var(--green)"></div>
+            <div class="kpi-card__icon" style="color:var(--green)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <div class="kpi-card__value" style="color:var(--green)">{{ $panneauxLibres }}</div>
+            <div class="kpi-card__label">Libres</div>
+            <div class="kpi-card__sub">disponibles à la réservation</div>
+            <div class="kpi-card__arrow" style="color:var(--green)">→</div>
         </a>
-        <a href="#" data-source="occupes" class="stat-card filter-stat">
-            <div class="stat-label">Occupés</div>
-            <div class="stat-value" style="color:#ef4444;">{{ $panneauxOccupes }}</div>
+        <a href="#" data-source="occupes" class="kpi-card filter-stat" style="--kpi-color:#ef4444"
+           onmouseenter="this.style.borderColor='#ef4444';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'"
+           onmouseleave="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
+            <div class="kpi-card__top-bar" style="background:#ef4444"></div>
+            <div class="kpi-card__icon" style="color:#ef4444"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/></svg></div>
+            <div class="kpi-card__value" style="color:#ef4444">{{ $panneauxOccupes }}</div>
+            <div class="kpi-card__label">Occupés</div>
+            <div class="kpi-card__sub">en affichage / option</div>
+            <div class="kpi-card__arrow" style="color:#ef4444">→</div>
         </a>
-        <a href="#" data-status="maintenance" class="stat-card filter-stat">
-            <div class="stat-label">Maintenance</div>
-            <div class="stat-value" style="color:var(--red);">{{ $enMaintenance }}</div>
+        <a href="#" data-status="maintenance" class="kpi-card filter-stat" style="--kpi-color:var(--red)"
+           onmouseenter="this.style.borderColor='var(--red)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'"
+           onmouseleave="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
+            <div class="kpi-card__top-bar" style="background:var(--red)"></div>
+            <div class="kpi-card__icon" style="color:var(--red)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
+            <div class="kpi-card__value" style="color:var(--red)">{{ $enMaintenance }}</div>
+            <div class="kpi-card__label">Maintenance</div>
+            <div class="kpi-card__sub">panneaux indisponibles</div>
+            <div class="kpi-card__arrow" style="color:var(--red)">→</div>
         </a>
-        <a href="#" data-source="externe" class="stat-card filter-stat">
-            <div class="stat-label" style="color:var(--purple);">Régies externes</div>
-            <div class="stat-value" style="color:var(--purple);">{{ $totalExternes }}</div>
+        <a href="#" data-source="externe" class="kpi-card filter-stat" style="--kpi-color:var(--purple)"
+           onmouseenter="this.style.borderColor='var(--purple)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)'"
+           onmouseleave="this.style.borderColor='';this.style.transform='';this.style.boxShadow=''">
+            <div class="kpi-card__top-bar" style="background:var(--purple)"></div>
+            <div class="kpi-card__icon" style="color:var(--purple)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+            <div class="kpi-card__value" style="color:var(--purple)">{{ $totalExternes }}</div>
+            <div class="kpi-card__label">Régies externes</div>
+            <div class="kpi-card__sub">panneaux partenaires</div>
+            <div class="kpi-card__arrow" style="color:var(--purple)">→</div>
         </a>
     </div>
 

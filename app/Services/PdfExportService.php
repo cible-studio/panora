@@ -46,14 +46,21 @@ class PdfExportService
 
     public function exportPanelList(array $filters = []): mixed
     {
+        // Le bouton s'appelle "Générer PDF liste" → on doit utiliser la vue
+        // TABLE compacte (disponibilites-list), pas la vue images A4-par-
+        // panneau qui prenait 5+ minutes sur 364 panneaux et générait un
+        // PDF de ~100 Mo (souvent timeout/abandon navigateur).
+        //
+        // Limites mémoire/temps relevées pour absorber 500+ panneaux sans
+        // tomber sur max_execution_time / memory_limit.
+        @set_time_limit(180);
+        @ini_set('memory_limit', '512M');
+
         $query = Panel::with([
             'commune:id,name',
             'zone:id,name',
             'format:id,name,width,height',
             'category:id,name',
-            // On ne tire que la photo principale (ordre asc, limit 1) — drastiquement
-            // moins lourd qu'un .photos full sur 200+ panneaux
-            'photos' => fn($q) => $q->orderBy('ordre')->limit(1),
         ]);
 
         if (!empty($filters['commune_id'])) {
@@ -66,28 +73,41 @@ class PdfExportService
             $query->where('zone_id', (int) $filters['zone_id']);
         }
 
-        $panelModels = $query->orderBy('reference')->get();
-        $panels      = $panelModels->map(fn($p) => $this->enrichPanel($p));
+        $panels      = $query->orderBy('reference')->get();
         $hideStatus  = !empty($filters['hide_status']);
+        $showPricing = !$hideStatus;
         $logoSrc     = $this->getLogoPdf();
 
         $commune = !empty($filters['commune_id'])
             ? Commune::find($filters['commune_id'])
             : null;
 
-        $pdf = Pdf::loadView('admin.reservations.pdf.disponibilites-images', [
-            'panels'     => $panels,
-            'startDate'  => $filters['start_date'] ?? null,
-            'endDate'    => $filters['end_date']   ?? null,
-            'generated'  => now()->format('d/m/Y à H:i'),
-            'hideStatus' => $hideStatus,
-            'logoSrc'    => $logoSrc,
+        $startDate    = $filters['start_date'] ?? null;
+        $endDate      = $filters['end_date']   ?? null;
+        $dureeEnMois  = 1;
+        $totalMensuel = (float) $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0));
+        $totalPeriode = $totalMensuel;
+        $generated    = now()->format('d/m/Y à H:i');
+
+        $pdf = Pdf::loadView('admin.reservations.pdf.disponibilites-list', [
+            'panels'       => $panels,
+            'startDate'    => $startDate,
+            'endDate'      => $endDate,
+            'dureeEnMois'  => $dureeEnMois,
+            'totalMensuel' => $totalMensuel,
+            'totalPeriode' => $totalPeriode,
+            'generated'    => $generated,
+            'hideStatus'   => $hideStatus,
+            'showPricing'  => $showPricing,
+            'logoSrc'      => $logoSrc,
         ])
-            ->setPaper('a4', 'portrait')
+            ->setPaper('a4', 'landscape')   // table plus lisible en paysage
             ->setOptions($this->dompdfOptions());
 
-        $filename = 'liste-panneaux' . ($commune ? '-' . \Str::slug($commune->name) : '');
-        return $pdf->stream("{$filename}.pdf");
+        $filename = 'liste-panneaux' . ($commune ? '-' . \Str::slug($commune->name) : '') . '-' . now()->format('Ymd_His');
+        // download() force Content-Disposition: attachment → téléchargement
+        // immédiat (le stream précédent affichait inline = preview navigateur).
+        return $pdf->download("{$filename}.pdf");
     }
 
     // ══════════════════════════════════════════════════════════════

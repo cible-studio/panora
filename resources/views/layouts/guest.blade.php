@@ -69,7 +69,7 @@
 
         .auth-image-tagline {
             color: rgba(255, 255, 255, 0.9);
-            font-family: 'Syne', sans-serif;
+            font-family: 'DM Sans', sans-serif;
             font-size: 28px;
             font-weight: 700;
             line-height: 1.25;

@@ -630,6 +630,7 @@ Route::prefix('admin')
         // Ajout/modif panneaux et prix dans réservation = admin + MP
         Route::middleware('role:admin,mediaplanner')->group(function () {
             Route::post('reservations/{reservation}/panels/add', [ReservationController::class, 'addPanel']) ->name('reservations.panels.add');
+            Route::delete('reservations/{reservation}/panels/{panel}', [ReservationController::class, 'removePanel'])->name('reservations.panels.remove');
             // Prix panneaux dans réservation (déplacés ici depuis plus haut)
         });
 

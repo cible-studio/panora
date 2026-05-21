@@ -8,7 +8,7 @@
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-family: 'DM Sans', system-ui, sans-serif;
         background: #f1f5f9; color: #0f172a;
         font-size: 14px; line-height: 1.5;
         -webkit-font-smoothing: antialiased;
