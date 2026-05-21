@@ -761,6 +761,42 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         }
     }
 
+    // ── Plier / déplier les panneaux d'une campagne ────────────
+    // État persistant par campagne dans sessionStorage pour rester
+    // cohérent après refresh AJAX (filtre / pagination).
+    const collapsedGroups = new Set(JSON.parse(sessionStorage.getItem('pose_collapsed_groups') || '[]'));
+    function persistCollapsedGroups() {
+        sessionStorage.setItem('pose_collapsed_groups', JSON.stringify([...collapsedGroups]));
+    }
+    function applyCollapsedState(cid) {
+        const isCollapsed = collapsedGroups.has(cid);
+        document.querySelectorAll(`.trow[data-campaign-group="${cid}"]`).forEach(row => {
+            row.style.display = isCollapsed ? 'none' : '';
+        });
+        const btn = document.querySelector(`.pose-group-toggle[data-campaign-toggle="${cid}"]`);
+        if (btn) {
+            btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+            btn.style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+        }
+    }
+    function refreshAllGroupsCollapse() {
+        // Pour chaque header campagne présent dans le DOM, applique l'état stocké
+        document.querySelectorAll('.pose-group-toggle').forEach(btn => {
+            applyCollapsedState(btn.dataset.campaignToggle);
+        });
+    }
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.pose-group-toggle');
+        if (!btn) return;
+        const cid = btn.dataset.campaignToggle;
+        if (collapsedGroups.has(cid)) collapsedGroups.delete(cid);
+        else                          collapsedGroups.add(cid);
+        persistCollapsedGroups();
+        applyCollapsedState(cid);
+    });
+    // Applique l'état au chargement
+    refreshAllGroupsCollapse();
+
     // Quand la table est rechargée en AJAX (filtre / pagination), on
     // restaure l'état coché des checkboxes encore présentes.
     const tableEl = document.getElementById('table-container');
@@ -779,6 +815,8 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                 }
             });
             syncCheckAllState();
+            // Re-applique l'état plié/déplié des groupes après refresh AJAX
+            refreshAllGroupsCollapse();
         });
         obs.observe(tableEl, { childList: true, subtree: true });
     }

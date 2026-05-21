@@ -165,6 +165,17 @@
             <td colspan="9" style="padding:0;border:none">
                 <div class="pose-campaign-header">
                     <div style="display:flex;align-items:center;gap:12px;min-width:0">
+                        {{-- Chevron toggle : replie/déplie les panneaux du groupe --}}
+                        <button type="button"
+                                class="pose-group-toggle"
+                                data-campaign-toggle="{{ $currentCampaignId }}"
+                                aria-expanded="true"
+                                title="Plier / déplier les panneaux de cette campagne"
+                                style="background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:8px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fab80b;flex-shrink:0;padding:0;transition:transform .2s ease">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                        </button>
                         <input type="checkbox"
                                class="pose-group-check"
                                data-campaign-id="{{ $currentCampaignId }}"
@@ -241,7 +252,7 @@
             $rowStyle = $isLate ? 'border-left:3px solid rgba(239,68,68,.5);background:rgba(239,68,68,.02)' : ($needsPige ? 'border-left:3px solid rgba(249,115,22,.4);background:rgba(249,115,22,.015)' : '');
         @endphp
         @php $isFinal = in_array($task->status, ['realisee', 'annulee']); @endphp
-        <tr class="trow" data-pose-id="{{ $task->id }}" style="{{ $rowStyle }}">
+        <tr class="trow" data-pose-id="{{ $task->id }}" data-campaign-group="{{ $currentCampaignId }}" style="{{ $rowStyle }}">
             <td style="padding:10px 6px 10px 14px;width:32px">
                 <input type="checkbox" class="pose-check"
                        value="{{ $task->id }}"
