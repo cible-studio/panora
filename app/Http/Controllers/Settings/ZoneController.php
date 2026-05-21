@@ -10,8 +10,9 @@ class ZoneController extends Controller
 {
     public function index()
     {
-        $zones = Zone::with('commune')->latest()->paginate(15);
-        return view('settings.zones.index', compact('zones'));
+        $zones    = Zone::with('commune')->latest()->paginate(15);
+        $communes = Commune::orderBy('name')->get(['id', 'name']);
+        return view('settings.zones.index', compact('zones', 'communes'));
     }
 
     public function create()

@@ -104,12 +104,20 @@
 
             <div class="filter-group">
                 <label class="filter-label">👤 Assignation</label>
-                <label style="display:flex;align-items:center;gap:8px;height:38px;cursor:pointer;padding:0 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;font-size:13px;color:var(--text2);">
-                    <input type="checkbox" id="filter-assigned-me" data-filter="assigned_me"
-                        {{ $assignedMe ? 'checked' : '' }}
-                        style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;">
+                <button type="button" id="filter-assigned-me-btn"
+                        data-active="{{ $assignedMe ? '1' : '0' }}"
+                        style="display:inline-flex;align-items:center;gap:8px;height:38px;cursor:pointer;padding:0 14px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap;transition:all .15s;
+                               border:1px solid {{ $assignedMe ? 'var(--accent)' : 'var(--border2)' }};
+                               background:{{ $assignedMe ? 'var(--accent)' : 'var(--surface2)' }};
+                               color:{{ $assignedMe ? '#fff' : 'var(--text2)' }};">
+                    <span>{{ $assignedMe ? '✓' : '○' }}</span>
                     <span>Mes à traiter</span>
-                </label>
+                </button>
+                {{-- Input caché pour préserver le pattern JS existant qui lit
+                     ['filter-assigned-me'].checked. Le bouton ci-dessus pilote
+                     ce champ. --}}
+                <input type="checkbox" id="filter-assigned-me" data-filter="assigned_me"
+                       {{ $assignedMe ? 'checked' : '' }} style="display:none">
             </div>
 
             <div class="filter-group" id="reset-wrapper" style="display:none;">
@@ -962,7 +970,9 @@
             document.getElementById('filter-client').value = currentFilters.client_id;
             document.getElementById('filter-periode').value = currentFilters.periode;
             const assignedEl = document.getElementById('filter-assigned-me');
+            const assignedBtn = document.getElementById('filter-assigned-me-btn');
             if (assignedEl) assignedEl.checked = !!currentFilters.assigned_me;
+            syncAssignedBtnUI();
 
             updateActiveStat();
             updateResetButton();
@@ -972,7 +982,27 @@
             document.getElementById('filter-type').addEventListener('change', applyFilters);
             document.getElementById('filter-client').addEventListener('change', applyFilters);
             document.getElementById('filter-periode').addEventListener('change', applyFilters);
-            if (assignedEl) assignedEl.addEventListener('change', applyFilters);
+            if (assignedEl) assignedEl.addEventListener('change', () => { syncAssignedBtnUI(); applyFilters(); });
+            // Pilotage du bouton toggle "Mes à traiter" → met à jour le
+            // checkbox caché et déclenche applyFilters via le change event.
+            if (assignedBtn) {
+                assignedBtn.addEventListener('click', () => {
+                    if (!assignedEl) return;
+                    assignedEl.checked = !assignedEl.checked;
+                    assignedEl.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            }
+
+            function syncAssignedBtnUI() {
+                if (!assignedBtn || !assignedEl) return;
+                const active = !!assignedEl.checked;
+                assignedBtn.dataset.active = active ? '1' : '0';
+                assignedBtn.style.background  = active ? 'var(--accent)' : 'var(--surface2)';
+                assignedBtn.style.borderColor = active ? 'var(--accent)' : 'var(--border2)';
+                assignedBtn.style.color       = active ? '#fff' : 'var(--text2)';
+                const ic = assignedBtn.querySelector('span:first-child');
+                if (ic) ic.textContent = active ? '✓' : '○';
+            }
             
             document.querySelectorAll('.kpi-card[data-kpi]').forEach(card => {
                 card.addEventListener('click', (e) => {

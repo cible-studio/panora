@@ -26,10 +26,24 @@
                        value="{{ request('action') }}" placeholder="Ex: created, updated…"
                        style="min-width:160px;">
             </div>
-            <button type="submit" class="btn btn-primary btn-sm">Filtrer</button>
-            @if(request()->hasAny(['user_id','action']))
-                <a href="{{ route('admin.audit.logs') }}" class="btn btn-ghost btn-sm">Réinitialiser</a>
-            @endif
+            <div class="filter-group">
+                <label class="filter-label">&nbsp;</label>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <button type="submit"
+                            style="display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 18px;border-radius:10px;background:var(--accent);color:#fff;border:1px solid var(--accent);font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap"
+                            onmouseover="this.style.opacity='.9'" onmouseout="this.style.opacity='1'">
+                        🔍 Filtrer
+                    </button>
+                    @if(request()->hasAny(['user_id','action']))
+                    <a href="{{ route('admin.audit.logs') }}"
+                       style="display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:10px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-size:13px;font-weight:600;text-decoration:none;transition:all .15s;white-space:nowrap"
+                       onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--text)'"
+                       onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">
+                        ✕ Réinitialiser
+                    </a>
+                    @endif
+                </div>
+            </div>
         </form>
     </div>
 
