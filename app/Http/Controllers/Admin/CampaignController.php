@@ -553,24 +553,32 @@ class CampaignController extends Controller
 
     /**
      * Dupliquer une campagne existante : crée une nouvelle campagne en
-     * PLANIFIE avec les mêmes panneaux, prix négociés et commercial, mais
-     * de nouvelles dates (par défaut +30 j après l'ancienne fin).
+     * PLANIFIE avec les mêmes panneaux, prix négociés et commercial.
      *
-     * Mode "snapshot complet" pour un renouvellement rapide. L'utilisateur
-     * reste sur la fiche de la nouvelle campagne pour ajuster les dates +
-     * lancer manuellement.
+     * Dates :
+     *   - Si l'utilisateur saisit start_date + end_date dans le modal,
+     *     on les utilise telles quelles.
+     *   - Sinon (cas "renouvellement express"), défaut = ancienne fin + 1 j
+     *     pendant la même durée.
+     *
+     * IMPORTANT : le paramètre s'appelle $campaign (pas $source) — la
+     * route déclare {campaign}, donc Laravel a besoin du même nom de
+     * paramètre dans la méthode pour résoudre le route-model-binding.
+     * Sinon Laravel passe un Campaign vide → erreurs nulles partout.
      */
-    public function duplicate(Request $request, Campaign $source)
+    public function duplicate(Request $request, Campaign $campaign)
     {
         $this->authorize('create', Campaign::class);
-        $this->authorize('view', $source);
+        $this->authorize('view', $campaign);
 
         $data = $request->validate([
             'start_date' => 'nullable|date',
             'end_date'   => 'nullable|date|after:start_date',
         ]);
 
-        $duration = $source->start_date->diffInDays($source->end_date);
+        $source   = $campaign;
+        $duration = (int) max(1, $source->start_date->diffInDays($source->end_date));
+
         $newStart = !empty($data['start_date'])
             ? \Carbon\Carbon::parse($data['start_date'])
             : $source->end_date->copy()->addDay();
@@ -583,12 +591,16 @@ class CampaignController extends Controller
                 $baseName = $source->name . ' (renouvelée)';
                 $name = $baseName;
                 $i = 2;
-                while (Campaign::where('client_id', $source->client_id)->where('name', $name)->whereNull('deleted_at')->exists()) {
+                while (Campaign::where('client_id', $source->client_id)
+                    ->where('name', $name)
+                    ->whereNull('deleted_at')
+                    ->exists()
+                ) {
                     $name = $baseName . ' ' . $i;
                     $i++;
                 }
 
-                $campaign = Campaign::create([
+                $newCampaign = Campaign::create([
                     'name'               => $name,
                     'client_id'          => $source->client_id,
                     'commercial_user_id' => $source->commercial_user_id,
@@ -604,21 +616,21 @@ class CampaignController extends Controller
                 // la résa technique + recalcule + applique les conflits).
                 $internalIds = $source->panels()->pluck('panels.id')->all();
                 if (!empty($internalIds)) {
-                    $this->campaignService->addPanels($campaign, $internalIds);
+                    $this->campaignService->addPanels($newCampaign, $internalIds);
                 }
 
                 $externalIds = $source->externalPanels()->pluck('external_panels.id')->all();
                 if (!empty($externalIds)) {
-                    $this->campaignService->addExternalPanels($campaign->fresh(), $externalIds);
+                    $this->campaignService->addExternalPanels($newCampaign->fresh(), $externalIds);
                 }
 
                 Log::info('campaign.duplicated', [
                     'source_id' => $source->id,
-                    'new_id'    => $campaign->id,
+                    'new_id'    => $newCampaign->id,
                     'user_id'   => auth()->id(),
                 ]);
 
-                return $campaign;
+                return $newCampaign;
             });
 
             AlertService::create(
@@ -630,12 +642,13 @@ class CampaignController extends Controller
 
             return redirect()
                 ->route('admin.campaigns.show', $newCampaign)
-                ->with('success', "✅ Campagne dupliquée. Ajustez les dates / panneaux si besoin, puis cliquez « ▶ Démarrer la campagne ».");
+                ->with('success', "✅ Campagne dupliquée avec mêmes panneaux + commercial. Ajustez si besoin puis cliquez « ▶ Démarrer la campagne ».");
 
         } catch (\Throwable $e) {
             Log::error('campaign.duplicate.failed', [
-                'source_id' => $source->id,
+                'source_id' => $campaign->id,
                 'error'     => $e->getMessage(),
+                'trace'     => $e->getTraceAsString(),
             ]);
             return back()->with('error', 'Échec de la duplication : ' . $e->getMessage());
         }

@@ -137,20 +137,15 @@
     @endphp
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         @if($can['update'] && $campaign->status->value !== 'annule')
-        <form method="POST" action="{{ route('admin.campaigns.duplicate', $campaign) }}"
-              onsubmit="return confirm('Dupliquer cette campagne ? Une nouvelle campagne en PLANIFIE sera créée avec les mêmes panneaux, prix négociés et commercial.');"
-              style="display:block">
-            @csrf
-            <button type="submit"
-                    class="w-full rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
-                    style="background:var(--surface);border-color:var(--border);cursor:pointer;text-align:left">
-                <span class="text-2xl">🔁</span>
-                <div class="min-w-0">
-                    <div class="font-bold text-sm" style="color:var(--text)">Renouveler</div>
-                    <div class="text-xs" style="color:var(--text3)">Dupliquer cette campagne</div>
-                </div>
-            </button>
-        </form>
+        <button type="button" onclick="openDuplicateModal()"
+                class="w-full rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
+                style="background:var(--surface);border-color:var(--border);cursor:pointer;text-align:left">
+            <span class="text-2xl">🔁</span>
+            <div class="min-w-0">
+                <div class="font-bold text-sm" style="color:var(--text)">Renouveler</div>
+                <div class="text-xs" style="color:var(--text3)">Dupliquer cette campagne</div>
+            </div>
+        </button>
         @endif
         <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
            class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
@@ -267,7 +262,6 @@
                             <span data-campaign-total>{{ number_format($campaign->total_amount, 0, ',', ' ') }}</span>
                             <span class="text-xs font-normal" style="color:var(--text3)">FCFA</span>
                         </div>
-                        <div data-total-hint style="display:none;font-size:10px;color:var(--text3);margin-top:6px"></div>
                     </div>
 
                     {{-- Réservation --}}
@@ -1147,6 +1141,104 @@
         </div>
     </div>
 
+    {{-- ── MODAL DUPLICATION ── --}}
+    @if($can['update'] && $campaign->status->value !== 'annule')
+    @php
+        $dupDuration = (int) max(1, $campaign->start_date->diffInDays($campaign->end_date));
+        $dupDefaultStart = $campaign->end_date->copy()->addDay()->format('Y-m-d');
+        $dupDefaultEnd   = $campaign->end_date->copy()->addDay()->addDays($dupDuration)->format('Y-m-d');
+        $dupIntCount = $campaign->panels->count();
+        $dupExtCount = $campaign->externalPanels->count();
+    @endphp
+    <div id="modal-duplicate" class="fixed inset-0 backdrop-blur-md items-center justify-center hidden"
+         style="background:rgba(0,0,0,0.7);z-index:9999;display:none"
+         onclick="if(event.target===this) closeDuplicateModal()">
+        <div class="rounded-2xl border max-w-lg w-full mx-4 overflow-hidden shadow-2xl"
+             style="background:var(--surface);border-color:var(--border)" onclick="event.stopPropagation()">
+            <div class="px-6 py-5 border-b flex justify-between items-center"
+                 style="background:rgba(232,160,32,0.08);border-color:rgba(232,160,32,0.25)">
+                <h3 class="font-bold text-xl" style="color:var(--accent)">🔁 Renouveler la campagne</h3>
+                <button onclick="closeDuplicateModal()" type="button" class="text-2xl" style="color:var(--text3);background:none;border:none;cursor:pointer">&times;</button>
+            </div>
+            <form id="form-duplicate" method="POST" action="{{ route('admin.campaigns.duplicate', $campaign) }}">
+                @csrf
+                <div class="p-6">
+                    <div class="rounded-xl p-4 mb-5" style="background:var(--surface2);border:1px solid var(--border)">
+                        <div class="text-xs font-bold uppercase tracking-wider mb-2" style="color:var(--text3)">Ce qui sera dupliqué</div>
+                        <ul style="font-size:13px;color:var(--text2);line-height:1.8;margin:0;padding:0;list-style:none">
+                            <li>✓ {{ $dupIntCount + $dupExtCount }} panneau{{ ($dupIntCount + $dupExtCount) > 1 ? 'x' : '' }} ({{ $dupIntCount }} interne{{ $dupIntCount > 1 ? 's' : '' }}{{ $dupExtCount > 0 ? ' + '.$dupExtCount.' externe'.($dupExtCount > 1 ? 's' : '') : '' }})</li>
+                            <li>✓ Prix négociés (tarifs unitaires)</li>
+                            <li>✓ Client : <strong style="color:var(--text)">{{ $campaign->client?->name ?? '—' }}</strong></li>
+                            <li>✓ Commercial assigné</li>
+                            <li>✓ Notes internes</li>
+                        </ul>
+                        <div class="mt-3 text-xs" style="color:var(--text3);font-style:italic">
+                            La nouvelle campagne sera créée en <strong>PLANIFIE</strong>. Aucun mail au client jusqu'à ce que tu cliques sur ▶ Démarrer.
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs font-bold uppercase tracking-wider block mb-2" style="color:var(--text3)">Date début</label>
+                            <input type="date" name="start_date" id="dup-start" required
+                                   value="{{ $dupDefaultStart }}"
+                                   min="{{ now()->format('Y-m-d') }}"
+                                   onchange="syncDupEnd()"
+                                   class="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+                                   style="background:var(--surface2);border:1px solid var(--border);color:var(--text)">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold uppercase tracking-wider block mb-2" style="color:var(--text3)">Date fin</label>
+                            <input type="date" name="end_date" id="dup-end" required
+                                   value="{{ $dupDefaultEnd }}"
+                                   class="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+                                   style="background:var(--surface2);border:1px solid var(--border);color:var(--text)">
+                        </div>
+                    </div>
+                    <div class="text-xs mt-2" style="color:var(--text3)">
+                        💡 Par défaut : juste après l'ancienne campagne pour la même durée ({{ $dupDuration }} jour{{ $dupDuration > 1 ? 's' : '' }}). Modifiable.
+                    </div>
+                </div>
+                <div class="px-6 py-4 border-t flex justify-end gap-3" style="border-color:var(--border)">
+                    <button type="button" onclick="closeDuplicateModal()"
+                            class="px-5 py-2 rounded-xl border" style="border-color:var(--border);color:var(--text2);background:transparent;cursor:pointer">
+                        Annuler
+                    </button>
+                    <button type="submit"
+                            class="px-5 py-2 rounded-xl text-white font-semibold" style="background:var(--accent);border:none;cursor:pointer">
+                        🔁 Dupliquer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+    function openDuplicateModal() {
+        const m = document.getElementById('modal-duplicate');
+        m.classList.remove('hidden');
+        m.style.display = 'flex';
+        setTimeout(() => document.getElementById('dup-start')?.focus(), 50);
+    }
+    function closeDuplicateModal() {
+        const m = document.getElementById('modal-duplicate');
+        m.classList.add('hidden');
+        m.style.display = 'none';
+    }
+    function syncDupEnd() {
+        // Quand l'utilisateur change la date début, recalcule la fin par défaut
+        // pour conserver la même durée que l'ancienne campagne.
+        const start = document.getElementById('dup-start').value;
+        if (!start) return;
+        const d = new Date(start);
+        d.setDate(d.getDate() + {{ $dupDuration }});
+        document.getElementById('dup-end').value = d.toISOString().split('T')[0];
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeDuplicateModal();
+    });
+    </script>
+    @endif
+
     {{-- ── SCRIPTS ── --}}
     <script>
     // ─────────────────────────────────────────────────────────────────
@@ -1499,20 +1591,30 @@
 
     // ─────────────────────────────────────────────────────────────────
     // ÉDITION MONTANT TOTAL — override forfaitaire / remise globale
+    //
+    // Délégation d'événement (et re-query du span à chaque clic) pour
+    // qu'on puisse rééditer après une 1ère édition : la 1ère version
+    // capturait le span en const à l'init du listener, ce qui le
+    // rendait obsolète après remplacement par l'input → 2e clic muet.
     // ─────────────────────────────────────────────────────────────────
     (function() {
         const cell = document.querySelector('[data-total-cell][data-can-edit="1"]');
         if (!cell) return;
-        const totalSpan = cell.querySelector('[data-campaign-total]');
-        const btn       = cell.querySelector('[data-total-edit-btn]');
-        const hint      = cell.querySelector('[data-total-hint]');
-        const CSRF      = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const btn  = cell.querySelector('[data-total-edit-btn]');
+        const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-        if (!btn || !totalSpan) return;
+        if (!btn) return;
 
         btn.addEventListener('click', () => {
+            // Re-query à chaque clic — le span a été remplacé après une
+            // précédente édition, donc une référence capturée à l'init
+            // serait stale et invisible dans le DOM.
+            const totalSpan = cell.querySelector('[data-campaign-total]');
+            if (!totalSpan) return;
+            if (cell.dataset.editing === '1') return; // déjà en édition
+            cell.dataset.editing = '1';
+
             const current = parseFloat(cell.dataset.totalAmount || 0);
-            const oldText = totalSpan.textContent;
 
             const input = document.createElement('input');
             input.type = 'number';
@@ -1525,16 +1627,12 @@
             input.focus();
             input.select();
 
-            hint.style.display = 'block';
-            hint.style.color   = 'var(--text3)';
-            hint.textContent   = '↵ Enregistrer · Échap Annuler · ⚠️ écrase la somme des prix panneau';
-
             function restoreSpan(newVal) {
                 const span = document.createElement('span');
                 span.dataset.campaignTotal = '';
                 span.textContent = Math.round(newVal).toLocaleString('fr-FR');
                 input.replaceWith(span);
-                hint.style.display = 'none';
+                cell.dataset.editing = '0';
             }
 
             async function save() {
@@ -1543,7 +1641,6 @@
                 if (Math.abs(newVal - current) < 0.01) { restoreSpan(current); return; }
 
                 input.disabled = true;
-                hint.textContent = 'Enregistrement…';
 
                 try {
                     const res = await fetch(cell.dataset.updateUrl, {
@@ -1559,16 +1656,14 @@
                     });
                     const data = await res.json();
                     if (!res.ok || !data.ok) {
-                        hint.textContent = '⚠️ ' + (data.error || 'Erreur — réessayez');
-                        hint.style.color = '#ef4444';
+                        alert('⚠️ ' + (data.error || 'Erreur — réessayez'));
                         input.disabled = false;
                         return;
                     }
                     cell.dataset.totalAmount = data.total_amount;
                     restoreSpan(data.total_amount);
                 } catch (e) {
-                    hint.textContent = '⚠️ Réseau : ' + e.message;
-                    hint.style.color = '#ef4444';
+                    alert('⚠️ Erreur réseau : ' + e.message);
                     input.disabled = false;
                 }
             }
@@ -1579,7 +1674,9 @@
             });
             input.addEventListener('blur', () => {
                 setTimeout(() => {
-                    if (document.activeElement !== input) restoreSpan(parseFloat(cell.dataset.totalAmount || current));
+                    if (document.activeElement !== input && cell.dataset.editing === '1') {
+                        restoreSpan(parseFloat(cell.dataset.totalAmount || current));
+                    }
                 }, 150);
             });
         });
