@@ -1207,12 +1207,67 @@
         (function () {
             'use strict';
 
-            // ── Dropdown actions : toggle + click outside pour fermer ──
+            // ── Dropdown actions : position fixe + auto-flip top/bottom ──
+            // Le menu utilise position:fixed pour échapper aux overflow du
+            // tableau. On calcule sa position à partir du bounding rect du
+            // bouton et on flip vers le haut si pas assez de place en bas.
+            let _activeDdMenu = null;
+            let _activeDdAnchor = null;
+
+            function positionDropdown(menu, anchor) {
+                if (!menu || !anchor) return;
+                // Reset pour mesurer dans son état naturel
+                menu.style.top = '0px';
+                menu.style.left = '0px';
+                menu.style.maxHeight = '';
+                menu.style.overflowY = '';
+                menu.style.visibility = 'hidden';
+                menu.style.display = 'block';
+
+                const btnRect  = anchor.getBoundingClientRect();
+                const menuRect = menu.getBoundingClientRect();
+                const vw       = window.innerWidth;
+                const vh       = window.innerHeight;
+                const margin   = 8;
+
+                const spaceBelow = vh - btnRect.bottom;
+                const spaceAbove = btnRect.top;
+                const placeAbove = spaceBelow < menuRect.height + margin
+                                   && spaceAbove > spaceBelow;
+
+                let top = placeAbove
+                    ? Math.max(margin, btnRect.top - menuRect.height - 4)
+                    : btnRect.bottom + 4;
+                let left = btnRect.right - menuRect.width;
+                if (left < margin) left = margin;
+                if (left + menuRect.width > vw - margin) left = vw - menuRect.width - margin;
+
+                // Si même en flip on dépasse, on borne et on rend scrollable
+                const available = placeAbove ? spaceAbove : spaceBelow;
+                if (menuRect.height > available - margin) {
+                    menu.style.maxHeight = (available - margin * 2) + 'px';
+                    menu.style.overflowY = 'auto';
+                    if (placeAbove) top = margin;
+                }
+
+                menu.style.top  = top + 'px';
+                menu.style.left = left + 'px';
+                menu.style.visibility = '';
+            }
+
             function closeAllDropdowns(except) {
                 document.querySelectorAll('.ci-dd-menu.open').forEach(m => {
-                    if (m !== except) m.classList.remove('open');
+                    if (m !== except) {
+                        m.classList.remove('open');
+                        m.style.display = 'none';
+                    }
                 });
+                if (!except) {
+                    _activeDdMenu = null;
+                    _activeDdAnchor = null;
+                }
             }
+
             document.addEventListener('click', function (e) {
                 const toggle = e.target.closest('[data-dd-toggle]');
                 if (toggle) {
@@ -1220,16 +1275,28 @@
                     const menu = toggle.nextElementSibling;
                     const wasOpen = menu.classList.contains('open');
                     closeAllDropdowns();
-                    if (!wasOpen) menu.classList.add('open');
+                    if (!wasOpen) {
+                        menu.classList.add('open');
+                        _activeDdMenu = menu;
+                        _activeDdAnchor = toggle;
+                        positionDropdown(menu, toggle);
+                    }
                     return;
                 }
-                // Click ailleurs → ferme tous les dropdowns ouverts
                 if (!e.target.closest('.ci-dd-menu')) {
                     closeAllDropdowns();
                 }
             });
             document.addEventListener('keydown', function (e) {
                 if (e.key === 'Escape') closeAllDropdowns();
+            });
+            // Reposition au scroll / resize pour rester accroché au bouton
+            ['scroll', 'resize'].forEach(evt => {
+                window.addEventListener(evt, function () {
+                    if (_activeDdMenu && _activeDdAnchor) {
+                        positionDropdown(_activeDdMenu, _activeDdAnchor);
+                    }
+                }, true);
             });
 
             // ── Bulk selection ──
