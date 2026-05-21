@@ -1152,36 +1152,7 @@
     @endif
 
     {{-- ── SCRIPTS ── --}}
-    {{-- Conteneur des toasts (notifications inline non bloquantes). --}}
-    <div id="campaign-toast-container"
-         style="position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none"></div>
-
     <script>
-    // ─────────────────────────────────────────────────────────────────
-    // TOAST HELPER — message éphémère discret (3 s)
-    // Couleurs : success vert · error rouge · info bleu (défaut)
-    // ─────────────────────────────────────────────────────────────────
-    function showToast(message, type = 'success', duration = 3500) {
-        const container = document.getElementById('campaign-toast-container');
-        if (!container) { console.log(message); return; }
-        const bg = type === 'error'   ? '#ef4444'
-                : type === 'success' ? '#16a34a'
-                : '#3b82f6';
-        const el = document.createElement('div');
-        el.style.cssText = 'pointer-events:auto;background:' + bg + ';color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 6px 16px rgba(0,0,0,.18);max-width:380px;opacity:0;transform:translateY(-10px);transition:all .25s ease-out;cursor:pointer';
-        el.textContent = message;
-        el.onclick = () => el.remove();
-        container.appendChild(el);
-        // Animation d'entrée
-        requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
-        // Animation de sortie
-        setTimeout(() => {
-            el.style.opacity = '0';
-            el.style.transform = 'translateY(-10px)';
-            setTimeout(() => el.remove(), 250);
-        }, duration);
-    }
-
     // ─────────────────────────────────────────────────────────────────
     // PROGRESSION DYNAMIQUE
     // - Polling JSON toutes les 60 s pour synchro serveur (statut, jours)
@@ -1523,7 +1494,7 @@
                         if (badge) badge.style.display = 'none';
                     }
 
-                    showToast('💰 Prix mis à jour. Montant total recalculé.', 'success');
+                    if (window.Toast) window.Toast.success('💰 Prix mis à jour. Montant total recalculé.');
                 } catch (e) {
                     hint.textContent = '⚠️ Réseau : ' + e.message;
                     hint.style.color = '#ef4444';
@@ -1625,8 +1596,8 @@
                     // Met à jour le badge "Négocié par X · DD/MM HH:mm"
                     updateOverrideBadge(data.overridden_by, data.overridden_at_formatted);
 
-                    // Toast de confirmation
-                    showToast(data.message || '✅ Montant total mis à jour.', 'success');
+                    // Toast de confirmation (system d'app — window.Toast)
+                    if (window.Toast) window.Toast.success(data.message || '✅ Montant total mis à jour.');
                 } catch (e) {
                     alert('⚠️ Erreur réseau : ' + e.message);
                     input.disabled = false;

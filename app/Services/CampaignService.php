@@ -659,17 +659,31 @@ class CampaignService
             $total = ($sumRateInternal + $sumRateExternal) * $months;
         }
 
+        $totalRounded = round($total, 2);
+
         // Quand on recalcule (ajout/retrait panneau, modif prix unitaire),
         // l'éventuel override forfaitaire perd de sa pertinence — on le
         // nettoie pour repartir sur un total "calculé propre". L'admin
         // pourra ré-overrider après si besoin.
         $campaign->update([
             'total_panels'                  => $countInternal + $countExternal,
-            'total_amount'                  => round($total, 2),
+            'total_amount'                  => $totalRounded,
             'total_amount_overridden_at'    => null,
             'total_amount_overridden_by_id' => null,
             'updated_by'                    => auth()->id(),
         ]);
+
+        // Synchronise aussi la réservation liée (réelle ou technique).
+        // Sans ça, la fiche réservation affichait un total désynchronisé
+        // après modification d'un prix unitaire sur la campagne.
+        if ($reservationId) {
+            DB::table('reservations')
+                ->where('id', $reservationId)
+                ->update([
+                    'total_amount' => $totalRounded,
+                    'updated_at'   => now(),
+                ]);
+        }
     }
 
     // ══════════════════════════════════════════════════════════════
