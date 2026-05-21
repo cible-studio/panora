@@ -83,8 +83,20 @@
         // Facturation : visible pour admin + commercial. Cachée pour MP.
         $rowAuthRole = auth()->user()?->role?->value;
         $rowCanSeeBilling = in_array($rowAuthRole, ['admin', 'commercial'], true);
-        // Commercial suivant le dossier (assigné via résa source).
-        $rowCommercial = $campaign->reservation?->resolveCommercialContact();
+
+        // Commercial suivant le dossier — priorité campaign.commercial_user_id,
+        // fallback résa source. On n'affiche QUE si le user est commercial
+        // ou admin (un MP/technicien ne doit jamais apparaître dans cette
+        // colonne, c'est réservé au suivi commercial).
+        $rowCommercial = null;
+        $candidate = $campaign->resolveCommercialContact()
+                  ?? $campaign->reservation?->resolveCommercialContact();
+        if ($candidate) {
+            $candidateRole = $candidate->role?->value ?? $candidate->role;
+            if (in_array($candidateRole, ['admin', 'commercial'], true)) {
+                $rowCommercial = $candidate;
+            }
+        }
     @endphp
     @if($rowCanSeeBilling)
     <td>
