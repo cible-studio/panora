@@ -33,22 +33,36 @@ class TechSpaceController extends Controller
      */
     public function show(string $token)
     {
-        $tech = User::where('tech_public_token', $token)->first();
+        // Récupère le tech via son token + verrouille les comptes désactivés.
+        // Un tech congédié (is_active=false) ne doit plus accéder à ses
+        // poses même s'il a encore le lien dans son WhatsApp.
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->first();
         if (!$tech) {
-            abort(404, 'Lien invalide ou expiré.');
+            abort(404, 'Lien invalide, expiré, ou compte désactivé.');
         }
 
-        // Charge toutes les poses non-terminales du tech (planifiées,
-        // en_route, en_cours). Les réalisées et annulées sont masquées
-        // par défaut — on peut les afficher en historique sur demande.
+        // Charge les poses non-terminales du tech (planifiées, en_route,
+        // en_cours). On filtre AUSSI les poses orphelines (panel_id ou
+        // campaign_id NULL — état dégradé qui ne devrait pas exister mais
+        // qu'on protège quand même).
+        //
+        // Projection panel : on inclut `adresse` + `quartier` parce que la
+        // vue mobile en a besoin pour le lien Maps GPS et l'affichage de
+        // contexte terrain. Sans ces colonnes, Eloquent ferait un N+1
+        // silencieux à chaque accès via panel->adresse.
         $activeTasks = PoseTask::with([
-                'panel:id,reference,name,commune_id,format_id',
+                'panel:id,reference,name,commune_id,format_id,adresse,quartier',
                 'panel.commune:id,name',
                 'panel.format:id,name',
-                'campaign:id,name,start_date,end_date,client_id',
+                'campaign:id,name,start_date,end_date,client_id,status',
                 'campaign.client:id,name',
             ])
             ->where('assigned_user_id', $tech->id)
+            ->whereNotNull('panel_id')
+            ->whereNotNull('campaign_id')
             ->whereNotIn('status', [
                 PoseTaskStatus::COMPLETED->value,
                 PoseTaskStatus::CANCELLED->value,
@@ -90,16 +104,41 @@ class TechSpaceController extends Controller
      */
     public function updateStatus(Request $request, string $token, int $taskId)
     {
-        $tech = User::where('tech_public_token', $token)->first();
-        if (!$tech) return response()->json(['ok' => false, 'error' => 'Lien invalide.'], 404);
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->first();
+        if (!$tech) return response()->json(['ok' => false, 'error' => 'Lien invalide ou compte désactivé.'], 404);
 
-        $task = PoseTask::where('id', $taskId)
+        $task = PoseTask::with('campaign:id,status')
+            ->where('id', $taskId)
             ->where('assigned_user_id', $tech->id)
             ->first();
         if (!$task) return response()->json(['ok' => false, 'error' => 'Pose introuvable.'], 404);
 
+        // Vérifie que la campagne est dans un état qui autorise les
+        // interventions terrain. Si elle a été mise en pause / terminée /
+        // annulée entre l'assignation et l'action du tech, on refuse.
+        $campStatus = $task->campaign?->status?->value;
+        if (!in_array($campStatus, ['planifie', 'actif'], true)) {
+            $label = $task->campaign?->status?->label() ?? 'inconnue';
+            return response()->json([
+                'ok'    => false,
+                'error' => "La campagne est « {$label} » — modifications terrain bloquées. Contactez votre superviseur.",
+            ], 423); // 423 Locked
+        }
+
+        // Liste les valeurs de transition autorisées DIRECTEMENT depuis
+        // l'enum (évite de devoir mettre à jour 2 endroits si l'enum
+        // évolue : ajout d'un statut SUR_PLACE, PROBLEME, etc.).
+        $allowedValues = collect(PoseTaskStatus::cases())
+            ->map(fn($c) => $c->value)
+            ->reject(fn($v) => in_array($v, ['planifiee', 'annulee']))
+            ->values()
+            ->all();
+
         $data = $request->validate([
-            'status' => 'required|in:en_route,en_cours,realisee',
+            'status' => ['required', 'in:' . implode(',', $allowedValues)],
         ]);
 
         $newStatus = PoseTaskStatus::from($data['status']);
@@ -146,25 +185,43 @@ class TechSpaceController extends Controller
      */
     public function uploadPhoto(Request $request, string $token, int $taskId)
     {
-        $tech = User::where('tech_public_token', $token)->first();
-        if (!$tech) return response()->json(['ok' => false, 'error' => 'Lien invalide.'], 404);
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->first();
+        if (!$tech) return response()->json(['ok' => false, 'error' => 'Lien invalide ou compte désactivé.'], 404);
 
-        $task = PoseTask::with(['campaign', 'panel'])
+        $task = PoseTask::with(['campaign:id,name,status,user_id', 'panel:id,reference'])
             ->where('id', $taskId)
             ->where('assigned_user_id', $tech->id)
             ->first();
         if (!$task) return response()->json(['ok' => false, 'error' => 'Pose introuvable.'], 404);
 
+        if (!$task->campaign_id || !$task->panel_id) {
+            return response()->json(['ok' => false, 'error' => 'Pose mal configurée.'], 422);
+        }
+
+        // Refuse l'upload si la campagne n'est plus active (pause/terminé/
+        // annulé). Le tech doit contacter son superviseur si la situation
+        // a évolué pendant qu'il était sur le terrain.
+        $campStatus = $task->campaign?->status?->value;
+        if (!in_array($campStatus, ['planifie', 'actif'], true)) {
+            $label = $task->campaign?->status?->label() ?? 'inconnue';
+            return response()->json([
+                'ok'    => false,
+                'error' => "La campagne est « {$label} » — upload bloqué. Contactez votre superviseur.",
+            ], 423);
+        }
+
         $data = $request->validate([
-            'photo'    => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:51200'],
+            // Plafond : 15 MB suffit pour une pige photo en qualité confort.
+            // La plupart des smartphones produisent ~3-5 MB en JPEG. On garde
+            // de la marge pour les modes HEIC/PRO sans saturer le stockage.
+            'photo'    => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:15360'],
             'gps_lat'  => 'nullable|numeric|between:-90,90',
             'gps_lng'  => 'nullable|numeric|between:-180,180',
             'notes'    => 'nullable|string|max:500',
         ]);
-
-        if (!$task->campaign_id || !$task->panel_id) {
-            return response()->json(['ok' => false, 'error' => 'Pose mal configurée.'], 422);
-        }
 
         // Stockage photo
         $folder   = "piges/{$task->campaign_id}/{$task->panel_id}";
