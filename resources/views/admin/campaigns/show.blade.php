@@ -1551,15 +1551,33 @@
             input.focus();
             input.select();
 
+            // Capture le parent du input à la création (pour pouvoir y
+            // ré-insérer le span même si une autre opération a déjà retiré
+            // input du DOM entre temps).
+            const inputParent = input.parentElement;
+
             function restoreSpan(newVal, formatted) {
-                const span = document.createElement('span');
-                span.dataset.campaignTotal = '';
-                // Si le serveur fournit la version formatée, on l'utilise
-                // pour garantir la cohérence avec le rendu PHP (espace
-                // insécable, etc). Sinon fallback toLocaleString.
-                span.textContent = formatted || Math.round(newVal).toLocaleString('fr-FR');
-                input.replaceWith(span);
                 cell.dataset.editing = '0';
+                const text = formatted || Math.round(newVal).toLocaleString('fr-FR');
+
+                // Si le input est toujours dans le DOM, on le remplace
+                // directement (cas nominal). Sinon, on cherche s'il existe
+                // déjà un span dans le parent et on le met à jour.
+                if (input.parentElement) {
+                    const span = document.createElement('span');
+                    span.dataset.campaignTotal = '';
+                    span.textContent = text;
+                    input.replaceWith(span);
+                } else if (inputParent) {
+                    let span = inputParent.querySelector('[data-campaign-total]');
+                    if (!span) {
+                        span = document.createElement('span');
+                        span.dataset.campaignTotal = '';
+                        // Insère en première position du parent
+                        inputParent.insertBefore(span, inputParent.firstChild);
+                    }
+                    span.textContent = text;
+                }
             }
 
             async function save() {
@@ -1613,16 +1631,12 @@
             }
 
             input.addEventListener('keydown', e => {
-                if (e.key === 'Enter') { e.preventDefault(); save(); }
+                if (e.key === 'Enter')       { e.preventDefault(); save(); }
                 else if (e.key === 'Escape') { e.preventDefault(); restoreSpan(current); }
             });
-            input.addEventListener('blur', () => {
-                setTimeout(() => {
-                    if (document.activeElement !== input && cell.dataset.editing === '1') {
-                        restoreSpan(parseFloat(cell.dataset.totalAmount || current));
-                    }
-                }, 150);
-            });
+            // Pas de blur auto-cancel : la race condition avec save() async
+            // refaisait reverter l'affichage à l'ancienne valeur après
+            // sauvegarde réussie. L'utilisateur peut toujours annuler via Échap.
         });
     })();
 
