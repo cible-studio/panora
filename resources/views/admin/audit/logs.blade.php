@@ -1,11 +1,12 @@
 <x-admin-layout>
 <x-slot name="title">Logs d'audit</x-slot>
 
-<x-slot name="topbarActions">
+{{-- Bouton retour aligné à droite, au-dessus des KPI --}}
+<div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
     <a href="{{ route('admin.users.index') }}" class="btn btn-ghost btn-sm">
         ← Retour utilisateurs
     </a>
-</x-slot>
+</div>
 
 {{-- ════ KPI cards (pattern unifié : clic = filtre par famille d'actions) ══ --}}
 @php
