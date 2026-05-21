@@ -503,6 +503,7 @@ class PoseService
 
         if ($sent) {
             $task->forceFill(['whatsapp_sent_at' => now()])->saveQuietly();
+            \App\Http\Controllers\TechSpaceController::invalidateCache($tech->id);
         }
 
         return $sent;
@@ -599,6 +600,7 @@ class PoseService
             // Marque toutes les tâches du lot comme notifiées en une UPDATE
             PoseTask::whereIn('id', $tasks->pluck('id'))
                 ->update(['whatsapp_sent_at' => now()]);
+            \App\Http\Controllers\TechSpaceController::invalidateCache($tech->id);
         }
 
         return $sent;

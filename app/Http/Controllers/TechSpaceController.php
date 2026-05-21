@@ -8,8 +8,11 @@ use App\Models\Pige;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
+use Intervention\Image\ImageManager;
 
 /**
  * Espace personnel d'un technicien terrain — vue publique sans login.
@@ -44,6 +47,27 @@ class TechSpaceController extends Controller
             abort(404, 'Lien invalide, expiré, ou compte désactivé.');
         }
 
+        // Cache 30s — un tech qui rafraîchit sa page toutes les 10s ne
+        // recharge pas la BD à chaque fois. Le cache est invalidé dès
+        // qu'il fait une action (status / photo) ou qu'un admin lui
+        // assigne une nouvelle pose (cf. PoseService).
+        $cacheKey = "tech.space.{$tech->id}.payload";
+        $payload  = Cache::remember($cacheKey, 30, function () use ($tech) {
+            return $this->buildPayload($tech);
+        });
+
+        return view('public.tech-space', array_merge($payload, [
+            'tech'  => $tech,
+            'token' => $token,
+        ]));
+    }
+
+    /**
+     * Construit le payload data de la page tech (tasks + groupage par
+     * date + stats). Isolé pour réutilisation par le cache.
+     */
+    protected function buildPayload(User $tech): array
+    {
         // Charge les poses non-terminales du tech (planifiées, en_route,
         // en_cours). On filtre AUSSI les poses orphelines (panel_id ou
         // campaign_id NULL — état dégradé qui ne devrait pas exister mais
@@ -71,8 +95,8 @@ class TechSpaceController extends Controller
             ->get();
 
         // Stats rapides pour le bandeau d'en-tête
-        $totalActive  = $activeTasks->count();
-        $totalDone    = PoseTask::where('assigned_user_id', $tech->id)
+        $totalActive = $activeTasks->count();
+        $totalDone   = PoseTask::where('assigned_user_id', $tech->id)
             ->where('status', PoseTaskStatus::COMPLETED->value)
             ->count();
 
@@ -88,13 +112,21 @@ class TechSpaceController extends Controller
             return 'later';
         });
 
-        return view('public.tech-space', [
-            'tech'         => $tech,
+        return [
             'totalActive'  => $totalActive,
             'totalDone'    => $totalDone,
             'groupedByDay' => $groupedByDay,
-            'token'        => $token,
-        ]);
+        ];
+    }
+
+    /**
+     * Invalide le cache de l'espace tech après une modification (status,
+     * upload). Appelé par updateStatus() + uploadPhoto() + côté service
+     * quand un admin assigne une nouvelle pose.
+     */
+    public static function invalidateCache(int $userId): void
+    {
+        Cache::forget("tech.space.{$userId}.payload");
     }
 
     /**
@@ -158,6 +190,7 @@ class TechSpaceController extends Controller
         }
 
         $task->update($update);
+        self::invalidateCache($tech->id);
 
         Log::info('tech.space.status_changed', [
             'task_id'    => $task->id,
@@ -223,11 +256,34 @@ class TechSpaceController extends Controller
             'notes'    => 'nullable|string|max:500',
         ]);
 
-        // Stockage photo
+        // Stockage photo — compression côté serveur AVANT persistance.
+        // Les photos brutes smartphone font typiquement 3-10 MB en JPEG
+        // (ou jusqu'à 30+ MB en HEIC/PRO). On les réduit à 1920px de
+        // large + JPEG q=82 → typiquement 200-500 KB par photo. Économie
+        // x10 à x40 sur le stockage et un upload visualisation rapide
+        // côté admin (validation pige) + côté client.
         $folder   = "piges/{$task->campaign_id}/{$task->panel_id}";
-        $ext      = $request->file('photo')->getClientOriginalExtension();
-        $filename = time() . '_' . \Illuminate\Support\Str::random(8) . '.' . $ext;
-        $path     = $request->file('photo')->storeAs($folder, $filename, 'public');
+        $filename = time() . '_' . \Illuminate\Support\Str::random(8) . '.jpg';
+        $path     = $folder . '/' . $filename;
+
+        try {
+            $manager = new ImageManager(new GdDriver());
+            $image   = $manager->read($request->file('photo')->getPathname());
+            // scaleDown ne fait rien si l'image est déjà < width — pas
+            // d'upscale, on garde la qualité native si la photo est petite.
+            $image->scaleDown(width: 1920);
+            Storage::disk('public')->put($path, $image->toJpeg(82));
+        } catch (\Throwable $e) {
+            Log::warning('tech.space.compress_failed', [
+                'error' => $e->getMessage(),
+                'task_id' => $task->id,
+            ]);
+            // Fallback : stockage tel quel si Intervention échoue
+            // (HEIC non géré par GD, etc.)
+            $ext  = $request->file('photo')->getClientOriginalExtension();
+            $path = $folder . '/' . time() . '_' . \Illuminate\Support\Str::random(8) . '.' . $ext;
+            $request->file('photo')->storeAs($folder, basename($path), 'public');
+        }
 
         // Création pige (preuve de pose)
         $noteParts = ['[via espace tech]'];
@@ -253,6 +309,8 @@ class TechSpaceController extends Controller
                 'done_at' => now(),
             ]);
         }
+
+        self::invalidateCache($tech->id);
 
         Log::info('tech.space.photo_uploaded', [
             'task_id'     => $task->id,
