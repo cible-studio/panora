@@ -135,9 +135,19 @@
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></span>
                         <span class="nav-text">Carte &amp; Heatmap</span>
                     </a>
-                    <a href="{{ route('admin.rapports.index') }}" data-tooltip="Rapports" class="nav-item {{ request()->routeIs('admin.rapports.*') ? 'active' : '' }}">
+                    <a href="{{ route('admin.rapports.index') }}" data-tooltip="Rapports" class="nav-item {{ request()->routeIs('admin.rapports.index') || request()->routeIs('admin.rapports.annulations') || request()->routeIs('admin.rapports.campagnes') || request()->routeIs('admin.rapports.taxes') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
                         <span class="nav-text">Rapports</span>
+                    </a>
+                    @if($isAdmin || $isMP)
+                    <a href="{{ route('admin.pose-tasks.sla') }}" data-tooltip="SLA — KPI poses/piges" class="nav-item {{ request()->routeIs('admin.pose-tasks.sla') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+                        <span class="nav-text">SLA</span>
+                    </a>
+                    @endif
+                    <a href="{{ route('admin.rapports.top-commercial') }}" data-tooltip="Top Commercial" class="nav-item {{ request()->routeIs('admin.rapports.top-commercial') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span>
+                        <span class="nav-text">Top Commercial</span>
                     </a>
                 </div>
 

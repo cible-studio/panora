@@ -868,6 +868,7 @@ Route::prefix('admin')
             ->name('rapports.export.pdf');
         Route::get('/rapports/taxes', [RapportController::class, 'taxes'])->name('rapports.taxes');
         Route::get('/rapports/campagnes', [RapportController::class, 'campagnes'])->name('rapports.campagnes');
+        Route::get('/rapports/top-commercial', [RapportController::class, 'topCommercial'])->name('rapports.top-commercial');
 
     });
 

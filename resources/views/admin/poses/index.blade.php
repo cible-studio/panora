@@ -1,10 +1,6 @@
 <x-admin-layout title="Pose OOH">
 
 <x-slot:topbarActions>
-    <a href="{{ route('admin.pose-tasks.sla') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px" title="KPI SLA & performance pose/pige">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-        SLA
-    </a>
     <a href="{{ route('admin.pose-tasks.calendar') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px" title="Planning hebdomadaire par technicien">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         Calendrier

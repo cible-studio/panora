@@ -1271,4 +1271,70 @@ class RapportController extends Controller
             'caTotal'
         ));
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // TOP COMMERCIAL — Classement par CA et par nombre de campagnes
+    // Période par défaut : mois en cours. Filtres : month / year / 30d.
+    // ════════════════════════════════════════════════════════════════
+    public function topCommercial(Request $request)
+    {
+        $period = $request->input('period', 'month');
+        $period = in_array($period, ['month', 'year', '30d'], true) ? $period : 'month';
+
+        [$dateFrom, $dateTo, $periodLabel] = match ($period) {
+            'year'  => [Carbon::now()->startOfYear(),  Carbon::now()->endOfYear(),  'Année ' . date('Y')],
+            '30d'   => [Carbon::now()->subDays(30),    Carbon::now(),               '30 derniers jours'],
+            default => [Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth(), Carbon::now()->locale('fr')->isoFormat('MMMM YYYY')],
+        };
+
+        // Périmètre : campagnes créées dans la période, hors annulées.
+        // On crédite le commercial assigné en priorité, fallback créateur.
+        $baseQuery = Campaign::query()
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->where('status', '!=', 'annule')
+            ->selectRaw('COALESCE(commercial_user_id, user_id) as commercial_id,
+                         COUNT(*) as nb_campagnes,
+                         SUM(total_amount) as ca_total')
+            ->groupBy('commercial_id')
+            ->having('commercial_id', '!=', null);
+
+        // Top par CA (décroissant)
+        $topByCA = (clone $baseQuery)
+            ->orderByDesc('ca_total')
+            ->limit(10)
+            ->get()
+            ->map(function ($row) {
+                $row->user = \App\Models\User::find($row->commercial_id);
+                return $row;
+            });
+
+        // Top par nombre de campagnes (décroissant)
+        $topByCount = (clone $baseQuery)
+            ->orderByDesc('nb_campagnes')
+            ->limit(10)
+            ->get()
+            ->map(function ($row) {
+                $row->user = \App\Models\User::find($row->commercial_id);
+                return $row;
+            });
+
+        // KPIs globaux période
+        $caTotalPeriode = Campaign::query()
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->where('status', '!=', 'annule')
+            ->sum('total_amount');
+
+        $nbCampagnesPeriode = Campaign::query()
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
+            ->where('status', '!=', 'annule')
+            ->count();
+
+        $nbCommerciauxActifs = $topByCA->count();
+
+        return view('admin.rapports.top-commercial', compact(
+            'period', 'periodLabel', 'dateFrom', 'dateTo',
+            'topByCA', 'topByCount',
+            'caTotalPeriode', 'nbCampagnesPeriode', 'nbCommerciauxActifs'
+        ));
+    }
 }
