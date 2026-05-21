@@ -16,6 +16,8 @@ class PoseTask extends Model
     protected $fillable = [
         'panel_id', 'campaign_id',
         'assigned_user_id', 'team_name',
+        // Identité du tech saisie via le lien public (cas tech non créé en User)
+        'tech_name_self', 'tech_name_self_at', 'tech_name_self_ip',
         'scheduled_at', 'done_at', 'status', 'notes',
         // Module WhatsApp + progression temps réel
         'progress_percent',
@@ -27,14 +29,62 @@ class PoseTask extends Model
     ];
 
     protected $casts = [
-        'scheduled_at'     => 'datetime',
-        'done_at'          => 'datetime',
-        'started_at'       => 'datetime',
-        'whatsapp_sent_at' => 'datetime',
-        'progress_percent' => 'integer',
-        'estimated_minutes'=> 'integer',
-        'real_minutes'     => 'integer',
+        'scheduled_at'        => 'datetime',
+        'done_at'             => 'datetime',
+        'started_at'          => 'datetime',
+        'whatsapp_sent_at'    => 'datetime',
+        'tech_name_self_at'   => 'datetime',
+        'progress_percent'    => 'integer',
+        'estimated_minutes'   => 'integer',
+        'real_minutes'        => 'integer',
     ];
+
+    /**
+     * Affiche le nom du technicien à présenter en UI (priorité formelle).
+     *  1. assigned_user_id présent → relation technicien (User Panora)
+     *  2. tech_name_self saisi via lien public (badge "déclaré")
+     *  3. team_name si défini (équipe)
+     *  4. Sinon — non assigné
+     *
+     * @return array{name: string, type: string, color: string}
+     */
+    public function technicianDisplay(): array
+    {
+        if ($this->technicien) {
+            return ['name' => $this->technicien->name, 'type' => 'user', 'color' => '#16a34a'];
+        }
+        if ($this->tech_name_self) {
+            return ['name' => $this->tech_name_self, 'type' => 'declared', 'color' => '#3b82f6'];
+        }
+        if ($this->team_name) {
+            return ['name' => $this->team_name, 'type' => 'team', 'color' => '#8b5cf6'];
+        }
+        return ['name' => '— Non assigné —', 'type' => 'none', 'color' => '#9ca3af'];
+    }
+
+    /**
+     * Enregistre le nom du technicien saisi via le lien public — appelé
+     * par PoseTaskPublicController dès qu'on reçoit un tech_name non vide.
+     * Idempotent : si déjà saisi, on ne réécrase pas (sauf si l'admin
+     * efface manuellement via l'interface).
+     */
+    public function captureSelfTechName(?string $name, ?string $ip = null): bool
+    {
+        $name = trim((string) $name);
+        if ($name === '') return false;
+        if ($this->tech_name_self && $this->tech_name_self === $name) return false;
+        // Si déjà saisi avec un autre nom, on conserve le 1er (audit
+        // historique). Le changement éventuel apparaît dans
+        // PoseTaskAction.actor.
+        if ($this->tech_name_self) return false;
+
+        $this->forceFill([
+            'tech_name_self'    => $name,
+            'tech_name_self_at' => now(),
+            'tech_name_self_ip' => $ip,
+        ])->save();
+        return true;
+    }
 
     // ── RELATIONS ──
 
@@ -94,6 +144,17 @@ class PoseTask extends Model
             PoseTaskStatus::COMPLETED->value,
             PoseTaskStatus::CANCELLED->value,
         ]);
+    }
+
+    /**
+     * Tâche "vraiment fermée" : annulée. Une tâche "réalisée" reste
+     * ouverte côté terrain pour permettre au technicien d'uploader la
+     * pige photo APRÈS avoir marqué la pose à 100% (workflow réel :
+     * pose effective d'abord, photo de preuve ensuite).
+     */
+    public function isLocked(): bool
+    {
+        return $this->status === PoseTaskStatus::CANCELLED->value;
     }
  
     // ── SCOPES ────────────────────────────────────────────────────

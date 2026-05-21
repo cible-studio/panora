@@ -51,6 +51,7 @@ class PoseTaskPublicController extends Controller
             'task'        => $task,
             'isDone'      => $task->status === PoseTaskStatus::COMPLETED->value,
             'isCancelled' => $task->status === PoseTaskStatus::CANCELLED->value,
+            'isLocked'    => $task->isLocked(), // = annulée uniquement
             'piges'       => $piges,
         ]);
     }
@@ -71,9 +72,13 @@ class PoseTaskPublicController extends Controller
         }
 
         $request->validate([
-            'progress' => 'required|integer|min:0|max:100',
-            'note'     => 'nullable|string|max:500',
+            'progress'  => 'required|integer|min:0|max:100',
+            'note'      => 'nullable|string|max:500',
+            'tech_name' => 'nullable|string|max:100',
         ]);
+
+        // Capture l'identité du tech si saisie (cas pas d'assigned_user_id)
+        $task->captureSelfTechName($request->input('tech_name'), $request->ip());
 
         $oldPercent = (int) $task->progress_percent;
         $newPercent = (int) $request->integer('progress');
@@ -98,7 +103,7 @@ class PoseTaskPublicController extends Controller
             'new_percent' => $newPercent,
             'old_status'  => $oldStatus,
             'new_status'  => $task->status,
-        ], null, $request->ip());
+        ], $request->input('tech_name') ?: $task->tech_name_self, $request->ip());
 
         Log::info('pose_task.public.progress_updated', [
             'task_id' => $task->id,
@@ -144,6 +149,9 @@ class PoseTaskPublicController extends Controller
             'status'    => 'required|string|in:en_route,en_cours,realisee,annulee',
             'tech_name' => 'nullable|string|max:100',
         ]);
+
+        // Capture l'identité du tech (cas tech non assigné formellement)
+        $task->captureSelfTechName($request->input('tech_name'), $request->ip());
 
         $newStatusValue = $request->input('status');
         $newStatus = PoseTaskStatus::tryFrom($newStatusValue);
@@ -225,13 +233,16 @@ class PoseTaskPublicController extends Controller
             ], 422);
         }
 
+        $request->validate(['tech_name' => 'nullable|string|max:100']);
+        $task->captureSelfTechName($request->input('tech_name'), $request->ip());
+
         $oldStatus = $task->status;
         $task->updateProgress(100);
         $task->refresh();
 
         PoseTaskAction::log($task->id, 'marked_done', [
             'old_status' => $oldStatus,
-        ], null, $request->ip());
+        ], $request->input('tech_name') ?: $task->tech_name_self, $request->ip());
 
         Log::info('pose_task.public.marked_done', [
             'task_id' => $task->id,
@@ -276,19 +287,26 @@ class PoseTaskPublicController extends Controller
     {
         $task = $this->resolveTask($token);
 
-        if ($task->isTerminal()) {
+        // Garde uniquement les tâches ANNULÉES — le tech doit pouvoir
+        // uploader la pige photo APRÈS avoir marqué la pose à 100%
+        // (workflow terrain réel : pose effectuée, puis photo preuve).
+        if ($task->isLocked()) {
             return response()->json([
                 'ok'      => false,
-                'message' => 'Tâche clôturée — uploads désactivés.',
+                'message' => 'Tâche annulée — uploads désactivés.',
             ], 422);
         }
 
         $data = $request->validate([
-            'photo'   => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:51200'],
-            'gps_lat' => 'nullable|numeric|between:-90,90',
-            'gps_lng' => 'nullable|numeric|between:-180,180',
-            'note'    => 'nullable|string|max:500',
+            'photo'     => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:51200'],
+            'gps_lat'   => 'nullable|numeric|between:-90,90',
+            'gps_lng'   => 'nullable|numeric|between:-180,180',
+            'note'      => 'nullable|string|max:500',
+            'tech_name' => 'nullable|string|max:100',
         ]);
+
+        // Capture identité tech si fournie
+        $task->captureSelfTechName($data['tech_name'] ?? null, $request->ip());
 
         $folder   = 'piges/' . ($task->campaign_id ?: 'sans-campagne') . '/' . $task->panel_id;
         $filename = time() . '_' . Str::random(8) . '.' . $request->file('photo')->getClientOriginalExtension();
@@ -297,6 +315,8 @@ class PoseTaskPublicController extends Controller
         $noteParts = ['[via lien pose]'];
         if ($task->technicien?->name) {
             $noteParts[] = 'Tech: ' . $task->technicien->name;
+        } elseif ($task->tech_name_self) {
+            $noteParts[] = 'Tech (déclaré): ' . $task->tech_name_self;
         }
         if (!empty($data['note'])) {
             $noteParts[] = $data['note'];
@@ -317,7 +337,7 @@ class PoseTaskPublicController extends Controller
         PoseTaskAction::log($task->id, 'photo_uploaded', [
             'pige_id' => $pige->id,
             'path'    => $path,
-        ], $task->technicien?->name, $request->ip());
+        ], $task->technicien?->name ?? $task->tech_name_self ?? ($data['tech_name'] ?? null), $request->ip());
 
         Log::info('pige.public.uploaded_from_pose', [
             'pige_id'  => $pige->id,
@@ -348,10 +368,10 @@ class PoseTaskPublicController extends Controller
     {
         $task = $this->resolveTask($token);
 
-        if ($task->isTerminal()) {
+        if ($task->isLocked()) {
             return response()->json([
                 'ok'      => false,
-                'message' => 'Tâche clôturée — remplacement désactivé.',
+                'message' => 'Tâche annulée — remplacement désactivé.',
             ], 422);
         }
 
@@ -447,10 +467,10 @@ class PoseTaskPublicController extends Controller
     {
         $task = $this->resolveTask($token);
 
-        if ($task->isTerminal()) {
+        if ($task->isLocked()) {
             return response()->json([
                 'ok'      => false,
-                'message' => 'Tâche clôturée — suppression désactivée.',
+                'message' => 'Tâche annulée — suppression désactivée.',
             ], 422);
         }
 

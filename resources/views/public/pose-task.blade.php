@@ -713,6 +713,39 @@
     </div>
     @endif
 
+    {{-- ═══ IDENTITÉ TECHNICIEN (cas pas d'assigned_user_id formel) ═══
+         Le lien WhatsApp peut être transféré à un tech sans qu'il soit
+         créé en tant qu'utilisateur Panora. On lui demande son nom pour
+         garder une trace dans l'historique de la tâche. --}}
+    @if(!$task->assigned_user_id && !($isLocked ?? false))
+    <div class="card" id="card-tech-self" style="background:linear-gradient(135deg,rgba(59,130,246,.04),rgba(168,85,247,.04));border:1px solid rgba(59,130,246,.2)">
+        <div class="card-title" style="color:#3b82f6">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Qui es-tu ?
+        </div>
+        <p style="font-size:12.5px;color:var(--text2);margin:0 0 10px;line-height:1.5">
+            @if($task->tech_name_self)
+                Tu es identifié comme <strong style="color:#3b82f6">{{ $task->tech_name_self }}</strong>.
+                Tu peux modifier ce nom ci-dessous si nécessaire.
+            @else
+                Renseigne ton nom (ou prénom) pour qu'il apparaisse dans le suivi de la pose. C'est important pour la traçabilité.
+            @endif
+        </p>
+        <div style="display:flex;gap:6px">
+            <input type="text" id="tech-self-name" class="input"
+                   maxlength="100"
+                   placeholder="Ex: Yannick TANO"
+                   value="{{ $task->tech_name_self ?? '' }}"
+                   style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px">
+            <button type="button" id="btn-tech-self-save"
+                    style="padding:10px 16px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">
+                💾 Enregistrer
+            </button>
+        </div>
+        <div id="tech-self-feedback" style="font-size:11px;margin-top:6px;color:#16a34a;display:none">✓ Nom enregistré</div>
+    </div>
+    @endif
+
     {{-- ═══ PROGRESSION (cachée si terminé) ═══ --}}
     @if(!$isFinal)
     <div class="card" id="card-progress">
@@ -820,10 +853,14 @@
             @endforeach
         </div>
 
-        @if(!$isFinal)
+        {{-- Bouton photo : disponible même APRÈS pose marquée 100%
+             (workflow réel : la pige photo est uploadée APRÈS la pose
+             effective, comme preuve d'affichage). Seul l'état "annulée"
+             bloque les uploads. --}}
+        @if(!($isLocked ?? false))
         <button type="button" class="photo-cta" id="btn-photo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            {{ $hasPige ? 'Ajouter une autre photo' : 'Prendre une photo' }}
+            {{ $isDone ? ($hasPige ? '📸 Ajouter une autre pige' : '📸 Ajouter la pige photo') : ($hasPige ? 'Ajouter une autre photo' : 'Prendre une photo') }}
         </button>
         <input type="file" id="photo-input"
                accept="image/*" capture="environment"
@@ -835,6 +872,11 @@
             <span class="spinner"></span>
             <span id="uploading-msg">Compression de la photo…</span>
         </div>
+        @if($isDone)
+        <div style="margin-top:10px;padding:10px 14px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:10px;font-size:12px;color:#16a34a;line-height:1.4">
+            ✅ <strong>Pose effectuée.</strong> Tu peux toujours ajouter la pige photo (preuve d'affichage).
+        </div>
+        @endif
         @endif
     </div>
 
@@ -1028,6 +1070,9 @@
             const fd = new FormData();
             fd.append('photo', blob, 'photo.jpg');
             if (gps.lat !== null) { fd.append('gps_lat', gps.lat); fd.append('gps_lng', gps.lng); }
+            // Tech name (si saisi) — pour l'historique en cas de tech non assigné
+            const techName = document.getElementById('tech-self-name')?.value?.trim();
+            if (techName) fd.append('tech_name', techName);
 
             const r = await fetch(ROUTE_PHOTO, {
                 method: 'POST',
@@ -1109,6 +1154,8 @@
             const fd = new FormData();
             fd.append('photo', blob, 'photo.jpg');
             if (gps.lat !== null) { fd.append('gps_lat', gps.lat); fd.append('gps_lng', gps.lng); }
+            const techName2 = document.getElementById('tech-self-name')?.value?.trim();
+            if (techName2) fd.append('tech_name', techName2);
 
             const url = ROUTE_PHOTO_REPLACE.replace('PIGE_ID', pigeId);
             const r   = await fetch(url, {
@@ -1203,6 +1250,51 @@
     }
     document.querySelectorAll('.photo-thumb').forEach(bindThumb);
 
+    // ── Enregistrement du nom du tech (cas pas d'assigned_user_id) ───
+    document.getElementById('btn-tech-self-save')?.addEventListener('click', async () => {
+        const inp = document.getElementById('tech-self-name');
+        const name = (inp?.value || '').trim();
+        const fb = document.getElementById('tech-self-feedback');
+        if (!name) {
+            toast('Saisis ton nom d\'abord.', 'error');
+            inp?.focus();
+            return;
+        }
+        const btn = document.getElementById('btn-tech-self-save');
+        btn.disabled = true;
+        btn.textContent = '⏳ Enregistrement…';
+        try {
+            // On utilise l'endpoint update avec la progress actuelle
+            // (pas de changement) + tech_name → le controller persiste
+            // le nom via captureSelfTechName().
+            const currentPct = Number(document.getElementById('prog-pct')?.textContent || 0);
+            const fd = new URLSearchParams({ progress: currentPct, tech_name: name }).toString();
+            const r = await fetch(ROUTE_UPDATE, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': CSRF,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: fd,
+            });
+            const data = await r.json();
+            if (data.ok || r.ok) {
+                fb.style.display = 'block';
+                fb.style.color = '#16a34a';
+                fb.textContent = '✓ Nom enregistré — ' + name;
+                toast('Nom enregistré', 'success');
+            } else {
+                toast(data.message || 'Erreur.', 'error');
+            }
+        } catch (e) {
+            toast('Réseau indisponible.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '💾 Enregistrer';
+        }
+    });
+
     // Boutons "Refaire cette photo" dans le bloc rejets : même action
     // que `.photo-replace` (ouvrir le file picker en mode "remplacer"),
     // mais sans le scoping CSS de la vignette (position absolute).
@@ -1235,9 +1327,13 @@
         const btn = document.getElementById('btn-done');
         btn.disabled = true;
         try {
+            const techName = document.getElementById('tech-self-name')?.value?.trim();
+            const fd = new FormData();
+            if (techName) fd.append('tech_name', techName);
             const r = await fetch(ROUTE_DONE, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+                body: fd,
             });
             const data = await r.json();
             if (data.ok) {
