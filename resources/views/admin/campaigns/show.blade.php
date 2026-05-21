@@ -127,6 +127,70 @@
         </div>
     @endif
 
+    {{-- ── QUICK ACTIONS — duplication / poses / piges / contact ── --}}
+    @php
+        $qaIntCount = $campaign->panels->count();
+        $qaPoseDone = \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'realisee')->count();
+        $qaPoseTotal = \App\Models\PoseTask::where('campaign_id', $campaign->id)->whereNotIn('status', ['annulee'])->count();
+        $qaPigeOk = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'verifie')->count();
+        $qaPigePend = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'en_attente')->count();
+    @endphp
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        @if($can['update'] && $campaign->status->value !== 'annule')
+        <form method="POST" action="{{ route('admin.campaigns.duplicate', $campaign) }}"
+              onsubmit="return confirm('Dupliquer cette campagne ? Une nouvelle campagne en PLANIFIE sera créée avec les mêmes panneaux, prix négociés et commercial.');"
+              style="display:block">
+            @csrf
+            <button type="submit"
+                    class="w-full rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
+                    style="background:var(--surface);border-color:var(--border);cursor:pointer;text-align:left">
+                <span class="text-2xl">🔁</span>
+                <div class="min-w-0">
+                    <div class="font-bold text-sm" style="color:var(--text)">Renouveler</div>
+                    <div class="text-xs" style="color:var(--text3)">Dupliquer cette campagne</div>
+                </div>
+            </button>
+        </form>
+        @endif
+        <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
+           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
+           style="background:var(--surface);border-color:var(--border);text-decoration:none">
+            <span class="text-2xl">🔧</span>
+            <div class="min-w-0">
+                <div class="font-bold text-sm" style="color:var(--text)">Poses & tâches</div>
+                <div class="text-xs" style="color:var(--text3)">
+                    @if($qaPoseTotal > 0)
+                        {{ $qaPoseDone }}/{{ $qaPoseTotal }} réalisées
+                    @else
+                        Aucune pose
+                    @endif
+                </div>
+            </div>
+        </a>
+        <a href="{{ route('admin.piges.index', ['campaign_id' => $campaign->id]) }}"
+           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
+           style="background:var(--surface);border-color:var(--border);text-decoration:none">
+            <span class="text-2xl">📸</span>
+            <div class="min-w-0">
+                <div class="font-bold text-sm" style="color:var(--text)">Piges photo</div>
+                <div class="text-xs" style="color:var(--text3)">
+                    {{ $qaPigeOk }} validées{{ $qaPigePend > 0 ? ' · '.$qaPigePend.' en attente' : '' }}
+                </div>
+            </div>
+        </a>
+        @if($campaign->client?->email)
+        <a href="mailto:{{ $campaign->client->email }}?subject={{ urlencode('Campagne « ' . $campaign->name . ' »') }}"
+           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
+           style="background:var(--surface);border-color:var(--border);text-decoration:none">
+            <span class="text-2xl">✉️</span>
+            <div class="min-w-0">
+                <div class="font-bold text-sm" style="color:var(--text)">Contacter</div>
+                <div class="text-xs truncate" style="color:var(--text3)">{{ $campaign->client->email }}</div>
+            </div>
+        </a>
+        @endif
+    </div>
+
     {{-- ── ALERTE FIN PROCHE ── --}}
     <div id="campaign-ending-alert" class="mb-6 rounded-xl border p-4 flex items-center gap-4 {{ $endingSoon ? '' : 'hidden' }}"
          style="background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.3)">
@@ -185,13 +249,25 @@
                         <div class="text-xs mt-1" style="color:var(--text2)">{{ $campaign->durationHuman() }}</div>
                     </div>
 
-                    {{-- Montant --}}
-                    <div class="rounded-xl p-4 border" style="background:var(--surface2);border-color:var(--border)">
-                        <div class="text-xs uppercase font-semibold mb-2" style="color:var(--text3)">💰 Montant total</div>
+                    {{-- Montant total — éditable inline si l'utilisateur peut update --}}
+                    <div class="rounded-xl p-4 border" style="background:var(--surface2);border-color:var(--border)"
+                         data-total-cell
+                         data-total-amount="{{ (float) $campaign->total_amount }}"
+                         data-update-url="{{ route('admin.campaigns.total', $campaign) }}"
+                         data-can-edit="{{ $can['update'] && !in_array($campaign->status->value, ['termine', 'annule']) ? '1' : '0' }}">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="text-xs uppercase font-semibold" style="color:var(--text3)">💰 Montant total</div>
+                            @if($can['update'] && !in_array($campaign->status->value, ['termine', 'annule']))
+                                <span data-total-edit-btn
+                                      title="Modifier le montant total (override)"
+                                      style="cursor:pointer;font-size:11px;color:var(--accent);font-weight:600">✏️ Ajuster</span>
+                            @endif
+                        </div>
                         <div class="text-2xl font-bold" style="color:var(--accent)">
                             <span data-campaign-total>{{ number_format($campaign->total_amount, 0, ',', ' ') }}</span>
                             <span class="text-xs font-normal" style="color:var(--text3)">FCFA</span>
                         </div>
+                        <div data-total-hint style="display:none;font-size:10px;color:var(--text3);margin-top:6px"></div>
                     </div>
 
                     {{-- Réservation --}}
@@ -1279,7 +1355,14 @@
 
     // ─────────────────────────────────────────────────────────────────
     // ÉDITION PRIX INLINE — sur chaque cellule [data-price-cell] cliquable.
-    // Au clic, on remplace le span d'affichage par un <input type=number> :
+    //
+    // Implémentation par DÉLÉGATION d'événement : on écoute les clics sur
+    // l'ensemble du document et on déclenche l'édition dès que la cible
+    // est un [data-price-display] dont la cellule parente est éditable.
+    // Ainsi quand le span est restauré après edit ou abandon (innerHTML
+    // remplacé), le clic suivant continue de fonctionner — le listener
+    // n'est PAS attaché aux spans individuels qui sont détruits.
+    //
     //   ↵ Entrée : sauvegarde via AJAX PATCH (recalcul du total période
     //              + bandeau global "Montant total" mis à jour).
     //   Echap   : restaure la valeur d'origine sans appel réseau.
@@ -1288,10 +1371,15 @@
         const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const formatFCFA = (n) => Math.round(n).toLocaleString('fr-FR') + ' FCFA';
 
-        document.querySelectorAll('[data-price-cell][data-can-edit="1"]').forEach(cell => {
-            const display    = cell.querySelector('[data-price-display]');
+        // Délégation : un seul listener global qui survit aux remplacements
+        // de DOM (innerHTML) à la sortie/save d'une édition.
+        document.addEventListener('click', (event) => {
+            const display = event.target.closest?.('[data-price-display]');
             if (!display) return;
-            display.addEventListener('click', () => startEdit(cell, display));
+            const cell = display.closest('[data-price-cell][data-can-edit="1"]');
+            if (!cell) return;
+            if (cell.dataset.editing === '1') return;
+            startEdit(cell, display);
         });
 
         function startEdit(cell, display) {
@@ -1378,7 +1466,8 @@
                     }
 
                     cell.dataset.editing = '0';
-                    span.addEventListener('click', () => startEdit(cell, span));
+                    // Pas besoin d'attacher de listener sur le span : la
+                    // délégation globale au document s'en occupe.
 
                     // Total période (colonne suivante)
                     const row = cell.closest('tr');
@@ -1406,6 +1495,94 @@
                 setTimeout(() => { if (cell.dataset.editing === '1') restore(); }, 150);
             });
         }
+    })();
+
+    // ─────────────────────────────────────────────────────────────────
+    // ÉDITION MONTANT TOTAL — override forfaitaire / remise globale
+    // ─────────────────────────────────────────────────────────────────
+    (function() {
+        const cell = document.querySelector('[data-total-cell][data-can-edit="1"]');
+        if (!cell) return;
+        const totalSpan = cell.querySelector('[data-campaign-total]');
+        const btn       = cell.querySelector('[data-total-edit-btn]');
+        const hint      = cell.querySelector('[data-total-hint]');
+        const CSRF      = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        if (!btn || !totalSpan) return;
+
+        btn.addEventListener('click', () => {
+            const current = parseFloat(cell.dataset.totalAmount || 0);
+            const oldText = totalSpan.textContent;
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.step = '1';
+            input.min  = '0';
+            input.value = Math.round(current);
+            input.style.cssText = 'width:160px;background:var(--surface);border:1px solid var(--accent);border-radius:6px;padding:4px 8px;font-size:16px;color:var(--text);outline:none;font-weight:700;font-family:inherit';
+
+            totalSpan.replaceWith(input);
+            input.focus();
+            input.select();
+
+            hint.style.display = 'block';
+            hint.style.color   = 'var(--text3)';
+            hint.textContent   = '↵ Enregistrer · Échap Annuler · ⚠️ écrase la somme des prix panneau';
+
+            function restoreSpan(newVal) {
+                const span = document.createElement('span');
+                span.dataset.campaignTotal = '';
+                span.textContent = Math.round(newVal).toLocaleString('fr-FR');
+                input.replaceWith(span);
+                hint.style.display = 'none';
+            }
+
+            async function save() {
+                const newVal = parseFloat(input.value);
+                if (isNaN(newVal) || newVal < 0) { restoreSpan(current); return; }
+                if (Math.abs(newVal - current) < 0.01) { restoreSpan(current); return; }
+
+                input.disabled = true;
+                hint.textContent = 'Enregistrement…';
+
+                try {
+                    const res = await fetch(cell.dataset.updateUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': CSRF,
+                            'X-HTTP-Method-Override': 'PATCH',
+                        },
+                        body: JSON.stringify({ _method: 'PATCH', total_amount: newVal }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.ok) {
+                        hint.textContent = '⚠️ ' + (data.error || 'Erreur — réessayez');
+                        hint.style.color = '#ef4444';
+                        input.disabled = false;
+                        return;
+                    }
+                    cell.dataset.totalAmount = data.total_amount;
+                    restoreSpan(data.total_amount);
+                } catch (e) {
+                    hint.textContent = '⚠️ Réseau : ' + e.message;
+                    hint.style.color = '#ef4444';
+                    input.disabled = false;
+                }
+            }
+
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') { e.preventDefault(); save(); }
+                else if (e.key === 'Escape') { e.preventDefault(); restoreSpan(current); }
+            });
+            input.addEventListener('blur', () => {
+                setTimeout(() => {
+                    if (document.activeElement !== input) restoreSpan(parseFloat(cell.dataset.totalAmount || current));
+                }, 150);
+            });
+        });
     })();
 
     function scrollToProlonger() {
