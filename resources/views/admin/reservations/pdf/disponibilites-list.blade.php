@@ -235,9 +235,11 @@
                 <th style="width:10%">Catégorie</th>
                 <th style="width:5%">Éclair.</th>
                 <th class="num" style="width:7%">Trafic/j (estimatif)</th>
-                {{-- Statut TOUJOURS affiché — l'admin doit pouvoir distinguer
-                     un panneau Disponible d'un panneau En option dans le doc. --}}
-                <th style="width:8%">Statut</th>
+                {{-- Statut affiché sauf si hide_status=1 — permet de générer
+                     un PDF "propre" sans information d'occupation interne. --}}
+                @if(!$hideStatus)
+                    <th style="width:8%">Statut</th>
+                @endif
                 @if($showPricing)
                     <th class="num" style="width:9%">Prix HT/mois</th>
                 @endif
@@ -309,12 +311,14 @@
                         @endif
                     </td>
                     <td class="num">{{ $traffic > 0 ? number_format($traffic, 0, ',', ' ') : '—' }}</td>
-                    {{-- Statut affiché UNIQUEMENT si le panneau est réellement occupé --}}
-                    <td>
-                        @if($statusMeta)
-                            <span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span>
-                        @endif
-                    </td>
+                    {{-- Cellule Statut — masquée si hide_status=1 --}}
+                    @if(!$hideStatus)
+                        <td>
+                            @if($statusMeta)
+                                <span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span>
+                            @endif
+                        </td>
+                    @endif
                     @if($showPricing)
                         <td class="num" style="font-weight:600;color:#c2570d">
                             {{ $rate > 0 ? number_format($rate, 0, ',', ' ') : '—' }}

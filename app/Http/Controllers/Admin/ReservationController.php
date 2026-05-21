@@ -2791,6 +2791,69 @@ class ReservationController extends Controller
     }
 
     /**
+     * Retire un panneau interne d'une réservation. Refuse si la réservation
+     * n'est pas modifiable OU si le retrait laisserait la réservation sans
+     * aucun panneau (interne + externe). Recalcule le total et resynchronise
+     * le statut du panneau retiré.
+     */
+    public function removePanel(Reservation $reservation, Panel $panel)
+    {
+        if (!$reservation->isEditable()) {
+            return back()->with('error', 'Réservation non modifiable — impossible de retirer un panneau.');
+        }
+
+        // Empêche de vider complètement une réservation (interne + externe)
+        $totalAttached = $reservation->panels()->count() + $reservation->externalPanels()->count();
+        if ($totalAttached <= 1) {
+            return back()->with('error', "Impossible de retirer le dernier panneau d'une réservation. Annule la réservation à la place.");
+        }
+
+        // Vérifier que le panneau est bien attaché
+        if (!$reservation->panels()->where('panel_id', $panel->id)->exists()) {
+            return back()->with('error', "Ce panneau n'est pas attaché à la réservation.");
+        }
+
+        try {
+            DB::transaction(function () use ($reservation, $panel) {
+                $reservation->panels()->detach($panel->id);
+
+                // Recalcul total réservation (somme des total_price du pivot)
+                $newTotal = (float) DB::table('reservation_panels')
+                    ->where('reservation_id', $reservation->id)
+                    ->sum('total_price');
+                $reservation->update(['total_amount' => round($newTotal, 2)]);
+
+                // Le panneau retiré doit recalculer son statut (peut redevenir libre)
+                $this->availability->syncPanelStatuses([$panel->id]);
+
+                Log::info('reservation.panel_removed', [
+                    'reservation_id' => $reservation->id,
+                    'panel_id'       => $panel->id,
+                    'panel_ref'      => $panel->reference,
+                    'user_id'        => auth()->id(),
+                ]);
+            });
+        } catch (\Throwable $e) {
+            Log::error('reservation.panel_remove_failed', [
+                'reservation_id' => $reservation->id,
+                'panel_id'       => $panel->id,
+                'error'          => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Erreur lors du retrait du panneau.');
+        }
+
+        AlertService::create(
+            'reservation',
+            'info',
+            '➖ Panneau retiré — ' . $reservation->reference,
+            auth()->user()?->name . ' a retiré le panneau ' . $panel->reference . ' de la réservation ' . $reservation->reference,
+            $reservation
+        );
+
+        return back()->with('success', 'Panneau ' . $panel->reference . ' retiré de la réservation.');
+    }
+
+    /**
      * Variante de addPanel pour les panneaux externes — appelée par addPanel
      * quand l'ID est préfixé "ext_". Verrou pessimiste sur l'external_panels
      * + insertion dans reservation_panels (source='externe') + sync statut.
