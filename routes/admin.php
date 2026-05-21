@@ -779,6 +779,9 @@ Route::prefix('admin')
             ->whereNumber('campaign')->name('campaigns.progress');
         Route::get('campaigns/{campaign}/available-panels', [CampaignController::class, 'availablePanels'])
             ->whereNumber('campaign')->name('campaigns.available-panels');
+        // Page dédiée aux poses OOH d'une campagne (sans KPI/filtres globaux)
+        Route::get('campaigns/{campaign}/poses', [CampaignController::class, 'poses'])
+            ->whereNumber('campaign')->name('campaigns.poses');
 
         // Modification / actions = admin + MP (matrice CAMPAGNES)
         Route::middleware('role:admin,mediaplanner')->group(function () {

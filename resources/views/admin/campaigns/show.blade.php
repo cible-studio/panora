@@ -410,7 +410,7 @@
                          déjà partagés mais n'est plus généré ni affiché. --}}
                     @if($can['update'] && $campaign->status->value !== 'annule')
                     <div class="mt-5 pt-5 border-t" style="border-color:var(--border)">
-                        <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
+                        <a href="{{ route('admin.campaigns.poses', $campaign) }}"
                            class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold"
                            style="background:var(--surface2);color:var(--text);border:1px solid var(--border);text-decoration:none">
                             🔧 Gérer les poses & piges terrain
@@ -495,7 +495,7 @@
             </div>
         </button>
         @endif
-        <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
+        <a href="{{ route('admin.campaigns.poses', $campaign) }}"
            class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
            style="background:var(--surface);border-color:var(--border);text-decoration:none">
             <span class="text-2xl">🔧</span>

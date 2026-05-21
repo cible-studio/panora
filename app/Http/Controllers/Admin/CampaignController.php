@@ -258,6 +258,44 @@ class CampaignController extends Controller
     }
 
     /**
+     * Page dédiée aux poses OOH d'UNE campagne — vue simplifiée sans
+     * KPI/filtres globaux. Permet de gérer le terrain d'une campagne
+     * spécifique sans le bruit de la page Gestion Pose OOH globale.
+     */
+    public function poses(Campaign $campaign)
+    {
+        $this->authorize('view', $campaign);
+
+        $poseTasks = \App\Models\PoseTask::where('campaign_id', $campaign->id)
+            ->with([
+                'panel:id,reference,name,commune_id',
+                'panel.commune:id,name',
+                'campaign' => fn($q) => $q->withTrashed()->select('id', 'name', 'status', 'deleted_at'),
+                'technicien:id,name,whatsapp_number',
+            ])
+            ->withCount([
+                'piges as pige_count',
+                'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
+            ])
+            ->leftJoin('panels', 'panels.id', '=', 'pose_tasks.panel_id')
+            ->select('pose_tasks.*')
+            ->orderBy('panels.reference')
+            ->orderByDesc('pose_tasks.scheduled_at')
+            ->paginate(50)->withQueryString();
+
+        // Compteurs spécifiques à cette campagne uniquement
+        $stats = [
+            'total'     => \App\Models\PoseTask::where('campaign_id', $campaign->id)->count(),
+            'planifiee' => \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'planifiee')->count(),
+            'en_cours'  => \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'en_cours')->count(),
+            'realisee'  => \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'realisee')->count(),
+            'annulee'   => \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'annulee')->count(),
+        ];
+
+        return view('admin.campaigns.poses', compact('campaign', 'poseTasks', 'stats'));
+    }
+
+    /**
      * Endpoint JSON léger pour rafraîchir la progression sans recharger la page.
      * Appelé par le JS toutes les 60 secondes sur la page show.
      */
