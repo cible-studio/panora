@@ -261,6 +261,59 @@
                     </div>
                 </div>
 
+                {{-- ── Mini-stats opérationnelles (sous la progression) ── --}}
+                @php
+                    $nbPoses     = \App\Models\PoseTask::where('campaign_id', $campaign->id)->whereNotIn('status', ['annulee'])->count();
+                    $nbPosesDone = \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'realisee')->count();
+                    $nbPiges     = \App\Models\Pige::where('campaign_id', $campaign->id)->count();
+                    $nbPigesOk   = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'verifie')->count();
+                    $nbPigesPend = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'en_attente')->count();
+                    $nbInt       = $campaign->panels->count();
+                    $nbExt       = $campaign->externalPanels->count();
+                @endphp
+                <div class="mt-6 pt-6 border-t" style="border-color:var(--border)">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
+                           class="flex items-center gap-3 p-3 rounded-xl border transition hover:shadow-md"
+                           style="background:var(--surface2);border-color:var(--border);text-decoration:none">
+                            <span class="text-xl">🪧</span>
+                            <div class="min-w-0">
+                                <div class="text-xs font-bold" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Panneaux</div>
+                                <div class="text-base font-bold" style="color:var(--text)">{{ $nbInt + $nbExt }}<span class="text-xs font-normal" style="color:var(--text3)"> · {{ $nbInt }}i / {{ $nbExt }}e</span></div>
+                            </div>
+                        </a>
+                        <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
+                           class="flex items-center gap-3 p-3 rounded-xl border transition hover:shadow-md"
+                           style="background:var(--surface2);border-color:var(--border);text-decoration:none">
+                            <span class="text-xl">🔧</span>
+                            <div class="min-w-0">
+                                <div class="text-xs font-bold" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Poses</div>
+                                <div class="text-base font-bold" style="color:{{ $nbPoses > 0 && $nbPosesDone === $nbPoses ? '#16a34a' : 'var(--text)' }}">{{ $nbPosesDone }}/{{ $nbPoses }}<span class="text-xs font-normal" style="color:var(--text3)"> réalisées</span></div>
+                            </div>
+                        </a>
+                        <a href="{{ route('admin.piges.index', ['campaign_id' => $campaign->id]) }}"
+                           class="flex items-center gap-3 p-3 rounded-xl border transition hover:shadow-md"
+                           style="background:var(--surface2);border-color:var(--border);text-decoration:none">
+                            <span class="text-xl">📸</span>
+                            <div class="min-w-0">
+                                <div class="text-xs font-bold" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Piges</div>
+                                <div class="text-base font-bold" style="color:var(--text)">{{ $nbPigesOk }}<span class="text-xs font-normal" style="color:var(--text3)"> validées @if($nbPigesPend > 0)· {{ $nbPigesPend }} en attente @endif</span></div>
+                            </div>
+                        </a>
+                        @if($campaign->client?->email)
+                        <a href="mailto:{{ $campaign->client->email }}?subject={{ urlencode('Campagne « ' . $campaign->name . ' »') }}"
+                           class="flex items-center gap-3 p-3 rounded-xl border transition hover:shadow-md"
+                           style="background:var(--surface2);border-color:var(--border);text-decoration:none">
+                            <span class="text-xl">✉️</span>
+                            <div class="min-w-0">
+                                <div class="text-xs font-bold" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Contact</div>
+                                <div class="text-xs truncate" style="color:var(--text)" title="{{ $campaign->client->email }}">{{ $campaign->client->email }}</div>
+                            </div>
+                        </a>
+                        @endif
+                    </div>
+                </div>
+
                 <style>@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}</style>
             </div>
         </div>
@@ -400,213 +453,6 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    {{-- ══════════════════════════════════════════════════════════════
-         SYNTHÈSE OPÉRATIONNELLE (KPIs · timeline · alertes · activité)
-         Remplit l'espace entre les Informations et les Panneaux avec
-         des infos actionnables pour le commercial / MP.
-    ══════════════════════════════════════════════════════════════ --}}
-    @php
-        // KPIs panneaux
-        $totalPanels       = $campaign->panels->count() + $campaign->externalPanels->count();
-        $internalPanelIds  = $campaign->panels->pluck('id')->all();
-
-        // Pose tasks
-        $poseTasks = \App\Models\PoseTask::where('campaign_id', $campaign->id)->get();
-        $posePlanned  = $poseTasks->where('status', 'planifiee')->count();
-        $poseEnCours  = $poseTasks->whereIn('status', ['en_route','en_cours'])->count();
-        $poseDone     = $poseTasks->where('status', 'realisee')->count();
-        $poseCancel   = $poseTasks->where('status', 'annulee')->count();
-        $poseMissing  = max(0, count($internalPanelIds) - $poseTasks->whereNotIn('status', ['annulee'])->count());
-        $poseOverdue  = $poseTasks->filter(fn($t) =>
-            in_array($t->status, ['planifiee','en_route','en_cours']) &&
-            $t->scheduled_at && $t->scheduled_at->isPast()
-        )->count();
-
-        // Piges
-        $piges = \App\Models\Pige::where('campaign_id', $campaign->id)->get();
-        $pigePending  = $piges->where('status', 'en_attente')->count();
-        $pigeOk       = $piges->where('status', 'verifie')->count();
-        $pigeKo       = $piges->where('status', 'rejete')->count();
-        $panelsWithPige = $piges->pluck('panel_id')->unique()->count();
-        $panelsWithoutPige = count($internalPanelIds) - $panelsWithPige;
-
-        // Décap
-        $decapped = \DB::table('campaign_panels')
-            ->where('campaign_id', $campaign->id)
-            ->whereNotNull('decapped_at')
-            ->count();
-        $decapPending = max(0, $totalPanels - $decapped);
-
-        // Géo : communes & villes
-        $communes = $campaign->panels->pluck('commune.name')->filter()->unique();
-        $villes   = $campaign->panels->pluck('commune.city')->filter()->unique();
-
-        // CA / facturation
-        $caTotal       = (float) $campaign->total_amount;
-        $caFactured    = (float) $campaign->invoices->sum('amount_ttc');
-        $caRemaining   = max(0, $caTotal - $caFactured);
-
-        // Alertes contextuelles
-        $alerts = [];
-        if ($poseMissing > 0) {
-            $alerts[] = ['danger','🔴', "$poseMissing panneau(x) sans tâche de pose", route('admin.pose-tasks.index', ['campaign_id' => $campaign->id])];
-        }
-        if ($poseOverdue > 0) {
-            $alerts[] = ['warning','🟠', "$poseOverdue pose(s) en retard", route('admin.pose-tasks.index', ['campaign_id' => $campaign->id, 'status' => 'planifiee'])];
-        }
-        if ($pigePending > 0) {
-            $alerts[] = ['info','📸', "$pigePending pige(s) à valider", route('admin.piges.index', ['campaign_id' => $campaign->id, 'status' => 'en_attente'])];
-        }
-        if ($panelsWithoutPige > 0 && $poseDone > 0) {
-            $alerts[] = ['warning','📷', "$panelsWithoutPige panneau(x) sans pige photo", route('admin.piges.index', ['campaign_id' => $campaign->id])];
-        }
-        if ($campaign->status->value === 'termine' && $decapPending > 0) {
-            $alerts[] = ['warning','🪧', "$decapPending panneau(x) à décaper", route('admin.rapports.index') . '#tab-decap'];
-        }
-        if ($caRemaining > 0 && in_array($campaign->status->value, ['actif','termine'])) {
-            $alerts[] = ['info','💰', 'Reste à facturer : ' . number_format($caRemaining, 0, ',', ' ') . ' FCFA', '#facturation'];
-        }
-    @endphp
-
-    {{-- ── ALERTES CONTEXTUELLES ── --}}
-    @if(!empty($alerts))
-    <div class="rounded-2xl border overflow-hidden shadow-xl mb-6" style="background:var(--surface);border-color:var(--border)">
-        <div class="px-6 py-4 border-b flex items-center justify-between" style="background:var(--surface2);border-color:var(--border)">
-            <h2 class="font-bold text-lg flex items-center gap-2" style="color:var(--text)">
-                <span class="text-2xl">🚨</span> Alertes opérationnelles
-                <span class="text-sm px-2.5 py-0.5 rounded-full" style="background:rgba(239,68,68,.1);color:#ef4444">{{ count($alerts) }}</span>
-            </h2>
-            <span class="text-xs" style="color:var(--text3)">Auto-détectées · cliquer pour traiter</span>
-        </div>
-        <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-            @foreach($alerts as [$sev,$icon,$msg,$href])
-                @php
-                    $col = ['danger'=>'#dc2626','warning'=>'#d97706','info'=>'#3b82f6','success'=>'#16a34a'][$sev] ?? '#3b82f6';
-                @endphp
-                <a href="{{ $href }}"
-                   class="flex items-center gap-3 p-3 rounded-xl border transition hover:shadow-md"
-                   style="background:{{ $col }}0c;border-color:{{ $col }}30;text-decoration:none">
-                    <span class="text-2xl">{{ $icon }}</span>
-                    <span class="flex-1 text-sm font-semibold" style="color:{{ $col }}">{{ $msg }}</span>
-                    <span class="text-sm" style="color:{{ $col }}">→</span>
-                </a>
-            @endforeach
-        </div>
-    </div>
-    @endif
-
-    {{-- ── KPI GRID OPÉRATIONNEL ── --}}
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        @php
-        $kpis = [
-            ['🪧', $totalPanels,                 'Panneaux',            '#e8a020', $totalPanels > 0 ? count($internalPanelIds) . ' internes · ' . $campaign->externalPanels->count() . ' externes' : ''],
-            ['📍', $communes->count(),          'Communes',            '#3b82f6', $villes->count() . ' ville(s)'],
-            ['🔧', $poseDone . '/' . count($internalPanelIds), 'Poses réalisées', '#16a34a', $poseEnCours > 0 ? $poseEnCours . ' en cours' : ($posePlanned > 0 ? $posePlanned . ' planifiée(s)' : '—')],
-            ['📸', $pigeOk,                      'Piges validées',      '#a855f7', $pigePending > 0 ? $pigePending . ' à valider' : ($pigeKo > 0 ? $pigeKo . ' rejetée(s)' : '—')],
-            ['💰', number_format($caTotal/1000000, 1, ',', '') . 'M', 'CA total', '#16a34a', $caFactured > 0 ? 'Facturé ' . number_format($caFactured/1000000, 1, ',', '') . 'M' : 'À facturer'],
-            ['🪧', $decapped . '/' . $totalPanels, 'Décappés',            '#6b7280', $decapPending > 0 ? $decapPending . ' à décaper' : ($decapped > 0 ? '✓ Complet' : 'Pas démarré')],
-        ];
-        @endphp
-        @foreach($kpis as [$icon,$val,$lbl,$col,$sub])
-            <div class="rounded-xl border p-3 flex flex-col gap-1"
-                 style="background:var(--surface);border-color:var(--border);border-top:3px solid {{ $col }}">
-                <div class="flex items-center justify-between">
-                    <span class="text-xl">{{ $icon }}</span>
-                </div>
-                <div class="font-bold text-xl leading-tight" style="color:{{ $col }}">{{ $val }}</div>
-                <div class="text-[10px] font-bold uppercase tracking-wide" style="color:var(--text3)">{{ $lbl }}</div>
-                @if($sub)<div class="text-[10px] mt-0.5" style="color:var(--text3)">{{ $sub }}</div>@endif
-            </div>
-        @endforeach
-    </div>
-
-    {{-- ── TIMELINE CYCLE DE VIE CAMPAGNE ── --}}
-    <div class="rounded-2xl border overflow-hidden shadow-xl mb-6" style="background:var(--surface);border-color:var(--border)">
-        <div class="px-6 py-4 border-b" style="background:var(--surface2);border-color:var(--border)">
-            <h2 class="font-bold text-lg flex items-center gap-2" style="color:var(--text)">
-                <span class="text-2xl">🛤️</span> Cycle de vie
-                <span class="text-xs ml-2" style="color:var(--text3)">Étapes opérationnelles de la campagne</span>
-            </h2>
-        </div>
-        <div class="p-6">
-            @php
-                $stepDone = fn($cond) => $cond ? 'background:#16a34a;color:#fff' : 'background:var(--surface2);color:var(--text3);border:1px solid var(--border)';
-                $today = now()->startOfDay();
-                $steps = [
-                    ['ico'=>'📋', 'label'=>'Créée',      'done'=>true,                                 'date'=>$campaign->created_at->format('d/m/Y')],
-                    ['ico'=>'📅', 'label'=>'Planifiée',  'done'=>$totalPanels > 0,                     'date'=>$totalPanels > 0 ? "$totalPanels panneaux" : 'En attente'],
-                    ['ico'=>'🚀', 'label'=>'Démarrée',   'done'=>$campaign->start_date->lte($today),    'date'=>$campaign->start_date->format('d/m/Y')],
-                    ['ico'=>'🔧', 'label'=>'Posée',      'done'=>$poseDone === count($internalPanelIds) && count($internalPanelIds) > 0, 'date'=>$poseDone . '/' . count($internalPanelIds) . ' poses'],
-                    ['ico'=>'📸', 'label'=>'Piges',      'done'=>$pigeOk === count($internalPanelIds) && count($internalPanelIds) > 0, 'date'=>$pigeOk . '/' . count($internalPanelIds) . ' piges OK'],
-                    ['ico'=>'🏁', 'label'=>'Terminée',   'done'=>in_array($campaign->status->value, ['termine','annule']),    'date'=>$campaign->end_date->format('d/m/Y')],
-                    ['ico'=>'🪧', 'label'=>'Décappée',   'done'=>$decapped === $totalPanels && $totalPanels > 0,             'date'=>$decapped . '/' . $totalPanels],
-                    ['ico'=>'💰', 'label'=>'Facturée',  'done'=>$caFactured >= $caTotal && $caTotal > 0,                     'date'=>$caFactured > 0 ? number_format($caFactured, 0, ',', ' ') . ' FCFA' : '—'],
-                ];
-            @endphp
-            <div class="flex items-center justify-between gap-2 overflow-x-auto pb-2">
-                @foreach($steps as $i => $step)
-                    <div class="flex items-center {{ $i < count($steps) - 1 ? 'flex-1' : '' }} min-w-0">
-                        <div class="flex flex-col items-center flex-shrink-0" style="min-width:90px">
-                            <div class="w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-md"
-                                 style="{{ $stepDone($step['done']) }}">
-                                {{ $step['ico'] }}
-                            </div>
-                            <div class="mt-2 text-xs font-bold text-center" style="color:{{ $step['done'] ? 'var(--text)' : 'var(--text3)' }}">{{ $step['label'] }}</div>
-                            <div class="text-[10px] text-center" style="color:var(--text3)">{{ $step['date'] }}</div>
-                        </div>
-                        @if($i < count($steps) - 1)
-                            <div class="flex-1 h-0.5 mx-1" style="background:{{ $step['done'] ? '#16a34a' : 'var(--surface3)' }};min-width:20px"></div>
-                        @endif
-                    </div>
-                @endforeach
-            </div>
-        </div>
-    </div>
-
-    {{-- ── QUICK ACTIONS COMMERCIALES ── --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        @if($can['update'] && $campaign->status->value !== 'annule')
-        <a href="{{ route('admin.campaigns.create', ['from' => $campaign->id]) }}"
-           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
-           style="background:var(--surface);border-color:var(--border);text-decoration:none">
-            <span class="text-2xl">🔁</span>
-            <div class="min-w-0">
-                <div class="font-bold text-sm" style="color:var(--text)">Renouveler</div>
-                <div class="text-xs" style="color:var(--text3)">Dupliquer cette campagne</div>
-            </div>
-        </a>
-        @endif
-        <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
-           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
-           style="background:var(--surface);border-color:var(--border);text-decoration:none">
-            <span class="text-2xl">🔧</span>
-            <div class="min-w-0">
-                <div class="font-bold text-sm" style="color:var(--text)">Poses & tâches</div>
-                <div class="text-xs" style="color:var(--text3)">{{ $poseDone }}/{{ count($internalPanelIds) }} réalisées</div>
-            </div>
-        </a>
-        <a href="{{ route('admin.piges.index', ['campaign_id' => $campaign->id]) }}"
-           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
-           style="background:var(--surface);border-color:var(--border);text-decoration:none">
-            <span class="text-2xl">📸</span>
-            <div class="min-w-0">
-                <div class="font-bold text-sm" style="color:var(--text)">Piges photo</div>
-                <div class="text-xs" style="color:var(--text3)">{{ $pigeOk }} validées · {{ $pigePending }} en attente</div>
-            </div>
-        </a>
-        @if($campaign->client?->email)
-        <a href="mailto:{{ $campaign->client->email }}?subject={{ urlencode('Campagne « ' . $campaign->name . ' »') }}"
-           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
-           style="background:var(--surface);border-color:var(--border);text-decoration:none">
-            <span class="text-2xl">✉️</span>
-            <div class="min-w-0">
-                <div class="font-bold text-sm" style="color:var(--text)">Contacter</div>
-                <div class="text-xs truncate" style="color:var(--text3)">{{ $campaign->client->email }}</div>
-            </div>
-        </a>
-        @endif
     </div>
 
     {{-- ── PANNEAUX ── --}}

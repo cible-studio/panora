@@ -412,7 +412,7 @@ class CampaignController extends Controller
         // Commerciaux disponibles pour assignation (rôles commercial + admin + MP).
         // L'admin peut assigner à n'importe quel commercial/MP.
         $commerciaux = \App\Models\User::query()
-            ->whereIn('role', ['admin', 'commercial', 'mediaplanner'])
+            ->whereIn('role', ['admin', 'commercial'])
             ->orderBy('name')
             ->get(['id', 'name', 'role', 'email']);
 
@@ -578,7 +578,7 @@ class CampaignController extends Controller
         $this->authorize('update', $campaign);
         $clients = Client::orderBy('name')->get();
         $commerciaux = \App\Models\User::query()
-            ->whereIn('role', ['admin', 'commercial', 'mediaplanner'])
+            ->whereIn('role', ['admin', 'commercial'])
             ->orderBy('name')
             ->get(['id', 'name', 'role', 'email']);
         return view('admin.campaigns.edit', compact('campaign', 'clients', 'commerciaux'));
