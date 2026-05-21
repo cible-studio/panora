@@ -2204,12 +2204,13 @@ class ReservationController extends Controller
                 $reservation
             );
         } else {
+            $previousStatus = $reservation->status?->value ?? $reservation->status;
             $this->reservationService->changeStatus($reservation, $request->status);
-            
+
             $statusLabels = ['confirme' => 'confirmée', 'refuse' => 'refusée', 'en_attente' => 'en attente', 'termine' => 'terminée'];
             $label = $statusLabels[$request->status] ?? $request->status;
             $niveau = $request->status === 'confirme' ? 'info' : ($request->status === 'refuse' ? 'danger' : 'info');
-            
+
             AlertService::create(
                 'reservation',
                 $niveau,
@@ -2217,10 +2218,51 @@ class ReservationController extends Controller
                 auth()->user()->name . ' a mis à jour la réservation ' . $reservation->reference . ' → ' . $label . '.',
                 $reservation
             );
+
+            // Email client si la résa vient d'être confirmée
+            if ($request->status === 'confirme' && $previousStatus !== 'confirme') {
+                $this->notifyClientReservationConfirmed($reservation->fresh()->loadMissing('client', 'reservationPanels.panel.commune'));
+            }
         }
         
         return redirect()->route('admin.reservations.show', $reservation)
             ->with('success', "Statut mis à jour : {$request->status}.");
+    }
+
+    /**
+     * Envoie un email de confirmation au client avec lien public sécurisé.
+     * Lien valable 30 jours, tokens 256 bits.
+     */
+    protected function notifyClientReservationConfirmed(Reservation $reservation): void
+    {
+        $client = $reservation->client;
+        if (!$client?->email) {
+            \Illuminate\Support\Facades\Log::info('reservation.notify.skipped', [
+                'reservation_id' => $reservation->id, 'reason' => 'no_client_email',
+            ]);
+            return;
+        }
+
+        try {
+            $link = \App\Services\PublicLinkService::create(
+                target:    $reservation,
+                type:      'reservation',
+                expiresAt: now()->addDays(30),
+                clientId:  $client->id,
+            );
+
+            app(\App\Services\NotificationMailer::class)->sendSilently(
+                $client->email,
+                new \App\Mail\ReservationConfirmedMail($reservation, $link),
+                cc: null,
+                context: ['reservation_id' => $reservation->id, 'client_id' => $client->id],
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('reservation.notify.failed', [
+                'reservation_id' => $reservation->id,
+                'error'          => $e->getMessage(),
+            ]);
+        }
     }
 
     public function annuler(Request $request, Reservation $reservation)

@@ -166,8 +166,56 @@ class InvoiceController extends Controller
                 "Seules les factures en brouillon peuvent être envoyées (statut actuel : {$invoice->status}).");
         }
 
-        $invoice->update(['status' => 'envoyee']);
-        return $this->statusResponse($request, $invoice, true, 'Facture marquée comme envoyée.');
+        $invoice->update([
+            'status'    => 'envoyee',
+            'issued_at' => $invoice->issued_at ?? now(),
+        ]);
+
+        // ── Notification email client (lien public 30 jours sécurisé) ──
+        $this->notifyClientInvoiceIssued($invoice);
+
+        return $this->statusResponse($request, $invoice, true, 'Facture envoyée au client par email.');
+    }
+
+    /**
+     * Envoie la facture au client par email avec un lien public sécurisé.
+     * Try/catch — n'interrompt jamais le flux métier en cas d'erreur SMTP.
+     */
+    protected function notifyClientInvoiceIssued(Invoice $invoice, bool $isReminder = false, ?int $reminderNumber = null): void
+    {
+        $client = $invoice->client;
+        if (!$client?->email) {
+            \Illuminate\Support\Facades\Log::info('invoice.notify.skipped', [
+                'invoice_id' => $invoice->id, 'reason' => 'no_client_email',
+            ]);
+            return;
+        }
+
+        try {
+            $link = \App\Services\PublicLinkService::findOrCreate(
+                target: $invoice,
+                type:   'invoice',
+                expiresAt: now()->addDays(30),
+            );
+
+            $mailer = app(\App\Services\NotificationMailer::class);
+            $mailer->sendSilently(
+                $client->email,
+                new \App\Mail\InvoiceIssuedMail(
+                    invoice: $invoice->loadMissing('client', 'campaign'),
+                    link:    $link,
+                    isReminder: $isReminder,
+                    reminderNumber: $reminderNumber,
+                ),
+                cc: null,
+                context: ['invoice_id' => $invoice->id, 'client_id' => $client->id, 'reminder' => $isReminder],
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('invoice.notify.failed', [
+                'invoice_id' => $invoice->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
     }
 
     public function markPaid(Request $request, Invoice $invoice)
