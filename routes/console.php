@@ -55,3 +55,35 @@ Schedule::command('propositions:send-reminders')
 Schedule::command('invoices:send-reminders')
     ->dailyAt('09:15')
     ->withoutOverlapping();
+
+// 9. Relances campagnes arrivant à échéance (J-7).
+//    Propose un renouvellement / prolongation au client.
+//    Idempotent via cache flag (TTL 60 jours).
+Schedule::command('campaigns:notify-ending', ['--days' => 7])
+    ->dailyAt('10:00')
+    ->withoutOverlapping();
+
+// 10. Alertes opérationnelles internes (admin / comptable / équipe terrain).
+//     Idempotent via AdminAlertNotifier::dedupKey (cooldown 30 min).
+Schedule::command('decap:notify-overdue', ['--days' => 7])
+    ->dailyAt('08:30')
+    ->withoutOverlapping();
+Schedule::command('taxes:notify-due-soon', ['--days' => 15])
+    ->dailyAt('08:45')
+    ->withoutOverlapping();
+
+// 11. Récaps périodiques (équipe + direction + comptable).
+Schedule::command('recap:daily')
+    ->dailyAt('18:00')
+    ->withoutOverlapping();
+Schedule::command('recap:weekly-direction')
+    ->mondays()->at('08:00')
+    ->withoutOverlapping();
+Schedule::command('recap:monthly')
+    ->monthlyOn(1, '06:00')
+    ->withoutOverlapping();
+
+// 12. Purge mensuelle des PublicLinks expirés/révoqués (> 90j).
+Schedule::call(function () {
+    \App\Services\PublicLinkService::purgeOld(90);
+})->monthlyOn(1, '03:00');
