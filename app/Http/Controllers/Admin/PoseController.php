@@ -768,14 +768,14 @@ class PoseController extends Controller
             return back()->with('success', "✅ Notification WhatsApp envoyée à {$tech->name}.");
         }
 
-        // Échec : message actionnable + lien fallback (lien public à partager
-        // manuellement). On lit la dernière erreur loggée pour aider l'admin
-        // à diagnostiquer (numéro non joint sandbox, SSL, token invalide…).
-        $publicUrl = $poseTask->publicUrl();
+        // Échec : message actionnable + lien fallback. On propose le lien
+        // d'espace tech (multi-poses) — c'est le bon lien à partager
+        // manuellement au technicien (multi-campagnes, stable).
+        $fallbackUrl = $tech->techPublicUrl();
         return back()->with(
             'warning',
             "L'envoi automatique a échoué — vérifiez les logs serveur (whatsapp.failed). " .
-            "Vous pouvez partager le lien manuellement : {$publicUrl}"
+            "Vous pouvez partager le lien manuellement : {$fallbackUrl}"
         );
     }
 

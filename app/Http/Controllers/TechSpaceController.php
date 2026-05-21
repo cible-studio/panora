@@ -41,7 +41,6 @@ class TechSpaceController extends Controller
         // poses même s'il a encore le lien dans son WhatsApp.
         $tech = User::where('tech_public_token', $token)
             ->where('is_active', true)
-            ->whereNull('deleted_at')
             ->first();
         if (!$tech) {
             abort(404, 'Lien invalide, expiré, ou compte désactivé.');
@@ -138,7 +137,6 @@ class TechSpaceController extends Controller
     {
         $tech = User::where('tech_public_token', $token)
             ->where('is_active', true)
-            ->whereNull('deleted_at')
             ->first();
         if (!$tech) return response()->json(['ok' => false, 'error' => 'Lien invalide ou compte désactivé.'], 404);
 
@@ -220,7 +218,6 @@ class TechSpaceController extends Controller
     {
         $tech = User::where('tech_public_token', $token)
             ->where('is_active', true)
-            ->whereNull('deleted_at')
             ->first();
         if (!$tech) return response()->json(['ok' => false, 'error' => 'Lien invalide ou compte désactivé.'], 404);
 
