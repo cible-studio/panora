@@ -179,7 +179,7 @@
          onerror="this.closest('.auth-image-panel').style.background='linear-gradient(135deg,#e20613,#7c000a)'">
     <div class="auth-image-overlay">
         <div class="auth-image-tagline">
-            Votre espace client<br>en un seul endroit.
+            Votre réseau OOH<br>en un seul espace.
         </div>
         <div class="auth-image-sub">CIBLE CI · Côte d'Ivoire</div>
     </div>

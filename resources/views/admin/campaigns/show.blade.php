@@ -261,57 +261,110 @@
                     </div>
                 </div>
 
-                {{-- ── Mini-stats opérationnelles (sous la progression) ── --}}
+                {{-- ── Opérationnel · barre compacte multi-progression ── --}}
                 @php
                     $nbPoses     = \App\Models\PoseTask::where('campaign_id', $campaign->id)->whereNotIn('status', ['annulee'])->count();
                     $nbPosesDone = \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'realisee')->count();
-                    $nbPiges     = \App\Models\Pige::where('campaign_id', $campaign->id)->count();
                     $nbPigesOk   = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'verifie')->count();
                     $nbPigesPend = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'en_attente')->count();
                     $nbInt       = $campaign->panels->count();
                     $nbExt       = $campaign->externalPanels->count();
+                    $nbPanels    = $nbInt + $nbExt;
+                    $pctPoses    = $nbPoses > 0 ? round(($nbPosesDone / $nbPoses) * 100) : 0;
+                    $pctPiges    = $nbPanels > 0 ? round(($nbPigesOk / max($nbPanels, 1)) * 100) : 0;
                 @endphp
                 <div class="mt-6 pt-6 border-t" style="border-color:var(--border)">
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+
+                        {{-- Panneaux --}}
                         <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
-                           class="flex items-center gap-3 p-3 rounded-xl border transition hover:shadow-md"
-                           style="background:var(--surface2);border-color:var(--border);text-decoration:none">
-                            <span class="text-xl">🪧</span>
-                            <div class="min-w-0">
-                                <div class="text-xs font-bold" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Panneaux</div>
-                                <div class="text-base font-bold" style="color:var(--text)">{{ $nbInt + $nbExt }}<span class="text-xs font-normal" style="color:var(--text3)"> · {{ $nbInt }}i / {{ $nbExt }}e</span></div>
+                           class="group flex items-center gap-3 px-4 py-3 rounded-xl border transition-all"
+                           style="background:var(--surface2);border-color:var(--border);text-decoration:none"
+                           onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--surface3)'"
+                           onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--surface2)'">
+                            <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                                 style="background:rgba(59,130,246,.10);color:#3b82f6;font-size:18px">🪧</div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-[10px] font-bold uppercase tracking-wider" style="color:var(--text3)">Panneaux</div>
+                                <div class="flex items-baseline gap-1.5">
+                                    <span class="text-lg font-bold leading-none" style="color:var(--text)">{{ $nbPanels }}</span>
+                                    @if($nbExt > 0)
+                                        <span class="text-[10px] font-medium" style="color:var(--text3)">{{ $nbInt }} interne · {{ $nbExt }} externe</span>
+                                    @else
+                                        <span class="text-[10px] font-medium" style="color:var(--text3)">tous internes</span>
+                                    @endif
+                                </div>
                             </div>
                         </a>
+
+                        {{-- Poses --}}
                         <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
-                           class="flex items-center gap-3 p-3 rounded-xl border transition hover:shadow-md"
-                           style="background:var(--surface2);border-color:var(--border);text-decoration:none">
-                            <span class="text-xl">🔧</span>
-                            <div class="min-w-0">
-                                <div class="text-xs font-bold" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Poses</div>
-                                <div class="text-base font-bold" style="color:{{ $nbPoses > 0 && $nbPosesDone === $nbPoses ? '#16a34a' : 'var(--text)' }}">{{ $nbPosesDone }}/{{ $nbPoses }}<span class="text-xs font-normal" style="color:var(--text3)"> réalisées</span></div>
+                           class="group block px-4 py-3 rounded-xl border transition-all"
+                           style="background:var(--surface2);border-color:var(--border);text-decoration:none"
+                           onmouseover="this.style.borderColor='#f59e0b';this.style.background='var(--surface3)'"
+                           onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--surface2)'">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                                     style="background:rgba(245,158,11,.10);color:#f59e0b;font-size:16px">🔧</div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-baseline justify-between gap-2">
+                                        <div class="text-[10px] font-bold uppercase tracking-wider" style="color:var(--text3)">Poses</div>
+                                        <div class="text-[11px] font-bold" style="color:{{ $pctPoses === 100 ? '#16a34a' : '#f59e0b' }}">{{ $pctPoses }}%</div>
+                                    </div>
+                                    <div class="flex items-baseline gap-1.5">
+                                        <span class="text-lg font-bold leading-none" style="color:var(--text)">{{ $nbPosesDone }}<span class="text-xs font-medium" style="color:var(--text3)">/{{ $nbPoses }}</span></span>
+                                        <span class="text-[10px] font-medium" style="color:var(--text3)">réalisées</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-2 h-1 rounded-full overflow-hidden" style="background:var(--surface3)">
+                                <div class="h-full rounded-full transition-all"
+                                     style="background:{{ $pctPoses === 100 ? '#16a34a' : '#f59e0b' }};width:{{ $pctPoses }}%"></div>
                             </div>
                         </a>
+
+                        {{-- Piges --}}
                         <a href="{{ route('admin.piges.index', ['campaign_id' => $campaign->id]) }}"
-                           class="flex items-center gap-3 p-3 rounded-xl border transition hover:shadow-md"
-                           style="background:var(--surface2);border-color:var(--border);text-decoration:none">
-                            <span class="text-xl">📸</span>
-                            <div class="min-w-0">
-                                <div class="text-xs font-bold" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Piges</div>
-                                <div class="text-base font-bold" style="color:var(--text)">{{ $nbPigesOk }}<span class="text-xs font-normal" style="color:var(--text3)"> validées @if($nbPigesPend > 0)· {{ $nbPigesPend }} en attente @endif</span></div>
+                           class="group block px-4 py-3 rounded-xl border transition-all"
+                           style="background:var(--surface2);border-color:var(--border);text-decoration:none"
+                           onmouseover="this.style.borderColor='#a855f7';this.style.background='var(--surface3)'"
+                           onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--surface2)'">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                                     style="background:rgba(168,85,247,.10);color:#a855f7;font-size:16px">📸</div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-baseline justify-between gap-2">
+                                        <div class="text-[10px] font-bold uppercase tracking-wider" style="color:var(--text3)">Piges photo</div>
+                                        @if($nbPigesPend > 0)
+                                            <div class="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style="background:rgba(245,158,11,.15);color:#f59e0b">⏳ {{ $nbPigesPend }}</div>
+                                        @endif
+                                    </div>
+                                    <div class="flex items-baseline gap-1.5">
+                                        <span class="text-lg font-bold leading-none" style="color:var(--text)">{{ $nbPigesOk }}</span>
+                                        <span class="text-[10px] font-medium" style="color:var(--text3)">validées</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-2 h-1 rounded-full overflow-hidden" style="background:var(--surface3)">
+                                <div class="h-full rounded-full transition-all"
+                                     style="background:#a855f7;width:{{ min(100, $pctPiges) }}%"></div>
                             </div>
                         </a>
-                        @if($campaign->client?->email)
-                        <a href="mailto:{{ $campaign->client->email }}?subject={{ urlencode('Campagne « ' . $campaign->name . ' »') }}"
-                           class="flex items-center gap-3 p-3 rounded-xl border transition hover:shadow-md"
-                           style="background:var(--surface2);border-color:var(--border);text-decoration:none">
-                            <span class="text-xl">✉️</span>
-                            <div class="min-w-0">
-                                <div class="text-xs font-bold" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Contact</div>
-                                <div class="text-xs truncate" style="color:var(--text)" title="{{ $campaign->client->email }}">{{ $campaign->client->email }}</div>
-                            </div>
-                        </a>
-                        @endif
                     </div>
+
+                    {{-- Contact client — bandeau discret en dessous --}}
+                    @if($campaign->client?->email)
+                    <a href="mailto:{{ $campaign->client->email }}?subject={{ urlencode('Campagne « ' . $campaign->name . ' »') }}"
+                       class="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg border transition-all"
+                       style="background:var(--surface);border-color:var(--border);text-decoration:none"
+                       onmouseover="this.style.borderColor='var(--accent)'"
+                       onmouseout="this.style.borderColor='var(--border)'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text3);flex-shrink:0"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        <span class="text-[11px] font-semibold uppercase tracking-wider" style="color:var(--text3)">Contact</span>
+                        <span class="text-xs font-medium flex-1 min-w-0 truncate" style="color:var(--text)">{{ $campaign->client->email }}</span>
+                        <span class="text-[10px]" style="color:var(--accent)">Écrire →</span>
+                    </a>
+                    @endif
                 </div>
 
                 <style>@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}</style>

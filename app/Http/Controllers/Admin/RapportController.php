@@ -269,6 +269,10 @@ class RapportController extends Controller
         })->filter(fn($r) => $r['total'] > 0)->sortByDesc('taux')->values();
 
         // ── Stats clients (filtres appliqués) ───────────────────
+        // Décision UX : on n'affiche QUE les clients avec un CA > 0 sur la
+        // période filtrée — un client présent en base mais qui n'a aucun
+        // chiffre d'affaires sur la fenêtre choisie est du bruit dans un
+        // rapport, et brouille les rangs / la lecture des podiums.
         $statsClients = Client::query()
             ->when($filterClient, fn($q) => $q->where('id', $filterClient))
             ->with(['campaigns' => fn($q) => $applyCampaignFilters($q)])
@@ -286,7 +290,10 @@ class RapportController extends Controller
                     'total_panneaux' => $client->campaigns->sum(fn($c) => $c->panels()->count()),
                     'derniere_campagne' => $derniere,
                 ];
-            })->sortByDesc('ca_total')->values();
+            })
+            ->filter(fn($c) => ($c['ca_total'] ?? 0) > 0)
+            ->sortByDesc('ca_total')
+            ->values();
 
         // ── Répartition durées (filtres appliqués) ──────────────
         $camps = $applyCampaignFilters(
