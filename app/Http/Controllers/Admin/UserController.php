@@ -200,11 +200,25 @@ class UserController extends Controller
         if ($request->filled('action')) {
             $query->where('action', 'like', '%' . $request->input('action') . '%');
         }
+        if ($request->filled('kind')) {
+            // Filtre rapide par famille d'actions (déclenché par les KPI cards)
+            $kind = $request->input('kind');
+            $query->where('action', 'like', '%' . $kind . '%');
+        }
 
         $logs  = $query->paginate(50)->withQueryString();
         $users = User::orderBy('name')->get(['id', 'name']);
 
-        return view('admin.audit.logs', compact('logs', 'users'));
+        // KPIs : compteurs par famille d'action sur l'ensemble des logs
+        // (indépendants des filtres pour garder une vue globale).
+        $kpis = [
+            'total'   => AuditLog::count(),
+            'created' => AuditLog::where('action', 'like', '%created%')->count(),
+            'updated' => AuditLog::where('action', 'like', '%updated%')->count(),
+            'deleted' => AuditLog::where('action', 'like', '%deleted%')->count(),
+        ];
+
+        return view('admin.audit.logs', compact('logs', 'users', 'kpis'));
     }
 
     public function toggleActive(User $user)
