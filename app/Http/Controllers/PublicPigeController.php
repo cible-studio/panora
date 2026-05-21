@@ -227,6 +227,26 @@ class PublicPigeController extends Controller
             'ip'          => $request->ip(),
         ]);
 
+        // ── Alerte interne : nouvelle pige à valider (MP / admin) ──────
+        $panel = \App\Models\Panel::find($data['panel_id']);
+        \App\Services\AdminAlertNotifier::notify(
+            to: ['mediaplanner', 'admin'],
+            severity: 'info',
+            title: 'Nouvelle pige à valider',
+            summary: "Une pige photo a été uploadée pour la campagne « {$campaign->name} ».",
+            lines: array_filter([
+                'Panneau : ' . ($panel?->reference ?? '—'),
+                $data['tech_name'] ? 'Technicien : ' . $data['tech_name'] : null,
+                'Date : ' . $pige->taken_at->format('d/m/Y H:i'),
+                $data['gps_lat'] ? "GPS : {$data['gps_lat']}, {$data['gps_lng']}" : null,
+            ]),
+            ctaLabel: 'Valider la pige →',
+            ctaUrl: url('/admin/piges/'.$pige->id),
+            footer: 'Pige #' . $pige->id,
+            emoji: '📸',
+            dedupKey: 'pige-uploaded-'.$pige->id,
+        );
+
         return response()->json([
             'ok'         => true,
             'message'    => 'Pige envoyée pour vérification.',

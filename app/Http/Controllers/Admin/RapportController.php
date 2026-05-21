@@ -874,6 +874,10 @@ class RapportController extends Controller
             $request->notes,
         );
 
+        if ($ok) {
+            $this->notifyClientIfCampaignFullyDecapped((int) $request->campaign_id);
+        }
+
         return response()->json([
             'ok'      => $ok,
             'message' => $ok ? 'Panneau marqué comme décappé.' : "Aucune ligne à mettre à jour.",
@@ -898,11 +902,62 @@ class RapportController extends Controller
             $request->notes,
         );
 
+        if ($count > 0) {
+            $this->notifyClientIfCampaignFullyDecapped((int) $request->campaign_id);
+        }
+
         return response()->json([
             'ok'      => $count > 0,
             'count'   => $count,
             'message' => $count > 0 ? "{$count} panneaux marqués décappés." : "Aucun panneau à décapper.",
         ]);
+    }
+
+    /**
+     * Notifie le client par email SI tous les panneaux de la campagne sont
+     * désormais décappés (transition vers 100%). Évite les doublons : on
+     * vérifie l'absence d'un PublicLink 'decap' existant pour cette campagne.
+     */
+    protected function notifyClientIfCampaignFullyDecapped(int $campaignId): void
+    {
+        $total    = \Illuminate\Support\Facades\DB::table('campaign_panels')
+            ->where('campaign_id', $campaignId)->count();
+        $decapped = \Illuminate\Support\Facades\DB::table('campaign_panels')
+            ->where('campaign_id', $campaignId)
+            ->whereNotNull('decapped_at')->count();
+
+        if ($total === 0 || $decapped < $total) return; // pas encore 100 %
+
+        $campaign = \App\Models\Campaign::with('client', 'panels.commune')->find($campaignId);
+        if (!$campaign || !$campaign->client?->email) return;
+
+        // Idempotence : si on a déjà notifié, on ne renotifie pas
+        $already = \App\Models\PublicLink::where('type', 'decap')
+            ->where('target_type', \App\Models\Campaign::class)
+            ->where('target_id', $campaignId)
+            ->exists();
+        if ($already) return;
+
+        try {
+            $link = \App\Services\PublicLinkService::create(
+                target: $campaign,
+                type: 'decap',
+                expiresAt: now()->addDays(30),
+                clientId: $campaign->client_id,
+            );
+
+            app(\App\Services\NotificationMailer::class)->sendSilently(
+                $campaign->client->email,
+                new \App\Mail\CampaignDecappedMail($campaign, $link, $decapped),
+                cc: null,
+                context: ['campaign_id' => $campaignId, 'client_id' => $campaign->client_id],
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('decap.notify.failed', [
+                'campaign_id' => $campaignId,
+                'error'       => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

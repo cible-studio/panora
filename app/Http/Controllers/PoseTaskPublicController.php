@@ -239,6 +239,27 @@ class PoseTaskPublicController extends Controller
             'ip'      => $request->ip(),
         ]);
 
+        // ── Alerte interne : pose réalisée (commercial + admin) ─────────
+        $task->loadMissing('panel', 'campaign.client', 'technicien');
+        \App\Services\AdminAlertNotifier::notify(
+            to: ['commercial_assigned', 'admin'],
+            commercialAssigned: $task->campaign?->user,
+            severity: 'success',
+            title: 'Pose réalisée par le technicien',
+            summary: "Le technicien a marqué la pose comme effectuée — campagne « {$task->campaign?->name} ».",
+            lines: array_filter([
+                'Panneau : ' . ($task->panel?->reference ?? '—'),
+                'Client : '  . ($task->campaign?->client?->name ?? '—'),
+                'Technicien : ' . ($task->technicien?->name ?? '—'),
+                'Date pose : ' . ($task->done_at?->format('d/m/Y H:i') ?? '—'),
+            ]),
+            ctaLabel: 'Vérifier la fiche pose →',
+            ctaUrl: url('/admin/pose-tasks/'.$task->id),
+            emoji: '✅',
+            footer: 'Tâche pose #' . $task->id,
+            dedupKey: 'pose-done-'.$task->id,
+        );
+
         return response()->json([
             'ok'      => true,
             'message' => '✓ Pose marquée comme effectuée. Merci !',
