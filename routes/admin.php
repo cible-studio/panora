@@ -479,21 +479,24 @@ Route::prefix('admin')
         // ════════════════════════════════════════════════
         // ── Clients ─────────────────────────────────────────────────
         // Lecture (index + show + data) = tous staff (admin/commercial/MP).
-        // Création / modification / interlocuteurs = admin + commercial.
-        // Suppression = admin uniquement.
+        // Création / modification / import / interlocuteurs = admin + commercial + MP.
+        //   → Le MP a besoin de créer des clients depuis l'onglet Pose
+        //     (campagne sans client préalable, pige terrain, etc.).
+        // Suppression unitaire et groupée = admin uniquement (RGPD / sécurité).
+        // Création de compte client (espace /client) = admin + commercial
+        //   uniquement (action sensible : génération MDP + envoi email).
         Route::post('clients/quick-store', [ClientController::class, 'storeQuick'])
-            ->middleware('role:admin,commercial')
+            ->middleware('role:admin,commercial,mediaplanner')
             ->name('clients.quick-store');
         // Suppression groupée (sélection multiple) — admin uniquement
         Route::post('clients/bulk-destroy', [ClientController::class, 'bulkDestroy'])
             ->middleware('role:admin')
             ->name('clients.bulk-destroy');
-        // Import Excel (avant les routes paramétriques pour éviter conflit)
-        // Lecture template = staff, import = admin + commercial.
+        // Import Excel — admin + commercial + MP
         Route::get('clients/import/template', [ClientController::class, 'importTemplate'])
             ->name('clients.import.template');
         Route::post('clients/import',         [ClientController::class, 'import'])
-            ->middleware('role:admin,commercial')
+            ->middleware('role:admin,commercial,mediaplanner')
             ->name('clients.import');
         // Exports liste clients (5.2) — placés AVANT /clients/{client} pour
         // ne pas être avalés par le route model binding.
@@ -506,13 +509,13 @@ Route::prefix('admin')
         // Lecture clients : tous les staff
         Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
         Route::get('clients/create', [ClientController::class, 'create'])
-            ->middleware('role:admin,commercial')->name('clients.create');
+            ->middleware('role:admin,commercial,mediaplanner')->name('clients.create');
         Route::get('clients/{client}/edit', [ClientController::class, 'edit'])
-            ->middleware('role:admin,commercial')->name('clients.edit');
+            ->middleware('role:admin,commercial,mediaplanner')->name('clients.edit');
         Route::post('clients', [ClientController::class, 'store'])
-            ->middleware('role:admin,commercial')->name('clients.store');
+            ->middleware('role:admin,commercial,mediaplanner')->name('clients.store');
         Route::put('clients/{client}', [ClientController::class, 'update'])
-            ->middleware('role:admin,commercial')->name('clients.update');
+            ->middleware('role:admin,commercial,mediaplanner')->name('clients.update');
         Route::delete('clients/{client}', [ClientController::class, 'destroy'])
             ->middleware('role:admin')->name('clients.destroy');
         Route::get('clients/{client}', [ClientController::class, 'show'])->name('clients.show');
@@ -521,13 +524,19 @@ Route::prefix('admin')
             ->name('admin.clients.data')
             ->middleware('throttle:60,1');
 
-        // Comptes client (espace /client) : création / reset = admin + commercial
+        // Comptes client (espace /client) : action sensible
+        // (génération MDP + envoi email) → admin + commercial uniquement,
+        // pas le MP (qui peut créer le client mais pas son compte d'accès).
         Route::middleware('role:admin,commercial')->group(function () {
             Route::post('clients/{client}/account', [ClientController::class, 'createAccount'])->name('clients.account.create');
             Route::post('clients/{client}/account/reset', [ClientController::class, 'resetPassword'])->name('clients.account.reset');
             Route::delete('clients/{client}/account', [ClientController::class, 'revokeAccount'])->name('clients.account.revoke');
+        });
 
-            // ── Multi-interlocuteurs (T4) — édition = admin + commercial ──
+        // Multi-interlocuteurs (T4) — édition = admin + commercial + MP
+        // (cohérent avec édition client : qui peut éditer la fiche peut
+        // éditer les interlocuteurs).
+        Route::middleware('role:admin,commercial,mediaplanner')->group(function () {
             Route::post  ('clients/{client}/contacts',                [\App\Http\Controllers\Admin\ClientContactController::class, 'store'])     ->name('clients.contacts.store');
             Route::put   ('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'update'])    ->name('clients.contacts.update');
             Route::delete('clients/{client}/contacts/{contact}',      [\App\Http\Controllers\Admin\ClientContactController::class, 'destroy'])   ->name('clients.contacts.destroy');
