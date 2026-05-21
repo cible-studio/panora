@@ -791,6 +791,11 @@ Route::prefix('admin')
                 ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.price');
             Route::post('campaigns/{campaign}/panels/{panel}/price/reset', [CampaignController::class, 'resetPanelPrice'])
                 ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.price.reset');
+
+            // Notifier manuellement le client des modifications (panneaux
+            // ajoutés/retirés, prix négocié). Renvoie un récap actualisé.
+            Route::post('campaigns/{campaign}/notify-client', [CampaignController::class, 'notifyClient'])
+                ->whereNumber('campaign')->name('campaigns.notify-client');
         });
 
         // Suppression campagne = admin uniquement (matrice CAMPAGNES)

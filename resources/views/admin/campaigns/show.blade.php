@@ -68,6 +68,29 @@
         </div>
     </div>
 
+    {{-- ── BANDEAU "Campagne en préparation" — avant 1er lancement ── --}}
+    @php
+        $totalPanelsCount = $campaign->panels->count() + $campaign->externalPanels->count();
+        $isPreLaunch      = $campaign->status->value === 'planifie' && $totalPanelsCount === 0;
+    @endphp
+    @if($isPreLaunch)
+        <div class="mb-6 rounded-xl border p-4 flex items-start gap-4"
+             style="background:rgba(245,158,11,0.06);border-color:rgba(245,158,11,0.3)">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
+                 style="background:rgba(245,158,11,0.18)">📋</div>
+            <div class="flex-1 min-w-0">
+                <div class="font-bold text-sm" style="color:#d97706">
+                    Cette campagne est en préparation
+                </div>
+                <div class="text-sm mt-1" style="color:var(--text2)">
+                    Ajoutez au moins <strong>1 panneau</strong> + ajustez les prix négociés si besoin, puis cliquez sur
+                    <strong>« ▶ Démarrer la campagne »</strong> pour la lancer. Le mail au client (avec les panneaux
+                    réels et le montant exact) ne partira qu'à ce moment.
+                </div>
+            </div>
+        </div>
+    @endif
+
     {{-- ── BANDEAU MOTIF D'ANNULATION ── (si campagne annulée) --}}
     @if($campaign->status->value === 'annule' && ($campaign->cancellation_reason || $campaign->cancellation_notes))
         @php
@@ -166,7 +189,7 @@
                     <div class="rounded-xl p-4 border" style="background:var(--surface2);border-color:var(--border)">
                         <div class="text-xs uppercase font-semibold mb-2" style="color:var(--text3)">💰 Montant total</div>
                         <div class="text-2xl font-bold" style="color:var(--accent)">
-                            {{ number_format($campaign->total_amount, 0, ',', ' ') }}
+                            <span data-campaign-total>{{ number_format($campaign->total_amount, 0, ',', ' ') }}</span>
                             <span class="text-xs font-normal" style="color:var(--text3)">FCFA</span>
                         </div>
                     </div>
@@ -441,6 +464,29 @@
                     </div>
                     @endif
 
+                    {{-- Notifier le client des changements (panneaux, prix négociés…)
+                         Bouton visible seulement quand la campagne est lancée et qu'il
+                         y a au moins 1 panneau. Renvoie un récap basé sur l'état actuel. --}}
+                    @if($can['update']
+                        && in_array($campaign->status->value, ['planifie', 'actif', 'pause'])
+                        && ($campaign->panels->count() + $campaign->externalPanels->count()) > 0
+                        && $campaign->client?->email)
+                    <div class="mt-5 pt-5 border-t" style="border-color:var(--border)">
+                        <form method="POST" action="{{ route('admin.campaigns.notify-client', $campaign) }}"
+                              onsubmit="return confirm('Envoyer un mail récap au client avec les panneaux et le montant actuels ?');">
+                            @csrf
+                            <button type="submit"
+                                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold"
+                                    style="background:var(--surface2);color:var(--text);border:1px solid var(--border)">
+                                📧 Notifier le client des changements
+                            </button>
+                        </form>
+                        <div class="text-xs mt-2 text-center" style="color:var(--text3)">
+                            Renvoie un mail récap au client (panneaux ajoutés/retirés, prix négociés).
+                        </div>
+                    </div>
+                    @endif
+
                     {{-- Prolonger --}}
                     @if($can['update'] && in_array($campaign->status->value, ['actif', 'termine']))
                     <div class="mt-5 pt-5 border-t" id="section-prolonger" style="border-color:var(--border)" x-data="{ show: false }">
@@ -675,26 +721,45 @@
                     // Lit reservation_panels.panel_start_date pour la résa
                     // parente de cette campagne. Permet d'afficher un badge
                     // "Rejoint le DD/MM" sur les panneaux à démarrage différé.
+                    //
+                    // En parallèle, on précharge aussi reservation_panels.unit_price
+                    // pour afficher le prix NÉGOCIÉ (différent du tarif catalogue
+                    // panel.monthly_rate quand l'utilisateur a customisé).
                     $deferredStartByPanel = [];
+                    $negotiatedPriceByPanel = []; // panel_id => unit_price (interne)
+                    $negotiatedPriceByExt   = []; // external_panel_id => unit_price
                     if ($campaign->reservation_id) {
                         $rows = \Illuminate\Support\Facades\DB::table('reservation_panels')
                             ->where('reservation_id', $campaign->reservation_id)
-                            ->whereNotNull('panel_start_date')
-                            ->where('panel_start_date', '>', $campaign->start_date)
-                            ->get(['panel_id', 'external_panel_id', 'panel_start_date', 'source']);
+                            ->get(['panel_id', 'external_panel_id', 'panel_start_date', 'unit_price', 'source']);
                         foreach ($rows as $r) {
                             $key = $r->source === 'externe'
                                 ? 'ext_' . $r->external_panel_id
                                 : 'int_' . $r->panel_id;
-                            $deferredStartByPanel[$key] = $r->panel_start_date;
+                            if ($r->panel_start_date && $r->panel_start_date > $campaign->start_date->format('Y-m-d')) {
+                                $deferredStartByPanel[$key] = $r->panel_start_date;
+                            }
+                            if ($r->source === 'externe') {
+                                if ($r->external_panel_id !== null) {
+                                    $negotiatedPriceByExt[(int) $r->external_panel_id] = (float) $r->unit_price;
+                                }
+                            } else {
+                                if ($r->panel_id !== null) {
+                                    $negotiatedPriceByPanel[(int) $r->panel_id] = (float) $r->unit_price;
+                                }
+                            }
                         }
                     }
                 @endphp
                 @forelse($campaign->panels as $panel)
                     @php
-                        $rate = (float) ($panel->monthly_rate ?? 0);
-                        $deferKey = 'int_' . $panel->id;
-                        $deferredStart = $deferredStartByPanel[$deferKey] ?? null;
+                        $catalogRate    = (float) ($panel->monthly_rate ?? 0);
+                        $negotiatedRate = $negotiatedPriceByPanel[$panel->id] ?? null;
+                        $effectiveRate  = $negotiatedRate !== null ? $negotiatedRate : $catalogRate;
+                        $isNegotiated   = $negotiatedRate !== null && abs($negotiatedRate - $catalogRate) > 0.01;
+                        $deferKey       = 'int_' . $panel->id;
+                        $deferredStart  = $deferredStartByPanel[$deferKey] ?? null;
+                        $canEditPrice   = $can['managePanel'];
                     @endphp
                     <tr class="border-b transition-all group" data-panel-row style="border-color:var(--border)"
                         onmouseover="this.style.background='var(--surface2)'"
@@ -712,11 +777,32 @@
                                 <span style="color:var(--text3)">Non</span>
                             @endif
                         </td>
-                        <td class="px-5 py-4 text-right" style="color:var(--text2)">
-                            {{ $rate > 0 ? number_format($rate, 0, ',', ' ') . ' FCFA' : '—' }}
+                        {{-- Cellule prix : édition inline si on a les droits + bon statut --}}
+                        <td class="px-5 py-4 text-right"
+                            data-price-cell
+                            data-panel-id="{{ $panel->id }}"
+                            data-effective-rate="{{ $effectiveRate }}"
+                            data-catalog-rate="{{ $catalogRate }}"
+                            data-months="{{ $billableMonths }}"
+                            data-update-url="{{ route('admin.campaigns.panels.price', ['campaign' => $campaign->id, 'panel' => $panel->id]) }}"
+                            data-can-edit="{{ $canEditPrice ? '1' : '0' }}">
+                            <span data-price-display
+                                  title="{{ $canEditPrice ? 'Cliquez pour modifier le prix négocié' : '' }}"
+                                  style="cursor:{{ $canEditPrice ? 'pointer' : 'default' }};
+                                         color:{{ $effectiveRate > 0 ? 'var(--text2)' : 'var(--text3)' }};
+                                         {{ $canEditPrice ? 'border-bottom:1px dashed var(--border2);padding-bottom:1px;' : '' }}">
+                                {{ $effectiveRate > 0 ? number_format($effectiveRate, 0, ',', ' ') . ' FCFA' : '—' }}
+                            </span>
+                            @if($isNegotiated)
+                                <div style="font-size:10px;color:var(--text3);margin-top:2px"
+                                     title="Tarif catalogue : {{ number_format($catalogRate, 0, ',', ' ') }} FCFA">
+                                    négocié
+                                    <span style="text-decoration:line-through;opacity:.7">{{ number_format($catalogRate, 0, ',', ' ') }}</span>
+                                </div>
+                            @endif
                         </td>
-                        <td class="px-5 py-4 text-right font-semibold" style="color:var(--accent)">
-                            {{ $rate > 0 ? number_format($rate * $billableMonths, 0, ',', ' ') . ' FCFA' : '—' }}
+                        <td class="px-5 py-4 text-right font-semibold" data-total-period style="color:var(--accent)">
+                            {{ $effectiveRate > 0 ? number_format($effectiveRate * $billableMonths, 0, ',', ' ') . ' FCFA' : '—' }}
                         </td>
                         <td class="px-5 py-4">
                             <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">
@@ -1111,6 +1197,137 @@
         document.getElementById('modal-retire').classList.remove('hidden');
     }
     function closeRetireModal() { document.getElementById('modal-retire').classList.add('hidden'); }
+
+    // ─────────────────────────────────────────────────────────────────
+    // ÉDITION PRIX INLINE — sur chaque cellule [data-price-cell] cliquable.
+    // Au clic, on remplace le span d'affichage par un <input type=number> :
+    //   ↵ Entrée : sauvegarde via AJAX PATCH (recalcul du total période
+    //              + bandeau global "Montant total" mis à jour).
+    //   Echap   : restaure la valeur d'origine sans appel réseau.
+    // ─────────────────────────────────────────────────────────────────
+    (function() {
+        const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const formatFCFA = (n) => Math.round(n).toLocaleString('fr-FR') + ' FCFA';
+
+        document.querySelectorAll('[data-price-cell][data-can-edit="1"]').forEach(cell => {
+            const display    = cell.querySelector('[data-price-display]');
+            if (!display) return;
+            display.addEventListener('click', () => startEdit(cell, display));
+        });
+
+        function startEdit(cell, display) {
+            if (cell.dataset.editing === '1') return;
+            cell.dataset.editing = '1';
+
+            const current = parseFloat(cell.dataset.effectiveRate || 0);
+            const months  = parseFloat(cell.dataset.months || 1);
+            const oldHTML = cell.innerHTML;
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.step = '1';
+            input.min  = '0';
+            input.value = current > 0 ? Math.round(current) : '';
+            input.style.cssText = 'width:120px;text-align:right;background:var(--surface);border:1px solid var(--accent);border-radius:6px;padding:4px 8px;font-size:13px;color:var(--text);outline:none;font-family:inherit';
+
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-end;gap:4px';
+            wrap.appendChild(input);
+
+            const hint = document.createElement('span');
+            hint.textContent = '↵ Enregistrer · Échap Annuler';
+            hint.style.cssText = 'font-size:9px;color:var(--text3);letter-spacing:.3px';
+            wrap.appendChild(hint);
+
+            cell.innerHTML = '';
+            cell.appendChild(wrap);
+            input.focus();
+            input.select();
+
+            function restore() {
+                cell.innerHTML = oldHTML;
+                cell.dataset.editing = '0';
+            }
+
+            async function save() {
+                const newVal = parseFloat(input.value);
+                if (isNaN(newVal) || newVal < 0) { restore(); return; }
+                if (Math.abs(newVal - current) < 0.01) { restore(); return; }
+
+                input.disabled = true;
+                hint.textContent = 'Enregistrement…';
+
+                try {
+                    const res = await fetch(cell.dataset.updateUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': CSRF,
+                            'X-HTTP-Method-Override': 'PATCH',
+                        },
+                        body: JSON.stringify({ _method: 'PATCH', unit_price: newVal }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.ok) {
+                        hint.textContent = '⚠️ ' + (data.error || 'Erreur — réessayez');
+                        hint.style.color = '#ef4444';
+                        input.disabled = false;
+                        return;
+                    }
+
+                    cell.dataset.effectiveRate = data.unit_price;
+
+                    // Reconstruit la cellule d'affichage
+                    cell.innerHTML = '';
+                    const span = document.createElement('span');
+                    span.dataset.priceDisplay = '';
+                    span.title = 'Cliquez pour modifier le prix négocié';
+                    span.style.cssText = 'cursor:pointer;color:var(--text2);border-bottom:1px dashed var(--border2);padding-bottom:1px';
+                    span.textContent = formatFCFA(data.unit_price);
+                    cell.appendChild(span);
+
+                    // Badge "négocié" si différent du catalogue
+                    const catalog = parseFloat(cell.dataset.catalogRate || 0);
+                    if (Math.abs(data.unit_price - catalog) > 0.01) {
+                        const sub = document.createElement('div');
+                        sub.style.cssText = 'font-size:10px;color:var(--text3);margin-top:2px';
+                        sub.innerHTML = 'négocié <span style="text-decoration:line-through;opacity:.7">'
+                            + Math.round(catalog).toLocaleString('fr-FR') + '</span>';
+                        cell.appendChild(sub);
+                    }
+
+                    cell.dataset.editing = '0';
+                    span.addEventListener('click', () => startEdit(cell, span));
+
+                    // Total période (colonne suivante)
+                    const row = cell.closest('tr');
+                    const totalCell = row?.querySelector('[data-total-period]');
+                    if (totalCell) totalCell.textContent = formatFCFA(data.total_period);
+
+                    // Bandeau "Montant total" en haut de la page
+                    const headerTotal = document.querySelector('[data-campaign-total]');
+                    if (headerTotal && typeof data.campaign_total === 'number') {
+                        headerTotal.textContent = Math.round(data.campaign_total).toLocaleString('fr-FR');
+                    }
+                } catch (e) {
+                    hint.textContent = '⚠️ Réseau : ' + e.message;
+                    hint.style.color = '#ef4444';
+                    input.disabled = false;
+                }
+            }
+
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') { e.preventDefault(); save(); }
+                else if (e.key === 'Escape') { e.preventDefault(); restore(); }
+            });
+            input.addEventListener('blur', () => {
+                // Petite tempo pour laisser passer le click de hint éventuel
+                setTimeout(() => { if (cell.dataset.editing === '1') restore(); }, 150);
+            });
+        }
+    })();
 
     function scrollToProlonger() {
         document.getElementById('section-prolonger')?.scrollIntoView({ behavior: 'smooth' });

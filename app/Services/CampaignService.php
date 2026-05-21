@@ -106,9 +106,25 @@ class CampaignService
             return ['ok' => false, 'error' => 'Campagne non modifiable.'];
         }
 
-        $remainingCount = $campaign->panels()->count();
+        // Garde : on REFUSE de retirer le dernier panneau d'une campagne.
+        // Une campagne doit toujours avoir au moins 1 panneau (interne ou
+        // externe). Pour vider entièrement la campagne, l'utilisateur doit
+        // explicitement l'annuler depuis l'interface (bouton "Annuler").
+        //
+        // Décision UX 2026-05 — l'auto-annulation silencieuse précédente
+        // surprenait les utilisateurs : ils retiraient un panneau à tort
+        // et voyaient leur campagne disparaître. Mieux vaut un refus
+        // explicite avec un message clair.
+        $internalCount = (int) $campaign->panels()->count();
+        $externalCount = (int) $campaign->externalPanels()->count();
+        if (($internalCount + $externalCount) <= 1) {
+            return [
+                'ok'    => false,
+                'error' => "Impossible de retirer le dernier panneau. Une campagne doit avoir au moins 1 panneau — ajoutez-en un autre avant de retirer celui-ci, ou annulez la campagne.",
+            ];
+        }
 
-        return DB::transaction(function () use ($campaign, $panel, $remainingCount) {
+        return DB::transaction(function () use ($campaign, $panel) {
             $campaign->panels()->detach($panel->id);
 
             if ($campaign->reservation_id) {
@@ -117,12 +133,6 @@ class CampaignService
                     $reservation->panels()->detach($panel->id);
                     $this->recalculateReservationAmount($reservation);
                 }
-            }
-
-            // Si c'était le dernier panneau, on annule la campagne
-            if ($remainingCount <= 1) {
-                $this->cancel($campaign, 'Dernier panneau retiré automatiquement.');
-                return ['ok' => true, 'warning' => 'Campagne annulée — plus aucun panneau.'];
             }
 
             $this->recalculateCampaignAmount($campaign);

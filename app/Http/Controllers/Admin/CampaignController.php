@@ -206,6 +206,57 @@ class CampaignController extends Controller
     }
 
     /**
+     * Notifier manuellement le client des modifications apportées à la
+     * campagne (panneaux ajoutés/retirés, prix négocié, etc.). Renvoie
+     * le mail "récap" basé sur l'état actuel de la campagne.
+     *
+     * Action déclenchée par un bouton sur la fiche campagne — utile
+     * lorsque le commercial veut formaliser des changements importants
+     * envers le client après la première activation.
+     */
+    public function notifyClient(Campaign $campaign)
+    {
+        $this->authorize('update', $campaign);
+
+        if (!in_array($campaign->status->value, ['planifie', 'actif', 'pause'])) {
+            return back()->with('error',
+                'Le client ne peut être notifié que sur une campagne planifiée, active ou en pause.');
+        }
+
+        $panelsCount = $campaign->panels()->count() + $campaign->externalPanels()->count();
+        if ($panelsCount === 0) {
+            return back()->with('error',
+                'Ajoutez au moins un panneau avant de notifier le client.');
+        }
+
+        if (!$campaign->client?->email && $campaign->client?->contacts()->whereNotNull('email')->doesntExist()) {
+            return back()->with('error',
+                'Aucune adresse email connue pour ce client (ni client.email ni interlocuteurs).');
+        }
+
+        try {
+            $sent = $this->campaignService->sendStartedMailToClient($campaign->fresh());
+        } catch (\Throwable $e) {
+            Log::warning('campaign.notify_client.failed', [
+                'campaign_id' => $campaign->id,
+                'error'       => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Échec de l\'envoi du mail au client — vérifiez les logs.');
+        }
+
+        if (!$sent) {
+            return back()->with('error', 'Le mail n\'a pas pu être envoyé (vérifiez les logs).');
+        }
+
+        Log::info('campaign.notify_client', [
+            'campaign_id' => $campaign->id,
+            'user_id'     => auth()->id(),
+        ]);
+
+        return back()->with('success', '✅ Récap envoyé au client (panneaux et montants actuels).');
+    }
+
+    /**
      * Endpoint JSON léger pour rafraîchir la progression sans recharger la page.
      * Appelé par le JS toutes les 60 secondes sur la page show.
      */
@@ -466,12 +517,34 @@ class CampaignController extends Controller
                     $data['commercial_user_id'] = auth()->id();
                 }
 
-                // Statut initial dérivé des dates
-                $today = now()->startOfDay();
-                $start = \Carbon\Carbon::parse($data['start_date'])->startOfDay();
-                $data['status'] = $start->gt($today)
-                    ? CampaignStatus::PLANIFIE->value
-                    : CampaignStatus::ACTIF->value;
+                // ── Statut initial ────────────────────────────────────
+                // Règle UX nouvelle (workflow campagne directe) :
+                //
+                // 1. Si la campagne provient d'une réservation, on connaît
+                //    déjà tous les panneaux + prix → statut dérivé des dates
+                //    comme avant (ACTIF si déjà commencée, PLANIFIE sinon)
+                //    et mail client envoyé en aval.
+                //
+                // 2. Si la campagne est créée EN DIRECT (sans réservation),
+                //    on n'a encore aucun panneau ni prix → on force PLANIFIE
+                //    quel que soit start_date. L'utilisateur ajoute ensuite
+                //    les panneaux + prix négocié + commercial, PUIS clique
+                //    "▶ Démarrer la campagne" pour passer ACTIF + envoyer
+                //    le mail client avec les vraies infos.
+                //
+                // Sans cette règle, une campagne directe créée le jour J
+                // partait en ACTIF immédiatement → mail client envoyé avec
+                // 0 panneau → faux montant chez le client.
+                $isDirect = empty($data['reservation_id']);
+                if ($isDirect) {
+                    $data['status'] = CampaignStatus::PLANIFIE->value;
+                } else {
+                    $today = now()->startOfDay();
+                    $start = \Carbon\Carbon::parse($data['start_date'])->startOfDay();
+                    $data['status'] = $start->gt($today)
+                        ? CampaignStatus::PLANIFIE->value
+                        : CampaignStatus::ACTIF->value;
+                }
 
                 $reservation = null;
                 if (!empty($data['reservation_id'])) {
@@ -536,17 +609,23 @@ class CampaignController extends Controller
                 return $campaign;
             });
 
-            // Email au client après création (hors transaction pour ne pas
-            // bloquer si SMTP lent). Pas d'envoi si la campagne a 0 panneau
-            // (rare, mais le service le gère via sendSilently).
+            // ── Mail client à la création ─────────────────────────────
+            // Envoyé UNIQUEMENT pour les campagnes créées depuis une
+            // réservation (panneaux et prix déjà connus). Pour les
+            // campagnes directes, on attend l'action explicite
+            // "▶ Démarrer la campagne" sur la fiche show — ce qui garantit
+            // que le mail part avec les vrais panneaux/prix.
             $mailSent = false;
-            try {
-                $mailSent = $this->campaignService->sendStartedMailToClient($campaign);
-            } catch (\Throwable $e) {
-                Log::warning('campaign.created.mail_failed', [
-                    'campaign_id' => $campaign->id,
-                    'error'       => $e->getMessage(),
-                ]);
+            $isDirectCreation = empty($data['reservation_id']);
+            if (!$isDirectCreation) {
+                try {
+                    $mailSent = $this->campaignService->sendStartedMailToClient($campaign);
+                } catch (\Throwable $e) {
+                    Log::warning('campaign.created.mail_failed', [
+                        'campaign_id' => $campaign->id,
+                        'error'       => $e->getMessage(),
+                    ]);
+                }
             }
 
             // Notif commercial assigné si différent du créateur
@@ -555,7 +634,9 @@ class CampaignController extends Controller
             }
 
             $msg = "Campagne « {$campaign->name} » créée avec succès.";
-            if ($mailSent) {
+            if ($isDirectCreation) {
+                $msg .= ' Ajoutez les panneaux et le prix négocié, puis cliquez sur « ▶ Démarrer la campagne » pour la lancer.';
+            } elseif ($mailSent) {
                 $msg .= ' Email envoyé au client.';
             } elseif ($campaign->client?->email) {
                 $msg .= ' (envoi email au client échoué — vérifie les logs)';
@@ -788,16 +869,33 @@ class CampaignController extends Controller
         ]);
 
         if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
-            return back()->with('error', 'Impossible de modifier le prix sur une campagne en pause, terminée ou annulée.');
+            $isAjax = $request->expectsJson() || $request->ajax();
+            $msg = 'Impossible de modifier le prix sur une campagne en pause, terminée ou annulée.';
+            return $isAjax
+                ? response()->json(['ok' => false, 'error' => $msg], 422)
+                : back()->with('error', $msg);
+        }
+
+        // Vérifie que le panneau est bien dans la campagne (sécurité).
+        // Les campagnes directes ont une "réservation technique" créée
+        // automatiquement au premier addPanels() — le pivot
+        // reservation_panels existe donc toujours dès qu'un panneau est lié.
+        if (!$campaign->panels()->where('panels.id', $panel->id)->exists()) {
+            $isAjax = $request->expectsJson() || $request->ajax();
+            $msg = 'Ce panneau n\'est pas dans la campagne.';
+            return $isAjax
+                ? response()->json(['ok' => false, 'error' => $msg], 404)
+                : back()->with('error', $msg);
         }
 
         if (!$campaign->reservation_id) {
-            return back()->with('error', 'Aucune réservation associée à cette campagne. Le prix ne peut être modifié.');
-        }
-
-        // Vérifie que le panneau est bien dans la campagne (sécurité)
-        if (!$campaign->panels()->where('panels.id', $panel->id)->exists()) {
-            return back()->with('error', 'Ce panneau n\'est pas dans la campagne.');
+            // Cas théoriquement impossible (addPanels crée toujours une
+            // résa technique). Filet de sécurité.
+            $isAjax = $request->expectsJson() || $request->ajax();
+            $msg = 'État incohérent — la campagne a un panneau sans réservation pivot. Contactez le support.';
+            return $isAjax
+                ? response()->json(['ok' => false, 'error' => $msg], 500)
+                : back()->with('error', $msg);
         }
 
         $months = $campaign->billableMonths();
@@ -812,7 +910,6 @@ class CampaignController extends Controller
                 'updated_at'  => now(),
             ]);
 
-        // Recalcule via la SDV (somme des pivots de la résa)
         $this->campaignService->recalculateCampaignAmount($campaign->fresh());
 
         Log::info('campaign.panel_price_updated', [
@@ -828,6 +925,18 @@ class CampaignController extends Controller
             auth()->user()?->name . " a modifié le prix du panneau {$panel->reference} à " . number_format($unit, 0, ',', ' ') . " FCFA/mois",
             $campaign
         );
+
+        // Réponse adaptée au type d'appel (AJAX inline edit / form classique)
+        if ($request->expectsJson() || $request->ajax()) {
+            $campaign->refresh();
+            return response()->json([
+                'ok'             => true,
+                'unit_price'     => $unit,
+                'total_period'   => round($unit * $months, 2),
+                'campaign_total' => (float) $campaign->total_amount,
+                'message'        => 'Prix mis à jour.',
+            ]);
+        }
 
         return back()->with('success', 'Prix mis à jour. Total campagne recalculé.');
     }
