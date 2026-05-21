@@ -48,3 +48,10 @@ Schedule::command('campaigns:activate-planned')->dailyAt('00:05');
 Schedule::command('propositions:send-reminders')
     ->dailyAt('09:00')
     ->withoutOverlapping();
+
+// 8. Relances factures impayées (J+7, J+14, J+30 depuis issued_at).
+//    Idempotent : le N° de relance est stocké en metadata du PublicLink
+//    pour éviter d'envoyer 2× la même relance.
+Schedule::command('invoices:send-reminders')
+    ->dailyAt('09:15')
+    ->withoutOverlapping();

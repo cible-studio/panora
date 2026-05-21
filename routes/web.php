@@ -35,6 +35,14 @@ Route::middleware('auth')->prefix('api/alerts')->name('api.alerts.')->group(func
 
 
 
+// ── Liens publics sécurisés (factures, piges, réservations, décap) ──
+// Token 256 bits + expiration + révocation + audit + throttle 20/min/IP.
+// Géré par PublicLinkController qui dispatche selon le type de lien.
+Route::get('/p/{token}', [\App\Http\Controllers\PublicLinkController::class, 'show'])
+    ->middleware(['throttle:20,1', \App\Http\Middleware\SetFrenchLocale::class])
+    ->where('token', '[a-f0-9]{64}')
+    ->name('public-link.show');
+
 require __DIR__ . '/auth.php';
 require __DIR__ . '/admin.php';
 

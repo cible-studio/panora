@@ -292,17 +292,62 @@ class PigeController extends Controller
             }
         }
  
+        $statusWasNotVerified = $pige->status !== 'verifie';
         $pige->update($data);
- 
+
         \Illuminate\Support\Facades\Log::info('pige.updated', [
             'pige_id' => $pige->id,
             'by'      => auth()->id(),
             'changes' => array_keys($data),
         ]);
- 
+
+        // ── Notification email client si la pige vient d'être validée ──
+        if ($statusWasNotVerified && ($data['status'] ?? null) === 'verifie') {
+            $this->notifyClientPigeValidated($pige);
+        }
+
         return redirect()
             ->route('admin.piges.show', $pige)
             ->with('success', 'Pige mise à jour avec succès.');
+    }
+
+    /**
+     * Notifie le client par email qu'une pige a été validée.
+     * - Génère un PublicLink sécurisé (30 jours, hex 256 bits).
+     * - Envoi via NotificationMailer (try/catch — ne casse jamais le flux).
+     */
+    protected function notifyClientPigeValidated(\App\Models\Pige $pige): void
+    {
+        $client = $pige->campaign?->client;
+        if (!$client?->email) {
+            \Illuminate\Support\Facades\Log::info('pige.notify.skipped', [
+                'pige_id' => $pige->id, 'reason' => 'no_client_email',
+            ]);
+            return;
+        }
+
+        try {
+            $link = \App\Services\PublicLinkService::create(
+                target:   $pige,
+                type:     'pige',
+                expiresAt: now()->addDays(30),
+                clientId: $client->id,
+                metadata: ['campaign_id' => $pige->campaign_id, 'panel_id' => $pige->panel_id],
+            );
+
+            $mailer = app(\App\Services\NotificationMailer::class);
+            $mailer->sendSilently(
+                $client->email,
+                new \App\Mail\PigeValidatedMail($pige->loadMissing('panel.commune','campaign.client'), $link),
+                cc: null,
+                context: ['pige_id' => $pige->id, 'client_id' => $client->id],
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('pige.notify.failed', [
+                'pige_id' => $pige->id,
+                'error'   => $e->getMessage(),
+            ]);
+        }
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -364,6 +409,7 @@ class PigeController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function verify(Request $request, Pige $pige)
     {
+        $wasNotVerified = $pige->status !== 'verifie';
         $result = $this->pigeService->verify($pige, auth()->user());
 
         if (!$result['ok']) {
@@ -371,6 +417,11 @@ class PigeController extends Controller
                 return response()->json(['success' => false, 'message' => $result['error']], 422);
             }
             return back()->with('error', $result['error']);
+        }
+
+        // Notification email client (si transition vers vérifiée)
+        if ($wasNotVerified) {
+            $this->notifyClientPigeValidated($pige->fresh()->loadMissing('campaign.client','panel.commune'));
         }
 
         if ($request->wantsJson()) {
@@ -492,7 +543,10 @@ class PigeController extends Controller
 
         foreach ($piges as $pige) {
             $result = $this->pigeService->verify($pige, auth()->user());
-            if ($result['ok']) $count++;
+            if ($result['ok']) {
+                $count++;
+                $this->notifyClientPigeValidated($pige->fresh()->loadMissing('campaign.client','panel.commune'));
+            }
         }
 
         return response()->json([
