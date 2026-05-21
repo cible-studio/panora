@@ -262,6 +262,19 @@
                             <span data-campaign-total>{{ number_format($campaign->total_amount, 0, ',', ' ') }}</span>
                             <span class="text-xs font-normal" style="color:var(--text3)">FCFA</span>
                         </div>
+                        @php
+                            $isOverridden = $campaign->isTotalAmountOverridden();
+                            $overrideBy = $isOverridden ? $campaign->totalAmountOverriddenBy : null;
+                        @endphp
+                        <div data-override-badge
+                             style="{{ $isOverridden ? '' : 'display:none;' }}margin-top:6px;display:{{ $isOverridden ? 'inline-flex' : 'none' }};align-items:center;gap:5px;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:rgba(232,160,32,0.12);color:var(--accent);border:1px solid rgba(232,160,32,0.3);">
+                            <span>💡 Négocié</span>
+                            @if($isOverridden)
+                                <span data-override-by style="color:var(--text2);font-weight:500">par {{ $overrideBy?->name ?? '—' }} · {{ $campaign->total_amount_overridden_at?->format('d/m/Y H:i') }}</span>
+                            @else
+                                <span data-override-by style="color:var(--text2);font-weight:500"></span>
+                            @endif
+                        </div>
                     </div>
 
                     {{-- Réservation --}}
@@ -1139,7 +1152,36 @@
     @endif
 
     {{-- ── SCRIPTS ── --}}
+    {{-- Conteneur des toasts (notifications inline non bloquantes). --}}
+    <div id="campaign-toast-container"
+         style="position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none"></div>
+
     <script>
+    // ─────────────────────────────────────────────────────────────────
+    // TOAST HELPER — message éphémère discret (3 s)
+    // Couleurs : success vert · error rouge · info bleu (défaut)
+    // ─────────────────────────────────────────────────────────────────
+    function showToast(message, type = 'success', duration = 3500) {
+        const container = document.getElementById('campaign-toast-container');
+        if (!container) { console.log(message); return; }
+        const bg = type === 'error'   ? '#ef4444'
+                : type === 'success' ? '#16a34a'
+                : '#3b82f6';
+        const el = document.createElement('div');
+        el.style.cssText = 'pointer-events:auto;background:' + bg + ';color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 6px 16px rgba(0,0,0,.18);max-width:380px;opacity:0;transform:translateY(-10px);transition:all .25s ease-out;cursor:pointer';
+        el.textContent = message;
+        el.onclick = () => el.remove();
+        container.appendChild(el);
+        // Animation d'entrée
+        requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
+        // Animation de sortie
+        setTimeout(() => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(-10px)';
+            setTimeout(() => el.remove(), 250);
+        }, duration);
+    }
+
     // ─────────────────────────────────────────────────────────────────
     // PROGRESSION DYNAMIQUE
     // - Polling JSON toutes les 60 s pour synchro serveur (statut, jours)
@@ -1465,11 +1507,23 @@
                     const totalCell = row?.querySelector('[data-total-period]');
                     if (totalCell) totalCell.textContent = formatFCFA(data.total_period);
 
-                    // Bandeau "Montant total" en haut de la page
+                    // Bandeau "Montant total" en haut de la page +
+                    // synchronise data-total-amount (sinon le bouton
+                    // Ajuster lirait l'ancienne valeur).
                     const headerTotal = document.querySelector('[data-campaign-total]');
                     if (headerTotal && typeof data.campaign_total === 'number') {
                         headerTotal.textContent = Math.round(data.campaign_total).toLocaleString('fr-FR');
                     }
+                    const totalCellRoot = document.querySelector('[data-total-cell]');
+                    if (totalCellRoot && typeof data.campaign_total === 'number') {
+                        totalCellRoot.dataset.totalAmount = data.campaign_total;
+                        // Modif d'un prix unitaire → l'override forfaitaire
+                        // précédent (s'il existait) est devenu invalide.
+                        const badge = totalCellRoot.querySelector('[data-override-badge]');
+                        if (badge) badge.style.display = 'none';
+                    }
+
+                    showToast('💰 Prix mis à jour. Montant total recalculé.', 'success');
                 } catch (e) {
                     hint.textContent = '⚠️ Réseau : ' + e.message;
                     hint.style.color = '#ef4444';
@@ -1526,10 +1580,13 @@
             input.focus();
             input.select();
 
-            function restoreSpan(newVal) {
+            function restoreSpan(newVal, formatted) {
                 const span = document.createElement('span');
                 span.dataset.campaignTotal = '';
-                span.textContent = Math.round(newVal).toLocaleString('fr-FR');
+                // Si le serveur fournit la version formatée, on l'utilise
+                // pour garantir la cohérence avec le rendu PHP (espace
+                // insécable, etc). Sinon fallback toLocaleString.
+                span.textContent = formatted || Math.round(newVal).toLocaleString('fr-FR');
                 input.replaceWith(span);
                 cell.dataset.editing = '0';
             }
@@ -1560,11 +1617,28 @@
                         return;
                     }
                     cell.dataset.totalAmount = data.total_amount;
-                    restoreSpan(data.total_amount);
+                    // Utilise le formatage côté serveur (espace insécable
+                    // français, pas de décimales) pour rester identique à
+                    // ce que PHP affiche au reload.
+                    restoreSpan(data.total_amount, data.total_amount_formatted);
+
+                    // Met à jour le badge "Négocié par X · DD/MM HH:mm"
+                    updateOverrideBadge(data.overridden_by, data.overridden_at_formatted);
+
+                    // Toast de confirmation
+                    showToast(data.message || '✅ Montant total mis à jour.', 'success');
                 } catch (e) {
                     alert('⚠️ Erreur réseau : ' + e.message);
                     input.disabled = false;
                 }
+            }
+
+            function updateOverrideBadge(by, when) {
+                const badge   = cell.querySelector('[data-override-badge]');
+                const byLabel = cell.querySelector('[data-override-by]');
+                if (!badge) return;
+                badge.style.display = 'inline-flex';
+                if (byLabel) byLabel.textContent = 'par ' + (by || '—') + ' · ' + (when || '');
             }
 
             input.addEventListener('keydown', e => {

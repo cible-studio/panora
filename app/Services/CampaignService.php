@@ -659,10 +659,16 @@ class CampaignService
             $total = ($sumRateInternal + $sumRateExternal) * $months;
         }
 
+        // Quand on recalcule (ajout/retrait panneau, modif prix unitaire),
+        // l'éventuel override forfaitaire perd de sa pertinence — on le
+        // nettoie pour repartir sur un total "calculé propre". L'admin
+        // pourra ré-overrider après si besoin.
         $campaign->update([
-            'total_panels' => $countInternal + $countExternal,
-            'total_amount' => round($total, 2),
-            'updated_by'   => auth()->id(),
+            'total_panels'                  => $countInternal + $countExternal,
+            'total_amount'                  => round($total, 2),
+            'total_amount_overridden_at'    => null,
+            'total_amount_overridden_by_id' => null,
+            'updated_by'                    => auth()->id(),
         ]);
     }
 
