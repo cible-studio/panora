@@ -70,9 +70,9 @@
     @endforeach
 </div>
 
-{{-- ════ FILTRES ═════════════════════════════════════════════════ --}}
+{{-- ════ FILTRES (auto-submit) ═══════════════════════════════════ --}}
 <div class="card" style="margin-bottom:16px;">
-    <form method="GET" action="{{ route('admin.audit.logs') }}">
+    <form id="audit-filter-form" method="GET" action="{{ route('admin.audit.logs') }}">
         {{-- conserve le filtre KPI courant si l'utilisateur change les autres champs --}}
         @if($currentKind)
             <input type="hidden" name="kind" value="{{ $currentKind }}">
@@ -93,13 +93,8 @@
                 <label class="filter-label">Action</label>
                 <input type="text" name="action" class="filter-input"
                        value="{{ request('action') }}" placeholder="Ex: created, updated…"
+                       oninput="auditDebounceSubmit()"
                        style="min-width:180px;">
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">&nbsp;</label>
-                <button type="submit" class="btn btn-primary btn-sm" style="height:38px;">
-                    🔍 Filtrer
-                </button>
             </div>
             @if(request()->hasAny(['user_id', 'action', 'kind']))
             <div class="filter-group">
@@ -239,6 +234,14 @@
 function toggleAuditDetail(id) {
     const row = document.getElementById('audit-detail-' + id);
     if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+
+let auditFilterTimer = null;
+function auditDebounceSubmit() {
+    clearTimeout(auditFilterTimer);
+    auditFilterTimer = setTimeout(() => {
+        document.getElementById('audit-filter-form').submit();
+    }, 400);
 }
 </script>
 

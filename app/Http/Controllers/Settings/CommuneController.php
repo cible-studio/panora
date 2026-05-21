@@ -72,6 +72,10 @@ class CommuneController extends Controller
             $msg .= ' Tarifs historisés (les calculs rétroactifs gardent les anciennes valeurs).';
         }
 
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => $msg]);
+        }
+
         return redirect()->route('admin.settings.communes.index')
             ->with('success', $msg);
     }

@@ -53,6 +53,10 @@ class ZoneController extends Controller
 
         $zone->update($request->all());
 
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Zone modifiée avec succès !']);
+        }
+
         return redirect()->route('admin.settings.zones.index')
             ->with('success', 'Zone modifiée avec succès !');
     }
