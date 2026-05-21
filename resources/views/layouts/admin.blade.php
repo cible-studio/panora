@@ -288,6 +288,25 @@
         document.removeEventListener('keydown', _lbKey);
     }
     function _lbKey(e) { if (e.key === 'Escape') closeLightbox(); }
+
+    // ════════════════════════════════════════════════════════════════
+    // Bouton Retour universel : intercepte les liens dans .topbar-left
+    // dont le texte contient "Retour" pour faire history.back() si on a
+    // un referrer interne. Sinon on laisse la navigation normale vers
+    // l'URL hardcodée (fallback fiable pour les ouvertures en direct).
+    // ════════════════════════════════════════════════════════════════
+    document.addEventListener('click', function (e) {
+        const link = e.target.closest('.topbar-left a');
+        if (!link) return;
+        if (!/retour/i.test(link.textContent || '')) return;
+        // referrer interne et différent de l'URL actuelle = on peut revenir
+        const ref = document.referrer;
+        if (ref && ref !== location.href && ref.startsWith(location.origin)) {
+            e.preventDefault();
+            history.back();
+        }
+        // Sinon : on laisse l'<a> naviguer vers son href (fallback)
+    });
     </script>
 
     <style>
