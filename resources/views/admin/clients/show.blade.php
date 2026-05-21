@@ -1,4 +1,22 @@
-<x-admin-layout title="{{ $client->name }}">
+@php
+    // ── Split à la volée des noms importés "PERSONNE / ENTREPRISE" ──
+    // Tant que la commande de correction (admin.clients.fix-import-names)
+    // n'a pas été appliquée, certains clients ont encore un name au format
+    // "ARMÈLE DJO / BEM" avec contact_name vide. On split visuellement
+    // SANS toucher la base : entreprise = partie droite du dernier ' / ',
+    // contact = partie gauche.
+    $displayName    = $client->name;
+    $displayContact = $client->contact_name;
+    if (!$displayContact && str_contains($client->name, ' / ')) {
+        $pos = mb_strrpos($client->name, ' / ');
+        if ($pos !== false) {
+            $displayContact = trim(mb_substr($client->name, 0, $pos));
+            $displayName    = trim(mb_substr($client->name, $pos + 3));
+        }
+    }
+@endphp
+
+<x-admin-layout title="{{ $displayName }}">
 
 <x-slot:topbarLeft>
     <a href="{{ route('admin.clients.index') }}" class="btn btn-ghost btn-sm">
@@ -25,7 +43,7 @@
     <a href="{{ route('admin.clients.index') }}"
        style="color:var(--text3);text-decoration:none;">Clients</a>
     <span style="margin:0 6px;">›</span>
-    <span style="color:var(--text);">{{ $client->name }}</span>
+    <span style="color:var(--text);">{{ $displayName }}</span>
 </div>
 
 <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start;">
@@ -40,10 +58,10 @@
             <div style="width:60px;height:60px;border-radius:50%;background:var(--accent);
                         color:#000;display:flex;align-items:center;justify-content:center;
                         font-weight:800;font-size:24px;margin:0 auto 12px;">
-                {{ strtoupper(substr($client->name, 0, 1)) }}
+                {{ strtoupper(mb_substr($displayName, 0, 1)) }}
             </div>
             <div style="font-weight:800;font-size:16px;color:var(--text);margin-bottom:6px;">
-                {{ $client->name }}
+                {{ $displayName }}
             </div>
             @if($client->ncc)
             <div style="font-family:monospace;font-size:12px;background:var(--surface2);
@@ -65,7 +83,7 @@
         {{-- Infos --}}
         <div style="padding:16px 20px;">
             @foreach([
-                ['👤 Contact',   $client->contact_name],
+                ['👤 Contact',   $displayContact],
                 ['📧 Email',     $client->email],
                 ['📞 Téléphone', $client->phone],
                 ['🏷️ Secteur',   $client->sector],
