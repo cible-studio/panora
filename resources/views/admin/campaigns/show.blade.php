@@ -127,65 +127,6 @@
         </div>
     @endif
 
-    {{-- ── QUICK ACTIONS — duplication / poses / piges / contact ── --}}
-    @php
-        $qaIntCount = $campaign->panels->count();
-        $qaPoseDone = \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'realisee')->count();
-        $qaPoseTotal = \App\Models\PoseTask::where('campaign_id', $campaign->id)->whereNotIn('status', ['annulee'])->count();
-        $qaPigeOk = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'verifie')->count();
-        $qaPigePend = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'en_attente')->count();
-    @endphp
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        @if($can['update'] && $campaign->status->value !== 'annule')
-        <button type="button" onclick="openDuplicateModal()"
-                class="w-full rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
-                style="background:var(--surface);border-color:var(--border);cursor:pointer;text-align:left">
-            <span class="text-2xl">🔁</span>
-            <div class="min-w-0">
-                <div class="font-bold text-sm" style="color:var(--text)">Renouveler</div>
-                <div class="text-xs" style="color:var(--text3)">Dupliquer cette campagne</div>
-            </div>
-        </button>
-        @endif
-        <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
-           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
-           style="background:var(--surface);border-color:var(--border);text-decoration:none">
-            <span class="text-2xl">🔧</span>
-            <div class="min-w-0">
-                <div class="font-bold text-sm" style="color:var(--text)">Poses & tâches</div>
-                <div class="text-xs" style="color:var(--text3)">
-                    @if($qaPoseTotal > 0)
-                        {{ $qaPoseDone }}/{{ $qaPoseTotal }} réalisées
-                    @else
-                        Aucune pose
-                    @endif
-                </div>
-            </div>
-        </a>
-        <a href="{{ route('admin.piges.index', ['campaign_id' => $campaign->id]) }}"
-           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
-           style="background:var(--surface);border-color:var(--border);text-decoration:none">
-            <span class="text-2xl">📸</span>
-            <div class="min-w-0">
-                <div class="font-bold text-sm" style="color:var(--text)">Piges photo</div>
-                <div class="text-xs" style="color:var(--text3)">
-                    {{ $qaPigeOk }} validées{{ $qaPigePend > 0 ? ' · '.$qaPigePend.' en attente' : '' }}
-                </div>
-            </div>
-        </a>
-        @if($campaign->client?->email)
-        <a href="mailto:{{ $campaign->client->email }}?subject={{ urlencode('Campagne « ' . $campaign->name . ' »') }}"
-           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
-           style="background:var(--surface);border-color:var(--border);text-decoration:none">
-            <span class="text-2xl">✉️</span>
-            <div class="min-w-0">
-                <div class="font-bold text-sm" style="color:var(--text)">Contacter</div>
-                <div class="text-xs truncate" style="color:var(--text3)">{{ $campaign->client->email }}</div>
-            </div>
-        </a>
-        @endif
-    </div>
-
     {{-- ── ALERTE FIN PROCHE ── --}}
     <div id="campaign-ending-alert" class="mb-6 rounded-xl border p-4 flex items-center gap-4 {{ $endingSoon ? '' : 'hidden' }}"
          style="background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.3)">
@@ -369,8 +310,7 @@
 
                 {{-- ── Facturation — intégrée dans la fiche Informations
                      (l'ancien bloc 4 mini-stats Panneaux/Poses/Piges/Contact
-                     est désormais en Quick Actions tout en haut de la page,
-                     pas la peine de le dupliquer ici). ── --}}
+                     est désormais en Quick Actions, sous Informations + Actions). ── --}}
                 <div class="mt-6 pt-6 border-t" style="border-color:var(--border)">
                     <div class="text-xs uppercase font-semibold mb-3 flex items-center gap-2" style="color:var(--text3)">
                         💰 Facturation
@@ -534,6 +474,64 @@
             </div>
 
         </div>
+    </div>
+
+    {{-- ── QUICK ACTIONS — duplication / poses / piges / contact (déplacé sous Informations + Actions) ── --}}
+    @php
+        $qaPoseDone = \App\Models\PoseTask::where('campaign_id', $campaign->id)->where('status', 'realisee')->count();
+        $qaPoseTotal = \App\Models\PoseTask::where('campaign_id', $campaign->id)->whereNotIn('status', ['annulee'])->count();
+        $qaPigeOk = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'verifie')->count();
+        $qaPigePend = \App\Models\Pige::where('campaign_id', $campaign->id)->where('status', 'en_attente')->count();
+    @endphp
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        @if($can['update'] && $campaign->status->value !== 'annule')
+        <button type="button" onclick="openDuplicateModal()"
+                class="w-full rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
+                style="background:var(--surface);border-color:var(--border);cursor:pointer;text-align:left">
+            <span class="text-2xl">🔁</span>
+            <div class="min-w-0">
+                <div class="font-bold text-sm" style="color:var(--text)">Renouveler</div>
+                <div class="text-xs" style="color:var(--text3)">Dupliquer cette campagne</div>
+            </div>
+        </button>
+        @endif
+        <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
+           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
+           style="background:var(--surface);border-color:var(--border);text-decoration:none">
+            <span class="text-2xl">🔧</span>
+            <div class="min-w-0">
+                <div class="font-bold text-sm" style="color:var(--text)">Poses & tâches</div>
+                <div class="text-xs" style="color:var(--text3)">
+                    @if($qaPoseTotal > 0)
+                        {{ $qaPoseDone }}/{{ $qaPoseTotal }} réalisées
+                    @else
+                        Aucune pose
+                    @endif
+                </div>
+            </div>
+        </a>
+        <a href="{{ route('admin.piges.index', ['campaign_id' => $campaign->id]) }}"
+           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
+           style="background:var(--surface);border-color:var(--border);text-decoration:none">
+            <span class="text-2xl">📸</span>
+            <div class="min-w-0">
+                <div class="font-bold text-sm" style="color:var(--text)">Piges photo</div>
+                <div class="text-xs" style="color:var(--text3)">
+                    {{ $qaPigeOk }} validées{{ $qaPigePend > 0 ? ' · '.$qaPigePend.' en attente' : '' }}
+                </div>
+            </div>
+        </a>
+        @if($campaign->client?->email)
+        <a href="mailto:{{ $campaign->client->email }}?subject={{ urlencode('Campagne « ' . $campaign->name . ' »') }}"
+           class="rounded-xl border p-4 flex items-center gap-3 transition hover:shadow-md"
+           style="background:var(--surface);border-color:var(--border);text-decoration:none">
+            <span class="text-2xl">✉️</span>
+            <div class="min-w-0">
+                <div class="font-bold text-sm" style="color:var(--text)">Contacter</div>
+                <div class="text-xs truncate" style="color:var(--text3)">{{ $campaign->client->email }}</div>
+            </div>
+        </a>
+        @endif
     </div>
 
     {{-- ── PANNEAUX ── --}}
