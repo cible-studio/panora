@@ -1,12 +1,12 @@
 {{-- resources/views/admin/piges/create.blade.php --}}
 <x-admin-layout title="Uploader des piges">
 
-<x-slot:topbarActions>
+<x-slot:topbarLeft>
     <a href="{{ route('admin.piges.index') }}" class="btn btn-ghost btn-sm" style="display:flex;align-items:center;gap:5px">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         Retour
     </a>
-</x-slot:topbarActions>
+</x-slot:topbarLeft>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
 

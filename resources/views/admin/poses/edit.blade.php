@@ -1,7 +1,10 @@
 <x-admin-layout title="Modifier tâche — {{ $poseTask->panel?->reference }}">
 
-<x-slot:topbarActions>
+<x-slot:topbarLeft>
     <a href="{{ route('admin.pose-tasks.show', $poseTask) }}" class="btn btn-ghost btn-sm">← Retour</a>
+</x-slot:topbarLeft>
+
+<x-slot:topbarActions>
     @if(!in_array($poseTask->status, ['realisee','annulee']))
     <form method="POST" action="{{ route('admin.pose.complete', $poseTask) }}" style="display:inline">
         @csrf
