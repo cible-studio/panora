@@ -235,6 +235,20 @@
             ];
         @endphp
 
+        {{-- Barre de recherche live — utile dès que le tech a une vingtaine
+             de poses. Filtre côté JS sur référence + nom + commune + campagne. --}}
+        @if($totalActive >= 8)
+            <div style="margin-bottom:14px;position:relative">
+                <input type="search" id="pose-search" placeholder="🔍 Rechercher un panneau, commune, campagne…"
+                       style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;outline:none;-webkit-appearance:none"
+                       autocomplete="off">
+                <div id="pose-search-empty"
+                     style="display:none;margin-top:10px;padding:14px;text-align:center;color:var(--text3);background:var(--surface);border:1px dashed var(--border);border-radius:10px;font-size:13px">
+                    Aucune pose ne correspond à ta recherche.
+                </div>
+            </div>
+        @endif
+
         @foreach(['overdue', 'today', 'tomorrow', 'week', 'later'] as $dayKey)
             @if(isset($groupedByDay[$dayKey]) && $groupedByDay[$dayKey]->count() > 0)
                 <div class="day-section">
@@ -268,7 +282,20 @@
                             $canWork  = in_array(\App\Enums\PoseTaskStatus::IN_PROGRESS, $allowedNext, true);
                             $canDone  = in_array(\App\Enums\PoseTaskStatus::COMPLETED, $allowedNext, true);
                         @endphp
-                        <div class="pose" data-task-id="{{ $task->id }}">
+                        @php
+                            // Données concaténées pour la recherche live (lowercase, sans accents
+                            // pas indispensable pour l'usage CIBLE CI mais pratique).
+                            $searchHay = mb_strtolower(implode(' ', array_filter([
+                                $task->panel?->reference,
+                                $task->panel?->name,
+                                $task->panel?->commune?->name,
+                                $task->panel?->quartier,
+                                $task->panel?->adresse,
+                                $task->campaign?->name,
+                                $task->campaign?->client?->name,
+                            ])));
+                        @endphp
+                        <div class="pose" data-task-id="{{ $task->id }}" data-search="{{ $searchHay }}">
                             <div class="pose-head">
                                 <div style="flex:1; min-width:0">
                                     <div class="pose-ref">{{ $task->panel?->reference ?? '—' }}</div>
@@ -515,6 +542,38 @@
             input.value = '';
         }
     });
+
+    // ── Recherche live ─────────────────────────────────────
+    // Filtre les cards par référence/nom/commune/campagne. Active
+    // dès que le tech tape (debounce 100ms).
+    const searchInput = document.getElementById('pose-search');
+    const searchEmpty = document.getElementById('pose-search-empty');
+    if (searchInput) {
+        let debounce;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(debounce);
+            debounce = setTimeout(applySearch, 100);
+        });
+    }
+    function applySearch() {
+        const q = (searchInput?.value || '').trim().toLowerCase();
+        let visible = 0;
+        document.querySelectorAll('.pose').forEach(card => {
+            const hay = card.dataset.search || '';
+            const match = q === '' || hay.includes(q);
+            card.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        // Cache les sections de jour vides après filtrage
+        document.querySelectorAll('.day-section').forEach(section => {
+            const has = Array.from(section.querySelectorAll('.pose'))
+                .some(p => p.style.display !== 'none');
+            section.style.display = has ? '' : 'none';
+        });
+        if (searchEmpty) {
+            searchEmpty.style.display = (q !== '' && visible === 0) ? 'block' : 'none';
+        }
+    }
 
     // Recalcule les compteurs "X poses" sous chaque date après retrait
     // d'une pose terminée (évite l'incohérence visuelle).
