@@ -144,7 +144,7 @@
                         <option value="">— Par défaut : moi-même —</option>
                         @foreach($commerciaux ?? [] as $c)
                             <option value="{{ $c->id }}" {{ old('commercial_user_id', auth()->id()) == $c->id ? 'selected' : '' }}>
-                                {{ $c->name }} ({{ strtoupper($c->role ?? '') }})
+                                {{ $c->name }} ({{ strtoupper((string) ($c->role?->value ?? $c->role ?? '')) }})
                             </option>
                         @endforeach
                     </select>

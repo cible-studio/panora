@@ -142,7 +142,7 @@
                             @foreach($commerciaux ?? [] as $c)
                                 <option value="{{ $c->id }}"
                                     {{ old('commercial_user_id', $campaign->commercial_user_id) == $c->id ? 'selected' : '' }}>
-                                    {{ $c->name }} ({{ strtoupper($c->role ?? '') }})
+                                    {{ $c->name }} ({{ strtoupper((string) ($c->role?->value ?? $c->role ?? '')) }})
                                 </option>
                             @endforeach
                         </select>
