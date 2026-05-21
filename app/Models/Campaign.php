@@ -13,7 +13,7 @@ class Campaign extends Model
 
     protected $fillable = [
         'name', 'client_id', 'reservation_id',
-        'user_id', 'updated_by',
+        'user_id', 'commercial_user_id', 'updated_by',
         'start_date', 'end_date', 'status',
         'total_panels', 'total_amount', 'notes',
         'cancellation_reason', 'cancellation_notes',
@@ -46,6 +46,30 @@ class Campaign extends Model
     public function updatedBy()
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /**
+     * Commercial assigné — responsable du suivi relation client + emails.
+     * Si null → fallback sur user (créateur) via resolveCommercialContact().
+     */
+    public function commercial()
+    {
+        return $this->belongsTo(User::class, 'commercial_user_id');
+    }
+
+    /**
+     * Résout le commercial à contacter (priorité commercial assigné > créateur).
+     * Aligne le pattern Reservation::resolveCommercialContact().
+     */
+    public function resolveCommercialContact(): ?User
+    {
+        try {
+            $c = $this->commercial;
+            if ($c) return $c;
+        } catch (\Throwable) {
+            // colonne pas encore migrée
+        }
+        return $this->user;
     }
 
     public function reservation()

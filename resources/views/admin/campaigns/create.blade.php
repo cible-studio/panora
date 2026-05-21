@@ -129,6 +129,33 @@
                     @enderror
                 </div>
 
+                {{-- Commercial assigné --}}
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);
+                                  letter-spacing:.5px;display:block;margin-bottom:6px;">
+                        COMMERCIAL ASSIGNÉ
+                    </label>
+                    <select name="commercial_user_id"
+                            style="width:100%;background:var(--surface2);
+                                   border:1px solid {{ $errors->has('commercial_user_id') ? 'var(--red)' : 'var(--border2)' }};
+                                   border-radius:8px;padding:10px 14px;color:var(--text);
+                                   font-size:13px;outline:none;cursor:pointer;
+                                   box-sizing:border-box;">
+                        <option value="">— Par défaut : moi-même —</option>
+                        @foreach($commerciaux ?? [] as $c)
+                            <option value="{{ $c->id }}" {{ old('commercial_user_id', auth()->id()) == $c->id ? 'selected' : '' }}>
+                                {{ $c->name }} ({{ strtoupper($c->role ?? '') }})
+                            </option>
+                        @endforeach
+                    </select>
+                    <p style="font-size:10px;color:var(--text3);margin-top:4px;">
+                        Reçoit les notifications email + en-app pour suivre la campagne (poses, piges, fin imminente, etc.).
+                    </p>
+                    @error('commercial_user_id')
+                    <p style="font-size:11px;color:var(--red);margin-top:4px;">{{ $message }}</p>
+                    @enderror
+                </div>
+
                 {{-- Date début --}}
                 <div>
                     <label style="font-size:11px;font-weight:700;color:var(--text3);
