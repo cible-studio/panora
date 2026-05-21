@@ -758,6 +758,11 @@ class AvailabilityService
         // dans campaign_panels (qui n'a pas cette colonne) — il vit
         // dans reservation_panels via campaign.reservation_id. LEFT JOIN
         // pour retomber sur campaign.start_date si pas de pivot trouvé.
+        //
+        // On sélectionne aussi `c.reservation_id` (alias `linked_resa_id`)
+        // pour détecter les campagnes adossées à une réservation déjà
+        // listée dans $resas — ce ne sont PAS deux engagements distincts,
+        // c'est la même chose vue sous deux angles (filtrage en étape 4).
         $camps = DB::table('campaign_panels as cp')
             ->join('campaigns as c', 'c.id', '=', 'cp.campaign_id')
             ->leftJoin('reservation_panels as rpc', function ($j) {
@@ -771,6 +776,7 @@ class AvailabilityService
             ->whereNull('c.deleted_at')
             ->select('cp.panel_id',
                      'c.id as eid',
+                     'c.reservation_id as linked_resa_id',
                      'c.name as ref',
                      'c.client_id',
                      DB::raw('COALESCE(rpc.panel_start_date, c.start_date) as effective_start'),
@@ -779,6 +785,13 @@ class AvailabilityService
                      'c.status',
                      DB::raw("'campaign' as type"))
             ->get();
+
+        // Normalise : les réservations n'ont pas de linked_resa_id (on en
+        // ajoute un null pour éviter les accès propriété non définie).
+        $resas = $resas->map(function ($r) {
+            $r->linked_resa_id = null;
+            return $r;
+        });
 
         $all = $resas->concat($camps)->groupBy('panel_id');
 
@@ -792,6 +805,25 @@ class AvailabilityService
         // ── ÉTAPE 4 — Détection paire-à-paire avec date effective ────
         $conflicts = [];
         foreach ($all as $pid => $engagements) {
+            if ($engagements->count() < 2) continue;
+
+            // ── Dédoublonnage résa ↔ campagne adossée ─────────────────
+            // Si une campagne référence (via reservation_id) une réservation
+            // également listée dans les engagements, ce n'est PAS un conflit :
+            // c'est le même engagement vu sous deux angles (campaign_panels
+            // + reservation_panels). On retire la réservation source et on
+            // ne garde que la campagne, qui est l'entité "active".
+            $linkedResaIds = $engagements
+                ->where('type', 'campaign')
+                ->pluck('linked_resa_id')
+                ->filter()
+                ->all();
+
+            $engagements = $engagements->reject(function ($e) use ($linkedResaIds) {
+                return $e->type === 'reservation'
+                    && in_array((int) $e->eid, array_map('intval', $linkedResaIds), true);
+            })->values();
+
             if ($engagements->count() < 2) continue;
 
             $sorted = $engagements->sortBy('effective_start')->values();
