@@ -18,6 +18,7 @@ class Campaign extends Model
         'total_panels', 'total_amount', 'notes',
         'cancellation_reason', 'cancellation_notes',
         'pige_token', 'pige_token_created_at',
+        'total_amount_overridden_at', 'total_amount_overridden_by_id',
     ];
 
     protected $casts = [
@@ -27,7 +28,18 @@ class Campaign extends Model
         'total_panels' => 'integer',
         'status'       => CampaignStatus::class,
         'pige_token_created_at' => 'datetime',
+        'total_amount_overridden_at' => 'datetime',
     ];
+
+    public function totalAmountOverriddenBy()
+    {
+        return $this->belongsTo(User::class, 'total_amount_overridden_by_id');
+    }
+
+    public function isTotalAmountOverridden(): bool
+    {
+        return $this->total_amount_overridden_at !== null;
+    }
 
     /** Cache mémoire pour les helpers de progression (évite les recalculs répétés en Blade) */
     protected array $progressCache = [];

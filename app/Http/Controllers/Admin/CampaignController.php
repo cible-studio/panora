@@ -1276,7 +1276,11 @@ class CampaignController extends Controller
         $oldTotal = (float) $campaign->total_amount;
         $newTotal = round((float) $data['total_amount'], 2);
 
-        $campaign->update(['total_amount' => $newTotal]);
+        $campaign->update([
+            'total_amount'                  => $newTotal,
+            'total_amount_overridden_at'    => now(),
+            'total_amount_overridden_by_id' => auth()->id(),
+        ]);
 
         Log::info('campaign.total_overridden', [
             'campaign_id' => $campaign->id,
@@ -1294,15 +1298,23 @@ class CampaignController extends Controller
             $campaign
         );
 
+        $userName = auth()->user()?->name ?? '';
+        $whenIso  = now()->toIso8601String();
+        $whenFmt  = now()->format('d/m/Y à H:i');
+
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
-                'ok'           => true,
-                'total_amount' => $newTotal,
-                'message'      => 'Montant total mis à jour.',
+                'ok'                     => true,
+                'total_amount'           => $newTotal,
+                'total_amount_formatted' => number_format($newTotal, 0, ',', ' '),
+                'overridden_by'          => $userName,
+                'overridden_at'          => $whenIso,
+                'overridden_at_formatted'=> $whenFmt,
+                'message'                => '✅ Montant négocié enregistré : ' . number_format($newTotal, 0, ',', ' ') . ' FCFA.',
             ]);
         }
 
-        return back()->with('success', 'Montant total mis à jour.');
+        return back()->with('success', '✅ Montant négocié enregistré.');
     }
 
     // ══════════════════════════════════════════════════════════════
