@@ -35,6 +35,17 @@
             </thead>
             <tbody>
                 @forelse($communes as $commune)
+                @php
+                    $communeData = [
+                        'id'       => $commune->id,
+                        'name'     => $commune->name,
+                        'city'     => $commune->city,
+                        'region'   => $commune->region,
+                        'odp_rate' => $commune->odp_rate,
+                        'tm_rate'  => $commune->tm_rate,
+                        'db_rate'  => $commune->db_rate,
+                    ];
+                @endphp
                 <tr>
                     <td><strong>{{ $commune->name }}</strong></td>
                     <td>{{ $commune->city ?? '—' }}</td>
@@ -45,15 +56,8 @@
                     <td style="text-align:right">
                         <div style="display:inline-flex; gap:6px;">
                             <button type="button"
-                                    onclick='openCommuneModal("edit", @json([
-                                        "id" => $commune->id,
-                                        "name" => $commune->name,
-                                        "city" => $commune->city,
-                                        "region" => $commune->region,
-                                        "odp_rate" => $commune->odp_rate,
-                                        "tm_rate" => $commune->tm_rate,
-                                        "db_rate" => $commune->db_rate,
-                                    ]))'
+                                    data-commune='@json($communeData)'
+                                    onclick="openCommuneModal('edit', JSON.parse(this.dataset.commune))"
                                     class="btn btn-ghost btn-sm">✏️ Modifier</button>
                             <a href="{{ route('admin.settings.communes.edit', $commune) }}"
                                class="btn btn-ghost btn-sm" title="Détails / Historique tarifs">📊</a>

@@ -34,6 +34,16 @@
             </thead>
             <tbody>
                 @forelse($formats as $format)
+                @php
+                    $formatData = [
+                        'id'         => $format->id,
+                        'name'       => $format->name,
+                        'width'      => $format->width,
+                        'height'     => $format->height,
+                        'surface'    => $format->surface,
+                        'print_type' => $format->print_type,
+                    ];
+                @endphp
                 <tr>
                     <td><strong>{{ $format->name }}</strong></td>
                     <td>{{ $format->width ? $format->width . ' m' : '—' }}</td>
@@ -43,14 +53,8 @@
                     <td style="text-align:right">
                         <div style="display:inline-flex; gap:6px;">
                             <button type="button"
-                                    onclick='openFormatModal("edit", @json([
-                                        "id" => $format->id,
-                                        "name" => $format->name,
-                                        "width" => $format->width,
-                                        "height" => $format->height,
-                                        "surface" => $format->surface,
-                                        "print_type" => $format->print_type,
-                                    ]))'
+                                    data-format='@json($formatData)'
+                                    onclick="openFormatModal('edit', JSON.parse(this.dataset.format))"
                                     class="btn btn-ghost btn-sm">✏️ Modifier</button>
                             <form method="POST"
                                   action="{{ route('admin.settings.formats.destroy', $format) }}"
