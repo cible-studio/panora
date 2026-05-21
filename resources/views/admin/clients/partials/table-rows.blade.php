@@ -107,9 +107,9 @@
         @endif
     </td>
 
-    {{-- Actions dropdown --}}
+    {{-- Actions dropdown — position fixe + auto-flip top/bottom --}}
     <td>
-        <div class="ci-dd" style="position:relative;display:inline-block">
+        <div class="ci-dd" style="display:inline-block">
             <button type="button" class="ci-dd-toggle" data-dd-toggle
                     style="background:transparent;border:1px solid transparent;color:var(--text3);cursor:pointer;padding:6px 8px;border-radius:8px;transition:all .15s"
                     onmouseover="this.style.background='var(--surface2)';this.style.borderColor='var(--border)'"
@@ -118,7 +118,7 @@
                     <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
                 </svg>
             </button>
-            <div class="ci-dd-menu" style="position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:12px;min-width:200px;z-index:200;box-shadow:0 12px 32px rgba(0,0,0,.45);display:none;overflow:hidden">
+            <div class="ci-dd-menu" style="position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:12px;min-width:200px;z-index:9999;box-shadow:0 12px 32px rgba(0,0,0,.45);display:none;overflow:hidden">
                 <a href="{{ route('admin.clients.show', $client) }}" class="ci-dd-item">
                     <span>👁</span> Voir les détails
                 </a>
