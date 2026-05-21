@@ -581,11 +581,30 @@
             <div class="p-5" style="background:var(--surface2)">
                 <form method="POST" action="{{ route('admin.campaigns.panels.add', $campaign) }}">
                     @csrf
+                    {{-- Tabs source : Tous / Internes / Externes (régies partenaires) --}}
+                    <div class="flex gap-2 mb-4 flex-wrap">
+                        <button type="button" @click="setSource('all')"
+                                :style="filterSource === 'all' ? 'background:var(--accent);color:#fff;border-color:var(--accent)' : 'background:var(--surface);color:var(--text2);border-color:var(--border)'"
+                                class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all">
+                            Tous (<span x-text="allPanels.length"></span>)
+                        </button>
+                        <button type="button" @click="setSource('internal')"
+                                :style="filterSource === 'internal' ? 'background:#3b82f6;color:#fff;border-color:#3b82f6' : 'background:var(--surface);color:var(--text2);border-color:var(--border)'"
+                                class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all">
+                            🏢 Internes (<span x-text="counts.internal"></span>)
+                        </button>
+                        <button type="button" @click="setSource('external')"
+                                :style="filterSource === 'external' ? 'background:#7c3aed;color:#fff;border-color:#7c3aed' : 'background:var(--surface);color:var(--text2);border-color:var(--border)'"
+                                class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all">
+                            🤝 Régies partenaires (<span x-text="counts.external"></span>)
+                        </button>
+                    </div>
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
                         <div>
                             <label class="text-xs font-semibold block mb-2" style="color:var(--text3)">🔍 Recherche</label>
                             <input type="text" x-model="search" @input.debounce.250ms="filterPanels()"
-                                   placeholder="Référence, nom..."
+                                   placeholder="Référence, nom, régie..."
                                    class="w-full rounded-lg px-4 py-2.5 text-sm focus:outline-none"
                                    style="background:var(--surface);border:1px solid var(--border);color:var(--text)">
                         </div>
@@ -636,13 +655,21 @@
                         <template x-for="p in paginatedPanels" :key="p.id">
                             <label class="flex items-center gap-4 p-4 border-b last:border-0 cursor-pointer transition-all"
                                    style="border-color:var(--border)"
-                                   :style="selectedPanels.includes(p.id) ? 'background:var(--accent-dim);border-left:3px solid var(--accent)' : ''">
+                                   :style="(selectedPanels.includes(p.id) ? 'background:var(--accent-dim);border-left:3px solid var(--accent);' : '') + (p.source === 'external' ? 'background-color:rgba(124,58,237,0.04);' : '')">
                                 <input type="checkbox" :value="p.id" x-model="selectedPanels" name="panel_ids[]"
                                        class="w-4 h-4" style="accent-color:var(--accent)">
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-3 flex-wrap">
-                                        <span class="font-mono text-sm font-bold" style="color:var(--accent)" x-text="p.reference"></span>
+                                        <span class="font-mono text-sm font-bold"
+                                              :style="p.source === 'external' ? 'color:#7c3aed' : 'color:var(--accent)'"
+                                              x-text="p.reference"></span>
                                         <span class="font-medium truncate" style="color:var(--text)" x-text="p.name"></span>
+                                        <template x-if="p.source === 'external'">
+                                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                                  style="background:rgba(124,58,237,.12);color:#7c3aed">
+                                                Régie <span x-text="p.agency_name || 'partenaire'"></span>
+                                            </span>
+                                        </template>
                                     </div>
                                     <div class="flex gap-4 text-xs mt-1" style="color:var(--text3)">
                                         <span>📍 <span x-text="p.commune || '—'"></span></span>
@@ -837,9 +864,12 @@
                      réservation pour préserver le verrou anti-double-booking. --}}
                 @foreach($campaign->externalPanels as $panel)
                     @php
-                        $rate = (float) ($panel->monthly_rate ?? 0);
-                        $deferKey = 'ext_' . $panel->id;
-                        $deferredStart = $deferredStartByPanel[$deferKey] ?? null;
+                        $catalogRateExt    = (float) ($panel->monthly_rate ?? 0);
+                        $negotiatedRateExt = $negotiatedPriceByExt[$panel->id] ?? null;
+                        $effectiveRateExt  = $negotiatedRateExt !== null ? $negotiatedRateExt : $catalogRateExt;
+                        $isNegotiatedExt   = $negotiatedRateExt !== null && abs($negotiatedRateExt - $catalogRateExt) > 0.01;
+                        $deferKey          = 'ext_' . $panel->id;
+                        $deferredStart     = $deferredStartByPanel[$deferKey] ?? null;
                     @endphp
                     <tr class="border-b transition-all group" data-panel-row style="border-color:var(--border);background:rgba(124,58,237,0.025)"
                         onmouseover="this.style.background='rgba(124,58,237,0.06)'"
@@ -861,10 +891,17 @@
                             @endif
                         </td>
                         <td class="px-5 py-4 text-right" style="color:var(--text2)">
-                            {{ $rate > 0 ? number_format($rate, 0, ',', ' ') . ' FCFA' : '—' }}
+                            {{ $effectiveRateExt > 0 ? number_format($effectiveRateExt, 0, ',', ' ') . ' FCFA' : '—' }}
+                            @if($isNegotiatedExt)
+                                <div style="font-size:10px;color:var(--text3);margin-top:2px"
+                                     title="Tarif catalogue : {{ number_format($catalogRateExt, 0, ',', ' ') }} FCFA">
+                                    négocié
+                                    <span style="text-decoration:line-through;opacity:.7">{{ number_format($catalogRateExt, 0, ',', ' ') }}</span>
+                                </div>
+                            @endif
                         </td>
                         <td class="px-5 py-4 text-right font-semibold" style="color:var(--accent)">
-                            {{ $rate > 0 ? number_format($rate * $billableMonths, 0, ',', ' ') . ' FCFA' : '—' }}
+                            {{ $effectiveRateExt > 0 ? number_format($effectiveRateExt * $billableMonths, 0, ',', ' ') . ' FCFA' : '—' }}
                         </td>
                         <td class="px-5 py-4">
                             <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">
@@ -880,7 +917,17 @@
                                 @endif
                             </div>
                         </td>
-                        @if($can['managePanel'])<td class="px-5 py-4"></td>@endif
+                        @if($can['managePanel'])
+                            <td class="px-5 py-4">
+                                <button type="button"
+                                        onclick="openRetireExtPanel({{ $panel->id }}, @js($panel->code_panneau))"
+                                        class="p-2 rounded-lg transition-all"
+                                        style="color:#ef4444"
+                                        onmouseover="this.style.background='rgba(239,68,68,0.1)'"
+                                        onmouseout="this.style.background='transparent'"
+                                        title="Retirer ce panneau externe">✕</button>
+                            </td>
+                        @endif
                     </tr>
                 @endforeach
 
@@ -1117,6 +1164,7 @@
             filterCommune: '',
             filterFormat: '',
             filterIsLit: '',
+            filterSource: 'all', // 'all' | 'internal' | 'external'
             selectedPanels: [],
             allPanels: [],
             filteredPanels: [],
@@ -1124,6 +1172,7 @@
             loaded: false,
             visibleCount: 20,
             campaignMonths: {{ $campaign->billableMonths() }},
+            counts: { internal: 0, external: 0 },
 
             get communeOptions() {
                 return [...new Set(this.allPanels.map(p => p.commune).filter(Boolean))].sort();
@@ -1150,6 +1199,8 @@
                     const data = await res.json();
                     this.allPanels      = data.panels || [];
                     this.campaignMonths = data.campaign_months || this.campaignMonths;
+                    this.counts.internal = data.internal_count ?? this.allPanels.filter(p => p.source !== 'external').length;
+                    this.counts.external = data.external_count ?? this.allPanels.filter(p => p.source === 'external').length;
                     this.filteredPanels = [...this.allPanels];
                     this.loaded = true;
                 } catch (e) {
@@ -1161,24 +1212,47 @@
                 @endif
             },
 
+            setSource(source) {
+                this.filterSource = source;
+                this.filterPanels();
+            },
+
             filterPanels() {
                 const s  = this.search.toLowerCase().trim();
                 const fc = this.filterCommune.toLowerCase();
                 const ff = this.filterFormat.toLowerCase();
                 const fl = this.filterIsLit;
+                const src = this.filterSource;
                 this.visibleCount = 20;
-                this.filteredPanels = this.allPanels.filter(p =>
-                    (!s  || p.reference.toLowerCase().includes(s) || p.name.toLowerCase().includes(s) || p.commune.toLowerCase().includes(s)) &&
-                    (!fc || p.commune.toLowerCase() === fc) &&
-                    (!ff || p.format.toLowerCase() === ff) &&
-                    (!fl || (fl === '1' ? p.is_lit : !p.is_lit))
-                );
+                this.filteredPanels = this.allPanels.filter(p => {
+                    // Source : 'all' / 'internal' / 'external'
+                    if (src === 'internal' && p.source === 'external') return false;
+                    if (src === 'external' && p.source !== 'external') return false;
+                    // Recherche : référence, nom, commune, ou nom de régie
+                    if (s) {
+                        const hay = [
+                            p.reference?.toLowerCase() || '',
+                            p.name?.toLowerCase() || '',
+                            p.commune?.toLowerCase() || '',
+                            p.agency_name?.toLowerCase() || '',
+                        ];
+                        if (!hay.some(h => h.includes(s))) return false;
+                    }
+                    if (fc && p.commune?.toLowerCase() !== fc) return false;
+                    if (ff && p.format?.toLowerCase() !== ff) return false;
+                    if (fl && (fl === '1' ? !p.is_lit : p.is_lit)) return false;
+                    return true;
+                });
             },
 
             formatPrice(p) { return Number(p).toLocaleString('fr-FR') + ' FCFA/mois'; },
             formatEstimate() {
-                const total = this.selectedPanels.reduce((s, id) =>
-                    s + ((this.allPanels.find(x => x.id === id)?.monthly_rate || 0) * this.campaignMonths), 0);
+                // Les IDs peuvent être numériques (internes) ou "ext_<n>" (externes)
+                // donc on compare en string via String()
+                const total = this.selectedPanels.reduce((s, id) => {
+                    const panel = this.allPanels.find(x => String(x.id) === String(id));
+                    return s + ((panel?.monthly_rate || 0) * this.campaignMonths);
+                }, 0);
                 return Math.round(total).toLocaleString('fr-FR');
             },
         };
@@ -1194,6 +1268,11 @@
     function openRetirePanel(id, ref) {
         document.getElementById('retire-ref').textContent = ref;
         document.getElementById('retire-form').action = `/admin/campaigns/{{ $campaign->id }}/panels/${id}`;
+        document.getElementById('modal-retire').classList.remove('hidden');
+    }
+    function openRetireExtPanel(id, ref) {
+        document.getElementById('retire-ref').textContent = ref + ' (régie partenaire)';
+        document.getElementById('retire-form').action = `/admin/campaigns/{{ $campaign->id }}/external-panels/${id}`;
         document.getElementById('modal-retire').classList.remove('hidden');
     }
     function closeRetireModal() { document.getElementById('modal-retire').classList.add('hidden'); }
