@@ -165,6 +165,11 @@
             <td colspan="9" style="padding:0;border:none">
                 <div class="pose-campaign-header">
                     <div style="display:flex;align-items:center;gap:12px;min-width:0">
+                        <input type="checkbox"
+                               class="pose-group-check"
+                               data-campaign-id="{{ $currentCampaignId }}"
+                               title="Sélectionner toutes les poses de cette campagne (hors réalisées / annulées)"
+                               style="accent-color:#fab80b;width:18px;height:18px;cursor:pointer;flex-shrink:0;margin-right:2px;">
                         <div class="pch-icon" style="width:36px;height:36px;border-radius:9px;background:rgba(232,160,32,.18);
                                     display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(232,160,32,.35)">
                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
@@ -244,6 +249,7 @@
                        data-tech-id="{{ $task->assigned_user_id ?? '' }}"
                        data-team="{{ $task->team_name ?? '' }}"
                        data-status="{{ $task->status }}"
+                       data-campaign-id="{{ $task->campaign_id ?? 'none' }}"
                        title="{{ $isFinal ? 'Tâche terminée — non modifiable en masse' : 'Sélectionner' }}"
                        style="accent-color:var(--accent);width:14px;height:14px;cursor:{{ $isFinal ? 'not-allowed' : 'pointer' }};opacity:{{ $isFinal ? '.35' : '1' }};">
             </td>
@@ -295,6 +301,18 @@
                         @elseif(!$hasWa)
                             <div style="font-size:9px;color:#ef4444">⚠ Pas de WhatsApp</div>
                         @endif
+                    </div>
+                </div>
+                @elseif($task->tech_name_self)
+                {{-- Tech non assigné formellement mais a saisi son nom via le lien public --}}
+                <div style="display:flex;align-items:center;gap:8px;min-width:0"
+                     title="Identité déclarée via le lien public le {{ $task->tech_name_self_at?->format('d/m/Y H:i') }} (IP {{ $task->tech_name_self_ip }})">
+                    <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;letter-spacing:-.3px">
+                        {{ mb_strtoupper(mb_substr($task->tech_name_self, 0, 1)) }}
+                    </div>
+                    <div style="min-width:0">
+                        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px" title="{{ $task->tech_name_self }}">{{ $task->tech_name_self }}</div>
+                        <div style="font-size:9px;color:#3b82f6;font-weight:600">📱 Déclaré via lien</div>
                     </div>
                 </div>
                 @else

@@ -690,6 +690,7 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
             if (t.checked) selected.add(id);
             else           selected.delete(id);
             syncBar();
+            syncGroupCheckState(t.dataset.campaignId);
         }
         if (t.id === 'pose-check-all') {
             document.querySelectorAll('.pose-check:not([disabled])').forEach(box => {
@@ -698,9 +699,61 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                 if (t.checked) selected.add(id);
                 else           selected.delete(id);
             });
+            document.querySelectorAll('.pose-group-check').forEach(g => {
+                g.checked = t.checked;
+                g.indeterminate = false;
+            });
             syncBar();
         }
+        // ── NOUVEAU : sélection par groupe campagne ─────────────────
+        if (t.classList.contains('pose-group-check')) {
+            const cid = t.dataset.campaignId;
+            const groupBoxes = document.querySelectorAll(
+                `.pose-check[data-campaign-id="${cid}"]:not([disabled])`
+            );
+            groupBoxes.forEach(box => {
+                box.checked = t.checked;
+                const id = Number(box.value);
+                if (t.checked) selected.add(id);
+                else           selected.delete(id);
+            });
+            syncBar();
+            syncCheckAllState();
+            t.indeterminate = false;
+        }
     });
+
+    /**
+     * Synchronise l'état du checkbox de groupe campagne :
+     * coché si toutes les poses du groupe sont cochées,
+     * indéterminé si partiellement, non coché si aucune.
+     */
+    function syncGroupCheckState(campaignId) {
+        if (!campaignId) return;
+        const groupCheck = document.querySelector(
+            `.pose-group-check[data-campaign-id="${campaignId}"]`
+        );
+        if (!groupCheck) return;
+        const boxes = document.querySelectorAll(
+            `.pose-check[data-campaign-id="${campaignId}"]:not([disabled])`
+        );
+        if (boxes.length === 0) {
+            groupCheck.checked = false;
+            groupCheck.indeterminate = false;
+            return;
+        }
+        const checkedCount = Array.from(boxes).filter(b => b.checked).length;
+        if (checkedCount === 0) {
+            groupCheck.checked = false;
+            groupCheck.indeterminate = false;
+        } else if (checkedCount === boxes.length) {
+            groupCheck.checked = true;
+            groupCheck.indeterminate = false;
+        } else {
+            groupCheck.checked = false;
+            groupCheck.indeterminate = true;
+        }
+    }
 
     // Quand la table est rechargée en AJAX (filtre / pagination), on
     // restaure l'état coché des checkboxes encore présentes.
@@ -709,6 +762,15 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         const obs = new MutationObserver(() => {
             document.querySelectorAll('.pose-check').forEach(box => {
                 if (selected.has(Number(box.value))) box.checked = true;
+            });
+            // Re-sync les groupes campagne
+            const seenCids = new Set();
+            document.querySelectorAll('.pose-check').forEach(box => {
+                const cid = box.dataset.campaignId;
+                if (cid && !seenCids.has(cid)) {
+                    seenCids.add(cid);
+                    syncGroupCheckState(cid);
+                }
             });
             syncCheckAllState();
         });
@@ -720,6 +782,10 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         clearBtn.addEventListener('click', () => {
             selected.clear();
             document.querySelectorAll('.pose-check').forEach(b => { b.checked = false; });
+            document.querySelectorAll('.pose-group-check').forEach(g => {
+                g.checked = false;
+                g.indeterminate = false;
+            });
             syncBar();
         });
     }
