@@ -445,8 +445,17 @@ class PoseService
             return false;
         }
 
-        $task->ensurePublicToken();
-        $url       = $task->publicUrl();
+        // ── Lien envoyé au tech ──────────────────────────────────────
+        // Convention : on envoie TOUJOURS le lien d'espace tech personnel
+        // (et non plus le lien direct vers la pose individuelle). Le tech
+        // a ainsi UNE URL stable à mémoriser/bookmarker, qui montre
+        // toujours toutes ses poses à jour, quelque soit la quantité.
+        //
+        // L'ancien `$task->publicUrl()` (= /pige/{public_token}) reste
+        // utilisé en interne par l'admin pour le suivi technique d'UNE
+        // pose précise, mais n'est plus envoyé au tech via WhatsApp.
+        $task->ensurePublicToken(); // token PoseTask conservé pour usage interne
+        $url       = route('tech.space', $tech->ensureTechPublicToken());
         $panel     = $task->panel;
         $commune   = $panel?->commune?->name ?? '—';
         $address   = trim(($panel?->adresse ?? '') . ($panel?->quartier ? ' · ' . $panel->quartier : ''));
@@ -460,13 +469,13 @@ class PoseService
 
         $message = $preamble
                  . "Bonjour {$tech->name},\n\n"
-                 . "Une tâche de pose vous est assignée par CIBLE CI :\n\n"
+                 . "Une nouvelle pose vous est assignée par CIBLE CI :\n\n"
                  . "• Panneau : " . ($panel->reference ?? '—') . " — " . ($panel->name ?? '') . "\n"
                  . ($address ? "• Adresse : {$address}\n" : '')
                  . "• Commune : {$commune}\n"
                  . "• Prévue : {$scheduled}\n"
                  . ($task->campaign ? "• Campagne : {$task->campaign->name}\n" : '')
-                 . "\nMettez à jour votre avancement en temps réel ici :\n{$url}\n\n"
+                 . "\nRetrouvez TOUTES vos poses en cours sur votre espace personnel :\n{$url}\n\n"
                  . "Merci.\nCIBLE CI";
 
         $context = [

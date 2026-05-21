@@ -164,6 +164,11 @@ $sIconLg = match($poseTask->status) {
                 $progColor   = method_exists($poseTask, 'progressColor')
                     ? $poseTask->progressColor()
                     : '#ef4444';
+
+                // Lien d'espace technicien personnel — ce qu'on envoie via WhatsApp.
+                // Le tech y voit TOUTES ses poses en cours, toutes campagnes
+                // confondues. Stable dans le temps (token permanent users.tech_public_token).
+                $techSpaceUrl = $tech ? $tech->techPublicUrl() : null;
             @endphp
 
             <div style="margin:0 18px 18px;border-top:1px solid var(--border);padding-top:14px">
@@ -232,18 +237,21 @@ $sIconLg = match($poseTask->status) {
                     </div>
                 </div>
 
-                {{-- Lien public technicien + actions --}}
-                @if($hasToken)
-                    <div style="margin-top:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px">
-                        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#9a3412;margin-bottom:4px">🔗 Lien personnel technicien</div>
+                {{-- Lien ESPACE TECHNICIEN (priorité — c'est ce qu'on envoie au tech) --}}
+                @if($techSpaceUrl)
+                    <div style="margin-top:12px;background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.30);border-radius:8px;padding:10px 12px">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#15803d">🛠️ Espace personnel technicien</div>
+                            <span style="font-size:10px;background:#15803d;color:#fff;padding:2px 7px;border-radius:999px;font-weight:700">À envoyer au tech</span>
+                        </div>
                         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                            <input type="text" id="pose-public-url" readonly value="{{ $publicUrl }}"
-                                   style="flex:1;min-width:200px;font-family:ui-monospace,monospace;font-size:11px;background:#fff;border:1px solid #fed7aa;border-radius:5px;padding:5px 8px;color:#9a3412">
-                            <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('pose-public-url').value).then(()=>this.textContent='✓ Copié')"
+                            <input type="text" id="tech-space-url" readonly value="{{ $techSpaceUrl }}"
+                                   style="flex:1;min-width:200px;font-family:ui-monospace,monospace;font-size:11px;background:#fff;border:1px solid rgba(34,197,94,.30);border-radius:5px;padding:5px 8px;color:#15803d">
+                            <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('tech-space-url').value).then(()=>this.textContent='✓ Copié')"
                                     class="btn btn-ghost btn-sm" style="font-size:11px">📋 Copier</button>
                             @if($tech?->whatsapp_number)
                                 @php
-                                    $waText = "Pose CIBLE CI - {$poseTask->panel?->reference}\nMettez à jour votre avancement : {$publicUrl}";
+                                    $waText = "Bonjour {$tech->name},\nUne pose vous est assignée par CIBLE CI.\nVoir toutes vos poses : {$techSpaceUrl}";
                                     $waLink = 'https://wa.me/' . $tech->whatsapp_number . '?text=' . urlencode($waText);
                                 @endphp
                                 <a href="{{ $waLink }}" target="_blank" rel="noopener"
@@ -252,11 +260,31 @@ $sIconLg = match($poseTask->status) {
                                 </a>
                             @endif
                         </div>
-                        <div style="font-size:10px;color:#9a3412;margin-top:6px;line-height:1.45">
-                            Ce lien permet au technicien de mettre à jour sa progression depuis son téléphone, sans login.
-                            La barre de progression ci-dessus se met à jour automatiquement (rafraîchissement 30s).
+                        <div style="font-size:10px;color:#15803d;margin-top:6px;line-height:1.45">
+                            Lien stable — le tech y voit <strong>toutes ses poses en cours</strong>, toutes campagnes confondues.
+                            C'est le lien envoyé automatiquement quand on clique « Envoyer / Renvoyer » plus haut.
                         </div>
                     </div>
+                @endif
+
+                {{-- Lien d'intervention DÉTAILLÉE — usage interne admin (suivi pose unitaire) --}}
+                @if($hasToken)
+                    <details style="margin-top:10px">
+                        <summary style="cursor:pointer;font-size:11px;color:var(--text3);padding:4px 0;user-select:none">
+                            🔍 Lien d'intervention détaillée (suivi interne admin)
+                        </summary>
+                        <div style="margin-top:8px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px">
+                            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                                <input type="text" id="pose-public-url" readonly value="{{ $publicUrl }}"
+                                       style="flex:1;min-width:200px;font-family:ui-monospace,monospace;font-size:11px;background:#fff;border:1px solid #fed7aa;border-radius:5px;padding:5px 8px;color:#9a3412">
+                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('pose-public-url').value).then(()=>this.textContent='✓ Copié')"
+                                        class="btn btn-ghost btn-sm" style="font-size:11px">📋 Copier</button>
+                            </div>
+                            <div style="font-size:10px;color:#9a3412;margin-top:6px;line-height:1.45">
+                                Cible directement cette pose. À utiliser uniquement en interne pour le suivi d'un panneau précis — pas pour envoi au tech.
+                            </div>
+                        </div>
+                    </details>
                 @endif
             </div>
         </div>
