@@ -211,7 +211,7 @@
     </div>
     <h1>Bonjour {{ $tech->name }}</h1>
     <div class="stats">
-        <div class="stat">📋 <strong>{{ $totalActive }}</strong> pose{{ $totalActive > 1 ? 's' : '' }} à faire</div>
+        <div class="stat">📋 <strong data-total-active>{{ $totalActive }}</strong> pose{{ $totalActive > 1 ? 's' : '' }} à faire</div>
         <div class="stat">✅ <strong>{{ $totalDone }}</strong> faite{{ $totalDone > 1 ? 's' : '' }} au total</div>
     </div>
 </div>
@@ -274,8 +274,25 @@
                                     <div class="pose-ref">{{ $task->panel?->reference ?? '—' }}</div>
                                     <div class="pose-name">{{ $task->panel?->name ?? '' }}</div>
                                     <div class="pose-meta">
+                                        @php
+                                            // Lien Google Maps : on construit une URL de recherche
+                                            // depuis l'adresse + commune (ou juste la commune si
+                                            // pas d'adresse). Aide le tech à se rendre sur place
+                                            // sans recherche manuelle.
+                                            $locationParts = array_filter([
+                                                $task->panel?->adresse,
+                                                $task->panel?->quartier,
+                                                $task->panel?->commune?->name,
+                                                'Côte d\'Ivoire',
+                                            ]);
+                                            $mapsQuery = urlencode(implode(', ', $locationParts));
+                                            $mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' . $mapsQuery;
+                                        @endphp
                                         @if($task->panel?->commune)
-                                            <span>📍 {{ $task->panel->commune->name }}</span>
+                                            <a href="{{ $mapsUrl }}" target="_blank" rel="noopener"
+                                               style="color:inherit;text-decoration:none;background:rgba(59,130,246,.08);padding:2px 8px;border-radius:6px;border:1px solid rgba(59,130,246,.18)">
+                                                📍 {{ $task->panel->commune->name }}{{ $task->panel?->quartier ? ' · '.$task->panel->quartier : '' }} ↗
+                                            </a>
                                         @endif
                                         @if($task->panel?->format)
                                             <span>📐 {{ $task->panel->format->name }}</span>
@@ -284,6 +301,11 @@
                                             <span>⏰ {{ \Carbon\Carbon::parse($task->scheduled_at)->format('d/m H:i') }}</span>
                                         @endif
                                     </div>
+                                    @if($task->panel?->adresse)
+                                        <div class="pose-meta" style="margin-top:4px">
+                                            <span style="color:var(--text2)">🏠 {{ $task->panel->adresse }}</span>
+                                        </div>
+                                    @endif
                                     @if($task->campaign)
                                         <div class="pose-campaign">📢 {{ $task->campaign->name }}{{ $task->campaign->client ? ' · ' . $task->campaign->client->name : '' }}</div>
                                     @endif
@@ -390,20 +412,46 @@
                 btn.innerHTML = originalText;
                 return;
             }
-            // Mise à jour badge
+
+            // Mise à jour DOM locale (pas de reload qui ferait remonter
+            // en haut de page et perdrait le contexte de scroll du tech).
             const badge = pose.querySelector('[data-status]');
             if (badge) {
                 badge.textContent = data.status_icon + ' ' + data.status_label;
+                badge.style.color           = data.status_color;
+                badge.style.background      = hexToRgba(data.status_color, 0.10);
+                badge.style.borderColor     = hexToRgba(data.status_color, 0.30);
             }
+
+            // Cache les boutons d'action sauf "Photo + Terminer" qui doit
+            // rester accessible quel que soit le statut intermédiaire.
+            // Si on vient de passer en "en_route" → on cache "🚗 En route"
+            // (déjà fait) ; si "en_cours" → on cache "🚗" + "🔧".
+            const actions = pose.querySelector('.actions');
+            if (actions && newStatus === 'en_route') {
+                actions.querySelector('[data-status-value="en_route"]')?.remove();
+            }
+            if (actions && newStatus === 'en_cours') {
+                actions.querySelector('[data-status-value="en_route"]')?.remove();
+                actions.querySelector('[data-status-value="en_cours"]')?.remove();
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = originalText;
             toast(data.message, 'success');
-            // Reload après 800ms pour rafraîchir les boutons disponibles
-            setTimeout(() => location.reload(), 800);
         } catch (err) {
             toast('Erreur réseau', 'error');
             btn.disabled = false;
             btn.innerHTML = originalText;
         }
     });
+
+    // Convertit "#RRGGBB" en "rgba(r,g,b,alpha)" pour styliser le badge.
+    function hexToRgba(hex, alpha) {
+        const m = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+        if (!m) return hex;
+        return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${alpha})`;
+    }
 
     // ── Upload photo + auto-completion ───────────────────────
     document.addEventListener('change', async (e) => {
@@ -447,7 +495,19 @@
                 return;
             }
             toast(data.message, 'success');
-            setTimeout(() => location.reload(), 1000);
+
+            // Pose réalisée → retire la card avec une petite animation
+            // de fade-out plutôt que de recharger la page (préserve le
+            // scroll position du tech pour les autres poses).
+            if (pose) {
+                pose.style.transition = 'all .4s ease-out';
+                pose.style.opacity   = '0';
+                pose.style.transform = 'translateX(20px)';
+                setTimeout(() => {
+                    pose.remove();
+                    refreshDayCounters();
+                }, 400);
+            }
         } catch (err) {
             toast('Erreur réseau', 'error');
             label.innerHTML = originalLabel;
@@ -455,6 +515,30 @@
             input.value = '';
         }
     });
+
+    // Recalcule les compteurs "X poses" sous chaque date après retrait
+    // d'une pose terminée (évite l'incohérence visuelle).
+    function refreshDayCounters() {
+        document.querySelectorAll('.day-section').forEach(section => {
+            const remaining = section.querySelectorAll('.pose').length;
+            const counter = section.querySelector('.count');
+            if (remaining === 0) {
+                section.remove();
+            } else if (counter) {
+                counter.textContent = remaining + ' pose' + (remaining > 1 ? 's' : '');
+            }
+        });
+        // Met à jour le compteur global du header
+        const totalActiveEl = document.querySelector('[data-total-active]');
+        if (totalActiveEl) {
+            const total = document.querySelectorAll('.pose').length;
+            totalActiveEl.textContent = total;
+        }
+        // Si plus aucune pose, affiche l'empty state
+        if (document.querySelectorAll('.pose').length === 0) {
+            location.reload();
+        }
+    }
 })();
 </script>
 
