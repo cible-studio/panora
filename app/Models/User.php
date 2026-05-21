@@ -19,7 +19,7 @@ class User extends Authenticatable
         'role', 'agent_code', 'is_active',
         'two_fa_enabled', 'last_login_at',
         'reservations_last_seen_at',
-        'whatsapp_number',
+        'whatsapp_number', 'tech_public_token',
     ];
 
     protected $hidden = [
@@ -123,5 +123,38 @@ class User extends Authenticatable
     public function isTechnique(): bool
     {
         return $this->role === UserRole::TECHNIQUE;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // ESPACE TECHNICIEN — token public permanent
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Génère (idempotent) le token public permanent du technicien.
+     * Utilisé pour construire l'URL de son espace personnel :
+     *   /tech/{token}/poses
+     *
+     * Le token est généré à la PREMIÈRE assignation d'une pose
+     * (cf. PoseService::notifyTechnicianBatch / notifyTechnicianOnWhatsApp),
+     * pas à la création du compte — évite des slots inutiles si le user
+     * n'est jamais techncien terrain.
+     */
+    public function ensureTechPublicToken(): string
+    {
+        if (empty($this->tech_public_token)) {
+            $this->update([
+                'tech_public_token' => \Illuminate\Support\Str::random(32),
+            ]);
+            $this->refresh();
+        }
+        return $this->tech_public_token;
+    }
+
+    /**
+     * URL publique de l'espace technicien. Génère le token si nécessaire.
+     */
+    public function techPublicUrl(): string
+    {
+        return route('tech.space', $this->ensureTechPublicToken());
     }
 }

@@ -551,18 +551,11 @@ class PoseService
             ->join("\n");
         $rest = $count > 3 ? "\n• … et " . ($count - 3) . " autre" . ($count - 3 > 1 ? 's' : '') : '';
 
-        // Lien unique : page pige campagne (génère le token à la volée si
-        // pas encore créé, idempotent).
-        $url = null;
-        if ($campaign) {
-            if (empty($campaign->pige_token)) {
-                $campaign->update([
-                    'pige_token'            => \Illuminate\Support\Str::random(48),
-                    'pige_token_created_at' => now(),
-                ]);
-            }
-            $url = route('pige.public.show', $campaign->pige_token);
-        }
+        // Lien unique : ESPACE TECHNICIEN PERSONNEL (toutes campagnes
+        // confondues, mais filtré sur les poses de ce tech). Remplace
+        // l'ancien lien /pige/{campaign.pige_token} qui exposait les
+        // panneaux des autres techs sur la même campagne.
+        $url = route('tech.space', $tech->ensureTechPublicToken());
 
         $message = "Bonjour {$tech->name},\n\n"
                  . "CIBLE CI vous assigne {$count} pose" . ($count > 1 ? 's' : '') . " :\n"

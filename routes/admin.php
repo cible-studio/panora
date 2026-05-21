@@ -115,6 +115,26 @@ Route::prefix('pige')->middleware(['throttle:60,1', \App\Http\Middleware\SetFren
         ->name('pige.public.posed');
 });
 
+// ── ESPACE TECHNICIEN PERSONNEL : /tech/{token}/poses ──────────────
+// URL stable par technicien (1 token permanent dans users.tech_public_token).
+// Affiche UNIQUEMENT les poses assignées à ce tech, toutes campagnes
+// confondues, groupées par date. Remplace l'usage du lien
+// /pige/{campaign.pige_token} pour les envois WhatsApp en batch
+// (qui mélangeait les panneaux d'autres techs sur la même campagne).
+Route::prefix('tech')->middleware(['throttle:60,1', \App\Http\Middleware\SetFrenchLocale::class])->group(function () {
+    Route::get('/{token}/poses', [\App\Http\Controllers\TechSpaceController::class, 'show'])
+        ->name('tech.space');
+
+    Route::post('/{token}/poses/{task}/status', [\App\Http\Controllers\TechSpaceController::class, 'updateStatus'])
+        ->whereNumber('task')
+        ->name('tech.space.status');
+
+    Route::post('/{token}/poses/{task}/photo', [\App\Http\Controllers\TechSpaceController::class, 'uploadPhoto'])
+        ->whereNumber('task')
+        ->middleware('throttle:30,1')
+        ->name('tech.space.photo');
+});
+
 Route::prefix('proposition')->name('proposition.')->middleware(\App\Http\Middleware\SetFrenchLocale::class)->group(function () {
 
     // Ancienne URL (token 64 chars) — rétrocompatibilité
