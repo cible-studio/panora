@@ -516,11 +516,7 @@ class ClientController extends Controller
             ], 422);
         }
 
-        // Auto-NCC si non fourni (cohérent avec StoreClientRequest)
-        if (empty($data['ncc'] ?? null)) {
-            try { $data['ncc'] = Client::generateNcc(); } catch (\Throwable) {}
-        }
-
+        // NCC laissé null si non fourni — plus d'auto-génération forcée.
         $client = Client::create($data);
 
         // Structure attendue par le JS du modal campagne : { success, client: {...} }

@@ -58,7 +58,6 @@ class StoreClientRequest extends FormRequest
             'name.required' => 'Le nom de l\'entreprise est obligatoire.',
             'name.unique' => 'Un client avec ce nom existe déjà.',
             'ncc.unique' => 'Ce NCC est déjà utilisé par un autre client.',
-            'ncc.required' => 'Le NCC (Numéro de Compte Client) est obligatoire.',
             'ncc.max' => 'Le NCC ne doit pas dépasser 50 caractères.',
             'sector.in' => 'Le secteur sélectionné n\'est pas valide.',
             'email.email' => 'L\'adresse email n\'est pas valide.',
@@ -76,9 +75,7 @@ class StoreClientRequest extends FormRequest
         if ($this->email) {
             $this->merge(['email' => strtolower(trim($this->email))]);
         }
-        // Auto-générer NCC si vide
-        if (empty($this->ncc)) {
-            $this->merge(['ncc' => Client::generateNcc()]);
-        }
+        // NCC laissé tel quel — null si non rempli. Plus d'auto-génération
+        // forcée : la patronne préfère pouvoir créer un client sans NCC.
     }
 }
