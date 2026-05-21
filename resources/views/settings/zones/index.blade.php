@@ -32,6 +32,15 @@
             </thead>
             <tbody>
                 @forelse($zones as $zone)
+                @php
+                    $zoneData = [
+                        'id'           => $zone->id,
+                        'name'         => $zone->name,
+                        'commune_id'   => $zone->commune_id,
+                        'description'  => $zone->description,
+                        'demand_level' => $zone->demand_level,
+                    ];
+                @endphp
                 <tr>
                     <td><strong>{{ $zone->name }}</strong></td>
                     <td>{{ $zone->commune?->name ?? '—' }}</td>
@@ -49,13 +58,8 @@
                     <td style="text-align:right">
                         <div style="display:inline-flex; gap:6px;">
                             <button type="button"
-                                    onclick='openZoneModal("edit", @json([
-                                        "id" => $zone->id,
-                                        "name" => $zone->name,
-                                        "commune_id" => $zone->commune_id,
-                                        "description" => $zone->description,
-                                        "demand_level" => $zone->demand_level,
-                                    ]))'
+                                    data-zone='@json($zoneData)'
+                                    onclick="openZoneModal('edit', JSON.parse(this.dataset.zone))"
                                     class="btn btn-ghost btn-sm">✏️ Modifier</button>
                             <form method="POST"
                                   action="{{ route('admin.settings.zones.destroy', $zone) }}"

@@ -274,8 +274,21 @@
 }
 .select2-container--open .select2-dropdown {
     box-shadow: 0 8px 24px rgba(0,0,0,0.18) !important;
+    z-index: 10500 !important;
 }
-.select2-container { width: 100% !important; }
+.select2-container { width: 100% !important; z-index: 1; }
+
+/* ── La modale "+ Créer client" doit recouvrir intégralement les
+   Select2 du formulaire derrière (sinon ils transpercent le backdrop
+   à cause du contexte de stacking créé par backdrop-filter). ── */
+#quick-client-modal {
+    z-index: 99999 !important;
+    isolation: isolate;
+}
+#quick-client-modal > div {
+    position: relative;
+    z-index: 99999;
+}
 </style>
 
 @push('scripts')

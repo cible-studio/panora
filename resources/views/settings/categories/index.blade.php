@@ -32,6 +32,13 @@
             </thead>
             <tbody>
                 @forelse($categories as $category)
+                @php
+                    $catData = [
+                        'id'          => $category->id,
+                        'name'        => $category->name,
+                        'description' => $category->description,
+                    ];
+                @endphp
                 <tr>
                     <td><strong>{{ $category->name }}</strong></td>
                     <td>{{ $category->description ?? '—' }}</td>
@@ -43,11 +50,8 @@
                     <td style="text-align:right">
                         <div style="display:inline-flex; gap:6px;">
                             <button type="button"
-                                    onclick='openCatModal("edit", @json([
-                                        "id" => $category->id,
-                                        "name" => $category->name,
-                                        "description" => $category->description,
-                                    ]))'
+                                    data-cat='@json($catData)'
+                                    onclick="openCatModal('edit', JSON.parse(this.dataset.cat))"
                                     class="btn btn-ghost btn-sm">✏️ Modifier</button>
                             <form method="POST"
                                   action="{{ route('admin.settings.categories.destroy', $category) }}"
