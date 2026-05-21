@@ -498,6 +498,13 @@ Route::prefix('admin')
         Route::post('clients/import',         [ClientController::class, 'import'])
             ->middleware('role:admin,commercial,mediaplanner')
             ->name('clients.import');
+        // Outil one-shot — corriger les clients "PERSONNE / ENTREPRISE"
+        Route::get('clients/fix-import-names',  [ClientController::class, 'fixImportNamesPreview'])
+            ->middleware('role:admin')
+            ->name('clients.fix-import-names.preview');
+        Route::post('clients/fix-import-names', [ClientController::class, 'fixImportNamesApply'])
+            ->middleware('role:admin')
+            ->name('clients.fix-import-names.apply');
         // Exports liste clients (5.2) — placés AVANT /clients/{client} pour
         // ne pas être avalés par le route model binding.
         Route::get('clients/export/csv', [ClientController::class, 'exportCsv'])
