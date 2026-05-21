@@ -103,7 +103,12 @@
             @if(request()->hasAny(['search', 'statut', 'priorite']))
             <div class="filter-group" style="justify-content:flex-end;">
                 <label class="filter-label">&nbsp;</label>
-                <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm">✕ Réinitialiser</a>
+                <a href="{{ route('admin.maintenances.index') }}"
+                   style="display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:10px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-size:13px;font-weight:600;text-decoration:none;transition:all .15s;white-space:nowrap"
+                   onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--text)'"
+                   onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">
+                    ✕ Réinitialiser
+                </a>
             </div>
             @endif
         </div>

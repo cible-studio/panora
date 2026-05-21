@@ -252,14 +252,20 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         </div>
 
         {{-- Toggle orphelines (campagnes supprimées / annulées / terminées) --}}
+        @php $orphActive = request()->boolean('show_orphan'); @endphp
         <div class="filter-group">
             <label class="filter-label">Orphelines</label>
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--text2);height:36px;">
-                <input type="checkbox" id="filter-show-orphan"
-                       {{ request()->boolean('show_orphan') ? 'checked' : '' }}
-                       style="accent-color:var(--accent);width:14px;height:14px;">
-                Afficher
-            </label>
+            <button type="button" id="filter-show-orphan-btn"
+                    style="display:inline-flex;align-items:center;gap:8px;height:38px;cursor:pointer;padding:0 14px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap;transition:all .15s;
+                           border:1px solid {{ $orphActive ? 'var(--accent)' : 'var(--border2)' }};
+                           background:{{ $orphActive ? 'var(--accent)' : 'var(--surface2)' }};
+                           color:{{ $orphActive ? '#fff' : 'var(--text2)' }};">
+                <span>{{ $orphActive ? '✓' : '○' }}</span>
+                <span>Afficher</span>
+            </button>
+            {{-- Input caché : pilote du bouton ci-dessus pour préserver le JS existant --}}
+            <input type="checkbox" id="filter-show-orphan"
+                   {{ $orphActive ? 'checked' : '' }} style="display:none">
         </div>
 
         {{-- Actions --}}
@@ -1190,8 +1196,26 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
     if (elements.showOrphan) {
         elements.showOrphan.addEventListener('change', () => {
             currentFilters.show_orphan = elements.showOrphan.checked;
+            syncOrphanBtnUI();
             applyFilters();
         });
+    }
+    // Bouton toggle "Orphelines / Afficher" — pilote le checkbox caché
+    const orphBtn = document.getElementById('filter-show-orphan-btn');
+    if (orphBtn && elements.showOrphan) {
+        orphBtn.addEventListener('click', () => {
+            elements.showOrphan.checked = !elements.showOrphan.checked;
+            elements.showOrphan.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    }
+    function syncOrphanBtnUI() {
+        if (!orphBtn || !elements.showOrphan) return;
+        const a = !!elements.showOrphan.checked;
+        orphBtn.style.background  = a ? 'var(--accent)' : 'var(--surface2)';
+        orphBtn.style.borderColor = a ? 'var(--accent)' : 'var(--border2)';
+        orphBtn.style.color       = a ? '#fff' : 'var(--text2)';
+        const ic = orphBtn.querySelector('span:first-child');
+        if (ic) ic.textContent = a ? '✓' : '○';
     }
 
     // Cartes KPI — toggle (re-cliquer = retire le filtre).
