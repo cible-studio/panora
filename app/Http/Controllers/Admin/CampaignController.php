@@ -10,6 +10,7 @@ use App\Services\AlertService;
 use App\Models\Campaign;
 use App\Models\Client;
 use App\Models\Commune;
+use App\Models\ExternalPanel;
 use App\Models\Invoice;
 use App\Models\Panel;
 use App\Models\PanelFormat;
@@ -410,7 +411,12 @@ class CampaignController extends Controller
 
     /**
      * Endpoint JSON pour charger les panneaux disponibles à l'ouverture du modal d'ajout.
-     * Évite de précharger 200 panneaux à chaque rendu de la page show.
+     * Évite de précharger les panneaux à chaque rendu de la page show.
+     *
+     * Renvoie À LA FOIS les panneaux internes (régie CIBLE) ET les panneaux
+     * externes (régies partenaires) disponibles sur la période de la campagne.
+     * Les externes sont identifiés par `source='external'` et `id='ext_<n>'`
+     * pour qu'au moment de l'envoi côté addPanel() on puisse les distinguer.
      */
     public function availablePanels(Campaign $campaign)
     {
@@ -420,30 +426,79 @@ class CampaignController extends Controller
             return response()->json(['panels' => []]);
         }
 
+        $startDate = $campaign->start_date->format('Y-m-d');
+        $endDate   = $campaign->end_date->format('Y-m-d');
+
+        // ─── PANNEAUX INTERNES ──────────────────────────────────────
         $existingIds = $campaign->panels()->pluck('panels.id')->all();
 
-        $panels = $this->availability
-            ->getAvailablePanels(
-                $campaign->start_date->format('Y-m-d'),
-                $campaign->end_date->format('Y-m-d'),
-                $campaign->reservation_id
-            )
+        $internal = $this->availability
+            ->getAvailablePanels($startDate, $endDate, $campaign->reservation_id)
             ->reject(fn($p) => in_array($p->id, $existingIds))
             ->take(500)
             ->map(fn($p) => [
                 'id'           => $p->id,
+                'source'       => 'internal',
                 'reference'    => $p->reference,
                 'name'         => $p->name,
                 'commune'      => $p->commune?->name ?? '',
                 'format'       => $p->format?->name ?? '',
                 'monthly_rate' => (float) ($p->monthly_rate ?? 0),
                 'is_lit'       => (bool) $p->is_lit,
+                'agency_name'  => null,
             ])
             ->values();
 
+        // ─── PANNEAUX EXTERNES (régies partenaires) ─────────────────
+        // Pattern identique à ReservationController::availablePanels :
+        // on liste tous les externes des agences actives, on calcule
+        // les conflits via AvailabilityService, et on n'expose que ceux
+        // qui sont libres sur la période ET pas déjà dans la campagne.
+        $existingExtIds = $campaign->externalPanels()->pluck('external_panels.id')->all();
+
+        $externals = ExternalPanel::with([
+                'commune:id,name',
+                'format:id,name,width,height',
+                'agency:id,name',
+            ])
+            ->whereHas('agency', fn($q) => $q->where('is_active', true)->whereNull('deleted_at'))
+            ->where(fn($q) => $q->whereNull('availability_status')->orWhere('availability_status', '!=', 'maintenance'))
+            ->whereNotIn('id', $existingExtIds)
+            ->get();
+
+        $extBookings = $this->availability->getExternalPanelBookingMap(
+            $externals->pluck('id')->all(),
+            $startDate,
+            $endDate,
+            $campaign->reservation_id
+        );
+
+        $external = $externals
+            ->map(function ($p) use ($extBookings) {
+                $b = $extBookings->get($p->id);
+                $hasConfirmed = (bool) ($b->has_confirmed ?? false);
+                if ($hasConfirmed) return null; // panneau bloqué — on l'exclut
+
+                return [
+                    'id'           => 'ext_' . $p->id,
+                    'source'       => 'external',
+                    'reference'    => $p->code_panneau,
+                    'name'         => $p->designation,
+                    'commune'      => $p->commune?->name ?? '',
+                    'format'       => $p->format?->name ?? '',
+                    'monthly_rate' => (float) ($p->monthly_rate ?? 0),
+                    'is_lit'       => (bool) ($p->is_lit ?? false),
+                    'agency_name'  => $p->agency?->name,
+                ];
+            })
+            ->filter()
+            ->values();
+
         return response()->json([
-            'panels'           => $panels,
+            'panels'           => $internal->concat($external)->values(),
             'campaign_months'  => $campaign->billableMonths(),
+            'internal_count'   => $internal->count(),
+            'external_count'   => $external->count(),
         ]);
     }
 
@@ -807,12 +862,15 @@ class CampaignController extends Controller
     {
         $this->authorize('managePanel', $campaign);
 
+        // Le payload peut désormais contenir des IDs internes (entiers) et
+        // des IDs externes au format "ext_<n>" (string) — l'utilisateur peut
+        // donc cocher dans la même modale des panneaux des deux origines.
         $data = $request->validate([
-            'panel_ids'        => 'required|array|min:1|max:50',
-            'panel_ids.*'      => 'required|integer|exists:panels,id',
-            // Prix négocié optionnel par panneau (clé = panel_id)
-            'unit_prices'      => 'nullable|array',
-            'unit_prices.*'    => 'nullable|numeric|min:0',
+            'panel_ids'      => 'required|array|min:1|max:50',
+            'panel_ids.*'    => 'required',
+            // Prix négocié optionnel par panneau (clé = panel_id ou "ext_<n>")
+            'unit_prices'    => 'nullable|array',
+            'unit_prices.*'  => 'nullable|numeric|min:0',
         ]);
 
         if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
@@ -820,36 +878,94 @@ class CampaignController extends Controller
                 'Impossible d\'ajouter des panneaux à une campagne en pause, terminée ou annulée.');
         }
 
-        // Filtre les prix custom (skip ceux à null/vide → fallback monthly_rate)
-        $unitPrices = null;
-        if (!empty($data['unit_prices'])) {
-            $unitPrices = [];
-            foreach ($data['unit_prices'] as $panelId => $price) {
-                if ($price !== null && $price !== '') {
-                    $unitPrices[(int) $panelId] = (float) $price;
+        // ─── Séparation internes / externes ──────────────────────────
+        $internalIds       = [];
+        $externalIds       = [];
+        $internalPrices    = [];
+        $externalPrices    = [];
+        foreach ($data['panel_ids'] as $raw) {
+            $rawStr = (string) $raw;
+            if (str_starts_with($rawStr, 'ext_')) {
+                $extId = (int) substr($rawStr, 4);
+                if ($extId > 0) {
+                    $externalIds[] = $extId;
+                    if (!empty($data['unit_prices'][$rawStr]) && is_numeric($data['unit_prices'][$rawStr])) {
+                        $externalPrices[$extId] = (float) $data['unit_prices'][$rawStr];
+                    }
+                }
+            } else {
+                $intId = (int) $rawStr;
+                if ($intId > 0) {
+                    $internalIds[] = $intId;
+                    if (!empty($data['unit_prices'][$intId]) && is_numeric($data['unit_prices'][$intId])) {
+                        $internalPrices[$intId] = (float) $data['unit_prices'][$intId];
+                    } elseif (!empty($data['unit_prices'][(string) $intId]) && is_numeric($data['unit_prices'][(string) $intId])) {
+                        $internalPrices[$intId] = (float) $data['unit_prices'][(string) $intId];
+                    }
                 }
             }
         }
 
-        $result = $this->campaignService->addPanels($campaign, $data['panel_ids'], $unitPrices);
-
-        if (!$result['ok']) {
-            return back()->with('error', $result['error']);
+        // Validation existence (à la main, plus simple que des règles dynamiques)
+        if (!empty($internalIds)) {
+            $found = Panel::whereIn('id', $internalIds)->pluck('id')->all();
+            $missing = array_diff($internalIds, $found);
+            if (!empty($missing)) {
+                return back()->with('error', 'Panneau(x) interne(s) inconnu(s) : ' . implode(', ', $missing));
+            }
+        }
+        if (!empty($externalIds)) {
+            $foundExt = ExternalPanel::whereIn('id', $externalIds)->pluck('id')->all();
+            $missingExt = array_diff($externalIds, $foundExt);
+            if (!empty($missingExt)) {
+                return back()->with('error', 'Panneau(x) externe(s) inconnu(s) : ' . implode(', ', $missingExt));
+            }
         }
 
-        $count = $result['added'] ?? count($data['panel_ids']);
-        $posesCreated = $result['poses_created'] ?? 0;
+        $totalAdded   = 0;
+        $posesCreated = 0;
+        $messages     = [];
+
+        // ─── Internes ────────────────────────────────────────────────
+        if (!empty($internalIds)) {
+            $result = $this->campaignService->addPanels(
+                $campaign,
+                $internalIds,
+                !empty($internalPrices) ? $internalPrices : null
+            );
+            if (!$result['ok']) {
+                return back()->with('error', $result['error']);
+            }
+            $totalAdded   += $result['added'] ?? count($internalIds);
+            $posesCreated += $result['poses_created'] ?? 0;
+        }
+
+        // ─── Externes ────────────────────────────────────────────────
+        if (!empty($externalIds)) {
+            $result = $this->campaignService->addExternalPanels(
+                $campaign->fresh(),
+                $externalIds,
+                !empty($externalPrices) ? $externalPrices : null
+            );
+            if (!$result['ok']) {
+                $prefix = $totalAdded > 0
+                    ? "Partiellement appliqué : {$totalAdded} panneau(x) interne(s) ajouté(s), mais "
+                    : '';
+                return back()->with('error', $prefix . $result['error']);
+            }
+            $totalAdded += $result['added'] ?? count($externalIds);
+        }
 
         AlertService::create(
             'campagne',
             'info',
             '➕ Panneau ajouté — ' . $campaign->name,
-            auth()->user()?->name . " a ajouté {$count} panneau(x) à la campagne \"{$campaign->name}\""
+            auth()->user()?->name . " a ajouté {$totalAdded} panneau(x) à la campagne \"{$campaign->name}\""
             . ($posesCreated > 0 ? " — {$posesCreated} tâche(s) de pose auto-créée(s)" : ''),
             $campaign
         );
 
-        $msg = "{$count} panneau(x) ajouté(s). Montant recalculé.";
+        $msg = "{$totalAdded} panneau(x) ajouté(s). Montant recalculé.";
         if ($posesCreated > 0) {
             $msg .= " {$posesCreated} pose(s) auto-créée(s).";
         }
@@ -1000,6 +1116,30 @@ class CampaignController extends Controller
         }
 
         return back()->with('success', $msg . ' Montant recalculé.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // REMOVE EXTERNAL PANEL — détache un panneau régie partenaire
+    // ══════════════════════════════════════════════════════════════
+    public function removeExternalPanel(Campaign $campaign, ExternalPanel $externalPanel)
+    {
+        $this->authorize('managePanel', $campaign);
+
+        $result = $this->campaignService->removeExternalPanel($campaign, $externalPanel);
+
+        if (!$result['ok']) {
+            return back()->with('error', $result['error']);
+        }
+
+        AlertService::create(
+            'campagne',
+            'warning',
+            '➖ Panneau externe retiré — ' . $campaign->name,
+            auth()->user()?->name . " a retiré le panneau externe {$externalPanel->code_panneau} de la campagne \"{$campaign->name}\"",
+            $campaign
+        );
+
+        return back()->with('success', "Panneau externe {$externalPanel->code_panneau} retiré. Montant recalculé.");
     }
 
     // ══════════════════════════════════════════════════════════════

@@ -98,6 +98,210 @@ class CampaignService
     }
 
     // ══════════════════════════════════════════════════════════════
+    // AJOUTER DES PANNEAUX EXTERNES (régies partenaires)
+    //
+    // Logique parallèle à addPanels() mais pour les ExternalPanel :
+    //   - Verrou pessimiste sur chaque panneau externe
+    //   - Re-check anti-double-booking via AvailabilityService
+    //   - Insertion dans campaign_panels (external_panel_id, type='externe')
+    //   - Si reservation_id (résa réelle ou technique) : mirroring dans
+    //     reservation_panels (external_panel_id, source='externe') pour
+    //     que les calculs CA + le détail de facturation restent cohérents
+    //   - Si pas de reservation_id : création d'une résa technique d'abord
+    //   - Sync availability_status externe à la fin
+    //
+    // @param array<int> $externalPanelIds  IDs ExternalPanel à attacher
+    // @param array<int,float>|null $unitPrices  Prix négocié par id externe
+    // ══════════════════════════════════════════════════════════════
+    public function addExternalPanels(Campaign $campaign, array $externalPanelIds, ?array $unitPrices = null): array
+    {
+        if (!in_array($campaign->status->value, self::MODIFIABLE_STATUSES)) {
+            return ['ok' => false, 'error' => 'Campagne non modifiable.'];
+        }
+
+        $existingExtIds = $campaign->externalPanels()->pluck('external_panels.id')->all();
+        $alreadyIn      = array_intersect($existingExtIds, $externalPanelIds);
+        if (!empty($alreadyIn)) {
+            $refs = \App\Models\ExternalPanel::whereIn('id', $alreadyIn)->pluck('code_panneau')->join(', ');
+            return ['ok' => false, 'error' => "Ces panneaux externes sont déjà dans la campagne : {$refs}"];
+        }
+
+        return DB::transaction(function () use ($campaign, $externalPanelIds, $unitPrices) {
+            // Verrou + re-check disponibilité pour TOUS les externes en lot.
+            $locked = \App\Models\ExternalPanel::whereIn('id', $externalPanelIds)
+                ->lockForUpdate()
+                ->get(['id', 'code_panneau', 'monthly_rate']);
+
+            $startDate = $campaign->start_date->format('Y-m-d');
+            $endDate   = $campaign->end_date->format('Y-m-d');
+
+            $conflicts = $this->availability->getExternalPanelBookingMap(
+                $externalPanelIds,
+                $startDate,
+                $endDate,
+                $campaign->reservation_id
+            );
+
+            // Retourne erreur claire si au moins un externe est en conflit confirmé
+            $blocked = [];
+            foreach ($externalPanelIds as $eid) {
+                $b = $conflicts->get($eid);
+                if ($b && !empty($b->has_confirmed)) {
+                    $ref = $locked->firstWhere('id', $eid)?->code_panneau ?? "#{$eid}";
+                    $blocked[] = $ref;
+                }
+            }
+            if (!empty($blocked)) {
+                return ['ok' => false, 'error' => 'Panneaux externes en conflit : ' . implode(', ', $blocked)];
+            }
+
+            $months = $campaign->billableMonths();
+
+            // S'assure qu'il y a une reservation_id (technique si nécessaire).
+            // Pour les externes on a besoin du pivot reservation_panels pour
+            // stocker le prix négocié — cohérence avec les internes.
+            $this->ensureTechnicalReservation($campaign, $months);
+
+            // Refresh : reservation_id peut venir d'être créé
+            $campaign->refresh();
+            $reservation = $campaign->reservation;
+
+            // Attach dans reservation_panels (source='externe')
+            $now = now();
+            $rows = [];
+            foreach ($locked as $ext) {
+                $unit = $unitPrices[$ext->id] ?? (float) ($ext->monthly_rate ?? 0);
+                $rows[] = [
+                    'reservation_id'    => $reservation->id,
+                    'external_panel_id' => $ext->id,
+                    'source'            => 'externe',
+                    'unit_price'        => $unit,
+                    'total_price'       => round($unit * $months, 2),
+                    'created_at'        => $now,
+                    'updated_at'        => $now,
+                ];
+            }
+            DB::table('reservation_panels')->insert($rows);
+
+            // Attach dans campaign_panels (type='externe')
+            $campRows = array_map(fn($id) => [
+                'campaign_id'       => $campaign->id,
+                'external_panel_id' => $id,
+                'type'              => 'externe',
+                'created_at'        => $now,
+                'updated_at'        => $now,
+            ], $externalPanelIds);
+            DB::table('campaign_panels')->insert($campRows);
+
+            // Recalcul du total réservation + campagne
+            $this->recalculateReservationAmount($reservation);
+            $this->recalculateCampaignAmount($campaign);
+            $this->availability->syncExternalPanelStatuses($externalPanelIds);
+
+            Log::info('campaign.external_panels_added', [
+                'campaign_id'   => $campaign->id,
+                'external_ids'  => $externalPanelIds,
+                'count'         => count($externalPanelIds),
+                'custom_prices' => $unitPrices ? array_keys($unitPrices) : [],
+                'user_id'       => auth()->id(),
+            ]);
+
+            return ['ok' => true, 'added' => count($externalPanelIds)];
+        });
+    }
+
+    /**
+     * Garantit qu'une campagne a une `reservation_id` (réelle ou technique).
+     * Utilisé par addExternalPanels quand la campagne est créée en direct
+     * et n'a pas encore eu d'ajout interne (et donc pas de résa technique).
+     */
+    private function ensureTechnicalReservation(Campaign $campaign, float $months): void
+    {
+        if ($campaign->reservation_id) return;
+
+        $marker = '[Auto] Réservation technique — campagne #' . $campaign->id;
+
+        $reservation = Reservation::create([
+            'reference'    => $this->generateTechReference($campaign->id),
+            'client_id'    => $campaign->client_id,
+            'user_id'      => auth()->id(),
+            'start_date'   => $campaign->start_date->format('Y-m-d'),
+            'end_date'     => $campaign->end_date->format('Y-m-d'),
+            'status'       => ReservationStatus::CONFIRME->value,
+            'type'         => 'ferme',
+            'total_amount' => 0,
+            'confirmed_at' => now(),
+            'is_technical' => true,
+            'notes'        => $marker,
+        ]);
+
+        $campaign->update(['reservation_id' => $reservation->id]);
+
+        Log::info('reservation.technical_created.external_only', [
+            'reservation_id' => $reservation->id,
+            'campaign_id'    => $campaign->id,
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // RETIRER UN PANNEAU EXTERNE
+    //
+    // Détache un ExternalPanel d'une campagne (et de la résa pivot
+    // correspondante). Même garde qu'un retrait interne : on refuse si
+    // c'est le dernier panneau (toutes origines confondues).
+    // ══════════════════════════════════════════════════════════════
+    public function removeExternalPanel(Campaign $campaign, \App\Models\ExternalPanel $externalPanel): array
+    {
+        if (!in_array($campaign->status->value, self::MODIFIABLE_STATUSES)) {
+            return ['ok' => false, 'error' => 'Campagne non modifiable.'];
+        }
+
+        $internalCount = (int) $campaign->panels()->count();
+        $externalCount = (int) $campaign->externalPanels()->count();
+        if (($internalCount + $externalCount) <= 1) {
+            return [
+                'ok'    => false,
+                'error' => "Impossible de retirer le dernier panneau. Une campagne doit avoir au moins 1 panneau — ajoutez-en un autre avant de retirer celui-ci, ou annulez la campagne.",
+            ];
+        }
+
+        return DB::transaction(function () use ($campaign, $externalPanel) {
+            // Détache du pivot campaign_panels
+            DB::table('campaign_panels')
+                ->where('campaign_id', $campaign->id)
+                ->where('external_panel_id', $externalPanel->id)
+                ->where('type', 'externe')
+                ->delete();
+
+            // Détache du pivot reservation_panels (résa réelle ou technique)
+            if ($campaign->reservation_id) {
+                DB::table('reservation_panels')
+                    ->where('reservation_id', $campaign->reservation_id)
+                    ->where('external_panel_id', $externalPanel->id)
+                    ->where('source', 'externe')
+                    ->delete();
+
+                $reservation = $campaign->reservation()->first();
+                if ($reservation) {
+                    $this->recalculateReservationAmount($reservation);
+                }
+            }
+
+            $this->recalculateCampaignAmount($campaign);
+            $this->availability->syncExternalPanelStatuses([$externalPanel->id]);
+
+            Log::info('campaign.external_panel_removed', [
+                'campaign_id'  => $campaign->id,
+                'external_id'  => $externalPanel->id,
+                'external_ref' => $externalPanel->code_panneau,
+                'user_id'      => auth()->id(),
+            ]);
+
+            return ['ok' => true];
+        });
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // RETIRER UN PANNEAU
     // ══════════════════════════════════════════════════════════════
     public function removePanel(Campaign $campaign, Panel $panel): array

@@ -303,8 +303,20 @@ class Campaign extends Model
 
     /**
      * Synchronise le statut en base par rapport aux dates si pertinent.
-     * - PLANIFIE → ACTIF si start_date atteinte
-     * - ACTIF → TERMINE si end_date dépassée
+     *
+     * Règles 2026-05 (refonte workflow campagne directe) :
+     *
+     * - ACTIF → TERMINE si end_date dépassée                   (auto)
+     * - PLANIFIE → TERMINE si end_date dépassée                (auto)
+     * - PLANIFIE → ACTIF : **JAMAIS** déclenché par cette méthode.
+     *   La transition vers ACTIF se fait UNIQUEMENT via :
+     *     · CampaignService::activate()      (manuel ou cron)
+     *   pour bénéficier des gardes "≥ 1 panneau" + envoi du mail
+     *   au client. Auparavant, l'auto-promotion ici bypassait ces
+     *   gardes : une campagne créée le jour J avec 0 panneau
+     *   passait en ACTIF à l'ouverture de la fiche, sans mail
+     *   et avec un montant à 0.
+     *
      * - Ne touche pas les statuts terminaux (TERMINE/ANNULE) ni PAUSE
      *
      * @return bool True si le statut a changé
@@ -315,16 +327,25 @@ class Campaign extends Model
         if ($this->status === CampaignStatus::PAUSE) return false;
 
         $today = now()->startOfDay();
-        $start = $this->start_date->copy()->startOfDay();
         $end   = $this->end_date->copy()->startOfDay();
         $newStatus = null;
 
-        if ($this->status === CampaignStatus::PLANIFIE && $start->lte($today) && $end->gt($today)) {
-            $newStatus = CampaignStatus::ACTIF;
-        } elseif ($this->status === CampaignStatus::ACTIF && $end->lte($today)) {
+        if ($this->status === CampaignStatus::ACTIF && $end->lte($today)) {
             $newStatus = CampaignStatus::TERMINE;
         } elseif ($this->status === CampaignStatus::PLANIFIE && $end->lte($today)) {
             $newStatus = CampaignStatus::TERMINE;
+        } else {
+            // Filet de sauvetage : campagne ACTIVE avec 0 panneau →
+            // c'est forcément un état hérité de l'ancien bug
+            // d'auto-promotion. On la rebascule en PLANIFIE pour que
+            // l'utilisateur puisse y ajouter des panneaux + démarrer
+            // proprement (avec le mail client).
+            if ($this->status === CampaignStatus::ACTIF) {
+                $totalPanels = $this->panels()->count() + $this->externalPanels()->count();
+                if ($totalPanels === 0) {
+                    $newStatus = CampaignStatus::PLANIFIE;
+                }
+            }
         }
 
         if ($newStatus === null || $newStatus === $this->status) return false;
