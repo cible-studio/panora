@@ -133,6 +133,27 @@
                         @enderror
                     </div>
 
+                    {{-- Commercial assigné (modifiable) --}}
+                    <div class="form-group">
+                        <label class="form-label">COMMERCIAL ASSIGNÉ</label>
+                        <select name="commercial_user_id"
+                                class="form-select @error('commercial_user_id') is-invalid @enderror">
+                            <option value="">— Aucun assignation —</option>
+                            @foreach($commerciaux ?? [] as $c)
+                                <option value="{{ $c->id }}"
+                                    {{ old('commercial_user_id', $campaign->commercial_user_id) == $c->id ? 'selected' : '' }}>
+                                    {{ $c->name }} ({{ strtoupper($c->role ?? '') }})
+                                </option>
+                            @endforeach
+                        </select>
+                        <p style="font-size:10px;color:var(--text3);margin-top:4px">
+                            Recevra un email de notification s'il s'agit d'une nouvelle assignation.
+                        </p>
+                        @error('commercial_user_id')
+                        <p class="form-error">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     {{-- Statut (lecture seule) --}}
                     <div class="form-group">
                         <label class="form-label">STATUT ACTUEL</label>

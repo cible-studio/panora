@@ -409,6 +409,13 @@ class CampaignController extends Controller
             ->whereDoesntHave('campaign')
             ->get();
 
+        // Commerciaux disponibles pour assignation (rôles commercial + admin + MP).
+        // L'admin peut assigner à n'importe quel commercial/MP.
+        $commerciaux = \App\Models\User::query()
+            ->whereIn('role', ['admin', 'commercial', 'mediaplanner'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'role', 'email']);
+
         $preselectedReservation = null;
         if ($request->filled('reservation_id')) {
             $preselectedReservation = Reservation::with(['client', 'panels', 'externalPanels'])
@@ -418,7 +425,7 @@ class CampaignController extends Controller
         }
 
         return view('admin.campaigns.create',
-            compact('clients', 'reservations', 'preselectedReservation'));
+            compact('clients', 'reservations', 'preselectedReservation', 'commerciaux'));
     }
 
     public function store(Request $request)
@@ -430,11 +437,12 @@ class CampaignController extends Controller
                 'required', 'string', 'max:150',
                 Rule::unique('campaigns')->where('client_id', $request->client_id),
             ],
-            'client_id'      => 'required|exists:clients,id',
-            'reservation_id' => 'nullable|exists:reservations,id',
-            'start_date'     => 'required|date',
-            'end_date'       => 'required|date|after:start_date',
-            'notes'          => 'nullable|string|max:2000',
+            'client_id'          => 'required|exists:clients,id',
+            'reservation_id'     => 'nullable|exists:reservations,id',
+            'commercial_user_id' => 'nullable|exists:users,id',
+            'start_date'         => 'required|date',
+            'end_date'           => 'required|date|after:start_date',
+            'notes'              => 'nullable|string|max:2000',
         ]);
 
         $client = Client::withTrashed()->findOrFail($data['client_id']);
@@ -446,6 +454,17 @@ class CampaignController extends Controller
         try {
             $campaign = DB::transaction(function () use ($data) {
                 $data['user_id'] = auth()->id();
+
+                // Si pas de commercial assigné explicitement, on hérite du
+                // commercial de la résa source. Sinon le créateur devient
+                // par défaut le commercial référent.
+                if (empty($data['commercial_user_id']) && !empty($data['reservation_id'])) {
+                    $r = Reservation::find($data['reservation_id']);
+                    $data['commercial_user_id'] = $r?->commercial_user_id ?: $r?->user_id;
+                }
+                if (empty($data['commercial_user_id'])) {
+                    $data['commercial_user_id'] = auth()->id();
+                }
 
                 // Statut initial dérivé des dates
                 $today = now()->startOfDay();
@@ -530,6 +549,11 @@ class CampaignController extends Controller
                 ]);
             }
 
+            // Notif commercial assigné si différent du créateur
+            if ($campaign->commercial_user_id && $campaign->commercial_user_id !== auth()->id()) {
+                $this->notifyCommercialAssigned($campaign);
+            }
+
             $msg = "Campagne « {$campaign->name} » créée avec succès.";
             if ($mailSent) {
                 $msg .= ' Email envoyé au client.';
@@ -553,7 +577,11 @@ class CampaignController extends Controller
     {
         $this->authorize('update', $campaign);
         $clients = Client::orderBy('name')->get();
-        return view('admin.campaigns.edit', compact('campaign', 'clients'));
+        $commerciaux = \App\Models\User::query()
+            ->whereIn('role', ['admin', 'commercial', 'mediaplanner'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'role', 'email']);
+        return view('admin.campaigns.edit', compact('campaign', 'clients', 'commerciaux'));
     }
 
     public function update(Request $request, Campaign $campaign)
@@ -575,9 +603,10 @@ class CampaignController extends Controller
                     ->where('client_id', $request->client_id)
                     ->ignore($campaign->id),
             ],
-            'client_id' => 'required|exists:clients,id',
-            'end_date'  => 'required|date|after:start_date',
-            'notes'     => 'nullable|string|max:2000',
+            'client_id'          => 'required|exists:clients,id',
+            'commercial_user_id' => 'nullable|exists:users,id',
+            'end_date'           => 'required|date|after:start_date',
+            'notes'              => 'nullable|string|max:2000',
         ];
 
         // start_date : verrouillée pour campagne ACTIVE, modifiable pour PLANIFIEE
@@ -617,9 +646,10 @@ class CampaignController extends Controller
         // Statut recalculé en fonction des nouvelles dates
         $data['status'] = $this->calculateStatus($newStart, $newEnd, $campaign->status);
 
-        $oldStart  = $campaign->start_date;
-        $oldEnd    = $campaign->end_date;
-        $oldStatus = $campaign->status;
+        $oldStart       = $campaign->start_date;
+        $oldEnd         = $campaign->end_date;
+        $oldStatus      = $campaign->status;
+        $oldCommercial  = $campaign->commercial_user_id;
 
         $data['updated_by'] = auth()->id();
 
@@ -640,6 +670,12 @@ class CampaignController extends Controller
                 $this->campaignService->recalculateCampaignAmount($campaign->fresh());
             }
         });
+
+        // Notif commercial si nouvellement assigné (et différent du créateur)
+        $newCommercial = $campaign->commercial_user_id;
+        if ($newCommercial && $newCommercial !== $oldCommercial && $newCommercial !== auth()->id()) {
+            $this->notifyCommercialAssigned($campaign->fresh());
+        }
 
         Log::info('campaign.updated', [
             'campaign_id' => $campaign->id,
@@ -1236,5 +1272,38 @@ class CampaignController extends Controller
         ]);
 
         return $pdf->download('campagnes-' . now()->format('Ymd-His') . '.pdf');
+    }
+
+    /**
+     * Envoie au commercial nouvellement assigné une notif email
+     * (lien direct vers la fiche campagne). Non-bloquant.
+     */
+    protected function notifyCommercialAssigned(Campaign $campaign): void
+    {
+        $commercial = $campaign->commercial;
+        if (!$commercial?->email) {
+            Log::info('campaign.assign.skipped', [
+                'campaign_id' => $campaign->id,
+                'reason'      => 'no_email',
+            ]);
+            return;
+        }
+
+        try {
+            app(\App\Services\NotificationMailer::class)->sendSilently(
+                $commercial->email,
+                new \App\Mail\CampaignAssignedMail($campaign, auth()->user()),
+                cc: null,
+                context: [
+                    'campaign_id'        => $campaign->id,
+                    'commercial_user_id' => $commercial->id,
+                ],
+            );
+        } catch (\Throwable $e) {
+            Log::warning('campaign.assign.mail_failed', [
+                'campaign_id' => $campaign->id,
+                'error'       => $e->getMessage(),
+            ]);
+        }
     }
 }
