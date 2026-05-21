@@ -748,4 +748,65 @@ class ClientController extends Controller
         ]);
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // OUTIL ONE-SHOT — Corrige les clients importés avec le pattern
+    // "PERSONNE / ENTREPRISE" dans le name (ancienne logique d'import).
+    // ══════════════════════════════════════════════════════════════
+
+    public function fixImportNamesPreview()
+    {
+        $candidates = Client::query()
+            ->where('name', 'like', '% / %')
+            ->orderBy('id')
+            ->get(['id', 'name', 'contact_name', 'ncc'])
+            ->map(function (Client $c) {
+                [$newName, $newContact] = $this->splitClientName($c->name);
+                return [
+                    'id'              => $c->id,
+                    'ncc'             => $c->ncc,
+                    'old_name'        => $c->name,
+                    'new_name'        => $newName,
+                    'new_contact'     => $newContact,
+                    'existing_contact'=> $c->contact_name,
+                    'preserved'       => !empty($c->contact_name),
+                ];
+            });
+
+        return view('admin.clients.fix-import-names', compact('candidates'));
+    }
+
+    public function fixImportNamesApply(Request $request)
+    {
+        $candidates = Client::query()->where('name', 'like', '% / %')->get();
+
+        $updated = 0;
+        \DB::transaction(function () use ($candidates, &$updated) {
+            foreach ($candidates as $client) {
+                [$newName, $newContact] = $this->splitClientName($client->name);
+                $payload = ['name' => $newName];
+                if (empty($client->contact_name) && $newContact !== '') {
+                    $payload['contact_name'] = $newContact;
+                }
+                $client->update($payload);
+                $updated++;
+            }
+        });
+
+        Log::info('clients.fix_import_names.applied', [
+            'updated' => $updated,
+            'user_id' => auth()->id(),
+        ]);
+
+        return redirect()->route('admin.clients.index')
+            ->with('success', "{$updated} client(s) corrigé(s) — name = entreprise, contact_name = personne.");
+    }
+
+    private function splitClientName(string $name): array
+    {
+        $pos = mb_strrpos($name, ' / ');
+        if ($pos === false) return [$name, ''];
+        $left  = trim(mb_substr($name, 0, $pos));
+        $right = trim(mb_substr($name, $pos + 3));
+        return [$right, $left];
+    }
 }
