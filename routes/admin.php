@@ -525,6 +525,13 @@ Route::prefix('admin')
         Route::post('clients/fix-import-names', [ClientController::class, 'fixImportNamesApply'])
             ->middleware('role:admin')
             ->name('clients.fix-import-names.apply');
+        // Outil one-shot — effacer les NCC auto-générés (CLT-YYYY-NNNN)
+        Route::get('clients/clear-auto-ncc',  [ClientController::class, 'clearAutoNccPreview'])
+            ->middleware('role:admin')
+            ->name('clients.clear-auto-ncc.preview');
+        Route::post('clients/clear-auto-ncc', [ClientController::class, 'clearAutoNccApply'])
+            ->middleware('role:admin')
+            ->name('clients.clear-auto-ncc.apply');
         // Exports liste clients (5.2) — placés AVANT /clients/{client} pour
         // ne pas être avalés par le route model binding.
         Route::get('clients/export/csv', [ClientController::class, 'exportCsv'])
