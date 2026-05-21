@@ -540,8 +540,15 @@
          x-data="panneauxManager()">
 
         <div class="px-6 py-4 border-b flex justify-between items-center flex-wrap gap-3"
-             style="background:var(--surface2);border-color:var(--border)">
+             style="background:var(--surface2);border-color:var(--border);cursor:pointer"
+             @click="expanded = !expanded">
             <h2 class="font-bold text-lg flex items-center gap-2" style="color:var(--text)">
+                {{-- Chevron : rotate quand expanded --}}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                     style="transition:transform .2s ease"
+                     :style="expanded ? 'transform:rotate(0deg)' : 'transform:rotate(-90deg)'">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
                 <span class="text-2xl">🪧</span> Panneaux
                 <span class="text-sm px-3 py-1 rounded-full" style="background:var(--surface3);color:var(--text3)">
                     {{ $campaign->panels->count() + $campaign->externalPanels->count() }}
@@ -551,7 +558,7 @@
             <button type="button"
                     class="px-4 py-2 text-sm font-semibold rounded-lg text-white"
                     style="background:var(--accent)"
-                    @click="toggleAdd()"
+                    @click.stop="expanded = true; toggleAdd()"
                     x-text="showAdd ? '✕ Annuler' : '+ Ajouter un panneau'"></button>
             @endif
         </div>
@@ -688,7 +695,7 @@
 
         {{-- Tableau panneaux (avec pagination JS si > 25 panneaux) --}}
         @php $totalPanelsRows = $campaign->panels->count() + $campaign->externalPanels->count(); @endphp
-        <div class="overflow-x-auto" id="camp-panels-wrap">
+        <div class="overflow-x-auto" id="camp-panels-wrap" x-show="expanded" x-collapse>
             <table class="w-full" id="camp-panels-table">
                 <thead class="border-b" style="background:var(--surface2);border-color:var(--border)">
                     <tr class="text-left text-xs font-semibold uppercase tracking-wider" style="color:var(--text3)">
@@ -1237,6 +1244,7 @@
 
     function panneauxManager() {
         return {
+            expanded: true,           // section dépliée par défaut
             showAdd: false,
             search: '',
             filterCommune: '',
