@@ -796,6 +796,17 @@ Route::prefix('admin')
             // ajoutés/retirés, prix négocié). Renvoie un récap actualisé.
             Route::post('campaigns/{campaign}/notify-client', [CampaignController::class, 'notifyClient'])
                 ->whereNumber('campaign')->name('campaigns.notify-client');
+
+            // Override du montant total campagne (remise globale ou
+            // négociation forfaitaire). Diverge de la somme des prix
+            // panneau — l'utilisateur en prend la responsabilité.
+            Route::patch('campaigns/{campaign}/total', [CampaignController::class, 'updateTotal'])
+                ->whereNumber('campaign')->name('campaigns.total');
+
+            // Dupliquer une campagne (renouvellement rapide : mêmes panneaux
+            // + prix négociés + commercial, nouvelles dates).
+            Route::post('campaigns/{campaign}/duplicate', [CampaignController::class, 'duplicate'])
+                ->whereNumber('campaign')->name('campaigns.duplicate');
         });
 
         // Suppression campagne = admin uniquement (matrice CAMPAGNES)

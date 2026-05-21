@@ -530,8 +530,115 @@ class CampaignController extends Controller
                 ->find($request->reservation_id);
         }
 
+        // Préselection depuis une campagne existante (action "Renouveler /
+        // Dupliquer") : on passe les valeurs au formulaire via old() en
+        // les flashant dans la session une seule fois.
+        $duplicateFrom = null;
+        if ($request->filled('from')) {
+            $duplicateFrom = Campaign::with(['panels:id', 'externalPanels:id'])
+                ->find((int) $request->from);
+            if ($duplicateFrom) {
+                $request->session()->flashInput([
+                    'name'               => $duplicateFrom->name . ' (renouvelée)',
+                    'client_id'          => $duplicateFrom->client_id,
+                    'commercial_user_id' => $duplicateFrom->commercial_user_id,
+                    'notes'              => $duplicateFrom->notes,
+                ]);
+            }
+        }
+
         return view('admin.campaigns.create',
-            compact('clients', 'reservations', 'preselectedReservation', 'commerciaux'));
+            compact('clients', 'reservations', 'preselectedReservation', 'commerciaux', 'duplicateFrom'));
+    }
+
+    /**
+     * Dupliquer une campagne existante : crée une nouvelle campagne en
+     * PLANIFIE avec les mêmes panneaux, prix négociés et commercial, mais
+     * de nouvelles dates (par défaut +30 j après l'ancienne fin).
+     *
+     * Mode "snapshot complet" pour un renouvellement rapide. L'utilisateur
+     * reste sur la fiche de la nouvelle campagne pour ajuster les dates +
+     * lancer manuellement.
+     */
+    public function duplicate(Request $request, Campaign $source)
+    {
+        $this->authorize('create', Campaign::class);
+        $this->authorize('view', $source);
+
+        $data = $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date'   => 'nullable|date|after:start_date',
+        ]);
+
+        $duration = $source->start_date->diffInDays($source->end_date);
+        $newStart = !empty($data['start_date'])
+            ? \Carbon\Carbon::parse($data['start_date'])
+            : $source->end_date->copy()->addDay();
+        $newEnd = !empty($data['end_date'])
+            ? \Carbon\Carbon::parse($data['end_date'])
+            : $newStart->copy()->addDays($duration);
+
+        try {
+            $newCampaign = DB::transaction(function () use ($source, $newStart, $newEnd) {
+                $baseName = $source->name . ' (renouvelée)';
+                $name = $baseName;
+                $i = 2;
+                while (Campaign::where('client_id', $source->client_id)->where('name', $name)->whereNull('deleted_at')->exists()) {
+                    $name = $baseName . ' ' . $i;
+                    $i++;
+                }
+
+                $campaign = Campaign::create([
+                    'name'               => $name,
+                    'client_id'          => $source->client_id,
+                    'commercial_user_id' => $source->commercial_user_id,
+                    'user_id'            => auth()->id(),
+                    'start_date'         => $newStart->format('Y-m-d'),
+                    'end_date'           => $newEnd->format('Y-m-d'),
+                    'status'             => CampaignStatus::PLANIFIE->value,
+                    'notes'              => $source->notes,
+                    'total_amount'       => 0,
+                ]);
+
+                // Réattache les panneaux internes via le service (qui crée
+                // la résa technique + recalcule + applique les conflits).
+                $internalIds = $source->panels()->pluck('panels.id')->all();
+                if (!empty($internalIds)) {
+                    $this->campaignService->addPanels($campaign, $internalIds);
+                }
+
+                $externalIds = $source->externalPanels()->pluck('external_panels.id')->all();
+                if (!empty($externalIds)) {
+                    $this->campaignService->addExternalPanels($campaign->fresh(), $externalIds);
+                }
+
+                Log::info('campaign.duplicated', [
+                    'source_id' => $source->id,
+                    'new_id'    => $campaign->id,
+                    'user_id'   => auth()->id(),
+                ]);
+
+                return $campaign;
+            });
+
+            AlertService::create(
+                'campagne', 'info',
+                '🔁 Campagne dupliquée — ' . $newCampaign->name,
+                auth()->user()?->name . " a dupliqué la campagne #{$source->id} ({$source->name}) → #{$newCampaign->id}",
+                $newCampaign
+            );
+
+            return redirect()
+                ->route('admin.campaigns.show', $newCampaign)
+                ->with('success', "✅ Campagne dupliquée. Ajustez les dates / panneaux si besoin, puis cliquez « ▶ Démarrer la campagne ».");
+
+        } catch (\Throwable $e) {
+            Log::error('campaign.duplicate.failed', [
+                'source_id' => $source->id,
+                'error'     => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Échec de la duplication : ' . $e->getMessage());
+        }
     }
 
     public function store(Request $request)
@@ -541,7 +648,12 @@ class CampaignController extends Controller
         $data = $request->validate([
             'name' => [
                 'required', 'string', 'max:150',
-                Rule::unique('campaigns')->where('client_id', $request->client_id),
+                // Campaign use SoftDeletes — on doit explicitement exclure
+                // les rows soft-deleted sinon l'utilisateur ne peut plus
+                // créer une campagne avec le nom d'une campagne supprimée.
+                Rule::unique('campaigns')
+                    ->where('client_id', $request->client_id)
+                    ->whereNull('deleted_at'),
             ],
             'client_id'          => 'required|exists:clients,id',
             'reservation_id'     => 'nullable|exists:reservations,id',
@@ -737,6 +849,7 @@ class CampaignController extends Controller
                 'required', 'string', 'max:150',
                 Rule::unique('campaigns', 'name')
                     ->where('client_id', $request->client_id)
+                    ->whereNull('deleted_at')
                     ->ignore($campaign->id),
             ],
             'client_id'          => 'required|exists:clients,id',
@@ -1119,6 +1232,67 @@ class CampaignController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // OVERRIDE MONTANT TOTAL (remise globale / négociation forfaitaire)
+    //
+    // Permet à un commercial de fixer un montant total différent de la
+    // somme calculée (panel.unit_price × mois). Cas typiques :
+    //   - Remise globale négociée avec le client
+    //   - Forfait packagé (panneaux + production + média)
+    //
+    // Ne touche pas aux prix individuels — c'est juste un override du
+    // total final affiché et facturé. Si l'utilisateur ajoute/retire un
+    // panneau ensuite, le total est recalculé depuis les prix unitaires
+    // (l'override est perdu). On le signale dans l'UI.
+    // ══════════════════════════════════════════════════════════════
+    public function updateTotal(Request $request, Campaign $campaign)
+    {
+        $this->authorize('update', $campaign);
+
+        $data = $request->validate([
+            'total_amount' => 'required|numeric|min:0',
+        ]);
+
+        if (in_array($campaign->status->value, ['termine', 'annule'])) {
+            $isAjax = $request->expectsJson() || $request->ajax();
+            $msg = 'Impossible de modifier le montant d\'une campagne terminée ou annulée.';
+            return $isAjax
+                ? response()->json(['ok' => false, 'error' => $msg], 422)
+                : back()->with('error', $msg);
+        }
+
+        $oldTotal = (float) $campaign->total_amount;
+        $newTotal = round((float) $data['total_amount'], 2);
+
+        $campaign->update(['total_amount' => $newTotal]);
+
+        Log::info('campaign.total_overridden', [
+            'campaign_id' => $campaign->id,
+            'old_total'   => $oldTotal,
+            'new_total'   => $newTotal,
+            'user_id'     => auth()->id(),
+        ]);
+
+        AlertService::create(
+            'campagne', 'info',
+            '💰 Montant total ajusté — ' . $campaign->name,
+            auth()->user()?->name . ' a modifié le total de '
+                . number_format($oldTotal, 0, ',', ' ') . ' → '
+                . number_format($newTotal, 0, ',', ' ') . ' FCFA',
+            $campaign
+        );
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok'           => true,
+                'total_amount' => $newTotal,
+                'message'      => 'Montant total mis à jour.',
+            ]);
+        }
+
+        return back()->with('success', 'Montant total mis à jour.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // REMOVE EXTERNAL PANEL — détache un panneau régie partenaire
     // ══════════════════════════════════════════════════════════════
     public function removeExternalPanel(Campaign $campaign, ExternalPanel $externalPanel)
@@ -1315,6 +1489,20 @@ class CampaignController extends Controller
             $alertLevel = 'info';
             $alertIcon  = '✅';
             $alertVerb  = 'a clôturé';
+        } elseif ($newStatus === CampaignStatus::ACTIF) {
+            // ── PLANIFIE → ACTIF ou PAUSE → ACTIF ─────────────────────
+            // On route à travers CampaignService::activate() pour appliquer
+            // les gardes (≥ 1 panneau) ET envoyer le mail client à la
+            // première activation. Auparavant on faisait juste un
+            // ->update(['status' => 'actif']) qui sautait ces deux étapes.
+            $result = $this->campaignService->activate($campaign);
+            if (!$result['ok']) {
+                return back()->with('error', $result['error']);
+            }
+            $mailSent = !empty($result['mail_sent']);
+            $alertLevel = 'info';
+            $alertIcon  = '▶️';
+            $alertVerb  = 'a activé';
         } else {
             $campaign->update([
                 'status'     => $newStatus->value,
@@ -1333,9 +1521,14 @@ class CampaignController extends Controller
             $campaign
         );
 
+        $msg = "Statut mis à jour : {$newStatus->label()}.";
+        if (isset($mailSent) && $mailSent) {
+            $msg .= ' 📧 Mail d\'annonce envoyé au client.';
+        }
+
         return redirect()
             ->route('admin.campaigns.show', $campaign)
-            ->with('success', "Statut mis à jour : {$newStatus->label()}.");
+            ->with('success', $msg);
     }
 
     // ══════════════════════════════════════════════════════════════
