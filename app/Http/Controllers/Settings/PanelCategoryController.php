@@ -45,6 +45,10 @@ class PanelCategoryController extends Controller
 
         $category->update($request->all());
 
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Catégorie modifiée avec succès !']);
+        }
+
         return redirect()->route('admin.settings.categories.index')
             ->with('success', 'Catégorie modifiée avec succès !');
     }

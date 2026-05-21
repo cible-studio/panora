@@ -26,8 +26,12 @@ class SettingsController extends Controller
         $categories = PanelCategory::orderBy('name')
             ->paginate($perPage, ['*'], 'categories_page');
 
+        // Liste complète des communes — utilisée par le modal d'édition rapide
+        // d'une zone pour peupler le select sans recharger la page.
+        $allCommunes = Commune::orderBy('name')->get(['id', 'name']);
+
         return view('settings.index', compact(
-            'communes', 'zones', 'formats', 'categories'
+            'communes', 'zones', 'formats', 'categories', 'allCommunes'
         ));
     }
 }

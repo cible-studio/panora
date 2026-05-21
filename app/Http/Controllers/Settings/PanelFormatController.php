@@ -51,6 +51,10 @@ class PanelFormatController extends Controller
 
         $format->update($request->all());
 
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Format modifié avec succès !']);
+        }
+
         return redirect()->route('admin.settings.formats.index')
             ->with('success', 'Format modifié avec succès !');
     }
