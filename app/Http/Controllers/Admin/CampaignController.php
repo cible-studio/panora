@@ -690,9 +690,12 @@ class CampaignController extends Controller
     {
         $this->authorize('managePanel', $campaign);
 
-        $request->validate([
-            'panel_ids'   => 'required|array|min:1|max:50',
-            'panel_ids.*' => 'required|integer|exists:panels,id',
+        $data = $request->validate([
+            'panel_ids'        => 'required|array|min:1|max:50',
+            'panel_ids.*'      => 'required|integer|exists:panels,id',
+            // Prix négocié optionnel par panneau (clé = panel_id)
+            'unit_prices'      => 'nullable|array',
+            'unit_prices.*'    => 'nullable|numeric|min:0',
         ]);
 
         if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
@@ -700,23 +703,126 @@ class CampaignController extends Controller
                 'Impossible d\'ajouter des panneaux à une campagne en pause, terminée ou annulée.');
         }
 
-        $result = $this->campaignService->addPanels($campaign, $request->panel_ids);
+        // Filtre les prix custom (skip ceux à null/vide → fallback monthly_rate)
+        $unitPrices = null;
+        if (!empty($data['unit_prices'])) {
+            $unitPrices = [];
+            foreach ($data['unit_prices'] as $panelId => $price) {
+                if ($price !== null && $price !== '') {
+                    $unitPrices[(int) $panelId] = (float) $price;
+                }
+            }
+        }
+
+        $result = $this->campaignService->addPanels($campaign, $data['panel_ids'], $unitPrices);
 
         if (!$result['ok']) {
             return back()->with('error', $result['error']);
         }
 
-        $count = $result['added'] ?? count($request->panel_ids);
+        $count = $result['added'] ?? count($data['panel_ids']);
+        $posesCreated = $result['poses_created'] ?? 0;
 
         AlertService::create(
             'campagne',
             'info',
             '➕ Panneau ajouté — ' . $campaign->name,
-            auth()->user()?->name . " a ajouté {$count} panneau(x) à la campagne \"{$campaign->name}\"",
+            auth()->user()?->name . " a ajouté {$count} panneau(x) à la campagne \"{$campaign->name}\""
+            . ($posesCreated > 0 ? " — {$posesCreated} tâche(s) de pose auto-créée(s)" : ''),
             $campaign
         );
 
-        return back()->with('success', "{$count} panneau(x) ajouté(s). Montant recalculé.");
+        $msg = "{$count} panneau(x) ajouté(s). Montant recalculé.";
+        if ($posesCreated > 0) {
+            $msg .= " {$posesCreated} pose(s) auto-créée(s).";
+        }
+        return back()->with('success', $msg);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // UPDATE PANEL PRICE — Modifier le prix d'un panneau déjà attaché
+    // (cas typique : prix négocié après ajout, ou correction)
+    // ══════════════════════════════════════════════════════════════
+    public function updatePanelPrice(Request $request, Campaign $campaign, Panel $panel)
+    {
+        $this->authorize('managePanel', $campaign);
+
+        $data = $request->validate([
+            'unit_price' => 'required|numeric|min:0',
+        ]);
+
+        if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
+            return back()->with('error', 'Impossible de modifier le prix sur une campagne en pause, terminée ou annulée.');
+        }
+
+        if (!$campaign->reservation_id) {
+            return back()->with('error', 'Aucune réservation associée à cette campagne. Le prix ne peut être modifié.');
+        }
+
+        // Vérifie que le panneau est bien dans la campagne (sécurité)
+        if (!$campaign->panels()->where('panels.id', $panel->id)->exists()) {
+            return back()->with('error', 'Ce panneau n\'est pas dans la campagne.');
+        }
+
+        $months = $campaign->billableMonths();
+        $unit   = (float) $data['unit_price'];
+
+        \DB::table('reservation_panels')
+            ->where('reservation_id', $campaign->reservation_id)
+            ->where('panel_id', $panel->id)
+            ->update([
+                'unit_price'  => $unit,
+                'total_price' => round($unit * $months, 2),
+                'updated_at'  => now(),
+            ]);
+
+        // Recalcule via la SDV (somme des pivots de la résa)
+        $this->campaignService->recalculateCampaignAmount($campaign->fresh());
+
+        Log::info('campaign.panel_price_updated', [
+            'campaign_id' => $campaign->id,
+            'panel_id'    => $panel->id,
+            'unit_price'  => $unit,
+            'user_id'     => auth()->id(),
+        ]);
+
+        AlertService::create(
+            'campagne', 'info',
+            '💰 Prix modifié — ' . $campaign->name,
+            auth()->user()?->name . " a modifié le prix du panneau {$panel->reference} à " . number_format($unit, 0, ',', ' ') . " FCFA/mois",
+            $campaign
+        );
+
+        return back()->with('success', 'Prix mis à jour. Total campagne recalculé.');
+    }
+
+    public function resetPanelPrice(Campaign $campaign, Panel $panel)
+    {
+        $this->authorize('managePanel', $campaign);
+
+        if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
+            return back()->with('error', 'Campagne non modifiable.');
+        }
+
+        if (!$campaign->reservation_id) {
+            return back()->with('error', 'Aucune réservation associée.');
+        }
+
+        $months = $campaign->billableMonths();
+        $unit   = (float) ($panel->monthly_rate ?? 0);
+
+        \DB::table('reservation_panels')
+            ->where('reservation_id', $campaign->reservation_id)
+            ->where('panel_id', $panel->id)
+            ->update([
+                'unit_price'  => $unit,
+                'total_price' => round($unit * $months, 2),
+                'updated_at'  => now(),
+            ]);
+
+        $this->campaignService->recalculateCampaignAmount($campaign->fresh());
+
+        return back()->with('success', 'Prix remis au tarif catalogue (' . number_format($unit, 0, ',', ' ') . ' FCFA/mois).');
     }
 
     // ══════════════════════════════════════════════════════════════

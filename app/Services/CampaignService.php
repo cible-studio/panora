@@ -25,7 +25,15 @@ class CampaignService
     // ══════════════════════════════════════════════════════════════
     // AJOUTER DES PANNEAUX
     // ══════════════════════════════════════════════════════════════
-    public function addPanels(Campaign $campaign, array $panelIds): array
+    /**
+     * Ajoute un ou plusieurs panneaux à une campagne.
+     *
+     * @param Campaign $campaign
+     * @param array<int> $panelIds
+     * @param array<int,float>|null $unitPrices Override de prix par panel_id
+     *        (négociation commerciale). Si null → utilise panel.monthly_rate.
+     */
+    public function addPanels(Campaign $campaign, array $panelIds, ?array $unitPrices = null): array
     {
         if (!in_array($campaign->status->value, self::MODIFIABLE_STATUSES)) {
             return ['ok' => false, 'error' => 'Campagne non modifiable.'];
@@ -39,7 +47,7 @@ class CampaignService
             return ['ok' => false, 'error' => "Ces panneaux sont déjà dans la campagne : {$refs}"];
         }
 
-        return DB::transaction(function () use ($campaign, $panelIds) {
+        return DB::transaction(function () use ($campaign, $panelIds, $unitPrices) {
             // Verrou pessimiste sur les panels
             Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
 
@@ -59,25 +67,33 @@ class CampaignService
 
             if ($campaign->reservation_id) {
                 $reservation = $campaign->reservation;
-                $attach      = $this->buildAttach($panelIds, $months);
+                $attach      = $this->buildAttach($panelIds, $months, $unitPrices);
                 $reservation->panels()->syncWithoutDetaching($attach);
                 $this->recalculateReservationAmount($reservation);
             } else {
-                $this->createTechnicalReservation($campaign, $panelIds, $months);
+                $this->createTechnicalReservation($campaign, $panelIds, $months, $unitPrices);
             }
 
             $campaign->panels()->syncWithoutDetaching($panelIds);
             $this->recalculateCampaignAmount($campaign);
             $this->availability->syncPanelStatuses($panelIds);
 
+            // FIX critique : créer les PoseTasks pour les panneaux ajoutés
+            // (sans cela, le tech terrain n'est pas convoqué pour les
+            // nouveaux panneaux d'une campagne déjà créée).
+            $campaign->refresh();
+            $posesCreated = $campaign->ensurePoseTasksAutoCreated();
+
             Log::info('campaign.panels_added', [
-                'campaign_id' => $campaign->id,
-                'panel_ids'   => $panelIds,
-                'count'       => count($panelIds),
-                'user_id'     => auth()->id(),
+                'campaign_id'  => $campaign->id,
+                'panel_ids'    => $panelIds,
+                'count'        => count($panelIds),
+                'poses_created'=> $posesCreated,
+                'custom_prices'=> $unitPrices ? array_keys($unitPrices) : [],
+                'user_id'      => auth()->id(),
             ]);
 
-            return ['ok' => true, 'added' => count($panelIds)];
+            return ['ok' => true, 'added' => count($panelIds), 'poses_created' => $posesCreated];
         });
     }
 
@@ -400,19 +416,38 @@ class CampaignService
     //
     // Source unique de vérité : Campaign::billableMonths()
     // ══════════════════════════════════════════════════════════════
+    /**
+     * Recalcule le total_amount d'une campagne.
+     *
+     * Source de vérité par ordre de priorité :
+     *   1. Si campaign.reservation_id existe (résa réelle OU technique) →
+     *      somme exacte des `reservation_panels.total_price` (respecte les
+     *      prix négociés/custom).
+     *   2. Sinon (cas exceptionnel : campagne sans aucune résa) →
+     *      panels.monthly_rate × billableMonths.
+     */
     public function recalculateCampaignAmount(Campaign $campaign): void
     {
-        $months = $campaign->billableMonths();
+        $countInternal = (int) $campaign->panels()->count();
+        $countExternal = (int) $campaign->externalPanels()->count();
 
-        // Internes + externes : monthly_rate sommé sur les deux relations.
-        $sumRateInternal = (float) $campaign->panels()->sum('monthly_rate');
-        $sumRateExternal = (float) $campaign->externalPanels()->sum('monthly_rate');
-        $countInternal   = (int)   $campaign->panels()->count();
-        $countExternal   = (int)   $campaign->externalPanels()->count();
+        $reservationId = $campaign->reservation_id;
+        if ($reservationId) {
+            // Somme exacte des total_price pivot — respecte les prix négociés
+            $total = (float) DB::table('reservation_panels')
+                ->where('reservation_id', $reservationId)
+                ->sum('total_price');
+        } else {
+            // Fallback fallback : tarif catalogue × mois
+            $months = $campaign->billableMonths();
+            $sumRateInternal = (float) $campaign->panels()->sum('monthly_rate');
+            $sumRateExternal = (float) $campaign->externalPanels()->sum('monthly_rate');
+            $total = ($sumRateInternal + $sumRateExternal) * $months;
+        }
 
         $campaign->update([
             'total_panels' => $countInternal + $countExternal,
-            'total_amount' => round(($sumRateInternal + $sumRateExternal) * $months, 2),
+            'total_amount' => round($total, 2),
             'updated_by'   => auth()->id(),
         ]);
     }
@@ -467,7 +502,15 @@ class CampaignService
         }
     }
 
-    private function createTechnicalReservation(Campaign $campaign, array $panelIds, float $months): void
+    /**
+     * Crée (ou complète) la réservation technique auto associée à une
+     * campagne directe (créée sans résa explicite). Tient le pivot
+     * reservation_panels à jour pour que le rapport CA + le décompte
+     * commercial restent cohérents.
+     *
+     * @param array<int,float>|null $unitPrices  Override de prix par panel_id
+     */
+    private function createTechnicalReservation(Campaign $campaign, array $panelIds, float $months, ?array $unitPrices = null): void
     {
         $marker = '[Auto] Réservation technique — campagne #' . $campaign->id;
 
@@ -479,7 +522,7 @@ class CampaignService
             ->where('notes', 'like', '%' . $marker . '%')
             ->first();
 
-        $attach = $this->buildAttach($panelIds, $months);
+        $attach = $this->buildAttach($panelIds, $months, $unitPrices);
         $total  = array_sum(array_column($attach, 'total_price'));
 
         if (!$existing) {
@@ -511,7 +554,14 @@ class CampaignService
         }
     }
 
-    private function buildAttach(array $panelIds, float $months): array
+    /**
+     * Construit le tableau d'attachement pivot reservation_panels avec
+     * support des prix négociés. Si `unitPrices[$panel_id]` est défini,
+     * il prime sur `panel.monthly_rate`.
+     *
+     * @param array<int,float>|null $unitPrices
+     */
+    private function buildAttach(array $panelIds, float $months, ?array $unitPrices = null): array
     {
         $rates = Panel::whereIn('id', $panelIds)
             ->pluck('monthly_rate', 'id')
@@ -519,10 +569,16 @@ class CampaignService
 
         $attach = [];
         foreach ($panelIds as $id) {
-            $unit        = (float) ($rates[$id] ?? 0);
+            // Prix custom si fourni et > 0, sinon tarif catalogue
+            $custom = isset($unitPrices[$id]) ? (float) $unitPrices[$id] : null;
+            $unit   = ($custom !== null && $custom >= 0)
+                ? $custom
+                : (float) ($rates[$id] ?? 0);
+
             $attach[$id] = [
                 'unit_price'  => $unit,
                 'total_price' => round($unit * $months, 2),
+                'source'      => 'interne',
             ];
         }
         return $attach;

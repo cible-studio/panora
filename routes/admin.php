@@ -783,6 +783,14 @@ Route::prefix('admin')
                 ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.remove');
             Route::delete('campaigns/{campaign}/external-panels/{externalPanel}', [CampaignController::class, 'removeExternalPanel'])
                 ->whereNumber('campaign')->whereNumber('externalPanel')->name('campaigns.external-panels.remove');
+
+            // Modification du prix d'un panneau attaché à la campagne
+            // (prix négocié post-création ou correction). Met à jour le
+            // pivot reservation_panels de la résa liée et recalcule le total.
+            Route::patch('campaigns/{campaign}/panels/{panel}/price', [CampaignController::class, 'updatePanelPrice'])
+                ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.price');
+            Route::post('campaigns/{campaign}/panels/{panel}/price/reset', [CampaignController::class, 'resetPanelPrice'])
+                ->whereNumber('campaign')->whereNumber('panel')->name('campaigns.panels.price.reset');
         });
 
         // Suppression campagne = admin uniquement (matrice CAMPAGNES)
