@@ -1,22 +1,22 @@
 @php
     $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
-    $title = $isReset ? 'Nouveau mot de passe' : 'Espace client prêt';
+    $title = $isReset ? 'Nouveau mot de passe' : 'Invitation Panora';
     $preheader = $isReset
         ? "Votre mot de passe espace client a été réinitialisé."
-        : "Bienvenue {$client->name}, votre espace client PANORA est prêt.";
+        : "{$operator} vous invite à rejoindre Panora, votre espace OOH dédié.";
 @endphp
 
 <x-mail.layout :title="$title" :preheader="$preheader">
 
     <span class="{{ $isReset ? 'pill pill-warning' : 'pill pill-success' }}">
-        {{ $isReset ? '🔑 Réinitialisation' : '🎉 Bienvenue' }}
+        {{ $isReset ? '🔑 Réinitialisation' : '✉️ Invitation' }}
     </span>
 
     <h1>
         @if($isReset)
             Votre mot de passe a été réinitialisé
         @else
-            Votre espace client est prêt, {{ $client->name }} !
+            Bonjour {{ $client->name }},
         @endif
     </h1>
 
@@ -25,9 +25,11 @@
            Connectez-vous avec les identifiants ci-dessous et changez-le
            immédiatement depuis votre profil.</p>
     @else
-        <p>Bienvenue sur votre espace client <strong>PANORA</strong> — la plateforme utilisée par
-           <strong>{{ $operator }}</strong>. Vous pouvez maintenant consulter
-           vos propositions commerciales, suivre vos campagnes et accéder à vos factures.</p>
+        <p>Vous avez été invité(e) par <strong>{{ $operator }}</strong> à rejoindre
+           <strong>Panora</strong> — la plateforme qui regroupe en un seul espace vos
+           propositions commerciales, le suivi de vos campagnes d'affichage et vos
+           factures.</p>
+        <p>Voici vos identifiants de connexion :</p>
     @endif
 
     <div class="info">

@@ -218,6 +218,66 @@
     </div>
 </div>
 
+{{-- Select2 (recherche client + réservation) — CDN, isolé à cette page --}}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+<style>
+/* Harmonisation du visuel Select2 avec le thème Panora (variables CSS). */
+.select2-container--default .select2-selection--single {
+    background: var(--surface2) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: 8px !important;
+    height: 42px !important;
+    padding: 4px 6px !important;
+    color: var(--text) !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: var(--text) !important;
+    line-height: 32px !important;
+    padding-left: 8px !important;
+    font-size: 13px !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 40px !important;
+    right: 6px !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__placeholder {
+    color: var(--text3) !important;
+}
+.select2-dropdown {
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+}
+.select2-container--default .select2-search--dropdown .select2-search__field {
+    background: var(--surface2) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: 8px !important;
+    color: var(--text) !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+}
+.select2-container--default .select2-results__option {
+    padding: 9px 14px !important;
+    font-size: 13px !important;
+    color: var(--text) !important;
+}
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background: var(--accent) !important;
+    color: #fff !important;
+}
+.select2-container--default .select2-results__option[aria-selected=true] {
+    background: var(--surface2) !important;
+    color: var(--text) !important;
+}
+.select2-container--open .select2-dropdown {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18) !important;
+}
+.select2-container { width: 100% !important; }
+</style>
+
 @push('scripts')
 <script>
 function campaignCreate() {
@@ -230,6 +290,41 @@ function campaignCreate() {
             if (select && select.value) {
                 this.fillFromOption(select.options[select.selectedIndex]);
             }
+
+            // Initialise Select2 sur le client + réservation (recherche).
+            // On garde une référence "self" car jQuery casse le binding 'this'.
+            const self = this;
+            $(function() {
+                const $client = $('#campaign-client-select');
+                $client.select2({
+                    placeholder: '🔍 Rechercher un client…',
+                    allowClear: false,
+                    width: '100%',
+                    language: {
+                        noResults: () => 'Aucun client trouvé',
+                        searching: () => 'Recherche…',
+                    },
+                });
+                // Quand on choisit via Select2, Alpine reçoit le 'change' natif
+                // que select2 émet déjà — il n'y a donc rien à propager en plus.
+                // On synchronise tout de même selectedClientId par sécurité.
+                $client.on('change', function() { self.selectedClientId = this.value; });
+
+                $('select[name="reservation_id"]').select2({
+                    placeholder: 'Aucune réservation liée',
+                    allowClear: true,
+                    width: '100%',
+                    language: {
+                        noResults: () => 'Aucune réservation',
+                        searching: () => 'Recherche…',
+                    },
+                }).on('change', function(e) {
+                    // Réémet l'événement vers le handler Alpine (x-model
+                    // intercepte 'change' DOM ; Select2 le dispatch lui-même).
+                    const opt = this.options[this.selectedIndex];
+                    self.fillFromOption(opt);
+                });
+            });
         },
 
         onReservationChange(event) {
@@ -246,7 +341,11 @@ function campaignCreate() {
 
             if (start) this.$refs.startDate.value = start;
             if (end)   this.$refs.endDate.value   = end;
-            if (client) this.selectedClientId     = client;
+            if (client) {
+                this.selectedClientId = client;
+                // Force Select2 à afficher la nouvelle valeur sélectionnée.
+                $('#campaign-client-select').val(client).trigger('change.select2');
+            }
         }
     }
 }
@@ -397,8 +496,9 @@ async function submitQuickClient() {
         const sel = document.getElementById('campaign-client-select');
         const opt = new Option(created.name, created.id, true, true);
         sel.add(opt);
-        // Déclenche le binding Alpine (x-model)
+        // Déclenche le binding Alpine (x-model) + rafraîchit Select2.
         sel.dispatchEvent(new Event('change', { bubbles: true }));
+        if (window.jQuery) jQuery(sel).trigger('change.select2');
         closeQuickClient();
     } catch (e) {
         errBox.textContent = '⚠️ Erreur réseau : ' + e.message;
