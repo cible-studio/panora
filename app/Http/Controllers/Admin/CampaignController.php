@@ -1282,6 +1282,15 @@ class CampaignController extends Controller
             'total_amount_overridden_by_id' => auth()->id(),
         ]);
 
+        // Synchronise la réservation liée (réelle ou technique) — sinon
+        // la fiche réservation affiche encore l'ancien montant calculé
+        // depuis les prix unitaires. On utilise updateQuietly() pour
+        // éviter de re-déclencher ReservationObserver::updated (boucle).
+        if ($campaign->reservation_id) {
+            \App\Models\Reservation::where('id', $campaign->reservation_id)
+                ->update(['total_amount' => $newTotal]);
+        }
+
         Log::info('campaign.total_overridden', [
             'campaign_id' => $campaign->id,
             'old_total'   => $oldTotal,
