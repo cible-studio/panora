@@ -15,11 +15,13 @@ class Pige extends Model
         'gps_lat', 'gps_lng',
         'taken_at', 'verified_at',
         'status', 'rejection_reason', 'notes',
+        'archived_at',
     ];
 
     protected $casts = [
         'taken_at'    => 'datetime',
         'verified_at' => 'datetime',
+        'archived_at' => 'datetime',
         'gps_lat'     => 'float',
         'gps_lng'     => 'float',
     ];
@@ -85,6 +87,31 @@ class Pige extends Model
     public function scopeForPanel(Builder $q, int $panelId): Builder
     {
         return $q->where('panel_id', $panelId);
+    }
+
+    /**
+     * Pige active (campagne vivante). Par défaut on n'affiche que celles-ci
+     * dans la liste admin. Les piges archivées sont accessibles via la vue
+     * dédiée /admin/piges/archives.
+     */
+    public function scopeActive(Builder $q): Builder
+    {
+        return $q->whereNull('archived_at');
+    }
+
+    /**
+     * Pige archivée (campagne associée supprimée ou cleanup manuel).
+     * Conservée pour valeur légale + audit + facturation, mais sortie
+     * de la liste active.
+     */
+    public function scopeArchived(Builder $q): Builder
+    {
+        return $q->whereNotNull('archived_at');
+    }
+
+    public function isArchived(): bool
+    {
+        return !is_null($this->archived_at);
     }
 
     // ══════════════════════════════════════════════════════════════

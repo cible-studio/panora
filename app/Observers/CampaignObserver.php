@@ -183,4 +183,48 @@ class CampaignObserver
             // l'alerte spécifique avec le motif → pas de doublon ici.
         }
     }
+
+    /**
+     * Soft-delete de la campagne → on archive ses piges.
+     *
+     * Les piges ont une valeur légale (preuve photo) et comptable
+     * (facturation). On les conserve EN BASE mais on les sort de la
+     * vue active via `archived_at = now()`. L'admin peut les
+     * retrouver dans /admin/piges/archives.
+     *
+     * Idempotent : si une pige est déjà archivée (cleanup manuel),
+     * son archived_at est préservé (pas réécrit à chaque delete).
+     */
+    public function deleted(Campaign $campaign): void
+    {
+        $affected = \App\Models\Pige::where('campaign_id', $campaign->id)
+            ->whereNull('archived_at')
+            ->update(['archived_at' => now()]);
+
+        if ($affected > 0) {
+            Log::info('campaign.deleted.piges_archived', [
+                'campaign_id'   => $campaign->id,
+                'campaign_name' => $campaign->name,
+                'archived'      => $affected,
+            ]);
+        }
+    }
+
+    /**
+     * Restoration éventuelle (Campaign::restore()) — on déarchive les
+     * piges précédemment archivées par ce delete. Idempotent.
+     */
+    public function restored(Campaign $campaign): void
+    {
+        $affected = \App\Models\Pige::where('campaign_id', $campaign->id)
+            ->whereNotNull('archived_at')
+            ->update(['archived_at' => null]);
+
+        if ($affected > 0) {
+            Log::info('campaign.restored.piges_unarchived', [
+                'campaign_id' => $campaign->id,
+                'unarchived'  => $affected,
+            ]);
+        }
+    }
 }
