@@ -1425,7 +1425,13 @@ class CampaignController extends Controller
                             $skipped[] = $c->name . ' (pas actif)';
                             continue 2;
                         }
-                        $c->update(['status' => \App\Enums\CampaignStatus::PAUSE->value]);
+                        // Update direct OK : l'observer Campaign capture
+                        // wasChanged('status') et crée l'alerte associée.
+                        // Pas de logique métier complexe en pause.
+                        $c->update([
+                            'status'     => \App\Enums\CampaignStatus::PAUSE->value,
+                            'updated_by' => auth()->id(),
+                        ]);
                         $applied++;
                         break;
                     case 'resume':
@@ -1433,7 +1439,16 @@ class CampaignController extends Controller
                             $skipped[] = $c->name . ' (pas en pause)';
                             continue 2;
                         }
-                        $c->update(['status' => \App\Enums\CampaignStatus::ACTIF->value]);
+                        // PAUSE → ACTIF passe par CampaignService::activate()
+                        // pour bénéficier de la garde "min 1 panneau" (sinon
+                        // on peut reprendre une campagne vidée de ses
+                        // panneaux). Le service ne ré-envoie pas le mail
+                        // client (transition depuis PAUSE, pas PLANIFIE).
+                        $result = $this->campaignService->activate($c);
+                        if (!$result['ok']) {
+                            $skipped[] = $c->name . ' (' . ($result['error'] ?? 'reprise refusée') . ')';
+                            continue 2;
+                        }
                         $applied++;
                         break;
                     case 'cancel':

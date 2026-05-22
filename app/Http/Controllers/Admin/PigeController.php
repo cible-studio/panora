@@ -604,6 +604,21 @@ class PigeController extends Controller
             }
         }
 
+        // ── Alerte d'audit pour l'action bulk ───────────────────────
+        // Équivalent de l'alerte créée individuellement dans verify()
+        // (cf. ligne ~500). Sans cette consolidation, le bulk n'apparait
+        // pas dans le journal d'audit pige côté admin.
+        if ($count > 0) {
+            \App\Services\AlertService::create(
+                'pige',
+                'info',
+                '✅ Validation groupée — ' . $count . ' pige(s)',
+                auth()->user()?->name . ' a validé ' . $count . ' pige(s) photo en lot'
+                    . (count($pigeIds) > $count ? ' · ' . (count($pigeIds) - $count) . ' ignorée(s) (déjà traitées)' : ''),
+                null
+            );
+        }
+
         return response()->json([
             'success' => true,
             'message' => "{$count} pige(s) vérifiée(s) avec succès.",

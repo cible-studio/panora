@@ -145,25 +145,57 @@ class UserController extends Controller
             'whatsapp_number' => $whatsapp,
         ];
 
+        $plainPassword = null;
         if ($request->filled('password')) {
-            $data['password'] = Hash::make($request->password);
+            $plainPassword    = $request->password; // gardé pour l'email AVANT hash
+            $data['password'] = Hash::make($plainPassword);
         }
 
         $user->update($data);
 
         // Alerte modification utilisateur
         $newRoleLabel = UserRole::labelFor($request->role);
-        
+
         AlertService::create(
             'utilisateur',
             'info',
             '✏️ Utilisateur modifié — ' . $request->name,
-            auth()->user()->name . ' a modifié le compte de ' . $oldName . ' (rôle: ' . $newRoleLabel . ')',
+            auth()->user()->name . ' a modifié le compte de ' . $oldName . ' (rôle: ' . $newRoleLabel . ')'
+                . ($plainPassword ? ' — mot de passe réinitialisé' : ''),
             $user
         );
 
-        return redirect()->route('admin.users.index')
-            ->with('success', 'Utilisateur modifié avec succès !');
+        // Si le mot de passe a été changé, on envoie un mail au user avec
+        // ses nouveaux identifiants. C'est l'équivalent du flow "Nouveau
+        // mot de passe temporaire" que le client a aussi côté ClientAccountMail.
+        $passwordMailSent = false;
+        if ($plainPassword && $user->email) {
+            try {
+                app(\App\Services\NotificationMailer::class)->sendNow(
+                    [$user->email],
+                    new UserWelcomeMail($user->fresh(), $plainPassword, 'password_reset'),
+                    context: [
+                        'user_id' => $user->id,
+                        'action'  => 'user.password_reset',
+                    ],
+                );
+                $passwordMailSent = true;
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('user.password_reset.mail_failed', [
+                    'user_id' => $user->id,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $msg = 'Utilisateur modifié avec succès.';
+        if ($plainPassword) {
+            $msg .= $passwordMailSent
+                ? ' 📧 Nouveau mot de passe envoyé à ' . $user->email . '.'
+                : ' ⚠️ Mot de passe changé mais envoi email échoué — vérifiez les logs.';
+        }
+
+        return redirect()->route('admin.users.index')->with('success', $msg);
     }
 
     public function destroy(User $user)
@@ -280,8 +312,9 @@ class UserController extends Controller
         ]);
 
         $users = User::whereIn('id', $data['ids'])->get();
-        $applied = 0;
-        $skipped = [];
+        $applied   = 0;
+        $skipped   = [];
+        $mailsSent = 0;
         $newActive = $data['action'] === 'activate';
 
         foreach ($users as $u) {
@@ -307,6 +340,31 @@ class UserController extends Controller
             }
             $u->update(['is_active' => $newActive]);
             $applied++;
+
+            // 4. Pour les RÉACTIVATIONS : envoyer le mail UserWelcomeMail
+            // au user pour qu'il sache qu'il peut se reconnecter.
+            // Symétrique de toggleActive() qui le fait pour 1 user.
+            // Sur les DÉSACTIVATIONS : pas de mail (silence — choix
+            // produit, l'admin n'a pas besoin de prévenir un compte
+            // qu'on coupe ; sinon on le ferait dans toggleActive aussi).
+            if ($newActive && $u->email) {
+                try {
+                    app(\App\Services\NotificationMailer::class)->sendNow(
+                        [$u->email],
+                        new UserWelcomeMail($u->fresh(), null, 'reactivated'),
+                        context: [
+                            'user_id' => $u->id,
+                            'action'  => 'user.reactivated.bulk',
+                        ],
+                    );
+                    $mailsSent++;
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('user.reactivated.bulk.mail_failed', [
+                        'user_id' => $u->id,
+                        'error'   => $e->getMessage(),
+                    ]);
+                }
+            }
         }
 
         AlertService::create(
@@ -314,11 +372,15 @@ class UserController extends Controller
             $newActive ? 'info' : 'warning',
             ($newActive ? '✅' : '🔒') . ' Action groupée — ' . $applied . ' utilisateur(s)',
             auth()->user()->name . ' a ' . ($newActive ? 'activé' : 'désactivé') . ' ' . $applied . ' compte(s).'
+                . ($mailsSent > 0 ? ' ' . $mailsSent . ' mail(s) envoyé(s).' : '')
                 . (!empty($skipped) ? ' Ignorés : ' . count($skipped) . '.' : ''),
             null
         );
 
         $msg = "{$applied} compte(s) " . ($newActive ? 'activé(s)' : 'désactivé(s)') . '.';
+        if ($newActive && $mailsSent > 0) {
+            $msg .= " 📧 {$mailsSent} mail(s) envoyé(s) aux utilisateurs.";
+        }
         if (!empty($skipped)) {
             $msg .= ' ' . count($skipped) . ' ignoré(s) : ' . implode(', ', array_slice($skipped, 0, 5))
                   . (count($skipped) > 5 ? '…' : '');
