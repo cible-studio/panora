@@ -128,8 +128,12 @@
     </div>
 
     {{-- ══ TABLEAU DES RÉSERVATIONS ══ --}}
+    @php
+        $canBulk = in_array(auth()->user()->role?->value, ['admin', 'mediaplanner']);
+    @endphp
     <div class="card">
-        <div class="card-header">
+        {{-- En-tête normal — visible quand aucune sélection. --}}
+        <div class="card-header" id="resa-card-header-default">
             <span class="card-title">Réservations</span>
             <div class="stats-info">
                 <span id="total-count" class="total-count">{{ $reservations->total() }} résultat(s)</span>
@@ -140,11 +144,68 @@
             </div>
         </div>
 
+        @if($canBulk)
+        {{-- Toolbar d'actions inline — apparaît à la place du card-header
+             quand au moins 1 réservation est cochée. Pattern Gmail :
+             actions visibles en haut, jamais de barre flottante. --}}
+        <div id="resa-bulk-toolbar"
+             style="display:none;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;background:var(--surface2);border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:12px">
+                <button type="button" id="resa-bulk-clear"
+                        title="Tout désélectionner"
+                        style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:4px 8px;border-radius:6px;line-height:1"
+                        onmouseover="this.style.background='var(--surface3)';this.style.color='var(--text)'"
+                        onmouseout="this.style.background='none';this.style.color='var(--text3)'">✕</button>
+                <span style="font-size:14px;font-weight:600;color:var(--text)">
+                    <strong id="resa-bulk-count">0</strong> réservation<span id="resa-bulk-count-plural"></span> sélectionnée<span id="resa-bulk-count-plural2"></span>
+                </span>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button type="button" onclick="bulkResa('cancel')"
+                        style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08);color:#ef4444;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer"
+                        onmouseover="this.style.background='rgba(239,68,68,.15)'"
+                        onmouseout="this.style.background='rgba(239,68,68,.08)'">
+                    🚫 Annuler
+                </button>
+                <button type="button" onclick="bulkResa('delete')"
+                        style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid rgba(239,68,68,.5);background:#ef4444;color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer"
+                        onmouseover="this.style.background='#dc2626'"
+                        onmouseout="this.style.background='#ef4444'">
+                    🗑 Supprimer
+                </button>
+            </div>
+        </div>
+        @endif
+
         <div class="table-responsive">
             <table class="data-table" id="reservations-table">
                 <thead>
-                        <th style="width:36px;text-align:center;">
-                            <input type="checkbox" data-bulk-select-all aria-label="Tout sélectionner">
+                        <th style="width:54px;text-align:center;padding:0;">
+                            @if($canBulk)
+                                {{-- Combo Gmail : checkbox + dropdown ⌄ --}}
+                                <div style="display:inline-flex;align-items:center;gap:2px;position:relative">
+                                    <input type="checkbox" data-bulk-select-all aria-label="Tout sélectionner" id="resa-select-all-input">
+                                    <button type="button" id="resa-select-dropdown-btn"
+                                            aria-label="Options de sélection"
+                                            title="Options de sélection"
+                                            style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:2px 4px;line-height:1;border-radius:4px"
+                                            onmouseover="this.style.background='var(--surface3)';this.style.color='var(--text)'"
+                                            onmouseout="this.style.background='none';this.style.color='var(--text3)'">▾</button>
+                                    <div id="resa-select-dropdown-menu"
+                                         style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);min-width:180px;z-index:50;text-align:left;overflow:hidden">
+                                        <button type="button" data-select-mode="all" class="resa-select-option">Toutes (page)</button>
+                                        <button type="button" data-select-mode="none" class="resa-select-option">Aucune</button>
+                                        <div style="height:1px;background:var(--border);margin:4px 0"></div>
+                                        <button type="button" data-select-mode="confirme" class="resa-select-option">✅ Confirmées</button>
+                                        <button type="button" data-select-mode="option" class="resa-select-option">⏳ Options</button>
+                                        <button type="button" data-select-mode="annule" class="resa-select-option">🚫 Annulées</button>
+                                        <div style="height:1px;background:var(--border);margin:4px 0"></div>
+                                        <button type="button" data-select-mode="invert" class="resa-select-option">↔ Inverser</button>
+                                    </div>
+                                </div>
+                            @else
+                                <input type="checkbox" data-bulk-select-all aria-label="Tout sélectionner">
+                            @endif
                         </th>
                         <th style="width:8px"></th>
                         <th>Référence</th>
@@ -164,44 +225,154 @@
             </table>
         </div>
 
-        {{-- ── Barre d'action groupée (apparaît si ≥1 sélectionné) ── --}}
-        @if(auth()->user()->role?->value === 'admin' || auth()->user()->role?->value === 'mediaplanner')
-        <div class="bulk-bar" id="resa-bulk-bar">
-            <div class="bulk-count">
-                <strong class="bulk-count-num">0</strong> réservation(s) sélectionnée(s)
-            </div>
-            <div class="bulk-actions">
-                <button type="button" data-bulk-clear class="secondary">Désélectionner</button>
-                <button type="button" onclick="bulkResa('cancel')" class="danger">
-                    🚫 Annuler la sélection
-                </button>
-                <button type="button" onclick="bulkResa('delete')" class="danger">
-                    🗑 Supprimer la sélection
-                </button>
-            </div>
-        </div>
+        @if($canBulk)
+        {{-- Style des items du dropdown de sélection. --}}
+        <style>
+            .resa-select-option {
+                display:block;width:100%;text-align:left;padding:9px 14px;
+                background:none;border:none;cursor:pointer;font-size:13px;
+                color:var(--text);font-family:inherit;transition:background .12s;
+            }
+            .resa-select-option:hover { background:var(--surface2); }
+        </style>
+
         <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const helper = window.BulkBar.init({
-                barId: 'resa-bulk-bar',
-                checkboxSelector: '#reservations-table .bulk-checkbox',
+            // ── Pattern Gmail-style : toolbar inline (pas de barre flottante)
+            //   - checkbox + dropdown ⌄ dans le header de colonne
+            //   - toolbar d'actions au-dessus du tableau quand sélection > 0
+            //   - le card-header normal est masqué pendant la sélection
+            const tableBody    = document.querySelector('#reservations-table tbody');
+            const checkAll     = document.getElementById('resa-select-all-input');
+            const toolbar      = document.getElementById('resa-bulk-toolbar');
+            const cardHeader   = document.getElementById('resa-card-header-default');
+            const countEl      = document.getElementById('resa-bulk-count');
+            const pluralEl     = document.getElementById('resa-bulk-count-plural');
+            const pluralEl2    = document.getElementById('resa-bulk-count-plural2');
+            const clearBtn     = document.getElementById('resa-bulk-clear');
+            const dropdownBtn  = document.getElementById('resa-select-dropdown-btn');
+            const dropdownMenu = document.getElementById('resa-select-dropdown-menu');
+
+            function checkboxes() {
+                return Array.from(document.querySelectorAll('#reservations-table .bulk-checkbox'));
+            }
+            function selectedIds() {
+                return checkboxes()
+                    .filter(cb => cb.checked)
+                    .map(cb => parseInt(cb.value, 10))
+                    .filter(Boolean);
+            }
+            function refreshState() {
+                const total    = checkboxes().length;
+                const selected = selectedIds().length;
+                // Bascule toolbar / card-header
+                if (selected > 0) {
+                    toolbar.style.display    = 'flex';
+                    cardHeader.style.display = 'none';
+                    countEl.textContent      = selected;
+                    pluralEl.textContent     = selected > 1 ? 's' : '';
+                    pluralEl2.textContent    = selected > 1 ? 's' : '';
+                } else {
+                    toolbar.style.display    = 'none';
+                    cardHeader.style.display = 'flex';
+                }
+                // État checkbox "tout"
+                if (checkAll) {
+                    if (selected === 0)               { checkAll.checked = false; checkAll.indeterminate = false; }
+                    else if (selected === total)      { checkAll.checked = true;  checkAll.indeterminate = false; }
+                    else                              { checkAll.checked = false; checkAll.indeterminate = true;  }
+                }
+            }
+
+            // Checkbox d'en-tête : toggle global
+            if (checkAll) {
+                checkAll.addEventListener('change', () => {
+                    const should = checkAll.checked;
+                    checkboxes().forEach(cb => { cb.checked = should; });
+                    refreshState();
+                });
+            }
+
+            // Checkboxes des lignes : event delegation pour survivre aux
+            // refresh AJAX du tbody (filtres, polling 30 s).
+            tableBody?.addEventListener('change', e => {
+                if (e.target?.classList?.contains('bulk-checkbox')) refreshState();
             });
+
+            // Bouton ✕ Désélectionner
+            clearBtn?.addEventListener('click', () => {
+                checkboxes().forEach(cb => { cb.checked = false; });
+                refreshState();
+            });
+
+            // Dropdown ⌄ Options de sélection
+            dropdownBtn?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdownMenu.style.display = dropdownMenu.style.display === 'none' ? 'block' : 'none';
+            });
+            document.addEventListener('click', (e) => {
+                if (!dropdownMenu) return;
+                if (!dropdownMenu.contains(e.target) && e.target !== dropdownBtn) {
+                    dropdownMenu.style.display = 'none';
+                }
+            });
+            dropdownMenu?.addEventListener('click', (e) => {
+                const opt = e.target.closest('[data-select-mode]');
+                if (!opt) return;
+                const mode = opt.dataset.selectMode;
+                checkboxes().forEach(cb => {
+                    const row = cb.closest('tr');
+                    const status = row?.dataset?.status ?? '';
+                    switch (mode) {
+                        case 'all':     cb.checked = true;  break;
+                        case 'none':    cb.checked = false; break;
+                        case 'invert':  cb.checked = !cb.checked; break;
+                        case 'confirme': cb.checked = (status === 'confirme'); break;
+                        case 'option':   cb.checked = (status === 'option'); break;
+                        case 'annule':   cb.checked = (status === 'annule'); break;
+                    }
+                });
+                dropdownMenu.style.display = 'none';
+                refreshState();
+            });
+
+            // Actions groupées (annuler / supprimer)
             window.bulkResa = async function(action) {
-                if (!helper) return;
-                const ids = helper.getSelectedIds();
+                const ids = selectedIds();
                 if (ids.length === 0) return;
                 const verb = action === 'cancel' ? 'annuler' : 'SUPPRIMER';
                 const reason = action === 'cancel'
                     ? prompt(`Motif d'annulation (optionnel) pour ${ids.length} réservation(s) :`)
                     : null;
-                if (action === 'cancel' && reason === null) return; // annulé
+                if (action === 'cancel' && reason === null) return;
                 if (!confirm(`Confirmer : ${verb} ${ids.length} réservation(s) ? Cette action est irréversible.`)) return;
-                await window.BulkBar.submit({
-                    url: '{{ route('admin.reservations.bulk') }}',
-                    ids,
-                    payload: { action, cancel_reason: reason ?? '' },
-                });
+
+                const tok = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                try {
+                    const res = await fetch('{{ route('admin.reservations.bulk') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': tok,
+                        },
+                        body: JSON.stringify({ action, ids, cancel_reason: reason ?? '' }),
+                    });
+                    if (res.ok) location.reload();
+                    else {
+                        const data = await res.json().catch(() => ({}));
+                        alert('Erreur : ' + (data.message || res.statusText));
+                    }
+                } catch (e) {
+                    alert('Erreur réseau : ' + e.message);
+                }
             };
+
+            // Re-sync après chaque mutation du tbody (refresh AJAX filtres/polling)
+            if (tableBody) {
+                new MutationObserver(refreshState).observe(tableBody, { childList: true, subtree: true });
+            }
+            refreshState();
         });
         </script>
         @endif
