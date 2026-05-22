@@ -2219,9 +2219,18 @@ class ReservationController extends Controller
                 $reservation
             );
 
-            // Email client si la résa vient d'être confirmée
+            // Email client si la résa vient d'être confirmée.
+            // Note : on charge UNIQUEMENT 'client' — l'ancien loadMissing
+            // sur 'reservationPanels.panel.commune' référençait une
+            // relation inexistante (`reservationPanels` n'est pas définie
+            // sur le modèle Reservation, ce sont `panels` et
+            // `externalPanels` qui existent) et provoquait un 500 à la
+            // confirmation. Le mail n'utilise que la référence, période
+            // et montant de la résa + le nom client, rien de plus.
             if ($request->status === 'confirme' && $previousStatus !== 'confirme') {
-                $this->notifyClientReservationConfirmed($reservation->fresh()->loadMissing('client', 'reservationPanels.panel.commune'));
+                $this->notifyClientReservationConfirmed(
+                    $reservation->fresh()->loadMissing('client')
+                );
             }
         }
         
