@@ -222,6 +222,24 @@ class Reservation extends Model
         return $this->hasOne(Campaign::class);
     }
 
+    /**
+     * Lien direct vers le pivot ReservationPanel (modèle dédié) — utile
+     * quand on a besoin d'itérer sur les lignes pivot avec leurs colonnes
+     * (unit_price, total_price, source, panel_start_date) ET d'accéder à
+     * la relation `panel` sans passer par `withPivot()`.
+     *
+     * Utilisée notamment par :
+     *   - public/reservation.blade.php (lien client confirmation)
+     *   - PublicLinkController::show (eager load pour la vue publique)
+     *
+     * Pour les belongsToMany filtrés par source, utiliser `panels()` ou
+     * `externalPanels()` selon le besoin.
+     */
+    public function reservationPanels()
+    {
+        return $this->hasMany(ReservationPanel::class);
+    }
+
     // ── Helpers métier ─────────────────────────────────────
 
     public function isEditable(): bool
