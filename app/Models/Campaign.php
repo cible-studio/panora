@@ -209,20 +209,33 @@ class Campaign extends Model
 
     /**
      * Durée lisible : "3 mois", "15 jours", "2 mois 5 j"
+     *
+     * Utilise Carbon::diff() pour respecter les MOIS CALENDAIRES réels
+     * (25/05 → 25/06 = 1 mois exactement, pas 1 mois 1 jour). L'ancienne
+     * version basée sur floor(days/30) approximait 1 mois = 30 jours et
+     * comptait alors 31 jours comme "1 mois 1 j".
      */
     public function durationHuman(): string
     {
-        $days   = $this->durationInDays();
-        $months = (int) floor($days / 30);
-        $remDays = $days % 30;
+        $start = $this->start_date->copy()->startOfDay();
+        $end   = $this->end_date->copy()->startOfDay();
+        $diff  = $start->diff($end); // DateInterval
 
+        $months = (int) $diff->m + ((int) $diff->y * 12);
+        $days   = (int) $diff->d;
+        $totalDays = $this->durationInDays();
+
+        // Moins d'un mois calendaire → exprimé en jours
         if ($months === 0) {
-            return $days . ' jour' . ($days > 1 ? 's' : '');
+            return $totalDays . ' jour' . ($totalDays > 1 ? 's' : '');
         }
-        if ($remDays === 0) {
+
+        // Mois pile (jour de fin == jour de début dans le mois suivant)
+        if ($days === 0) {
             return $months . ' mois';
         }
-        return $months . ' mois ' . $remDays . ' j';
+
+        return $months . ' mois ' . $days . ' j';
     }
 
     // ── Helpers progression (mémoïsés) ────────────────────────────
