@@ -1,51 +1,80 @@
 @once
 <style>
-    /* ── HEADER GROUPE CAMPAGNE — light + dark ─────────────── */
+    /* ── HEADER GROUPE CAMPAGNE — design unifié (aligné cards) ─────── */
     .pose-campaign-header {
-        padding: 14px 18px 14px 22px;
-        background: #0f172a;
-        color: #fff;
-        border-left: 5px solid var(--accent);
+        padding: 14px 18px 14px 18px;
+        background: var(--surface2);
+        color: var(--text);
+        border-left: 4px solid var(--accent);
+        border-top: 1px solid var(--border);
+        border-right: 1px solid var(--border);
         border-top-left-radius: 10px;
         border-top-right-radius: 10px;
-        box-shadow: 0 -2px 0 rgba(0,0,0,.04), inset 0 -1px 0 rgba(255,255,255,.05);
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 14px;
         flex-wrap: wrap;
     }
-    /* Dark mode : le #0f172a se fond avec --bg (#0a0c10). On bascule sur
-       une bande or accentuée — instantanément reconnaissable comme un
-       séparateur de groupe vs les lignes panneaux sombres. */
-    [data-theme="dark"] .pose-campaign-header,
-    html:not([data-theme="light"]) .pose-campaign-header {
-        background: linear-gradient(135deg, rgba(250,184,11,.18) 0%, rgba(250,184,11,.06) 100%);
+    .pose-campaign-header .pch-icon {
+        width: 36px; height: 36px;
+        border-radius: 9px;
+        background: rgba(232,160,32,.12);
+        border: 1px solid rgba(232,160,32,.28);
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .pose-campaign-header .pch-label {
+        font-size: 9px; font-weight: 700;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        margin-bottom: 3px;
+    }
+    .pose-campaign-header .pch-name {
+        font-size: 14px; font-weight: 700;
         color: var(--text);
-        border-left-color: #fab80b;
-        border-top: 1px solid rgba(250,184,11,.35);
-        border-right: 1px solid rgba(250,184,11,.2);
-        box-shadow: 0 1px 0 rgba(250,184,11,.15);
+        text-decoration: none;
+        display: block;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        max-width: 380px;
+        letter-spacing: -.1px;
     }
-    [data-theme="dark"] .pose-campaign-header .pch-label,
-    html:not([data-theme="light"]) .pose-campaign-header .pch-label { color: #fab80b; }
-    [data-theme="dark"] .pose-campaign-header .pch-name,
-    html:not([data-theme="light"]) .pose-campaign-header .pch-name { color: #fff7e0; }
-    [data-theme="dark"] .pose-campaign-header .pch-sub,
-    html:not([data-theme="light"]) .pose-campaign-header .pch-sub { color: rgba(255,247,224,.6); }
-    [data-theme="dark"] .pose-campaign-header .pch-sub strong,
-    html:not([data-theme="light"]) .pose-campaign-header .pch-sub strong { color: rgba(255,247,224,.9); }
-    [data-theme="dark"] .pose-campaign-header .pch-icon,
-    html:not([data-theme="light"]) .pose-campaign-header .pch-icon {
-        background: rgba(250,184,11,.22);
-        border-color: rgba(250,184,11,.5);
+    .pose-campaign-header .pch-name:hover { color: var(--accent); }
+    .pose-campaign-header .pch-sub {
+        font-size: 11px;
+        color: var(--text3);
+        margin-top: 2px;
     }
-    [data-theme="dark"] .pose-campaign-header .pch-pill,
-    html:not([data-theme="light"]) .pose-campaign-header .pch-pill {
-        background: rgba(255,255,255,.04);
-        border-color: rgba(255,255,255,.12);
-        color: var(--text);
+    .pose-campaign-header .pch-sub strong {
+        color: var(--text2);
+        font-weight: 600;
     }
+    .pose-campaign-header .pch-pill {
+        padding: 3px 10px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: var(--text2);
+        font-weight: 700;
+        font-size: 11px;
+    }
+    .pose-campaign-header .pch-pill-success {
+        background: rgba(34,197,94,.10);
+        border-color: rgba(34,197,94,.35);
+        color: #16a34a;
+    }
+    .pose-campaign-header .pch-pill-warn {
+        background: rgba(232,160,32,.10);
+        border-color: rgba(232,160,32,.35);
+        color: var(--accent);
+    }
+    .pose-group-toggle {
+        background: var(--surface) !important;
+        border: 1px solid var(--border) !important;
+        color: var(--text2) !important;
+    }
+    .pose-group-toggle:hover { color: var(--accent) !important; border-color: var(--accent) !important; }
 
     /* Badges Pige — design unifié pro */
     .pige-badge {
@@ -171,7 +200,7 @@
                                 data-campaign-toggle="{{ $currentCampaignId }}"
                                 aria-expanded="true"
                                 title="Plier / déplier les panneaux de cette campagne"
-                                style="background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:8px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fab80b;flex-shrink:0;padding:0;transition:transform .2s ease">
+                                style="border-radius:8px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;transition:transform .2s ease, color .15s, border-color .15s">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                 <polyline points="6 9 12 15 18 9"/>
                             </svg>
@@ -180,47 +209,45 @@
                                class="pose-group-check"
                                data-campaign-id="{{ $currentCampaignId }}"
                                title="Sélectionner toutes les poses de cette campagne (hors réalisées / annulées)"
-                               style="accent-color:#fab80b;width:18px;height:18px;cursor:pointer;flex-shrink:0;margin-right:2px;">
-                        <div class="pch-icon" style="width:36px;height:36px;border-radius:9px;background:rgba(232,160,32,.18);
-                                    display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(232,160,32,.35)">
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                               style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer;flex-shrink:0;margin-right:2px;">
+                        <div class="pch-icon">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                         </div>
                         <div style="min-width:0">
-                            <div class="pch-label" style="font-size:9px;font-weight:700;color:#fab80b;text-transform:uppercase;letter-spacing:1.3px;margin-bottom:3px">Campagne</div>
+                            <div class="pch-label">Campagne</div>
                             @if($task->campaign)
                                 <a href="{{ route('admin.campaigns.show', $task->campaign) }}" class="pch-name"
-                                   style="font-size:15px;font-weight:800;color:#fff;text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:380px;letter-spacing:-.2px"
                                    title="{{ $task->campaign->name }}">
                                     {{ $task->campaign->name }}
                                 </a>
-                                <div class="pch-sub" style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px">
+                                <div class="pch-sub">
                                     @if($task->campaign->deleted_at)
                                         🗑 Campagne supprimée
                                     @elseif($task->campaign->client?->name)
-                                        Client&nbsp;: <strong style="color:rgba(255,255,255,.8);font-weight:600">{{ $task->campaign->client->name }}</strong>
+                                        Client&nbsp;: <strong>{{ $task->campaign->client->name }}</strong>
                                     @else
                                         Créée {{ $task->campaign->created_at?->diffForHumans() ?? '—' }}
                                     @endif
                                 </div>
                             @else
-                                <div class="pch-name" style="font-size:15px;font-weight:800;color:rgba(255,255,255,.85);font-style:italic">
+                                <div class="pch-name" style="font-style:italic;color:var(--text2)">
                                     Tâches sans campagne
                                 </div>
-                                <div class="pch-sub" style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px">Interventions ponctuelles</div>
+                                <div class="pch-sub">Interventions ponctuelles</div>
                             @endif
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap">
-                        <span class="pch-pill" style="padding:4px 11px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:20px;color:#fff;font-weight:700">
+                        <span class="pch-pill">
                             {{ $groupTotal }} pose{{ $groupTotal > 1 ? 's' : '' }}
                         </span>
                         @if($groupRealisee > 0)
-                        <span style="padding:4px 11px;background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.4);border-radius:20px;color:#86efac;font-weight:700">
+                        <span class="pch-pill pch-pill-success">
                             ✓ {{ $groupRealisee }} réalisée{{ $groupRealisee > 1 ? 's' : '' }}
                         </span>
                         @endif
                         @if($groupPlanif > 0)
-                        <span style="padding:4px 11px;background:rgba(250,184,11,.15);border:1px solid rgba(250,184,11,.4);border-radius:20px;color:#fab80b;font-weight:700">
+                        <span class="pch-pill pch-pill-warn">
                             ⏱ {{ $groupPlanif }} planifiée{{ $groupPlanif > 1 ? 's' : '' }}
                         </span>
                         @endif
