@@ -423,10 +423,28 @@ class PoseController extends Controller
             ->orderBy('day')
             ->get();
 
+        // ─── Top 5 commerciaux (CA sur campagnes créées dans la période) ───
+        // Commercial assigné prioritaire, fallback créateur. Hors annulées.
+        $topCommerciaux = \DB::table('campaigns')
+            ->join('users', 'users.id', '=', \DB::raw('COALESCE(campaigns.commercial_user_id, campaigns.user_id)'))
+            ->where('campaigns.created_at', '>=', $since)
+            ->where('campaigns.status', '!=', 'annule')
+            ->whereNull('campaigns.deleted_at')
+            ->select(
+                'users.id', 'users.name',
+                \DB::raw('COUNT(*) as nb_campagnes'),
+                \DB::raw('SUM(campaigns.total_amount) as ca_total')
+            )
+            ->groupBy('users.id', 'users.name')
+            ->orderByDesc('ca_total')
+            ->limit(5)
+            ->get();
+
         return view('admin.poses.sla', compact(
             'days', 'totalPoses', 'onTime', 'late', 'onTimeRate', 'medianDelay',
             'pigesTotal', 'pigesRejetees', 'pigesVerifiees', 'firstTimeRate',
-            'avgValidationHours', 'topTechs', 'topCommunes', 'trend'
+            'avgValidationHours', 'topTechs', 'topCommunes', 'trend',
+            'topCommerciaux'
         ));
     }
 

@@ -1271,4 +1271,5 @@ class RapportController extends Controller
             'caTotal'
         ));
     }
+
 }

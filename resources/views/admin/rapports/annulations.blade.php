@@ -1,7 +1,7 @@
 <x-admin-layout title="Rapport — Motifs d'annulation">
-    <x-slot:topbarActions>
+    <x-slot:topbarLeft>
         <a href="{{ route('admin.rapports.index') }}" class="btn btn-ghost btn-sm">← Retour aux rapports</a>
-    </x-slot:topbarActions>
+    </x-slot:topbarLeft>
 
     {{-- Filtre année --}}
     <form method="GET" action="{{ route('admin.rapports.annulations') }}" style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">

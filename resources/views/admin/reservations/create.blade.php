@@ -1,8 +1,8 @@
 <x-admin-layout title="Nouvelle réservation">
 
-<x-slot:topbarActions>
+<x-slot:topbarLeft>
   <a href="{{ route('admin.reservations.index') }}" class="btn btn-ghost">← Retour</a>
-</x-slot:topbarActions>
+</x-slot:topbarLeft>
 
 <div style="max-width:960px;">
 

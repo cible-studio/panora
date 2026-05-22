@@ -1,8 +1,8 @@
 <x-admin-layout title="Nouvelle tâche de pose">
 
-<x-slot:topbarActions>
+<x-slot:topbarLeft>
     <a href="{{ route('admin.pose-tasks.index') }}" class="btn btn-ghost btn-sm">← Retour</a>
-</x-slot:topbarActions>
+</x-slot:topbarLeft>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
 

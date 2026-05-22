@@ -1,13 +1,16 @@
 <x-admin-layout>
 <x-slot name="title">{{ $invoice->reference }}</x-slot>
 
-<x-slot name="topbarActions">
+<x-slot name="topbarLeft">
     {{-- Bouton retour : back() si referer, sinon liste des factures (fallback fiable) --}}
     <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('admin.invoices.index') }}"
        class="btn btn-ghost btn-sm" title="Retour"
        style="display:inline-flex;align-items:center;gap:4px;">
         ← Retour
     </a>
+</x-slot>
+
+<x-slot name="topbarActions">
     <a href="{{ route('admin.invoices.pdf', $invoice) }}" class="btn btn-ghost btn-sm">
         📄 Export PDF
     </a>

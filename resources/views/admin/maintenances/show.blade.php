@@ -1,6 +1,10 @@
 <x-admin-layout>
 <x-slot name="title">Maintenance — {{ $maintenance->panel->reference }}</x-slot>
 
+<x-slot name="topbarLeft">
+    <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm">← Retour</a>
+</x-slot>
+
 <x-slot name="topbarActions">
     @if($maintenance->isLocked())
         <span class="badge badge-gray" style="font-size:13px;">🔒 Verrouillée</span>
@@ -15,7 +19,6 @@
             ✏️ Modifier
         </a>
     @endif
-    <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm">← Retour</a>
 </x-slot>
 
 <div style="display:grid; grid-template-columns:1fr 320px; gap:20px;">

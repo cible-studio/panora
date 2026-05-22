@@ -1,10 +1,13 @@
 <x-admin-layout>
 <x-slot name="title">Catégories Panneaux</x-slot>
 
-<x-slot name="topbarActions">
+<x-slot name="topbarLeft">
     <a href="{{ route('admin.settings.index') }}" class="btn btn-ghost btn-sm">
         ← Retour aux paramètres
     </a>
+</x-slot>
+
+<x-slot name="topbarActions">
     <button type="button" onclick="openCatModal('create')" class="btn btn-primary btn-sm">
         ＋ Nouvelle catégorie
     </button>

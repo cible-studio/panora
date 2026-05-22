@@ -809,4 +809,35 @@ class ClientController extends Controller
         $right = trim(mb_substr($name, $pos + 3));
         return [$right, $left];
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // OUTIL ONE-SHOT — Efface les NCC auto-générés par l'app pendant
+    // l'import (pattern CLT-YYYY-NNNN). La patronne préfère ne pas
+    // avoir de NCC bidon en base.
+    // ══════════════════════════════════════════════════════════════
+
+    public function clearAutoNccPreview()
+    {
+        $candidates = Client::query()
+            ->where('ncc', 'regexp', '^CLT-[0-9]{4}-[0-9]+$')
+            ->orderBy('id')
+            ->get(['id', 'name', 'contact_name', 'ncc']);
+
+        return view('admin.clients.clear-auto-ncc', compact('candidates'));
+    }
+
+    public function clearAutoNccApply(Request $request)
+    {
+        $updated = Client::query()
+            ->where('ncc', 'regexp', '^CLT-[0-9]{4}-[0-9]+$')
+            ->update(['ncc' => null]);
+
+        Log::info('clients.clear_auto_ncc.applied', [
+            'updated' => $updated,
+            'user_id' => auth()->id(),
+        ]);
+
+        return redirect()->route('admin.clients.index')
+            ->with('success', "{$updated} NCC auto-générés effacés.");
+    }
 }

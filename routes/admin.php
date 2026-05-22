@@ -525,6 +525,13 @@ Route::prefix('admin')
         Route::post('clients/fix-import-names', [ClientController::class, 'fixImportNamesApply'])
             ->middleware('role:admin')
             ->name('clients.fix-import-names.apply');
+        // Outil one-shot — effacer les NCC auto-générés (CLT-YYYY-NNNN)
+        Route::get('clients/clear-auto-ncc',  [ClientController::class, 'clearAutoNccPreview'])
+            ->middleware('role:admin')
+            ->name('clients.clear-auto-ncc.preview');
+        Route::post('clients/clear-auto-ncc', [ClientController::class, 'clearAutoNccApply'])
+            ->middleware('role:admin')
+            ->name('clients.clear-auto-ncc.apply');
         // Exports liste clients (5.2) — placés AVANT /clients/{client} pour
         // ne pas être avalés par le route model binding.
         Route::get('clients/export/csv', [ClientController::class, 'exportCsv'])
@@ -772,6 +779,9 @@ Route::prefix('admin')
             ->whereNumber('campaign')->name('campaigns.progress');
         Route::get('campaigns/{campaign}/available-panels', [CampaignController::class, 'availablePanels'])
             ->whereNumber('campaign')->name('campaigns.available-panels');
+        // Page dédiée aux poses OOH d'une campagne (sans KPI/filtres globaux)
+        Route::get('campaigns/{campaign}/poses', [CampaignController::class, 'poses'])
+            ->whereNumber('campaign')->name('campaigns.poses');
 
         // Modification / actions = admin + MP (matrice CAMPAGNES)
         Route::middleware('role:admin,mediaplanner')->group(function () {

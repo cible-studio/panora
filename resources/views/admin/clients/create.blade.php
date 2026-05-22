@@ -1,8 +1,8 @@
 <x-admin-layout title="Nouveau client">
 
-    <x-slot:topbarActions>
+    <x-slot:topbarLeft>
         <a href="{{ route('admin.clients.index') }}" class="btn btn-ghost">← Retour</a>
-    </x-slot:topbarActions>
+    </x-slot:topbarLeft>
 
     <div style="max-width:680px;margin:0 auto;">
 
