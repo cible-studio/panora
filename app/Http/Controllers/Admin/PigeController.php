@@ -29,13 +29,16 @@ class PigeController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function index(Request $request)
     {
+        // Vue active par défaut — exclut les piges archivées (dont la campagne
+        // a été supprimée ou cleanup manuel). Les archives sont accessibles
+        // via la route dédiée `admin.piges.archives`.
         $query = Pige::with([
             'panel:id,reference,name,commune_id',
             'panel.commune:id,name',
             'campaign:id,name,status',
             'technicien:id,name',
             'verificateur:id,name',
-        ]);
+        ])->active();
 
         // ── Filtres "neutres" appliqués au périmètre + aux compteurs ──
         if ($request->filled('campaign_id'))   $query->where('campaign_id', $request->campaign_id);
@@ -95,6 +98,58 @@ class PigeController extends Controller
         return view('admin.piges.index', compact(
             'piges', 'stats', 'techniciens', 'campaigns',
             'filterPanel', 'filterCampaign'
+        ));
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // ARCHIVES — piges des campagnes supprimées
+    //
+    // Affiche les piges dont `archived_at` est NOT NULL — soit la
+    // campagne associée a été soft-deleted (auto-archivage par
+    // CampaignObserver::deleted), soit un cleanup manuel a été lancé.
+    //
+    // Conservation 100% non destructive : la pige garde sa photo, ses
+    // métadonnées et son lien avec la campagne (même si celle-ci est
+    // soft-deleted, on la retrouve avec withTrashed).
+    // ══════════════════════════════════════════════════════════════
+    public function archives(Request $request)
+    {
+        $query = Pige::with([
+            'panel:id,reference,name,commune_id',
+            'panel.commune:id,name',
+            'campaign' => fn($q) => $q->withTrashed()->select('id', 'name', 'status', 'deleted_at'),
+            'campaign.client' => fn($q) => $q->withTrashed()->select('id', 'name'),
+            'technicien:id,name',
+        ])->archived();
+
+        if ($request->filled('q')) {
+            $q = $request->q;
+            $query->where(fn($sq) =>
+                $sq->whereHas('panel', fn($p) =>
+                    $p->where('reference', 'like', "%{$q}%")
+                      ->orWhere('name', 'like', "%{$q}%")
+                )
+                ->orWhereHas('campaign', fn($c) =>
+                    $c->withTrashed()->where('name', 'like', "%{$q}%")
+                )
+            );
+        }
+
+        if ($request->filled('campaign_id')) {
+            $query->where('campaign_id', $request->campaign_id);
+        }
+
+        $piges = $query->latest('archived_at')->paginate(24)->withQueryString();
+
+        // Compteurs simples — combien d'archivages, sur combien de campagnes distinctes
+        $totalArchived = Pige::archived()->count();
+        $campaignsAffected = Pige::archived()
+            ->whereNotNull('campaign_id')
+            ->distinct('campaign_id')
+            ->count('campaign_id');
+
+        return view('admin.piges.archives', compact(
+            'piges', 'totalArchived', 'campaignsAffected'
         ));
     }
 

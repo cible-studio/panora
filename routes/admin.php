@@ -433,6 +433,11 @@ Route::prefix('admin')
 
             // Validation rapide : page dédiée avec navigation clavier V/R/←/→
             Route::get('validation', [PigeController::class, 'validation'])->name('validation');
+
+            // Archives : piges des campagnes supprimées (auto-archivées
+            // par CampaignObserver::deleted ou via panora:cleanup).
+            // Conservation non destructive pour valeur légale + facturation.
+            Route::get('archives', [PigeController::class, 'archives'])->name('archives');
         
             // ── Actions sur une pige ───────────────────────────────────
             Route::post('{pige}/verify', [PigeController::class, 'verify']) ->name('verify');
