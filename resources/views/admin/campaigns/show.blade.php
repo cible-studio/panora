@@ -663,7 +663,19 @@
                                  style="border-color:var(--accent);border-top-color:transparent"></div>
                             <div class="text-sm mt-2" style="color:var(--text3)">Chargement des panneaux disponibles...</div>
                         </div>
-                        <template x-if="!loadingPanels && filteredPanels.length === 0">
+                        {{-- Bandeau d'erreur explicite si le chargement a échoué
+                             (HTTP 4xx/5xx, réseau, JSON invalide). Permet de distinguer
+                             « 0 panneau libre » (cas normal) d'un « bug serveur ». --}}
+                        <template x-if="!loadingPanels && loadError">
+                            <div class="text-center py-12 px-4" style="color:#ef4444">
+                                <div class="font-bold mb-1">⚠️ Impossible de charger la liste</div>
+                                <div class="text-xs" x-text="loadError" style="color:var(--text2);font-family:ui-monospace,monospace"></div>
+                                <div class="text-xs mt-3" style="color:var(--text3)">
+                                    Réessayez en fermant puis rouvrant ce bloc. Si l'erreur persiste, contactez le support.
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="!loadingPanels && !loadError && filteredPanels.length === 0">
                             <div class="text-center py-12" style="color:var(--text3)">Aucun panneau libre trouvé</div>
                         </template>
                         <template x-for="p in paginatedPanels" :key="p.id">
@@ -1281,6 +1293,7 @@
             allPanels: [],
             filteredPanels: [],
             loadingPanels: false,
+            loadError: null,
             loaded: false,
             visibleCount: 20,
             campaignMonths: {{ $campaign->billableMonths() }},
@@ -1306,8 +1319,20 @@
             async loadPanels() {
                 @if($can['managePanel'])
                 this.loadingPanels = true;
+                this.loadError = null;
                 try {
                     const res = await fetch(PANELS_URL, { headers: { 'Accept': 'application/json' } });
+                    // Distingue erreur réseau / 403 / 500 d'un retour 200 avec liste vide
+                    // (permet à l'utilisateur de savoir si c'est un vrai 0 panneau libre
+                    // ou un échec à corriger côté serveur).
+                    if (!res.ok) {
+                        const txt = await res.text().catch(() => '');
+                        this.loadError = `Erreur ${res.status} : ${txt.slice(0, 200) || res.statusText}`;
+                        this.allPanels = [];
+                        this.filteredPanels = [];
+                        console.error('[loadPanels] HTTP', res.status, txt);
+                        return;
+                    }
                     const data = await res.json();
                     this.allPanels      = data.panels || [];
                     this.campaignMonths = data.campaign_months || this.campaignMonths;
@@ -1318,6 +1343,8 @@
                 } catch (e) {
                     this.allPanels = [];
                     this.filteredPanels = [];
+                    this.loadError = 'Erreur réseau : ' + (e.message || 'connexion impossible');
+                    console.error('[loadPanels] fetch failed', e);
                 } finally {
                     this.loadingPanels = false;
                 }

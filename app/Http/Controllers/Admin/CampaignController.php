@@ -461,7 +461,11 @@ class CampaignController extends Controller
         $this->authorize('managePanel', $campaign);
 
         if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
-            return response()->json(['panels' => []]);
+            Log::info('campaign.available_panels.status_blocked', [
+                'campaign_id' => $campaign->id,
+                'status'      => $campaign->status->value,
+            ]);
+            return response()->json(['panels' => [], 'reason' => 'campaign_status_not_active']);
         }
 
         $startDate = $campaign->start_date->format('Y-m-d');
@@ -470,8 +474,10 @@ class CampaignController extends Controller
         // ─── PANNEAUX INTERNES ──────────────────────────────────────
         $existingIds = $campaign->panels()->pluck('panels.id')->all();
 
-        $internal = $this->availability
-            ->getAvailablePanels($startDate, $endDate, $campaign->reservation_id)
+        $availableRaw = $this->availability
+            ->getAvailablePanels($startDate, $endDate, $campaign->reservation_id);
+
+        $internal = $availableRaw
             ->reject(fn($p) => in_array($p->id, $existingIds))
             ->take(500)
             ->map(fn($p) => [
@@ -486,6 +492,16 @@ class CampaignController extends Controller
                 'agency_name'  => null,
             ])
             ->values();
+
+        // Diagnostic : logge le breakdown pour comprendre les 0 panneaux signalés en prod.
+        Log::info('campaign.available_panels.fetched', [
+            'campaign_id'      => $campaign->id,
+            'period'           => "{$startDate} → {$endDate}",
+            'reservation_id'   => $campaign->reservation_id,
+            'raw_available'    => $availableRaw->count(),
+            'already_attached' => count($existingIds),
+            'returned_internal'=> $internal->count(),
+        ]);
 
         // ─── PANNEAUX EXTERNES (régies partenaires) ─────────────────
         // Pattern identique à ReservationController::availablePanels :
