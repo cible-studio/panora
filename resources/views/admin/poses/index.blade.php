@@ -247,17 +247,20 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
             <input type="date" id="filter-date-to" class="filter-input" style="width:130px">
         </div>
 
-        {{-- Toggle orphelines (campagnes supprimées / annulées / terminées) --}}
+        {{-- Toggle "Campagnes inactives" — poses dont la campagne parente
+             est en pause / terminée / annulée / supprimée. Masquées par
+             défaut (cache les tâches devenues obsolètes). --}}
         @php $orphActive = request()->boolean('show_orphan'); @endphp
         <div class="filter-group">
-            <label class="filter-label">Orphelines</label>
+            <label class="filter-label">Campagnes inactives</label>
             <button type="button" id="filter-show-orphan-btn"
+                    title="Inclure les poses dont la campagne est en pause, terminée, annulée ou supprimée"
                     style="display:inline-flex;align-items:center;gap:8px;height:38px;cursor:pointer;padding:0 14px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap;transition:all .15s;
                            border:1px solid {{ $orphActive ? 'var(--accent)' : 'var(--border2)' }};
                            background:{{ $orphActive ? 'var(--accent)' : 'var(--surface2)' }};
                            color:{{ $orphActive ? '#fff' : 'var(--text2)' }};">
                 <span>{{ $orphActive ? '✓' : '○' }}</span>
-                <span>Afficher</span>
+                <span>Inclure</span>
             </button>
             {{-- Input caché : pilote du bouton ci-dessus pour préserver le JS existant --}}
             <input type="checkbox" id="filter-show-orphan"

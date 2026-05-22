@@ -102,16 +102,22 @@
                 </select>
             </div>
 
+            {{-- Filtre "Mes réservations" : visible UNIQUEMENT pour admin / MP.
+                 Le commercial voit déjà uniquement ses dossiers via le RBAC
+                 serveur (ReservationController::index utilise forCommercialUser),
+                 donc le filtre serait redondant pour lui. --}}
+            @if(in_array(auth()->user()?->role?->value, ['admin', 'mediaplanner']))
             <div class="filter-group">
-                <label class="filter-label">👤 Assignation</label>
+                <label class="filter-label">👤 Mes réservations</label>
                 <button type="button" id="filter-assigned-me-btn"
                         data-active="{{ $assignedMe ? '1' : '0' }}"
+                        title="Filtrer pour n'afficher que les réservations dont je suis le commercial assigné ou le créateur"
                         style="display:inline-flex;align-items:center;gap:8px;height:38px;cursor:pointer;padding:0 14px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap;transition:all .15s;
                                border:1px solid {{ $assignedMe ? 'var(--accent)' : 'var(--border2)' }};
                                background:{{ $assignedMe ? 'var(--accent)' : 'var(--surface2)' }};
                                color:{{ $assignedMe ? '#fff' : 'var(--text2)' }};">
                     <span>{{ $assignedMe ? '✓' : '○' }}</span>
-                    <span>Mes à traiter</span>
+                    <span>Affectées à moi</span>
                 </button>
                 {{-- Input caché pour préserver le pattern JS existant qui lit
                      ['filter-assigned-me'].checked. Le bouton ci-dessus pilote
@@ -119,6 +125,7 @@
                 <input type="checkbox" id="filter-assigned-me" data-filter="assigned_me"
                        {{ $assignedMe ? 'checked' : '' }} style="display:none">
             </div>
+            @endif
 
             <div class="filter-group" id="reset-wrapper" style="display:none;">
                 <label class="filter-label" style="visibility:hidden;">Actions</label>
