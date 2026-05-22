@@ -65,8 +65,21 @@
 
 {{-- ════ Tableau des poses de cette campagne ══════════════════ --}}
 <div class="card">
-    <div class="card-header">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
         <div class="card-title">🔧 Tâches de pose · {{ $poseTasks->total() }}</div>
+        @if(!$poseTasks->isEmpty())
+            {{-- Pour les actions groupées (sélection multiple, assignation tech batch,
+                 changement de statut en lot…), on dirige l'utilisateur vers la page
+                 principale `/admin/pose-tasks` pré-filtrée sur cette campagne. La
+                 vue actuelle reste une SYNTHÈSE en lecture (KPIs + tableau). --}}
+            <a href="{{ route('admin.pose-tasks.index', ['campaign_id' => $campaign->id]) }}"
+               class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18M3 12h18M3 18h18"/>
+                </svg>
+                Gérer dans Poses &amp; Tâches
+            </a>
+        @endif
     </div>
 
     @if($poseTasks->isEmpty())
@@ -77,7 +90,33 @@
             <a href="{{ route('admin.pose-tasks.create', ['campaign_id' => $campaign->id]) }}" class="btn btn-primary btn-sm">+ Créer une tâche</a>
         </div>
     @else
-        @include('admin.poses.partials.table-rows', ['poseTasks' => $poseTasks])
+        {{-- Vue de SYNTHÈSE en lecture : on masque les éléments de
+             sélection multiple (checkboxes, chevron de groupe) qui n'ont
+             pas de sens ici (1 seule campagne dans le tableau, pas de
+             modal bulk-bar disponible sur cette page). Pour les bulk
+             actions → bouton « Gérer dans Poses & Tâches » ci-dessus. --}}
+        <style scoped>
+            .campaigns-poses-page #pose-check-all,
+            .campaigns-poses-page .pose-check,
+            .campaigns-poses-page .pose-group-check,
+            .campaigns-poses-page .pose-group-toggle {
+                display: none !important;
+            }
+            /* Réduit la 1ère colonne devenue inutile (checkbox vide) */
+            .campaigns-poses-page table th:first-child,
+            .campaigns-poses-page table td:first-child {
+                width: 0 !important;
+                padding: 0 !important;
+            }
+            /* Force tous les groupes campagne à rester dépliés en
+               réécrivant le display de toutes les lignes data-campaign-group. */
+            .campaigns-poses-page tr.trow {
+                display: table-row !important;
+            }
+        </style>
+        <div class="campaigns-poses-page">
+            @include('admin.poses.partials.table-rows', ['poseTasks' => $poseTasks])
+        </div>
 
         @if($poseTasks->hasPages())
         <div style="padding:14px 18px;border-top:1px solid var(--border)">
