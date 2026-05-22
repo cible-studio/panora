@@ -385,6 +385,19 @@
                                 $btnIcon = match($val) {
                                     'termine' => '✅', 'annule' => '🚫', 'actif' => '▶️', 'pose' => '🔧', 'pause' => '⏸', default => '→'
                                 };
+                                // Surcharge du libellé pour utiliser des VERBES D'ACTION clairs
+                                // au lieu du label du statut destination ("En cours", "En pause"…)
+                                // qui n'indique pas ce qui va se passer au clic. Cohérent avec
+                                // le bandeau "Cette campagne est en préparation" qui dit
+                                // « cliquez sur ▶ Démarrer la campagne ».
+                                $currentStatus = $campaign->status->value;
+                                $actionLabel = match($val) {
+                                    'actif'   => $currentStatus === 'planifie' ? 'Démarrer la campagne' : 'Reprendre',
+                                    'pause'   => 'Mettre en pause',
+                                    'termine' => 'Terminer',
+                                    'annule'  => 'Annuler',
+                                    default   => $label,
+                                };
                             @endphp
                             <form method="POST" action="{{ route('admin.campaigns.update-status', $campaign) }}">
                                 @csrf @method('PATCH')
@@ -393,7 +406,7 @@
                                         class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all"
                                         style="{{ $btnStyle }}"
                                         @if($val === 'annule') onclick="openCancelModal(event, this.closest('form'))" @endif>
-                                    {{ $btnIcon }} {{ $label }}
+                                    {{ $btnIcon }} {{ $actionLabel }}
                                 </button>
                             </form>
                         @endforeach
