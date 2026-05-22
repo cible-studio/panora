@@ -259,7 +259,15 @@
 
                     @foreach($groupedByDay[$dayKey] as $task)
                         @php
-                            $status = $task->status;
+                            // Le modèle PoseTask n'a pas de cast `status` vers
+                            // PoseTaskStatus::class (déclarations partout dans
+                            // le code utilisent ->value, et un cast casserait
+                            // les comparaisons string existantes). On cast
+                            // donc localement dans la vue pour accéder à
+                            // ->color(), ->label(), ->allowedTransitions().
+                            $status = $task->status instanceof \App\Enums\PoseTaskStatus
+                                ? $task->status
+                                : \App\Enums\PoseTaskStatus::from((string) $task->status);
                             $statusColor = $status->color();
                             $statusBg = match($status->value) {
                                 'planifiee' => 'rgba(232,160,32,.10)',
