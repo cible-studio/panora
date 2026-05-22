@@ -25,7 +25,8 @@ class UserWelcomeMail extends Mailable implements ShouldQueue
     public function __construct(
         public readonly User    $user,
         public readonly ?string $temporaryPassword = null,
-        public readonly string  $context = 'created', // 'created' | 'activated' | 'reactivated'
+        // 'created' | 'activated' | 'reactivated' | 'password_reset'
+        public readonly string  $context = 'created',
     ) {}
 
     public function envelope(): Envelope
@@ -33,9 +34,10 @@ class UserWelcomeMail extends Mailable implements ShouldQueue
         $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
         // Subjects sobres et descriptifs — pas d'emoji, pas de "!"
         $subject = match ($this->context) {
-            'activated'   => "Votre compte PANORA · {$operator} a été activé",
-            'reactivated' => "Votre compte PANORA · {$operator} a été réactivé",
-            default       => "Bienvenue sur PANORA · {$operator} — vos identifiants",
+            'activated'      => "Votre compte PANORA · {$operator} a été activé",
+            'reactivated'    => "Votre compte PANORA · {$operator} a été réactivé",
+            'password_reset' => "Votre mot de passe PANORA · {$operator} a été réinitialisé",
+            default          => "Bienvenue sur PANORA · {$operator} — vos identifiants",
         };
 
         return new Envelope(

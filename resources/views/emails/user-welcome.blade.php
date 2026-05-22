@@ -1,25 +1,34 @@
 @php
     $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
     $title = match ($context) {
-        'activated'   => 'Compte activé',
-        'reactivated' => 'Compte réactivé',
-        default       => "Bienvenue sur PANORA · {$operator}",
+        'activated'      => 'Compte activé',
+        'reactivated'    => 'Compte réactivé',
+        'password_reset' => 'Mot de passe réinitialisé',
+        default          => "Bienvenue sur PANORA · {$operator}",
     };
     $intro = match ($context) {
-        'activated'   => 'Votre compte vient d\'être activé. Vous pouvez désormais accéder à la plateforme.',
-        'reactivated' => 'Votre compte a été réactivé. Bon retour parmi nous.',
-        default       => 'Un compte vient d\'être créé pour vous sur la plateforme PANORA.',
+        'activated'      => 'Votre compte vient d\'être activé. Vous pouvez désormais accéder à la plateforme.',
+        'reactivated'    => 'Votre compte a été réactivé. Bon retour parmi nous.',
+        'password_reset' => 'Votre administrateur a réinitialisé votre mot de passe. Voici vos nouveaux identifiants pour vous reconnecter.',
+        default          => 'Un compte vient d\'être créé pour vous sur la plateforme PANORA.',
     };
-    $pillClass = $context === 'created' ? 'pill' : 'pill pill-success';
+    $pillClass = match ($context) {
+        'password_reset' => 'pill pill-warning',
+        'created'        => 'pill',
+        default          => 'pill pill-success',
+    };
     $pillText  = match ($context) {
-        'activated'   => 'Compte activé',
-        'reactivated' => 'Compte réactivé',
-        default       => 'Nouveau compte',
+        'activated'      => 'Compte activé',
+        'reactivated'    => 'Compte réactivé',
+        'password_reset' => '🔑 Nouveau mot de passe',
+        default          => 'Nouveau compte',
     };
     $roleLabel = \App\Enums\UserRole::labelFor($user->role);
-    $preheader = $context === 'created'
-        ? "Vos identifiants pour accéder à la plateforme PANORA."
-        : "Votre compte est de nouveau actif sur PANORA · {$operator}.";
+    $preheader = match ($context) {
+        'created'        => 'Vos identifiants pour accéder à la plateforme PANORA.',
+        'password_reset' => "Votre nouveau mot de passe pour PANORA · {$operator}.",
+        default          => "Votre compte est de nouveau actif sur PANORA · {$operator}.",
+    };
 @endphp
 
 <x-mail.layout :title="$title" :preheader="$preheader">

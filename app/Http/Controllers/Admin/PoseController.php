@@ -819,6 +819,32 @@ class PoseController extends Controller
             auth()->user()
         );
 
+        // ── Alerte d'audit pour l'action bulk ───────────────────────
+        // Équivalent de l'alerte créée pour les actions individuelles
+        // (assignTech, complete, etc.) — sans elle, le bulk n'apparait
+        // pas dans le journal d'audit côté admin.
+        if (!empty($result['ok']) && ($result['updated'] ?? 0) > 0) {
+            $verbMap = [
+                'assign_tech'   => 'a réassigné le technicien sur',
+                'rename_team'   => 'a renommé l\'équipe sur',
+                'change_status' => 'a changé le statut de',
+                'reschedule'    => 'a replanifié',
+            ];
+            $verb     = $verbMap[$data['action']] ?? 'a mis à jour';
+            $count    = $result['updated'];
+            $notified = $result['notified'] ?? 0;
+
+            \App\Services\AlertService::create(
+                'pose',
+                'info',
+                '🔧 Action groupée poses — ' . $count . ' tâche(s)',
+                auth()->user()?->name . ' ' . $verb . ' ' . $count . ' tâche(s) de pose'
+                    . ($notified > 0 ? ' (' . $notified . ' tech notifiés WhatsApp)' : '')
+                    . (($result['skipped'] ?? 0) > 0 ? ' · ' . $result['skipped'] . ' ignorée(s)' : ''),
+                null
+            );
+        }
+
         // AJAX (le front utilise toujours fetch sur cet endpoint).
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json($result);
