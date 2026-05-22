@@ -475,7 +475,7 @@
                                 @click="show = !show">
                             📅 Prolonger la campagne
                         </button>
-                        <div x-show="show" x-collapse class="mt-4">
+                        <div x-show="show" x-collapse x-cloak style="display:none" class="mt-4">
                             <form method="POST" action="{{ route('admin.campaigns.prolonger', $campaign) }}">
                                 @csrf @method('PATCH')
                                 <label class="text-xs font-semibold block mb-2" style="color:var(--text3)">NOUVELLE DATE DE FIN</label>
@@ -578,7 +578,7 @@
         </div>
 
         @if($can['managePanel'])
-        <div x-show="showAdd" x-collapse class="border-b" style="border-color:var(--border)">
+        <div x-show="showAdd" x-collapse x-cloak style="display:none;border-color:var(--border)" class="border-b">
             <div class="p-5" style="background:var(--surface2)">
                 <form method="POST" action="{{ route('admin.campaigns.panels.add', $campaign) }}">
                     @csrf
