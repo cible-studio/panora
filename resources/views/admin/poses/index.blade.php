@@ -758,81 +758,49 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
     }
 
     // ── Plier / déplier les panneaux d'une campagne ────────────
-    // État persistant par campagne dans sessionStorage pour rester
-    // cohérent après refresh AJAX (filtre / pagination).
+    // Comportement attendu : toutes les campagnes sont PLIÉES à chaque
+    // chargement de la page (et à chaque refresh AJAX). Aucune mémoire
+    // entre les visites — si l'utilisateur ouvre une campagne puis
+    // change de page et revient, tout redevient plié.
     //
-    // Comportement par DÉFAUT : à la 1ère visite, toutes les
-    // campagnes sont PLIÉES. L'utilisateur déplie celles qu'il veut
-    // consulter. Les sessions suivantes restaurent ses choix.
+    // Cohérence : l'utilisateur sait que "page poses = tout plié",
+    // c'est l'affichage par défaut systématique.
     //
-    // On reconnaît la "1ère visite" via une clé dédiée `pose_groups_initialized`
-    // (boolean). Tant qu'elle n'est pas posée, on plie tout. Posée → on
-    // respecte le sessionStorage (qui peut être vide = tout déplié si
-    // l'utilisateur a explicitement tout ouvert).
-    const POSE_INIT_KEY = 'pose_groups_initialized';
-    let collapsedGroups;
-    if (!sessionStorage.getItem(POSE_INIT_KEY)) {
-        // 1ère visite de la session → on plie toutes les campagnes affichées
-        const allIds = Array.from(document.querySelectorAll('.pose-group-toggle'))
-            .map(b => b.dataset.campaignToggle)
-            .filter(Boolean);
-        collapsedGroups = new Set(allIds);
-        sessionStorage.setItem('pose_collapsed_groups', JSON.stringify([...collapsedGroups]));
-        sessionStorage.setItem(POSE_INIT_KEY, '1');
-    } else {
-        collapsedGroups = new Set(JSON.parse(sessionStorage.getItem('pose_collapsed_groups') || '[]'));
-    }
-    function persistCollapsedGroups() {
-        sessionStorage.setItem('pose_collapsed_groups', JSON.stringify([...collapsedGroups]));
-    }
+    // Pour suivre l'état pendant la session de cette page uniquement,
+    // on garde un Set en mémoire JS (vide au chargement).
+    const collapsedGroups = new Set();
 
-    // Mémorise les campagnes que l'utilisateur a EXPLICITEMENT ouvertes
-    // pendant cette session. Sert à ne PAS les re-plier automatiquement
-    // après un refresh AJAX (filtre / pagination).
-    const explicitlyExpanded = new Set(
-        JSON.parse(sessionStorage.getItem('pose_explicitly_expanded') || '[]')
-    );
-    function persistExplicitExpanded() {
-        sessionStorage.setItem('pose_explicitly_expanded', JSON.stringify([...explicitlyExpanded]));
-    }
-    function applyCollapsedState(cid) {
-        const isCollapsed = collapsedGroups.has(cid);
+    function setGroupCollapsed(cid, collapsed) {
+        if (collapsed) collapsedGroups.add(cid);
+        else           collapsedGroups.delete(cid);
         document.querySelectorAll(`.trow[data-campaign-group="${cid}"]`).forEach(row => {
-            row.style.display = isCollapsed ? 'none' : '';
+            row.style.display = collapsed ? 'none' : '';
         });
         const btn = document.querySelector(`.pose-group-toggle[data-campaign-toggle="${cid}"]`);
         if (btn) {
-            btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
-            btn.style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+            btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            btn.style.transform = collapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
         }
     }
-    function refreshAllGroupsCollapse() {
-        // Pour chaque header campagne présent dans le DOM, applique l'état stocké
+
+    function collapseAllGroups() {
+        // Plie TOUTES les campagnes actuellement dans le DOM. Appelé au
+        // chargement initial + après chaque refresh AJAX de la table.
         document.querySelectorAll('.pose-group-toggle').forEach(btn => {
-            applyCollapsedState(btn.dataset.campaignToggle);
+            const cid = btn.dataset.campaignToggle;
+            if (cid) setGroupCollapsed(cid, true);
         });
     }
+
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.pose-group-toggle');
         if (!btn) return;
         const cid = btn.dataset.campaignToggle;
-        if (collapsedGroups.has(cid)) {
-            // L'utilisateur OUVRE cette campagne explicitement.
-            collapsedGroups.delete(cid);
-            explicitlyExpanded.add(cid);
-        } else {
-            // L'utilisateur la REFERME — on retire aussi de la liste
-            // "explicitement ouvert" pour que le prochain refresh la
-            // garde fermée par défaut.
-            collapsedGroups.add(cid);
-            explicitlyExpanded.delete(cid);
-        }
-        persistCollapsedGroups();
-        persistExplicitExpanded();
-        applyCollapsedState(cid);
+        setGroupCollapsed(cid, !collapsedGroups.has(cid));
     });
-    // Applique l'état au chargement
-    refreshAllGroupsCollapse();
+
+    // Application initiale au chargement de la page
+    collapseAllGroups();
 
     // Quand la table est rechargée en AJAX (filtre / pagination), on
     // restaure l'état coché des checkboxes encore présentes.
@@ -852,21 +820,11 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                 }
             });
             syncCheckAllState();
-            // Auto-plie les NOUVELLES campagnes apparues après filtre/pagination
-            // (pas encore connues dans collapsedGroups). Préserve les choix
-            // utilisateur sur les campagnes déjà ouvertes.
-            const knownAfterRefresh = new Set();
-            document.querySelectorAll('.pose-group-toggle').forEach(btn => {
-                const cid = btn.dataset.campaignToggle;
-                if (cid) {
-                    knownAfterRefresh.add(cid);
-                    if (!collapsedGroups.has(cid) && !explicitlyExpanded.has(cid)) {
-                        collapsedGroups.add(cid);
-                    }
-                }
-            });
-            persistCollapsedGroups();
-            refreshAllGroupsCollapse();
+            // Après refresh AJAX, on re-plie tout — comportement uniforme :
+            // le tableau revient toujours en mode "tout plié" après un
+            // changement de filtre / pagination.
+            collapsedGroups.clear();
+            collapseAllGroups();
         });
         obs.observe(tableEl, { childList: true, subtree: true });
     }
