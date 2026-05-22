@@ -1,39 +1,53 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"><title>{{ $title }}</title></head>
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f2937;line-height:1.55">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 12px">
-<tr><td align="center">
-    <table role="presentation" width="100%" style="max-width:580px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.06)">
-    <tr><td style="background:{{ $color }};padding:16px 22px;color:#fff">
-        <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;opacity:.85">PANORA · ALERTE INTERNE</div>
-        <div style="font-size:17px;font-weight:700;margin-top:4px">{{ $emoji }} {{ $title }}</div>
-    </td></tr>
-    <tr><td style="padding:22px 24px">
-        <p style="margin:0 0 14px;font-size:14px;color:#374151">{{ $summary }}</p>
-        @if(!empty($lines))
-            <table role="presentation" width="100%" style="font-size:13px;border-collapse:collapse;background:#f9fafb;border-radius:10px">
-                @foreach($lines as $line)
-                    <tr><td style="padding:8px 14px;border-bottom:1px solid #e5e7eb;color:#374151">{{ $line }}</td></tr>
-                @endforeach
-            </table>
-        @endif
-        @if($ctaLabel && $ctaUrl)
-        <p style="margin:24px 0 4px;text-align:center">
-            <a href="{{ $ctaUrl }}" style="display:inline-block;background:{{ $color }};color:#fff;padding:12px 26px;border-radius:10px;text-decoration:none;font-weight:700;font-size:13px">
-                {{ $ctaLabel }}
-            </a>
-        </p>
-        @endif
-        @if($footer)
-            <p style="margin:14px 0 0;font-size:11px;color:#9ca3af;text-align:center">{{ $footer }}</p>
-        @endif
-    </td></tr>
-    <tr><td style="background:#f4f6f8;padding:12px 24px;text-align:center;font-size:10px;color:#9ca3af">
-        Notification automatique Panora · {{ now()->format('d/m/Y H:i') }}
-    </td></tr>
-    </table>
-</td></tr>
-</table>
-</body>
-</html>
+@php
+    $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
+
+    // Mapping couleur héritée → pill class. Le layout x-mail.layout n'expose
+    // que 4 variantes : info (par défaut), success, warning, danger.
+    $pillClass = match(true) {
+        str_contains($color ?? '', '22c55e') || str_contains($color ?? '', '16a34a') => 'pill pill-success',
+        str_contains($color ?? '', 'f59e0b') || str_contains($color ?? '', 'e8a020') => 'pill pill-warning',
+        str_contains($color ?? '', 'ef4444') || str_contains($color ?? '', 'dc2626') => 'pill pill-danger',
+        default => 'pill',
+    };
+
+    $preheader = $summary ?: "Alerte interne Panora — {$title}";
+@endphp
+
+<x-mail.layout :title="$title" :preheader="$preheader">
+
+    <span class="{{ $pillClass }}">{{ $emoji ?? 'ℹ️' }} Alerte interne</span>
+
+    <h1>{{ $title }}</h1>
+
+    @if($summary)
+        <p>{{ $summary }}</p>
+    @endif
+
+    @if(!empty($lines))
+        <div class="info">
+            @foreach($lines as $line)
+                <div class="info-row">
+                    <div class="val" style="width:100%;text-align:left;font-size:14px;color:#374151">{{ $line }}</div>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
+    @if(!empty($ctaLabel) && !empty($ctaUrl))
+        <div class="cta-wrap">
+            <a href="{{ $ctaUrl }}" class="cta">{{ $ctaLabel }}</a>
+            <div class="cta-fallback">
+                Lien direct : <a href="{{ $ctaUrl }}">{{ $ctaUrl }}</a>
+            </div>
+        </div>
+    @endif
+
+    @if(!empty($footer))
+        <p style="margin-top:24px;font-size:12px;color:#9ca3af;text-align:center">{{ $footer }}</p>
+    @endif
+
+    <x-slot:footerNote>
+        Notification interne automatique — vous recevez ce mail car vous faites partie de l'équipe {{ $operator }}.
+    </x-slot:footerNote>
+
+</x-mail.layout>

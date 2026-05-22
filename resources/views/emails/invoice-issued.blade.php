@@ -1,58 +1,81 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"><title>Facture {{ $invoice->reference ?? '' }}</title></head>
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f2937;line-height:1.55">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 12px">
-<tr><td align="center">
-    <table role="presentation" width="100%" style="max-width:580px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.06)">
-    <tr><td style="background:{{ $isReminder ? '#dc2626' : '#e8a020' }};padding:18px 26px;color:#fff">
-        <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700">CIBLE CI</div>
-        <div style="font-size:18px;font-weight:700;margin-top:4px">
-            @if($isReminder)
-                🔔 Rappel — Facture impayée
-            @else
-                📄 Nouvelle facture
-            @endif
-        </div>
-    </td></tr>
-    <tr><td style="padding:26px">
-        <p style="margin:0 0 14px;font-size:14px">Bonjour {{ $client?->name ?? '' }},</p>
+@php
+    $operator = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
+    $title = $isReminder
+        ? "Rappel — Facture impayée {$invoice->reference}"
+        : "Nouvelle facture — {$invoice->reference}";
+    $preheader = $isReminder
+        ? "Facture {$invoice->reference} de " . number_format($invoice->amount_ttc, 0, ',', ' ') . " FCFA TTC en attente de règlement."
+        : "Facture {$invoice->reference} d'un montant de " . number_format($invoice->amount_ttc, 0, ',', ' ') . " FCFA TTC.";
+@endphp
+
+<x-mail.layout :title="$title" :preheader="$preheader">
+
+    <span class="{{ $isReminder ? 'pill pill-danger' : 'pill pill-warning' }}">
+        {{ $isReminder ? '🔔 Rappel impayé' : '📄 Nouvelle facture' }}
+    </span>
+
+    <h1>
         @if($isReminder)
-        <p style="margin:0 0 14px;font-size:14px">
-            Nous vous rappelons que la facture <strong>{{ $invoice->reference }}</strong>
-            d'un montant de <strong>{{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA TTC</strong>
-            n'a pas encore été réglée.
-        </p>
+            Rappel — facture en attente de règlement
         @else
-        <p style="margin:0 0 14px;font-size:14px">
-            Veuillez trouver votre facture <strong>{{ $invoice->reference }}</strong>
-            d'un montant de <strong>{{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA TTC</strong>.
-        </p>
+            Votre facture est disponible
         @endif
+    </h1>
 
-        <table role="presentation" width="100%" style="font-size:13px;border-collapse:collapse;margin:18px 0">
-            <tr><td style="padding:4px 0;color:#9ca3af;width:40%">Référence</td><td style="padding:4px 0"><strong style="font-family:monospace">{{ $invoice->reference }}</strong></td></tr>
-            <tr><td style="padding:4px 0;color:#9ca3af">Montant HT</td><td style="padding:4px 0">{{ number_format($invoice->amount, 0, ',', ' ') }} FCFA</td></tr>
-            <tr><td style="padding:4px 0;color:#9ca3af">TVA</td><td style="padding:4px 0">{{ number_format($invoice->tva, 0, ',', ' ') }} FCFA</td></tr>
-            <tr><td style="padding:4px 0;color:#9ca3af">Total TTC</td><td style="padding:4px 0;font-weight:700;color:#16a34a;font-size:15px">{{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA</td></tr>
-            <tr><td style="padding:4px 0;color:#9ca3af">Émise le</td><td style="padding:4px 0">{{ $invoice->issued_at?->format('d/m/Y') ?? $invoice->created_at->format('d/m/Y') }}</td></tr>
-        </table>
+    <p>Bonjour {{ $client?->name ?? '—' }},</p>
 
-        <p style="margin:28px 0;text-align:center">
-            <a href="{{ $url }}" style="display:inline-block;background:{{ $isReminder ? '#dc2626' : '#e8a020' }};color:#fff;padding:13px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px">
-                Consulter la facture →
-            </a>
+    @if($isReminder)
+        <p>
+            Nous vous rappelons que la facture
+            <strong>{{ $invoice->reference }}</strong> d'un montant de
+            <strong>{{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA TTC</strong>
+            n'a pas encore été réglée. Merci de procéder au paiement dès que possible.
         </p>
-        <p style="margin:14px 0;font-size:11px;color:#9ca3af;text-align:center">
+    @else
+        <p>
+            Veuillez trouver votre facture
+            <strong>{{ $invoice->reference }}</strong> d'un montant de
+            <strong>{{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA TTC</strong>.
+        </p>
+    @endif
+
+    <div class="info">
+        <div class="info-row">
+            <div class="lbl">Référence</div>
+            <div class="val"><code>{{ $invoice->reference }}</code></div>
+        </div>
+        <div class="info-row">
+            <div class="lbl">Montant HT</div>
+            <div class="val">{{ number_format($invoice->amount, 0, ',', ' ') }} FCFA</div>
+        </div>
+        <div class="info-row">
+            <div class="lbl">TVA</div>
+            <div class="val">{{ number_format($invoice->tva, 0, ',', ' ') }} FCFA</div>
+        </div>
+        <div class="info-row">
+            <div class="lbl">Total TTC</div>
+            <div class="val"><strong>{{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA</strong></div>
+        </div>
+        <div class="info-row">
+            <div class="lbl">Émise le</div>
+            <div class="val">{{ $invoice->issued_at?->format('d/m/Y') ?? $invoice->created_at->format('d/m/Y') }}</div>
+        </div>
+    </div>
+
+    <div class="cta-wrap">
+        <a href="{{ $url }}" class="cta">Consulter la facture</a>
+        <div class="cta-fallback">
             🔒 Lien sécurisé valable jusqu'au {{ $link->expires_at?->format('d/m/Y') ?? '—' }}.<br>
-            Pour toute question : <a href="mailto:contact@cible-ci.com" style="color:#c2570d">contact@cible-ci.com</a>
-        </p>
-    </td></tr>
-    <tr><td style="background:#f4f6f8;padding:14px 26px;text-align:center;font-size:11px;color:#9ca3af">
-        © {{ date('Y') }} CIBLE CI — Affichage publicitaire Côte d'Ivoire
-    </td></tr>
-    </table>
-</td></tr>
-</table>
-</body>
-</html>
+            Si le bouton ne fonctionne pas : <a href="{{ $url }}">{{ $url }}</a>
+        </div>
+    </div>
+
+    <p style="margin-top:24px;color:#6b7280;font-size:13px;">
+        Pour toute question, écrivez-nous à <a href="mailto:contact@cible-ci.com">contact@cible-ci.com</a>.
+    </p>
+
+    <x-slot:footerNote>
+        Facture émise automatiquement par Panora — opérée par {{ $operator }}.
+    </x-slot:footerNote>
+
+</x-mail.layout>
