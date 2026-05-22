@@ -46,14 +46,12 @@ class TechSpaceController extends Controller
             abort(404, 'Lien invalide, expiré, ou compte désactivé.');
         }
 
-        // Cache 30s — un tech qui rafraîchit sa page toutes les 10s ne
-        // recharge pas la BD à chaque fois. Le cache est invalidé dès
-        // qu'il fait une action (status / photo) ou qu'un admin lui
-        // assigne une nouvelle pose (cf. PoseService).
-        $cacheKey = "tech.space.{$tech->id}.payload";
-        $payload  = Cache::remember($cacheKey, 30, function () use ($tech) {
-            return $this->buildPayload($tech);
-        });
+        // Pas de cache sur le payload : la sérialisation Laravel des
+        // collections Eloquent perd les casts d'enum (PoseTaskStatus
+        // devient string à la déserialisation → `->color()` plante avec
+        // "Call to a member function color() on string"). Le coût d'une
+        // requête fraîche reste très raisonnable (< 50ms typique).
+        $payload = $this->buildPayload($tech);
 
         return view('public.tech-space', array_merge($payload, [
             'tech'  => $tech,
