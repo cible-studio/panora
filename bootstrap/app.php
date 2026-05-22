@@ -39,10 +39,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // (32 chars random) + throttle agressif (60 req/min). Le CSRF
         // standard Laravel ne s'adapte pas aux sessions longues du
         // terrain (tech avec la page ouverte 1h+ entre 2 panneaux).
-        // Idem pour les redirections legacy /pose/{token}.
+        // Idem pour les redirections legacy /pose/{token} et l'espace
+        // technicien personnel /tech/{token}/poses.
         $middleware->validateCsrfTokens(except: [
             'pige/*',
             'pose/*',
+            'tech/*',
         ]);
 
         // Sync auto des statuts (campagnes, options) à chaque request web —
