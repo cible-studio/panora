@@ -423,25 +423,46 @@
                     @endif
 
                     {{-- Notifier le client des changements (panneaux, prix négociés…)
-                         Bouton visible seulement quand la campagne est lancée et qu'il
-                         y a au moins 1 panneau. Renvoie un récap basé sur l'état actuel. --}}
+                         Bouton TOUJOURS visible quand la campagne est lancée et qu'il
+                         y a au moins 1 panneau. Désactivé avec message si pas d'email
+                         client (lien rapide pour aller l'ajouter). --}}
                     @if($can['update']
                         && in_array($campaign->status->value, ['planifie', 'actif', 'pause'])
-                        && ($campaign->panels->count() + $campaign->externalPanels->count()) > 0
-                        && $campaign->client?->email)
+                        && ($campaign->panels->count() + $campaign->externalPanels->count()) > 0)
+                    @php
+                        $clientHasEmail = !empty($campaign->client?->email);
+                    @endphp
                     <div class="mt-5 pt-5 border-t" style="border-color:var(--border)">
-                        <form method="POST" action="{{ route('admin.campaigns.notify-client', $campaign) }}"
-                              onsubmit="return confirm('Envoyer un mail récap au client avec les panneaux et le montant actuels ?');">
-                            @csrf
-                            <button type="submit"
-                                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold"
-                                    style="background:var(--surface2);color:var(--text);border:1px solid var(--border)">
+                        @if($clientHasEmail)
+                            <form method="POST" action="{{ route('admin.campaigns.notify-client', $campaign) }}"
+                                  onsubmit="return confirm('Envoyer un mail récap au client avec les panneaux et le montant actuels ?');">
+                                @csrf
+                                <button type="submit"
+                                        class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold"
+                                        style="background:var(--surface2);color:var(--text);border:1px solid var(--border)">
+                                    📧 Notifier le client des changements
+                                </button>
+                            </form>
+                            <div class="text-xs mt-2 text-center" style="color:var(--text3)">
+                                Renvoie un mail récap au client (panneaux ajoutés/retirés, prix négociés).
+                            </div>
+                        @else
+                            <button type="button" disabled
+                                    title="Aucune adresse email renseignée pour ce client"
+                                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold opacity-60 cursor-not-allowed"
+                                    style="background:var(--surface2);color:var(--text3);border:1px solid var(--border)">
                                 📧 Notifier le client des changements
                             </button>
-                        </form>
-                        <div class="text-xs mt-2 text-center" style="color:var(--text3)">
-                            Renvoie un mail récap au client (panneaux ajoutés/retirés, prix négociés).
-                        </div>
+                            <div class="text-xs mt-2 text-center" style="color:#d97706;line-height:1.5">
+                                ⚠️ Pas d'email renseigné pour ce client.
+                                @if($campaign->client)
+                                    <a href="{{ route('admin.clients.edit', $campaign->client) }}"
+                                       style="color:var(--accent);text-decoration:underline;font-weight:600">
+                                        Ajouter un email →
+                                    </a>
+                                @endif
+                            </div>
+                        @endif
                     </div>
                     @endif
 
