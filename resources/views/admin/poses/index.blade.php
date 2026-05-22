@@ -760,9 +760,40 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
     // ── Plier / déplier les panneaux d'une campagne ────────────
     // État persistant par campagne dans sessionStorage pour rester
     // cohérent après refresh AJAX (filtre / pagination).
-    const collapsedGroups = new Set(JSON.parse(sessionStorage.getItem('pose_collapsed_groups') || '[]'));
+    //
+    // Comportement par DÉFAUT : à la 1ère visite, toutes les
+    // campagnes sont PLIÉES. L'utilisateur déplie celles qu'il veut
+    // consulter. Les sessions suivantes restaurent ses choix.
+    //
+    // On reconnaît la "1ère visite" via une clé dédiée `pose_groups_initialized`
+    // (boolean). Tant qu'elle n'est pas posée, on plie tout. Posée → on
+    // respecte le sessionStorage (qui peut être vide = tout déplié si
+    // l'utilisateur a explicitement tout ouvert).
+    const POSE_INIT_KEY = 'pose_groups_initialized';
+    let collapsedGroups;
+    if (!sessionStorage.getItem(POSE_INIT_KEY)) {
+        // 1ère visite de la session → on plie toutes les campagnes affichées
+        const allIds = Array.from(document.querySelectorAll('.pose-group-toggle'))
+            .map(b => b.dataset.campaignToggle)
+            .filter(Boolean);
+        collapsedGroups = new Set(allIds);
+        sessionStorage.setItem('pose_collapsed_groups', JSON.stringify([...collapsedGroups]));
+        sessionStorage.setItem(POSE_INIT_KEY, '1');
+    } else {
+        collapsedGroups = new Set(JSON.parse(sessionStorage.getItem('pose_collapsed_groups') || '[]'));
+    }
     function persistCollapsedGroups() {
         sessionStorage.setItem('pose_collapsed_groups', JSON.stringify([...collapsedGroups]));
+    }
+
+    // Mémorise les campagnes que l'utilisateur a EXPLICITEMENT ouvertes
+    // pendant cette session. Sert à ne PAS les re-plier automatiquement
+    // après un refresh AJAX (filtre / pagination).
+    const explicitlyExpanded = new Set(
+        JSON.parse(sessionStorage.getItem('pose_explicitly_expanded') || '[]')
+    );
+    function persistExplicitExpanded() {
+        sessionStorage.setItem('pose_explicitly_expanded', JSON.stringify([...explicitlyExpanded]));
     }
     function applyCollapsedState(cid) {
         const isCollapsed = collapsedGroups.has(cid);
@@ -785,9 +816,19 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         const btn = e.target.closest('.pose-group-toggle');
         if (!btn) return;
         const cid = btn.dataset.campaignToggle;
-        if (collapsedGroups.has(cid)) collapsedGroups.delete(cid);
-        else                          collapsedGroups.add(cid);
+        if (collapsedGroups.has(cid)) {
+            // L'utilisateur OUVRE cette campagne explicitement.
+            collapsedGroups.delete(cid);
+            explicitlyExpanded.add(cid);
+        } else {
+            // L'utilisateur la REFERME — on retire aussi de la liste
+            // "explicitement ouvert" pour que le prochain refresh la
+            // garde fermée par défaut.
+            collapsedGroups.add(cid);
+            explicitlyExpanded.delete(cid);
+        }
         persistCollapsedGroups();
+        persistExplicitExpanded();
         applyCollapsedState(cid);
     });
     // Applique l'état au chargement
@@ -811,7 +852,20 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                 }
             });
             syncCheckAllState();
-            // Re-applique l'état plié/déplié des groupes après refresh AJAX
+            // Auto-plie les NOUVELLES campagnes apparues après filtre/pagination
+            // (pas encore connues dans collapsedGroups). Préserve les choix
+            // utilisateur sur les campagnes déjà ouvertes.
+            const knownAfterRefresh = new Set();
+            document.querySelectorAll('.pose-group-toggle').forEach(btn => {
+                const cid = btn.dataset.campaignToggle;
+                if (cid) {
+                    knownAfterRefresh.add(cid);
+                    if (!collapsedGroups.has(cid) && !explicitlyExpanded.has(cid)) {
+                        collapsedGroups.add(cid);
+                    }
+                }
+            });
+            persistCollapsedGroups();
             refreshAllGroupsCollapse();
         });
         obs.observe(tableEl, { childList: true, subtree: true });
