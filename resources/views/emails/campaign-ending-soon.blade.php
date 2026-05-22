@@ -1,37 +1,54 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"><title>Campagne bientôt terminée</title></head>
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f2937;line-height:1.55">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 12px">
-<tr><td align="center">
-    <table role="presentation" width="100%" style="max-width:580px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.06)">
-    <tr><td style="background:#f59e0b;padding:18px 26px;color:#fff">
-        <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700">CIBLE CI</div>
-        <div style="font-size:18px;font-weight:700;margin-top:4px">⏰ Votre campagne se termine bientôt</div>
-    </td></tr>
-    <tr><td style="padding:26px">
-        <p style="margin:0 0 14px;font-size:14px">Bonjour {{ $client?->name ?? '' }},</p>
-        <p style="margin:0 0 14px;font-size:14px">
-            Votre campagne <strong>« {{ $campaign->name }} »</strong> arrive à échéance dans
-            <strong style="color:#d97706">{{ $daysRemaining }} jour(s)</strong>
-            ({{ \Carbon\Carbon::parse($campaign->end_date)->format('d/m/Y') }}).
-        </p>
-        <p style="margin:0 0 14px;font-size:14px">
-            Souhaitez-vous prolonger ou planifier votre prochaine campagne ?
-            Contactez-nous dès maintenant pour bénéficier d'une <strong>offre de fidélité</strong>.
-        </p>
-        <p style="margin:28px 0;text-align:center">
-            <a href="mailto:contact@cible-ci.com?subject=Prolongation %20{{ urlencode($campaign->name) }}"
-               style="display:inline-block;background:#e8a020;color:#fff;padding:13px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px">
-                Demander un devis →
-            </a>
-        </p>
-    </td></tr>
-    <tr><td style="background:#f4f6f8;padding:14px 26px;text-align:center;font-size:11px;color:#9ca3af">
-        © {{ date('Y') }} CIBLE CI — Affichage publicitaire Côte d'Ivoire
-    </td></tr>
-    </table>
-</td></tr>
-</table>
-</body>
-</html>
+@php
+    $operator  = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
+    $title     = "Votre campagne se termine dans {$daysRemaining} jour(s)";
+    $preheader = "Campagne « {$campaign->name} » — fin prévue le "
+        . \Carbon\Carbon::parse($campaign->end_date)->format('d/m/Y') . '.';
+    $quoteSubject = urlencode('Prolongation — ' . $campaign->name);
+@endphp
+
+<x-mail.layout :title="$title" :preheader="$preheader">
+
+    <span class="pill pill-warning">⏰ Campagne se termine bientôt</span>
+
+    <h1>Votre campagne arrive à échéance</h1>
+
+    <p>Bonjour {{ $client?->name ?? '—' }},</p>
+
+    <p>
+        Votre campagne <strong>« {{ $campaign->name }} »</strong> arrive à
+        échéance dans <strong>{{ $daysRemaining }} jour{{ $daysRemaining > 1 ? 's' : '' }}</strong>.
+    </p>
+
+    <div class="info">
+        <div class="info-row">
+            <div class="lbl">Campagne</div>
+            <div class="val"><strong>{{ $campaign->name }}</strong></div>
+        </div>
+        <div class="info-row">
+            <div class="lbl">Date de fin</div>
+            <div class="val">{{ \Carbon\Carbon::parse($campaign->end_date)->format('d/m/Y') }}</div>
+        </div>
+        <div class="info-row">
+            <div class="lbl">Jours restants</div>
+            <div class="val"><strong>{{ $daysRemaining }} jour{{ $daysRemaining > 1 ? 's' : '' }}</strong></div>
+        </div>
+    </div>
+
+    <p>
+        Souhaitez-vous <strong>prolonger</strong> votre campagne ou planifier
+        la prochaine ? Contactez-nous dès maintenant pour bénéficier d'une
+        <strong>offre de fidélité</strong>.
+    </p>
+
+    <div class="cta-wrap">
+        <a href="mailto:contact@cible-ci.com?subject={{ $quoteSubject }}" class="cta">Demander un devis</a>
+        <div class="cta-fallback">
+            Ou répondez directement à cet email — notre équipe commerciale vous rappelle sous 24 h.
+        </div>
+    </div>
+
+    <x-slot:footerNote>
+        Notification automatique Panora — opérée par {{ $operator }}.
+    </x-slot:footerNote>
+
+</x-mail.layout>
