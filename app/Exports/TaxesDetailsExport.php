@@ -2,14 +2,17 @@
 
 namespace App\Exports;
 
+use App\Exports\Concerns\ExcelBranding;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithCustomStartCell;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -27,15 +30,19 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  *   Commune · Panneau · Nom · Dim. · Surface · Type · Statut · Client ·
  *   Campagne · Période début · Période fin · Mois · Tarif · Montant
  */
-class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize, WithEvents
+class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize, WithEvents, WithCustomStartCell, WithTitle
 {
-    use Exportable;
+    use Exportable, ExcelBranding;
 
     public function __construct(
         protected Collection $lines,
         protected string $periodLabel,
         protected string $filterSummary = '',
     ) {}
+
+    public function title(): string { return 'Taxes'; }
+
+    public function startCell(): string { return $this->brandingStartCell(); }
 
     public function collection()
     {
@@ -95,8 +102,9 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
     public function styles(Worksheet $sheet): array
     {
         return [
-            1 => [
-                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            // Row 5 = headings (le bandeau brandé occupe rows 1-4)
+            5 => [
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 9],
                 'fill' => [
                     'fillType'   => Fill::FILL_SOLID,
                     'startColor' => ['rgb' => '0A0C10'],
@@ -113,27 +121,33 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $sheet = $event->sheet->getDelegate();
-                $sheet->getRowDimension(1)->setRowHeight(30);
-
+                $sheet   = $event->sheet->getDelegate();
                 $lastRow = $sheet->getHighestRow();
-                if ($lastRow < 2) return;
 
-                // Formats numériques
-                $sheet->getStyle("E2:E{$lastRow}")
+                // Bandeau brandé PANORA (rows 1-4)
+                $this->applyBrandingHeader($event, 'TAXES COMMUNALES — ' . strtoupper($this->periodLabel), array_filter([
+                    'Généré le ' . now()->format('d/m/Y à H:i'),
+                    max(0, $lastRow - 5) . ' ligne(s)',
+                    $this->filterSummary ?: null,
+                ]));
+
+                if ($lastRow < 6) {
+                    $this->applyTableFinishing($event);
+                    return;
+                }
+
+                // Formats numériques sur les colonnes data (row 6+)
+                $sheet->getStyle("E6:E{$lastRow}")
                       ->getNumberFormat()->setFormatCode('0.00');                  // Surface
-                $sheet->getStyle("M2:M{$lastRow}")
+                $sheet->getStyle("M6:M{$lastRow}")
                       ->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');         // Tarif
-                $sheet->getStyle("N2:N{$lastRow}")
+                $sheet->getStyle("N6:N{$lastRow}")
                       ->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');         // Montant
-
-                // Freeze header
-                $sheet->freezePane('A2');
 
                 // Ligne TOTAL en bas
                 $totalRow = $lastRow + 2;
                 $sheet->setCellValue("L{$totalRow}", 'TOTAL :');
-                $sheet->setCellValue("N{$totalRow}", "=SUM(N2:N{$lastRow})");
+                $sheet->setCellValue("N{$totalRow}", "=SUM(N6:N{$lastRow})");
                 $sheet->getStyle("L{$totalRow}:N{$totalRow}")->getFont()->setBold(true);
                 $sheet->getStyle("L{$totalRow}:N{$totalRow}")->getFill()
                     ->setFillType(Fill::FILL_SOLID)
@@ -141,23 +155,7 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
                 $sheet->getStyle("N{$totalRow}")
                       ->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
 
-                // Méta-données en haut (info filtres) sur des lignes au-dessus
-                // serait idéal mais Maatwebsite ne supporte pas l'insertion de
-                // lignes sans tout recalculer. Solution simple : on met la
-                // période et les filtres dans une feuille séparée si besoin.
-                // Pour ne pas alourdir, on ajoute juste une bordure haut/bas
-                // sur les rangées de données.
-                $sheet->getStyle("A2:N{$lastRow}")->getBorders()->getBottom()
-                    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_HAIR);
-
-                // Titre fichier visible dans l'aperçu impression
-                $sheet->getPageSetup()->setOrientation(
-                    \PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE
-                );
-                $sheet->getHeaderFooter()->setOddHeader(
-                    '&L&BCIBLE CI — Taxes ' . $this->periodLabel .
-                    ($this->filterSummary ? '&C' . $this->filterSummary : '')
-                );
+                $this->applyTableFinishing($event);
             },
         ];
     }

@@ -2,18 +2,28 @@
 
 namespace App\Exports;
 
+use App\Exports\Concerns\ExcelBranding;
+use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithCustomStartCell;
+use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
-class ExternalPanelsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, WithTitle, ShouldAutoSize
+class ExternalPanelsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, WithTitle, ShouldAutoSize, WithEvents, WithCustomStartCell
 {
+    use Exportable, ExcelBranding;
+
+    public function startCell(): string { return $this->brandingStartCell(); }
+
     protected $panels;
     protected $startDate;
     protected $endDate;
@@ -125,36 +135,47 @@ class ExternalPanelsExport implements FromCollection, WithHeadings, WithMapping,
 
     public function styles(Worksheet $sheet)
     {
-        $sheet->getStyle('A1:' . $sheet->getHighestColumn() . '1')->applyFromArray([
+        // Row 5 = headings (le bandeau brandé occupe rows 1-4)
+        $sheet->getStyle('A5:' . $sheet->getHighestColumn() . '5')->applyFromArray([
             'font' => [
                 'bold'  => true,
-                'size'  => 11,
+                'size'  => 10,
                 'color' => ['rgb' => 'FFFFFF'],
             ],
             'fill' => [
                 'fillType'   => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => 'E8A020'],
+                'startColor' => ['rgb' => '0A0C10'],
             ],
             'alignment' => [
-                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
-                'vertical'   => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
-            ],
-        ]);
-
-        $sheet->getStyle('A2:' . $sheet->getHighestColumn() . $sheet->getHighestRow())->applyFromArray([
-            'font' => ['size' => 10],
-            'alignment' => [
-                'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
-            ],
-            'borders' => [
-                'allBorders' => [
-                    'borderStyle' => Border::BORDER_THIN,
-                    'color'       => ['rgb' => 'CCCCCC'],
-                ],
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical'   => Alignment::VERTICAL_CENTER,
             ],
         ]);
 
         return [];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $period = ($this->startDate && $this->endDate)
+                    ? 'Période : ' . \Carbon\Carbon::parse($this->startDate)->format('d/m/Y')
+                      . ' → ' . \Carbon\Carbon::parse($this->endDate)->format('d/m/Y')
+                    : null;
+                $title = $this->agencyName
+                    ? 'PANNEAUX RÉGIE — ' . strtoupper($this->agencyName)
+                    : 'PANNEAUX RÉGIES PARTENAIRES';
+
+                $this->applyBrandingHeader($event, $title, array_filter([
+                    'Généré le ' . now()->format('d/m/Y à H:i'),
+                    max(0, $event->sheet->getDelegate()->getHighestRow() - 5) . ' panneau(x)',
+                    $period,
+                ]));
+
+                $this->applyTableFinishing($event);
+            },
+        ];
     }
 
     private function calculateMonths($start, $end): float

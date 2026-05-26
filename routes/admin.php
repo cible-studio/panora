@@ -787,6 +787,14 @@ Route::prefix('admin')
         Route::middleware('role:admin,mediaplanner')->group(function () {
             Route::get('campaigns/create', [CampaignController::class, 'create'])->name('campaigns.create');
             Route::post('campaigns', [CampaignController::class, 'store'])->name('campaigns.store');
+
+            // Import depuis un PDF "Liste des panneaux commandes"
+            Route::get ('campaigns/import-pdf',         [\App\Http\Controllers\Admin\CampaignImportController::class, 'form'])
+                ->name('campaigns.import-pdf.form');
+            Route::post('campaigns/import-pdf/preview', [\App\Http\Controllers\Admin\CampaignImportController::class, 'preview'])
+                ->name('campaigns.import-pdf.preview');
+            Route::post('campaigns/import-pdf/apply',   [\App\Http\Controllers\Admin\CampaignImportController::class, 'apply'])
+                ->name('campaigns.import-pdf.apply');
         });
 
         // Routes paramétriques (id numérique uniquement)
