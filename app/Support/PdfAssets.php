@@ -49,37 +49,65 @@ trait PdfAssets
     }
 
     /**
-     * Retourne le logo CIBLE CI en data-URI base64 (legacy, conservé
-     * pour rétro-compatibilité avec les anciens templates PDF).
-     * Pour les nouveaux templates, préférer getPanoraLogoDark/Light.
+     * Logo CIBLE CI optimisé pour fond FONCÉ (bandeau noir/sombre).
+     * Priorité : logob.png (texte blanc sur fond bleu) > logon.png > SVG fallback.
+     *
+     * 99% des PDFs Panora utilisent un pdf-header #0d1117 (presque noir) ;
+     * cette méthode est donc le choix par défaut. Pour un PDF à fond blanc,
+     * utiliser getCibleLogoLight().
      */
-    protected function getLogoPdf(): string
+    protected function getCibleLogoDark(): string
     {
-        // Ordre de priorité — pour les PDF (toujours fond CLAIR) :
-        //   1. logol.png : logo officiel CIBLE light (texte noir + roue colorée)
-        //   2. logo-cible.png : éventuel asset custom
-        //   3. logo.png / logob.png : fallback
-        //   4. logon.png : version fond noir (dernier recours, illisible sur fond clair)
-        $candidates = [
+        return $this->logoDataUriCible([
+            public_path('images/logob.png'),
+            public_path('images/logon.png'),
+        ], '#e8a020');
+    }
+
+    /**
+     * Logo CIBLE CI optimisé pour fond CLAIR (header blanc/beige).
+     * Priorité : logol.png (texte noir + roue colorée) > SVG fallback.
+     */
+    protected function getCibleLogoLight(): string
+    {
+        return $this->logoDataUriCible([
             public_path('images/logol.png'),
             public_path('images/logo-cible.png'),
             public_path('images/logo.png'),
-            public_path('images/logob.png'),
-            public_path('images/logon.png'),
-        ];
+        ], '#0d1117');
+    }
 
+    /**
+     * @deprecated Utiliser getCibleLogoDark() (cohérent avec les headers PDF
+     * #0d1117) ou getCibleLogoLight() selon le fond. Conservé pour
+     * rétro-compat — pointe maintenant sur getCibleLogoDark() puisque tous
+     * les anciens templates avaient un header foncé (bug : ils tiraient
+     * logol = texte noir invisible).
+     */
+    protected function getLogoPdf(): string
+    {
+        return $this->getCibleLogoDark();
+    }
+
+    /**
+     * Helper interne CIBLE : retourne le premier fichier trouvé en base64,
+     * ou un SVG fallback brandé « CIBLE CI » dans la couleur passée.
+     */
+    private function logoDataUriCible(array $candidates, string $fallbackTextColor): string
+    {
         foreach ($candidates as $path) {
             if (is_file($path) && is_readable($path)) {
                 $mime = mime_content_type($path) ?: 'image/png';
                 return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
             }
         }
-
-        // Fallback SVG inline (toujours embarquable)
+        // Fallback SVG inline (toujours embarquable). On garde le bandeau
+        // noir pour rester lisible dans la majorité des contextes
+        // (header pdf foncé) ; le texte adopte la couleur passée.
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="50" viewBox="0 0 180 50">'
              . '<rect width="180" height="50" rx="6" fill="#0d1117"/>'
              . '<text x="90" y="34" font-family="Arial,sans-serif" font-weight="900" '
-             . 'font-size="20" fill="#e8a020" text-anchor="middle">CIBLE CI</text>'
+             . 'font-size="20" fill="' . $fallbackTextColor . '" text-anchor="middle">CIBLE CI</text>'
              . '</svg>';
 
         return 'data:image/svg+xml;base64,' . base64_encode($svg);
