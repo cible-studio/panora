@@ -112,14 +112,14 @@ trait ExcelBranding
         $sheet->getRowDimension(5)->setRowHeight(24);
 
         // ── Logo CIBLE CI (visible sur fond noir du bandeau) ────────
-        // Priorité logon.png : fond noir intégré qui se fond avec le
-        // bandeau #0d1117 → seule la roue colorée et le texte blanc
-        // ressortent (plus net que logob.png et son cadre blanc encadré).
-        // Si absent, fallback sur logob.png. Sinon, on n'ajoute rien
+        // Priorité logob.png : format épuré paysage (roue + texte CIBLE
+        // sur fond transparent/sobre, sans cadre). Visuellement plus
+        // propre que logon.png qui a un rectangle blanc arrondi flottant.
+        // Si absent, fallback sur logon.png. Sinon, on n'ajoute rien
         // (le titre orange reste lisible seul).
         $logoCandidates = [
-            public_path('images/logon.png'),
             public_path('images/logob.png'),
+            public_path('images/logon.png'),
         ];
         foreach ($logoCandidates as $logoPath) {
             if (is_file($logoPath) && is_readable($logoPath)) {

@@ -50,9 +50,10 @@ trait PdfAssets
 
     /**
      * Logo CIBLE CI optimisé pour fond FONCÉ (bandeau noir/sombre).
-     * Priorité : logon.png (fond noir intégré qui se fond avec le pdf-header
-     * #0d1117 + roue colorée + texte blanc) > logob.png (fallback, cadre
-     * blanc encadré moins net) > SVG fallback.
+     * Priorité : logob.png (format épuré paysage 2257x547 : roue colorée +
+     * texte « CIBLE » blanc, SANS cadre — se fond proprement sur le bandeau
+     * #0d1117) > logon.png (a un rectangle blanc arrondi qui flotte
+     * visuellement et donne un effet « badge » indésirable) > SVG fallback.
      *
      * 99% des PDFs Panora utilisent un pdf-header #0d1117 (presque noir) ;
      * cette méthode est donc le choix par défaut. Pour un PDF à fond blanc,
@@ -61,8 +62,8 @@ trait PdfAssets
     protected function getCibleLogoDark(): string
     {
         return $this->logoDataUriCible([
-            public_path('images/logon.png'),
             public_path('images/logob.png'),
+            public_path('images/logon.png'),
         ], '#e8a020');
     }
 
