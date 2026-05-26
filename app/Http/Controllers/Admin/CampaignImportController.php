@@ -155,11 +155,11 @@ class CampaignImportController extends Controller
                 // 4. Calcul du total_amount au tarif catalogue (proratisé sur la durée).
                 // Heuristique simple : monthly_rate × nb_mois entamés. La patronne
                 // pourra ajuster manuellement après si nécessaire.
-                $months = max(1, (int) ceil(
-                    \Carbon\Carbon::parse($session['start_date'])
-                        ->diffInDays(\Carbon\Carbon::parse($session['end_date'])) / 30
-                ));
-                $total = (float) $foundPanels->sum('monthly_rate') * $months;
+                $startDay = \Carbon\Carbon::parse($session['start_date'])->startOfDay();
+                $endDay   = \Carbon\Carbon::parse($session['end_date'])->startOfDay();
+                $days     = (int) round($startDay->diffInDays($endDay));
+                $months   = max(1, (int) ceil($days / 30));
+                $total    = (float) $foundPanels->sum('monthly_rate') * $months;
                 $campaign->update(['total_amount' => $total]);
 
                 return $campaign;

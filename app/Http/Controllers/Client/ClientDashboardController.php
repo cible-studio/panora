@@ -162,6 +162,15 @@ class ClientDashboardController extends Controller
 
         $campagnes = $query->orderByDesc('created_at')->paginate(20)->withQueryString();
 
+        // Marquage « vues » de toutes les campagnes non encore consultées
+        // par ce client → décrémente le badge « N nouvelles » du menu.
+        // Pattern Gmail : visiter la liste = tout marqué comme vu.
+        // On filtre seulement les NULL pour ne pas écraser un timestamp
+        // existant (la date de première visite reste un témoin).
+        $client->campaigns()
+            ->whereNull('client_first_viewed_at')
+            ->update(['client_first_viewed_at' => now()]);
+
         if ($request->ajax()) {
             return response()->json([
                 'html'  => view('client.partials.campagnes-rows', compact('campagnes'))->render(),
@@ -240,6 +249,12 @@ class ClientDashboardController extends Controller
         $client = Auth::guard('client')->user();
 
         if ($campaign->client_id !== $client->id) abort(403, 'Accès non autorisé.');
+
+        // Marque cette campagne comme vue si c'est la première fois.
+        // Cas d'accès direct (lien email/dashboard) sans passer par la liste.
+        if ($campaign->client_first_viewed_at === null) {
+            $campaign->forceFill(['client_first_viewed_at' => now()])->save();
+        }
 
         $campaign->load([
             'panels.photos',

@@ -50,8 +50,12 @@
                 <div style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px">
                     {{ $data['start_date']->format('d/m/Y') }} → {{ $data['end_date']->format('d/m/Y') }}
                 </div>
-                @php $days = $data['start_date']->diffInDays($data['end_date']); @endphp
-                <div style="font-size:11px;color:var(--text3);margin-top:3px">{{ $days }} jour(s) — {{ ceil($days/30) }} mois</div>
+                @php
+                    // diffInDays renvoie un float quand start=00:00 et end=23:59:59
+                    // → on arrondit pour afficher proprement.
+                    $days = (int) round($data['start_date']->copy()->startOfDay()->diffInDays($data['end_date']->copy()->startOfDay()));
+                @endphp
+                <div style="font-size:11px;color:var(--text3);margin-top:3px">{{ $days }} jour(s) — {{ (int) ceil($days/30) }} mois</div>
             </div>
             <div>
                 <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Panneaux détectés</div>
