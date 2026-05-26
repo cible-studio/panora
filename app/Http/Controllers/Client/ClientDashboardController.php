@@ -467,7 +467,12 @@ class ClientDashboardController extends Controller
               ->subject($subject);
         });
 
-        return back()->with('contact_success', 'Votre message a été envoyé. Nous vous répondrons dans les plus brefs délais.');
+        // Message de succès explicite : l'utilisateur doit comprendre que
+        // c'est un email transmis à l'équipe (pas une messagerie interne),
+        // avec à qui ça arrive et quel délai attendre.
+        return back()->with('contact_success',
+            'Votre message a été transmis par email à notre équipe (contact@cible-ci.com). Une réponse vous parviendra à ' . $client->email . ' sous 24 heures ouvrées.'
+        );
     }
 
     // ══════════════════════════════════════════════════════════════
