@@ -4,7 +4,6 @@ namespace App\Mail;
 
 use App\Models\ClientMessage;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -20,7 +19,11 @@ use Illuminate\Queue\SerializesModels;
  * (bien que le canal préféré reste l'interface admin
  * /admin/messages qui trace la réponse en BD).
  */
-class ClientContactReceivedMail extends Mailable implements ShouldQueue
+/**
+ * NOTE : pas de ShouldQueue — aucun worker queue:work en prod, l'envoi
+ * synchrone évite l'accumulation de jobs orphelins dans la table `jobs`.
+ */
+class ClientContactReceivedMail extends Mailable
 {
     use Queueable, SerializesModels;
 

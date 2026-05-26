@@ -4,7 +4,6 @@ namespace App\Mail;
 
 use App\Models\ClientMessage;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -16,7 +15,11 @@ use Illuminate\Queue\SerializesModels;
  * sur « Envoyer la réponse ». Le body de réponse est aussi stocké
  * en BD pour garder l'historique côté admin.
  */
-class ClientContactReplyMail extends Mailable implements ShouldQueue
+/**
+ * NOTE : pas de ShouldQueue — l'opérateur clique « Envoyer » et attend
+ * confirmation immédiate ; envoi synchrone (~200ms) cohérent avec l'UX.
+ */
+class ClientContactReplyMail extends Mailable
 {
     use Queueable, SerializesModels;
 
