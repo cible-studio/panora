@@ -7,6 +7,7 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Mail\ClientContactReceivedMail;
 use App\Models\Campaign;
 use App\Models\ClientMessage;
 use App\Models\Pige;
@@ -476,16 +477,11 @@ class ClientDashboardController extends Controller
         ]);
 
         // 2. Email — best-effort, ne doit pas bloquer le retour utilisateur.
+        //    Le Mailable utilise le layout PANORA + reply-to du client +
+        //    CTA vers /admin/messages/{id} pour répondre depuis l'interface.
         try {
-            $body    = "De : {$fromName} ({$client->email})\nObjet : {$data['subject']}\n\n{$data['message']}\n\n— Message #{$cm->id} archivé dans Panora /admin/messages";
-            $to      = config('mail.from.address');
-            $subject = "[Espace Client] {$data['subject']}";
-
-            Mail::raw($body, function ($m) use ($to, $client, $fromName, $subject) {
-                $m->to($to)
-                  ->replyTo($client->email, $fromName)
-                  ->subject($subject);
-            });
+            Mail::to(config('mail.from.address'))
+                ->send(new ClientContactReceivedMail($cm));
         } catch (\Throwable $e) {
             Log::warning('client.contact.mail_failed', [
                 'message_id' => $cm->id, 'error' => $e->getMessage(),

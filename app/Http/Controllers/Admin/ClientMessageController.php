@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\ClientContactReplyMail;
 use App\Models\ClientMessage;
 use App\Services\AlertService;
 use Illuminate\Http\Request;
@@ -10,7 +11,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 
 /**
  * Interface admin pour les messages envoyés via le formulaire
@@ -88,20 +88,12 @@ class ClientMessageController extends Controller
 
         // Envoi mail au client — best-effort, on persiste même en cas
         // d'échec d'envoi pour ne pas perdre la rédaction de l'opérateur.
+        // Le Mailable utilise le layout PANORA + cite le message original
+        // en blockquote pour rappel du contexte côté client.
         $mailSent = true;
         try {
-            $admin   = Auth::user();
-            $from    = config('mail.from.address');
-            $body    = "Bonjour {$message->from_name},\n\n"
-                     . $data['reply_body']
-                     . "\n\n— L'équipe CIBLE CI"
-                     . "\n(en réponse à votre message du " . $message->created_at->format('d/m/Y à H:i') . ' : ' . Str::limit($message->subject, 60) . ')';
-
-            Mail::raw($body, function ($m) use ($message, $from) {
-                $m->to($message->from_email, $message->from_name)
-                  ->replyTo($from)
-                  ->subject('Re: ' . $message->subject);
-            });
+            Mail::to($message->from_email, $message->from_name)
+                ->send(new ClientContactReplyMail($message, $data['reply_body']));
         } catch (\Throwable $e) {
             $mailSent = false;
             Log::warning('client.message.reply_mail_failed', [
