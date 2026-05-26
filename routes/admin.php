@@ -366,6 +366,15 @@ Route::prefix('admin')
             Route::post('maintenances/{maintenance}/reopen',  [MaintenanceController::class, 'reopen'])->name('maintenances.reopen');
         });
 
+        // ── Messages clients (formulaire « Contacter la régie ») ──
+        Route::prefix('messages')->name('messages.')->group(function () {
+            Route::get('/',                  [\App\Http\Controllers\Admin\ClientMessageController::class, 'index'])  ->name('index');
+            Route::get('{message}',          [\App\Http\Controllers\Admin\ClientMessageController::class, 'show'])   ->name('show');
+            Route::post('{message}/reply',   [\App\Http\Controllers\Admin\ClientMessageController::class, 'reply'])  ->name('reply');
+            Route::post('{message}/archive', [\App\Http\Controllers\Admin\ClientMessageController::class, 'archive'])->name('archive');
+            Route::delete('{message}',       [\App\Http\Controllers\Admin\ClientMessageController::class, 'destroy'])->name('destroy');
+        });
+
         // ── Alertes ───────────────────────────────────────────────
         Route::prefix('alerts')->name('alerts.')->group(function () {
             Route::get('/',                       [AlertController::class, 'index'])     ->name('index');

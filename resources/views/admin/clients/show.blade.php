@@ -122,6 +122,60 @@
             </div>
         </div>
 
+        {{-- ── ÉQUIPE ESPACE CLIENT ────────────────────────────────
+             Visibilité admin sur les comptes que le client a créés pour
+             se connecter au portail. Distinct des « Interlocuteurs »
+             (contacts métier à appeler) — ici ce sont des sessions auth.
+             Affichage read-only : la gestion reste côté client (RBAC
+             interne : owner gère, member lit). ──────────────────── --}}
+        <div style="padding:14px 20px;border-top:1px solid var(--border);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);">
+                    Équipe espace client ({{ $client->users->count() }})
+                </span>
+                <span style="font-size:10px;color:var(--text3);" title="Géré uniquement côté client (par l'owner)">🔒 Read-only</span>
+            </div>
+            @if($client->users->isEmpty())
+                <div style="font-size:12px;color:var(--text3);font-style:italic;padding:8px 0;line-height:1.45;">
+                    Aucun utilisateur côté client. Le client n'a pas encore créé de compte d'accès au portail.
+                </div>
+            @else
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    @foreach($client->users as $u)
+                        @php
+                            $roleCfg = $u->role === 'owner'
+                                ? ['c'=>'#e20613', 'label'=>'Owner',  'title'=>'Gère l\'équipe + accepte les propositions']
+                                : ['c'=>'#6b7280', 'label'=>'Member', 'title'=>'Lecture seule (campagnes, poses, piges, propositions)'];
+                        @endphp
+                        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;{{ !$u->is_active ? 'opacity:.55;' : '' }}">
+                            <div style="width:30px;height:30px;border-radius:50%;background:{{ $roleCfg['c'] }}1a;color:{{ $roleCfg['c'] }};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">{{ mb_substr($u->name, 0, 1) }}</div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                                    <span style="font-size:12px;font-weight:600;color:var(--text);">{{ $u->name }}</span>
+                                    <span title="{{ $roleCfg['title'] }}"
+                                          style="padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;background:{{ $roleCfg['c'] }}1a;color:{{ $roleCfg['c'] }};text-transform:uppercase;letter-spacing:.3px;">{{ $roleCfg['label'] }}</span>
+                                    @if(!$u->is_active)
+                                        <span style="padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;background:rgba(107,114,128,.15);color:#6b7280;">Désactivé</span>
+                                    @endif
+                                </div>
+                                <div style="font-size:10px;color:var(--text3);font-family:monospace;">{{ $u->email }}</div>
+                                <div style="font-size:10px;color:var(--text3);margin-top:2px;">
+                                    @if($u->last_login_at)
+                                        Dernière connexion : {{ $u->last_login_at->diffForHumans() }}
+                                    @else
+                                        Jamais connecté
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+            <div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.45;">
+                💡 Le client gère lui-même son équipe depuis son espace (page « Mon équipe »). L'admin ne peut ni ajouter ni modifier ces comptes.
+            </div>
+        </div>
+
         {{-- Lien nouvelle réservation --}}
         <div style="padding:16px 20px;border-top:1px solid var(--border);">
             <a href="{{ route('admin.reservations.disponibilites') }}"

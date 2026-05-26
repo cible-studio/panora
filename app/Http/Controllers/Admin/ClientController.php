@@ -239,6 +239,12 @@ class ClientController extends Controller
             'campaigns' => fn($q) => $q->latest()->limit(8),
             'invoices' => fn($q) => $q->latest()->limit(5),
             'contacts',
+            // Utilisateurs de l'espace client (owner + members) pour le
+            // nouveau panneau « Équipe espace client » sur la fiche admin.
+            // Tri : owner d'abord, puis par dernière connexion.
+            'users' => fn($q) => $q->orderByRaw("CASE WHEN role = 'owner' THEN 0 ELSE 1 END")
+                                   ->orderByDesc('last_login_at')
+                                   ->orderBy('name'),
         ]);
 
         $totalFacture = $client->invoices()->sum('amount_ttc');
