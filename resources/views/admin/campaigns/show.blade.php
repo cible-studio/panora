@@ -595,23 +595,34 @@
             <div class="p-5" style="background:var(--surface2)">
                 <form method="POST" action="{{ route('admin.campaigns.panels.add', $campaign) }}">
                     @csrf
-                    {{-- Tabs source : Tous / Internes / Externes (régies partenaires) --}}
-                    <div class="flex gap-2 mb-4 flex-wrap">
-                        <button type="button" @click="setSource('all')"
-                                :style="filterSource === 'all' ? 'background:var(--accent);color:#fff;border-color:var(--accent)' : 'background:var(--surface);color:var(--text2);border-color:var(--border)'"
-                                class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all">
-                            Tous (<span x-text="allPanels.length"></span>)
-                        </button>
-                        <button type="button" @click="setSource('internal')"
-                                :style="filterSource === 'internal' ? 'background:#3b82f6;color:#fff;border-color:#3b82f6' : 'background:var(--surface);color:var(--text2);border-color:var(--border)'"
-                                class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all">
-                            🏢 Internes (<span x-text="counts.internal"></span>)
-                        </button>
-                        <button type="button" @click="setSource('external')"
-                                :style="filterSource === 'external' ? 'background:#7c3aed;color:#fff;border-color:#7c3aed' : 'background:var(--surface);color:var(--text2);border-color:var(--border)'"
-                                class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all">
-                            🤝 Régies partenaires (<span x-text="counts.external"></span>)
-                        </button>
+                    {{-- Tabs source : Tous / Internes / Externes (régies partenaires)
+                         + toggle « Libres uniquement » (ON par défaut) qui filtre
+                         les indisponibles. Décocher = voir tout le parc avec badge
+                         « Pris jusqu'au DD/MM », pour comprendre la dispo réelle. --}}
+                    <div class="flex justify-between items-start gap-4 mb-4 flex-wrap">
+                        <div class="flex gap-2 flex-wrap">
+                            <button type="button" @click="setSource('all')"
+                                    :style="filterSource === 'all' ? 'background:var(--accent);color:#fff;border-color:var(--accent)' : 'background:var(--surface);color:var(--text2);border-color:var(--border)'"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all">
+                                Tous (<span x-text="totals.internal + totals.external"></span>)
+                            </button>
+                            <button type="button" @click="setSource('internal')"
+                                    :style="filterSource === 'internal' ? 'background:#3b82f6;color:#fff;border-color:#3b82f6' : 'background:var(--surface);color:var(--text2);border-color:var(--border)'"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all">
+                                🏢 Internes (<span x-text="counts.internal_available"></span>/<span x-text="totals.internal"></span>)
+                            </button>
+                            <button type="button" @click="setSource('external')"
+                                    :style="filterSource === 'external' ? 'background:#7c3aed;color:#fff;border-color:#7c3aed' : 'background:var(--surface);color:var(--text2);border-color:var(--border)'"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all">
+                                🤝 Régies partenaires (<span x-text="counts.external_available"></span>/<span x-text="totals.external"></span>)
+                            </button>
+                        </div>
+                        <label class="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none px-3 py-1.5 rounded-lg border transition-all"
+                               :style="showOnlyAvailable ? 'background:var(--accent-dim);border-color:var(--accent);color:var(--accent)' : 'background:var(--surface);border-color:var(--border);color:var(--text2)'">
+                            <input type="checkbox" x-model="showOnlyAvailable" @change="filterPanels()"
+                                   class="w-4 h-4" style="accent-color:var(--accent)">
+                            Libres uniquement
+                        </label>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
@@ -675,14 +686,54 @@
                                 </div>
                             </div>
                         </template>
-                        <template x-if="!loadingPanels && !loadError && filteredPanels.length === 0">
-                            <div class="text-center py-12" style="color:var(--text3)">Aucun panneau libre trouvé</div>
+                        {{-- Cas 1 : campagne non modifiable (terminée/annulée) — message dédié --}}
+                        <template x-if="!loadingPanels && !loadError && reason === 'campaign_status_not_modifiable'">
+                            <div class="text-center py-12 px-6" style="color:var(--text3)">
+                                <div class="text-3xl mb-2">🔒</div>
+                                <div class="font-bold mb-1" style="color:var(--text)">Campagne non modifiable</div>
+                                <div class="text-xs" x-text="'Statut actuel : ' + (campaignStatus || '—') + '. Repassez la campagne en planifié, actif ou pause pour ajouter des panneaux.'"></div>
+                            </div>
+                        </template>
+                        {{-- Cas 2 : aucun panneau dans le parc — souvent un parc vide / pas de régie active --}}
+                        <template x-if="!loadingPanels && !loadError && !reason && totals.internal === 0 && totals.external === 0">
+                            <div class="text-center py-12 px-6" style="color:var(--text3)">
+                                <div class="text-3xl mb-2">📭</div>
+                                <div class="font-bold mb-1" style="color:var(--text)">Aucun panneau dans le parc</div>
+                                <div class="text-xs">Aucun panneau interne actif ni régie partenaire active n'est configuré. Contactez l'administrateur.</div>
+                            </div>
+                        </template>
+                        {{-- Cas 3 : parc rempli mais aucun panneau ne passe le filtre actif —
+                             on explique pourquoi (filtres, libres uniquement, période) plutôt
+                             qu'un sec « 0 trouvé » qui laisse l'utilisateur perplexe. --}}
+                        <template x-if="!loadingPanels && !loadError && !reason && (totals.internal + totals.external) > 0 && filteredPanels.length === 0">
+                            <div class="text-center py-12 px-6" style="color:var(--text3)">
+                                <div class="text-3xl mb-2">🔍</div>
+                                <div class="font-bold mb-1" style="color:var(--text)">Aucun panneau ne correspond</div>
+                                <div class="text-xs leading-relaxed">
+                                    Parc : <strong x-text="totals.internal"></strong> interne(s) + <strong x-text="totals.external"></strong> partenaire(s)
+                                    — <strong x-text="counts.internal_available + counts.external_available"></strong> libre(s) sur la période
+                                    <strong x-text="periodLabel"></strong>.
+                                </div>
+                                <template x-if="showOnlyAvailable && (counts.internal_available + counts.external_available) === 0">
+                                    <button type="button" @click="showOnlyAvailable = false; filterPanels()"
+                                            class="mt-3 text-xs font-semibold underline" style="color:var(--accent)">
+                                        Voir tout le parc (libres + pris)
+                                    </button>
+                                </template>
+                                <template x-if="!showOnlyAvailable || (counts.internal_available + counts.external_available) > 0">
+                                    <div class="text-xs mt-2">Élargissez la recherche ou retirez un filtre.</div>
+                                </template>
+                            </div>
                         </template>
                         <template x-for="p in paginatedPanels" :key="p.id">
-                            <label class="flex items-center gap-4 p-4 border-b last:border-0 cursor-pointer transition-all"
+                            <label class="flex items-center gap-4 p-4 border-b last:border-0 transition-all"
                                    style="border-color:var(--border)"
-                                   :style="(selectedPanels.includes(p.id) ? 'background:var(--accent-dim);border-left:3px solid var(--accent);' : '') + (p.source === 'external' ? 'background-color:rgba(124,58,237,0.04);' : '')">
+                                   :class="p.available ? 'cursor-pointer' : 'cursor-not-allowed'"
+                                   :style="(p.available && selectedPanels.includes(p.id) ? 'background:var(--accent-dim);border-left:3px solid var(--accent);' : '')
+                                         + (p.source === 'external' && p.available ? 'background-color:rgba(124,58,237,0.04);' : '')
+                                         + (!p.available ? 'opacity:0.55;' : '')">
                                 <input type="checkbox" :value="p.id" x-model="selectedPanels" name="panel_ids[]"
+                                       :disabled="!p.available"
                                        class="w-4 h-4" style="accent-color:var(--accent)">
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-3 flex-wrap">
@@ -695,6 +746,19 @@
                                                   style="background:rgba(124,58,237,.12);color:#7c3aed">
                                                 Régie <span x-text="p.agency_name || 'partenaire'"></span>
                                             </span>
+                                        </template>
+                                        {{-- Badge statut : Libre (vert) si dispo, sinon « Pris »
+                                             avec libellé date de libération si connue. --}}
+                                        <template x-if="p.available">
+                                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                                  style="background:rgba(16,185,129,.12);color:#10b981">
+                                                ✓ Libre
+                                            </span>
+                                        </template>
+                                        <template x-if="!p.available">
+                                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                                  style="background:rgba(239,68,68,.12);color:#ef4444"
+                                                  x-text="p.release_date || ('Pris (' + (p.blocking_status || 'engagé') + ')')"></span>
                                         </template>
                                     </div>
                                     <div class="flex gap-4 text-xs mt-1" style="color:var(--text3)">
@@ -1288,7 +1352,10 @@
             filterCommune: '',
             filterFormat: '',
             filterIsLit: '',
-            filterSource: 'all', // 'all' | 'internal' | 'external'
+            filterSource: 'all',     // 'all' | 'internal' | 'external'
+            showOnlyAvailable: true, // par défaut : on ne montre que les libres
+                                     // pour ne pas noyer l'utilisateur. Toggle off
+                                     // = on voit tout le parc avec badge « Pris ».
             selectedPanels: [],
             allPanels: [],
             filteredPanels: [],
@@ -1297,7 +1364,13 @@
             loaded: false,
             visibleCount: 20,
             campaignMonths: {{ $campaign->billableMonths() }},
-            counts: { internal: 0, external: 0 },
+            // Compteurs renvoyés par l'API : permettent un message vide
+            // informatif (« Parc : X internes + Y partenaires — Z libres »).
+            totals: { internal: 0, external: 0 },
+            counts: { internal_available: 0, external_available: 0 },
+            period: { start: null, end: null },
+            reason: null,            // ex: 'campaign_status_not_modifiable'
+            campaignStatus: null,
 
             get communeOptions() {
                 return [...new Set(this.allPanels.map(p => p.commune).filter(Boolean))].sort();
@@ -1307,6 +1380,14 @@
             },
             get paginatedPanels() {
                 return this.filteredPanels.slice(0, this.visibleCount);
+            },
+            get periodLabel() {
+                if (!this.period.start || !this.period.end) return '';
+                const fmt = (iso) => {
+                    const [y, m, d] = iso.split('-');
+                    return `${d}/${m}/${y}`;
+                };
+                return `${fmt(this.period.start)} → ${fmt(this.period.end)}`;
             },
 
             async toggleAdd() {
@@ -1336,9 +1417,12 @@
                     const data = await res.json();
                     this.allPanels      = data.panels || [];
                     this.campaignMonths = data.campaign_months || this.campaignMonths;
-                    this.counts.internal = data.internal_count ?? this.allPanels.filter(p => p.source !== 'external').length;
-                    this.counts.external = data.external_count ?? this.allPanels.filter(p => p.source === 'external').length;
-                    this.filteredPanels = [...this.allPanels];
+                    this.totals         = data.totals || { internal: 0, external: 0 };
+                    this.counts         = data.counts || { internal_available: 0, external_available: 0 };
+                    this.period         = data.period || { start: null, end: null };
+                    this.reason         = data.reason || null;
+                    this.campaignStatus = data.campaign_status || null;
+                    this.filterPanels();
                     this.loaded = true;
                 } catch (e) {
                     this.allPanels = [];
@@ -1362,8 +1446,11 @@
                 const ff = this.filterFormat.toLowerCase();
                 const fl = this.filterIsLit;
                 const src = this.filterSource;
+                const onlyFree = this.showOnlyAvailable;
                 this.visibleCount = 20;
                 this.filteredPanels = this.allPanels.filter(p => {
+                    // Toggle « libres uniquement » : exclut les indisponibles.
+                    if (onlyFree && !p.available) return false;
                     // Source : 'all' / 'internal' / 'external'
                     if (src === 'internal' && p.source === 'external') return false;
                     if (src === 'external' && p.source !== 'external') return false;
@@ -1387,10 +1474,13 @@
             formatPrice(p) { return Number(p).toLocaleString('fr-FR') + ' FCFA/mois'; },
             formatEstimate() {
                 // Les IDs peuvent être numériques (internes) ou "ext_<n>" (externes)
-                // donc on compare en string via String()
+                // donc on compare en string via String(). Les indisponibles ne
+                // peuvent pas se trouver dans selectedPanels (checkbox disabled)
+                // mais on filtre par sécurité au cas où la liste change.
                 const total = this.selectedPanels.reduce((s, id) => {
                     const panel = this.allPanels.find(x => String(x.id) === String(id));
-                    return s + ((panel?.monthly_rate || 0) * this.campaignMonths);
+                    if (!panel || !panel.available) return s;
+                    return s + ((panel.monthly_rate || 0) * this.campaignMonths);
                 }, 0);
                 return Math.round(total).toLocaleString('fr-FR');
             },
