@@ -487,7 +487,14 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
      On masque le rôle interne si non commercial/admin pour ne pas
      exposer "Media Planner" au client. --}}
 @php
-    $interlocuteur    = $campaign->reservation?->resolveCommercialContact() ?? $campaign->user;
+    // Priorité : commercial assigné DIRECTEMENT à la campagne (cas
+    // campagne directe créée sans réservation) → puis commercial issu de
+    // la résa parente → puis créateur en dernier recours. Le client ne
+    // doit jamais voir l'admin/MP comme interlocuteur si un commercial
+    // a été choisi sur l'écran de création.
+    $interlocuteur    = $campaign->commercial
+                        ?? $campaign->reservation?->resolveCommercialContact()
+                        ?? $campaign->user;
     $interlocRole     = $interlocuteur?->role?->value ?? null;
     $hideInternalRole = !in_array($interlocRole, ['admin', 'commercial'], true);
 @endphp

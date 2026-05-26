@@ -43,7 +43,7 @@ class CampaignPdfImporter
 
         try {
             $pdf  = $parser->parseFile($file->getRealPath());
-            $text = $pdf->getText();
+            $rawText = $pdf->getText();
         } catch (\Throwable $e) {
             throw new RuntimeException(
                 "Impossible de lire le PDF. Le fichier est-il un PDF texte valide ? (Erreur : {$e->getMessage()})"
@@ -51,12 +51,17 @@ class CampaignPdfImporter
         }
 
         // Si le texte extrait est vide, c'est probablement un scan.
-        if (trim($text) === '') {
+        if (trim($rawText) === '') {
             throw new RuntimeException(
                 "Le PDF semble être une image scannée (aucun texte extractible). " .
                 "Demande au client une version texte (PDF généré directement, pas scanné)."
             );
         }
+
+        // pdfparser glue parfois les tokens (« du01/12/2025au28/02/2026 »,
+        // « HIGOLDCAMPAGNE: ») selon comment le PDF positionne les éléments.
+        // On normalise pour insérer les espaces manquants avant l'extraction.
+        $text = $this->normalizeText($rawText);
 
         return [
             'client'     => $this->extractClient($text),
@@ -66,6 +71,30 @@ class CampaignPdfImporter
             'codes'      => $this->extractPanelCodes($text),
             'raw_text'   => $text,
         ];
+    }
+
+    /**
+     * Normalise le texte extrait :
+     *  - Ajoute des espaces entre un libellé connu collé à un mot
+     *    (« HIGOLDCAMPAGNE » → « HIGOLD CAMPAGNE »)
+     *  - Ajoute des espaces autour des dates collées (« du01/12/2025au » →
+     *    « du 01/12/2025 au »)
+     *  - Ajoute un espace après le « : » s'il est collé à la valeur
+     */
+    private function normalizeText(string $text): string
+    {
+        $labels = '(?:CLIENT|CAMPAGNE|P[ée]riode|Imprim[ée]?|Commune|NCC)';
+
+        // Espace AVANT un label si collé à un caractère non-espace
+        $text = preg_replace('/(\S)(?=' . $labels . '\b)/iu', '$1 ', $text);
+        // Espace APRÈS le « : » du label s'il est collé à la valeur
+        $text = preg_replace('/(' . $labels . '\s*:)\s*(\S)/iu', '$1 $2', $text);
+        // Espace entre « du » / « au » et une date collée
+        // (pas de \b car « 2025au » → pas de word-boundary entre 2 word chars)
+        $text = preg_replace('/(du|au)(\d{2}\/\d{2}\/\d{4})/iu', '$1 $2', $text);
+        $text = preg_replace('/(\d{2}\/\d{2}\/\d{4})(au|du)(?=\d|\s|$)/iu', '$1 $2', $text);
+
+        return $text;
     }
 
     private function extractClient(string $text): string
@@ -89,24 +118,59 @@ class CampaignPdfImporter
      */
     private function extractField(string $text, string $label, string $human): string
     {
-        // 1) Valeur sur la même ligne que le libellé
-        if (preg_match('/' . preg_quote($label, '/') . '\s*:?\s*([^\r\n]+)/iu', $text, $m)) {
+        $quoted = preg_quote($label, '/');
+        // Liste des autres libellés connus — sert à savoir si la valeur
+        // capturée est en fait un autre libellé (= mauvais match).
+        $stopLabels = ['CLIENT', 'CAMPAGNE', 'PÉRIODE', 'PERIODE', 'IMPRIMÉ', 'IMPRIME', 'COMMUNE', 'NCC', 'CODE', 'DESIGNATION', 'FORMAT'];
+
+        // Cas A — pdfparser lit le tableau en colonnes inversées : la
+        // VALEUR vient AVANT le LIBELLÉ (« HIGOLD CAMPAGNE: »). On teste
+        // ça en premier parce que c'est le cas réel observé sur les PDF
+        // « Liste des panneaux commandes » de la patronne.
+        if (preg_match(
+            '/(?:^|\s)([A-Za-z0-9][\S ]*?)\s+' . $quoted . '\s*:?(?=\s|$)/iu',
+            $text, $m
+        )) {
             $value = $this->cleanFieldValue($m[1]);
-            if ($value !== '') return $value;
+            if ($value !== '' && !$this->isKnownLabel($value, $stopLabels)) {
+                return $value;
+            }
         }
 
-        // 2) Valeur sur la ligne directement suivante
-        if (preg_match('/' . preg_quote($label, '/') . '\s*:?\s*[\r\n]+\s*(\S[^\r\n]*)/iu', $text, $m)) {
+        // Cas B — valeur APRÈS le libellé, jusqu'au prochain libellé connu
+        // (« CAMPAGNE: HIGOLD CLIENT : ... » → on capture « HIGOLD »).
+        $stopRegex = implode('|', array_map(fn($l) => preg_quote($l, '/'), $stopLabels));
+        if (preg_match(
+            '/' . $quoted . '\s*:?\s*([^\r\n]+?)(?=\s+(?:' . $stopRegex . ')\b|\s*$)/iu',
+            $text, $m
+        )) {
             $value = $this->cleanFieldValue($m[1]);
-            if ($value !== '') return $value;
+            if ($value !== '' && !$this->isKnownLabel($value, $stopLabels)) {
+                return $value;
+            }
         }
 
-        // Dernier recours : on dump un extrait du texte parsé pour aider
-        // l'utilisateur à diagnostiquer un layout PDF non-standard.
+        // Cas C — valeur sur la ligne suivante (PDF avec retours à la ligne)
+        if (preg_match('/' . $quoted . '\s*:?\s*[\r\n]+\s*(\S[^\r\n]*)/iu', $text, $m)) {
+            $value = $this->cleanFieldValue($m[1]);
+            if ($value !== '' && !$this->isKnownLabel($value, $stopLabels)) {
+                return $value;
+            }
+        }
+
         $excerpt = mb_substr(preg_replace('/\s+/', ' ', trim($text)), 0, 280);
         throw new RuntimeException(
             "{$human} introuvable dans le PDF. Texte parsé (extrait) : « {$excerpt}… »"
         );
+    }
+
+    private function isKnownLabel(string $value, array $labels): bool
+    {
+        $upper = mb_strtoupper(trim($value));
+        foreach ($labels as $l) {
+            if ($upper === mb_strtoupper($l)) return true;
+        }
+        return false;
     }
 
     /**
