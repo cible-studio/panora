@@ -139,7 +139,7 @@
                 <span>👥</span> Utilisateurs
             </a>
 
-            <a href="/admin/settings/communes"
+            <a href="/admin/settings"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-300 hover:bg-gray-800">
                 <span>⚙️</span> Paramètres
             </a>

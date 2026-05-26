@@ -8,13 +8,6 @@ use Illuminate\Http\Request;
 
 class ZoneController extends Controller
 {
-    public function index()
-    {
-        $zones    = Zone::with('commune')->latest()->paginate(15);
-        $communes = Commune::orderBy('name')->get(['id', 'name']);
-        return view('settings.zones.index', compact('zones', 'communes'));
-    }
-
     public function create()
     {
         $communes = Commune::orderBy('name')->get();
@@ -32,14 +25,8 @@ class ZoneController extends Controller
 
         Zone::create($request->all());
 
-        return redirect()->route('admin.settings.zones.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', 'Zone créée avec succès !');
-    }
-
-    public function edit(Zone $zone)
-    {
-        $communes = Commune::orderBy('name')->get();
-        return view('settings.zones.edit', compact('zone', 'communes'));
     }
 
     public function update(Request $request, Zone $zone)
@@ -57,14 +44,14 @@ class ZoneController extends Controller
             return response()->json(['success' => true, 'message' => 'Zone modifiée avec succès !']);
         }
 
-        return redirect()->route('admin.settings.zones.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', 'Zone modifiée avec succès !');
     }
 
     public function destroy(Zone $zone)
     {
         $zone->delete();
-        return redirect()->route('admin.settings.zones.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', 'Zone supprimée !');
     }
 }

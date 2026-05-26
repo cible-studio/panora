@@ -8,12 +8,15 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
+use App\Models\ClientMessage;
 use App\Models\Pige;
 use App\Models\PoseTask;
+use App\Services\AlertService;
 use App\Services\PropositionService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -456,22 +459,53 @@ class ClientDashboardController extends Controller
             'message' => 'required|string|max:3000',
         ]);
 
-        $from    = $client->company ?? $client->name;
-        $body    = "De : {$from} ({$client->email})\nObjet : {$data['subject']}\n\n{$data['message']}";
-        $to      = config('mail.from.address');
-        $subject = "[Espace Client] {$data['subject']}";
+        $fromName = $client->company ?? $client->name;
 
-        Mail::raw($body, function ($m) use ($to, $client, $subject) {
-            $m->to($to)
-              ->replyTo($client->email, $client->company ?? $client->name)
-              ->subject($subject);
-        });
+        // 1. Persistance — trace en BD pour ne JAMAIS perdre un message
+        //    même si l'email est filtré spam ou raté côté mailbox équipe.
+        $cm = ClientMessage::create([
+            'client_id'  => $client->id,
+            'from_name'  => $fromName,
+            'from_email' => $client->email,
+            'subject'    => $data['subject'],
+            'body'       => $data['message'],
+            'status'     => 'new',
+        ]);
 
-        // Message de succès explicite : l'utilisateur doit comprendre que
-        // c'est un email transmis à l'équipe (pas une messagerie interne),
-        // avec à qui ça arrive et quel délai attendre.
+        // 2. Email — best-effort, ne doit pas bloquer le retour utilisateur.
+        try {
+            $body    = "De : {$fromName} ({$client->email})\nObjet : {$data['subject']}\n\n{$data['message']}\n\n— Message #{$cm->id} archivé dans Panora /admin/messages";
+            $to      = config('mail.from.address');
+            $subject = "[Espace Client] {$data['subject']}";
+
+            Mail::raw($body, function ($m) use ($to, $client, $fromName, $subject) {
+                $m->to($to)
+                  ->replyTo($client->email, $fromName)
+                  ->subject($subject);
+            });
+        } catch (\Throwable $e) {
+            Log::warning('client.contact.mail_failed', [
+                'message_id' => $cm->id, 'error' => $e->getMessage(),
+            ]);
+            // On NE rollback PAS la persistance — le message reste accessible
+            // dans /admin/messages pour traitement manuel.
+        }
+
+        // 3. Alerte admin — cliquable grâce à l'auto-dérivation du lien
+        //    (passe $cm comme related, le service mappera vers admin.messages.show).
+        AlertService::notify(
+            'client_message',
+            '✉️ Nouveau message client — ' . $fromName,
+            Str::limit($data['subject'], 120),
+            $cm
+        );
+
+        // 4. Invalide le badge sidebar (cache 60s) pour que les admins voient
+        //    immédiatement le compteur +1 lors de leur prochaine navigation.
+        \Illuminate\Support\Facades\Cache::forget('admin.messages.new_count');
+
         return back()->with('contact_success',
-            'Votre message a été transmis par email à notre équipe (contact@cible-ci.com). Une réponse vous parviendra à ' . $client->email . ' sous 24 heures ouvrées.'
+            'Votre message a été transmis à notre équipe (référence #' . $cm->id . '). Une réponse vous parviendra à ' . $client->email . ' sous 24 heures ouvrées.'
         );
     }
 

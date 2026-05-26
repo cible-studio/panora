@@ -366,6 +366,15 @@ Route::prefix('admin')
             Route::post('maintenances/{maintenance}/reopen',  [MaintenanceController::class, 'reopen'])->name('maintenances.reopen');
         });
 
+        // ── Messages clients (formulaire « Contacter la régie ») ──
+        Route::prefix('messages')->name('messages.')->group(function () {
+            Route::get('/',                  [\App\Http\Controllers\Admin\ClientMessageController::class, 'index'])  ->name('index');
+            Route::get('{message}',          [\App\Http\Controllers\Admin\ClientMessageController::class, 'show'])   ->name('show');
+            Route::post('{message}/reply',   [\App\Http\Controllers\Admin\ClientMessageController::class, 'reply'])  ->name('reply');
+            Route::post('{message}/archive', [\App\Http\Controllers\Admin\ClientMessageController::class, 'archive'])->name('archive');
+            Route::delete('{message}',       [\App\Http\Controllers\Admin\ClientMessageController::class, 'destroy'])->name('destroy');
+        });
+
         // ── Alertes ───────────────────────────────────────────────
         Route::prefix('alerts')->name('alerts.')->group(function () {
             Route::get('/',                       [AlertController::class, 'index'])     ->name('index');
@@ -385,10 +394,13 @@ Route::prefix('admin')
             ->name('settings.')
             ->group(function () {
             Route::get('/', [SettingsController::class, 'index'])->name('index');
-            Route::resource('zones', ZoneController::class);
-            Route::resource('communes', CommuneController::class);
-            Route::resource('formats', PanelFormatController::class);
-            Route::resource('categories', PanelCategoryController::class);
+            // Pages dédiées index/edit retirées — toute la gestion passe par
+            // /admin/settings (vue d'ensemble + modals quick-edit).
+            // On garde uniquement create/store/update/destroy.
+            Route::resource('zones',      ZoneController::class)->only(['create', 'store', 'update', 'destroy']);
+            Route::resource('communes',   CommuneController::class)->only(['create', 'store', 'update', 'destroy']);
+            Route::resource('formats',    PanelFormatController::class)->only(['create', 'store', 'update', 'destroy']);
+            Route::resource('categories', PanelCategoryController::class)->only(['create', 'store', 'update', 'destroy']);
         });
 
         // Utilisateurs (admin uniquement)

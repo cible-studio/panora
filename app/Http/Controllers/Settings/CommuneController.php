@@ -7,12 +7,6 @@ use Illuminate\Http\Request;
 
 class CommuneController extends Controller
 {
-    public function index()
-    {
-        $communes = Commune::latest()->paginate(15);
-        return view('settings.communes.index', compact('communes'));
-    }
-
     public function create()
     {
         return view('settings.communes.create');
@@ -35,15 +29,8 @@ class CommuneController extends Controller
 
         Commune::create($data);
 
-        return redirect()->route('admin.settings.communes.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', 'Commune créée avec succès !');
-    }
-
-    public function edit(Commune $commune)
-    {
-        // Charge l'historique tarifaire pour timeline dans le formulaire.
-        $commune->load('rateHistory.createdBy:id,name');
-        return view('settings.communes.edit', compact('commune'));
     }
 
     public function update(Request $request, Commune $commune)
@@ -76,14 +63,14 @@ class CommuneController extends Controller
             return response()->json(['success' => true, 'message' => $msg]);
         }
 
-        return redirect()->route('admin.settings.communes.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', $msg);
     }
 
     public function destroy(Commune $commune)
     {
         $commune->delete();
-        return redirect()->route('admin.settings.communes.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', 'Commune supprimée !');
     }
 }

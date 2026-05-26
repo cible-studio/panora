@@ -348,6 +348,13 @@ class AlertService
             'label' => 'Nouveau client',
             'group' => 'Système',
         ],
+        // Message envoyé depuis l'espace client (formulaire « Contacter
+        // la régie »). Niveau warning car nécessite une réponse SLA 24h.
+        'client_message' => [
+            'icon' => '✉️', 'niveau' => 'warning', 'color' => '#f59e0b',
+            'label' => 'Message client',
+            'group' => 'Espace client',
+        ],
     ];
 
     public const DEFAULT_META = [
@@ -403,11 +410,16 @@ class AlertService
                 ->first();
 
             if ($existing) {
+                // Si existing->lien était null (anciennes alertes pré-fix),
+                // on profite du bump pour le renseigner via auto-dérivation.
+                $newLien = $opts['lien']
+                    ?? $existing->lien
+                    ?? self::deriveLinkFromRelated($related);
                 $existing->forceFill([
                     'title'        => $title,
                     'message'      => $message,
                     'niveau'       => $niveau,
-                    'lien'         => $opts['lien'] ?? $existing->lien,
+                    'lien'         => $newLien,
                     'triggered_at' => now(),
                 ])->save();
                 return $existing;
@@ -422,7 +434,11 @@ class AlertService
                 'related_id'   => $relatedId,
                 'dedup_key'    => $dedupKey,
                 'user_id'      => $opts['user_id'] ?? null,
-                'lien'         => $opts['lien'] ?? null,
+                // Si l'appelant fournit `lien` explicitement, on le garde.
+                // Sinon on dérive automatiquement la route show du modèle
+                // — ainsi 100% des alertes existantes deviennent cliquables
+                // sans avoir à modifier les 30+ controllers appelants.
+                'lien'         => $opts['lien'] ?? self::deriveLinkFromRelated($related),
                 'is_read'      => false,
                 'triggered_at' => now(),
             ]);
@@ -431,6 +447,51 @@ class AlertService
                 'type'    => $type,
                 'error'   => $e->getMessage(),
                 'related' => $relatedType.'#'.$relatedId,
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Dérive automatiquement l'URL de l'écran cible à partir du modèle
+     * lié à l'alerte (Reservation → admin.reservations.show, etc.).
+     *
+     * Permet d'avoir un bouton « Voir le détail » dans la liste des alertes
+     * sans devoir patcher les 30+ appels existants à AlertService::create().
+     * Si la route n'existe pas ou si le modèle n'est pas mappé, renvoie null
+     * (le bouton « Voir » est alors masqué — la liste reste utilisable).
+     */
+    private static function deriveLinkFromRelated(?Model $related): ?string
+    {
+        if (!$related) return null;
+        $id = $related->getKey();
+        if (!$id) return null;
+
+        // Map modèle → fabrique de route. Préfère la route show ;
+        // pour les modèles sans show, on retombe sur edit/index parent.
+        $factories = [
+            'Reservation'   => fn($k) => route('admin.reservations.show',  $k),
+            'Campaign'      => fn($k) => route('admin.campaigns.show',     $k),
+            'Client'        => fn($k) => route('admin.clients.show',       $k),
+            'Maintenance'   => fn($k) => route('admin.maintenances.show',  $k),
+            'Panel'         => fn($k) => route('admin.panels.show',        $k),
+            'PoseTask'      => fn($k) => route('admin.pose-tasks.show',    $k),
+            'Proposition'   => fn($k) => route('admin.propositions.show',  $k),
+            'Invoice'       => fn($k) => route('admin.invoices.show',      $k),
+            'ClientMessage' => fn($k) => route('admin.messages.show',      $k),
+        ];
+
+        $name = class_basename($related);
+        if (!isset($factories[$name])) return null;
+
+        try {
+            return $factories[$name]($id);
+        } catch (\Throwable $e) {
+            // Route inconnue (typiquement messages.show pas encore migré sur prod).
+            // On log en debug uniquement — ne pas spammer warning, l'auto-dérivation
+            // est un bonus, son échec ne doit jamais bloquer la création d'alerte.
+            Log::debug('alert.link.derive_failed', [
+                'model' => $name, 'id' => $id, 'error' => $e->getMessage(),
             ]);
             return null;
         }

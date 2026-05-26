@@ -143,6 +143,23 @@ class Client extends Authenticatable  // ← était "extends Model"
         return $this->hasMany(Proposition::class);
     }
 
+    /**
+     * Utilisateurs de l'espace client rattachés à ce client.
+     * Rôles : owner (gère l'équipe + accepte propositions) / member (lecture).
+     */
+    public function users()
+    {
+        return $this->hasMany(ClientUser::class);
+    }
+
+    /**
+     * Messages envoyés via le formulaire « Contacter la régie ».
+     */
+    public function messages()
+    {
+        return $this->hasMany(ClientMessage::class);
+    }
+
     // ── Scopes ────────────────────────────────────────────────────
     public function scopeActive($query)
     {

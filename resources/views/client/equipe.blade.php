@@ -28,6 +28,46 @@
 </div>
 @endif
 
+{{-- ══ ENCART EXPLICATIF ══ — à quoi sert cette page + qui peut faire quoi.
+     Affiché en permanence pour que ni l'admin client ni les members ne se
+     posent la question. Texte volontairement orienté action concrète. ══ --}}
+<div style="background:linear-gradient(135deg,rgba(226,6,19,.04),rgba(226,6,19,.02));border:1px solid rgba(226,6,19,.18);border-radius:14px;padding:18px 22px;margin-bottom:20px;">
+    <div style="display:flex;align-items:flex-start;gap:14px;">
+        <div style="flex-shrink:0;width:38px;height:38px;border-radius:10px;background:rgba(226,6,19,.1);color:#e20613;display:flex;align-items:center;justify-content:center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div style="flex:1;">
+            <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;">À quoi sert cette page ?</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:12px;">
+                Donnez à vos collègues l'accès à votre espace client Panora. Chaque utilisateur ajouté reçoit ses identifiants de connexion personnels et accède aux mêmes informations que vous (campagnes, propositions, piges, poses).
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;">
+                <div style="background:var(--surface);border:1px solid var(--border2);border-radius:9px;padding:10px 12px;">
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                        <span style="padding:1px 7px;border-radius:10px;font-size:9px;font-weight:800;background:rgba(226,6,19,.15);color:#e20613;text-transform:uppercase;letter-spacing:.4px;">Owner</span>
+                        <span style="font-size:11px;font-weight:600;color:var(--text);">Propriétaire</span>
+                    </div>
+                    <div style="font-size:11px;color:var(--text2);line-height:1.45;">
+                        Ajoute/retire les utilisateurs, accepte ou refuse les propositions commerciales, contacte la régie.
+                    </div>
+                </div>
+                <div style="background:var(--surface);border:1px solid var(--border2);border-radius:9px;padding:10px 12px;">
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                        <span style="padding:1px 7px;border-radius:10px;font-size:9px;font-weight:800;background:rgba(107,114,128,.15);color:#6b7280;text-transform:uppercase;letter-spacing:.4px;">Member</span>
+                        <span style="font-size:11px;font-weight:600;color:var(--text);">Collaborateur</span>
+                    </div>
+                    <div style="font-size:11px;color:var(--text2);line-height:1.45;">
+                        Accès en <strong>lecture seule</strong> à toutes les données (campagnes, poses, piges, factures). Ne peut rien modifier ni accepter.
+                    </div>
+                </div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.4;">
+                ℹ️ La régie CIBLE CI voit la liste des utilisateurs sur votre fiche (read-only) mais ne peut pas les modifier — seule la gestion vous appartient.
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
     {{-- ══ LISTE DES UTILISATEURS ══ --}}
