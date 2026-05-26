@@ -90,8 +90,9 @@ class CampaignPdfImporter
         // Espace APRÈS le « : » du label s'il est collé à la valeur
         $text = preg_replace('/(' . $labels . '\s*:)\s*(\S)/iu', '$1 $2', $text);
         // Espace entre « du » / « au » et une date collée
-        $text = preg_replace('/\b(du|au)(\d{2}\/\d{2}\/\d{4})/iu', '$1 $2', $text);
-        $text = preg_replace('/(\d{2}\/\d{2}\/\d{4})(au|du)\b/iu', '$1 $2', $text);
+        // (pas de \b car « 2025au » → pas de word-boundary entre 2 word chars)
+        $text = preg_replace('/(du|au)(\d{2}\/\d{2}\/\d{4})/iu', '$1 $2', $text);
+        $text = preg_replace('/(\d{2}\/\d{2}\/\d{4})(au|du)(?=\d|\s|$)/iu', '$1 $2', $text);
 
         return $text;
     }
