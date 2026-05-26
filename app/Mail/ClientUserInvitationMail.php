@@ -5,7 +5,6 @@ namespace App\Mail;
 use App\Models\Client;
 use App\Models\ClientUser;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -21,7 +20,12 @@ use Illuminate\Queue\SerializesModels;
  * (canal email = courrier privé). Une fois changé par l'utilisateur,
  * la valeur d'origine n'est plus jamais accessible.
  */
-class ClientUserInvitationMail extends Mailable implements ShouldQueue
+/**
+ * NOTE : pas de ShouldQueue — la file `database` est configurée mais aucun
+ * worker queue:work ne tourne en prod (Coolify ne le lance pas).
+ * Envoi synchrone immédiat (~200ms) cohérent avec l'attente UX du formulaire.
+ */
+class ClientUserInvitationMail extends Mailable
 {
     use Queueable, SerializesModels;
 

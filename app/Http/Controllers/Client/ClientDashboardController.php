@@ -119,12 +119,20 @@ class ClientDashboardController extends Controller
             ->latest()
             ->first();
         $commercial = $latestRes?->resolveCommercialContact();
+
+        // Fallback : si pas de réservation (ex: campagnes directes uniquement),
+        // chercher sur la dernière campagne. PRIORITÉ au commercial assigné
+        // (commercial_user_id) AVANT le créateur (user_id) — sinon le client
+        // voit l'admin/MP qui a saisi la campagne au lieu de son commercial.
         if (!$commercial) {
-            $commercial = $client->campaigns()
-                ->whereNotNull('user_id')
-                ->with(['user:id,name,email,whatsapp_number,role,agent_code'])
+            $lastCamp = $client->campaigns()
+                ->with([
+                    'commercial:id,name,email,whatsapp_number,role,agent_code',
+                    'user:id,name,email,whatsapp_number,role,agent_code',
+                ])
                 ->latest()
-                ->first()?->user;
+                ->first();
+            $commercial = $lastCamp?->commercial ?? $lastCamp?->user;
         }
 
         return view('client.dashboard', compact(
