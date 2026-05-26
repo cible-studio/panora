@@ -201,7 +201,7 @@
                 @empty
                 <tr>
                     <td colspan="7" style="text-align:center; color:var(--text3); padding:32px;">
-                        Aucune maintenance 🎉
+                        Aucune maintenance
                     </td>
                 </tr>
                 @endforelse

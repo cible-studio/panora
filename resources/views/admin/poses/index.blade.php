@@ -161,7 +161,7 @@
 $kpis = [
     ['s'=>'total',     'l'=>'Total',      'c'=>'var(--accent)', 'sub'=>'toutes les tâches', 'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>'],
     ['s'=>'planifiee', 'l'=>'Planifiées', 'c'=>'#f97316',       'sub'=>'à venir',           'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'],
-    ['s'=>'en_cours',  'l'=>'En cours',   'c'=>'#3b82f6',       'sub'=>'sur le terrain',    'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>'],
+    ['s'=>'en_cours',  'l'=>'En cours',   'c'=>'#3b82f6',       'sub'=>'sur le terrain',    'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'],
     ['s'=>'realisee',  'l'=>'Réalisées',  'c'=>'#22c55e',       'sub'=>'poses terminées',   'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'],
     ['s'=>'annulee',   'l'=>'Annulées',   'c'=>'#ef4444',       'sub'=>'tâches annulées',   'icon'=>'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/></svg>'],
 ];
@@ -209,7 +209,7 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
             <label class="filter-label">Statut</label>
             <select id="filter-status" class="filter-select" style="width:130px">
                 <option value="">Tous</option>
-                @foreach(['planifiee'=>'📅 Planifiée','en_cours'=>'🔧 En cours','realisee'=>'✅ Réalisée','annulee'=>'🚫 Annulée'] as $v => $l)
+                @foreach(['planifiee'=>'📅 Planifiée','en_cours'=>'▶ En cours','realisee'=>'✅ Réalisée','annulee'=>'🚫 Annulée'] as $v => $l)
                 <option value="{{ $v }}">{{ $l }}</option>
                 @endforeach
             </select>
@@ -287,7 +287,8 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
 
 {{-- ════ TABLEAU ════ --}}
 <div class="card">
-    <div class="card-header">
+    {{-- Card-header normal — visible quand aucune sélection. --}}
+    <div class="card-header" id="pose-card-header-default">
         <div class="card-title">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
             Tâches de pose
@@ -296,6 +297,81 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
             <span><span class="legend-dot" style="background:#ef4444;"></span>En retard</span>
             <span><span class="legend-dot" style="background:#f97316;"></span>Sans pige</span>
             <span><span class="legend-dot" style="background:#22c55e;"></span>Pigée</span>
+        </div>
+    </div>
+
+    {{-- ════ TOOLBAR ACTIONS GROUPÉES — pattern Gmail inline ════
+         Remplace le card-header quand au moins une tâche est cochée.
+         Pas de modal flottant : la barre s'intègre au flux du document,
+         n'obscurcit pas la liste, jamais à déplacer. Disparaît dès que
+         la sélection retombe à 0. ════ --}}
+    <div id="bulk-bar" class="pose-bulk-toolbar">
+        <div class="pose-bulk-header">
+            <button type="button" id="bulk-clear" class="pose-bulk-clear" title="Tout désélectionner">✕</button>
+            <span class="pose-bulk-count">
+                <strong id="bulk-count-badge">0</strong>
+                <span id="bulk-count-noun">tâche sélectionnée</span>
+            </span>
+            <span class="pose-bulk-subtitle">— actions groupées</span>
+        </div>
+
+        <div class="pose-bulk-grid">
+            {{-- Technicien --}}
+            <div class="pose-bulk-field">
+                <label class="pose-bulk-label">
+                    <span>🧑‍🔧 Technicien</span>
+                    <button type="button" id="bulk-suggest-tech" class="pose-bulk-suggest-btn"
+                            title="Suggère le meilleur tech selon zone + charge + perf">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                        Suggérer
+                    </button>
+                </label>
+                <div class="pose-bulk-input-row">
+                    <select id="bulk-tech" class="filter-select">
+                        <option value="">— Choisir —</option>
+                        <option value="__unset__">(retirer l'assignation)</option>
+                        @foreach($techniciens as $tech)
+                            <option value="{{ $tech->id }}">{{ $tech->name }}</option>
+                        @endforeach
+                    </select>
+                    <button type="button" id="bulk-tech-apply" class="btn btn-sm btn-primary">Appliquer</button>
+                </div>
+                <div id="bulk-tech-hint" class="pose-bulk-hint"></div>
+                <div id="bulk-suggest-result" class="pose-bulk-suggest-result"></div>
+            </div>
+
+            {{-- Équipe --}}
+            <div class="pose-bulk-field">
+                <label class="pose-bulk-label"><span>👥 Nom d'équipe</span></label>
+                <div class="pose-bulk-input-row">
+                    <input type="text" id="bulk-team" class="filter-input"
+                           placeholder="Équipe nord, Pro-pose..." maxlength="100">
+                    <button type="button" id="bulk-team-apply" class="btn btn-sm btn-ghost">Appliquer</button>
+                </div>
+            </div>
+
+            {{-- Replanifier --}}
+            <div class="pose-bulk-field">
+                <label class="pose-bulk-label"><span>📅 Date / heure</span></label>
+                <div class="pose-bulk-input-row">
+                    <input type="datetime-local" id="bulk-date" class="filter-input">
+                    <button type="button" id="bulk-date-apply" class="btn btn-sm btn-ghost">Replanifier</button>
+                </div>
+            </div>
+
+            {{-- Statut --}}
+            <div class="pose-bulk-field">
+                <label class="pose-bulk-label"><span>⚙️ Statut</span></label>
+                <div class="pose-bulk-input-row">
+                    <select id="bulk-status" class="filter-select">
+                        <option value="">— Choisir —</option>
+                        <option value="planifiee">📅 Planifiée</option>
+                        <option value="en_cours">▶ En cours</option>
+                        <option value="annulee">🚫 Annuler</option>
+                    </select>
+                    <button type="button" id="bulk-status-apply" class="btn btn-sm btn-ghost">Appliquer</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -310,173 +386,16 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
     @endif
 </div>
 
-{{-- ════ MODAL D'ACTIONS GROUPÉES — déplaçable (drag handle en haut)
-     Pré-remplit le technicien si toutes les tâches sélectionnées ont
-     le même tech assigné. Idem pour l'équipe. ════ --}}
-<div id="bulk-bar"
-     style="display:none;position:fixed;top:120px;right:20px;
-            background:var(--surface);border:1px solid var(--border);border-radius:14px;
-            box-shadow:0 12px 36px rgba(0,0,0,.35);z-index:60;width:380px;max-width:95vw;
-            overflow:hidden;box-sizing:border-box;">
-
-    {{-- Drag handle (header) --}}
-    <div id="bulk-drag-handle"
-         style="display:flex;align-items:center;justify-content:space-between;gap:10px;
-                padding:12px 14px;background:linear-gradient(135deg,rgba(232,160,32,.10),rgba(232,160,32,.04));
-                border-bottom:1px solid var(--border);cursor:grab;user-select:none;white-space:nowrap;">
-        <div style="display:flex;align-items:center;gap:9px;min-width:0;flex:1;">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2.5" style="flex-shrink:0">
-                <circle cx="9" cy="6"  r="1.2"/><circle cx="15" cy="6"  r="1.2"/>
-                <circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/>
-                <circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>
-            </svg>
-            <span id="bulk-count-badge"
-                  style="background:var(--accent);color:#000;font-weight:800;font-size:12px;
-                         padding:3px 9px;border-radius:999px;line-height:1;flex-shrink:0;">0</span>
-            <span style="font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;">
-                sélectionnée(s)
-            </span>
-        </div>
-        <button type="button" id="bulk-clear"
-                style="background:transparent;border:none;color:var(--text3);cursor:pointer;
-                       padding:4px 9px;border-radius:6px;font-size:15px;line-height:1;flex-shrink:0"
-                onmouseover="this.style.background='rgba(239,68,68,.1)';this.style.color='#ef4444'"
-                onmouseout="this.style.background='transparent';this.style.color='var(--text3)'"
-                title="Tout désélectionner">✕</button>
-    </div>
-
-    {{-- Corps du modal --}}
-    <div style="padding:14px;display:flex;flex-direction:column;gap:12px;">
-
-        {{-- Technicien --}}
-        <div>
-            <label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
-                <span>🧑‍🔧 Technicien</span>
-                <button type="button" id="bulk-suggest-tech"
-                        style="background:rgba(232,160,32,.12);border:1px solid rgba(232,160,32,.3);color:#b45309;
-                               padding:2px 8px;border-radius:6px;cursor:pointer;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
-                               display:inline-flex;align-items:center;gap:4px"
-                        title="Suggère le meilleur tech selon zone + charge + perf">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                    Suggérer
-                </button>
-            </label>
-            <div style="display:flex;gap:6px;">
-                <select id="bulk-tech" class="filter-select" style="flex:1;min-width:0">
-                    <option value="">— Choisir —</option>
-                    <option value="__unset__">(retirer l'assignation)</option>
-                    @foreach($techniciens as $tech)
-                        <option value="{{ $tech->id }}">{{ $tech->name }}</option>
-                    @endforeach
-                </select>
-                <button type="button" id="bulk-tech-apply" class="btn btn-sm btn-primary" style="white-space:nowrap">Appliquer</button>
-            </div>
-            <div id="bulk-tech-hint" style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.3;display:none;"></div>
-            <div id="bulk-suggest-result" style="display:none;margin-top:6px;padding:8px 10px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.25);border-radius:8px;font-size:11px;line-height:1.45"></div>
-        </div>
-
-        {{-- Équipe --}}
-        <div>
-            <label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:5px">
-                👥 Nom d'équipe
-            </label>
-            <div style="display:flex;gap:6px;">
-                <input type="text" id="bulk-team" class="filter-input"
-                       placeholder="Équipe nord, Pro-pose..." maxlength="100"
-                       style="flex:1;min-width:0;">
-                <button type="button" id="bulk-team-apply" class="btn btn-sm btn-ghost" style="white-space:nowrap">Appliquer</button>
-            </div>
-        </div>
-
-        {{-- Replanifier --}}
-        <div>
-            <label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:5px">
-                📅 Date / heure planifiée
-            </label>
-            <div style="display:flex;gap:6px;">
-                <input type="datetime-local" id="bulk-date" class="filter-input" style="flex:1;min-width:0">
-                <button type="button" id="bulk-date-apply" class="btn btn-sm btn-ghost" style="white-space:nowrap">Replanifier</button>
-            </div>
-        </div>
-
-        {{-- Statut --}}
-        <div>
-            <label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:5px">
-                ⚙️ Statut
-            </label>
-            <div style="display:flex;gap:6px;">
-                <select id="bulk-status" class="filter-select" style="flex:1;min-width:0">
-                    <option value="">— Choisir —</option>
-                    <option value="planifiee">📅 Planifiée</option>
-                    <option value="en_cours">🔧 En cours</option>
-                    <option value="annulee">🚫 Annuler</option>
-                </select>
-                <button type="button" id="bulk-status-apply" class="btn btn-sm btn-ghost" style="white-space:nowrap">Appliquer</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
 // ════════════════════════════════════════════════════════════════
-// MODAL ACTIONS GROUPÉES — drag + pré-remplissage tech assigné
+// TOOLBAR ACTIONS GROUPÉES — pré-remplissage tech + équipe + suggestion
+// (refonte modal flottant → toolbar inline qui remplace card-header)
 // ════════════════════════════════════════════════════════════════
 (function () {
-    const modal = document.getElementById('bulk-bar');
-    if (!modal) return;
-    const handle = document.getElementById('bulk-drag-handle');
+    const bar = document.getElementById('bulk-bar');
+    if (!bar) return;
 
-    // ── 1. Drag & drop du modal ───────────────────────────────
-    let dragging = false, offsetX = 0, offsetY = 0;
-    const STORAGE_KEY = 'pose_bulk_modal_pos';
-
-    // Restaure la position sauvegardée (si dans le viewport)
-    try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-        if (saved && typeof saved.top === 'number' && typeof saved.left === 'number') {
-            const vw = window.innerWidth, vh = window.innerHeight;
-            if (saved.left >= 0 && saved.left < vw - 100 && saved.top >= 0 && saved.top < vh - 100) {
-                modal.style.top  = saved.top + 'px';
-                modal.style.left = saved.left + 'px';
-                modal.style.right = 'auto';
-            }
-        }
-    } catch (e) { /* localStorage indispo */ }
-
-    handle.addEventListener('mousedown', (e) => {
-        // Ne pas drag si clic sur le bouton ✕
-        if (e.target.closest('button')) return;
-        dragging = true;
-        const rect = modal.getBoundingClientRect();
-        offsetX = e.clientX - rect.left;
-        offsetY = e.clientY - rect.top;
-        handle.style.cursor = 'grabbing';
-        modal.style.userSelect = 'none';
-        e.preventDefault();
-    });
-
-    document.addEventListener('mousemove', (e) => {
-        if (!dragging) return;
-        const newLeft = Math.max(0, Math.min(window.innerWidth  - modal.offsetWidth,  e.clientX - offsetX));
-        const newTop  = Math.max(0, Math.min(window.innerHeight - modal.offsetHeight, e.clientY - offsetY));
-        modal.style.left  = newLeft + 'px';
-        modal.style.top   = newTop  + 'px';
-        modal.style.right = 'auto';
-    });
-
-    document.addEventListener('mouseup', () => {
-        if (!dragging) return;
-        dragging = false;
-        handle.style.cursor = 'grab';
-        modal.style.userSelect = '';
-        // Sauvegarde la position
-        try {
-            const rect = modal.getBoundingClientRect();
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ top: rect.top, left: rect.left }));
-        } catch (e) { /* localStorage indispo */ }
-    });
-
-    // ── 2. Pré-remplissage du technicien si tous les cochés ont le même ──
+    // ── Pré-remplissage du technicien si tous les cochés ont le même ──
     function syncBulkPrefill() {
         const checked = Array.from(document.querySelectorAll('.pose-check:checked'));
         if (checked.length === 0) return;
@@ -655,21 +574,24 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
     const ENDPOINT = "{{ route('admin.pose-tasks.bulk-update') }}";
     const CSRF     = document.querySelector('meta[name=csrf-token]')?.content || '';
 
-    const bar       = document.getElementById('bulk-bar');
-    const badge     = document.getElementById('bulk-count-badge');
-    const checkAll  = document.getElementById('pose-check-all');
-    const clearBtn  = document.getElementById('bulk-clear');
+    const bar        = document.getElementById('bulk-bar');
+    const badge      = document.getElementById('bulk-count-badge');
+    const nounEl     = document.getElementById('bulk-count-noun');
+    const cardHeader = document.getElementById('pose-card-header-default');
+    const checkAll   = document.getElementById('pose-check-all');
+    const clearBtn   = document.getElementById('bulk-clear');
 
     // Set des IDs sélectionnés — persisté en mémoire JS (perd au reload, OK).
     const selected = new Set();
 
     function syncBar() {
         const n = selected.size;
-        if (badge) badge.textContent = String(n);
-        // Modal vertical (refonte) : display:block pour que le header
-        // et le corps s'empilent verticalement (avant c'était 'flex'
-        // pour la barre horizontale fixée en bas, devenu invalide).
-        if (bar) bar.style.display = n > 0 ? 'block' : 'none';
+        if (badge)  badge.textContent  = String(n);
+        if (nounEl) nounEl.textContent = n > 1 ? 'tâches sélectionnées' : 'tâche sélectionnée';
+        // Toolbar inline : .visible révèle la barre, le card-header s'efface
+        // pendant ce temps (jamais les deux ensemble — pattern Gmail).
+        if (bar) bar.classList.toggle('visible', n > 0);
+        if (cardHeader) cardHeader.style.display = n > 0 ? 'none' : 'flex';
         syncCheckAllState();
     }
 
@@ -1002,6 +924,121 @@ cursor: pointer;
     transition:all .15s;flex-shrink:0;
 }
 .action-btn:hover { background:var(--surface3);border-color:var(--border2);color:var(--text); }
+
+/* ── Toolbar Actions Groupées — pattern Gmail inline ─────────────────
+   Remplace le card-header (display:none côté JS) quand selection > 0.
+   Grid responsive 4 colonnes desktop → 2 tablette → 1 mobile.            */
+.pose-bulk-toolbar {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 18px;
+    background: var(--accent-dim);
+    border-bottom: 1px solid var(--accent);
+    animation: poseBulkSlide .18s ease-out;
+}
+.pose-bulk-toolbar.visible { display: flex; }
+@keyframes poseBulkSlide {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.pose-bulk-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.pose-bulk-clear {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text2);
+    font-size: 18px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    line-height: 1;
+    transition: background .12s, color .12s;
+}
+.pose-bulk-clear:hover { background: var(--surface); color: #ef4444; }
+.pose-bulk-count {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+.pose-bulk-count strong {
+    color: var(--accent);
+    font-size: 18px;
+    font-weight: 800;
+}
+.pose-bulk-subtitle {
+    font-size: 12px;
+    color: var(--text3);
+    font-weight: 500;
+}
+.pose-bulk-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+@media (max-width: 1100px) { .pose-bulk-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px)  { .pose-bulk-grid { grid-template-columns: 1fr; } }
+.pose-bulk-field { display: flex; flex-direction: column; min-width: 0; }
+.pose-bulk-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: var(--text3);
+    margin-bottom: 6px;
+}
+.pose-bulk-input-row {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+}
+.pose-bulk-input-row > .filter-select,
+.pose-bulk-input-row > .filter-input { flex: 1; min-width: 0; }
+.pose-bulk-input-row > .btn { white-space: nowrap; }
+.pose-bulk-suggest-btn {
+    background: rgba(232,160,32,.12);
+    border: 1px solid rgba(232,160,32,.3);
+    color: #b45309;
+    padding: 2px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background .12s;
+}
+.pose-bulk-suggest-btn:hover { background: rgba(232,160,32,.22); }
+.pose-bulk-hint {
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 4px;
+    line-height: 1.3;
+    display: none;
+}
+.pose-bulk-suggest-result {
+    display: none;
+    margin-top: 6px;
+    padding: 8px 10px;
+    background: rgba(34,197,94,.06);
+    border: 1px solid rgba(34,197,94,.25);
+    border-radius: 8px;
+    font-size: 11px;
+    line-height: 1.45;
+}
 .action-btn-success { border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.08);color:#22c55e; }
 .action-btn-success:hover { background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.5); }
 .action-btn-accent { border-color:rgba(232,160,32,.3);background:rgba(232,160,32,.08);color:var(--accent); }
