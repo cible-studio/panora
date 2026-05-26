@@ -18,6 +18,7 @@ use App\Models\Reservation;
 use App\Models\Zone;
 
 use App\Enums\CampaignStatus;
+use App\Enums\PanelStatus;
 use App\Exports\CampaignsExport;
 use App\Support\PdfAssets;
 
@@ -448,69 +449,90 @@ class CampaignController extends Controller
     }
 
     /**
-     * Endpoint JSON pour charger les panneaux disponibles à l'ouverture du modal d'ajout.
-     * Évite de précharger les panneaux à chaque rendu de la page show.
+     * Endpoint JSON pour charger les panneaux candidats à l'ajout à une campagne.
      *
-     * Renvoie À LA FOIS les panneaux internes (régie CIBLE) ET les panneaux
-     * externes (régies partenaires) disponibles sur la période de la campagne.
-     * Les externes sont identifiés par `source='external'` et `id='ext_<n>'`
-     * pour qu'au moment de l'envoi côté addPanel() on puisse les distinguer.
+     * Stratégie « tout le parc visible » (alignée sur ReservationController) :
+     *   - on liste TOUS les panneaux du parc actif (internes + externes des
+     *     régies partenaires actives), excluant ceux déjà attachés à la
+     *     campagne ;
+     *   - chaque panneau est annoté avec `available` / `release_date` /
+     *     `blocking_status` / `occupations` ;
+     *   - la sélection se fait côté UI uniquement sur ceux `available=true`.
+     *
+     * Avantage : l'utilisateur voit le parc en entier et comprend pourquoi
+     * tel panneau est indisponible, plutôt qu'un sec « 0 panneau libre »
+     * sans contexte.
      */
     public function availablePanels(Campaign $campaign)
     {
         $this->authorize('managePanel', $campaign);
 
-        if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
-            Log::info('campaign.available_panels.status_blocked', [
-                'campaign_id' => $campaign->id,
-                'status'      => $campaign->status->value,
-            ]);
-            return response()->json(['panels' => [], 'reason' => 'campaign_status_not_active']);
-        }
-
         $startDate = $campaign->start_date->format('Y-m-d');
         $endDate   = $campaign->end_date->format('Y-m-d');
+
+        // Si la campagne n'est plus modifiable (terminée/annulée), on coupe
+        // tout de suite : pas la peine de calculer la dispo, l'UI affichera
+        // un message dédié via reason.
+        if (!in_array($campaign->status->value, ['planifie', 'actif', 'pause'])) {
+            return response()->json([
+                'panels'          => [],
+                'reason'          => 'campaign_status_not_modifiable',
+                'campaign_status' => $campaign->status->value,
+                'period'          => ['start' => $startDate, 'end' => $endDate],
+                'totals'          => ['internal' => 0, 'external' => 0],
+                'counts'          => ['internal_available' => 0, 'external_available' => 0],
+                'campaign_months' => $campaign->billableMonths(),
+            ]);
+        }
 
         // ─── PANNEAUX INTERNES ──────────────────────────────────────
         $existingIds = $campaign->panels()->pluck('panels.id')->all();
 
-        $availableRaw = $this->availability
-            ->getAvailablePanels($startDate, $endDate, $campaign->reservation_id);
+        $internalPanels = Panel::with(['commune:id,name', 'format:id,name,width,height', 'zone:id,name'])
+            ->whereNull('deleted_at')
+            ->where('status', '!=', PanelStatus::MAINTENANCE->value)
+            ->whereNotIn('id', $existingIds)
+            ->orderBy('reference')
+            ->get();
 
-        $internal = $availableRaw
-            ->reject(fn($p) => in_array($p->id, $existingIds))
-            ->take(500)
-            ->map(fn($p) => [
-                'id'           => $p->id,
-                'source'       => 'internal',
-                'reference'    => $p->reference,
-                'name'         => $p->name,
-                'commune'      => $p->commune?->name ?? '',
-                'format'       => $p->format?->name ?? '',
-                'monthly_rate' => (float) ($p->monthly_rate ?? 0),
-                'is_lit'       => (bool) $p->is_lit,
-                'agency_name'  => null,
-            ])
-            ->values();
+        $internalAvail = $this->availability->getPanelAvailabilityData(
+            $internalPanels->pluck('id')->all(),
+            $startDate,
+            $endDate,
+            $campaign->reservation_id,
+            true,                  // includeCampaignBlockings : critique pour
+                                   // ne pas afficher comme « libre » un panneau
+                                   // engagé dans une autre campagne directe.
+            $campaign->id          // excludeCampaignId : la campagne courante
+                                   // ne doit pas se bloquer elle-même (de
+                                   // toute façon ses panneaux sont déjà
+                                   // exclus par $existingIds, mais on est
+                                   // explicite et défensif).
+        );
 
-        // Diagnostic : logge le breakdown pour comprendre les 0 panneaux signalés en prod.
-        Log::info('campaign.available_panels.fetched', [
-            'campaign_id'      => $campaign->id,
-            'period'           => "{$startDate} → {$endDate}",
-            'reservation_id'   => $campaign->reservation_id,
-            'raw_available'    => $availableRaw->count(),
-            'already_attached' => count($existingIds),
-            'returned_internal'=> $internal->count(),
-        ]);
+        $internal = $internalPanels->map(function ($p) use ($internalAvail) {
+            $a = $internalAvail->get($p->id, ['available' => true, 'release_date' => null, 'blocking_status' => null, 'occupations' => []]);
+            return [
+                'id'              => $p->id,
+                'source'          => 'internal',
+                'reference'       => $p->reference,
+                'name'            => $p->name,
+                'commune'         => $p->commune?->name ?? '',
+                'format'          => $p->format?->name ?? '',
+                'monthly_rate'    => (float) ($p->monthly_rate ?? 0),
+                'is_lit'          => (bool) $p->is_lit,
+                'agency_name'     => null,
+                'available'       => (bool) $a['available'],
+                'release_date'    => self::formatReleaseLabel($a['release_date'] ?? null),
+                'blocking_status' => $a['blocking_status'] ?? null,
+                'occupations'     => $a['occupations'] ?? [],
+            ];
+        })->values();
 
         // ─── PANNEAUX EXTERNES (régies partenaires) ─────────────────
-        // Pattern identique à ReservationController::availablePanels :
-        // on liste tous les externes des agences actives, on calcule
-        // les conflits via AvailabilityService, et on n'expose que ceux
-        // qui sont libres sur la période ET pas déjà dans la campagne.
         $existingExtIds = $campaign->externalPanels()->pluck('external_panels.id')->all();
 
-        $externals = ExternalPanel::with([
+        $externalPanels = ExternalPanel::with([
                 'commune:id,name',
                 'format:id,name,width,height',
                 'agency:id,name',
@@ -518,42 +540,83 @@ class CampaignController extends Controller
             ->whereHas('agency', fn($q) => $q->where('is_active', true)->whereNull('deleted_at'))
             ->where(fn($q) => $q->whereNull('availability_status')->orWhere('availability_status', '!=', 'maintenance'))
             ->whereNotIn('id', $existingExtIds)
+            ->orderBy('code_panneau')
             ->get();
 
         $extBookings = $this->availability->getExternalPanelBookingMap(
-            $externals->pluck('id')->all(),
+            $externalPanels->pluck('id')->all(),
             $startDate,
             $endDate,
             $campaign->reservation_id
         );
 
-        $external = $externals
-            ->map(function ($p) use ($extBookings) {
-                $b = $extBookings->get($p->id);
-                $hasConfirmed = (bool) ($b->has_confirmed ?? false);
-                if ($hasConfirmed) return null; // panneau bloqué — on l'exclut
+        $external = $externalPanels->map(function ($p) use ($extBookings) {
+            $b = $extBookings->get($p->id);
+            $hasConfirmed = (bool) ($b->has_confirmed ?? false);
+            $hasOption    = (bool) ($b->has_option    ?? false);
+            $blocking     = $hasConfirmed ? 'confirme' : ($hasOption ? 'en_attente' : null);
+            $releaseRaw   = $b->release_date ?? null;
 
-                return [
-                    'id'           => 'ext_' . $p->id,
-                    'source'       => 'external',
-                    'reference'    => $p->code_panneau,
-                    'name'         => $p->designation,
-                    'commune'      => $p->commune?->name ?? '',
-                    'format'       => $p->format?->name ?? '',
-                    'monthly_rate' => (float) ($p->monthly_rate ?? 0),
-                    'is_lit'       => (bool) ($p->is_lit ?? false),
-                    'agency_name'  => $p->agency?->name,
-                ];
-            })
-            ->filter()
-            ->values();
+            return [
+                'id'              => 'ext_' . $p->id,
+                'source'          => 'external',
+                'reference'       => $p->code_panneau,
+                'name'            => $p->designation,
+                'commune'         => $p->commune?->name ?? '',
+                'format'          => $p->format?->name ?? '',
+                'monthly_rate'    => (float) ($p->monthly_rate ?? 0),
+                'is_lit'          => (bool) ($p->is_lit ?? false),
+                'agency_name'     => $p->agency?->name,
+                'available'       => !$hasConfirmed,         // option = bookable (sera tranché lors de la confirmation), confirme = bloqué.
+                'release_date'    => self::formatReleaseLabel($releaseRaw),
+                'blocking_status' => $blocking,
+                'occupations'     => [],
+            ];
+        })->values();
+
+        $internalAvailableCount = $internal->where('available', true)->count();
+        $externalAvailableCount = $external->where('available', true)->count();
+
+        Log::info('campaign.available_panels.fetched', [
+            'campaign_id'         => $campaign->id,
+            'period'              => "{$startDate} → {$endDate}",
+            'reservation_id'      => $campaign->reservation_id,
+            'internal_total'      => $internal->count(),
+            'internal_available'  => $internalAvailableCount,
+            'internal_attached'   => count($existingIds),
+            'external_total'      => $external->count(),
+            'external_available'  => $externalAvailableCount,
+            'external_attached'   => count($existingExtIds),
+        ]);
 
         return response()->json([
-            'panels'           => $internal->concat($external)->values(),
-            'campaign_months'  => $campaign->billableMonths(),
-            'internal_count'   => $internal->count(),
-            'external_count'   => $external->count(),
+            'panels'          => $internal->concat($external)->values(),
+            'period'          => ['start' => $startDate, 'end' => $endDate],
+            'totals'          => [
+                'internal' => $internal->count(),
+                'external' => $external->count(),
+            ],
+            'counts'          => [
+                'internal_available' => $internalAvailableCount,
+                'external_available' => $externalAvailableCount,
+            ],
+            'campaign_months' => $campaign->billableMonths(),
         ]);
+    }
+
+    /**
+     * Formate une date de libération en libellé humain (« Libre maintenant »
+     * / « Libre demain » / « Libre le DD/MM/YYYY (Nj) »). Cohérent avec la
+     * vue Reservation pour ne pas multiplier les formats côté front.
+     */
+    private static function formatReleaseLabel($raw): ?string
+    {
+        if (!$raw) return null;
+        $rd = \Carbon\Carbon::parse($raw);
+        $daysLeft = (int) now()->startOfDay()->diffInDays($rd->startOfDay(), false);
+        if ($daysLeft <= 0)  return 'Libre maintenant';
+        if ($daysLeft === 1) return 'Libre demain';
+        return 'Libre le ' . $rd->format('d/m/Y') . " ({$daysLeft}j)";
     }
 
     // ══════════════════════════════════════════════════════════════

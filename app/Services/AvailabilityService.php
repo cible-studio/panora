@@ -904,14 +904,26 @@ class AvailabilityService
     }
 
     /**
-     * Récupère les données de disponibilité complètes pour une liste de panneaux
-     * Retourne pour chaque panneau : disponible, date de libération, statut bloquant
+     * Récupère les données de disponibilité complètes pour une liste de panneaux.
+     * Retourne pour chaque panneau : disponible, date de libération, statut bloquant.
+     *
+     * Paramètres :
+     *   - $includeCampaignBlockings : si true, intègre aussi les blocages via
+     *     campaign_panels (statuts planifie/actif/pause). Indispensable pour
+     *     éviter le double-booking ; off par défaut pour ne pas modifier le
+     *     comportement existant des appels Reservation tant qu'ils ne sont
+     *     pas explicitement migrés.
+     *   - $excludeCampaignId : exclut une campagne précise du calcul de
+     *     blocage (cas : on cherche des panneaux libres pour AJOUTER à cette
+     *     campagne, donc elle ne doit pas s'auto-bloquer ses propres futurs).
      */
     public function getPanelAvailabilityData(
         array  $panelIds,
         string $startDate,
         string $endDate,
-        ?int   $excludeReservationId = null
+        ?int   $excludeReservationId = null,
+        bool   $includeCampaignBlockings = false,
+        ?int   $excludeCampaignId = null
     ): Collection {
         if (empty($panelIds)) return collect();
 
@@ -948,9 +960,41 @@ class AvailabilityService
             ->get()
             ->groupBy('panel_id');
 
-        return collect($panelIds)->mapWithKeys(function ($id) use ($bookings) {
-            $panelBookings = $bookings->get($id);
-            if (!$panelBookings || $panelBookings->isEmpty()) {
+        // Blocages via campagnes directes (campaign_panels, type=interne)
+        // — utile pour les campagnes créées sans réservation, où la trace
+        // n'apparaît pas dans reservation_panels.
+        $campaignBookings = collect();
+        if ($includeCampaignBlockings) {
+            $campaignBookings = DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->leftJoin('clients', 'clients.id', '=', 'campaigns.client_id')
+                ->whereIn('campaign_panels.panel_id', $panelIds)
+                ->where('campaign_panels.type', 'interne')
+                ->whereIn('campaigns.status', self::BLOCKING_CAMPAIGN_STATUSES)
+                ->where('campaigns.start_date', '<=', $endDate)
+                ->where('campaigns.end_date',   '>=', $startDate)
+                ->whereNull('campaigns.deleted_at')
+                ->when($excludeCampaignId, fn($q) =>
+                    $q->where('campaigns.id', '!=', $excludeCampaignId)
+                )
+                ->select(
+                    'campaign_panels.panel_id',
+                    'campaigns.status as camp_status',
+                    'campaigns.start_date',
+                    'campaigns.end_date',
+                    'campaigns.name as campaign_name',
+                    'clients.name as client_name'
+                )
+                ->get()
+                ->groupBy('panel_id');
+        }
+
+        return collect($panelIds)->mapWithKeys(function ($id) use ($bookings, $campaignBookings) {
+            $resBookings = $bookings->get($id) ?? collect();
+            $campBookings = $campaignBookings->get($id) ?? collect();
+
+            // Aucune occupation → libre
+            if ($resBookings->isEmpty() && $campBookings->isEmpty()) {
                 return [$id => [
                     'available'       => true,
                     'release_date'    => null,
@@ -959,27 +1003,46 @@ class AvailabilityService
                 ]];
             }
 
-            // Prioriser confirme sur en_attente pour la date de libération principale
-            $confirmed = $panelBookings->firstWhere('res_status', ReservationStatus::CONFIRME->value);
-            $blocking = $confirmed ?? $panelBookings->first();
+            // Toutes les occupations (résa + campagne) pour affichage détaillé
+            $occupations = collect();
+            foreach ($resBookings as $b) {
+                $occupations->push([
+                    'source'          => 'reservation',
+                    'client_name'     => $b->client_name,
+                    'campaign_name'   => $b->campaign_name,
+                    'reservation_ref' => $b->reservation_ref,
+                    'start_date'      => \Carbon\Carbon::parse($b->start_date)->format('d/m/Y'),
+                    'end_date'        => \Carbon\Carbon::parse($b->end_date)->format('d/m/Y'),
+                    'end_date_raw'    => $b->end_date,
+                    'status'          => $b->res_status,
+                ]);
+            }
+            foreach ($campBookings as $b) {
+                $occupations->push([
+                    'source'          => 'campaign',
+                    'client_name'     => $b->client_name,
+                    'campaign_name'   => $b->campaign_name,
+                    'reservation_ref' => null,
+                    'start_date'      => \Carbon\Carbon::parse($b->start_date)->format('d/m/Y'),
+                    'end_date'        => \Carbon\Carbon::parse($b->end_date)->format('d/m/Y'),
+                    'end_date_raw'    => $b->end_date,
+                    'status'          => $b->camp_status,
+                ]);
+            }
 
-            // Récupérer toutes les occupations pour affichage
-            $occupations = $panelBookings->map(function ($booking) {
-                return [
-                    'client_name'     => $booking->client_name,
-                    'campaign_name'   => $booking->campaign_name,
-                    'reservation_ref' => $booking->reservation_ref,
-                    'start_date'      => \Carbon\Carbon::parse($booking->start_date)->format('d/m/Y'),
-                    'end_date'        => \Carbon\Carbon::parse($booking->end_date)->format('d/m/Y'),
-                    'status'          => $booking->res_status,
-                ];
-            })->values();
+            // Date de libération = max(end_date) parmi toutes les occupations.
+            // Statut bloquant = priorité confirme (résa) / actif (campagne) > pause > en_attente / planifie.
+            $releaseDate = $occupations->max('end_date_raw');
+            $priority = ['confirme' => 5, 'actif' => 5, 'pause' => 3, 'en_attente' => 2, 'planifie' => 2];
+            $blockingStatus = $occupations
+                ->sortByDesc(fn($o) => $priority[$o['status']] ?? 0)
+                ->first()['status'] ?? null;
 
             return [$id => [
                 'available'       => false,
-                'release_date'    => $blocking->release_date,
-                'blocking_status' => $blocking->res_status,
-                'occupations'     => $occupations,
+                'release_date'    => $releaseDate,
+                'blocking_status' => $blockingStatus,
+                'occupations'     => $occupations->map(fn($o) => collect($o)->except('end_date_raw')->all())->values()->all(),
             ]];
         });
     }
