@@ -28,7 +28,7 @@ class ClientMessageController extends Controller
     public function index(Request $request)
     {
         $query = ClientMessage::query()
-            ->with(['client:id,name,company,email', 'reader:id,name', 'replier:id,name'])
+            ->with(['client:id,name,email', 'reader:id,name', 'replier:id,name'])
             ->latest();
 
         if ($request->filled('status')) {

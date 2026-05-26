@@ -22,6 +22,12 @@
     {{ session('success') }}
 </div>
 @endif
+@if(session('warning'))
+<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#f59e0b;display:flex;align-items:flex-start;gap:8px;line-height:1.5;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    {{ session('warning') }}
+</div>
+@endif
 @if($errors->has('delete') || $errors->has('role'))
 <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#ef4444;">
     {{ $errors->first('delete') ?: $errors->first('role') }}
@@ -195,6 +201,13 @@
                                       autocomplete="new-password"
                                       style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s;"
                                       onfocus="this.style.borderColor='#e20613'" onblur="this.style.borderColor='var(--border2)'" />
+                </div>
+                {{-- Note : email d'invitation envoyé automatiquement.
+                     Évite que l'owner se demande comment le membre va recevoir
+                     ses accès. --}}
+                <div style="margin-bottom:12px;padding:9px 11px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;font-size:11px;color:var(--text2);line-height:1.45;display:flex;gap:7px;align-items:flex-start;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" style="flex-shrink:0;margin-top:2px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span>Un email contenant l'URL de connexion + l'email + le mot de passe sera <strong>envoyé automatiquement</strong> au nouvel utilisateur.</span>
                 </div>
                 <button type="submit"
                         style="width:100%;padding:10px;background:#e20613;color:#fff;font-weight:700;border-radius:9px;font-size:13px;border:none;cursor:pointer;transition:opacity .15s;"
