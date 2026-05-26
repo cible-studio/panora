@@ -683,17 +683,17 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
     }
 
     // ── Plier / déplier les panneaux d'une campagne ────────────
-    // Comportement attendu : toutes les campagnes sont PLIÉES à chaque
-    // chargement de la page (et à chaque refresh AJAX). Aucune mémoire
-    // entre les visites — si l'utilisateur ouvre une campagne puis
-    // change de page et revient, tout redevient plié.
-    //
-    // Cohérence : l'utilisateur sait que "page poses = tout plié",
-    // c'est l'affichage par défaut systématique.
-    //
-    // Pour suivre l'état pendant la session de cette page uniquement,
-    // on garde un Set en mémoire JS (vide au chargement).
+    // Comportement attendu :
+    //  • Au chargement initial → toutes les campagnes sont PLIÉES.
+    //  • Quand l'utilisateur clique sur un chevron → ce groupe précis
+    //    s'ouvre, et il RESTE OUVERT tant que l'utilisateur n'a pas
+    //    re-cliqué dessus (même si un refresh AJAX se déclenche).
+    //  • Aucune mémoire entre visites (Set JS uniquement).
     const collapsedGroups = new Set();
+    // Groupes qui ont déjà reçu l'état initial "plié" — évite de re-plier
+    // un groupe que l'utilisateur a explicitement ouvert puis qu'un
+    // refresh AJAX remet dans le DOM.
+    const initializedGroups = new Set();
 
     function setGroupCollapsed(cid, collapsed) {
         if (collapsed) collapsedGroups.add(cid);
@@ -708,12 +708,22 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         }
     }
 
-    function collapseAllGroups() {
-        // Plie TOUTES les campagnes actuellement dans le DOM. Appelé au
-        // chargement initial + après chaque refresh AJAX de la table.
+    function applyGroupsState() {
+        // Pour chaque groupe présent dans le DOM :
+        //  - Si l'utilisateur a ouvert ce groupe (pas dans collapsedGroups
+        //    mais déjà initialisé) → on le laisse ouvert.
+        //  - Sinon (jamais vu, ou explicitement plié) → on le plie.
         document.querySelectorAll('.pose-group-toggle').forEach(btn => {
             const cid = btn.dataset.campaignToggle;
-            if (cid) setGroupCollapsed(cid, true);
+            if (!cid) return;
+            if (!initializedGroups.has(cid)) {
+                // Premier passage pour ce groupe → plié par défaut
+                initializedGroups.add(cid);
+                setGroupCollapsed(cid, true);
+            } else {
+                // Déjà vu → applique l'état mémorisé (plié ou non)
+                setGroupCollapsed(cid, collapsedGroups.has(cid));
+            }
         });
     }
 
@@ -721,21 +731,23 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
         const btn = e.target.closest('.pose-group-toggle');
         if (!btn) return;
         const cid = btn.dataset.campaignToggle;
+        initializedGroups.add(cid); // au cas où on clic avant init
         setGroupCollapsed(cid, !collapsedGroups.has(cid));
     });
 
     // Application initiale au chargement de la page
-    collapseAllGroups();
+    applyGroupsState();
 
-    // Quand la table est rechargée en AJAX (filtre / pagination), on
-    // restaure l'état coché des checkboxes encore présentes.
+    // Quand la table est rechargée en AJAX (filtre / pagination / polling),
+    // on restaure l'état coché des checkboxes ET l'état plié/déplié des
+    // groupes que l'utilisateur a manipulés (sans re-plier les ouverts).
     const tableEl = document.getElementById('table-container');
     if (tableEl) {
         const obs = new MutationObserver(() => {
             document.querySelectorAll('.pose-check').forEach(box => {
                 if (selected.has(Number(box.value))) box.checked = true;
             });
-            // Re-sync les groupes campagne
+            // Re-sync les groupes campagne (checkboxes de sélection)
             const seenCids = new Set();
             document.querySelectorAll('.pose-check').forEach(box => {
                 const cid = box.dataset.campaignId;
@@ -745,11 +757,9 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                 }
             });
             syncCheckAllState();
-            // Après refresh AJAX, on re-plie tout — comportement uniforme :
-            // le tableau revient toujours en mode "tout plié" après un
-            // changement de filtre / pagination.
-            collapsedGroups.clear();
-            collapseAllGroups();
+            // Re-applique l'état plié/déplié SANS écraser le choix
+            // utilisateur — les groupes qu'il a ouverts restent ouverts.
+            applyGroupsState();
         });
         obs.observe(tableEl, { childList: true, subtree: true });
     }
