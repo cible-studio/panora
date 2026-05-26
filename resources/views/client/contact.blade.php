@@ -152,6 +152,13 @@
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                     Envoyer le message
                 </button>
+                {{-- Note permanente : transparence sur le routage du message
+                     (transmission email → réponse email). Évite que le client
+                     pense à une messagerie interne avec « lu/non lu ». --}}
+                <div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;font-size:11px;color:var(--text3);line-height:1.5;display:flex;gap:8px;align-items:flex-start;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    <span>Votre message est transmis par <strong>email</strong> à l'équipe CIBLE CI. La réponse vous parviendra à votre adresse <strong>{{ $client->email }}</strong> sous <strong>24 heures ouvrées</strong>.</span>
+                </div>
             </form>
         </div>
     </div>
