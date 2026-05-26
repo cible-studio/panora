@@ -1,14 +1,17 @@
 <?php
 namespace App\Exports;
 
+use App\Exports\Concerns\ExcelBranding;
 use App\Models\Invoice;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithCustomStartCell;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -18,10 +21,17 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * Export Excel des factures (filtres index repris : client_id, status,
  * date_from/to). FromQuery streame les résultats — pas de chargement full
  * memory pour les comptes avec gros historique.
+ *
+ * Branding : bandeau PANORA (rows 1-4) + headings (row 5) + data (row 6+)
+ * via le trait ExcelBranding.
  */
-class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles, ShouldAutoSize, WithEvents
+class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles, ShouldAutoSize, WithEvents, WithCustomStartCell, WithTitle
 {
-    use Exportable;
+    use Exportable, ExcelBranding;
+
+    public function title(): string { return 'Factures'; }
+
+    public function startCell(): string { return $this->brandingStartCell(); }
 
     public function __construct(protected array $filters = [])
     {
@@ -94,13 +104,11 @@ class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
     public function styles(Worksheet $sheet): array
     {
         return [
-            1 => [
-                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-                'fill' => [
-                    'fillType'   => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => 'C2570D'],
-                ],
-                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            // Row 5 = headings (le bandeau occupe rows 1-4)
+            5 => [
+                'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 9],
+                'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '0A0C10']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             ],
         ];
     }
@@ -109,31 +117,39 @@ class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $sheet = $event->sheet->getDelegate();
-                $sheet->getRowDimension(1)->setRowHeight(28);
-
+                $sheet   = $event->sheet->getDelegate();
                 $lastRow = $sheet->getHighestRow();
 
-                // Format monétaire FCFA sur colonnes G (HT) et I (TTC)
-                $sheet->getStyle("G2:G{$lastRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
-                $sheet->getStyle("I2:I{$lastRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
-                // TVA en pourcentage entier (0,5 → 0.5%)
-                $sheet->getStyle("H2:H{$lastRow}")->getNumberFormat()->setFormatCode('0.##"%"');
+                // Bandeau brandé PANORA (rows 1-4)
+                $this->applyBrandingHeader($event, 'LISTE DES FACTURES', array_filter([
+                    'Généré le ' . now()->format('d/m/Y à H:i'),
+                    max(0, $lastRow - 5) . ' facture(s)',
+                    !empty($this->filters['status'])    ? 'Statut : ' . $this->filters['status'] : null,
+                    !empty($this->filters['client_id']) ? 'Client #' . $this->filters['client_id'] : null,
+                    !empty($this->filters['date_from']) ? 'Depuis ' . $this->filters['date_from'] : null,
+                    !empty($this->filters['date_to'])   ? 'Jusqu\'au ' . $this->filters['date_to'] : null,
+                ]));
 
-                // Freeze header
-                $sheet->freezePane('A2');
+                // Format monétaire FCFA sur colonnes G (HT) et I (TTC) — data row 6+
+                if ($lastRow >= 6) {
+                    $sheet->getStyle("G6:G{$lastRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
+                    $sheet->getStyle("I6:I{$lastRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
+                    $sheet->getStyle("H6:H{$lastRow}")->getNumberFormat()->setFormatCode('0.##"%"');
+                }
 
-                // Ligne TOTAL en bas
-                if ($lastRow > 1) {
+                // Ligne TOTAL en bas (somme HT + TTC)
+                if ($lastRow >= 6) {
                     $totalRow = $lastRow + 2;
                     $sheet->setCellValue("F{$totalRow}", 'TOTAL :');
-                    $sheet->setCellValue("G{$totalRow}", "=SUM(G2:G{$lastRow})");
-                    $sheet->setCellValue("I{$totalRow}", "=SUM(I2:I{$lastRow})");
-                    $sheet->getStyle("F{$totalRow}:I{$totalRow}")
-                        ->getFont()->setBold(true);
+                    $sheet->setCellValue("G{$totalRow}", "=SUM(G6:G{$lastRow})");
+                    $sheet->setCellValue("I{$totalRow}", "=SUM(I6:I{$lastRow})");
+                    $sheet->getStyle("F{$totalRow}:I{$totalRow}")->getFont()->setBold(true);
                     $sheet->getStyle("G{$totalRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
                     $sheet->getStyle("I{$totalRow}")->getNumberFormat()->setFormatCode('#,##0 [$FCFA]');
                 }
+
+                // Bordures + alternance + freeze + print landscape
+                $this->applyTableFinishing($event);
             },
         ];
     }
