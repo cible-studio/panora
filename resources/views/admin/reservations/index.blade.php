@@ -188,15 +188,17 @@
                                             class="bulk-dropdown-btn"
                                             aria-label="Options de sélection"
                                             title="Options de sélection">▾</button>
+                                    {{-- Le dropdown ne propose QUE les actions non
+                                         redondantes avec la checkbox header (☑ = tout
+                                         cocher) et le bouton ✕ de la toolbar (= aucune).
+                                         Sélection par statut + inversion uniquement. --}}
                                     <div id="resa-select-dropdown-menu" class="bulk-dropdown-menu">
-                                        <button type="button" data-select-mode="all" class="resa-select-option">Toutes (page)</button>
-                                        <button type="button" data-select-mode="none" class="resa-select-option">Aucune</button>
-                                        <div class="resa-select-divider"></div>
+                                        <div class="resa-select-section-label">Sélectionner par statut</div>
                                         <button type="button" data-select-mode="en_attente" class="resa-select-option">⏳ En attente</button>
                                         <button type="button" data-select-mode="confirme" class="resa-select-option">✅ Confirmées</button>
                                         <button type="button" data-select-mode="annule" class="resa-select-option">🚫 Annulées</button>
                                         <div class="resa-select-divider"></div>
-                                        <button type="button" data-select-mode="invert" class="resa-select-option">↔ Inverser</button>
+                                        <button type="button" data-select-mode="invert" class="resa-select-option">↔ Inverser la sélection</button>
                                     </div>
                                 </div>
                             @else
@@ -313,8 +315,6 @@
                     const row = cb.closest('tr');
                     const status = row?.dataset?.status ?? '';
                     switch (mode) {
-                        case 'all':        cb.checked = true;  break;
-                        case 'none':       cb.checked = false; break;
                         case 'invert':     cb.checked = !cb.checked; break;
                         case 'en_attente': cb.checked = (status === 'en_attente'); break;
                         case 'confirme':   cb.checked = (status === 'confirme');   break;
@@ -325,36 +325,151 @@
                 refreshState();
             });
 
-            // Actions groupées (annuler / supprimer)
-            window.bulkResa = async function(action) {
+            // ── Actions groupées : ouvrent un MODAL (plus de prompt/confirm) ──
+            // Le modal calcule depuis les data-attributes des <tr> :
+            //   - éligibles (cancellable=1 ou deletable=1 selon l'action)
+            //   - ignorées (les autres, avec raison affichée)
+            //   - somme panneaux à libérer
+            //   - nombre de campagnes impactées (warning différent selon action)
+            // Le submit envoie cancel_type + cancel_reason pour la validation
+            // backend alignée sur annuler() (required + min:5).
+            function rowsForIds(ids) {
+                return ids
+                    .map(id => document.querySelector(`#reservations-table tr[data-reference] input.bulk-checkbox[value="${id}"]`)?.closest('tr'))
+                    .filter(Boolean);
+            }
+
+            function computeBulkStats(rows, eligibilityAttr) {
+                let eligible = [], skipped = [], panelsTotal = 0, campaigns = 0;
+                rows.forEach(tr => {
+                    const isEligible = tr.dataset[eligibilityAttr] === '1';
+                    if (isEligible) {
+                        eligible.push(parseInt(tr.querySelector('.bulk-checkbox').value, 10));
+                        panelsTotal += parseInt(tr.dataset.panelsCount || '0', 10);
+                        if (tr.dataset.hasCampaign === '1') campaigns++;
+                    } else {
+                        skipped.push(tr.dataset.reference);
+                    }
+                });
+                return { eligible, skipped, panelsTotal, campaigns };
+            }
+
+            window.bulkResa = function(action) {
                 const ids = selectedIds();
                 if (ids.length === 0) return;
-                const verb = action === 'cancel' ? 'annuler' : 'SUPPRIMER';
-                const reason = action === 'cancel'
-                    ? prompt(`Motif d'annulation (optionnel) pour ${ids.length} réservation(s) :`)
-                    : null;
-                if (action === 'cancel' && reason === null) return;
-                if (!confirm(`Confirmer : ${verb} ${ids.length} réservation(s) ? Cette action est irréversible.`)) return;
+                const rows = rowsForIds(ids);
 
-                const tok = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-                try {
-                    const res = await fetch('{{ route('admin.reservations.bulk') }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': tok,
-                        },
-                        body: JSON.stringify({ action, ids, cancel_reason: reason ?? '' }),
-                    });
-                    if (res.ok) location.reload();
-                    else {
-                        const data = await res.json().catch(() => ({}));
-                        alert('Erreur : ' + (data.message || res.statusText));
+                if (action === 'cancel') {
+                    const stats = computeBulkStats(rows, 'cancellable');
+                    if (stats.eligible.length === 0) {
+                        alert(`Aucune des ${ids.length} réservation(s) sélectionnée(s) n'est annulable (statut terminé/refusé ou client supprimé).`);
+                        return;
                     }
-                } catch (e) {
-                    alert('Erreur réseau : ' + e.message);
+                    // Reset des champs motif à chaque ouverture
+                    document.getElementById('bulk-cancel-reason').value = '';
+                    document.getElementById('bulk-cancel-type').value   = 'client_demande';
+                    // Hydrate le modal
+                    document.getElementById('bulk-cancel-eligible-count').textContent = stats.eligible.length;
+                    document.getElementById('bulk-cancel-panels-total').textContent   = stats.panelsTotal;
+                    const skipNote = document.getElementById('bulk-cancel-skipped-note');
+                    if (stats.skipped.length > 0) {
+                        document.getElementById('bulk-cancel-skipped-count').textContent = stats.skipped.length;
+                        skipNote.style.display = 'block';
+                    } else {
+                        skipNote.style.display = 'none';
+                    }
+                    const campWarn = document.getElementById('bulk-cancel-campaign-warning');
+                    if (stats.campaigns > 0) {
+                        document.getElementById('bulk-cancel-campaigns-count').textContent = stats.campaigns;
+                        campWarn.style.display = 'flex';
+                    } else {
+                        campWarn.style.display = 'none';
+                    }
+                    // Mémorise les IDs éligibles pour le submit
+                    window._bulkCancelIds = stats.eligible;
+                    document.getElementById('modal-bulk-cancel').style.display = 'flex';
                 }
+
+                if (action === 'delete') {
+                    const stats = computeBulkStats(rows, 'deletable');
+                    if (stats.eligible.length === 0) {
+                        alert(`Aucune des ${ids.length} réservation(s) sélectionnée(s) n'est supprimable (seules les statuts « annulée » ou « refusée » sans campagne active le sont).`);
+                        return;
+                    }
+                    document.getElementById('bulk-delete-eligible-count').textContent = stats.eligible.length;
+                    document.getElementById('bulk-delete-panels-total').textContent   = stats.panelsTotal;
+                    const skipNote = document.getElementById('bulk-delete-skipped-note');
+                    if (stats.skipped.length > 0) {
+                        document.getElementById('bulk-delete-skipped-count').textContent = stats.skipped.length;
+                        skipNote.style.display = 'block';
+                    } else {
+                        skipNote.style.display = 'none';
+                    }
+                    const campWarn = document.getElementById('bulk-delete-campaign-warning');
+                    if (stats.campaigns > 0) {
+                        document.getElementById('bulk-delete-campaigns-count').textContent = stats.campaigns;
+                        campWarn.style.display = 'flex';
+                    } else {
+                        campWarn.style.display = 'none';
+                    }
+                    window._bulkDeleteIds = stats.eligible;
+                    document.getElementById('modal-bulk-delete').style.display = 'flex';
+                }
+            };
+
+            // Submit handlers — appelés depuis le footer de chaque modal
+            window.closeBulkCancelModal = function(e) {
+                if (!e || e.target === document.getElementById('modal-bulk-cancel') || e.target.closest('.modal-close')) {
+                    document.getElementById('modal-bulk-cancel').style.display = 'none';
+                }
+            };
+            window.closeBulkDeleteModal = function(e) {
+                if (!e || e.target === document.getElementById('modal-bulk-delete') || e.target.closest('.modal-close')) {
+                    document.getElementById('modal-bulk-delete').style.display = 'none';
+                }
+            };
+
+            async function postBulk(payload) {
+                const tok = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const res = await fetch('{{ route('admin.reservations.bulk') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': tok,
+                    },
+                    body: JSON.stringify(payload),
+                });
+                if (res.ok || res.redirected) { location.reload(); return; }
+                const data = await res.json().catch(() => ({}));
+                // 422 = erreur validation côté serveur (motif trop court par ex.)
+                const errMsg = data.errors
+                    ? Object.values(data.errors).flat().join(' · ')
+                    : (data.message || res.statusText);
+                alert('Erreur : ' + errMsg);
+            }
+
+            window.submitBulkCancel = function() {
+                const type   = document.getElementById('bulk-cancel-type').value;
+                const reason = document.getElementById('bulk-cancel-reason').value.trim();
+                if (reason.length < 5) {
+                    alert('Le motif doit faire au moins 5 caractères (soyez précis).');
+                    document.getElementById('bulk-cancel-reason').focus();
+                    return;
+                }
+                postBulk({
+                    action: 'cancel',
+                    ids: window._bulkCancelIds || [],
+                    cancel_type: type,
+                    cancel_reason: reason,
+                });
+            };
+
+            window.submitBulkDelete = function() {
+                postBulk({
+                    action: 'delete',
+                    ids: window._bulkDeleteIds || [],
+                });
             };
 
             // Re-sync après chaque mutation du tbody (refresh AJAX filtres/polling)
@@ -372,7 +487,10 @@
         </div> -->
     </div>
 
-    {{-- ══ MODAL SUPPRESSION ══ --}}
+    {{-- ══ MODAL SUPPRESSION SINGLE — warning campagne conditionnel
+         Avant : le bullet « la campagne sera annulée » s'affichait toujours,
+         même sans campagne liée → mensonge UX. Maintenant : affiché
+         uniquement si la résa porte une campagne, avec son nom. ══ --}}
     <div id="modal-delete" class="modal-overlay" style="display:none;" onclick="closeDeleteModal(event)">
         <div class="modal" style="max-width:480px;" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -381,27 +499,31 @@
             </div>
             <div class="modal-body">
                 <div class="text-center mb-4">
-                    <div class="text-5xl mb-3">🗑️</div>
-                    <div class="font-bold text-lg mb-2">
+                    <div class="inline-flex items-center justify-center w-14 h-14 rounded-full text-2xl mb-3"
+                         style="background:rgba(239,68,68,.1)">🗑️</div>
+                    <div class="font-bold text-lg mb-1">
                         Supprimer <span id="delete-ref" class="text-accent"></span> ?
                     </div>
-                    <div class="text-sm text-gray-400" id="delete-client"></div>
+                    <div class="text-sm" style="color:var(--text2)">
+                        Réservation de <strong id="delete-client" style="color:var(--text)"></strong>
+                        · <span id="delete-panels-info"></span> panneau(x)
+                    </div>
                 </div>
 
                 <div class="info-box mb-4">
-                    <div class="font-semibold mb-2 text-gray-300">⚠️ Conséquences :</div>
-                    <ul class="space-y-2 text-sm text-gray-400">
-                        <li class="flex gap-2">
-                            <span class="text-red-500">🗑️</span>
-                            <span>La réservation sera <strong>définitivement supprimée</strong></span>
+                    <div class="font-semibold mb-2" style="color:var(--text)">⚠️ Conséquences :</div>
+                    <ul class="space-y-1.5" style="color:var(--text2);font-size:13px">
+                        <li class="flex items-start gap-2">
+                            <span style="color:var(--red)">🗑️</span>
+                            <span>La réservation sera <strong>définitivement supprimée</strong>.</span>
                         </li>
-                        <li class="flex gap-2">
-                            <span class="text-yellow-500">📁</span>
-                            <span>La campagne liée sera <strong>automatiquement annulée</strong></span>
+                        <li id="delete-campaign-warning" class="flex items-start gap-2" style="display:none">
+                            <span style="color:#f59e0b">📁</span>
+                            <span>La campagne <strong id="delete-campaign-name"></strong> sera <strong>automatiquement annulée</strong> et une note ajoutée à son historique.</span>
                         </li>
-                        <li class="flex gap-2">
-                            <span class="text-green-500">🔓</span>
-                            <span>Les <strong id="delete-panels-count"></strong> panneau(x) seront libérés</span>
+                        <li class="flex items-start gap-2">
+                            <span style="color:var(--green)">🔓</span>
+                            <span>Les <strong id="delete-panels-count"></strong> panneau(x) seront libérés.</span>
                         </li>
                     </ul>
                 </div>
@@ -421,36 +543,74 @@
         </div>
     </div>
 
-    {{-- ══ MODAL ANNULATION ══ --}}
+    {{-- ══ MODAL ANNULATION SINGLE — aligné sur reservations/show
+         Avant : modal sans champs motif → submit échouait silencieusement
+         en 422 (annuler() exige cancel_type required + cancel_reason min:5).
+         Maintenant : sélecteur de motif + textarea, warning campagne
+         conditionnel pour informer l'utilisateur de la chaîne d'effets. ══ --}}
     <div id="modal-annuler" class="modal-overlay" style="display:none;" onclick="closeAnnulerModal(event)">
-        <div class="modal" style="max-width:480px;" onclick="event.stopPropagation()">
+        <div class="modal" style="max-width:500px;" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <span class="modal-title" style="color:var(--orange);">🚫 Annuler la réservation</span>
+                <span class="modal-title" style="color:var(--red);">🚫 Annuler la réservation</span>
                 <button class="modal-close" onclick="closeAnnulerModal()">✕</button>
             </div>
             <div class="modal-body">
                 <div class="text-center mb-4">
-                    <div class="text-5xl mb-3">🚫</div>
-                    <div class="font-bold text-lg mb-2">
+                    <div class="inline-flex items-center justify-center w-14 h-14 rounded-full text-2xl mb-3"
+                         style="background:rgba(239,68,68,.1)">🚫</div>
+                    <div class="font-bold text-lg mb-1">
                         Annuler <span id="annuler-ref" class="text-accent"></span> ?
                     </div>
-                    <div class="text-sm text-gray-400">
-                        Réservation de <strong id="annuler-client"></strong>
+                    <div class="text-sm" style="color:var(--text2)">
+                        Réservation de <strong id="annuler-client" style="color:var(--text)"></strong>
+                        · <span id="annuler-panels"></span> panneau(x)
                     </div>
                 </div>
 
                 <div class="info-box mb-4">
-                    <div class="font-semibold mb-2 text-gray-300">Ce qui va se passer :</div>
-                    <ul class="space-y-2 text-sm text-gray-400">
-                        <li class="flex gap-2">
-                            <span class="text-green-500">✓</span>
-                            <span>Les <strong id="annuler-panels"></strong> panneau(x) seront <strong>immédiatement libérés</strong></span>
+                    <div class="font-semibold mb-2" style="color:var(--text)">Ce qui va se passer :</div>
+                    <ul class="space-y-1.5" style="color:var(--text2);font-size:13px">
+                        <li class="flex items-start gap-2">
+                            <span style="color:var(--green)">✓</span>
+                            <span>Les <strong id="annuler-panels-2"></strong> panneau(x) seront <strong>immédiatement libérés</strong>.</span>
                         </li>
-                        <li class="flex gap-2">
-                            <span class="text-green-500">✓</span>
-                            <span>L'historique sera conservé avec le statut "Annulé"</span>
+                        <li class="flex items-start gap-2">
+                            <span style="color:var(--green)">✓</span>
+                            <span>La réservation sera conservée en <strong>historique</strong> avec le statut « Annulé ».</span>
+                        </li>
+                        <li id="annuler-campaign-warning" class="flex items-start gap-2" style="display:none">
+                            <span style="color:var(--red)">⚠</span>
+                            <span>La campagne <strong id="annuler-campaign-name"></strong> devra être gérée séparément (l'annulation de réservation ne propage pas).</span>
                         </li>
                     </ul>
+                </div>
+
+                {{-- Motif d'annulation (cancel_type + cancel_reason)
+                     Aligné sur le modal de reservations/show — auditabilité critique. --}}
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px">
+                        📋 Motif d'annulation (suivi qualité)
+                    </div>
+                    <div style="margin-bottom:10px">
+                        <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Type de motif</label>
+                        <select id="annuler-cancel-type"
+                                style="width:100%;height:38px;padding:0 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);cursor:pointer">
+                            <option value="client_demande">Client : Demande d'annulation</option>
+                            <option value="budget">Client : Contrainte budgétaire</option>
+                            <option value="concurrent">Client : A choisi un concurrent</option>
+                            <option value="report">Report de campagne</option>
+                            <option value="autre">Autre motif</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">
+                            Précisions <span style="font-weight:400;color:var(--red)">*</span>
+                        </label>
+                        <textarea id="annuler-cancel-reason" rows="3" maxlength="500" minlength="5" required
+                                  placeholder="Décrivez le contexte (5 caractères minimum)…"
+                                  style="width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);resize:vertical;box-sizing:border-box;outline:none"></textarea>
+                        <div style="font-size:10px;color:var(--text3);margin-top:3px">Obligatoire — utilisé pour le suivi qualité et les statistiques.</div>
+                    </div>
                 </div>
 
                 <div class="warning-box">
@@ -459,14 +619,151 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button onclick="closeAnnulerModal()" class="btn btn-ghost">Conserver</button>
-                <form id="annuler-form" method="POST">
+                <button onclick="closeAnnulerModal()" class="btn btn-ghost">Conserver la réservation</button>
+                <form id="annuler-form" method="POST" onsubmit="return prepareAnnulerSubmit(this)">
                     @csrf @method('PATCH')
-                    <button type="submit" class="btn-warning">🚫 Confirmer l'annulation</button>
+                    <input type="hidden" name="cancel_type"   id="annuler-cancel-type-hidden">
+                    <input type="hidden" name="cancel_reason" id="annuler-cancel-reason-hidden">
+                    <button type="submit" class="btn btn-danger">🚫 Confirmer l'annulation</button>
                 </form>
             </div>
         </div>
     </div>
+
+    {{-- ══ MODAL BULK CANCEL — annulation groupée avec motif
+         Mêmes garanties que le single : motif typé + texte ≥5 chars
+         requis, breakdown des éligibles vs ignorées (non-annulables),
+         compteur panneaux libérés au total, alerte campagnes restantes
+         à gérer séparément. Le backend mappe ces 2 champs sur la
+         validation déjà cohérente avec annuler(). ══ --}}
+    @if($canBulk)
+    <div id="modal-bulk-cancel" class="modal-overlay" style="display:none;" onclick="closeBulkCancelModal(event)">
+        <div class="modal" style="max-width:560px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span class="modal-title" style="color:var(--red);">🚫 Annulation groupée</span>
+                <button class="modal-close" onclick="closeBulkCancelModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <div class="inline-flex items-center justify-center w-14 h-14 rounded-full text-2xl mb-3"
+                         style="background:rgba(239,68,68,.1)">🚫</div>
+                    <div class="font-bold text-lg mb-1">
+                        Annuler <span id="bulk-cancel-eligible-count" style="color:var(--accent)"></span> réservation(s) ?
+                    </div>
+                    <div id="bulk-cancel-skipped-note" class="text-sm" style="color:var(--text2);display:none">
+                        <span id="bulk-cancel-skipped-count"></span> sélectionnée(s) seront <strong>ignorées</strong> (non annulables : statut terminé, refusé ou client supprimé).
+                    </div>
+                </div>
+
+                <div class="info-box mb-4">
+                    <div class="font-semibold mb-2" style="color:var(--text)">Ce qui va se passer :</div>
+                    <ul class="space-y-1.5" style="color:var(--text2);font-size:13px">
+                        <li class="flex items-start gap-2">
+                            <span style="color:var(--green)">✓</span>
+                            <span><strong id="bulk-cancel-panels-total"></strong> panneau(x) au total seront <strong>immédiatement libérés</strong>.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span style="color:var(--green)">✓</span>
+                            <span>Toutes les réservations annulées seront conservées en <strong>historique</strong> avec le statut « Annulé ».</span>
+                        </li>
+                        <li id="bulk-cancel-campaign-warning" class="flex items-start gap-2" style="display:none">
+                            <span style="color:var(--red)">⚠</span>
+                            <span><strong id="bulk-cancel-campaigns-count"></strong> campagne(s) liée(s) <strong>resteront actives</strong> et devront être annulées séparément.</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px">
+                        📋 Motif d'annulation (appliqué à toutes)
+                    </div>
+                    <div style="margin-bottom:10px">
+                        <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Type de motif</label>
+                        <select id="bulk-cancel-type"
+                                style="width:100%;height:38px;padding:0 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);cursor:pointer">
+                            <option value="client_demande">Client : Demande d'annulation</option>
+                            <option value="budget">Client : Contrainte budgétaire</option>
+                            <option value="concurrent">Client : A choisi un concurrent</option>
+                            <option value="report">Report de campagne</option>
+                            <option value="autre">Autre motif</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">
+                            Précisions <span style="font-weight:400;color:var(--red)">*</span>
+                        </label>
+                        <textarea id="bulk-cancel-reason" rows="3" maxlength="500" minlength="5" required
+                                  placeholder="Contexte de l'annulation groupée (5 caractères minimum)…"
+                                  style="width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);resize:vertical;box-sizing:border-box;outline:none"></textarea>
+                        <div style="font-size:10px;color:var(--text3);margin-top:3px">Obligatoire — appliqué à toutes les annulations de ce lot.</div>
+                    </div>
+                </div>
+
+                <div class="warning-box">
+                    <span>⚠️</span>
+                    <span>Cette action est <strong>irréversible</strong>. Les réservations annulées ne peuvent pas être réactivées.</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeBulkCancelModal()" class="btn btn-ghost">Conserver</button>
+                <button type="button" onclick="submitBulkCancel()" class="btn btn-danger">🚫 Confirmer l'annulation</button>
+            </div>
+        </div>
+    </div>
+
+    {{-- ══ MODAL BULK DELETE — suppression groupée
+         Avant : confirm() natif sans avertissement sur la cascade vers
+         les campagnes. Maintenant : breakdown éligibles vs ignorées,
+         compteur panneaux libérés, ALERTE campagnes auto-annulées
+         (delete() passe la campagne en `annule` + ajoute une note).  ══ --}}
+    <div id="modal-bulk-delete" class="modal-overlay" style="display:none;" onclick="closeBulkDeleteModal(event)">
+        <div class="modal" style="max-width:560px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span class="modal-title" style="color:var(--red);">🗑️ Suppression groupée</span>
+                <button class="modal-close" onclick="closeBulkDeleteModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <div class="inline-flex items-center justify-center w-14 h-14 rounded-full text-2xl mb-3"
+                         style="background:rgba(239,68,68,.1)">🗑️</div>
+                    <div class="font-bold text-lg mb-1">
+                        Supprimer <span id="bulk-delete-eligible-count" style="color:var(--accent)"></span> réservation(s) ?
+                    </div>
+                    <div id="bulk-delete-skipped-note" class="text-sm" style="color:var(--text2);display:none">
+                        <span id="bulk-delete-skipped-count"></span> sélectionnée(s) seront <strong>ignorées</strong> (non supprimables : encore actives, ou seules les statuts « annulée » et « refusée » sont supprimables).
+                    </div>
+                </div>
+
+                <div class="info-box mb-4">
+                    <div class="font-semibold mb-2" style="color:var(--text)">⚠️ Conséquences :</div>
+                    <ul class="space-y-1.5" style="color:var(--text2);font-size:13px">
+                        <li class="flex items-start gap-2">
+                            <span style="color:var(--red)">🗑️</span>
+                            <span>Les réservations éligibles seront <strong>définitivement supprimées</strong>.</span>
+                        </li>
+                        <li id="bulk-delete-campaign-warning" class="flex items-start gap-2" style="display:none">
+                            <span style="color:#f59e0b">📁</span>
+                            <span><strong id="bulk-delete-campaigns-count"></strong> campagne(s) liée(s) seront <strong>automatiquement annulées</strong> et une note ajoutée à leur historique.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span style="color:var(--green)">🔓</span>
+                            <span><strong id="bulk-delete-panels-total"></strong> panneau(x) au total seront libérés.</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="warning-box">
+                    <span>⚠️</span>
+                    <span>Cette action est <strong>irréversible</strong>. Aucune restauration possible (soft-delete uniquement côté base).</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeBulkDeleteModal()" class="btn btn-ghost">Annuler</button>
+                <button type="button" onclick="submitBulkDelete()" class="btn btn-danger">🗑️ Confirmer la suppression</button>
+            </div>
+        </div>
+    </div>
+    @endif
 
     {{-- ══════════════════════════════════════════════════════
          MODAL "VOIR LES PANNEAUX" — chargée en AJAX (design moderne)
@@ -853,6 +1150,14 @@
             background: var(--border);
             margin: 4px 0;
         }
+        .resa-select-section-label {
+            padding: 8px 14px 4px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: var(--text3);
+        }
 
         /* Toolbar bulk : apparition sliding, fond accent doux pour signaler le mode sélection */
         .bulk-toolbar {
@@ -1085,32 +1390,66 @@
     @push('scripts')
     <script>
     // ══ MODALS ══
-    function openDeleteModal(id, ref, client, panelsCount) {
-        document.getElementById('delete-ref').textContent = ref;
-        document.getElementById('delete-client').textContent = 'Réservation de ' + client;
+    function openDeleteModal(id, ref, client, panelsCount, hasCampaign, campaignName) {
+        document.getElementById('delete-ref').textContent          = ref;
+        document.getElementById('delete-client').textContent       = client || '—';
+        document.getElementById('delete-panels-info').textContent  = panelsCount;
         document.getElementById('delete-panels-count').textContent = panelsCount;
+        const warn = document.getElementById('delete-campaign-warning');
+        if (hasCampaign) {
+            document.getElementById('delete-campaign-name').textContent = campaignName || '(sans nom)';
+            warn.style.display = 'flex';
+        } else {
+            warn.style.display = 'none';
+        }
         document.getElementById('delete-form').action = '/admin/reservations/' + id;
         document.getElementById('modal-delete').style.display = 'flex';
     }
-    
+
     function closeDeleteModal(e) {
         if (!e || e.target === document.getElementById('modal-delete') || e.target.closest('.modal-close')) {
             document.getElementById('modal-delete').style.display = 'none';
         }
     }
-    
-    function openAnnulerModal(id, ref, client, panelsCount) {
-        document.getElementById('annuler-ref').textContent = ref;
-        document.getElementById('annuler-client').textContent = client;
-        document.getElementById('annuler-panels').textContent = panelsCount;
+
+    function openAnnulerModal(id, ref, client, panelsCount, hasCampaign, campaignName) {
+        document.getElementById('annuler-ref').textContent      = ref;
+        document.getElementById('annuler-client').textContent   = client || '—';
+        document.getElementById('annuler-panels').textContent   = panelsCount;
+        document.getElementById('annuler-panels-2').textContent = panelsCount;
+        // Reset motif à chaque ouverture pour éviter les fuites entre lignes
+        document.getElementById('annuler-cancel-reason').value = '';
+        document.getElementById('annuler-cancel-type').value   = 'client_demande';
+        const warn = document.getElementById('annuler-campaign-warning');
+        if (hasCampaign) {
+            document.getElementById('annuler-campaign-name').textContent = campaignName || '(sans nom)';
+            warn.style.display = 'flex';
+        } else {
+            warn.style.display = 'none';
+        }
         document.getElementById('annuler-form').action = '/admin/reservations/' + id + '/annuler';
         document.getElementById('modal-annuler').style.display = 'flex';
     }
-    
+
     function closeAnnulerModal(e) {
         if (!e || e.target === document.getElementById('modal-annuler') || e.target.closest('.modal-close')) {
             document.getElementById('modal-annuler').style.display = 'none';
         }
+    }
+
+    // Recopie les champs motif dans les hidden inputs avant submit du form annuler.
+    // Empêche le submit si le motif est < 5 chars (cohérent avec la validation backend).
+    function prepareAnnulerSubmit(form) {
+        const type   = document.getElementById('annuler-cancel-type').value;
+        const reason = document.getElementById('annuler-cancel-reason').value.trim();
+        if (reason.length < 5) {
+            alert('Le motif doit faire au moins 5 caractères (soyez précis).');
+            document.getElementById('annuler-cancel-reason').focus();
+            return false;
+        }
+        document.getElementById('annuler-cancel-type-hidden').value   = type;
+        document.getElementById('annuler-cancel-reason-hidden').value = reason;
+        return true;
     }
 
     // ─── Modale "Voir les panneaux" — design moderne ──────────────

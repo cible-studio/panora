@@ -7,7 +7,21 @@
     $canDelete     = $res->isDeletable() && auth()->user()->can('delete', $res);
     $rc            = $res->status->uiConfig();
 @endphp
-<tr class="{{ $isNew ? 'new-row' : '' }}" data-status="{{ $res->status->value }}">
+@php
+    $intCountRow = (int) ($res->panels_count ?? 0);
+    $extCountRow = (int) ($res->external_panels_count ?? 0);
+    $totalRow    = $intCountRow + $extCountRow;
+    $hasCampaign = $res->campaign !== null;
+@endphp
+<tr class="{{ $isNew ? 'new-row' : '' }}"
+    data-status="{{ $res->status->value }}"
+    data-reference="{{ $res->reference }}"
+    data-client="{{ $res->client?->name ?? '—' }}"
+    data-panels-count="{{ $totalRow }}"
+    data-has-campaign="{{ $hasCampaign ? '1' : '0' }}"
+    data-campaign-name="{{ $hasCampaign ? $res->campaign->name : '' }}"
+    data-cancellable="{{ $canAnnuler ? '1' : '0' }}"
+    data-deletable="{{ $canDelete ? '1' : '0' }}">
     <td class="bulk-cell">
         @if($canEdit || $canAnnuler || $canDelete)
             <input type="checkbox" class="bulk-checkbox" value="{{ $res->id }}" aria-label="Sélectionner {{ $res->reference }}">
@@ -40,13 +54,8 @@
         {{ $res->end_date->format('d/m/Y') }}
     </td>
     <td>
-        @php
-            $intCount = (int) ($res->panels_count ?? 0);
-            $extCount = (int) ($res->external_panels_count ?? 0);
-            $total    = $intCount + $extCount;
-        @endphp
-        <span class="badge" title="{{ $intCount }} interne(s){{ $extCount > 0 ? ' + '.$extCount.' externe(s)' : '' }}">
-            {{ $total }} 🪧@if($extCount > 0)<span style="font-size:9px;margin-left:4px;color:#60a5fa;font-weight:700">🤝{{ $extCount }}</span>@endif
+        <span class="badge" title="{{ $intCountRow }} interne(s){{ $extCountRow > 0 ? ' + '.$extCountRow.' externe(s)' : '' }}">
+            {{ $totalRow }} 🪧@if($extCountRow > 0)<span style="font-size:9px;margin-left:4px;color:#60a5fa;font-weight:700">🤝{{ $extCountRow }}</span>@endif
         </span>
     </td>
     <td class="amount">
@@ -90,13 +99,13 @@
             @endif
             @if($canAnnuler)
             <button class="btn-icon btn-cancel"
-                    onclick="openAnnulerModal({{ $res->id }}, '{{ $res->reference }}', '{{ addslashes($res->client?->name ?? '') }}', {{ $total }})"
+                    onclick="openAnnulerModal({{ $res->id }}, '{{ $res->reference }}', '{{ addslashes($res->client?->name ?? '') }}', {{ $totalRow }}, {{ $hasCampaign ? 'true' : 'false' }}, '{{ addslashes($hasCampaign ? $res->campaign->name : '') }}')"
                     title="Annuler la réservation">🚫</button>
             @endif
 
             @if($canDelete)
             <button class="btn-icon btn-delete"
-                    onclick="openDeleteModal({{ $res->id }}, '{{ $res->reference }}')"
+                    onclick="openDeleteModal({{ $res->id }}, '{{ $res->reference }}', '{{ addslashes($res->client?->name ?? '') }}', {{ $totalRow }}, {{ $hasCampaign ? 'true' : 'false' }}, '{{ addslashes($hasCampaign ? $res->campaign->name : '') }}')"
                     title="Supprimer définitivement">🗑️</button>
             @endif
         </div>

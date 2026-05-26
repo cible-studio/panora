@@ -2333,11 +2333,19 @@ class ReservationController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function bulkAction(Request $request)
     {
+        // Validation alignée sur annuler() : pour action=cancel, on exige
+        // un motif typé + texte ≥5 chars (auditabilité critique demandée
+        // métier). Pour action=delete, ces champs sont ignorés.
         $data = $request->validate([
-            'action' => 'required|in:cancel,delete',
-            'ids'    => 'required|array|min:1|max:200',
-            'ids.*'  => 'integer|exists:reservations,id',
-            'cancel_reason' => 'nullable|string|max:500',
+            'action'        => 'required|in:cancel,delete',
+            'ids'           => 'required|array|min:1|max:200',
+            'ids.*'         => 'integer|exists:reservations,id',
+            'cancel_type'   => 'required_if:action,cancel|string|max:50',
+            'cancel_reason' => 'required_if:action,cancel|string|min:5|max:500',
+        ], [
+            'cancel_type.required_if'   => 'Choisissez une catégorie d\'annulation.',
+            'cancel_reason.required_if' => 'Le motif d\'annulation est obligatoire (5 caractères min.).',
+            'cancel_reason.min'         => 'Le motif doit faire au moins 5 caractères (soyez précis).',
         ]);
 
         $reservations = Reservation::whereIn('id', $data['ids'])->get();
@@ -2352,8 +2360,8 @@ class ReservationController extends Controller
                         continue;
                     }
                     $this->reservationService->cancel($r, [
-                        'cancel_type'   => 'autre',
-                        'cancel_reason' => $data['cancel_reason'] ?? 'Annulation groupée',
+                        'cancel_type'   => $data['cancel_type'],
+                        'cancel_reason' => $data['cancel_reason'],
                         'cancelled_at'  => now(),
                         'cancelled_by'  => auth()->id(),
                     ]);
