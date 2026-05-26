@@ -155,29 +155,21 @@
         {{-- Toolbar d'actions inline — apparaît à la place du card-header
              quand au moins 1 réservation est cochée. Pattern Gmail :
              actions visibles en haut, jamais de barre flottante. --}}
-        <div id="resa-bulk-toolbar"
-             style="display:none;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;background:var(--surface2);border-bottom:1px solid var(--border)">
-            <div style="display:flex;align-items:center;gap:12px">
+        <div id="resa-bulk-toolbar" class="bulk-toolbar">
+            <div class="bulk-toolbar-left">
                 <button type="button" id="resa-bulk-clear"
-                        title="Tout désélectionner"
-                        style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:4px 8px;border-radius:6px;line-height:1"
-                        onmouseover="this.style.background='var(--surface3)';this.style.color='var(--text)'"
-                        onmouseout="this.style.background='none';this.style.color='var(--text3)'">✕</button>
-                <span style="font-size:14px;font-weight:600;color:var(--text)">
-                    <strong id="resa-bulk-count">0</strong> réservation<span id="resa-bulk-count-plural"></span> sélectionnée<span id="resa-bulk-count-plural2"></span>
+                        class="bulk-clear-btn"
+                        title="Tout désélectionner">✕</button>
+                <span class="bulk-count-label">
+                    <strong id="resa-bulk-count">0</strong>
+                    <span id="resa-bulk-count-noun">réservation sélectionnée</span>
                 </span>
             </div>
-            <div style="display:flex;gap:8px">
-                <button type="button" onclick="bulkResa('cancel')"
-                        style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08);color:#ef4444;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer"
-                        onmouseover="this.style.background='rgba(239,68,68,.15)'"
-                        onmouseout="this.style.background='rgba(239,68,68,.08)'">
+            <div class="bulk-actions">
+                <button type="button" onclick="bulkResa('cancel')" class="bulk-action-btn danger-soft">
                     🚫 Annuler
                 </button>
-                <button type="button" onclick="bulkResa('delete')"
-                        style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid rgba(239,68,68,.5);background:#ef4444;color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer"
-                        onmouseover="this.style.background='#dc2626'"
-                        onmouseout="this.style.background='#ef4444'">
+                <button type="button" onclick="bulkResa('delete')" class="bulk-action-btn danger-solid">
                     🗑 Supprimer
                 </button>
             </div>
@@ -187,31 +179,28 @@
         <div class="table-responsive">
             <table class="data-table" id="reservations-table">
                 <thead>
-                        <th style="width:54px;text-align:center;padding:0;">
+                        <th style="width:60px;text-align:center;padding:0;">
                             @if($canBulk)
-                                {{-- Combo Gmail : checkbox + dropdown ⌄ --}}
-                                <div style="display:inline-flex;align-items:center;gap:2px;position:relative">
+                                {{-- Combo Gmail : checkbox + dropdown ⌄ avec fond hover --}}
+                                <div class="bulk-header-combo">
                                     <input type="checkbox" data-bulk-select-all aria-label="Tout sélectionner" id="resa-select-all-input">
                                     <button type="button" id="resa-select-dropdown-btn"
+                                            class="bulk-dropdown-btn"
                                             aria-label="Options de sélection"
-                                            title="Options de sélection"
-                                            style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:2px 4px;line-height:1;border-radius:4px"
-                                            onmouseover="this.style.background='var(--surface3)';this.style.color='var(--text)'"
-                                            onmouseout="this.style.background='none';this.style.color='var(--text3)'">▾</button>
-                                    <div id="resa-select-dropdown-menu"
-                                         style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);min-width:180px;z-index:50;text-align:left;overflow:hidden">
+                                            title="Options de sélection">▾</button>
+                                    <div id="resa-select-dropdown-menu" class="bulk-dropdown-menu">
                                         <button type="button" data-select-mode="all" class="resa-select-option">Toutes (page)</button>
                                         <button type="button" data-select-mode="none" class="resa-select-option">Aucune</button>
-                                        <div style="height:1px;background:var(--border);margin:4px 0"></div>
+                                        <div class="resa-select-divider"></div>
+                                        <button type="button" data-select-mode="en_attente" class="resa-select-option">⏳ En attente</button>
                                         <button type="button" data-select-mode="confirme" class="resa-select-option">✅ Confirmées</button>
-                                        <button type="button" data-select-mode="option" class="resa-select-option">⏳ Options</button>
                                         <button type="button" data-select-mode="annule" class="resa-select-option">🚫 Annulées</button>
-                                        <div style="height:1px;background:var(--border);margin:4px 0"></div>
+                                        <div class="resa-select-divider"></div>
                                         <button type="button" data-select-mode="invert" class="resa-select-option">↔ Inverser</button>
                                     </div>
                                 </div>
                             @else
-                                <input type="checkbox" data-bulk-select-all aria-label="Tout sélectionner">
+                                <input type="checkbox" data-bulk-select-all aria-label="Tout sélectionner" id="resa-select-all-input">
                             @endif
                         </th>
                         <th style="width:8px"></th>
@@ -233,16 +222,6 @@
         </div>
 
         @if($canBulk)
-        {{-- Style des items du dropdown de sélection. --}}
-        <style>
-            .resa-select-option {
-                display:block;width:100%;text-align:left;padding:9px 14px;
-                background:none;border:none;cursor:pointer;font-size:13px;
-                color:var(--text);font-family:inherit;transition:background .12s;
-            }
-            .resa-select-option:hover { background:var(--surface2); }
-        </style>
-
         <script>
         document.addEventListener('DOMContentLoaded', function() {
             // ── Pattern Gmail-style : toolbar inline (pas de barre flottante)
@@ -254,8 +233,7 @@
             const toolbar      = document.getElementById('resa-bulk-toolbar');
             const cardHeader   = document.getElementById('resa-card-header-default');
             const countEl      = document.getElementById('resa-bulk-count');
-            const pluralEl     = document.getElementById('resa-bulk-count-plural');
-            const pluralEl2    = document.getElementById('resa-bulk-count-plural2');
+            const nounEl       = document.getElementById('resa-bulk-count-noun');
             const clearBtn     = document.getElementById('resa-bulk-clear');
             const dropdownBtn  = document.getElementById('resa-select-dropdown-btn');
             const dropdownMenu = document.getElementById('resa-select-dropdown-menu');
@@ -272,17 +250,20 @@
             function refreshState() {
                 const total    = checkboxes().length;
                 const selected = selectedIds().length;
-                // Bascule toolbar / card-header
+                // Bascule toolbar / card-header — l'un OU l'autre, jamais les deux.
                 if (selected > 0) {
-                    toolbar.style.display    = 'flex';
+                    toolbar.classList.add('visible');
                     cardHeader.style.display = 'none';
-                    countEl.textContent      = selected;
-                    pluralEl.textContent     = selected > 1 ? 's' : '';
-                    pluralEl2.textContent    = selected > 1 ? 's' : '';
+                    countEl.textContent = selected;
+                    nounEl.textContent  = selected > 1 ? 'réservations sélectionnées' : 'réservation sélectionnée';
                 } else {
-                    toolbar.style.display    = 'none';
+                    toolbar.classList.remove('visible');
                     cardHeader.style.display = 'flex';
                 }
+                // Highlight des lignes cochées (effet visuel feedback immédiat)
+                checkboxes().forEach(cb => {
+                    cb.closest('tr')?.classList.toggle('bulk-selected', cb.checked);
+                });
                 // État checkbox "tout"
                 if (checkAll) {
                     if (selected === 0)               { checkAll.checked = false; checkAll.indeterminate = false; }
@@ -312,15 +293,16 @@
                 refreshState();
             });
 
-            // Dropdown ⌄ Options de sélection
+            // Dropdown ⌄ Options de sélection — utilise une classe .open
+            // (au lieu d'inline display) pour rester compatible avec le CSS.
             dropdownBtn?.addEventListener('click', (e) => {
                 e.stopPropagation();
-                dropdownMenu.style.display = dropdownMenu.style.display === 'none' ? 'block' : 'none';
+                dropdownMenu.classList.toggle('open');
             });
             document.addEventListener('click', (e) => {
                 if (!dropdownMenu) return;
                 if (!dropdownMenu.contains(e.target) && e.target !== dropdownBtn) {
-                    dropdownMenu.style.display = 'none';
+                    dropdownMenu.classList.remove('open');
                 }
             });
             dropdownMenu?.addEventListener('click', (e) => {
@@ -331,15 +313,15 @@
                     const row = cb.closest('tr');
                     const status = row?.dataset?.status ?? '';
                     switch (mode) {
-                        case 'all':     cb.checked = true;  break;
-                        case 'none':    cb.checked = false; break;
-                        case 'invert':  cb.checked = !cb.checked; break;
-                        case 'confirme': cb.checked = (status === 'confirme'); break;
-                        case 'option':   cb.checked = (status === 'option'); break;
-                        case 'annule':   cb.checked = (status === 'annule'); break;
+                        case 'all':        cb.checked = true;  break;
+                        case 'none':       cb.checked = false; break;
+                        case 'invert':     cb.checked = !cb.checked; break;
+                        case 'en_attente': cb.checked = (status === 'en_attente'); break;
+                        case 'confirme':   cb.checked = (status === 'confirme');   break;
+                        case 'annule':     cb.checked = (status === 'annule');     break;
                     }
                 });
-                dropdownMenu.style.display = 'none';
+                dropdownMenu.classList.remove('open');
                 refreshState();
             });
 
@@ -791,6 +773,145 @@
         }
         .data-table tr:hover td { background: var(--surface2); }
         .data-table tr.new-row td { background: rgba(232, 160, 32, 0.04); }
+        .data-table tr.bulk-selected td { background: var(--accent-dim) !important; }
+        .data-table tr.bulk-selected td:first-of-type { box-shadow: inset 3px 0 0 var(--accent); }
+
+        /* ── Sélection multiple type Gmail ──────────────────────────────
+           Les checkboxes natives sont invisibles sur fond sombre. On les
+           grossit + accent-color pour les rendre lisibles, et on ajoute
+           une zone de clic généreuse autour. */
+        .bulk-checkbox,
+        #resa-select-all-input {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent);
+            cursor: pointer;
+            margin: 0;
+            vertical-align: middle;
+        }
+        .bulk-cell {
+            text-align: center;
+            padding: 0 4px;
+            cursor: pointer; /* clic n'importe où dans la cellule = toggle */
+        }
+        .bulk-cell:hover .bulk-checkbox { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+
+        /* Combo header : [☑] [⌄] aligné, fond hover marqué */
+        .bulk-header-combo {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            padding: 4px 6px;
+            border-radius: 6px;
+            position: relative;
+        }
+        .bulk-header-combo:hover { background: var(--surface3); }
+        .bulk-dropdown-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text2);
+            font-size: 13px;
+            padding: 2px 4px;
+            line-height: 1;
+            border-radius: 4px;
+            transition: color .12s, background .12s;
+        }
+        .bulk-dropdown-btn:hover { color: var(--text); background: var(--surface); }
+        .bulk-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,.18);
+            min-width: 190px;
+            z-index: 50;
+            text-align: left;
+            overflow: hidden;
+        }
+        .bulk-dropdown-menu.open { display: block; }
+        .resa-select-option {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 9px 14px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text);
+            font-family: inherit;
+            transition: background .12s;
+        }
+        .resa-select-option:hover { background: var(--surface2); }
+        .resa-select-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 0;
+        }
+
+        /* Toolbar bulk : apparition sliding, fond accent doux pour signaler le mode sélection */
+        .bulk-toolbar {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 18px;
+            background: var(--accent-dim);
+            border-bottom: 1px solid var(--accent);
+            animation: bulkSlideDown .16s ease-out;
+        }
+        .bulk-toolbar.visible { display: flex; }
+        @keyframes bulkSlideDown {
+            from { opacity: 0; transform: translateY(-4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .bulk-toolbar-left { display: flex; align-items: center; gap: 10px; }
+        .bulk-clear-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text2);
+            font-size: 18px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            line-height: 1;
+            transition: background .12s, color .12s;
+        }
+        .bulk-clear-btn:hover { background: var(--surface); color: var(--text); }
+        .bulk-count-label { font-size: 14px; font-weight: 600; color: var(--text); }
+        .bulk-count-label strong { color: var(--accent); font-size: 16px; margin-right: 2px; }
+        .bulk-actions { display: flex; gap: 8px; }
+        .bulk-action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid;
+            transition: background .12s, transform .08s;
+            font-family: inherit;
+        }
+        .bulk-action-btn:active { transform: translateY(1px); }
+        .bulk-action-btn.danger-soft {
+            border-color: rgba(239,68,68,.35);
+            background: var(--surface);
+            color: #ef4444;
+        }
+        .bulk-action-btn.danger-soft:hover { background: rgba(239,68,68,.12); }
+        .bulk-action-btn.danger-solid {
+            border-color: #ef4444;
+            background: #ef4444;
+            color: #fff;
+        }
+        .bulk-action-btn.danger-solid:hover { background: #dc2626; }
 
         /* Badges et styles */
         .reference-link { font-family: monospace; font-size: 12px; font-weight: 700; color: var(--accent); text-decoration: none; }
