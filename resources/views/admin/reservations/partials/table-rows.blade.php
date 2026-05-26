@@ -8,7 +8,7 @@
     $rc            = $res->status->uiConfig();
 @endphp
 <tr class="{{ $isNew ? 'new-row' : '' }}" data-status="{{ $res->status->value }}">
-    <td style="text-align:center;padding:0 4px;">
+    <td class="bulk-cell">
         @if($canEdit || $canAnnuler || $canDelete)
             <input type="checkbox" class="bulk-checkbox" value="{{ $res->id }}" aria-label="Sélectionner {{ $res->reference }}">
         @endif
