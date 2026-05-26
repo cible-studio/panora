@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Mail\ClientUserInvitationMail;
 use App\Models\ClientUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -81,22 +82,8 @@ class ClientUserController extends Controller
     private function sendInvitationEmail(ClientUser $user, string $plainPassword, $client): bool
     {
         try {
-            $loginUrl = route('client.login');
-            $roleLabel = $user->role === 'owner' ? 'Propriétaire' : 'Collaborateur (lecture seule)';
-            $body = "Bonjour {$user->name},\n\n"
-                  . "Le propriétaire du compte « {$client->name} » vient de vous créer un accès à l'espace client Panora (régie CIBLE CI).\n\n"
-                  . "Vos identifiants de connexion :\n"
-                  . "  • URL    : {$loginUrl}\n"
-                  . "  • Email  : {$user->email}\n"
-                  . "  • Mot de passe : {$plainPassword}\n"
-                  . "  • Rôle   : {$roleLabel}\n\n"
-                  . "🔒 Pour votre sécurité, nous vous recommandons de changer votre mot de passe à la première connexion (menu « Sécurité » dans l'espace).\n\n"
-                  . "— L'équipe CIBLE CI";
-
-            Mail::raw($body, function ($m) use ($user, $client) {
-                $m->to($user->email, $user->name)
-                  ->subject("Vos accès à l'espace client Panora — {$client->name}");
-            });
+            Mail::to($user->email, $user->name)
+                ->send(new ClientUserInvitationMail($user, $plainPassword, $client));
             return true;
         } catch (\Throwable $e) {
             Log::warning('client.user.invite_mail_failed', [
