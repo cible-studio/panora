@@ -7,12 +7,6 @@ use Illuminate\Http\Request;
 
 class PanelCategoryController extends Controller
 {
-    public function index()
-    {
-        $categories = PanelCategory::latest()->paginate(15);
-        return view('settings.categories.index', compact('categories'));
-    }
-
     public function create()
     {
         return view('settings.categories.create');
@@ -27,13 +21,8 @@ class PanelCategoryController extends Controller
 
         PanelCategory::create($request->all());
 
-        return redirect()->route('admin.settings.categories.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', 'Catégorie créée avec succès !');
-    }
-
-    public function edit(PanelCategory $category)
-    {
-        return view('settings.categories.edit', compact('category'));
     }
 
     public function update(Request $request, PanelCategory $category)
@@ -49,14 +38,14 @@ class PanelCategoryController extends Controller
             return response()->json(['success' => true, 'message' => 'Catégorie modifiée avec succès !']);
         }
 
-        return redirect()->route('admin.settings.categories.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', 'Catégorie modifiée avec succès !');
     }
 
     public function destroy(PanelCategory $category)
     {
         $category->delete();
-        return redirect()->route('admin.settings.categories.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', 'Catégorie supprimée !');
     }
 }

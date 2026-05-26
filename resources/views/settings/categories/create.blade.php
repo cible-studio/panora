@@ -31,7 +31,7 @@
                     <button type="submit" class="btn btn-primary">
                         ✅ Créer la catégorie
                     </button>
-                    <a href="{{ route('admin.settings.categories.index') }}"
+                    <a href="{{ route('admin.settings.index') }}"
                        class="btn btn-ghost">
                         Annuler
                     </a>

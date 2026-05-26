@@ -60,7 +60,7 @@
                     <button type="submit" class="btn btn-primary">
                         ✅ Créer le format
                     </button>
-                    <a href="{{ route('admin.settings.formats.index') }}"
+                    <a href="{{ route('admin.settings.index') }}"
                        class="btn btn-ghost">
                         Annuler
                     </a>

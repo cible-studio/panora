@@ -66,7 +66,7 @@
                     <button type="submit" class="btn btn-primary">
                         ✅ Créer la commune
                     </button>
-                    <a href="{{ route('admin.settings.communes.index') }}"
+                    <a href="{{ route('admin.settings.index') }}"
                        class="btn btn-ghost">
                         Annuler
                     </a>

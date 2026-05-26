@@ -54,7 +54,7 @@
                     <button type="submit" class="btn btn-primary">
                         ✅ Créer la zone
                     </button>
-                    <a href="{{ route('admin.settings.zones.index') }}"
+                    <a href="{{ route('admin.settings.index') }}"
                        class="btn btn-ghost">
                         Annuler
                     </a>

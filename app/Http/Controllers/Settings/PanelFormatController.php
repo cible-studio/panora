@@ -7,12 +7,6 @@ use Illuminate\Http\Request;
 
 class PanelFormatController extends Controller
 {
-    public function index()
-    {
-        $formats = PanelFormat::latest()->paginate(15);
-        return view('settings.formats.index', compact('formats'));
-    }
-
     public function create()
     {
         return view('settings.formats.create');
@@ -30,13 +24,8 @@ class PanelFormatController extends Controller
 
         PanelFormat::create($request->all());
 
-        return redirect()->route('admin.settings.formats.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', 'Format créé avec succès !');
-    }
-
-    public function edit(PanelFormat $format)
-    {
-        return view('settings.formats.edit', compact('format'));
     }
 
     public function update(Request $request, PanelFormat $format)
@@ -55,14 +44,14 @@ class PanelFormatController extends Controller
             return response()->json(['success' => true, 'message' => 'Format modifié avec succès !']);
         }
 
-        return redirect()->route('admin.settings.formats.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', 'Format modifié avec succès !');
     }
 
     public function destroy(PanelFormat $format)
     {
         $format->delete();
-        return redirect()->route('admin.settings.formats.index')
+        return redirect()->route('admin.settings.index')
             ->with('success', 'Format supprimé !');
     }
 }

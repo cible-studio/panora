@@ -385,10 +385,13 @@ Route::prefix('admin')
             ->name('settings.')
             ->group(function () {
             Route::get('/', [SettingsController::class, 'index'])->name('index');
-            Route::resource('zones', ZoneController::class);
-            Route::resource('communes', CommuneController::class);
-            Route::resource('formats', PanelFormatController::class);
-            Route::resource('categories', PanelCategoryController::class);
+            // Pages dédiées index/edit retirées — toute la gestion passe par
+            // /admin/settings (vue d'ensemble + modals quick-edit).
+            // On garde uniquement create/store/update/destroy.
+            Route::resource('zones',      ZoneController::class)->only(['create', 'store', 'update', 'destroy']);
+            Route::resource('communes',   CommuneController::class)->only(['create', 'store', 'update', 'destroy']);
+            Route::resource('formats',    PanelFormatController::class)->only(['create', 'store', 'update', 'destroy']);
+            Route::resource('categories', PanelCategoryController::class)->only(['create', 'store', 'update', 'destroy']);
         });
 
         // Utilisateurs (admin uniquement)
