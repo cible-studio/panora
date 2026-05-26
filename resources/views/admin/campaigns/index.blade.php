@@ -10,6 +10,9 @@
             📄 PDF
         </a>
         @can('create', App\Models\Campaign::class)
+        <a href="{{ route('admin.campaigns.import-pdf.form') }}" class="btn btn-ghost btn-sm" title="Importer une campagne depuis un PDF « Liste des panneaux commandes »">
+            📥 Import PDF
+        </a>
         <a href="{{ route('admin.campaigns.create') }}" class="btn btn-primary">
             + Nouvelle campagne
         </a>
