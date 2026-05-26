@@ -298,13 +298,12 @@
         ->whereNotNull('proposition_token')
         ->where('end_date','>=',now())
         ->count() ?? 0;
-    // Badge « nouvelles campagnes » — miroir de propositions :
-    // campagnes en planifié/actif créées dans les 7 derniers jours,
-    // que le client est censé découvrir au prochain login.
-    // (Faute de colonne `viewed_at`, on retient un proxy temporel.)
+    // Badge « nouvelles campagnes » — vraie marque vu/non vu (pattern
+    // style Gmail). Compte les campagnes que le client n'a jamais
+    // consultées (client_first_viewed_at NULL). Décrémente dès la
+    // visite de /client/campagnes ou de la fiche d'une campagne.
     $newCampaigns = $client?->campaigns()
-        ->whereIn('status', ['planifie', 'actif'])
-        ->where('created_at', '>=', now()->subDays(7))
+        ->whereNull('client_first_viewed_at')
         ->count() ?? 0;
 @endphp
 
