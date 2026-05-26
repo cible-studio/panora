@@ -2,12 +2,47 @@
 <x-slot name="title">Signaler une panne</x-slot>
 
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm" title="Retour à la liste">
-        ← Retour
+    <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px" title="Retour à la liste">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Retour aux maintenances
     </a>
 </x-slot:topbarLeft>
 
-<div style="max-width:700px;">
+<div style="max-width:720px;margin:0 auto">
+
+    {{-- Breadcrumb --}}
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px">
+        <a href="{{ route('admin.maintenances.index') }}" style="color:var(--text3);text-decoration:none">Maintenances</a>
+        <span style="margin:0 6px">›</span>
+        <span style="color:var(--text)">Signaler une panne</span>
+    </div>
+
+    {{-- Intro card --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;gap:14px">
+        <div style="width:44px;height:44px;border-radius:12px;background:rgba(239,68,68,.10);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        </div>
+        <div>
+            <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:3px">Signaler une panne sur un panneau</div>
+            <div style="font-size:12px;color:var(--text3);line-height:1.5">
+                Crée une fiche d'intervention terrain et notifie le technicien assigné.
+                Le panneau passe automatiquement en statut <strong>maintenance</strong> jusqu'à résolution.
+            </div>
+        </div>
+    </div>
+
+    @if($errors->any())
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:14px 16px;margin-bottom:16px">
+        @foreach($errors->all() as $error)
+            <div style="color:#ef4444;font-size:13px;display:flex;gap:6px;align-items:flex-start;margin-bottom:3px">
+                <span>⚠️</span><span>{{ $error }}</span>
+            </div>
+        @endforeach
+    </div>
+    @endif
+
     <div class="card">
         <div class="card-header">
             <div class="card-title">🔧 Signaler une panne</div>
@@ -15,18 +50,6 @@
         <div class="card-body">
             <form method="POST" action="{{ route('admin.maintenances.store') }}">
                 @csrf
-
-                @if($errors->any())
-                <div style="background:rgba(239,68,68,.1); border:1px solid var(--red);
-                            border-radius:8px; padding:12px; margin-bottom:16px;">
-                    <div style="color:var(--red); font-weight:600; margin-bottom:8px;">❌ Erreurs :</div>
-                    <ul style="color:var(--red); padding-left:16px;">
-                        @foreach($errors->all() as $error)
-                            <li style="font-size:13px;">{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-                @endif
 
                 <div class="section-label">Panneau concerné</div>
 
@@ -132,14 +155,11 @@
                     </div>
                 </div>
 
-                <div style="display:flex; gap:10px; margin-top:8px;">
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;padding-top:18px;border-top:1px solid var(--border)">
+                    <a href="{{ route('admin.maintenances.index') }}" class="btn btn-ghost">Annuler</a>
                     <button type="submit" class="btn btn-primary">
                         🔧 Signaler la panne
                     </button>
-                    <a href="{{ route('admin.maintenances.index') }}"
-                       class="btn btn-ghost">
-                        Annuler
-                    </a>
                 </div>
 
             </form>

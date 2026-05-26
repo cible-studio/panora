@@ -7,6 +7,8 @@ use App\Models\ClientUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class ClientUserController extends Controller
 {
@@ -45,7 +47,7 @@ class ClientUserController extends Controller
             'password.confirmed'    => 'Les mots de passe ne correspondent pas.',
         ]);
 
-        ClientUser::create([
+        $newUser = ClientUser::create([
             'client_id' => $client->id,
             'name'      => $data['name'],
             'email'     => $data['email'],
@@ -54,7 +56,56 @@ class ClientUserController extends Controller
             'is_active' => true,
         ]);
 
-        return back()->with('success', 'Utilisateur ajouté avec succès.');
+        // Envoi de l'email d'invitation avec les identifiants en clair —
+        // best-effort : si l'envoi rate, le compte est créé quand même,
+        // et l'owner sera averti dans le flash pour qu'il transmette
+        // manuellement les accès.
+        $mailSent = $this->sendInvitationEmail($newUser, $data['password'], $client);
+
+        $flashMsg = $mailSent
+            ? "Utilisateur ajouté. Un email d'invitation avec ses identifiants a été envoyé à {$data['email']}."
+            : "Utilisateur ajouté MAIS l'envoi de l'email a échoué. Transmettez manuellement les identifiants à {$data['email']}.";
+
+        return back()->with($mailSent ? 'success' : 'warning', $flashMsg);
+    }
+
+    /**
+     * Envoie l'email d'invitation au nouvel utilisateur avec ses
+     * identifiants en clair + le lien de connexion. Retourne true/false.
+     *
+     * Sécurité : on envoie le mot de passe en clair UNIQUEMENT au
+     * moment de la création (canal email → propriétaire du compte
+     * email). Il est recommandé au membre de le changer à la
+     * première connexion (changement disponible via /client/password/change).
+     */
+    private function sendInvitationEmail(ClientUser $user, string $plainPassword, $client): bool
+    {
+        try {
+            $loginUrl = route('client.login');
+            $roleLabel = $user->role === 'owner' ? 'Propriétaire' : 'Collaborateur (lecture seule)';
+            $body = "Bonjour {$user->name},\n\n"
+                  . "Le propriétaire du compte « {$client->name} » vient de vous créer un accès à l'espace client Panora (régie CIBLE CI).\n\n"
+                  . "Vos identifiants de connexion :\n"
+                  . "  • URL    : {$loginUrl}\n"
+                  . "  • Email  : {$user->email}\n"
+                  . "  • Mot de passe : {$plainPassword}\n"
+                  . "  • Rôle   : {$roleLabel}\n\n"
+                  . "🔒 Pour votre sécurité, nous vous recommandons de changer votre mot de passe à la première connexion (menu « Sécurité » dans l'espace).\n\n"
+                  . "— L'équipe CIBLE CI";
+
+            Mail::raw($body, function ($m) use ($user, $client) {
+                $m->to($user->email, $user->name)
+                  ->subject("Vos accès à l'espace client Panora — {$client->name}");
+            });
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('client.user.invite_mail_failed', [
+                'user_id' => $user->id,
+                'email'   => $user->email,
+                'error'   => $e->getMessage(),
+            ]);
+            return false;
+        }
     }
 
     public function update(Request $request, ClientUser $clientUser)

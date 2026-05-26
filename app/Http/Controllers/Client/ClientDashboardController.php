@@ -459,7 +459,10 @@ class ClientDashboardController extends Controller
             'message' => 'required|string|max:3000',
         ]);
 
-        $fromName = $client->company ?? $client->name;
+        // La table clients n'a pas de colonne `company` ; le nom de société
+        // est porté par `name`. Le fallback historique `?? $client->name`
+        // résolvait toujours à `name` — on simplifie.
+        $fromName = $client->name;
 
         // 1. Persistance — trace en BD pour ne JAMAIS perdre un message
         //    même si l'email est filtré spam ou raté côté mailbox équipe.

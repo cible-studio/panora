@@ -101,15 +101,25 @@
             @endforeach
         </div>
 
-        {{-- ── INTERLOCUTEURS ─────────────────────────────────── --}}
+        {{-- ── INTERLOCUTEURS — carnet d'adresses interne régie ────
+             À ne pas confondre avec « Équipe espace client » plus bas :
+             les interlocuteurs sont des contacts MÉTIER (nom + email +
+             téléphone) que NOUS ajoutons côté régie pour savoir qui appeler
+             chez le client. PAS de compte d'accès, PAS de connexion possible.
+             Reçoivent éventuellement les notifications transactionnelles
+             (factures, propositions) si `receives_notifications=true`.
+             ────────────────────────────────────────────────── --}}
         <div style="padding:14px 20px;border-top:1px solid var(--border);">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
                 <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);">
                     Interlocuteurs ({{ $client->contacts->count() }})
                 </span>
                 <button type="button" onclick="ClientContacts.openCreate()" class="btn btn-ghost btn-sm" title="Ajouter un interlocuteur" style="padding:3px 10px;font-size:11px;">
                     + Ajouter
                 </button>
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.4;">
+                📒 Carnet d'adresses — personnes à <strong>contacter</strong> chez le client (téléphone, email). Pas de compte d'accès portail.
             </div>
             <div id="contacts-list" style="display:flex;flex-direction:column;gap:6px;">
                 @forelse($client->contacts as $contact)
@@ -122,18 +132,22 @@
             </div>
         </div>
 
-        {{-- ── ÉQUIPE ESPACE CLIENT ────────────────────────────────
-             Visibilité admin sur les comptes que le client a créés pour
-             se connecter au portail. Distinct des « Interlocuteurs »
-             (contacts métier à appeler) — ici ce sont des sessions auth.
-             Affichage read-only : la gestion reste côté client (RBAC
-             interne : owner gère, member lit). ──────────────────── --}}
+        {{-- ── ÉQUIPE ESPACE CLIENT — comptes d'accès au portail ──
+             Distinct du carnet d'interlocuteurs : ICI ce sont des
+             comptes d'authentification (email + mot de passe) qui se
+             connectent réellement à l'espace client Panora pour
+             consulter campagnes, propositions, etc.
+             Read-only côté admin : la gestion reste l'apanage de
+             l'owner client (RBAC interne owner/member). ───────── --}}
         <div style="padding:14px 20px;border-top:1px solid var(--border);">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
                 <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);">
                     Équipe espace client ({{ $client->users->count() }})
                 </span>
                 <span style="font-size:10px;color:var(--text3);" title="Géré uniquement côté client (par l'owner)">🔒 Read-only</span>
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:10px;line-height:1.4;">
+                🔑 Comptes d'<strong>accès au portail</strong> — se connectent avec email + mot de passe pour consulter campagnes / propositions / piges.
             </div>
             @if($client->users->isEmpty())
                 <div style="font-size:12px;color:var(--text3);font-style:italic;padding:8px 0;line-height:1.45;">
