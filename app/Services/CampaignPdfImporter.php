@@ -127,8 +127,12 @@ class CampaignPdfImporter
         // VALEUR vient AVANT le LIBELLÉ (« HIGOLD CAMPAGNE: »). On teste
         // ça en premier parce que c'est le cas réel observé sur les PDF
         // « Liste des panneaux commandes » de la patronne.
+        //
+        // Important : (\S+?) (sans espaces) capture UN SEUL token immédiatement
+        // avant le libellé — sinon on récupère « HIGOLD CAMPAGNE: SOGELEC »
+        // comme valeur du client.
         if (preg_match(
-            '/(?:^|\s)([A-Za-z0-9][\S ]*?)\s+' . $quoted . '\s*:?(?=\s|$)/iu',
+            '/(?:^|[\s:])(\S+?)\s+' . $quoted . '\s*:?(?=\s|$)/iu',
             $text, $m
         )) {
             $value = $this->cleanFieldValue($m[1]);
@@ -252,17 +256,21 @@ class CampaignPdfImporter
     /**
      * Extrait tous les codes panneaux du PDF.
      *
-     * Heuristique : un code commence par 2+ lettres majuscules, un tiret,
-     * puis des alphanum (ex: CDY-041B, CDYT2-001A, ABJ-XYZ-99).
-     * Les codes sont dédupliqués et l'ordre du PDF est préservé.
+     * Pattern : un préfixe alphanumérique majuscule + tiret + segment final
+     * contenant OBLIGATOIREMENT au moins un chiffre (ex: CDY-041B, CDYT2-001A,
+     * ABJ-XYZ-99). La contrainte « chiffre dans le dernier segment » exclut
+     * les textes type « COCODY-RIVIERA » qui apparaissent dans la colonne
+     * désignation et seraient sinon capturés par erreur.
      */
     private function extractPanelCodes(string $text): array
     {
-        // Lignes du tableau : code à gauche, désignation, format à droite.
-        // On capture les codes qui apparaissent au début d'une ligne ou
-        // après whitespace — pattern défensif pour ne pas capturer
-        // n'importe quel mot en majuscules au milieu du texte.
-        preg_match_all('/(?:^|\s)([A-Z]{2,}[A-Z0-9]*-[A-Z0-9]+(?:-[A-Z0-9]+)?)\b/mu', $text, $matches);
+        // (?:[A-Z][A-Z0-9]*-)+  : 1+ segments alphanum maj suivis d'un tiret
+        // [A-Z]*\d+[A-Z0-9]*    : segment final OBLIGATOIREMENT avec chiffres
+        preg_match_all(
+            '/(?:^|\s)((?:[A-Z][A-Z0-9]*-)+[A-Z]*\d+[A-Z0-9]*)\b/mu',
+            $text,
+            $matches
+        );
 
         $codes = $matches[1] ?? [];
 
