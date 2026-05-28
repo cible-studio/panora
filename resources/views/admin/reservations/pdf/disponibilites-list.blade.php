@@ -34,9 +34,6 @@
             height: 38px;
             width: auto;
             vertical-align: middle;
-            background: #ffffff;
-            padding: 4px 8px;
-            border-radius: 4px;
         }
         .pdf-header h1 {
             font-size: 15px;
