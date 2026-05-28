@@ -38,9 +38,6 @@
     .pdf-header img {
         height: 38px;
         width: auto;
-        background: #ffffff;
-        padding: 4px 8px;
-        border-radius: 4px;
     }
     .pdf-header h1 {
         font-size: 16px;
