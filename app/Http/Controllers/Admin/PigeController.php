@@ -361,24 +361,6 @@ class PigeController extends Controller
             $this->notifyClientPigeValidated($pige);
         }
 
-        // ── Auto-géolocalisation si validation via ce formulaire (chemin
-        //    alternatif à verify()). Best-effort. ──
-        if ($statusWasNotVerified
-            && ($data['status'] ?? null) === 'verifie'
-            && $pige->gps_lat !== null && $pige->gps_lng !== null) {
-            try {
-                $pige->loadMissing('panel');
-                if ($pige->panel) {
-                    app(\App\Services\PanelGeoLocator::class)->recomputeFromPiges($pige->panel);
-                }
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('pige.update.geo_autolocate_failed', [
-                    'pige_id' => $pige->id,
-                    'error'   => $e->getMessage(),
-                ]);
-            }
-        }
-
         return redirect()
             ->route('admin.piges.show', $pige)
             ->with('success', 'Pige mise à jour avec succès.');
@@ -613,24 +595,14 @@ class PigeController extends Controller
         $pigeIds   = array_filter((array) $request->pige_ids, fn($v) => is_numeric($v));
         $piges     = Pige::whereIn('id', $pigeIds)->where('status', 'en_attente')->get();
         $count     = 0;
-        $geoPanelIds = [];
 
         foreach ($piges as $pige) {
-            // autoLocate:false → on recalcule chaque panneau UNE fois après
-            // la boucle (évite N recalculs si plusieurs piges d'un même
-            // panneau sont validées dans le lot).
-            $result = $this->pigeService->verify($pige, auth()->user(), autoLocate: false);
+            $result = $this->pigeService->verify($pige, auth()->user());
             if ($result['ok']) {
                 $count++;
-                if ($pige->gps_lat !== null && $pige->gps_lng !== null) {
-                    $geoPanelIds[] = $pige->panel_id;
-                }
                 $this->notifyClientPigeValidated($pige->fresh()->loadMissing('campaign.client','panel.commune'));
             }
         }
-
-        // Auto-géolocalisation groupée (best-effort, 1 recalcul par panneau).
-        $this->pigeService->recomputePanelsGeo($geoPanelIds);
 
         // ── Alerte d'audit pour l'action bulk ───────────────────────
         // Équivalent de l'alerte créée individuellement dans verify()

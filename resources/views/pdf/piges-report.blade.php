@@ -106,7 +106,7 @@
                     </span>
                 </div>
                 <div style="display:flex; align-items:center; gap:10px;">
-                    @if($pige->isVerifiee())
+                    @if($pige->is_verified)
                         <span class="badge badge-green">✓ Vérifiée</span>
                     @else
                         <span class="badge badge-orange">En attente</span>
@@ -166,7 +166,7 @@
                             </div>
                         </div>
                         @endif
-                        @if($pige->isVerifiee())
+                        @if($pige->is_verified)
                         <div class="field">
                             <div class="field-label">Vérifiée par</div>
                             <div class="field-value">{{ $pige->verifiedBy?->name ?? '—' }}</div>

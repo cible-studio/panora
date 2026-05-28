@@ -196,32 +196,12 @@
 
                     {{-- GPS --}}
                     @if ($panel->latitude && $panel->longitude)
-                        @php
-                            $gpsBadge = match($panel->gps_source) {
-                                'manual'           => ['label' => '📍 Saisie manuelle',      'color' => '#6b7280', 'bg' => 'rgba(107,114,128,.12)'],
-                                'pige_confirmed'   => ['label' => '✅ Confirmé par piges',   'color' => '#16a34a', 'bg' => 'rgba(34,197,94,.12)'],
-                                'pige_provisional' => ['label' => '⏳ Provisoire (1 pige)',  'color' => '#d97706', 'bg' => 'rgba(245,158,11,.12)'],
-                                default            => null,
-                            };
-                        @endphp
                         <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
                             <div style="font-size:11px; color:var(--text3); margin-bottom:6px;">
                                 COORDONNÉES GPS
                             </div>
                             <div style="font-family:monospace; color:var(--text2);">
                                 {{ $panel->latitude }}, {{ $panel->longitude }}
-                            </div>
-                            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
-                                @if ($gpsBadge)
-                                    <span style="display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;color:{{ $gpsBadge['color'] }};background:{{ $gpsBadge['bg'] }};">
-                                        {{ $gpsBadge['label'] }}
-                                    </span>
-                                @endif
-                                @if ($panel->gps_dispersion_flag)
-                                    <span style="display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;color:#ef4444;background:rgba(239,68,68,.12);" title="Les piges de ce panneau divergent de plus de 100 m">
-                                        ⚠ Positions divergentes
-                                    </span>
-                                @endif
                             </div>
                         </div>
                     @endif
@@ -491,7 +471,7 @@
                             <div style="font-size:12px; color:var(--text2);">
                                 {{ $pige->taken_at->format('d/m/Y') }}
                             </div>
-                            @if ($pige->isVerifiee())
+                            @if ($pige->is_verified)
                                 <span class="badge badge-green" style="margin-top:4px;">✓ Vérifiée</span>
                             @else
                                 <span class="badge badge-gray" style="margin-top:4px;">En attente</span>
