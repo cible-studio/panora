@@ -155,14 +155,14 @@
     <table class="head">
         <tr>
             <td class="logo-cell">
-                @if(!empty($logoPanoraDark))
-                    <img src="{{ $logoPanoraDark }}" alt="Panora" style="height:36px;">
-                    <div style="font-size:9px;color:#6b7280;margin-top:2px;">
-                        opéré par <strong>{{ $operatorName ?? 'CIBLE CI' }}</strong>
-                    </div>
+                @if(!empty($logoCibleLight))
+                    <img src="{{ $logoCibleLight }}" alt="CIBLE CI" style="height:40px;">
                 @else
                     <img src="{{ public_path('images/logol.png') }}" alt="CIBLE CI">
                 @endif
+                <div style="font-size:9px;color:#6b7280;margin-top:2px;">
+                    {{ $operatorName ?? 'CIBLE CI' }} — Régie OOH
+                </div>
             </td>
             <td class="ref-cell">
                 <div class="doc-label">Facture</div>

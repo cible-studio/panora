@@ -2,15 +2,19 @@
 
 namespace App\Exports;
 
+use App\Exports\Concerns\ExcelBranding;
 use App\Services\DashboardKpiService;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithCustomStartCell;
+use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
+use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -52,20 +56,44 @@ class RapportDashboardExport implements WithMultipleSheets
     }
 }
 
-/** ───────── Helper de style commun aux feuilles ───────── */
-abstract class RapportSheetBase implements FromCollection, WithHeadings, WithTitle, WithStyles, ShouldAutoSize
+/** ───────── Helper de style commun aux feuilles ─────────
+ * Chaque feuille hérite du bandeau brandé PANORA (logo CIBLE + titre
+ * + période) via ExcelBranding : rows 1-4 bandeau, row 5 headings,
+ * row 6+ data. Le titre du bandeau reprend title() de la feuille. */
+abstract class RapportSheetBase implements FromCollection, WithHeadings, WithTitle, WithStyles, ShouldAutoSize, WithCustomStartCell, WithEvents
 {
+    use ExcelBranding;
+
     public function __construct(protected DashboardKpiService $kpi) {}
+
+    public function startCell(): string { return $this->brandingStartCell(); }
 
     public function styles(Worksheet $sheet)
     {
         return [
-            1 => [
+            // Row 5 = headings (bandeau brandé occupe les rows 1-4)
+            5 => [
                 'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFE8A020']],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF0A0C10']],
                 'alignment' => ['horizontal' => 'center'],
                 'borders' => ['bottom' => ['borderStyle' => Border::BORDER_MEDIUM, 'color' => ['argb' => 'FF000000']]],
             ],
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $period = $this->kpi->getPeriod();
+                $this->applyBrandingHeader($event, 'RAPPORT · ' . mb_strtoupper($this->title()), array_filter([
+                    'Généré le ' . now()->format('d/m/Y à H:i'),
+                    isset($period['from'], $period['to'])
+                        ? 'Période : ' . $period['from']->format('d/m/Y') . ' → ' . $period['to']->format('d/m/Y')
+                        : null,
+                ]));
+                $this->applyTableFinishing($event);
+            },
         ];
     }
 }

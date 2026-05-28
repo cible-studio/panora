@@ -216,9 +216,10 @@
         return ['label' => $label, 'class' => 'badge-occupe'];
     };
 
-    // Logo CIBLE CI : passé par PdfAssets::getLogoPdf() — fallback inline
+    // Logo CIBLE CI : passé par PdfAssets::getLogoPdf() — fallback inline.
+    // logob.png (et pas logol) car le header est foncé (#0d1117).
     if (!isset($logoSrc)) {
-        $logoPath = public_path('images/logol.png');
+        $logoPath = public_path('images/logob.png');
         $logoSrc = file_exists($logoPath)
             ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))
             : 'data:image/svg+xml;base64,' . base64_encode(

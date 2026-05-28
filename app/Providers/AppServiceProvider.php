@@ -35,14 +35,21 @@ class AppServiceProvider extends ServiceProvider
 
         // ─── View composer : injecte les logos Panora dans tous les PDFs ─
         // Évite d'avoir à les passer manuellement depuis chaque controller.
-        \Illuminate\Support\Facades\View::composer(['pdf.*', 'admin.*.pdf.*'], function ($view) {
+        \Illuminate\Support\Facades\View::composer(['pdf.*', 'admin.*.pdf.*', 'admin.rapports.*-pdf', 'admin.rapports.pdf.*'], function ($view) {
             $assets = new class { use \App\Support\PdfAssets {
                 getPanoraLogoDark as public;
                 getPanoraLogoLight as public;
+                getCibleLogoDark as public;
+                getCibleLogoLight as public;
             } };
             $view->with([
                 'logoPanoraDark'  => $assets->getPanoraLogoDark(),
                 'logoPanoraLight' => $assets->getPanoraLogoLight(),
+                // Logos CIBLE (régie) — choix par défaut pour le branding
+                // des exports. logoCibleDark = logob.png (header foncé),
+                // logoCibleLight = logol.png (header clair).
+                'logoCibleDark'   => $assets->getCibleLogoDark(),
+                'logoCibleLight'  => $assets->getCibleLogoLight(),
                 'operatorName'    => config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI')),
                 'platformName'    => 'Panora',
             ]);
