@@ -7,17 +7,6 @@
         </svg>
         Retour
     </a>
-    @if(($suspectCount ?? 0) > 0)
-        @if(request()->boolean('suspect_first'))
-            <a href="{{ route('admin.piges.validation') }}" class="btn btn-ghost btn-sm" style="margin-left:8px">
-                ↩ Ordre chronologique
-            </a>
-        @else
-            <a href="{{ route('admin.piges.validation', ['suspect_first' => 1]) }}" class="btn btn-sm" style="margin-left:8px;background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.3)">
-                ⚠ Voir d'abord les {{ $suspectCount }} douteuse(s)
-            </a>
-        @endif
-    @endif
 </x-slot:topbarLeft>
 
 @php
@@ -240,8 +229,6 @@
         'gps_lng'    => $p->gps_lng,
         'panel_lat'  => $p->panel?->latitude,
         'panel_lng'  => $p->panel?->longitude,
-        'geo_dist'   => $p->geo_distance_m,
-        'geo_badge'  => $p->geoBadge(),
         'detail_url' => route('admin.piges.show', $p),
         'verify_url' => route('admin.piges.verify', $p),
         'reject_url' => route('admin.piges.reject', $p),
@@ -270,6 +257,15 @@
     const $detail   = document.getElementById('valid-detail-link');
     const $modal    = document.getElementById('valid-reject-modal');
 
+    function gpsDistance(a, b, c, d) {
+        if (!a || !b || !c || !d) return null;
+        const R = 6371000;
+        const toRad = x => x * Math.PI / 180;
+        const dLat = toRad(c - a), dLng = toRad(d - b);
+        const x = Math.sin(dLat/2)**2 + Math.cos(toRad(a)) * Math.cos(toRad(c)) * Math.sin(dLng/2)**2;
+        return Math.round(2 * R * Math.asin(Math.sqrt(x)));
+    }
+
     function render() {
         const p = PIGES[currentIndex];
         if (!p) {
@@ -297,14 +293,13 @@
         $tech.textContent     = p.tech ?? '— Non assigné —';
         $taken.textContent    = p.taken ?? '—';
 
-        // Cohérence GPS — verdict serveur anti-fraude (geo_check), avec
-        // distance pige↔panneau quand elle est connue.
-        const b = p.geo_badge;
-        if (b) {
-            const distTxt = (p.geo_dist !== null && p.geo_dist !== undefined) ? ` · ${p.geo_dist} m` : '';
-            $gps.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;font-weight:600;padding:2px 8px;border-radius:999px;color:${b.color};background:${b.bg}">${b.icon} ${b.label}${distTxt}</span>`;
+        // GPS distance check
+        const dist = gpsDistance(p.gps_lat, p.gps_lng, p.panel_lat, p.panel_lng);
+        if (dist !== null) {
+            const ok = dist <= 200;
+            $gps.innerHTML = `<span style="color:${ok ? '#22c55e' : '#ef4444'}">${dist} m du panneau ${ok ? '✓' : '⚠'}</span>`;
         } else {
-            $gps.textContent = '—';
+            $gps.textContent = 'Pas de GPS dispo';
         }
 
         $idx.textContent = currentIndex + 1;
