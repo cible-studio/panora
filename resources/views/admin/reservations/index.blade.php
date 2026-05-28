@@ -166,11 +166,14 @@
                 </span>
             </div>
             <div class="bulk-actions">
-                <button type="button" onclick="bulkResa('cancel')" class="bulk-action-btn danger-soft">
-                    🚫 Annuler
+                {{-- Actions contextuelles : chaque bouton n'apparaît que si
+                     ≥1 réservation sélectionnée y est éligible (selon son
+                     statut), avec un badge du nombre concerné. --}}
+                <button type="button" data-act="cancel" class="bulk-action-btn danger-soft">
+                    🚫 Annuler <i data-badge></i>
                 </button>
-                <button type="button" onclick="bulkResa('delete')" class="bulk-action-btn danger-solid">
-                    🗑 Supprimer
+                <button type="button" data-act="delete" class="bulk-action-btn danger-solid">
+                    🗑 Supprimer <i data-badge></i>
                 </button>
             </div>
         </div>
@@ -240,12 +243,27 @@
             const dropdownBtn  = document.getElementById('resa-select-dropdown-btn');
             const dropdownMenu = document.getElementById('resa-select-dropdown-menu');
 
+            // Attribut data-* de la ligne qui rend une réservation éligible
+            // à chaque action (miroir des gardes serveur isCancellable /
+            // isDeletable).
+            const ELIGIBLE_ATTR = { cancel: 'cancellable', delete: 'deletable' };
+
             function checkboxes() {
                 return Array.from(document.querySelectorAll('#reservations-table .bulk-checkbox'));
             }
+            function checkedBoxes() {
+                return checkboxes().filter(cb => cb.checked);
+            }
             function selectedIds() {
-                return checkboxes()
-                    .filter(cb => cb.checked)
+                return checkedBoxes()
+                    .map(cb => parseInt(cb.value, 10))
+                    .filter(Boolean);
+            }
+            // IDs cochés éligibles à une action donnée (selon le data-attr de la ligne).
+            function eligibleIds(action) {
+                const attr = ELIGIBLE_ATTR[action];
+                return checkedBoxes()
+                    .filter(cb => (cb.closest('tr')?.dataset?.[attr] === '1'))
                     .map(cb => parseInt(cb.value, 10))
                     .filter(Boolean);
             }
@@ -262,6 +280,14 @@
                     toolbar.classList.remove('visible');
                     cardHeader.style.display = 'flex';
                 }
+                // Actions contextuelles : affiche le bouton seulement si ≥1
+                // réservation cochée y est éligible, et met à jour son badge.
+                toolbar.querySelectorAll('.bulk-action-btn[data-act]').forEach(btn => {
+                    const n = eligibleIds(btn.dataset.act).length;
+                    btn.hidden = n === 0;
+                    const badge = btn.querySelector('[data-badge]');
+                    if (badge) badge.textContent = n;
+                });
                 // Highlight des lignes cochées (effet visuel feedback immédiat)
                 checkboxes().forEach(cb => {
                     cb.closest('tr')?.classList.toggle('bulk-selected', cb.checked);
@@ -1205,6 +1231,14 @@
             font-family: inherit;
         }
         .bulk-action-btn:active { transform: translateY(1px); }
+        .bulk-action-btn[hidden] { display: none; }
+        .bulk-action-btn [data-badge] {
+            font-style: normal; font-size: 11px; font-weight: 800;
+            min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+            display: inline-flex; align-items: center; justify-content: center;
+            line-height: 1; background: rgba(0,0,0,.12);
+        }
+        .bulk-action-btn.danger-solid [data-badge] { background: rgba(255,255,255,.25); }
         .bulk-action-btn.danger-soft {
             border-color: rgba(239,68,68,.35);
             background: var(--surface);
