@@ -32,6 +32,30 @@ class PigeObserver
                 $pige->pose_task_id = $poseTask->id;
             }
         }
+
+        // Anti-fraude : verdict de cohérence GPS pige ↔ panneau. Point unique
+        // traversé par les 4 chemins d'upload (creating). Best-effort : un
+        // échec ne doit jamais empêcher l'enregistrement de la pige.
+        try {
+            $panel    = $pige->panel; // lazy-load via panel_id
+            $panelLat = ($panel && $panel->latitude  !== null) ? (float) $panel->latitude  : null;
+            $panelLng = ($panel && $panel->longitude !== null) ? (float) $panel->longitude : null;
+
+            $verdict = app(\App\Services\GeoService::class)->pigePanelCheck(
+                $pige->gps_lat !== null ? (float) $pige->gps_lat : null,
+                $pige->gps_lng !== null ? (float) $pige->gps_lng : null,
+                $panelLat,
+                $panelLng,
+            );
+
+            $pige->geo_distance_m = $verdict['distance'];
+            $pige->geo_check      = $verdict['check'];
+        } catch (\Throwable $e) {
+            Log::warning('pige.geo_check_failed', [
+                'panel_id' => $pige->panel_id,
+                'error'    => $e->getMessage(),
+            ]);
+        }
     }
 
     public function created(Pige $pige): void

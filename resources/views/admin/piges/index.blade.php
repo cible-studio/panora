@@ -264,6 +264,15 @@ $hasAnyFilter = request('q') || request('status') || request('campaign_id') || r
         </a>
         @endif
 
+        {{-- Badge cohérence GPS (anti-fraude) — discret, bas-gauche --}}
+        @if(in_array($pige->geo_check, ['ok','warn','out'], true))
+        @php $gb = $pige->geoBadge(); @endphp
+        <div title="{{ $gb['label'] }} — {{ $pige->geo_distance_m }} m du panneau"
+             style="position:absolute;bottom:8px;left:8px;padding:3px 7px;border-radius:8px;font-size:9px;font-weight:700;color:#fff;background:{{ $gb['color'] }};display:flex;align-items:center;gap:3px;backdrop-filter:blur(4px)">
+            {{ $gb['icon'] }} {{ $pige->geo_distance_m }}m
+        </div>
+        @endif
+
         {{-- Checkbox batch (si en attente) --}}
         @if($pige->isEnAttente())
         <div style="position:absolute;top:8px;left:8px">

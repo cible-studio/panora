@@ -44,6 +44,7 @@ class PigeController extends Controller
         if ($request->filled('campaign_id'))   $query->where('campaign_id', $request->campaign_id);
         if ($request->filled('panel_id'))      $query->where('panel_id', $request->panel_id);
         if ($request->filled('technicien_id')) $query->where('user_id', $request->technicien_id);
+        if ($request->filled('geo_check'))     $query->where('geo_check', $request->geo_check);
         if ($request->filled('date_from'))     $query->whereDate('taken_at', '>=', $request->date_from);
         if ($request->filled('date_to'))       $query->whereDate('taken_at', '<=', $request->date_to);
         if ($request->filled('q')) {
@@ -466,6 +467,13 @@ class PigeController extends Controller
             fn($q) => $q->where('campaign_id', $request->campaign_id))
         ->when($request->filled('technicien_id'),
             fn($q) => $q->where('user_id', $request->technicien_id))
+        ->when($request->filled('geo_check'),
+            fn($q) => $q->where('geo_check', $request->geo_check))
+        // Pré-tri optionnel : remonter les piges douteuses (hors-zone puis
+        // à vérifier) en tête pour que le MP s'y concentre. Par défaut, FIFO
+        // sur taken_at — comportement inchangé.
+        ->when($request->boolean('suspect_first'),
+            fn($q) => $q->orderByRaw("CASE geo_check WHEN 'out' THEN 0 WHEN 'warn' THEN 1 ELSE 2 END"))
         ->orderBy('taken_at')   // FIFO : on valide d'abord les plus anciennes
         ->limit(100)             // borne perf : 100 piges/session max
         ->get();
@@ -474,7 +482,13 @@ class PigeController extends Controller
             ->orderBy('name')->get(['id', 'name']);
         $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
 
-        return view('admin.piges.validation', compact('piges', 'campaigns', 'techniciens'));
+        // Compteur des piges douteuses (hors-zone + à vérifier) en attente,
+        // pour le bandeau de pré-tri côté vue.
+        $suspectCount = Pige::where('status', 'en_attente')
+            ->whereIn('geo_check', ['out', 'warn'])
+            ->count();
+
+        return view('admin.piges.validation', compact('piges', 'campaigns', 'techniciens', 'suspectCount'));
     }
 
     // ══════════════════════════════════════════════════════════════

@@ -109,6 +109,33 @@ class GeoService
         return 'out';
     }
 
+    /** Plafond de geo_distance_m (colonne SMALLINT UNSIGNED). */
+    public const DISTANCE_CAP_M = 65535;
+
+    /**
+     * Verdict de cohérence pige ↔ panneau à partir des coordonnées brutes.
+     * Méthode pure (floats only) → réutilisée par PigeObserver ET la commande
+     * geo:backfill, pour garantir une logique unique.
+     *
+     * @return array{distance: int|null, check: string}
+     */
+    public function pigePanelCheck(?float $pigeLat, ?float $pigeLng, ?float $panelLat, ?float $panelLng): array
+    {
+        if ($pigeLat === null || $pigeLng === null) {
+            return ['distance' => null, 'check' => 'no_gps'];
+        }
+        if ($panelLat === null || $panelLng === null) {
+            return ['distance' => null, 'check' => 'no_panel_gps'];
+        }
+
+        $d = $this->haversine($pigeLat, $pigeLng, $panelLat, $panelLng);
+
+        return [
+            'distance' => min(self::DISTANCE_CAP_M, (int) round($d)),
+            'check'    => $this->classify($d),
+        ];
+    }
+
     /**
      * Médiane d'un tableau de nombres.
      */
