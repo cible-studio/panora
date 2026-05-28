@@ -470,7 +470,17 @@
                 if (ids.length === 0) return;
                 const base = btn.dataset.export === 'pdf' ? EXPORT_PDF : EXPORT_XLS;
                 const qs = ids.map(id => 'ids[]=' + encodeURIComponent(id)).join('&');
-                window.open(base + '?' + qs, '_blank');
+                // Téléchargement silencieux : le serveur renvoie
+                // Content-Disposition: attachment → un lien <a download>
+                // déclenche le download sans ouvrir d'onglet ni recharger
+                // la page (la sélection reste intacte).
+                const a = document.createElement('a');
+                a.href = base + '?' + qs;
+                a.download = '';
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
                 exportMenu.classList.remove('open');
             });
         });
