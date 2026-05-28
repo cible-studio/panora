@@ -90,7 +90,7 @@
 <table class="head">
     <tr>
         <td class="logo-cell" style="width:50%;">
-            <img src="{{ public_path('images/logol.png') }}" alt="CIBLE CI">
+            <img src="{{ $logoCibleLight ?? public_path('images/logol.png') }}" alt="CIBLE CI">
         </td>
         <td class="ref-cell" style="width:50%;">
             <div class="doc-label">Rapport</div>
