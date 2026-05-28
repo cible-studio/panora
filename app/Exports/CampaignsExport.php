@@ -44,6 +44,12 @@ class CampaignsExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             ->with(['client:id,name', 'user:id,name'])
             ->withCount('panels');
 
+        // Sélection explicite (cases cochées) — prioritaire sur les filtres.
+        if (!empty($this->filters['ids'])) {
+            return $q->whereIn('id', (array) $this->filters['ids'])
+                     ->orderByDesc('created_at');
+        }
+
         if (!empty($this->filters['search'])) {
             $q->where('name', 'like', '%' . $this->filters['search'] . '%');
         }

@@ -30,7 +30,10 @@
 <tr data-campaign-row="{{ $campaign->id }}" style="{{ $endingSoon ? 'background:rgba(232,160,32,0.03);' : '' }}">
     @if(in_array(auth()->user()?->role?->value, ['admin', 'mediaplanner'], true))
     <td style="text-align:center;">
-        <input type="checkbox" class="bulk-checkbox" value="{{ $campaign->id }}" aria-label="Sélectionner {{ $campaign->name }}">
+        <input type="checkbox" class="bulk-checkbox"
+               value="{{ $campaign->id }}"
+               data-status="{{ $campaign->status->value }}"
+               aria-label="Sélectionner {{ $campaign->name }}">
     </td>
     @endif
     <td>

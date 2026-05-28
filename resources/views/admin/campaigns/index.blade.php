@@ -239,42 +239,247 @@
         </div>
     </div>
 
-    {{-- ── Barre d'action groupée campagnes (admin + MP) ── --}}
+    {{-- ── Barre d'action groupée campagnes (admin + MP) ──────────────
+         Actions contextuelles : chaque action n'apparaît que si au moins
+         une campagne sélectionnée y est éligible (selon son statut), avec
+         un badge indiquant le nombre concerné. Inspiré des barres
+         d'action de Linear / Notion. --}}
     @if(in_array($authRole, ['admin', 'mediaplanner'], true))
-    <div class="bulk-bar" id="camp-bulk-bar">
-        <div class="bulk-count">
-            <strong class="bulk-count-num">0</strong> campagne(s) sélectionnée(s)
+    <div class="camp-selbar" id="camp-selbar" aria-live="polite">
+        <div class="camp-selbar-count">
+            <span class="camp-selbar-num" id="camp-sel-num">0</span>
+            <span class="camp-selbar-word">sélectionnée(s)</span>
         </div>
-        <div class="bulk-actions">
-            <button type="button" data-bulk-clear class="secondary">Désélectionner</button>
-            <button type="button" onclick="bulkCamp('pause')">⏸ Mettre en pause</button>
-            <button type="button" onclick="bulkCamp('resume')">▶ Reprendre</button>
-            <button type="button" onclick="bulkCamp('cancel')" class="danger">🚫 Annuler</button>
-            <button type="button" onclick="bulkCamp('delete')" class="danger">🗑 Supprimer</button>
+        <div class="camp-selbar-sep"></div>
+        <div class="camp-selbar-actions">
+            <button type="button" class="csa csa-go"     data-act="start"  data-verb="Démarrer">▶<span>Démarrer</span><i data-badge></i></button>
+            <button type="button" class="csa"            data-act="pause"  data-verb="Mettre en pause">⏸<span>Pause</span><i data-badge></i></button>
+            <button type="button" class="csa csa-go"     data-act="resume" data-verb="Reprendre">▶<span>Reprendre</span><i data-badge></i></button>
+            <button type="button" class="csa csa-warn"   data-act="cancel" data-verb="Annuler">🚫<span>Annuler</span><i data-badge></i></button>
+            <button type="button" class="csa csa-danger" data-act="delete" data-verb="Supprimer">🗑<span>Supprimer</span><i data-badge></i></button>
+            <div class="csa-export" id="csa-export">
+                <button type="button" class="csa" id="csa-export-btn">⬇<span>Exporter</span>▾</button>
+                <div class="csa-export-menu" id="csa-export-menu">
+                    <button type="button" data-export="pdf">📄 PDF de la sélection</button>
+                    <button type="button" data-export="excel">📊 Excel de la sélection</button>
+                </div>
+            </div>
         </div>
+        <button type="button" class="camp-selbar-close" id="camp-sel-clear" title="Tout désélectionner">✕</button>
     </div>
+
+    <style>
+        .camp-selbar {
+            position: fixed; bottom: 24px; left: 50%;
+            transform: translateX(-50%) translateY(180%);
+            z-index: 1000; display: flex; align-items: center; gap: 12px;
+            background: rgba(17, 24, 39, 0.97);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px; padding: 8px 10px 8px 16px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+            opacity: 0; transition: transform .3s cubic-bezier(.16,1,.3,1), opacity .2s ease;
+            max-width: calc(100vw - 24px); flex-wrap: wrap;
+        }
+        .camp-selbar.open { transform: translateX(-50%) translateY(0); opacity: 1; }
+        .camp-selbar-count { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+        .camp-selbar-num {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 26px; height: 26px; padding: 0 8px;
+            background: var(--accent); color: #fff;
+            font-size: 13px; font-weight: 800; border-radius: 999px; line-height: 1;
+        }
+        .camp-selbar-word { font-size: 12.5px; color: rgba(255,255,255,0.65); font-weight: 600; }
+        .camp-selbar-sep { width: 1px; height: 26px; background: rgba(255,255,255,0.12); }
+        .camp-selbar-actions { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+        .csa {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,0.06); color: #fff;
+            border: 1px solid rgba(255,255,255,0.05);
+            padding: 8px 13px; border-radius: 9px;
+            font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+            transition: background .13s, transform .08s, opacity .13s;
+        }
+        .csa:hover { background: rgba(255,255,255,0.15); }
+        .csa:active { transform: translateY(1px); }
+        .csa[hidden] { display: none; }
+        .csa i[data-badge] {
+            font-style: normal; font-size: 11px; font-weight: 800;
+            background: rgba(255,255,255,0.2); color: #fff;
+            min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+            display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+        }
+        .csa-go:hover    { background: rgba(34,197,94,0.22); }
+        .csa-go i[data-badge]   { background: rgba(34,197,94,0.4); }
+        .csa-warn        { color: #fbbf24; }
+        .csa-warn:hover  { background: rgba(245,158,11,0.18); }
+        .csa-danger      { color: #f87171; }
+        .csa-danger:hover{ background: rgba(239,68,68,0.18); }
+        .csa-export { position: relative; }
+        .csa-export-menu {
+            display: none; position: absolute; bottom: calc(100% + 8px); right: 0;
+            background: #1f2937; border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px; padding: 5px; min-width: 200px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+        }
+        .csa-export-menu.open { display: block; }
+        .csa-export-menu button {
+            display: block; width: 100%; text-align: left;
+            background: none; border: none; color: #fff; cursor: pointer;
+            padding: 9px 12px; border-radius: 7px; font-size: 12.5px; font-family: inherit;
+        }
+        .csa-export-menu button:hover { background: rgba(255,255,255,0.1); }
+        .camp-selbar-close {
+            background: none; border: none; color: rgba(255,255,255,0.5);
+            cursor: pointer; font-size: 15px; padding: 6px 10px; border-radius: 8px;
+            transition: background .13s, color .13s;
+        }
+        .camp-selbar-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        /* Surlignage ligne sélectionnée (cohérent accent) */
+        #campaigns-table tr.bulk-selected td { background: var(--accent-dim, rgba(232,160,32,0.08)) !important; }
+        #campaigns-table tr.bulk-selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+    </style>
+
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const helper = window.BulkBar.init({
-            barId: 'camp-bulk-bar',
-            checkboxSelector: '#campaigns-table .bulk-checkbox',
-        });
-        window.bulkCamp = async function(action) {
-            if (!helper) return;
-            const ids = helper.getSelectedIds();
-            if (ids.length === 0) return;
-            const labels = { pause: 'METTRE EN PAUSE', resume: 'REPRENDRE', cancel: 'ANNULER', delete: 'SUPPRIMER' };
-            const reason = action === 'cancel'
-                ? prompt(`Motif d'annulation (optionnel) pour ${ids.length} campagne(s) :`)
-                : null;
-            if (action === 'cancel' && reason === null) return;
-            if (!confirm(`Confirmer : ${labels[action]} ${ids.length} campagne(s) ?`)) return;
-            await window.BulkBar.submit({
-                url: '{{ route('admin.campaigns.bulk') }}',
-                ids,
-                payload: { action, cancel_reason: reason ?? '' },
-            });
+        const bar      = document.getElementById('camp-selbar');
+        if (!bar) return;
+        const tableSel = '#campaigns-table .bulk-checkbox';
+        const selectAll = document.querySelector('#campaigns-table [data-bulk-select-all]');
+        const numEl    = document.getElementById('camp-sel-num');
+        const clearBtn = document.getElementById('camp-sel-clear');
+        const exportBtn = document.getElementById('csa-export-btn');
+        const exportMenu = document.getElementById('csa-export-menu');
+        const BULK_URL = @json(route('admin.campaigns.bulk'));
+        const EXPORT_PDF = @json(route('admin.campaigns.export.pdf'));
+        const EXPORT_XLS = @json(route('admin.campaigns.export.excel'));
+        const CSRF = document.querySelector('meta[name=csrf-token]')?.content || '';
+
+        // Statuts éligibles par action (miroir exact du backend bulkAction).
+        const ELIGIBLE = {
+            start:  ['planifie'],
+            pause:  ['actif'],
+            resume: ['pause'],
+            cancel: ['planifie', 'actif', 'pause'],
+            delete: ['planifie', 'actif', 'pause', 'termine', 'annule'], // le service filtre finement
         };
+
+        const boxes = () => Array.from(document.querySelectorAll(tableSel));
+        const checked = () => boxes().filter(cb => cb.checked);
+
+        function refresh() {
+            const sel = checked();
+            const n = sel.length;
+            numEl.textContent = n;
+            bar.classList.toggle('open', n > 0);
+
+            // Highlight lignes
+            boxes().forEach(cb => cb.closest('tr')?.classList.toggle('bulk-selected', cb.checked));
+
+            // Compte par statut
+            const byStatus = {};
+            sel.forEach(cb => {
+                const s = cb.dataset.status || '';
+                byStatus[s] = (byStatus[s] || 0) + 1;
+            });
+
+            // Affiche/masque chaque action selon éligibilité + badge count
+            bar.querySelectorAll('.csa[data-act]').forEach(btn => {
+                const act = btn.dataset.act;
+                const eligibleCount = (ELIGIBLE[act] || [])
+                    .reduce((sum, st) => sum + (byStatus[st] || 0), 0);
+                btn.hidden = eligibleCount === 0;
+                const badge = btn.querySelector('[data-badge]');
+                if (badge) badge.textContent = eligibleCount;
+            });
+
+            // État select-all
+            if (selectAll) {
+                const total = boxes().length;
+                selectAll.checked = n === total && total > 0;
+                selectAll.indeterminate = n > 0 && n < total;
+            }
+        }
+
+        function selectedIds() {
+            return checked().map(cb => cb.value);
+        }
+
+        // ── Délégation : checkboxes + select-all (survit aux refresh AJAX) ──
+        document.addEventListener('change', (e) => {
+            if (e.target.matches(tableSel)) refresh();
+            if (e.target.matches('#campaigns-table [data-bulk-select-all]')) {
+                boxes().forEach(cb => cb.checked = e.target.checked);
+                refresh();
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            boxes().forEach(cb => cb.checked = false);
+            refresh();
+        });
+
+        // ── Actions de statut ──────────────────────────────────────────
+        bar.querySelectorAll('.csa[data-act]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const act  = btn.dataset.act;
+                const verb = btn.dataset.verb;
+                const ids  = selectedIds();
+                if (ids.length === 0) return;
+                const eligible = (ELIGIBLE[act] || []);
+                const concerned = checked().filter(cb => eligible.includes(cb.dataset.status || ''));
+                if (concerned.length === 0) return;
+
+                let reason = '';
+                if (act === 'cancel') {
+                    reason = prompt(`Motif d'annulation (optionnel) pour ${concerned.length} campagne(s) :`) ?? null;
+                    if (reason === null) return; // annulé
+                }
+                if (!confirm(`Confirmer : ${verb} ${concerned.length} campagne(s) ?`)) return;
+
+                const fd = new FormData();
+                concerned.forEach(cb => fd.append('ids[]', cb.value));
+                fd.append('action', act);
+                if (reason) fd.append('cancel_reason', reason);
+
+                try {
+                    const r = await fetch(BULK_URL, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+                        body: fd,
+                    });
+                    if (r.redirected) { window.location = r.url; return; }
+                    const data = await r.json().catch(() => ({}));
+                    if (data.ok === false) { alert(data.error || 'Action impossible.'); return; }
+                    window.location.reload();
+                } catch (e) { alert('Erreur réseau : ' + e.message); }
+            });
+        });
+
+        // ── Export de la sélection (PDF / Excel via GET + ids[]) ─────────
+        exportBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            exportMenu.classList.toggle('open');
+        });
+        document.addEventListener('click', (e) => {
+            if (!exportMenu.contains(e.target) && e.target !== exportBtn) exportMenu.classList.remove('open');
+        });
+        exportMenu.querySelectorAll('[data-export]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const ids = selectedIds();
+                if (ids.length === 0) return;
+                const base = btn.dataset.export === 'pdf' ? EXPORT_PDF : EXPORT_XLS;
+                const qs = ids.map(id => 'ids[]=' + encodeURIComponent(id)).join('&');
+                window.open(base + '?' + qs, '_blank');
+                exportMenu.classList.remove('open');
+            });
+        });
+
+        // Re-sync après refresh AJAX du tbody (filtres / pagination)
+        const tbody = document.getElementById('table-body');
+        if (tbody) new MutationObserver(refresh).observe(tbody, { childList: true, subtree: true });
+
+        refresh();
     });
     </script>
     @endif
