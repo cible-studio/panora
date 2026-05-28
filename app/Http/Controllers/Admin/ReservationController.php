@@ -2185,7 +2185,15 @@ class ReservationController extends Controller
         if (!$reservation->canTransitionTo($request->status)) {
             return back()->with('error', "Transition interdite : {$reservation->status->value} → {$request->status}.");
         }
-        
+
+        // Confirmer / Refuser = changement de statut « à la place du client »
+        // → réservé aux admins (cf. ReservationPolicy::updateStatus). Le MP
+        // relance, il ne valide pas une signature. L'annulation passe par sa
+        // propre garde plus bas.
+        if (in_array($request->status, ['confirme', 'refuse'], true)) {
+            $this->authorize('updateStatus', $reservation);
+        }
+
         // Si on passe à "annule", on peut aussi passer le motif
         if ($request->status === 'annule') {
             $cancelData = [
@@ -2324,20 +2332,26 @@ class ReservationController extends Controller
     // BULK ACTION — actions groupées sur plusieurs réservations
     //
     // Actions :
-    //   - 'cancel' : annule N réservations (status passe à annule)
-    //   - 'delete' : supprime N réservations (uniquement isDeletable)
+    //   - 'confirm' : confirme N réservations en_attente (admin only) +
+    //                 envoie l'email de confirmation à chaque client
+    //   - 'refuse'  : refuse N réservations en_attente (admin only)
+    //   - 'cancel'  : annule N réservations (status passe à annule)
+    //   - 'delete'  : supprime N réservations (uniquement isDeletable)
     //
     // Respect des gardes métier : on traite chaque résa avec sa propre
     // logique de validation, on SKIP silencieusement celles qui ne sont
     // pas éligibles, et on remonte le détail dans la session flash.
+    // La sélection front est en mode strict (un bouton n'apparaît que si
+    // TOUTES les lignes cochées sont éligibles) : en pratique il n'y a
+    // donc pas d'« ignorées », mais on garde le filet de sécurité serveur.
     // ══════════════════════════════════════════════════════════════
     public function bulkAction(Request $request)
     {
         // Validation alignée sur annuler() : pour action=cancel, on exige
         // un motif typé + texte ≥5 chars (auditabilité critique demandée
-        // métier). Pour action=delete, ces champs sont ignorés.
+        // métier). Pour les autres actions, ces champs sont ignorés.
         $data = $request->validate([
-            'action'        => 'required|in:cancel,delete',
+            'action'        => 'required|in:confirm,refuse,cancel,delete',
             'ids'           => 'required|array|min:1|max:200',
             'ids.*'         => 'integer|exists:reservations,id',
             'cancel_type'   => 'required_if:action,cancel|string|max:50',
@@ -2348,13 +2362,36 @@ class ReservationController extends Controller
             'cancel_reason.min'         => 'Le motif doit faire au moins 5 caractères (soyez précis).',
         ]);
 
+        // Confirmer / Refuser = changement de statut réservé aux admins
+        // (cf. ReservationPolicy::updateStatus). On bloque tôt si un MP
+        // tente l'action via une requête forgée.
+        if (in_array($data['action'], ['confirm', 'refuse'], true)
+            && auth()->user()->role?->value !== 'admin') {
+            abort(403, 'Action réservée aux administrateurs.');
+        }
+
         $reservations = Reservation::whereIn('id', $data['ids'])->get();
         $applied = 0;
         $skipped = [];
 
         foreach ($reservations as $r) {
             try {
-                if ($data['action'] === 'cancel') {
+                if ($data['action'] === 'confirm') {
+                    if (!$r->isConfirmable()) {
+                        $skipped[] = $r->reference . ' (non confirmable)';
+                        continue;
+                    }
+                    $this->reservationService->changeStatus($r, ReservationStatus::CONFIRME->value);
+                    $this->notifyClientReservationConfirmed($r->fresh()->loadMissing('client'));
+                    $applied++;
+                } elseif ($data['action'] === 'refuse') {
+                    if (!$r->isRefusable()) {
+                        $skipped[] = $r->reference . ' (non refusable)';
+                        continue;
+                    }
+                    $this->reservationService->changeStatus($r, ReservationStatus::REFUSE->value);
+                    $applied++;
+                } elseif ($data['action'] === 'cancel') {
                     if (!$r->isCancellable() || $r->client?->trashed()) {
                         $skipped[] = $r->reference . ' (non annulable)';
                         continue;
@@ -2382,17 +2419,25 @@ class ReservationController extends Controller
             }
         }
 
+        // Libellés par action pour l'alerte + le message flash
+        $meta = [
+            'confirm' => ['icon' => '✅', 'niveau' => 'info',    'verbe' => 'confirmée(s)'],
+            'refuse'  => ['icon' => '❌', 'niveau' => 'warning', 'verbe' => 'refusée(s)'],
+            'cancel'  => ['icon' => '🚫', 'niveau' => 'warning', 'verbe' => 'annulée(s)'],
+            'delete'  => ['icon' => '🗑', 'niveau' => 'warning', 'verbe' => 'supprimée(s)'],
+        ][$data['action']];
+
         // 1 seule alerte consolidée plutôt que N alertes individuelles
         AlertService::create(
             'reservation',
-            'warning',
-            ($data['action'] === 'cancel' ? '🚫' : '🗑') . ' Action groupée — ' . $applied . ' réservation(s)',
+            $meta['niveau'],
+            $meta['icon'] . ' Action groupée — ' . $applied . ' réservation(s)',
             auth()->user()->name . ' a effectué : ' . $data['action'] . ' sur ' . $applied . ' réservation(s).'
                 . (!empty($skipped) ? ' Ignorées : ' . count($skipped) . '.' : ''),
             null
         );
 
-        $msg = "{$applied} réservation(s) " . ($data['action'] === 'cancel' ? 'annulée(s)' : 'supprimée(s)') . '.';
+        $msg = "{$applied} réservation(s) {$meta['verbe']}.";
         if (!empty($skipped)) {
             $msg .= ' ' . count($skipped) . ' ignorée(s) : ' . implode(', ', array_slice($skipped, 0, 5))
                   . (count($skipped) > 5 ? '…' : '');

@@ -166,9 +166,17 @@
                 </span>
             </div>
             <div class="bulk-actions">
-                {{-- Actions contextuelles : chaque bouton n'apparaît que si
-                     ≥1 réservation sélectionnée y est éligible (selon son
-                     statut), avec un badge du nombre concerné. --}}
+                {{-- Actions contextuelles — MODE STRICT : un bouton n'apparaît
+                     que si TOUTES les réservations cochées y sont éligibles
+                     (selon leur statut), avec un badge du nombre concerné.
+                     Confirmer / Refuser = admin uniquement (data-confirmable /
+                     data-refusable valent toujours 0 pour un MP). --}}
+                <button type="button" data-act="confirm" class="bulk-action-btn success-soft">
+                    ✅ Confirmer <i data-badge></i>
+                </button>
+                <button type="button" data-act="refuse" class="bulk-action-btn warn-soft">
+                    ❌ Refuser <i data-badge></i>
+                </button>
                 <button type="button" data-act="cancel" class="bulk-action-btn danger-soft">
                     🚫 Annuler <i data-badge></i>
                 </button>
@@ -244,9 +252,14 @@
             const dropdownMenu = document.getElementById('resa-select-dropdown-menu');
 
             // Attribut data-* de la ligne qui rend une réservation éligible
-            // à chaque action (miroir des gardes serveur isCancellable /
-            // isDeletable).
-            const ELIGIBLE_ATTR = { cancel: 'cancellable', delete: 'deletable' };
+            // à chaque action (miroir des gardes serveur isConfirmable /
+            // isRefusable / isCancellable / isDeletable).
+            const ELIGIBLE_ATTR = {
+                confirm: 'confirmable',
+                refuse:  'refusable',
+                cancel:  'cancellable',
+                delete:  'deletable',
+            };
 
             function checkboxes() {
                 return Array.from(document.querySelectorAll('#reservations-table .bulk-checkbox'));
@@ -280,13 +293,17 @@
                     toolbar.classList.remove('visible');
                     cardHeader.style.display = 'flex';
                 }
-                // Actions contextuelles : affiche le bouton seulement si ≥1
-                // réservation cochée y est éligible, et met à jour son badge.
+                // Actions contextuelles — MODE STRICT : le bouton n'apparaît
+                // que si TOUTES les lignes cochées sont éligibles à l'action
+                // (intersection). Évite l'ambiguïté d'une action partielle sur
+                // une sélection mixte. Le badge affiche le nombre concerné
+                // (= total sélectionné quand le bouton est visible).
                 toolbar.querySelectorAll('.bulk-action-btn[data-act]').forEach(btn => {
-                    const n = eligibleIds(btn.dataset.act).length;
-                    btn.hidden = n === 0;
+                    const eligible = eligibleIds(btn.dataset.act).length;
+                    const show = selected > 0 && eligible === selected;
+                    btn.hidden = !show;
                     const badge = btn.querySelector('[data-badge]');
-                    if (badge) badge.textContent = n;
+                    if (badge) badge.textContent = eligible;
                 });
                 // Highlight des lignes cochées (effet visuel feedback immédiat)
                 checkboxes().forEach(cb => {
@@ -351,6 +368,14 @@
                 refreshState();
             });
 
+            // Clic sur un bouton d'action de la toolbar → ouvre le modal
+            // correspondant (délégation : survit aux refresh AJAX du tbody).
+            toolbar.querySelector('.bulk-actions')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('.bulk-action-btn[data-act]');
+                if (!btn || btn.hidden) return;
+                window.bulkResa(btn.dataset.act);
+            });
+
             // ── Actions groupées : ouvrent un MODAL (plus de prompt/confirm) ──
             // Le modal calcule depuis les data-attributes des <tr> :
             //   - éligibles (cancellable=1 ou deletable=1 selon l'action)
@@ -384,6 +409,31 @@
                 const ids = selectedIds();
                 if (ids.length === 0) return;
                 const rows = rowsForIds(ids);
+
+                if (action === 'confirm') {
+                    const stats = computeBulkStats(rows, 'confirmable');
+                    if (stats.eligible.length === 0) {
+                        alert(`Aucune des ${ids.length} réservation(s) sélectionnée(s) n'est confirmable (seules les réservations « en attente » le sont).`);
+                        return;
+                    }
+                    document.getElementById('bulk-confirm-eligible-count').textContent = stats.eligible.length;
+                    window._bulkConfirmIds = stats.eligible;
+                    document.getElementById('modal-bulk-confirm').style.display = 'flex';
+                    return;
+                }
+
+                if (action === 'refuse') {
+                    const stats = computeBulkStats(rows, 'refusable');
+                    if (stats.eligible.length === 0) {
+                        alert(`Aucune des ${ids.length} réservation(s) sélectionnée(s) n'est refusable (seules les réservations « en attente » le sont).`);
+                        return;
+                    }
+                    document.getElementById('bulk-refuse-eligible-count').textContent = stats.eligible.length;
+                    document.getElementById('bulk-refuse-panels-total').textContent   = stats.panelsTotal;
+                    window._bulkRefuseIds = stats.eligible;
+                    document.getElementById('modal-bulk-refuse').style.display = 'flex';
+                    return;
+                }
 
                 if (action === 'cancel') {
                     const stats = computeBulkStats(rows, 'cancellable');
@@ -495,6 +545,29 @@
                 postBulk({
                     action: 'delete',
                     ids: window._bulkDeleteIds || [],
+                });
+            };
+
+            window.closeBulkConfirmModal = function(e) {
+                if (!e || e.target === document.getElementById('modal-bulk-confirm') || e.target.closest('.modal-close')) {
+                    document.getElementById('modal-bulk-confirm').style.display = 'none';
+                }
+            };
+            window.closeBulkRefuseModal = function(e) {
+                if (!e || e.target === document.getElementById('modal-bulk-refuse') || e.target.closest('.modal-close')) {
+                    document.getElementById('modal-bulk-refuse').style.display = 'none';
+                }
+            };
+            window.submitBulkConfirm = function() {
+                postBulk({
+                    action: 'confirm',
+                    ids: window._bulkConfirmIds || [],
+                });
+            };
+            window.submitBulkRefuse = function() {
+                postBulk({
+                    action: 'refuse',
+                    ids: window._bulkRefuseIds || [],
                 });
             };
 
@@ -656,6 +729,44 @@
         </div>
     </div>
 
+    {{-- ══ MODAL STATUT SINGLE — Confirmer / Refuser une réservation
+         Réservé aux admins (les boutons ligne ne s'affichent que si
+         can('updateStatus')). Le contenu (titre, conséquences, libellé du
+         bouton) est piloté par RESA_STATUS_CONFIG côté JS, et l'action du
+         form pointe vers reservations.update-status pour l'ID concerné.
+         Confirmer envoie l'email de confirmation au client (côté backend). --}}
+    <div id="modal-status" class="modal-overlay" style="display:none;" onclick="closeResaStatusModal(event)">
+        <div class="modal" style="max-width:480px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span class="modal-title" id="resa-status-title">Changer le statut</span>
+                <button class="modal-close" onclick="closeResaStatusModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <div id="resa-status-icon" class="inline-flex items-center justify-center w-14 h-14 rounded-full text-2xl mb-3" style="background:var(--surface2)"></div>
+                    <div class="font-bold text-lg mb-1" id="resa-status-headline"></div>
+                    <div class="text-sm" style="color:var(--text2)" id="resa-status-sub"></div>
+                </div>
+                <div class="info-box mb-4">
+                    <div class="font-semibold mb-2" style="color:var(--text)">Ce qui va se passer :</div>
+                    <ul id="resa-status-consequences" class="space-y-1.5" style="color:var(--text2);font-size:13px"></ul>
+                </div>
+                <div class="warning-box">
+                    <span>⚠️</span>
+                    <span id="resa-status-warning"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeResaStatusModal()" class="btn btn-ghost">Annuler</button>
+                <form id="resa-status-form" method="POST">
+                    @csrf @method('PATCH')
+                    <input type="hidden" name="status" id="resa-status-input">
+                    <button type="submit" id="resa-status-btn" class="btn">Confirmer</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     {{-- ══ MODAL BULK CANCEL — annulation groupée avec motif
          Mêmes garanties que le single : motif typé + texte ≥5 chars
          requis, breakdown des éligibles vs ignorées (non-annulables),
@@ -786,6 +897,93 @@
             <div class="modal-footer">
                 <button onclick="closeBulkDeleteModal()" class="btn btn-ghost">Annuler</button>
                 <button type="button" onclick="submitBulkDelete()" class="btn btn-danger">🗑️ Confirmer la suppression</button>
+            </div>
+        </div>
+    </div>
+
+    {{-- ══ MODAL BULK CONFIRM — confirmation groupée (admin only)
+         Mode strict côté front : toutes les lignes cochées sont « en
+         attente », donc pas d'« ignorées » ici. Chaque confirmation envoie
+         l'email de confirmation au client (lien public 30 j) — d'où le
+         warning explicite. ══ --}}
+    <div id="modal-bulk-confirm" class="modal-overlay" style="display:none;" onclick="closeBulkConfirmModal(event)">
+        <div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span class="modal-title" style="color:#16a34a;">✅ Confirmation groupée</span>
+                <button class="modal-close" onclick="closeBulkConfirmModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <div class="inline-flex items-center justify-center w-14 h-14 rounded-full text-2xl mb-3"
+                         style="background:rgba(34,197,94,.1)">✅</div>
+                    <div class="font-bold text-lg mb-1">
+                        Confirmer <span id="bulk-confirm-eligible-count" style="color:var(--accent)"></span> réservation(s) ?
+                    </div>
+                </div>
+                <div class="info-box mb-4">
+                    <div class="font-semibold mb-2" style="color:var(--text)">Ce qui va se passer :</div>
+                    <ul class="space-y-1.5" style="color:var(--text2);font-size:13px">
+                        <li class="flex items-start gap-2">
+                            <span style="color:#16a34a">🔒</span>
+                            <span>Les panneaux seront <strong>définitivement bloqués</strong> et chaque réservation passera en <strong>Ferme</strong>.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span style="color:#2563eb">📧</span>
+                            <span>Un <strong>email de confirmation</strong> (avec lien sécurisé) sera envoyé à <strong>chaque client</strong>.</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="warning-box">
+                    <span>⚠️</span>
+                    <span>La confirmation est <strong>irréversible</strong> : le statut ne pourra plus revenir à « En attente ».</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeBulkConfirmModal()" class="btn btn-ghost">Annuler</button>
+                <button type="button" onclick="submitBulkConfirm()" class="btn btn-success">✅ Confirmer & notifier</button>
+            </div>
+        </div>
+    </div>
+
+    {{-- ══ MODAL BULK REFUSE — refus groupé (admin only)
+         Mode strict : toutes les lignes sont « en attente ». Pas d'email
+         côté refus (aligné sur updateStatus single). Les panneaux sont
+         libérés. ══ --}}
+    <div id="modal-bulk-refuse" class="modal-overlay" style="display:none;" onclick="closeBulkRefuseModal(event)">
+        <div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span class="modal-title" style="color:var(--red);">❌ Refus groupé</span>
+                <button class="modal-close" onclick="closeBulkRefuseModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <div class="inline-flex items-center justify-center w-14 h-14 rounded-full text-2xl mb-3"
+                         style="background:rgba(239,68,68,.1)">❌</div>
+                    <div class="font-bold text-lg mb-1">
+                        Refuser <span id="bulk-refuse-eligible-count" style="color:var(--accent)"></span> réservation(s) ?
+                    </div>
+                </div>
+                <div class="info-box mb-4">
+                    <div class="font-semibold mb-2" style="color:var(--text)">Ce qui va se passer :</div>
+                    <ul class="space-y-1.5" style="color:var(--text2);font-size:13px">
+                        <li class="flex items-start gap-2">
+                            <span style="color:var(--green)">🔓</span>
+                            <span><strong id="bulk-refuse-panels-total"></strong> panneau(x) au total seront <strong>immédiatement libérés</strong>.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span style="color:var(--green)">🗄️</span>
+                            <span>Les réservations seront conservées en <strong>historique</strong> avec le statut « Refusé ».</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="warning-box">
+                    <span>⚠️</span>
+                    <span>Le refus est <strong>irréversible</strong>.</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeBulkRefuseModal()" class="btn btn-ghost">Annuler</button>
+                <button type="button" onclick="submitBulkRefuse()" class="btn btn-danger">❌ Confirmer le refus</button>
             </div>
         </div>
     </div>
@@ -1251,6 +1449,18 @@
             color: #fff;
         }
         .bulk-action-btn.danger-solid:hover { background: #dc2626; }
+        .bulk-action-btn.success-soft {
+            border-color: rgba(34,197,94,.4);
+            background: var(--surface);
+            color: #16a34a;
+        }
+        .bulk-action-btn.success-soft:hover { background: rgba(34,197,94,.12); }
+        .bulk-action-btn.warn-soft {
+            border-color: rgba(245,158,11,.45);
+            background: var(--surface);
+            color: #d97706;
+        }
+        .bulk-action-btn.warn-soft:hover { background: rgba(245,158,11,.12); }
 
         /* Badges et styles */
         .reference-link { font-family: monospace; font-size: 12px; font-weight: 700; color: var(--accent); text-decoration: none; }
@@ -1287,6 +1497,8 @@
             justify-content: center;
         }
         .btn-icon:hover { background: var(--surface3); transform: scale(1.05); }
+        .btn-confirm { color: var(--green); }
+        .btn-refuse  { color: var(--danger); }
         .btn-cancel { color: var(--warning); }
         .btn-delete { color: var(--danger); }
 
@@ -1484,6 +1696,60 @@
         document.getElementById('annuler-cancel-type-hidden').value   = type;
         document.getElementById('annuler-cancel-reason-hidden').value = reason;
         return true;
+    }
+
+    // ─── Modale statut single (Confirmer / Refuser) — admin only ──────
+    // Pilote le contenu selon le statut cible et pointe le form vers
+    // reservations.update-status pour l'ID concerné.
+    const RESA_STATUS_CONFIG = {
+        confirme: {
+            title: '✅ Confirmer la réservation', icon: '✅', iconBg: 'rgba(34,197,94,.1)',
+            consequences: [
+                { icon: '🔒', text: 'Les panneaux seront <strong>définitivement bloqués</strong> pour la période.' },
+                { icon: '📄', text: 'La réservation passera en <strong>Ferme</strong> — plus modifiable.' },
+                { icon: '📧', text: 'Un <strong>email de confirmation</strong> sera envoyé au client.' },
+            ],
+            warning: 'La confirmation est irréversible : le statut ne pourra plus revenir à « En attente ».',
+            btnClass: 'btn-success', btnLabel: '✅ Confirmer & notifier',
+        },
+        refuse: {
+            title: '❌ Refuser la réservation', icon: '❌', iconBg: 'rgba(239,68,68,.1)',
+            consequences: [
+                { icon: '🔓', text: 'Les <strong>__PANELS__</strong> panneau(x) seront <strong>immédiatement libérés</strong>.' },
+                { icon: '🗄️', text: 'La réservation sera conservée en <strong>historique</strong> avec le statut « Refusé ».' },
+            ],
+            warning: 'Le refus est irréversible.',
+            btnClass: 'btn-danger', btnLabel: '❌ Confirmer le refus',
+        },
+    };
+
+    function openResaStatusModal(id, newStatus, ref, client, panelsCount) {
+        const cfg = RESA_STATUS_CONFIG[newStatus];
+        if (!cfg) return;
+        document.getElementById('resa-status-title').textContent = cfg.title;
+        const iconEl = document.getElementById('resa-status-icon');
+        iconEl.textContent = cfg.icon; iconEl.style.background = cfg.iconBg;
+        document.getElementById('resa-status-headline').innerHTML =
+            (newStatus === 'confirme' ? 'Confirmer ' : 'Refuser ') + '<span class="text-accent">' + ref + '</span> ?';
+        document.getElementById('resa-status-sub').innerHTML =
+            'Réservation de <strong style="color:var(--text)">' + (client || '—') + '</strong> · ' + panelsCount + ' panneau(x)';
+        document.getElementById('resa-status-consequences').innerHTML =
+            cfg.consequences.map(c =>
+                '<li class="flex items-start gap-2"><span>' + c.icon + '</span><span>'
+                + c.text.replace('__PANELS__', panelsCount) + '</span></li>'
+            ).join('');
+        document.getElementById('resa-status-warning').innerHTML = cfg.warning;
+        document.getElementById('resa-status-input').value = newStatus;
+        const btn = document.getElementById('resa-status-btn');
+        btn.className = 'btn ' + cfg.btnClass; btn.textContent = cfg.btnLabel;
+        document.getElementById('resa-status-form').action = '/admin/reservations/' + id + '/status';
+        document.getElementById('modal-status').style.display = 'flex';
+    }
+
+    function closeResaStatusModal(e) {
+        if (!e || e.target === document.getElementById('modal-status') || e.target.closest('.modal-close')) {
+            document.getElementById('modal-status').style.display = 'none';
+        }
     }
 
     // ─── Modale "Voir les panneaux" — design moderne ──────────────
