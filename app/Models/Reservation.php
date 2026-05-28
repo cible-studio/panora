@@ -260,6 +260,16 @@ class Reservation extends Model
             && !$this->hasActiveCampaign();
     }
 
+    public function isConfirmable(): bool
+    {
+        return $this->canTransitionTo('confirme') && !$this->client?->trashed();
+    }
+
+    public function isRefusable(): bool
+    {
+        return $this->canTransitionTo('refuse') && !$this->client?->trashed();
+    }
+
     public function canChangeStatus(): bool
     {
         return !$this->client?->trashed()

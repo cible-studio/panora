@@ -5,6 +5,8 @@
     $canEdit       = $res->isEditable() && auth()->user()->can('update', $res);
     $canAnnuler    = $res->isCancellable() && auth()->user()->can('annuler', $res);
     $canDelete     = $res->isDeletable() && auth()->user()->can('delete', $res);
+    $canConfirm    = $res->isConfirmable() && auth()->user()->can('updateStatus', $res);
+    $canRefuse     = $res->isRefusable() && auth()->user()->can('updateStatus', $res);
     $rc            = $res->status->uiConfig();
 @endphp
 @php
@@ -21,9 +23,11 @@
     data-has-campaign="{{ $hasCampaign ? '1' : '0' }}"
     data-campaign-name="{{ $hasCampaign ? $res->campaign->name : '' }}"
     data-cancellable="{{ $canAnnuler ? '1' : '0' }}"
-    data-deletable="{{ $canDelete ? '1' : '0' }}">
+    data-deletable="{{ $canDelete ? '1' : '0' }}"
+    data-confirmable="{{ $canConfirm ? '1' : '0' }}"
+    data-refusable="{{ $canRefuse ? '1' : '0' }}">
     <td class="bulk-cell">
-        @if($canEdit || $canAnnuler || $canDelete)
+        @if($canEdit || $canAnnuler || $canDelete || $canConfirm || $canRefuse)
             <input type="checkbox" class="bulk-checkbox" value="{{ $res->id }}" aria-label="Sélectionner {{ $res->reference }}">
         @endif
     </td>
@@ -96,6 +100,16 @@
                     title="Voir les panneaux">🪧</button>
             @if($canEdit)
             <a href="{{ route('admin.reservations.edit', $res) }}" class="btn-icon" title="Modifier">✏️</a>
+            @endif
+            @if($canConfirm)
+            <button class="btn-icon btn-confirm"
+                    onclick="openResaStatusModal({{ $res->id }}, 'confirme', '{{ $res->reference }}', '{{ addslashes($res->client?->name ?? '') }}', {{ $totalRow }})"
+                    title="Confirmer la réservation">✅</button>
+            @endif
+            @if($canRefuse)
+            <button class="btn-icon btn-refuse"
+                    onclick="openResaStatusModal({{ $res->id }}, 'refuse', '{{ $res->reference }}', '{{ addslashes($res->client?->name ?? '') }}', {{ $totalRow }})"
+                    title="Refuser la réservation">❌</button>
             @endif
             @if($canAnnuler)
             <button class="btn-icon btn-cancel"
