@@ -229,30 +229,15 @@
             `<div class="pose-popup-row"><span class="lbl">Statut</span><span class="val" style="color:${m.color}">${statusLabel(m.status)}${m.is_late ? ' · ⚠ Retard' : ''}</span></div>`,
             m.scheduled ? `<div class="pose-popup-row"><span class="lbl">Prévu le</span><span class="val">${m.scheduled}</span></div>` : '',
             m.done_at ? `<div class="pose-popup-row"><span class="lbl">Réalisé</span><span class="val" style="color:#22c55e">${m.done_at}</span></div>` : '',
-            `<div class="pose-popup-row"><span class="lbl">GPS</span><span class="val">${gpsSourceLabel(m.gps_source)}${m.dispersion ? ' · <span style="color:#ef4444">⚠ divergent</span>' : ''}</span></div>`,
             `<a href="${m.show_url}" class="pose-popup-cta">Ouvrir la pose</a>`,
             `</div>`,
         ];
         return parts.join('');
     }
 
-    function gpsSourceLabel(src) {
-        return ({
-            'manual':           '📍 Manuel',
-            'pige_confirmed':   '✅ Confirmé (piges)',
-            'pige_provisional': '⏳ Provisoire (1 pige)',
-        })[src] || '— origine inconnue';
-    }
-
-    function buildMarkerIcon(color, isLate, dispersion) {
-        const size = (isLate || dispersion) ? 30 : 26;
-        let ring = '';
-        if (isLate) {
-            ring = `<circle cx="15" cy="15" r="13" fill="none" stroke="#dc2626" stroke-width="2" stroke-dasharray="4 3" opacity=".7"/>`;
-        } else if (dispersion) {
-            // Anneau pointillé rouge : positions piges divergentes (à vérifier terrain)
-            ring = `<circle cx="15" cy="15" r="13" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="2 2" opacity=".85"/>`;
-        }
+    function buildMarkerIcon(color, isLate) {
+        const size = isLate ? 30 : 26;
+        const ring = isLate ? `<circle cx="50%" cy="50%" r="13" fill="none" stroke="#dc2626" stroke-width="2" stroke-dasharray="4 3" opacity=".7"/>` : '';
         return L.divIcon({
             html: `<svg width="${size}" height="${size}" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
                        <circle cx="15" cy="15" r="11" fill="${color}" stroke="#fff" stroke-width="2.5"/>
@@ -299,7 +284,7 @@
             const latLngs = [];
             allMarkers.forEach(m => {
                 const marker = L.marker([m.lat, m.lng], {
-                    icon: buildMarkerIcon(m.color, m.is_late, m.dispersion),
+                    icon: buildMarkerIcon(m.color, m.is_late),
                 });
                 marker.bindPopup(buildPopup(m), { maxWidth: 300 });
                 markerCluster.addLayer(marker);

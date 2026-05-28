@@ -708,19 +708,7 @@ class PanelController extends Controller
     public function map()
     {
         $communes = Commune::orderBy('name')->get();
-
-        // Couverture géoloc du réseau (pour le bandeau de la carte).
-        $geoCoverage = [
-            'total'      => Panel::count(),
-            'with_gps'   => Panel::whereNotNull('latitude')->whereNotNull('longitude')->count(),
-            'manual'     => Panel::where('gps_source', 'manual')->count(),
-            'confirmed'  => Panel::where('gps_source', 'pige_confirmed')->count(),
-            'provisional'=> Panel::where('gps_source', 'pige_provisional')->count(),
-            'dispersion' => Panel::where('gps_dispersion_flag', true)->count(),
-        ];
-        $geoCoverage['missing'] = $geoCoverage['total'] - $geoCoverage['with_gps'];
-
-        return view('admin.panels.map', compact('communes', 'geoCoverage'));
+        return view('admin.panels.map', compact('communes'));
     }
 
     // ── DONNÉES CARTE JSON ──
@@ -735,13 +723,6 @@ class PanelController extends Controller
         }
         if ($request->filled('status')) {
             $query->where('status', $request->status);
-        }
-        // Filtre provenance GPS : manual | pige_confirmed | pige_provisional |
-        // unknown (legacy, coords présentes mais source NULL).
-        if ($request->filled('gps_source')) {
-            $request->gps_source === 'unknown'
-                ? $query->whereNull('gps_source')
-                : $query->where('gps_source', $request->gps_source);
         }
 
         $panels = $query->get()->map(function ($panel) {
@@ -762,14 +743,9 @@ class PanelController extends Controller
                 'category' => $panel->category?->name,
                 'format' => $panel->format?->name,
                 'surface' => $surface,
-                'gps_source' => $panel->gps_source ?? 'unknown',
-                'gps_dispersion' => (bool) $panel->gps_dispersion_flag,
             ];
         });
 
-        // Réponse : tableau plat (forme historique inchangée — la vue
-        // panels/map consomme directement le tableau). Les nouveaux champs
-        // gps_source / gps_dispersion sont purement additifs.
         return response()->json($panels);
     }
 
