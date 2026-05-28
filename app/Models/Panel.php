@@ -20,6 +20,9 @@ class Panel extends Model
         'category_id',
         'latitude',
         'longitude',
+        'gps_source',
+        'gps_dispersion_flag',
+        'gps_computed_at',
         'status',
         'is_lit',
         'is_vip',
@@ -44,6 +47,8 @@ class Panel extends Model
         'monthly_rate' => 'decimal:2',
         'latitude'     => 'decimal:7',
         'longitude'    => 'decimal:7',
+        'gps_dispersion_flag' => 'boolean',
+        'gps_computed_at'     => 'datetime',
         'status'       => PanelStatus::class,
     ];
 

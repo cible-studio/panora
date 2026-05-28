@@ -78,8 +78,13 @@ class PigeService
 
     // ══════════════════════════════════════════════════════════════
     // VÉRIFIER une pige
+    //
+    // $autoLocate : déclenche l'auto-géolocalisation du panneau juste après
+    //   la validation. Le batch (verifyBatch) passe false et recalcule chaque
+    //   panneau UNE seule fois après la boucle (cf. recomputePanelsGeo) pour
+    //   éviter N recalculs redondants sur le même panneau.
     // ══════════════════════════════════════════════════════════════
-    public function verify(Pige $pige, User $supervisor): array
+    public function verify(Pige $pige, User $supervisor, bool $autoLocate = true): array
     {
         if ($pige->isVerifiee()) {
             return $this->error('Cette pige est déjà vérifiée.');
@@ -97,7 +102,51 @@ class PigeService
         if (!$updated) return $this->error('Cette pige a déjà été traitée.');
 
         Log::info('pige.verified', ['pige_id' => $pige->id, 'by' => $supervisor->id]);
+
+        // Auto-géolocalisation du panneau à partir de ses piges validées.
+        // Best-effort : un échec ne doit jamais faire échouer la validation.
+        if ($autoLocate && $pige->gps_lat !== null && $pige->gps_lng !== null) {
+            try {
+                if ($panel = $pige->panel) {
+                    app(PanelGeoLocator::class)->recomputeFromPiges($panel);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('pige.verify.geo_autolocate_failed', [
+                    'pige_id' => $pige->id,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+        }
+
         return ['ok' => true];
+    }
+
+    /**
+     * Recalcule le GPS de plusieurs panneaux, 1 seule fois chacun.
+     * Best-effort par panneau (un échec n'interrompt pas les autres).
+     * Utilisé par les validations groupées pour éviter les recalculs
+     * redondants quand plusieurs piges d'un même panneau sont validées.
+     *
+     * @param  array<int, int>  $panelIds
+     */
+    public function recomputePanelsGeo(array $panelIds): void
+    {
+        $panelIds = array_values(array_unique(array_filter($panelIds)));
+        if (empty($panelIds)) {
+            return;
+        }
+
+        $locator = app(PanelGeoLocator::class);
+        foreach (Panel::whereIn('id', $panelIds)->get() as $panel) {
+            try {
+                $locator->recomputeFromPiges($panel);
+            } catch (\Throwable $e) {
+                Log::warning('pige.geo_autolocate_failed', [
+                    'panel_id' => $panel->id,
+                    'error'    => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     // ══════════════════════════════════════════════════════════════
