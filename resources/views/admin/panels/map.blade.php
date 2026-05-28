@@ -69,7 +69,28 @@
                 <option value="confirme">Confirmé</option>
                 <option value="maintenance">Maintenance</option>
             </select>
+            <select id="filterGpsSource" class="filter-select" onchange="filterMap()" title="Provenance des coordonnées GPS">
+                <option value="">Toute provenance GPS</option>
+                <option value="manual">📍 Manuel</option>
+                <option value="pige_confirmed">✅ Confirmé (piges)</option>
+                <option value="pige_provisional">⏳ Provisoire (1 pige)</option>
+                <option value="unknown">❔ Origine inconnue (legacy)</option>
+            </select>
         </div>
+    </div>
+
+    {{-- Bandeau couverture géoloc du réseau --}}
+    <div style="display:flex;flex-wrap:wrap;gap:14px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2);background:var(--surface2)">
+        <span><strong style="color:var(--text)">{{ $geoCoverage['with_gps'] }}</strong>/{{ $geoCoverage['total'] }} géolocalisés</span>
+        <span style="color:#16a34a">✅ {{ $geoCoverage['confirmed'] }} confirmés</span>
+        <span style="color:#d97706">⏳ {{ $geoCoverage['provisional'] }} provisoires</span>
+        <span style="color:#6b7280">📍 {{ $geoCoverage['manual'] }} manuels</span>
+        @if($geoCoverage['missing'] > 0)
+        <span style="color:#ef4444">❔ {{ $geoCoverage['missing'] }} sans coordonnées</span>
+        @endif
+        @if($geoCoverage['dispersion'] > 0)
+        <span style="color:#ef4444">⚠ {{ $geoCoverage['dispersion'] }} divergents</span>
+        @endif
     </div>
 
     {{-- LÉGENDE --}}
@@ -282,9 +303,12 @@ function buildPopup(panel) {
 function filterMap() {
     const communeId = document.getElementById('filterCommune').value;
     const status    = document.getElementById('filterStatus').value;
-    let url = '/admin/map/data?';
-    if (communeId) url += `commune_id=${communeId}&`;
-    if (status)    url += `status=${status}`;
+    const gpsSource = document.getElementById('filterGpsSource')?.value || '';
+    const params = new URLSearchParams();
+    if (communeId) params.set('commune_id', communeId);
+    if (status)    params.set('status', status);
+    if (gpsSource) params.set('gps_source', gpsSource);
+    const url = '/admin/map/data?' + params.toString();
 
     fetch(url).then(r => r.json()).then(panels => {
         allPanels = panels;

@@ -13,17 +13,19 @@ class Pige extends Model
         'panel_id', 'campaign_id', 'pose_task_id', 'user_id', 'verified_by',
         'photo_path', 'photo_thumb',
         'gps_lat', 'gps_lng',
+        'geo_distance_m', 'geo_check',
         'taken_at', 'verified_at',
         'status', 'rejection_reason', 'notes',
         'archived_at',
     ];
 
     protected $casts = [
-        'taken_at'    => 'datetime',
-        'verified_at' => 'datetime',
-        'archived_at' => 'datetime',
-        'gps_lat'     => 'float',
-        'gps_lng'     => 'float',
+        'taken_at'       => 'datetime',
+        'verified_at'    => 'datetime',
+        'archived_at'    => 'datetime',
+        'gps_lat'        => 'float',
+        'gps_lng'        => 'float',
+        'geo_distance_m' => 'integer',
     ];
 
     // ══════════════════════════════════════════════════════════════
@@ -145,6 +147,24 @@ class Pige extends Model
     {
         if (!$this->hasGps()) return null;
         return "https://maps.google.com/?q={$this->gps_lat},{$this->gps_lng}";
+    }
+
+    /**
+     * Badge de cohérence géographique (anti-fraude) pour l'affichage MP.
+     * Le libellé de distance ({distance}m) est ajouté côté vue si pertinent.
+     *
+     * @return array{label: string, short: string, icon: string, color: string, bg: string}
+     */
+    public function geoBadge(): array
+    {
+        return match($this->geo_check) {
+            'ok'           => ['label' => 'Cohérent',                 'short' => 'OK',        'icon' => '✓', 'color' => '#16a34a', 'bg' => 'rgba(34,197,94,.12)'],
+            'warn'         => ['label' => 'À vérifier',               'short' => 'À vérifier','icon' => '⚠', 'color' => '#d97706', 'bg' => 'rgba(245,158,11,.12)'],
+            'out'          => ['label' => 'Hors-zone',                'short' => 'Hors-zone', 'icon' => '✖', 'color' => '#ef4444', 'bg' => 'rgba(239,68,68,.12)'],
+            'no_gps'       => ['label' => 'Pas de GPS',               'short' => 'Sans GPS',  'icon' => '∅', 'color' => '#6b7280', 'bg' => 'rgba(107,114,128,.12)'],
+            'no_panel_gps' => ['label' => 'Panneau non géolocalisé',  'short' => 'Panneau ?', 'icon' => '?', 'color' => '#6b7280', 'bg' => 'rgba(107,114,128,.12)'],
+            default        => ['label' => '—',                        'short' => '—',         'icon' => '',  'color' => '#6b7280', 'bg' => 'rgba(107,114,128,.12)'],
+        };
     }
 
     public function getStatusConfig(): array
