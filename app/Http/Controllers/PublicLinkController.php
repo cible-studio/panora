@@ -81,7 +81,10 @@ class PublicLinkController extends Controller
             ], 410);
         }
         return response()->view('public.invoice', [
-            'invoice' => $invoice->loadMissing('client', 'items', 'reservation'),
+            // Invoice n'a que client + campaign comme relations (pas de
+            // table d'items ni de relation reservation). La vue publique
+            // n'affiche que ces deux-là.
+            'invoice' => $invoice->loadMissing('client', 'campaign'),
             'link'    => $link,
         ]);
     }
