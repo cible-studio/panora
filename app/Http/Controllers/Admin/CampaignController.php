@@ -1485,7 +1485,7 @@ class CampaignController extends Controller
     public function bulkAction(\Illuminate\Http\Request $request)
     {
         $data = $request->validate([
-            'action'        => 'required|in:pause,resume,cancel,delete',
+            'action'        => 'required|in:start,pause,resume,cancel,delete',
             'ids'           => 'required|array|min:1|max:200',
             'ids.*'         => 'integer|exists:campaigns,id',
             'cancel_reason' => 'nullable|string|max:500',
@@ -1499,6 +1499,22 @@ class CampaignController extends Controller
             $statusValue = is_object($c->status) ? $c->status->value : $c->status;
             try {
                 switch ($data['action']) {
+                    case 'start':
+                        // PLANIFIE → ACTIF (« Démarrer »). Passe par
+                        // CampaignService::activate() pour la garde « min 1
+                        // panneau » + l'envoi du mail client (transition
+                        // depuis PLANIFIE, contrairement à resume).
+                        if ($statusValue !== \App\Enums\CampaignStatus::PLANIFIE->value) {
+                            $skipped[] = $c->name . ' (pas planifiée)';
+                            continue 2;
+                        }
+                        $result = $this->campaignService->activate($c);
+                        if (!$result['ok']) {
+                            $skipped[] = $c->name . ' (' . ($result['error'] ?? 'démarrage refusé') . ')';
+                            continue 2;
+                        }
+                        $applied++;
+                        break;
                     case 'pause':
                         if ($statusValue !== \App\Enums\CampaignStatus::ACTIF->value) {
                             $skipped[] = $c->name . ' (pas actif)';
@@ -1571,6 +1587,7 @@ class CampaignController extends Controller
         );
 
         $verbs = [
+            'start'  => 'démarrée(s)',
             'pause'  => 'mise(s) en pause',
             'resume' => 'réactivée(s)',
             'cancel' => 'annulée(s)',
@@ -1831,6 +1848,14 @@ class CampaignController extends Controller
             'date_debut', 'date_fin', 'date_from', 'date_to',
         ]);
 
+        // Export d'une sélection précise (cases cochées dans l'index).
+        // Prioritaire sur les filtres : si ids[] est fourni, on exporte
+        // exactement ces campagnes-là, indépendamment des filtres actifs.
+        $ids = array_filter(array_map('intval', (array) $request->input('ids', [])));
+        if (!empty($ids)) {
+            $filters = ['ids' => $ids];
+        }
+
         $filename = 'campagnes-' . now()->format('Ymd-His') . '.xlsx';
 
         Log::info('campaigns.export.excel', [
@@ -1848,15 +1873,23 @@ class CampaignController extends Controller
     {
         $this->authorize('viewAny', Campaign::class);
 
+        // Export d'une sélection précise (cases cochées) — prioritaire sur
+        // les filtres : si ids[] est fourni, on exporte exactement ces
+        // campagnes, sinon on applique les filtres de l'index.
+        $selectedIds = array_filter(array_map('intval', (array) $request->input('ids', [])));
+
         $query = Campaign::with(['client:id,name', 'user:id,name'])
             ->withCount('panels')
-            ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
-            ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
-            ->when($request->status,      fn($q, $s)  => $q->where('status', $s))
-            ->when($request->date_debut,  fn($q, $d)  => $q->where('start_date', '>=', $d))
-            ->when($request->date_fin,    fn($q, $d)  => $q->where('start_date', '<=', $d))
-            ->when($request->date_from,   fn($q, $d)  => $q->where('start_date', '>=', $d))
-            ->when($request->date_to,     fn($q, $d)  => $q->where('end_date', '<=', $d))
+            ->when(!empty($selectedIds), fn($q) => $q->whereIn('id', $selectedIds))
+            ->when(empty($selectedIds), fn($q) => $q
+                ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
+                ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
+                ->when($request->status,      fn($q, $s)  => $q->where('status', $s))
+                ->when($request->date_debut,  fn($q, $d)  => $q->where('start_date', '>=', $d))
+                ->when($request->date_fin,    fn($q, $d)  => $q->where('start_date', '<=', $d))
+                ->when($request->date_from,   fn($q, $d)  => $q->where('start_date', '>=', $d))
+                ->when($request->date_to,     fn($q, $d)  => $q->where('end_date', '<=', $d))
+            )
             ->orderByDesc('created_at')
             ->limit(2000); // garde-fou perf : pas plus de 2000 lignes par PDF
 
