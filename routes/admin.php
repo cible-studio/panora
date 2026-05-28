@@ -137,6 +137,12 @@ Route::prefix('tech')->middleware(['throttle:60,1', \App\Http\Middleware\SetFren
         ->whereNumber('task')
         ->middleware('throttle:30,1')
         ->name('tech.space.photo');
+
+    // Signalement terrain en 1 tap (panneau cassé / accès bloqué…)
+    Route::post('/{token}/poses/{task}/report', [\App\Http\Controllers\TechSpaceController::class, 'report'])
+        ->whereNumber('task')
+        ->middleware('throttle:10,1')
+        ->name('tech.space.report');
 });
 
 Route::prefix('proposition')->name('proposition.')->middleware(\App\Http\Middleware\SetFrenchLocale::class)->group(function () {

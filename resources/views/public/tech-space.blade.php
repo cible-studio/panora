@@ -368,6 +368,9 @@
                                         <input type="file" accept="image/*" capture="environment" data-photo-input>
                                     </label>
                                 @endif
+                                <button type="button" class="btn btn-report-sm" data-action="report">
+                                    ⚠️ Signaler un problème
+                                </button>
                             </div>
                         </div>
                     @endforeach
@@ -384,11 +387,96 @@
 
 <div id="toast-container"></div>
 
+{{-- Overlay succès plein écran (feedback fort terrain) --}}
+<div id="ts-success" aria-hidden="true">
+    <div class="ts-check"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" fill="none"/><path fill="none" d="M14 27l8 8 16-16"/></svg></div>
+    <div class="ts-msg" id="ts-success-msg">Envoyé&nbsp;!</div>
+</div>
+
+{{-- Modal "Signaler un problème" --}}
+<div id="ts-report-modal" aria-hidden="true">
+    <div class="ts-report-card">
+        <h3>⚠️ Signaler un problème</h3>
+        <p class="ts-report-sub" id="ts-report-ref">Choisis ce qui ne va pas. Le superviseur sera alerté.</p>
+        <div class="ts-report-opts">
+            <button type="button" class="ts-report-opt" data-type="panneau_casse">🪧 Panneau cassé / abîmé</button>
+            <button type="button" class="ts-report-opt" data-type="acces_bloque">🚧 Accès bloqué / impossible</button>
+            <button type="button" class="ts-report-opt" data-type="mauvaise_adresse">📍 Mauvaise adresse / introuvable</button>
+            <button type="button" class="ts-report-opt" data-type="autre">📝 Autre problème</button>
+        </div>
+        <textarea id="ts-report-note" placeholder="Précisions (facultatif)…"></textarea>
+        <div class="ts-report-actions">
+            <button type="button" class="ts-btn-ghost" id="ts-report-cancel">Annuler</button>
+            <button type="button" class="ts-btn-send" id="ts-report-send" disabled>Envoyer l'alerte</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* UX "sans lecture" : actions plus grosses */
+    .actions .btn { min-height: 52px; font-size: 16px; }
+    .btn-report-sm {
+        width:100%; margin-top:8px; min-height:46px;
+        background:rgba(217,119,6,.10); color:#b45309;
+        border:1px solid rgba(217,119,6,.30); border-radius:12px;
+        font-weight:700; cursor:pointer;
+    }
+    .btn-report-sm:active { transform: translateY(1px); }
+    /* Overlay succès */
+    #ts-success {
+        position:fixed; inset:0; z-index:9999; display:none;
+        flex-direction:column; align-items:center; justify-content:center; gap:16px;
+        background:rgba(22,163,74,.97); color:#fff;
+    }
+    #ts-success.show { display:flex; animation:tsFade .2s ease; }
+    @keyframes tsFade { from{opacity:0} to{opacity:1} }
+    .ts-check svg { width:120px; height:120px; }
+    .ts-check circle { stroke:#fff; stroke-width:3; stroke-dasharray:151; stroke-dashoffset:151; animation:tsC .5s ease forwards; }
+    .ts-check path { stroke:#fff; stroke-width:4; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:40; stroke-dashoffset:40; animation:tsK .35s .35s ease forwards; }
+    @keyframes tsC { to{stroke-dashoffset:0} }
+    @keyframes tsK { to{stroke-dashoffset:0} }
+    .ts-msg { font-size:23px; font-weight:800; }
+    /* Modal report */
+    #ts-report-modal {
+        position:fixed; inset:0; z-index:9998; display:none;
+        align-items:flex-end; justify-content:center; background:rgba(15,23,42,.55); padding:0;
+    }
+    #ts-report-modal.show { display:flex; }
+    .ts-report-card {
+        background:#fff; width:100%; max-width:520px; border-radius:18px 18px 0 0;
+        padding:20px 18px calc(18px + env(safe-area-inset-bottom)); animation:tsUp .25s ease;
+    }
+    @keyframes tsUp { from{transform:translateY(40px);opacity:.5} to{transform:translateY(0);opacity:1} }
+    .ts-report-card h3 { font-size:18px; margin:0 0 4px; }
+    .ts-report-sub { font-size:13px; color:#475569; margin:0 0 14px; }
+    .ts-report-opts { display:flex; flex-direction:column; gap:8px; }
+    .ts-report-opt {
+        text-align:left; padding:14px; min-height:52px;
+        background:#f6f7f9; border:1.5px solid #e8eaee; border-radius:12px;
+        font-size:15px; font-weight:600; color:#0f172a; cursor:pointer;
+    }
+    .ts-report-opt.sel { border-color:#d97706; background:rgba(217,119,6,.10); color:#b45309; }
+    #ts-report-note { width:100%; margin-top:10px; min-height:64px; padding:10px 12px; border:1px solid #e8eaee; border-radius:12px; font:inherit; font-size:14px; resize:vertical; }
+    .ts-report-actions { display:flex; gap:10px; margin-top:14px; }
+    .ts-btn-ghost { flex:1; min-height:50px; background:#f1f5f9; border:none; border-radius:12px; font-weight:700; font-size:15px; cursor:pointer; }
+    .ts-btn-send { flex:2; min-height:50px; background:#d97706; color:#fff; border:none; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer; }
+    .ts-btn-send:disabled { opacity:.5; }
+</style>
+
 <script>
 (function() {
     'use strict';
     const CSRF  = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     const TOKEN = @json($token);
+
+    // ── Feedback fort : overlay plein écran + vibration ──
+    function flashSuccess(msg) {
+        const ov = document.getElementById('ts-success');
+        const m  = document.getElementById('ts-success-msg');
+        if (m && msg) m.innerHTML = msg;
+        if (navigator.vibrate) { try { navigator.vibrate([40, 60, 120]); } catch (e) {} }
+        if (ov) { ov.classList.add('show'); setTimeout(() => ov.classList.remove('show'), 900); }
+    }
 
     function toast(message, type = 'success') {
         const el = document.createElement('div');
@@ -402,16 +490,20 @@
         }, 3000);
     }
 
-    // ── Géolocalisation (best-effort, ne bloque pas l'upload) ──
-    function getPosition(timeout = 8000) {
-        return new Promise(resolve => {
-            if (!navigator.geolocation) return resolve(null);
+    // ── Géolocalisation robuste (best-effort, ne bloque pas l'upload) ──
+    // 1er essai haute précision (10 s — zones difficiles), retry en précision
+    // dégradée (réseau/cellule) avant d'abandonner. Renvoie aussi acc (±m).
+    function getPosition() {
+        if (!navigator.geolocation) return Promise.resolve(null);
+        const attempt = (opts) => new Promise(resolve => {
             navigator.geolocation.getCurrentPosition(
-                pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }),
                 ()  => resolve(null),
-                { enableHighAccuracy: true, timeout, maximumAge: 60000 }
+                opts
             );
         });
+        return attempt({ enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 })
+            .then(r => r || attempt({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }));
     }
 
     // ── Changement de statut ──────────────────────────────────
@@ -499,10 +591,11 @@
 
         const file = input.files[0];
         const originalLabel = label.innerHTML;
-        label.innerHTML = '⏳ Envoi…';
+        label.innerHTML = '📍 GPS…';
         label.style.pointerEvents = 'none';
 
         const gps = await getPosition();
+        label.innerHTML = (gps && gps.acc) ? `📍 ±${Math.round(gps.acc)} m · envoi…` : '⏳ Envoi…';
 
         const form = new FormData();
         form.append('photo', file);
@@ -510,6 +603,8 @@
             form.append('gps_lat', gps.lat.toFixed(6));
             form.append('gps_lng', gps.lng.toFixed(6));
         }
+        // Idempotence anti double-envoi / reprise réseau
+        form.append('client_uuid', (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(16).slice(2))));
 
         try {
             const url = `/tech/${TOKEN}/poses/${taskId}/photo`;
@@ -529,7 +624,7 @@
                 input.value = '';
                 return;
             }
-            toast(data.message, 'success');
+            flashSuccess('Photo envoyée&nbsp;!');
 
             // Pose réalisée → retire la card avec une petite animation
             // de fade-out plutôt que de recharger la page (préserve le
@@ -606,6 +701,66 @@
             location.reload();
         }
     }
+
+    // ── Signaler un problème (1 tap) ─────────────────────────
+    (function initReport() {
+        const modal  = document.getElementById('ts-report-modal');
+        const refEl  = document.getElementById('ts-report-ref');
+        const noteEl = document.getElementById('ts-report-note');
+        const sendBtn= document.getElementById('ts-report-send');
+        const cancel = document.getElementById('ts-report-cancel');
+        if (!modal) return;
+        let currentTaskId = null, selectedType = null;
+
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action="report"]');
+            if (!btn) return;
+            e.preventDefault();
+            const pose = btn.closest('[data-task-id]');
+            currentTaskId = pose?.dataset.taskId || null;
+            if (!currentTaskId) return;
+            selectedType = null;
+            if (noteEl) noteEl.value = '';
+            sendBtn.disabled = true;
+            modal.querySelectorAll('.ts-report-opt').forEach(o => o.classList.remove('sel'));
+            const ref = pose.querySelector('.pose-ref')?.textContent?.trim();
+            if (refEl) refEl.textContent = ref ? ('Panneau ' + ref + ' — choisis le problème.') : 'Choisis ce qui ne va pas.';
+            modal.classList.add('show');
+        });
+
+        modal.querySelectorAll('.ts-report-opt').forEach(opt => {
+            opt.addEventListener('click', () => {
+                selectedType = opt.dataset.type;
+                modal.querySelectorAll('.ts-report-opt').forEach(o => o.classList.toggle('sel', o === opt));
+                sendBtn.disabled = false;
+            });
+        });
+        cancel?.addEventListener('click', () => modal.classList.remove('show'));
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('show'); });
+
+        sendBtn?.addEventListener('click', async () => {
+            if (!currentTaskId || !selectedType) return;
+            sendBtn.disabled = true;
+            try {
+                const res = await fetch(`/tech/${TOKEN}/poses/${currentTaskId}/report`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                    body: JSON.stringify({ type: selectedType, note: (noteEl?.value || '').trim() }),
+                });
+                const data = await res.json();
+                modal.classList.remove('show');
+                if (res.ok && data.ok) {
+                    flashSuccess('Signalement envoyé&nbsp;!');
+                } else {
+                    toast(data.error || data.message || 'Erreur', 'error');
+                    sendBtn.disabled = false;
+                }
+            } catch (err) {
+                toast('Erreur réseau', 'error');
+                sendBtn.disabled = false;
+            }
+        });
+    })();
 })();
 </script>
 

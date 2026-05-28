@@ -249,7 +249,24 @@ class TechSpaceController extends Controller
             'gps_lat'  => 'nullable|numeric|between:-90,90',
             'gps_lng'  => 'nullable|numeric|between:-180,180',
             'notes'    => 'nullable|string|max:500',
+            'client_uuid' => 'nullable|string|max:64',
         ]);
+
+        // Idempotence : même tentative déjà traitée (double tap / reprise
+        // réseau) → on renvoie la pige existante sans dupliquer.
+        if (!empty($data['client_uuid'])
+            && \Illuminate\Support\Facades\Schema::hasColumn('piges', 'client_uuid')) {
+            $existing = Pige::where('client_uuid', $data['client_uuid'])->first();
+            if ($existing) {
+                return response()->json([
+                    'ok'        => true,
+                    'pige_id'   => $existing->id,
+                    'photo_url' => Storage::url($existing->photo_path),
+                    'message'   => 'Photo déjà envoyée.',
+                    'task_done' => true,
+                ]);
+            }
+        }
 
         // Stockage photo — compression côté serveur AVANT persistance.
         // Les photos brutes smartphone font typiquement 3-10 MB en JPEG
@@ -295,6 +312,7 @@ class TechSpaceController extends Controller
             'gps_lng'     => $data['gps_lng'] ?? null,
             'notes'       => implode(' · ', $noteParts),
             'status'      => 'en_attente',
+            'client_uuid' => $data['client_uuid'] ?? null,
         ]);
 
         // Marque la tâche comme réalisée si pas déjà fait
@@ -342,6 +360,75 @@ class TechSpaceController extends Controller
             'photo_url' => Storage::url($path),
             'message'   => '✅ Photo envoyée. Pose validée — en attente vérification.',
             'task_done' => true,
+        ]);
+    }
+
+    /**
+     * POST /tech/{token}/poses/{task}/report
+     * Signalement terrain en 1 tap (panneau cassé / accès bloqué / mauvaise
+     * adresse / autre) → alerte MP/commercial/admin. Ne change pas le statut.
+     */
+    public function report(Request $request, string $token, int $taskId)
+    {
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->first();
+        if (!$tech) return response()->json(['ok' => false, 'error' => 'Lien invalide ou compte désactivé.'], 404);
+
+        $task = PoseTask::with(['campaign:id,name,user_id', 'panel:id,reference'])
+            ->where('id', $taskId)
+            ->where('assigned_user_id', $tech->id)
+            ->first();
+        if (!$task) return response()->json(['ok' => false, 'error' => 'Pose introuvable.'], 404);
+
+        $data = $request->validate([
+            'type' => 'required|string|in:panneau_casse,acces_bloque,mauvaise_adresse,autre',
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        $labels = [
+            'panneau_casse'    => 'Panneau cassé / abîmé',
+            'acces_bloque'     => 'Accès bloqué / impossible',
+            'mauvaise_adresse' => 'Mauvaise adresse / introuvable',
+            'autre'            => 'Autre problème',
+        ];
+        $label = $labels[$data['type']] ?? 'Problème signalé';
+
+        \App\Models\PoseTaskAction::log($task->id, 'problem_reported', [
+            'type' => $data['type'],
+            'note' => $data['note'] ?? null,
+        ], $tech->name, $request->ip());
+
+        Log::warning('tech.space.problem_reported', [
+            'task_id' => $task->id,
+            'tech_id' => $tech->id,
+            'type'    => $data['type'],
+            'ip'      => $request->ip(),
+        ]);
+
+        \App\Services\AdminAlertNotifier::notify(
+            to: ['commercial_assigned', 'mediaplanner', 'admin'],
+            commercialAssigned: $task->campaign?->user,
+            severity: 'warning',
+            title: 'Problème signalé sur le terrain',
+            summary: "Le technicien {$tech->name} signale : « {$label} » — panneau {$task->panel?->reference}.",
+            lines: array_filter([
+                'Type : ' . $label,
+                'Panneau : ' . ($task->panel?->reference ?? '—'),
+                'Campagne : ' . ($task->campaign?->name ?? '—'),
+                'Technicien : ' . $tech->name,
+                !empty($data['note']) ? 'Précisions : ' . $data['note'] : null,
+            ]),
+            ctaLabel: 'Ouvrir la fiche pose →',
+            ctaUrl: url('/admin/pose-tasks/' . $task->id),
+            emoji: '⚠️',
+            footer: 'Tâche pose #' . $task->id,
+            dedupKey: 'pose-problem-' . $task->id . '-' . $data['type'],
+        );
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Signalement transmis au superviseur. Merci !',
         ]);
     }
 }
