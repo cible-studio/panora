@@ -13,7 +13,7 @@
         <a href="{{ route('admin.campaigns.import-pdf.form') }}" class="btn btn-ghost btn-sm" title="Importer une campagne depuis un PDF « Liste des panneaux commandes »">
             📥 Import PDF
         </a>
-        <a href="{{ route('admin.campaigns.create') }}" class="btn btn-primary">
+        <a href="{{ route('admin.campaigns.create') }}" class="btn btn-primary btn-sm">
             + Nouvelle campagne
         </a>
         @endcan
