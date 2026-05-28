@@ -115,6 +115,17 @@
         <div class="kpi-card__label">Volume total</div>
         <div class="kpi-card__sub">Poses · {{ $pigesTotal }} piges sur {{ $days }}j</div>
     </div>
+
+    {{-- Anti-fraude : taux de piges hors-zone (>200 m du panneau) --}}
+    <div class="kpi-card" style="--kpi-color:#ef4444">
+        <div class="kpi-card__top-bar" style="background:#ef4444"></div>
+        <div class="kpi-card__icon" style="color:#ef4444"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><line x1="12" y1="7" x2="12" y2="11"/><line x1="12" y1="14" x2="12.01" y2="14"/></svg></div>
+        <div class="kpi-card__value" style="color:#ef4444">
+            @if($outZoneRate !== null){{ $outZoneRate }}<span style="font-size:14px;font-weight:600">%</span>@else<span style="color:var(--text3)">—</span>@endif
+        </div>
+        <div class="kpi-card__label">Piges hors-zone</div>
+        <div class="kpi-card__sub">{{ $pigesOutZone }} hors-zone · {{ $pigesWarnZone }} à vérifier · sur {{ $pigesWithGps }} géolocalisées</div>
+    </div>
 </div>
 
 {{-- ── 2 colonnes : Top techs + Top communes ─────────────────── --}}
