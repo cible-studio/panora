@@ -41,8 +41,11 @@
 
 <div class="header">
     <div class="left">
+        @if(!empty($logoCibleLight))
+            <img src="{{ $logoCibleLight }}" alt="CIBLE CI" style="height:34px;margin-bottom:6px;">
+        @endif
         <h1>SYNTHÈSE EXÉCUTIVE</h1>
-        <div class="period">Dashboard analytique OOH — CIBLE CI</div>
+        <div class="period">Dashboard analytique OOH — {{ $operatorName ?? 'CIBLE CI' }}</div>
         <div class="period">Période : {{ $period['from']->format('d/m/Y') }} → {{ $period['to']->format('d/m/Y') }}</div>
     </div>
     <div class="right">

@@ -35,7 +35,7 @@ class AppServiceProvider extends ServiceProvider
 
         // ─── View composer : injecte les logos Panora dans tous les PDFs ─
         // Évite d'avoir à les passer manuellement depuis chaque controller.
-        \Illuminate\Support\Facades\View::composer(['pdf.*', 'admin.*.pdf.*'], function ($view) {
+        \Illuminate\Support\Facades\View::composer(['pdf.*', 'admin.*.pdf.*', 'admin.rapports.*-pdf', 'admin.rapports.pdf.*'], function ($view) {
             $assets = new class { use \App\Support\PdfAssets {
                 getPanoraLogoDark as public;
                 getPanoraLogoLight as public;
