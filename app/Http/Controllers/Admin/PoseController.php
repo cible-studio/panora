@@ -379,6 +379,24 @@ class PoseController extends Controller
             ? round((float) $validationDelay, 1)
             : null;
 
+        // ─── Anti-fraude : taux de piges hors-zone ─────────────────
+        // Part des piges 'out' (>200 m du panneau) parmi celles qui ont un
+        // verdict de distance (ok/warn/out) — indicateur de fraude/erreur GPS.
+        $pigesGeoCounts = \App\Models\Pige::where('created_at', '>=', $since)
+            ->whereIn('geo_check', ['ok', 'warn', 'out'])
+            ->selectRaw("
+                COUNT(*) as with_gps,
+                SUM(CASE WHEN geo_check = 'out'  THEN 1 ELSE 0 END) as out_zone,
+                SUM(CASE WHEN geo_check = 'warn' THEN 1 ELSE 0 END) as warn_zone
+            ")->first();
+
+        $pigesWithGps   = (int) ($pigesGeoCounts->with_gps  ?? 0);
+        $pigesOutZone   = (int) ($pigesGeoCounts->out_zone  ?? 0);
+        $pigesWarnZone  = (int) ($pigesGeoCounts->warn_zone ?? 0);
+        $outZoneRate    = $pigesWithGps > 0
+            ? round(($pigesOutZone / $pigesWithGps) * 100, 1)
+            : null;
+
         // ─── Top 5 techniciens (perf période) ──────────────────────
         $topTechs = \DB::table('pose_tasks')
             ->join('users', 'users.id', '=', 'pose_tasks.assigned_user_id')
@@ -444,7 +462,8 @@ class PoseController extends Controller
             'days', 'totalPoses', 'onTime', 'late', 'onTimeRate', 'medianDelay',
             'pigesTotal', 'pigesRejetees', 'pigesVerifiees', 'firstTimeRate',
             'avgValidationHours', 'topTechs', 'topCommunes', 'trend',
-            'topCommerciaux'
+            'topCommerciaux',
+            'pigesWithGps', 'pigesOutZone', 'pigesWarnZone', 'outZoneRate'
         ));
     }
 
@@ -471,7 +490,7 @@ class PoseController extends Controller
             ->whereNotNull('panels.latitude')
             ->whereNotNull('panels.longitude')
             ->with([
-                'panel:id,reference,name,latitude,longitude,commune_id',
+                'panel:id,reference,name,latitude,longitude,commune_id,gps_source,gps_dispersion_flag',
                 'panel.commune:id,name',
                 'campaign:id,name,status',
                 'technicien:id,name,whatsapp_number',
@@ -506,6 +525,8 @@ class PoseController extends Controller
                 'status'     => $t->status,
                 'color'      => $isLate ? '#dc2626' : $statusColor, // rouge foncé si retard
                 'is_late'    => $isLate,
+                'gps_source' => $t->panel->gps_source,            // manual|pige_provisional|pige_confirmed|null
+                'dispersion' => (bool) $t->panel->gps_dispersion_flag, // positions piges divergentes
                 'scheduled'  => $t->scheduled_at?->format('d/m/Y H:i'),
                 'done_at'    => $t->done_at?->format('d/m/Y H:i'),
                 'show_url'   => route('admin.pose-tasks.show', $t),
