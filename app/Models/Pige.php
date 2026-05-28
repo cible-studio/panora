@@ -16,6 +16,7 @@ class Pige extends Model
         'geo_distance_m', 'geo_check',
         'taken_at', 'verified_at',
         'status', 'rejection_reason', 'notes',
+        'client_uuid',
         'archived_at',
     ];
 

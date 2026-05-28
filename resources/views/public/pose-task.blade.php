@@ -689,8 +689,13 @@
             <a class="btn-maps"
                href="https://www.google.com/maps?q={{ $task->panel->latitude }},{{ $task->panel->longitude }}"
                target="_blank" rel="noopener">
-                🗺️ Ouvrir dans Google Maps
+                🗺️ Itinéraire (Google Maps)
             </a>
+        @endif
+        @if(!($isLocked ?? false))
+        <button type="button" class="btn-report" id="btn-report">
+            ⚠️ Signaler un problème
+        </button>
         @endif
     </div>
 
@@ -912,6 +917,68 @@
     </div>
 </div>
 
+{{-- ═══ OVERLAY SUCCÈS PLEIN ÉCRAN (feedback fort terrain) ═══ --}}
+<div id="success-overlay" aria-hidden="true">
+    <div class="so-check">
+        <svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" fill="none"/><path fill="none" d="M14 27l8 8 16-16"/></svg>
+    </div>
+    <div class="so-msg" id="success-overlay-msg">Envoyé&nbsp;!</div>
+</div>
+
+{{-- ═══ MODAL SIGNALER UN PROBLÈME ═══ --}}
+<div class="modal" id="modal-report">
+    <div class="modal-card">
+        <h3>⚠️ Signaler un problème</h3>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Choisis ce qui ne va pas. Le superviseur sera alerté.</p>
+        <div class="report-opts">
+            <button type="button" class="report-opt" data-type="panneau_casse">🪧 Panneau cassé / abîmé</button>
+            <button type="button" class="report-opt" data-type="acces_bloque">🚧 Accès bloqué / impossible</button>
+            <button type="button" class="report-opt" data-type="mauvaise_adresse">📍 Mauvaise adresse / introuvable</button>
+            <button type="button" class="report-opt" data-type="autre">📝 Autre problème</button>
+        </div>
+        <textarea id="report-note" placeholder="Précisions (facultatif)…" style="width:100%;margin-top:10px;min-height:64px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
+        <div class="modal-actions" style="margin-top:12px">
+            <button type="button" class="cancel" id="report-cancel">Annuler</button>
+            <button type="button" class="confirm" id="report-send" disabled>Envoyer l'alerte</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Boutons terrain plus gros (UX "sans lecture") */
+    .photo-cta, .btn-done, .btn-primary { min-height: 56px; font-size: 17px; }
+    .btn-report {
+        display:flex; align-items:center; justify-content:center; gap:8px;
+        width:100%; margin-top:10px; padding:12px; min-height:48px;
+        background:var(--warn-bg); color:var(--warn);
+        border:1px solid rgba(217,119,6,.35); border-radius:12px;
+        font-weight:700; font-size:15px; cursor:pointer; font-family:inherit;
+    }
+    .btn-report:active { transform: translateY(1px); }
+    /* Overlay succès plein écran */
+    #success-overlay {
+        position:fixed; inset:0; z-index:9999; display:none;
+        flex-direction:column; align-items:center; justify-content:center; gap:18px;
+        background:rgba(22,163,74,.97); color:#fff;
+    }
+    #success-overlay.show { display:flex; animation:soFade .2s ease; }
+    @keyframes soFade { from{opacity:0} to{opacity:1} }
+    .so-check svg { width:120px; height:120px; }
+    .so-check circle { stroke:#fff; stroke-width:3; stroke-dasharray:151; stroke-dashoffset:151; animation:soCircle .5s ease forwards; }
+    .so-check path { stroke:#fff; stroke-width:4; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:40; stroke-dashoffset:40; animation:soCheck .35s .35s ease forwards; }
+    @keyframes soCircle { to{stroke-dashoffset:0} }
+    @keyframes soCheck  { to{stroke-dashoffset:0} }
+    .so-msg { font-size:24px; font-weight:800; }
+    /* Options de signalement */
+    .report-opts { display:flex; flex-direction:column; gap:8px; }
+    .report-opt {
+        text-align:left; padding:13px 14px; min-height:50px;
+        background:var(--bg); border:1.5px solid var(--border); border-radius:12px;
+        font-size:15px; font-weight:600; color:var(--text); cursor:pointer; font-family:inherit;
+    }
+    .report-opt.sel { border-color:var(--warn); background:var(--warn-bg); color:var(--warn); }
+</style>
+
 <script>
 (function () {
     'use strict';
@@ -922,6 +989,21 @@
     const ROUTE_STATUS        = "{{ route('pige.public.intervention.status',  $task->public_token) }}";
     const ROUTE_PHOTO_DELETE  = "{{ route('pige.public.intervention.photo.delete',  ['token' => $task->public_token, 'pigeId' => 'PIGE_ID']) }}";
     const ROUTE_PHOTO_REPLACE = "{{ route('pige.public.intervention.photo.replace', ['token' => $task->public_token, 'pigeId' => 'PIGE_ID']) }}";
+    const ROUTE_REPORT        = "{{ route('pige.public.intervention.report', $task->public_token) }}";
+
+    // ── Feedback fort : check plein écran + vibration ────────
+    function flashSuccess(msg, reload) {
+        const ov = document.getElementById('success-overlay');
+        const m  = document.getElementById('success-overlay-msg');
+        if (m && msg) m.innerHTML = msg;
+        if (navigator.vibrate) { try { navigator.vibrate([40, 60, 120]); } catch (e) {} }
+        if (ov) {
+            ov.classList.add('show');
+            setTimeout(() => { ov.classList.remove('show'); if (reload) location.reload(); }, reload ? 1100 : 850);
+        } else if (reload) {
+            setTimeout(() => location.reload(), 1100);
+        }
+    }
 
     // ── Toast helper ─────────────────────────────────────────
     function toast(msg, type) {
@@ -1041,14 +1123,19 @@
     }
 
     async function getGps() {
-        if (!navigator.geolocation) return { lat: null, lng: null };
-        return new Promise(resolve => {
+        if (!navigator.geolocation) return { lat: null, lng: null, acc: null };
+        const attempt = (opts) => new Promise(resolve => {
             navigator.geolocation.getCurrentPosition(
-                pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-                () => resolve({ lat: null, lng: null }),
-                { enableHighAccuracy: true, timeout: 4000, maximumAge: 30000 }
+                pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }),
+                () => resolve(null),
+                opts
             );
         });
+        // 1er essai haute précision (10 s — zones difficiles), puis retry en
+        // précision dégradée (réseau/cellule) avant d'abandonner.
+        let r = await attempt({ enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 });
+        if (!r) r = await attempt({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
+        return r || { lat: null, lng: null, acc: null };
     }
 
     photoInput?.addEventListener('change', async (e) => {
@@ -1063,13 +1150,20 @@
             upMsg.textContent = 'Compression de la photo…';
             const blob = await compressImage(file);
 
-            upMsg.textContent = 'Localisation GPS…';
+            upMsg.textContent = '📍 Localisation GPS…';
             const gps = await getGps();
-
-            upMsg.textContent = 'Envoi vers le serveur…';
+            if (gps.lat === null) {
+                upMsg.textContent = '⚠ GPS indisponible — envoi sans position…';
+            } else if (gps.acc) {
+                upMsg.textContent = `📍 GPS ±${Math.round(gps.acc)} m — envoi…`;
+            } else {
+                upMsg.textContent = 'Envoi vers le serveur…';
+            }
             const fd = new FormData();
             fd.append('photo', blob, 'photo.jpg');
             if (gps.lat !== null) { fd.append('gps_lat', gps.lat); fd.append('gps_lng', gps.lng); }
+            // Idempotence (anti double-envoi / reprise réseau) : identifiant unique par tentative.
+            fd.append('client_uuid', (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(16).slice(2))));
             // Tech name (si saisi) — pour l'historique en cas de tech non assigné
             const techName = document.getElementById('tech-self-name')?.value?.trim();
             if (techName) fd.append('tech_name', techName);
@@ -1081,7 +1175,7 @@
             });
             const data = await r.json();
             if (data.ok) {
-                toast(data.message || 'Photo envoyée.', 'success');
+                flashSuccess('Photo envoyée&nbsp;!', false);
                 injectThumbnail(data.pige);
                 refreshPhotoCount();
             } else {
@@ -1337,8 +1431,7 @@
             });
             const data = await r.json();
             if (data.ok) {
-                toast(data.message || 'Pose confirmée.', 'success');
-                setTimeout(() => location.reload(), 1200);
+                flashSuccess('Pose confirmée&nbsp;!', true);
             } else {
                 toast(data.message || 'Erreur.', 'error');
                 btn.disabled = false;
@@ -1348,6 +1441,51 @@
             btn.disabled = false;
         }
     });
+
+    // ── Signaler un problème (1 tap) ─────────────────────────
+    (function initReport() {
+        const openBtn = document.getElementById('btn-report');
+        const modal   = document.getElementById('modal-report');
+        const sendBtn = document.getElementById('report-send');
+        const cancel  = document.getElementById('report-cancel');
+        const noteEl  = document.getElementById('report-note');
+        if (!openBtn || !modal) return;
+        let selectedType = null;
+
+        openBtn.addEventListener('click', () => { selectedType = null; if (noteEl) noteEl.value = ''; sendBtn.disabled = true; modal.querySelectorAll('.report-opt').forEach(o => o.classList.remove('sel')); modal.classList.add('open'); });
+        cancel?.addEventListener('click', () => modal.classList.remove('open'));
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
+        modal.querySelectorAll('.report-opt').forEach(opt => {
+            opt.addEventListener('click', () => {
+                selectedType = opt.dataset.type;
+                modal.querySelectorAll('.report-opt').forEach(o => o.classList.toggle('sel', o === opt));
+                sendBtn.disabled = false;
+            });
+        });
+        sendBtn?.addEventListener('click', async () => {
+            if (!selectedType) return;
+            sendBtn.disabled = true;
+            const techName = document.getElementById('tech-self-name')?.value?.trim();
+            try {
+                const r = await fetch(ROUTE_REPORT, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ type: selectedType, note: (noteEl?.value || '').trim(), tech_name: techName || '' }).toString(),
+                });
+                const data = await r.json();
+                modal.classList.remove('open');
+                if (data.ok) {
+                    flashSuccess('Signalement envoyé&nbsp;!', false);
+                } else {
+                    toast(data.message || 'Erreur.', 'error');
+                    sendBtn.disabled = false;
+                }
+            } catch (e) {
+                toast('Réseau indisponible. Réessayez.', 'error');
+                sendBtn.disabled = false;
+            }
+        });
+    })();
 })();
 </script>
 </body>

@@ -280,6 +280,70 @@ class PoseTaskPublicController extends Controller
     }
 
     /**
+     * Signalement terrain par le technicien (1 tap) : panneau cassé,
+     * accès bloqué, mauvaise adresse… → alerte MP/admin + trace dans
+     * l'historique de la tâche. N'altère pas le statut de la pose.
+     * POST /pige/{token}/report
+     */
+    public function reportProblem(Request $request, string $token)
+    {
+        $task = $this->resolveTask($token);
+
+        $data = $request->validate([
+            'type'      => 'required|string|in:panneau_casse,acces_bloque,mauvaise_adresse,autre',
+            'note'      => 'nullable|string|max:500',
+            'tech_name' => 'nullable|string|max:100',
+        ]);
+
+        $task->captureSelfTechName($data['tech_name'] ?? null, $request->ip());
+
+        $labels = [
+            'panneau_casse'    => 'Panneau cassé / abîmé',
+            'acces_bloque'     => 'Accès bloqué / impossible',
+            'mauvaise_adresse' => 'Mauvaise adresse / introuvable',
+            'autre'            => 'Autre problème',
+        ];
+        $label = $labels[$data['type']] ?? 'Problème signalé';
+
+        PoseTaskAction::log($task->id, 'problem_reported', [
+            'type' => $data['type'],
+            'note' => $data['note'] ?? null,
+        ], $task->technicien?->name ?? $task->tech_name_self ?? ($data['tech_name'] ?? null), $request->ip());
+
+        Log::warning('pose_task.public.problem_reported', [
+            'task_id' => $task->id,
+            'type'    => $data['type'],
+            'ip'      => $request->ip(),
+        ]);
+
+        $task->loadMissing('panel', 'campaign.client', 'technicien');
+        \App\Services\AdminAlertNotifier::notify(
+            to: ['commercial_assigned', 'mediaplanner', 'admin'],
+            commercialAssigned: $task->campaign?->user,
+            severity: 'warning',
+            title: 'Problème signalé sur le terrain',
+            summary: "Le technicien signale : « {$label} » — panneau {$task->panel?->reference}.",
+            lines: array_filter([
+                'Type : ' . $label,
+                'Panneau : ' . ($task->panel?->reference ?? '—'),
+                'Campagne : ' . ($task->campaign?->name ?? '—'),
+                'Technicien : ' . ($task->technicien?->name ?? $task->tech_name_self ?? '—'),
+                !empty($data['note']) ? 'Précisions : ' . $data['note'] : null,
+            ]),
+            ctaLabel: 'Ouvrir la fiche pose →',
+            ctaUrl: url('/admin/pose-tasks/' . $task->id),
+            emoji: '⚠️',
+            footer: 'Tâche pose #' . $task->id,
+            dedupKey: 'pose-problem-' . $task->id . '-' . $data['type'],
+        );
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Signalement transmis au superviseur. Merci !',
+        ]);
+    }
+
+    /**
      * Upload d'une photo (pige) directement depuis la page pose.
      * POST /pige/{token}/photo
      */
@@ -298,12 +362,33 @@ class PoseTaskPublicController extends Controller
         }
 
         $data = $request->validate([
-            'photo'     => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:51200'],
-            'gps_lat'   => 'nullable|numeric|between:-90,90',
-            'gps_lng'   => 'nullable|numeric|between:-180,180',
-            'note'      => 'nullable|string|max:500',
-            'tech_name' => 'nullable|string|max:100',
+            'photo'       => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:51200'],
+            'gps_lat'     => 'nullable|numeric|between:-90,90',
+            'gps_lng'     => 'nullable|numeric|between:-180,180',
+            'note'        => 'nullable|string|max:500',
+            'tech_name'   => 'nullable|string|max:100',
+            'client_uuid' => 'nullable|string|max:64',
         ]);
+
+        // Idempotence : si la même tentative (client_uuid) a déjà créé une
+        // pige (double tap, reprise réseau), on renvoie l'existante sans
+        // dupliquer ni re-stocker la photo.
+        if (!empty($data['client_uuid'])
+            && \Illuminate\Support\Facades\Schema::hasColumn('piges', 'client_uuid')) {
+            $existing = Pige::where('client_uuid', $data['client_uuid'])->first();
+            if ($existing) {
+                return response()->json([
+                    'ok'      => true,
+                    'message' => 'Photo déjà envoyée.',
+                    'pige'    => [
+                        'id'         => $existing->id,
+                        'photo_url'  => \Illuminate\Support\Facades\Storage::url($existing->photo_path),
+                        'status'     => $existing->status,
+                        'taken_at'   => $existing->taken_at?->format('d/m/Y H:i'),
+                    ],
+                ]);
+            }
+        }
 
         // Capture identité tech si fournie
         $task->captureSelfTechName($data['tech_name'] ?? null, $request->ip());
@@ -332,6 +417,7 @@ class PoseTaskPublicController extends Controller
             'gps_lng'     => $data['gps_lng'] ?? null,
             'notes'       => implode(' · ', $noteParts),
             'status'      => 'en_attente',
+            'client_uuid' => $data['client_uuid'] ?? null,
         ]);
 
         PoseTaskAction::log($task->id, 'photo_uploaded', [

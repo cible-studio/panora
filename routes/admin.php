@@ -102,6 +102,10 @@ Route::prefix('pige')->middleware(['throttle:60,1', \App\Http\Middleware\SetFren
         ->whereNumber('pigeId');
     Route::post('/{token}/status',           [\App\Http\Controllers\PoseTaskPublicController::class, 'setStatus'])
         ->name('pige.public.intervention.status');
+    // Signalement terrain (panneau cassé / accès bloqué / mauvaise adresse…)
+    Route::post('/{token}/report',           [\App\Http\Controllers\PoseTaskPublicController::class, 'reportProblem'])
+        ->name('pige.public.intervention.report')
+        ->middleware('throttle:10,1');
     Route::post('/{token}/photo/{pigeId}/replace', [\App\Http\Controllers\PoseTaskPublicController::class, 'replacePhoto'])
         ->name('pige.public.intervention.photo.replace')
         ->middleware('throttle:30,1')
