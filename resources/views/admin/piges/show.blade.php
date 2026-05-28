@@ -163,22 +163,6 @@ $sIcon = match($pige->status) {
                 </div>
             </div>
             @endif
-
-            {{-- Cohérence GPS (anti-fraude) : distance pige ↔ panneau --}}
-            @if($pige->geo_check)
-            @php $gb = $pige->geoBadge(); @endphp
-            <div style="padding:0 18px 18px">
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:6px">COHÉRENCE GPS</div>
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                    <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;color:{{ $gb['color'] }};background:{{ $gb['bg'] }}">
-                        {{ $gb['icon'] }} {{ $gb['label'] }}
-                    </span>
-                    @if($pige->geo_distance_m !== null)
-                    <span style="font-size:12px;color:var(--text2)">{{ $pige->geo_distance_m }} m du panneau</span>
-                    @endif
-                </div>
-            </div>
-            @endif
         </div>
     </div>
 

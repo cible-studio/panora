@@ -296,19 +296,13 @@ class PanelController extends Controller
             );
         }
 
-        // Coordonnées saisies à la main → gps_source='manual' (protégé contre
-        // l'écrasement par l'auto-géoloc des piges, cf. PanelGeoLocator).
-        $manualGps = $request->filled('latitude') && $request->filled('longitude');
-
         $panel = Panel::create([
-            ...$request->except(['_token', 'face', 'reference', 'gps_source']),
+            ...$request->except(['_token', 'face', 'reference']),
             'reference' => $reference,
             'status' => PanelStatus::LIBRE,
             'created_by' => auth()->id(),
             'is_lit' => $request->boolean('is_lit'),
             'is_vip' => $request->boolean('is_vip'),
-            'gps_source' => $manualGps ? 'manual' : null,
-            'gps_computed_at' => $manualGps ? now() : null,
         ]);
 
         // Upload photos
@@ -476,27 +470,6 @@ class PanelController extends Controller
 
 
 
-        // ── Provenance GPS ──
-        // On ne marque 'manual' que si l'admin a réellement SAISI/MODIFIÉ des
-        // coordonnées (sinon ouvrir le formulaire et resauvegarder figerait
-        // une position auto-géolocalisée par piges). Coords vidées → reset à
-        // null (l'auto-géoloc pourra repeupler).
-        $hasCoords  = $request->filled('latitude') && $request->filled('longitude');
-        $gpsSource  = $panel->gps_source;
-        $gpsComputed = $panel->gps_computed_at;
-        if (!$hasCoords) {
-            $gpsSource   = null;
-            $gpsComputed = null;
-        } else {
-            $coordsChanged = $panel->latitude === null || $panel->longitude === null
-                || abs((float) $panel->latitude  - (float) $request->latitude)  > 1e-7
-                || abs((float) $panel->longitude - (float) $request->longitude) > 1e-7;
-            if ($coordsChanged) {
-                $gpsSource   = 'manual';
-                $gpsComputed = now();
-            }
-        }
-
         $panel->update([
             'name' => $request->name,
             'reference' => strtoupper(trim($request->reference)),
@@ -506,8 +479,6 @@ class PanelController extends Controller
             'category_id' => $request->category_id,
             'latitude' => $request->latitude,
             'longitude' => $request->longitude,
-            'gps_source' => $gpsSource,
-            'gps_computed_at' => $gpsComputed,
             'monthly_rate' => $request->monthly_rate,
             'daily_traffic' => $request->daily_traffic,
             'is_lit' => $request->boolean('is_lit'),
@@ -708,19 +679,7 @@ class PanelController extends Controller
     public function map()
     {
         $communes = Commune::orderBy('name')->get();
-
-        // Couverture géoloc du réseau (pour le bandeau de la carte).
-        $geoCoverage = [
-            'total'      => Panel::count(),
-            'with_gps'   => Panel::whereNotNull('latitude')->whereNotNull('longitude')->count(),
-            'manual'     => Panel::where('gps_source', 'manual')->count(),
-            'confirmed'  => Panel::where('gps_source', 'pige_confirmed')->count(),
-            'provisional'=> Panel::where('gps_source', 'pige_provisional')->count(),
-            'dispersion' => Panel::where('gps_dispersion_flag', true)->count(),
-        ];
-        $geoCoverage['missing'] = $geoCoverage['total'] - $geoCoverage['with_gps'];
-
-        return view('admin.panels.map', compact('communes', 'geoCoverage'));
+        return view('admin.panels.map', compact('communes'));
     }
 
     // ── DONNÉES CARTE JSON ──
@@ -735,13 +694,6 @@ class PanelController extends Controller
         }
         if ($request->filled('status')) {
             $query->where('status', $request->status);
-        }
-        // Filtre provenance GPS : manual | pige_confirmed | pige_provisional |
-        // unknown (legacy, coords présentes mais source NULL).
-        if ($request->filled('gps_source')) {
-            $request->gps_source === 'unknown'
-                ? $query->whereNull('gps_source')
-                : $query->where('gps_source', $request->gps_source);
         }
 
         $panels = $query->get()->map(function ($panel) {
@@ -762,14 +714,9 @@ class PanelController extends Controller
                 'category' => $panel->category?->name,
                 'format' => $panel->format?->name,
                 'surface' => $surface,
-                'gps_source' => $panel->gps_source ?? 'unknown',
-                'gps_dispersion' => (bool) $panel->gps_dispersion_flag,
             ];
         });
 
-        // Réponse : tableau plat (forme historique inchangée — la vue
-        // panels/map consomme directement le tableau). Les nouveaux champs
-        // gps_source / gps_dispersion sont purement additifs.
         return response()->json($panels);
     }
 
