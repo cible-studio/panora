@@ -472,10 +472,11 @@ class CampaignController extends Controller
         $startDate = $campaign->start_date->format('Y-m-d');
         $endDate   = $campaign->end_date->format('Y-m-d');
 
-        // Si la campagne n'est plus modifiable (terminée/annulée), on coupe
-        // tout de suite : pas la peine de calculer la dispo, l'UI affichera
-        // un message dédié via reason.
-        if (!in_array($campaign->status->value, ['planifie', 'actif', 'pause'])) {
+        // Si la campagne n'est plus modifiable (annulée), on coupe tout de
+        // suite : pas la peine de calculer la dispo, l'UI affichera un
+        // message dédié via reason. 'termine' est autorisé pour la
+        // correction de l'historique (anciennes campagnes importées).
+        if (!in_array($campaign->status->value, ['planifie', 'actif', 'pause', 'termine'])) {
             return response()->json([
                 'panels'          => [],
                 'reason'          => 'campaign_status_not_modifiable',
