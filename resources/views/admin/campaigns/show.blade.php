@@ -25,11 +25,14 @@
                 <button type="submit" class="btn btn-primary btn-sm">{{ $label }}</button>
             </form>
         @endif
-        @if($can['update'])
+        @php $isTermineeTop = $campaign->status->value === 'termine'; @endphp
+        @if($can['update'] && !$isTermineeTop)
             <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn btn-ghost btn-sm">✏️ Modifier</a>
         @elseif($can['managePanel'])
-            {{-- Campagne terminée : édition complète bloquée, mais on permet
-                 de corriger le nom (saisie d'historique). --}}
+            {{-- Campagne terminée : édition complète bloquée (submit refusé par
+                 update()), mais on permet de corriger le nom via un modal ciblé
+                 (saisie d'historique). Affiché par STATUT, pas par permission,
+                 car pour un admin $can['update'] reste vrai (bypass before()). --}}
             <button type="button" onclick="openRenameModal()" class="btn btn-ghost btn-sm">✏️ Renommer</button>
         @endif
         @if($can['delete'])
