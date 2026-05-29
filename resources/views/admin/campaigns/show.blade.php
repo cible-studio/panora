@@ -27,6 +27,10 @@
         @endif
         @if($can['update'])
             <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn btn-ghost btn-sm">✏️ Modifier</a>
+        @elseif($can['managePanel'])
+            {{-- Campagne terminée : édition complète bloquée, mais on permet
+                 de corriger le nom (saisie d'historique). --}}
+            <button type="button" onclick="openRenameModal()" class="btn btn-ghost btn-sm">✏️ Renommer</button>
         @endif
         @if($can['delete'])
             <button type="button"
@@ -1144,6 +1148,55 @@
             </div>
         </div>
     </div>
+
+    {{-- ── MODAL RENOMMER (campagne terminée — correction historique) ── --}}
+    @if($can['managePanel'])
+    <div id="modal-rename" class="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50 hidden"
+         style="background:rgba(0,0,0,0.7)" onclick="if(event.target===this) closeRenameModal()">
+        <div class="rounded-2xl border max-w-md w-full mx-4 overflow-hidden shadow-2xl"
+             style="background:var(--surface);border-color:var(--border)" onclick="event.stopPropagation()">
+            <div class="px-6 py-5 border-b flex justify-between items-center"
+                 style="background:var(--surface2);border-color:var(--border)">
+                <h3 class="font-bold text-xl" style="color:var(--text)">✏️ Renommer la campagne</h3>
+                <button onclick="closeRenameModal()" class="text-2xl transition" style="color:var(--text3)">&times;</button>
+            </div>
+            <form method="POST" action="{{ route('admin.campaigns.rename', $campaign) }}">
+                @csrf @method('PATCH')
+                <div class="p-6">
+                    <label class="text-xs font-semibold block mb-2" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
+                        Nom de la campagne
+                    </label>
+                    <input type="text" name="name" value="{{ $campaign->name }}" required maxlength="150"
+                           class="w-full rounded-lg px-4 py-2.5 text-sm focus:outline-none"
+                           style="background:var(--surface2);border:1px solid var(--border);color:var(--text)">
+                    @error('name')
+                        <p class="text-xs mt-2" style="color:#ef4444">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div class="px-6 py-5 border-t flex justify-end gap-3" style="border-color:var(--border)">
+                    <button type="button" onclick="closeRenameModal()" class="px-5 py-2 rounded-xl border transition-all"
+                            style="border-color:var(--border);color:var(--text2)">Annuler</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl text-white font-semibold" style="background:var(--accent)">
+                        💾 Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        function openRenameModal() {
+            const m = document.getElementById('modal-rename');
+            if (m) { m.classList.remove('hidden'); m.querySelector('input[name="name"]')?.focus(); }
+        }
+        function closeRenameModal() {
+            document.getElementById('modal-rename')?.classList.add('hidden');
+        }
+        @if($errors->has('name'))
+            // Réouvre le modal si erreur de validation au submit
+            document.addEventListener('DOMContentLoaded', openRenameModal);
+        @endif
+    </script>
+    @endif
 
     {{-- ── MODAL RETRAIT PANNEAU ── --}}
     <div id="modal-retire" class="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50 hidden"

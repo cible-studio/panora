@@ -827,6 +827,10 @@ Route::prefix('admin')
             Route::patch('campaigns/{campaign}', [CampaignController::class, 'update'])
                 ->whereNumber('campaign')->name('campaigns.update.patch');
 
+            // Renommer (nom seul) — marche aussi sur campagnes terminées
+            Route::patch('campaigns/{campaign}/rename', [CampaignController::class, 'rename'])
+                ->whereNumber('campaign')->name('campaigns.rename');
+
             // Actions groupées : 'pause' (actif→pause), 'resume' (pause→actif),
             // 'cancel' (annulation avec motif), 'delete' (uniquement
             // campagnes sans engagement actif — pose en cours / piges).

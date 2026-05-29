@@ -965,6 +965,43 @@ class CampaignController extends Controller
         return view('admin.campaigns.edit', compact('campaign', 'clients', 'commerciaux'));
     }
 
+    /**
+     * Renommer une campagne — action ciblée (nom uniquement) qui marche
+     * AUSSI sur les campagnes terminées (correction d'historique : anciennes
+     * campagnes importées). Utilise managePanel (MP + admin, bloque annulé)
+     * plutôt que update() qui bloque les campagnes terminées.
+     */
+    public function rename(Request $request, Campaign $campaign)
+    {
+        $this->authorize('managePanel', $campaign);
+
+        $data = $request->validate([
+            'name' => [
+                'required', 'string', 'max:150',
+                Rule::unique('campaigns', 'name')
+                    ->where('client_id', $campaign->client_id)
+                    ->whereNull('deleted_at')
+                    ->ignore($campaign->id),
+            ],
+        ], [
+            'name.required' => 'Le nom de la campagne est obligatoire.',
+            'name.unique'   => 'Une campagne porte déjà ce nom pour ce client.',
+            'name.max'      => 'Le nom ne doit pas dépasser 150 caractères.',
+        ]);
+
+        $oldName = $campaign->name;
+        $campaign->update(['name' => $data['name']]);
+
+        \Illuminate\Support\Facades\Log::info('campaign.renamed', [
+            'campaign_id' => $campaign->id,
+            'old'         => $oldName,
+            'new'         => $data['name'],
+            'user_id'     => auth()->id(),
+        ]);
+
+        return back()->with('success', "Campagne renommée : « {$oldName} » → « {$data['name']} ».");
+    }
+
     public function update(Request $request, Campaign $campaign)
     {
         $this->authorize('update', $campaign);
