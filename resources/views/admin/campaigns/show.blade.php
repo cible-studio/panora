@@ -1160,21 +1160,44 @@
              style="background:var(--surface);border-color:var(--border)" onclick="event.stopPropagation()">
             <div class="px-6 py-5 border-b flex justify-between items-center"
                  style="background:var(--surface2);border-color:var(--border)">
-                <h3 class="font-bold text-xl" style="color:var(--text)">✏️ Renommer la campagne</h3>
+                <h3 class="font-bold text-xl" style="color:var(--text)">✏️ Corriger la campagne</h3>
                 <button onclick="closeRenameModal()" class="text-2xl transition" style="color:var(--text3)">&times;</button>
             </div>
             <form method="POST" action="{{ route('admin.campaigns.rename', $campaign) }}">
                 @csrf @method('PATCH')
-                <div class="p-6">
-                    <label class="text-xs font-semibold block mb-2" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
-                        Nom de la campagne
-                    </label>
-                    <input type="text" name="name" value="{{ $campaign->name }}" required maxlength="150"
-                           class="w-full rounded-lg px-4 py-2.5 text-sm focus:outline-none"
-                           style="background:var(--surface2);border:1px solid var(--border);color:var(--text)">
-                    @error('name')
-                        <p class="text-xs mt-2" style="color:#ef4444">{{ $message }}</p>
-                    @enderror
+                <div class="p-6 flex flex-col gap-4">
+                    <div>
+                        <label class="text-xs font-semibold block mb-2" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
+                            Nom de la campagne
+                        </label>
+                        <input type="text" name="name" value="{{ old('name', $campaign->name) }}" required maxlength="150"
+                               class="w-full rounded-lg px-4 py-2.5 text-sm focus:outline-none"
+                               style="background:var(--surface2);border:1px solid var(--border);color:var(--text)">
+                        @error('name')
+                            <p class="text-xs mt-2" style="color:#ef4444">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold block mb-2" style="color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
+                            Commercial assigné
+                        </label>
+                        <select name="commercial_user_id"
+                                class="w-full rounded-lg px-4 py-2.5 text-sm focus:outline-none"
+                                style="background:var(--surface2);border:1px solid var(--border);color:var(--text)">
+                            <option value="">— Aucun —</option>
+                            @foreach($commerciaux as $c)
+                                <option value="{{ $c->id }}" {{ (string) old('commercial_user_id', $campaign->commercial_user_id) === (string) $c->id ? 'selected' : '' }}>
+                                    {{ $c->name }} ({{ strtoupper((string) ($c->role?->value ?? $c->role ?? '')) }})
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('commercial_user_id')
+                            <p class="text-xs mt-2" style="color:#ef4444">{{ $message }}</p>
+                        @enderror
+                        <p class="text-xs mt-2" style="color:var(--text3)">
+                            Le commercial conditionne le classement Top Commercial.
+                        </p>
+                    </div>
                 </div>
                 <div class="px-6 py-5 border-t flex justify-end gap-3" style="border-color:var(--border)">
                     <button type="button" onclick="closeRenameModal()" class="px-5 py-2 rounded-xl border transition-all"
