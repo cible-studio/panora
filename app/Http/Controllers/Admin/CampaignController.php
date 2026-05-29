@@ -167,8 +167,10 @@ class CampaignController extends Controller
         ]);
 
         $user = auth()->user();
+        // 'termine' inclus pour la correction de l'historique (campagnes
+        // importées dont les dates sont passées). 'annule' reste exclu.
         $canManagePanel = $user->can('managePanel', $campaign)
-            && in_array($campaign->status->value, ['planifie', 'actif']);
+            && in_array($campaign->status->value, ['planifie', 'actif', 'termine']);
 
         $can = [
             'update'       => $user->can('update', $campaign),
@@ -1116,9 +1118,9 @@ class CampaignController extends Controller
             'unit_prices.*'  => 'nullable|numeric|min:0',
         ]);
 
-        if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
+        if (!in_array($campaign->status->value, ['planifie', 'actif', 'termine'])) {
             return back()->with('error',
-                'Impossible d\'ajouter des panneaux à une campagne en pause, terminée ou annulée.');
+                'Impossible d\'ajouter des panneaux à une campagne en pause ou annulée.');
         }
 
         // ─── Séparation internes / externes ──────────────────────────
@@ -1227,9 +1229,9 @@ class CampaignController extends Controller
             'unit_price' => 'required|numeric|min:0',
         ]);
 
-        if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
+        if (!in_array($campaign->status->value, ['planifie', 'actif', 'termine'])) {
             $isAjax = $request->expectsJson() || $request->ajax();
-            $msg = 'Impossible de modifier le prix sur une campagne en pause, terminée ou annulée.';
+            $msg = 'Impossible de modifier le prix sur une campagne en pause ou annulée.';
             return $isAjax
                 ? response()->json(['ok' => false, 'error' => $msg], 422)
                 : back()->with('error', $msg);

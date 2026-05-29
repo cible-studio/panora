@@ -14,8 +14,10 @@ use Illuminate\Support\Facades\Log;
 
 class CampaignService
 {
-    /** Statuts permettant la modification du panel (ajout/retrait) */
-    private const MODIFIABLE_STATUSES = ['planifie', 'actif'];
+    /** Statuts permettant la modification du panel (ajout/retrait).
+     *  'termine' inclus pour permettre la correction de l'historique
+     *  (saisie d'anciennes campagnes importées dont les dates sont passées). */
+    private const MODIFIABLE_STATUSES = ['planifie', 'actif', 'termine'];
 
     public function __construct(
         protected AvailabilityService $availability,

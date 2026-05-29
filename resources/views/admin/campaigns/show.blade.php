@@ -590,10 +590,24 @@
             @endif
         </div>
 
+        @php $isTerminee = $campaign->status->value === 'termine'; @endphp
+        @if($can['managePanel'] && $isTerminee)
+        {{-- Bandeau correction historique : la gestion des panneaux est
+             exceptionnellement ouverte sur cette campagne terminée. --}}
+        <div class="px-6 py-3 border-b flex items-center gap-3"
+             style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.3)">
+            <span style="font-size:16px">⚠️</span>
+            <div class="text-xs" style="color:#b45309">
+                <strong>Campagne terminée</strong> — l'ajout/retrait de panneaux est autorisé uniquement pour corriger l'historique (ex: saisie d'une ancienne campagne). Les modifications seront enregistrées telles quelles.
+            </div>
+        </div>
+        @endif
+
         @if($can['managePanel'])
         <div x-show="showAdd" x-cloak class="border-b" style="border-color:var(--border)">
             <div class="p-5" style="background:var(--surface2)">
-                <form method="POST" action="{{ route('admin.campaigns.panels.add', $campaign) }}">
+                <form method="POST" action="{{ route('admin.campaigns.panels.add', $campaign) }}"
+                      @if($isTerminee) onsubmit="return confirm('Cette campagne est TERMINÉE. Confirmer l\'ajout de panneaux pour correction de l\'historique ?');" @endif>
                     @csrf
                     {{-- Tabs source : Tous / Internes / Externes (régies partenaires)
                          + toggle « Libres uniquement » (ON par défaut) qui filtre
