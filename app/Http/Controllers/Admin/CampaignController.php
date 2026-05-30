@@ -167,8 +167,10 @@ class CampaignController extends Controller
         ]);
 
         $user = auth()->user();
+        // 'termine' inclus pour la correction de l'historique (campagnes
+        // importées dont les dates sont passées). 'annule' reste exclu.
         $canManagePanel = $user->can('managePanel', $campaign)
-            && in_array($campaign->status->value, ['planifie', 'actif']);
+            && in_array($campaign->status->value, ['planifie', 'actif', 'termine']);
 
         $can = [
             'update'       => $user->can('update', $campaign),
@@ -179,10 +181,17 @@ class CampaignController extends Controller
 
         $allowed = $campaign->status->allowedTransitionsLabels();
 
+        // Liste des commerciaux assignables — utilisée par le modal de
+        // correction (nom + commercial) sur les campagnes terminées.
+        $commerciaux = \App\Models\User::query()
+            ->whereIn('role', ['admin', 'commercial'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'role']);
+
         // Panneaux disponibles : chargés en AJAX à l'ouverture du modal (cf. méthode availablePanels())
         // pour ne pas pénaliser le rendu initial de la page.
 
-        return view('admin.campaigns.show', compact('campaign', 'can', 'allowed'));
+        return view('admin.campaigns.show', compact('campaign', 'can', 'allowed', 'commerciaux'));
     }
 
     /**
@@ -470,10 +479,11 @@ class CampaignController extends Controller
         $startDate = $campaign->start_date->format('Y-m-d');
         $endDate   = $campaign->end_date->format('Y-m-d');
 
-        // Si la campagne n'est plus modifiable (terminée/annulée), on coupe
-        // tout de suite : pas la peine de calculer la dispo, l'UI affichera
-        // un message dédié via reason.
-        if (!in_array($campaign->status->value, ['planifie', 'actif', 'pause'])) {
+        // Si la campagne n'est plus modifiable (annulée), on coupe tout de
+        // suite : pas la peine de calculer la dispo, l'UI affichera un
+        // message dédié via reason. 'termine' est autorisé pour la
+        // correction de l'historique (anciennes campagnes importées).
+        if (!in_array($campaign->status->value, ['planifie', 'actif', 'pause', 'termine'])) {
             return response()->json([
                 'panels'          => [],
                 'reason'          => 'campaign_status_not_modifiable',
@@ -962,6 +972,55 @@ class CampaignController extends Controller
         return view('admin.campaigns.edit', compact('campaign', 'clients', 'commerciaux'));
     }
 
+    /**
+     * Correction ciblée d'une campagne — NOM + COMMERCIAL assigné. Marche
+     * AUSSI sur les campagnes terminées (correction d'historique : anciennes
+     * campagnes importées dont le commercial conditionne le Top Commercial).
+     * Volontairement limité à name + commercial_user_id : ne touche ni aux
+     * dates ni au client (pas de re-check dispo, zéro risque sur l'historique).
+     * Utilise managePanel (MP + admin, bloque annulé) plutôt que update()
+     * qui bloque les campagnes terminées.
+     */
+    public function rename(Request $request, Campaign $campaign)
+    {
+        $this->authorize('managePanel', $campaign);
+
+        $data = $request->validate([
+            'name' => [
+                'required', 'string', 'max:150',
+                Rule::unique('campaigns', 'name')
+                    ->where('client_id', $campaign->client_id)
+                    ->whereNull('deleted_at')
+                    ->ignore($campaign->id),
+            ],
+            'commercial_user_id' => 'nullable|exists:users,id',
+        ], [
+            'name.required'           => 'Le nom de la campagne est obligatoire.',
+            'name.unique'             => 'Une campagne porte déjà ce nom pour ce client.',
+            'name.max'                => 'Le nom ne doit pas dépasser 150 caractères.',
+            'commercial_user_id.exists' => 'Le commercial sélectionné est invalide.',
+        ]);
+
+        $oldName       = $campaign->name;
+        $oldCommercial = $campaign->commercial_user_id;
+
+        $campaign->update([
+            'name'               => $data['name'],
+            'commercial_user_id' => $data['commercial_user_id'] ?: null,
+        ]);
+
+        \Illuminate\Support\Facades\Log::info('campaign.corrected', [
+            'campaign_id'    => $campaign->id,
+            'old_name'       => $oldName,
+            'new_name'       => $data['name'],
+            'old_commercial' => $oldCommercial,
+            'new_commercial' => $campaign->commercial_user_id,
+            'user_id'        => auth()->id(),
+        ]);
+
+        return back()->with('success', "Campagne mise à jour (nom + commercial).");
+    }
+
     public function update(Request $request, Campaign $campaign)
     {
         $this->authorize('update', $campaign);
@@ -1116,9 +1175,9 @@ class CampaignController extends Controller
             'unit_prices.*'  => 'nullable|numeric|min:0',
         ]);
 
-        if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
+        if (!in_array($campaign->status->value, ['planifie', 'actif', 'termine'])) {
             return back()->with('error',
-                'Impossible d\'ajouter des panneaux à une campagne en pause, terminée ou annulée.');
+                'Impossible d\'ajouter des panneaux à une campagne en pause ou annulée.');
         }
 
         // ─── Séparation internes / externes ──────────────────────────
@@ -1227,9 +1286,9 @@ class CampaignController extends Controller
             'unit_price' => 'required|numeric|min:0',
         ]);
 
-        if (!in_array($campaign->status->value, ['planifie', 'actif'])) {
+        if (!in_array($campaign->status->value, ['planifie', 'actif', 'termine'])) {
             $isAjax = $request->expectsJson() || $request->ajax();
-            $msg = 'Impossible de modifier le prix sur une campagne en pause, terminée ou annulée.';
+            $msg = 'Impossible de modifier le prix sur une campagne en pause ou annulée.';
             return $isAjax
                 ? response()->json(['ok' => false, 'error' => $msg], 422)
                 : back()->with('error', $msg);

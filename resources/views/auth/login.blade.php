@@ -299,12 +299,6 @@
         @endif
     </div>
 
-    <div
-        style="margin-top:14px; padding:10px 14px; background:rgba(34,197,94,.05); border:1px solid rgba(34,197,94,.12); border-radius:10px; font-size:11px; color:var(--text3); display:flex; align-items:center; gap:8px; text-align:center;">
-        <span style="font-size:14px;">🔒</span>
-        Connexion sécurisée SSL · Session chiffrée
-    </div>
-
     <div style="text-align:center; font-size:11px; color:var(--text3); margin-top:20px;">
         © {{ date('Y') }} CIBLE CI · Régie OOH Côte d'Ivoire
     </div>
