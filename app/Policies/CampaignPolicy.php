@@ -63,7 +63,8 @@ class CampaignPolicy
     /** Ajout / retrait de panneaux : MP, tant que la campagne tourne. */
     public function managePanel(User $user, Campaign $campaign): bool
     {
-        if ($campaign->status === CampaignStatus::TERMINE) return false;
+        // TERMINE autorisé : permet de corriger l'historique (anciennes
+        // campagnes importées). ANNULE reste bloqué (campagne morte).
         if ($campaign->status === CampaignStatus::ANNULE)  return false;
         return $user->role === UserRole::MEDIAPLANNER;
     }

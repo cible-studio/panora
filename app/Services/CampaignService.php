@@ -14,8 +14,10 @@ use Illuminate\Support\Facades\Log;
 
 class CampaignService
 {
-    /** Statuts permettant la modification du panel (ajout/retrait) */
-    private const MODIFIABLE_STATUSES = ['planifie', 'actif'];
+    /** Statuts permettant la modification du panel (ajout/retrait).
+     *  'termine' inclus pour permettre la correction de l'historique
+     *  (saisie d'anciennes campagnes importées dont les dates sont passées). */
+    private const MODIFIABLE_STATUSES = ['planifie', 'actif', 'termine'];
 
     public function __construct(
         protected AvailabilityService $availability,
@@ -51,16 +53,22 @@ class CampaignService
             // Verrou pessimiste sur les panels
             Panel::whereIn('id', $panelIds)->lockForUpdate()->get();
 
-            $conflicts = $this->availability->getUnavailablePanelIds(
-                $panelIds,
-                $campaign->start_date->format('Y-m-d'),
-                $campaign->end_date->format('Y-m-d'),
-                $campaign->reservation_id
-            );
+            // Anti-double-booking : on saute ce contrôle pour les campagnes
+            // TERMINÉES — la saisie d'historique enregistre la réalité passée,
+            // le verrou de dispo (qui protège les réservations actives) n'a
+            // pas de sens sur une période révolue.
+            if ($campaign->status->value !== 'termine') {
+                $conflicts = $this->availability->getUnavailablePanelIds(
+                    $panelIds,
+                    $campaign->start_date->format('Y-m-d'),
+                    $campaign->end_date->format('Y-m-d'),
+                    $campaign->reservation_id
+                );
 
-            if (!empty($conflicts)) {
-                $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
-                return ['ok' => false, 'error' => "Panneaux non disponibles : {$refs}"];
+                if (!empty($conflicts)) {
+                    $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
+                    return ['ok' => false, 'error' => "Panneaux non disponibles : {$refs}"];
+                }
             }
 
             $months = $campaign->billableMonths();
@@ -142,17 +150,21 @@ class CampaignService
                 $campaign->reservation_id
             );
 
-            // Retourne erreur claire si au moins un externe est en conflit confirmé
-            $blocked = [];
-            foreach ($externalPanelIds as $eid) {
-                $b = $conflicts->get($eid);
-                if ($b && !empty($b->has_confirmed)) {
-                    $ref = $locked->firstWhere('id', $eid)?->code_panneau ?? "#{$eid}";
-                    $blocked[] = $ref;
+            // Retourne erreur claire si au moins un externe est en conflit
+            // confirmé — sauf campagne TERMINÉE (saisie d'historique : on
+            // enregistre la réalité passée, pas de blocage anti-double-booking).
+            if ($campaign->status->value !== 'termine') {
+                $blocked = [];
+                foreach ($externalPanelIds as $eid) {
+                    $b = $conflicts->get($eid);
+                    if ($b && !empty($b->has_confirmed)) {
+                        $ref = $locked->firstWhere('id', $eid)?->code_panneau ?? "#{$eid}";
+                        $blocked[] = $ref;
+                    }
                 }
-            }
-            if (!empty($blocked)) {
-                return ['ok' => false, 'error' => 'Panneaux externes en conflit : ' . implode(', ', $blocked)];
+                if (!empty($blocked)) {
+                    return ['ok' => false, 'error' => 'Panneaux externes en conflit : ' . implode(', ', $blocked)];
+                }
             }
 
             $months = $campaign->billableMonths();
