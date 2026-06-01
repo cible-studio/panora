@@ -32,27 +32,34 @@
                 </div>
             </div>
         </div>
+        @php
+            $pdfExportBase = route('admin.panels.export.list');
+            $pdfExportParams = [
+                'commune_id' => request('commune_id'),
+                'status'     => request('status'),
+                'zone_id'    => request('zone_id'),
+            ];
+        @endphp
         <script>
             // Construit l'URL d'export en respectant les filtres + le mode + l'option "sans tarif"
             (function () {
-                const base   = @json(route('admin.panels.export.list'));
-                const params = @json([
-                    'commune_id' => request('commune_id'),
-                    'status'     => request('status'),
-                    'zone_id'    => request('zone_id'),
-                ]);
+                const base   = {!! json_encode($pdfExportBase) !!};
+                const params = {!! json_encode($pdfExportParams) !!};
                 const cb     = document.getElementById('pdf-hide-price');
                 function build(mode) {
                     const u = new URL(base, window.location.origin);
-                    Object.entries(params).forEach(([k, v]) => { if (v) u.searchParams.set(k, v); });
+                    Object.entries(params).forEach(function (pair) {
+                        const k = pair[0], v = pair[1];
+                        if (v) u.searchParams.set(k, v);
+                    });
                     u.searchParams.set('mode', mode);
                     if (cb && cb.checked) u.searchParams.set('hide_price', '1');
                     return u.toString();
                 }
-                document.getElementById('pdf-btn-list')?.addEventListener('click', e => {
+                document.getElementById('pdf-btn-list')?.addEventListener('click', function (e) {
                     e.preventDefault(); window.location = build('list');
                 });
-                document.getElementById('pdf-btn-images')?.addEventListener('click', e => {
+                document.getElementById('pdf-btn-images')?.addEventListener('click', function (e) {
                     e.preventDefault(); window.location = build('images');
                 });
             })();
