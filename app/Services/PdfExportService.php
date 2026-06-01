@@ -102,7 +102,9 @@ class PdfExportService
         if ($mode === 'images') {
             // Vue "1 panneau par page" → on enrichit avec photo_src (data-URI)
             // pour que DomPDF embarque l'image (pas d'accès réseau).
-            $panels = $panelsRaw->map(fn($p) => $this->enrichPanel($p))->all();
+            // compactPhoto=true : downscale 800×600 + JPEG q60 → PDF 10× plus
+            // léger et rendu 5-10× plus rapide vs photos pleine résolution.
+            $panels = $panelsRaw->map(fn($p) => $this->enrichPanel($p, true))->all();
 
             $pdf = Pdf::loadView('admin.reservations.pdf.disponibilites-images', [
                 'panels'       => $panels,
@@ -174,15 +176,21 @@ class PdfExportService
     // HELPER : enrichir un modèle Panel pour la vue PDF
     // ══════════════════════════════════════════════════════════════
 
-    public function enrichPanel(Panel $panel): array
+    public function enrichPanel(Panel $panel, bool $compactPhoto = false): array
     {
         // Photo principale : on charge en base64 pour DomPDF (qui ne sait pas
         // suivre les URLs locales) + on garde un fallback URL pour le HTML web.
+        //
+        // $compactPhoto = true → downscale agressif (800×600 max, JPEG q60)
+        //   utilisé pour les exports catalogue 1 panneau/page sur tout le
+        //   parc (sinon 364 photos haute résolution = PDF 100+ Mo & 5+ min).
         $photo = $panel->photos->sortBy('ordre')->first();
         $photoBase64 = null;
         $photoUrl    = null;
         if ($photo) {
-            $photoBase64 = $this->photoToDataUri($photo->path);
+            $photoBase64 = $compactPhoto
+                ? $this->photoToDataUriCompact($photo->path)
+                : $this->photoToDataUri($photo->path);
             if (!$photoBase64) {
                 $photoUrl = asset('storage/' . ltrim($photo->path, '/'));
             }
