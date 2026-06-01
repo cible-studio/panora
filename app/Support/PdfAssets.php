@@ -240,7 +240,7 @@ trait PdfAssets
      * data-URI vs photoToDataUri(). Retourne null si le fichier est
      * introuvable ou si GD échoue.
      */
-    protected function photoToDataUriCompact(?string $relativePath, int $maxW = 800, int $maxH = 600, int $quality = 60): ?string
+    protected function photoToDataUriCompact(?string $relativePath, int $maxW = 600, int $maxH = 450, int $quality = 50): ?string
     {
         if (!$relativePath) return null;
 
@@ -259,16 +259,26 @@ trait PdfAssets
             array_unshift($candidates, $relativePath);
         }
 
-        if (!extension_loaded('gd')) {
-            // Pas de GD : on retombe sur le data-URI brut (mieux que rien).
-            return $this->photoToDataUri($relativePath);
-        }
-
         foreach ($candidates as $path) {
-            if (is_file($path) && is_readable($path)) {
+            if (!is_file($path) || !is_readable($path)) continue;
+
+            // Optimisation : photo déjà petite (< 80 KB) → on l'embed directement,
+            // pas la peine de passer par GD (qui coûte 200-500 ms par photo).
+            // Pour 364 panneaux avec photos déjà compressées, on économise des
+            // minutes de traitement.
+            if (filesize($path) <= 80_000) {
+                $mime = mime_content_type($path) ?: 'image/jpeg';
+                return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
+            }
+
+            // Photo plus lourde → downscale GD si dispo, sinon embed brut
+            if (extension_loaded('gd')) {
                 $downscaled = $this->downscaleImage($path, $maxW, $maxH, $quality);
                 if ($downscaled !== null) return $downscaled;
             }
+            // Fallback : embed brut (mieux que rien, accepte la taille)
+            $mime = mime_content_type($path) ?: 'image/jpeg';
+            return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
         }
 
         \Illuminate\Support\Facades\Log::info('pdf.photo.compact_not_found', [
