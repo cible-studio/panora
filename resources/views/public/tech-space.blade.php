@@ -41,30 +41,44 @@
         /* ── Header sticky ─────────────────────────────────────── */
         .header {
             position: sticky; top: 0; z-index: 50;
-            background: #0f172a;
+            background: linear-gradient(135deg, #0b1220 0%, #111c30 55%, #1a2845 100%);
             color: #fff;
-            padding: 14px 16px;
-            box-shadow: 0 1px 8px rgba(0,0,0,.12);
+            padding: 14px 16px calc(16px + env(safe-area-inset-top)) 16px;
+            padding-top: max(14px, env(safe-area-inset-top));
+            box-shadow: 0 2px 14px rgba(0,0,0,.20);
+        }
+        .header-top {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; margin-bottom: 6px;
         }
         .header .brand {
             display: flex; align-items: center; gap: 10px;
-            font-size: 12px; font-weight: 600; letter-spacing: .5px;
-            text-transform: uppercase; opacity: .8;
+        }
+        .brand-kicker {
+            font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+            text-transform: uppercase; color: rgba(255,255,255,.65);
+        }
+        .brand-logo {
+            height: 26px; width: auto; display: block;
+            object-fit: contain; opacity: .95;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,.25));
         }
         .header h1 {
-            font-size: 18px; font-weight: 700; margin: 4px 0 0;
-            letter-spacing: -0.2px;
+            font-size: 22px; font-weight: 800; margin: 2px 0 0;
+            letter-spacing: -0.3px;
         }
         .header .stats {
-            display: flex; gap: 16px; margin-top: 10px;
-            font-size: 12px;
+            display: flex; gap: 8px; margin-top: 12px;
+            font-size: 12.5px; flex-wrap: wrap;
         }
         .header .stats .stat {
-            background: rgba(255,255,255,.08);
-            padding: 6px 10px; border-radius: 8px;
-            display: flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,.09);
+            backdrop-filter: blur(6px);
+            padding: 7px 11px; border-radius: 999px;
+            display: inline-flex; align-items: center; gap: 6px;
+            border: 1px solid rgba(255,255,255,.06);
         }
-        .header .stats .stat strong { color: var(--accent); }
+        .header .stats .stat strong { color: var(--accent); font-weight: 800; }
 
         /* ── Container ─────────────────────────────────────────── */
         .container { padding: 16px; max-width: 600px; margin: 0 auto; }
@@ -204,30 +218,39 @@
 
         /* ═══ PARTIE B — refonte zone/lignes compactes ═══ */
         /* Barre de progression dans l'en-tête */
-        .progress-wrap { margin-top: 10px; }
+        .progress-wrap { margin-top: 14px; }
         .progress-bar {
-            height: 8px; border-radius: 999px;
+            height: 10px; border-radius: 999px;
             background: rgba(255,255,255,.10);
             overflow: hidden;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,.25);
         }
         .progress-fill {
             height: 100%; border-radius: 999px;
-            background: linear-gradient(90deg, #22c55e, #16a34a);
-            transition: width .4s ease;
+            background: linear-gradient(90deg, #22c55e 0%, #16a34a 50%, #14b8a6 100%);
+            box-shadow: 0 0 8px rgba(34,197,94,.45);
+            transition: width .5s cubic-bezier(.4,.0,.2,1);
         }
-        .progress-meta { font-size: 11px; opacity: .75; margin-top: 6px; }
+        .progress-meta {
+            font-size: 11.5px; opacity: .80;
+            margin-top: 7px; font-weight: 600;
+            display: flex; justify-content: space-between;
+        }
 
         /* En-tête de zone (commune) — bouton plein largeur, lisible plein soleil */
         .commune-header {
             display: flex; align-items: center; justify-content: space-between;
-            width: 100%; padding: 12px 14px;
+            width: 100%; padding: 13px 16px;
             background: var(--surface); color: var(--text);
             border: 1px solid var(--border); border-radius: 14px;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             font-size: 15px; font-weight: 800;
             cursor: pointer; font-family: inherit;
             text-align: left;
+            box-shadow: 0 1px 2px rgba(15,23,42,.04);
+            transition: box-shadow .15s, transform .08s;
         }
+        .commune-header:active { transform: scale(.998); }
         .commune-header h2 {
             margin: 0; font-size: 15px; font-weight: 800;
             display: flex; align-items: center; gap: 8px;
@@ -246,24 +269,27 @@
             border: 1px solid var(--border);
             border-radius: 14px;
             padding: 0;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             overflow: hidden;
-            box-shadow: 0 1px 2px rgba(15,23,42,.04);
+            box-shadow: 0 1px 3px rgba(15,23,42,.05);
+            transition: box-shadow .15s, transform .08s;
         }
+        .pose-line:active { transform: scale(.997); box-shadow: 0 1px 2px rgba(15,23,42,.04); }
         .pose-main {
             display: flex; align-items: center; gap: 12px;
-            padding: 10px 12px; min-height: 76px;
+            padding: 12px; min-height: 80px;
             cursor: pointer; position: relative;
         }
         .pose-main input[type=file] { display: none; }
         .pose-thumb {
-            flex: 0 0 64px; width: 64px; height: 64px;
-            border-radius: 10px;
+            flex: 0 0 68px; width: 68px; height: 68px;
+            border-radius: 12px;
             background-color: var(--surface2);
             background-size: cover; background-position: center;
             border: 1px solid var(--border);
             display: flex; align-items: center; justify-content: center;
-            font-size: 22px; color: var(--text3);
+            font-size: 24px; color: var(--text3);
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.5);
         }
         .pose-info { flex: 1; min-width: 0; }
         .pose-info .pose-ref {
@@ -285,12 +311,16 @@
             background: rgba(239,68,68,.08); padding: 1px 6px; border-radius: 6px;
         }
         .pose-dot {
-            flex: 0 0 12px; width: 12px; height: 12px; border-radius: 50%;
-            box-shadow: 0 0 0 3px rgba(0,0,0,.04);
+            flex: 0 0 14px; width: 14px; height: 14px; border-radius: 50%;
+            box-shadow: 0 0 0 4px rgba(15,23,42,.05), 0 0 0 5px currentColor;
+            opacity: .9;
         }
         .pose-cam {
-            flex: 0 0 32px; font-size: 22px;
-            color: var(--accent-dark); opacity: .9;
+            flex: 0 0 38px; font-size: 22px;
+            color: var(--accent-dark); opacity: .85;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(232,160,32,.08);
+            width: 38px; height: 38px; border-radius: 10px;
         }
         /* Actions secondaires "Y aller" + "Problème" — barre en bas de la ligne */
         .pose-actions-row {
@@ -314,8 +344,11 @@
 <body>
 
 <div class="header">
-    <div class="brand">
-        <span>🛠️</span> Panora · Espace Technicien
+    <div class="header-top">
+        <div class="brand">
+            <span class="brand-kicker">Espace technicien</span>
+        </div>
+        <img src="{{ asset('images/panora-blanc.png') }}" alt="Panora by CIBLE" class="brand-logo">
     </div>
     <h1>Bonjour {{ $tech->name }}</h1>
     <div class="stats">
