@@ -126,14 +126,25 @@
                     </a>
                     @if($isAdmin || $isMP)
                     @php
-                        // Cache 5 min : count des conflits actifs (double-bookings BD).
-                        // Coût négligeable mais on évite de refaire la query à chaque
+                        // Cache 60s : count des conflits actifs (double-bookings BD).
+                        // Coût négligeable mais évite de refaire la query à chaque
                         // page admin. Affiché en badge rouge si > 0.
-                        $conflictCount = \Illuminate\Support\Facades\Cache::remember(
-                            'admin.conflicts.count',
-                            300,
-                            fn() => app(\App\Services\AvailabilityService::class)->countActiveConflicts()
-                        );
+                        //
+                        // Auto-correction : sur la page Conflits elle-même, on
+                        // bypass le cache et on l'écrase avec la valeur fraîche.
+                        // Ça évite les badges stales quand des conflits ont été
+                        // résolus en dehors du endpoint resolve() (suppression
+                        // manuelle de panneau côté campagne, nettoyage DB...).
+                        if (request()->routeIs('admin.conflicts.*')) {
+                            $conflictCount = app(\App\Services\AvailabilityService::class)->countActiveConflicts();
+                            \Illuminate\Support\Facades\Cache::put('admin.conflicts.count', $conflictCount, 60);
+                        } else {
+                            $conflictCount = \Illuminate\Support\Facades\Cache::remember(
+                                'admin.conflicts.count',
+                                60,
+                                fn() => app(\App\Services\AvailabilityService::class)->countActiveConflicts()
+                            );
+                        }
                     @endphp
                     <a href="{{ route('admin.conflicts.index') }}" data-tooltip="Conflits" class="nav-item {{ request()->routeIs('admin.conflicts.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
