@@ -201,6 +201,114 @@
             color: var(--text3);
             font-size: 11px;
         }
+
+        /* ═══ PARTIE B — refonte zone/lignes compactes ═══ */
+        /* Barre de progression dans l'en-tête */
+        .progress-wrap { margin-top: 10px; }
+        .progress-bar {
+            height: 8px; border-radius: 999px;
+            background: rgba(255,255,255,.10);
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; border-radius: 999px;
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+            transition: width .4s ease;
+        }
+        .progress-meta { font-size: 11px; opacity: .75; margin-top: 6px; }
+
+        /* En-tête de zone (commune) — bouton plein largeur, lisible plein soleil */
+        .commune-header {
+            display: flex; align-items: center; justify-content: space-between;
+            width: 100%; padding: 12px 14px;
+            background: var(--surface); color: var(--text);
+            border: 1px solid var(--border); border-radius: 14px;
+            margin-bottom: 8px;
+            font-size: 15px; font-weight: 800;
+            cursor: pointer; font-family: inherit;
+            text-align: left;
+        }
+        .commune-header h2 {
+            margin: 0; font-size: 15px; font-weight: 800;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .commune-header .count {
+            font-size: 12px; font-weight: 700;
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text2); padding: 3px 9px; border-radius: 999px;
+        }
+        .commune-header.has-overdue { border-color: rgba(239,68,68,.30); }
+        .commune-header.has-overdue h2::before { content: '🔥'; }
+
+        /* Ligne pose compacte — vignette + ref + statut, tap = caméra */
+        .pose-line {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 0;
+            margin-bottom: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(15,23,42,.04);
+        }
+        .pose-main {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 12px; min-height: 76px;
+            cursor: pointer; position: relative;
+        }
+        .pose-main input[type=file] { display: none; }
+        .pose-thumb {
+            flex: 0 0 64px; width: 64px; height: 64px;
+            border-radius: 10px;
+            background-color: var(--surface2);
+            background-size: cover; background-position: center;
+            border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; color: var(--text3);
+        }
+        .pose-info { flex: 1; min-width: 0; }
+        .pose-info .pose-ref {
+            font-family: ui-monospace, "SF Mono", Menlo, monospace;
+            font-size: 15px; font-weight: 800; color: var(--accent-dark);
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        }
+        .pose-info .pose-name {
+            font-size: 13px; color: var(--text); font-weight: 600;
+            margin-top: 1px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .pose-info .pose-sub {
+            font-size: 11px; color: var(--text3); margin-top: 3px;
+            display: flex; gap: 8px; flex-wrap: wrap;
+        }
+        .pose-info .pose-sub .late {
+            color: var(--cancelled); font-style: normal; font-weight: 700;
+            background: rgba(239,68,68,.08); padding: 1px 6px; border-radius: 6px;
+        }
+        .pose-dot {
+            flex: 0 0 12px; width: 12px; height: 12px; border-radius: 50%;
+            box-shadow: 0 0 0 3px rgba(0,0,0,.04);
+        }
+        .pose-cam {
+            flex: 0 0 32px; font-size: 22px;
+            color: var(--accent-dark); opacity: .9;
+        }
+        /* Actions secondaires "Y aller" + "Problème" — barre en bas de la ligne */
+        .pose-actions-row {
+            display: flex; gap: 0;
+            border-top: 1px solid var(--border);
+        }
+        .pose-act {
+            flex: 1; padding: 10px; min-height: 44px;
+            background: transparent; border: 0;
+            text-align: center; text-decoration: none;
+            font-size: 13px; font-weight: 700; color: var(--text2);
+            cursor: pointer; font-family: inherit;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .pose-act + .pose-act { border-left: 1px solid var(--border); }
+        .pose-act:active { background: var(--surface2); }
+        .pose-act.act-go { color: #2563eb; }
+        .pose-act.act-warn { color: #b45309; }
     </style>
 </head>
 <body>
@@ -211,9 +319,15 @@
     </div>
     <h1>Bonjour {{ $tech->name }}</h1>
     <div class="stats">
-        <div class="stat">📋 <strong data-total-active>{{ $totalActive }}</strong> pose{{ $totalActive > 1 ? 's' : '' }} à faire</div>
-        <div class="stat">✅ <strong>{{ $totalDone }}</strong> faite{{ $totalDone > 1 ? 's' : '' }} au total</div>
+        <div class="stat">📋 <strong data-total-active>{{ $totalActive }}</strong> à faire</div>
+        <div class="stat">✅ <strong>{{ $totalDone }}</strong> faite{{ $totalDone > 1 ? 's' : '' }}</div>
     </div>
+    @if(($totalAssigned ?? 0) > 0)
+    <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" style="width:{{ $progressPct ?? 0 }}%"></div></div>
+        <div class="progress-meta">{{ $totalDone }}/{{ $totalAssigned }} ({{ $progressPct }}%)</div>
+    </div>
+    @endif
 </div>
 
 <div class="container">
@@ -225,22 +339,11 @@
             <p>Tu es à jour ! Tes prochaines missions arriveront via WhatsApp.</p>
         </div>
     @else
-        @php
-            $dayLabels = [
-                'overdue'  => ['En retard',     'overdue'],
-                'today'    => ['Aujourd\'hui',  ''],
-                'tomorrow' => ['Demain',        ''],
-                'week'     => ['Cette semaine', ''],
-                'later'    => ['Plus tard',     ''],
-            ];
-        @endphp
-
-        {{-- Barre de recherche live — utile dès que le tech a une vingtaine
-             de poses. Filtre côté JS sur référence + nom + commune + campagne. --}}
-        @if($totalActive >= 8)
+        {{-- Recherche live (référence / nom / commune / campagne) --}}
+        @if($totalActive >= 6)
             <div style="margin-bottom:14px;position:relative">
                 <input type="search" id="pose-search" placeholder="🔍 Rechercher un panneau, commune, campagne…"
-                       style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;outline:none;-webkit-appearance:none"
+                       style="width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;outline:none;-webkit-appearance:none"
                        autocomplete="off">
                 <div id="pose-search-empty"
                      style="display:none;margin-top:10px;padding:14px;text-align:center;color:var(--text3);background:var(--surface);border:1px dashed var(--border);border-radius:10px;font-size:13px">
@@ -249,134 +352,94 @@
             </div>
         @endif
 
-        @foreach(['overdue', 'today', 'tomorrow', 'week', 'later'] as $dayKey)
-            @if(isset($groupedByDay[$dayKey]) && $groupedByDay[$dayKey]->count() > 0)
-                <div class="day-section">
-                    <div class="day-header {{ $dayLabels[$dayKey][1] }}">
-                        <h2>{{ $dayLabels[$dayKey][0] }}</h2>
-                        <span class="count">{{ $groupedByDay[$dayKey]->count() }} pose{{ $groupedByDay[$dayKey]->count() > 1 ? 's' : '' }}</span>
-                    </div>
+        @php $today = \Carbon\Carbon::today(); @endphp
+        @foreach($groupedByCommune as $communeName => $tasks)
+            @php
+                $hasOverdue = $tasks->contains(function ($t) use ($today) {
+                    $d = $t->scheduled_at ?? $t->created_at;
+                    return $d && \Carbon\Carbon::parse($d)->startOfDay()->lt($today);
+                });
+            @endphp
+            <div class="day-section">
+                <div class="commune-header {{ $hasOverdue ? 'has-overdue' : '' }}">
+                    <h2>📍 {{ $communeName }}</h2>
+                    <span class="count">{{ $tasks->count() }} pose{{ $tasks->count() > 1 ? 's' : '' }}</span>
+                </div>
 
-                    @foreach($groupedByDay[$dayKey] as $task)
-                        @php
-                            // Le modèle PoseTask n'a pas de cast `status` vers
-                            // PoseTaskStatus::class (déclarations partout dans
-                            // le code utilisent ->value, et un cast casserait
-                            // les comparaisons string existantes). On cast
-                            // donc localement dans la vue pour accéder à
-                            // ->color(), ->label(), ->allowedTransitions().
-                            $status = $task->status instanceof \App\Enums\PoseTaskStatus
-                                ? $task->status
-                                : \App\Enums\PoseTaskStatus::from((string) $task->status);
-                            $statusColor = $status->color();
-                            $statusBg = match($status->value) {
-                                'planifiee' => 'rgba(232,160,32,.10)',
-                                'en_route'  => 'rgba(139,92,246,.10)',
-                                'en_cours'  => 'rgba(59,130,246,.10)',
-                                'realisee'  => 'rgba(34,197,94,.10)',
-                                'annulee'   => 'rgba(239,68,68,.10)',
-                                default     => 'var(--surface2)',
-                            };
-                            $statusBorder = match($status->value) {
-                                'planifiee' => 'rgba(232,160,32,.30)',
-                                'en_route'  => 'rgba(139,92,246,.30)',
-                                'en_cours'  => 'rgba(59,130,246,.30)',
-                                'realisee'  => 'rgba(34,197,94,.30)',
-                                'annulee'   => 'rgba(239,68,68,.30)',
-                                default     => 'var(--border)',
-                            };
-                            $allowedNext = $status->allowedTransitions();
-                            $canRoute = in_array(\App\Enums\PoseTaskStatus::EN_ROUTE, $allowedNext, true);
-                            $canWork  = in_array(\App\Enums\PoseTaskStatus::IN_PROGRESS, $allowedNext, true);
-                            $canDone  = in_array(\App\Enums\PoseTaskStatus::COMPLETED, $allowedNext, true);
-                        @endphp
-                        @php
-                            // Données concaténées pour la recherche live (lowercase, sans accents
-                            // pas indispensable pour l'usage CIBLE CI mais pratique).
-                            $searchHay = mb_strtolower(implode(' ', array_filter([
-                                $task->panel?->reference,
-                                $task->panel?->name,
-                                $task->panel?->commune?->name,
-                                $task->panel?->quartier,
-                                $task->panel?->adresse,
-                                $task->campaign?->name,
-                                $task->campaign?->client?->name,
-                            ])));
-                        @endphp
-                        <div class="pose" data-task-id="{{ $task->id }}" data-search="{{ $searchHay }}">
-                            <div class="pose-head">
-                                <div style="flex:1; min-width:0">
-                                    <div class="pose-ref">{{ $task->panel?->reference ?? '—' }}</div>
-                                    <div class="pose-name">{{ $task->panel?->name ?? '' }}</div>
-                                    <div class="pose-meta">
-                                        @php
-                                            // Lien Google Maps : on construit une URL de recherche
-                                            // depuis l'adresse + commune (ou juste la commune si
-                                            // pas d'adresse). Aide le tech à se rendre sur place
-                                            // sans recherche manuelle.
-                                            $locationParts = array_filter([
-                                                $task->panel?->adresse,
-                                                $task->panel?->quartier,
-                                                $task->panel?->commune?->name,
-                                                'Côte d\'Ivoire',
-                                            ]);
-                                            $mapsQuery = urlencode(implode(', ', $locationParts));
-                                            $mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' . $mapsQuery;
-                                        @endphp
-                                        @if($task->panel?->commune)
-                                            <a href="{{ $mapsUrl }}" target="_blank" rel="noopener"
-                                               style="color:inherit;text-decoration:none;background:rgba(59,130,246,.08);padding:2px 8px;border-radius:6px;border:1px solid rgba(59,130,246,.18)">
-                                                📍 {{ $task->panel->commune->name }}{{ $task->panel?->quartier ? ' · '.$task->panel->quartier : '' }} ↗
-                                            </a>
-                                        @endif
-                                        @if($task->panel?->format)
-                                            <span>📐 {{ $task->panel->format->name }}</span>
-                                        @endif
-                                        @if($task->scheduled_at)
-                                            <span>⏰ {{ \Carbon\Carbon::parse($task->scheduled_at)->format('d/m H:i') }}</span>
-                                        @endif
-                                    </div>
-                                    @if($task->panel?->adresse)
-                                        <div class="pose-meta" style="margin-top:4px">
-                                            <span style="color:var(--text2)">🏠 {{ $task->panel->adresse }}</span>
-                                        </div>
+                @foreach($tasks as $task)
+                    @php
+                        $status = $task->status instanceof \App\Enums\PoseTaskStatus
+                            ? $task->status
+                            : \App\Enums\PoseTaskStatus::from((string) $task->status);
+                        $statusColor = $status->color();
+
+                        $sched = $task->scheduled_at ?? $task->created_at;
+                        $isLate = $sched && \Carbon\Carbon::parse($sched)->startOfDay()->lt($today);
+
+                        // Photo cible du panneau : 1re photo si dispo, sinon placeholder
+                        $firstPhoto = $task->panel?->photos?->sortBy('ordre')->first();
+                        $thumbUrl   = $firstPhoto ? asset('storage/' . $firstPhoto->path) : null;
+
+                        // "Y aller" : direction GPS si lat/lng dispo, sinon recherche adresse
+                        $hasGps = $task->panel?->latitude && $task->panel?->longitude;
+                        if ($hasGps) {
+                            $goUrl = 'https://www.google.com/maps/dir/?api=1&destination=' . $task->panel->latitude . ',' . $task->panel->longitude;
+                        } else {
+                            $loc = array_filter([$task->panel?->adresse, $task->panel?->quartier, $task->panel?->commune?->name, 'Côte d\'Ivoire']);
+                            $goUrl = 'https://www.google.com/maps/search/?api=1&query=' . urlencode(implode(', ', $loc));
+                        }
+
+                        $searchHay = mb_strtolower(implode(' ', array_filter([
+                            $task->panel?->reference, $task->panel?->name,
+                            $task->panel?->commune?->name, $task->panel?->quartier,
+                            $task->panel?->adresse, $task->campaign?->name,
+                            $task->campaign?->client?->name,
+                        ])));
+                    @endphp
+                    <div class="pose pose-line"
+                         data-task-id="{{ $task->id }}"
+                         data-search="{{ $searchHay }}"
+                         data-lat="{{ $task->panel?->latitude }}"
+                         data-lng="{{ $task->panel?->longitude }}">
+                        {{-- Geste 1 : tap n'importe où sur la ligne = caméra arrière --}}
+                        <label class="pose-main" data-action="photo">
+                            <input type="file" accept="image/*" capture="environment" data-photo-input>
+                            @if($thumbUrl)
+                                <span class="pose-thumb" style="background-image:url('{{ $thumbUrl }}')"></span>
+                            @else
+                                <span class="pose-thumb" title="Pas de photo de référence">🪧</span>
+                            @endif
+                            <div class="pose-info">
+                                <div class="pose-ref">
+                                    {{ $task->panel?->reference ?? '—' }}
+                                </div>
+                                @if($task->panel?->name)
+                                    <div class="pose-name">{{ $task->panel->name }}</div>
+                                @endif
+                                <div class="pose-sub">
+                                    @if($isLate)
+                                        <span class="late">⏰ En retard</span>
                                     @endif
                                     @if($task->campaign)
-                                        <div class="pose-campaign">📢 {{ $task->campaign->name }}{{ $task->campaign->client ? ' · ' . $task->campaign->client->name : '' }}</div>
+                                        <span>📢 {{ Str::limit($task->campaign->name, 28) }}</span>
+                                    @endif
+                                    @if($task->scheduled_at)
+                                        <span>{{ \Carbon\Carbon::parse($task->scheduled_at)->format('d/m H:i') }}</span>
                                     @endif
                                 </div>
-                                <span class="status-badge" data-status
-                                      style="background:{{ $statusBg }};color:{{ $statusColor }};border-color:{{ $statusBorder }}">
-                                    {{ $status->icon() }} {{ $status->label() }}
-                                </span>
                             </div>
-
-                            <div class="actions">
-                                @if($canRoute)
-                                    <button class="btn btn-route" data-action="status" data-status-value="en_route">
-                                        🚗 En route
-                                    </button>
-                                @endif
-                                @if($canWork)
-                                    <button class="btn btn-work" data-action="status" data-status-value="en_cours">
-                                        🔧 Démarrer
-                                    </button>
-                                @endif
-                                @if($canDone)
-                                    <label class="btn btn-photo" data-action="photo">
-                                        📸 Photo + Terminer
-                                        <input type="file" accept="image/*" capture="environment" data-photo-input>
-                                    </label>
-                                @endif
-                                <button type="button" class="btn btn-report-sm" data-action="report">
-                                    ⚠️ Signaler un problème
-                                </button>
-                            </div>
+                            <span class="pose-dot" style="background:{{ $statusColor }}" title="{{ $status->label() }}"></span>
+                            <span class="pose-cam" aria-hidden="true">📷</span>
+                        </label>
+                        <div class="pose-actions-row">
+                            <a class="pose-act act-go" href="{{ $goUrl }}" target="_blank" rel="noopener">🧭 Y aller</a>
+                            <button type="button" class="pose-act act-warn" data-action="report">⚠️ Problème</button>
                         </div>
-                    @endforeach
-                </div>
-            @endif
+                    </div>
+                @endforeach
+            </div>
         @endforeach
+
     @endif
 
     <div class="footer">

@@ -74,10 +74,13 @@ class TechSpaceController extends Controller
         // vue mobile en a besoin pour le lien Maps GPS et l'affichage de
         // contexte terrain. Sans ces colonnes, Eloquent ferait un N+1
         // silencieux à chaque accès via panel->adresse.
+        // Le tech raisonne "où je vais", pas "quelle campagne" → on charge
+        // de quoi reconnaître le lieu (photo du panneau) et y aller (lat/lng).
         $activeTasks = PoseTask::with([
-                'panel:id,reference,name,commune_id,format_id,adresse,quartier',
+                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude',
                 'panel.commune:id,name',
                 'panel.format:id,name',
+                'panel.photos:id,panel_id,path,ordre',
                 'campaign:id,name,start_date,end_date,client_id,status',
                 'campaign.client:id,name',
             ])
@@ -91,28 +94,41 @@ class TechSpaceController extends Controller
             ->orderBy('scheduled_at')
             ->get();
 
-        // Stats rapides pour le bandeau d'en-tête
-        $totalActive = $activeTasks->count();
-        $totalDone   = PoseTask::where('assigned_user_id', $tech->id)
+        // Stats pour l'en-tête + barre de progression (faites / assignées).
+        $totalActive   = $activeTasks->count();
+        $totalDone     = PoseTask::where('assigned_user_id', $tech->id)
             ->where('status', PoseTaskStatus::COMPLETED->value)
             ->count();
+        $totalAssigned = $totalActive + $totalDone;
+        $progressPct   = $totalAssigned > 0 ? (int) round($totalDone / $totalAssigned * 100) : 0;
 
-        // Groupage par jour calendaire (scheduled_at ou created_at en fallback)
+        // Marque les poses en retard (échéance passée) — sert au tri et au badge.
         $today = Carbon::today();
-        $groupedByDay = $activeTasks->groupBy(function ($task) use ($today) {
+        $isOverdue = function ($task) use ($today) {
             $date = $task->scheduled_at ?? $task->created_at;
-            $day = Carbon::parse($date)->startOfDay();
-            if ($day->lt($today))   return 'overdue';
-            if ($day->isToday())    return 'today';
-            if ($day->isTomorrow()) return 'tomorrow';
-            if ($day->lte($today->copy()->addDays(7))) return 'week';
-            return 'later';
-        });
+            return $date && Carbon::parse($date)->startOfDay()->lt($today);
+        };
+
+        // Regroupement par COMMUNE/ZONE (le tech fait une zone entière avant
+        // de se déplacer), pas par campagne ni par date. À l'intérieur d'une
+        // zone : les poses en retard d'abord, puis par échéance.
+        $groupedByCommune = $activeTasks
+            ->sortBy(fn($t) => [$isOverdue($t) ? 0 : 1, optional($t->scheduled_at)->timestamp ?? PHP_INT_MAX])
+            ->groupBy(fn($t) => $t->panel?->commune?->name ?? 'Sans commune')
+            // Ordre des zones : celles qui contiennent du retard d'abord,
+            // puis les plus grosses (plus de poses) → le tech attaque le
+            // plus urgent / le plus rentable en déplacement.
+            ->sortBy(function ($tasks) use ($isOverdue) {
+                $hasOverdue = $tasks->contains(fn($t) => $isOverdue($t));
+                return ($hasOverdue ? '0' : '1') . str_pad((string) (9999 - $tasks->count()), 4, '0', STR_PAD_LEFT);
+            });
 
         return [
-            'totalActive'  => $totalActive,
-            'totalDone'    => $totalDone,
-            'groupedByDay' => $groupedByDay,
+            'totalActive'      => $totalActive,
+            'totalDone'        => $totalDone,
+            'totalAssigned'    => $totalAssigned,
+            'progressPct'      => $progressPct,
+            'groupedByCommune' => $groupedByCommune,
         ];
     }
 
