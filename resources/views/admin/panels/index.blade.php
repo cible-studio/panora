@@ -10,22 +10,47 @@
             <div id="export-dropdown" class="hidden"
                 style="position:absolute;top:calc(100% + 6px);right:0;z-index:200;
                 background:var(--surface);border:1px solid var(--border2);
-                border-radius:10px;padding:14px;min-width:220px;
+                border-radius:10px;padding:14px;min-width:260px;
                 box-shadow:0 8px 24px rgba(0,0,0,.15);">
                 {{-- Pas de target="_blank" : téléchargement / preview dans
                      l'onglet courant (le navigateur gère le content-type PDF). --}}
-                <form method="GET" action="{{ route('admin.panels.export.list') }}">
+                <form method="GET" action="{{ route('admin.panels.export.list') }}" id="export-pdf-form">
                     <input type="hidden" name="commune_id" value="{{ request('commune_id') }}">
-                    <input type="hidden" name="status" value="{{ request('status') }}">
-                    <input type="hidden" name="zone_id" value="{{ request('zone_id') }}">
+                    <input type="hidden" name="status"     value="{{ request('status') }}">
+                    <input type="hidden" name="zone_id"    value="{{ request('zone_id') }}">
+
+                    {{-- Mode : Liste (table compacte) ou Images (1 page A4 par panneau) --}}
+                    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">Format</div>
+                    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 8px;border-radius:8px;background:var(--surface2)">
+                            <input type="radio" name="mode" value="list" checked
+                                   style="accent-color:var(--accent);cursor:pointer">
+                            <span style="font-size:13px;color:var(--text)">📋 Liste (tableau)</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 8px;border-radius:8px;background:var(--surface2)">
+                            <input type="radio" name="mode" value="images"
+                                   style="accent-color:var(--accent);cursor:pointer">
+                            <span style="font-size:13px;color:var(--text)">🖼️ Avec images (1 panneau / page)</span>
+                        </label>
+                    </div>
+
+                    {{-- Options : masquer statut / tarif (indépendants) --}}
+                    <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">Options</div>
                     <label for="hide-status"
-                        style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;">
+                        style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;">
                         <input type="checkbox" id="hide-status" name="hide_status" value="1"
                             style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;">
                         <span style="font-size:13px;color:var(--text2);">Masquer le statut</span>
                     </label>
+                    <label for="hide-price"
+                        style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;">
+                        <input type="checkbox" id="hide-price" name="hide_price" value="1"
+                            style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;">
+                        <span style="font-size:13px;color:var(--text2);">Masquer le tarif</span>
+                    </label>
+
                     <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
-                        📄 Générer PDF liste
+                        📄 Générer le PDF
                     </button>
                 </form>
             </div>
