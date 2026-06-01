@@ -606,8 +606,10 @@ Route::prefix('admin')
 
         // ── Régies externes ─────────────────────────────────────────
         // Lecture (index + show) = tous staff. Création / modification /
-        // suppression d'une régie ou de ses panneaux = admin uniquement
-        // (paramètre système — matrice UTILISATEURS & PARAMÈTRES).
+        // suppression d'une régie ou de ses panneaux = admin + media planner
+        // (le MP a besoin de gérer les régies partenaires pour planifier les
+        // campagnes — création/édition de panneaux externes faisant partie
+        // de son périmètre opérationnel).
         Route::get('external-agencies', [ExternalAgencyController::class, 'index'])->name('external-agencies.index');
         Route::get('external-agencies/{external_agency}', [ExternalAgencyController::class, 'show'])->name('external-agencies.show');
 
@@ -621,8 +623,8 @@ Route::prefix('admin')
                 ->name('external-agencies.exports.excel');
         });
 
-        // Modifications = admin only
-        Route::middleware('role:admin')->group(function () {
+        // Création / modification / suppression = admin + media planner
+        Route::middleware('role:admin,mediaplanner')->group(function () {
             Route::post('external-agencies', [ExternalAgencyController::class, 'store'])->name('external-agencies.store');
             Route::put('external-agencies/{external_agency}', [ExternalAgencyController::class, 'update'])->name('external-agencies.update');
             Route::patch('external-agencies/{external_agency}', [ExternalAgencyController::class, 'update'])->name('external-agencies.update.patch');
