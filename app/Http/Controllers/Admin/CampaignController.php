@@ -1746,6 +1746,15 @@ class CampaignController extends Controller
             $alertIcon  = '▶️';
             $alertVerb  = 'a activé';
         } else {
+            // ⚠️ Anti double-booking : toute transition vers un statut BLOQUANT
+            // (planifie / pause) doit re-valider que les panneaux de la
+            // campagne ne sont pas déjà engagés ailleurs. Évite la résurrection
+            // d'une campagne TERMINE dont l'ajout de panneaux bypass le check.
+            if (in_array($newStatus->value, ['planifie', 'pause'], true)) {
+                if ($err = $this->campaignService->detectConflictsOnCurrentPanels($campaign)) {
+                    return back()->with('error', $err);
+                }
+            }
             $campaign->update([
                 'status'     => $newStatus->value,
                 'updated_by' => auth()->id(),

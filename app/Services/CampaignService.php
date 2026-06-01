@@ -57,18 +57,29 @@ class CampaignService
             // TERMINÉES — la saisie d'historique enregistre la réalité passée,
             // le verrou de dispo (qui protège les réservations actives) n'a
             // pas de sens sur une période révolue.
+            // ⚠️ Garde-fou : tout retour de TERMINE vers un statut actif
+            // re-vérifie les conflits (cf. detectConflictsOnCurrentPanels +
+            // activate()) — donc on ne peut pas exploiter cette dérogation
+            // pour glisser un panneau qui sera ensuite "réveillé".
             if ($campaign->status->value !== 'termine') {
                 $conflicts = $this->availability->getUnavailablePanelIds(
                     $panelIds,
                     $campaign->start_date->format('Y-m-d'),
                     $campaign->end_date->format('Y-m-d'),
-                    $campaign->reservation_id
+                    $campaign->reservation_id,
+                    $campaign->id   // s'exclure soi-même (panneaux déjà attachés)
                 );
 
                 if (!empty($conflicts)) {
                     $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
                     return ['ok' => false, 'error' => "Panneaux non disponibles : {$refs}"];
                 }
+            } else {
+                Log::warning('campaign.addPanels.termine_bypass', [
+                    'campaign_id' => $campaign->id,
+                    'panel_ids'   => $panelIds,
+                    'user_id'     => auth()->id(),
+                ]);
             }
 
             $months = $campaign->billableMonths();
@@ -374,6 +385,41 @@ class CampaignService
     //
     // Retour : ['ok' => bool, 'error' => ?string, 'mail_sent' => bool].
     // ══════════════════════════════════════════════════════════════
+    /**
+     * Re-vérifie que les panneaux actuellement attachés à la campagne
+     * (internes + externes) n'entrent pas en conflit avec un autre
+     * engagement actif (autre campagne ou autre réservation).
+     *
+     * À appeler au moment d'une transition vers un statut bloquant
+     * (PLANIFIE / ACTIF / PAUSE) pour empêcher la "résurrection" d'une
+     * campagne TERMINE dont des panneaux ont été saisis à l'historique
+     * (bypass de addPanels), et plus généralement détecter toute dérive.
+     *
+     * @return string|null  null si OK, message d'erreur explicite sinon.
+     */
+    public function detectConflictsOnCurrentPanels(Campaign $campaign): ?string
+    {
+        $internalIds = $campaign->panels()->pluck('panels.id')->all();
+        if (empty($internalIds)) {
+            return null;
+        }
+
+        $conflicts = $this->availability->getUnavailablePanelIds(
+            $internalIds,
+            $campaign->start_date->format('Y-m-d'),
+            $campaign->end_date->format('Y-m-d'),
+            $campaign->reservation_id,
+            $campaign->id   // s'exclure soi-même
+        );
+
+        if (empty($conflicts)) {
+            return null;
+        }
+
+        $refs = Panel::whereIn('id', $conflicts)->pluck('reference')->join(', ');
+        return "Conflit de panneaux : {$refs} déjà engagés sur la période par une autre campagne ou réservation.";
+    }
+
     public function activate(Campaign $campaign): array
     {
         // Statut actuel exploitable ?
@@ -387,6 +433,16 @@ class CampaignService
         $totalPanels = $campaign->panels()->count() + $campaign->externalPanels()->count();
         if ($totalPanels === 0) {
             return ['ok' => false, 'error' => 'Ajoutez au moins un panneau à la campagne avant de l\'activer.'];
+        }
+
+        // ⚠️ Anti double-booking au moment de l'activation : re-valide que
+        // les panneaux actuellement attachés ne sont pas déjà engagés ailleurs
+        // (autre campagne active, autre réservation). Sans cette garde, on
+        // pouvait sortir un panneau d'une campagne TERMINE (dont l'ajout
+        // bypass le check, cf. addPanels) en réactivant la campagne, et créer
+        // un conflit silencieux.
+        if ($err = $this->detectConflictsOnCurrentPanels($campaign)) {
+            return ['ok' => false, 'error' => $err];
         }
 
         $wasFromPlanifie = $campaign->status === CampaignStatus::PLANIFIE;
