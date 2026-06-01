@@ -134,6 +134,47 @@
     .pige-badge-ok .pige-badge-verif {
         background: rgba(34,197,94,.18);
     }
+
+    /* ── RESPONSIVE MOBILE ─────────────────────────────────────────
+       Sur mobile le tableau à 9 colonnes est inutilisable. On masque
+       les colonnes secondaires et on garde l'essentiel : Panneau,
+       Statut, Actions. Les infos masquées restent accessibles en
+       cliquant sur le panneau (page détail tâche). */
+    @media (max-width: 768px) {
+        /* Wrapper : on retire le min-width forcé pour ne plus scroller */
+        .pose-table-wrap { overflow-x: visible !important; }
+        .pose-table-wrap > table { min-width: 0 !important; }
+
+        /* Colonnes à masquer (1=checkbox, 3=campagne, 4=technicien,
+           5=planifié, 6=réalisé, 7=pige) */
+        .pose-table-wrap thead th:nth-child(1),
+        .pose-table-wrap thead th:nth-child(3),
+        .pose-table-wrap thead th:nth-child(4),
+        .pose-table-wrap thead th:nth-child(5),
+        .pose-table-wrap thead th:nth-child(6),
+        .pose-table-wrap thead th:nth-child(7),
+        .pose-table-wrap tbody tr.trow td:nth-child(1),
+        .pose-table-wrap tbody tr.trow td:nth-child(3),
+        .pose-table-wrap tbody tr.trow td:nth-child(4),
+        .pose-table-wrap tbody tr.trow td:nth-child(5),
+        .pose-table-wrap tbody tr.trow td:nth-child(6),
+        .pose-table-wrap tbody tr.trow td:nth-child(7) {
+            display: none !important;
+        }
+
+        /* Boutons d'actions plus compacts */
+        .pose-table-wrap .action-btn {
+            width: 28px !important;
+            height: 28px !important;
+            padding: 4px !important;
+        }
+    }
+    @media (max-width: 480px) {
+        /* Sur écran très étroit on masque aussi la barre de progression
+           (gardée que le badge statut) pour laisser la place à Actions */
+        .pose-table-wrap .pose-progress-fill,
+        .pose-table-wrap .pose-progress-text { display: none !important; }
+    }
 </style>
 @endonce
 
@@ -145,7 +186,7 @@
     <a href="{{ route('admin.pose-tasks.create') }}" class="btn btn-primary">+ Créer une tâche</a>
 </div>
 @else
-<div style="overflow-x:auto">
+<div class="pose-table-wrap" style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;min-width:900px">
         <thead>
             <tr style="background:var(--surface2);border-bottom:1px solid var(--border)">
