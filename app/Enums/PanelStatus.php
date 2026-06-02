@@ -22,8 +22,10 @@ enum PanelStatus: string
         return match($this) {
             self::LIBRE       => 'Libre',
             self::OPTION      => 'Option',
-            self::CONFIRME    => 'Réservé',
-            self::OCCUPE      => 'En affichage',
+            self::CONFIRME    => 'Vendu',       // ex "Réservé" — désambiguïsation :
+                                                // CONFIRME = engagement signé, pose à venir
+                                                // ≠ OPTION = en attente client.
+            self::OCCUPE      => 'En affichage', // = pose effective sur le terrain.
             self::MAINTENANCE => 'Maintenance',
         };
     }
@@ -55,21 +57,21 @@ enum PanelStatus: string
                 'color'       => '#ef4444',
                 'bg'          => 'rgba(239,68,68,0.08)',
                 'border'      => 'rgba(239,68,68,0.3)',
-                'description' => 'Affichage physique en cours sur le terrain (campagne active).',
+                'description' => 'Campagne ACTIVE — panneau actuellement en affichage sur le terrain. Non disponible.',
             ],
             self::OPTION => [
                 'icon'        => '⏳',
                 'color'       => '#f59e0b',
                 'bg'          => 'rgba(245,158,11,0.08)',
                 'border'      => 'rgba(245,158,11,0.3)',
-                'description' => 'Réservation en option — en attente de confirmation client (réversible).',
+                'description' => 'Réservation en attente de confirmation client — réversible si le client ne confirme pas.',
             ],
             self::CONFIRME => [
                 'icon'        => '🔒',
                 'color'       => '#8b5cf6',
                 'bg'          => 'rgba(139,92,246,0.08)',
                 'border'      => 'rgba(139,92,246,0.3)',
-                'description' => 'Réservation ferme signée par le client — campagne planifiée.',
+                'description' => 'Vendu — réservation ferme signée par le client. Pose à venir, non disponible.',
             ],
             self::MAINTENANCE => [
                 'icon'        => '🔧',
