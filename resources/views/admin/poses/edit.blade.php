@@ -259,8 +259,22 @@ window.__EDIT__ = {
 
 /* Select2 */
 .select2-container--default .select2-selection--single { height:40px!important;border-radius:10px!important;border:1px solid var(--border)!important;background:var(--surface2)!important;display:flex;align-items:center }
-.select2-container--default .select2-selection--single .select2-selection__rendered { line-height:40px!important;color:var(--text)!important;padding-left:12px!important;font-size:13px }
+.select2-container--default .select2-selection--single .select2-selection__rendered { line-height:40px!important;color:var(--text)!important;padding-left:12px!important;padding-right:56px!important;font-size:13px;position:relative }
 .select2-container--default .select2-selection--single .select2-selection__arrow { height:38px!important;right:6px!important }
+/* Bouton "×" clear : positionné séparé du texte (sinon "Nom campagne×" illisible). */
+.select2-container--default .select2-selection--single .select2-selection__clear {
+    position:absolute!important; right:30px!important; top:50%!important;
+    transform:translateY(-50%); float:none!important; margin:0!important;
+    width:22px; height:22px; line-height:22px;
+    display:inline-flex; align-items:center; justify-content:center;
+    border-radius:50%; background:rgba(0,0,0,.05); border:0;
+    color:var(--text3); font-size:14px; font-weight:600; cursor:pointer;
+    transition:background .12s, color .12s;
+}
+.select2-container--default .select2-selection--single .select2-selection__clear:hover {
+    background:rgba(239,68,68,.10); color:#ef4444;
+}
+.select2-container--default .select2-selection--single .select2-selection__clear > span { display:none; }
 .select2-container--default.select2-container--focus .select2-selection--single,
 .select2-container--default.select2-container--open .select2-selection--single { border-color:var(--accent)!important;outline:none!important;box-shadow:none!important }
 .select2-dropdown { background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,.25)!important;overflow:hidden;animation:fadeIn .15s ease }
