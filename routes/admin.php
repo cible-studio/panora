@@ -679,6 +679,12 @@ Route::prefix('admin')
         Route::get('signalements', [\App\Http\Controllers\Admin\SignalementsController::class, 'index'])
             ->middleware('role:admin,mediaplanner')
             ->name('signalements.index');
+        // Heartbeat JSON — appelé en polling par toutes les pages admin
+        // (badge sidebar live + toast/son sur nouveau signal). Léger (count
+        // + 3 derniers), pas de throttle strict mais staff seulement.
+        Route::get('signalements/heartbeat', [\App\Http\Controllers\Admin\SignalementsController::class, 'heartbeat'])
+            ->middleware('role:admin,mediaplanner,commercial')
+            ->name('signalements.heartbeat');
         Route::post('signalements/{action}/maintenance', [\App\Http\Controllers\Admin\SignalementsController::class, 'resolveToMaintenance'])
             ->middleware('role:admin,mediaplanner')
             ->whereNumber('action')

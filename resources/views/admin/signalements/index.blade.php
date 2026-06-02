@@ -67,7 +67,18 @@
     </form>
 </div>
 
+{{-- ── Bandeau "nouveaux signalements" — visible quand le polling
+     détecte de nouveaux signaux pendant que tu es sur cette page.
+     Clic = rechargement (full reload, le plus simple et fiable). ── --}}
+<div id="new-signals-banner"
+     onclick="window.location.reload()"
+     style="display:none;cursor:pointer;margin-bottom:14px;padding:12px 16px;border-radius:10px;background:linear-gradient(180deg,#ef4444,#dc2626);color:#fff;font-weight:700;text-align:center;box-shadow:0 8px 24px -4px rgba(239,68,68,.4);animation:pulseRed 1.6s ease-in-out infinite">
+    <span id="new-signals-banner-text">⚠️ Nouveaux signalements — clique pour actualiser</span>
+</div>
+<style>@keyframes pulseRed{0%,100%{transform:scale(1);box-shadow:0 8px 24px -4px rgba(239,68,68,.4)}50%{transform:scale(1.015);box-shadow:0 12px 32px -4px rgba(239,68,68,.55)}}</style>
+
 {{-- ── Liste ───────────────────────────────────────────── --}}
+<div data-signalements-list>
 @forelse($signalements as $sig)
     @php
         $type      = $sig->payload['type'] ?? 'autre';
@@ -189,6 +200,25 @@
         <div style="font-size:13px">Le terrain n'a rien remonté pour ce filtre.</div>
     </div>
 @endforelse
+</div>
+
+<script>
+// Écoute l'event du polling global (admin layout) : quand un nouveau
+// signalement arrive pendant qu'on est sur cette page, on affiche le
+// bandeau rouge pulsé. Pas de fetch/diff côté JS — un reload est plus
+// fiable (filtres, pagination, droits préservés).
+window.addEventListener('signalements:new', (e) => {
+    const banner = document.getElementById('new-signals-banner');
+    const text   = document.getElementById('new-signals-banner-text');
+    if (!banner || !text) return;
+    const count = e.detail?.count;
+    text.textContent = count
+        ? `⚠️ ${count} signalement(s) en attente — clique pour actualiser`
+        : `⚠️ Nouveau signalement — clique pour actualiser`;
+    banner.style.display = 'block';
+    banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+</script>
 
 {{ $signalements->links() }}
 

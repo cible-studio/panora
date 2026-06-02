@@ -205,4 +205,64 @@ class SignalementsController extends Controller
             abort(422, 'Ce signalement a déjà été traité.');
         }
     }
+
+    /**
+     * GET /admin/signalements/heartbeat
+     *
+     * Endpoint JSON ultra-léger appelé en polling par le layout admin pour :
+     *   - mettre à jour le badge sidebar "Signalements" en quasi temps réel
+     *   - déclencher un toast + son quand un nouveau signal arrive pendant
+     *     que l'admin est sur une autre page
+     *   - sur /admin/signalements, détecter qu'il faut prepend de nouvelles
+     *     cartes sans full reload
+     *
+     * Réponse :
+     *   {
+     *     pending_count: int,
+     *     latest_id:     int|null,   // id du dernier signal non résolu
+     *     latest_at:     iso8601,    // pour comparer côté JS
+     *     recent: [                   // 3 derniers signaux pour les toasts
+     *       { id, type, type_label, panel_ref, panel_name, ago, actor }
+     *     ]
+     *   }
+     */
+    public function heartbeat(Request $request)
+    {
+        $count = PoseTaskAction::where('action', 'problem_reported')
+            ->whereNull('resolved_at')
+            ->count();
+
+        // Bypass cache : le cache du badge sidebar est ré-écrit ici pour
+        // que les pages SANS polling restent à jour à leur prochain refresh.
+        Cache::put('admin.signalements.pending_count', $count, 60);
+
+        $recent = PoseTaskAction::where('action', 'problem_reported')
+            ->whereNull('resolved_at')
+            ->with([
+                'task:id,panel_id',
+                'task.panel:id,reference,name',
+            ])
+            ->orderByDesc('created_at')
+            ->limit(3)
+            ->get(['id', 'pose_task_id', 'payload', 'actor', 'created_at']);
+
+        return response()->json([
+            'pending_count' => $count,
+            'latest_id'     => $recent->first()?->id,
+            'latest_at'     => optional($recent->first()?->created_at)->toIso8601String(),
+            'recent'        => $recent->map(function (PoseTaskAction $a) {
+                $type = $a->payload['type'] ?? 'autre';
+                return [
+                    'id'         => $a->id,
+                    'type'       => $type,
+                    'type_label' => self::PROBLEM_MAP[$type]['label'] ?? 'Problème',
+                    'panel_ref'  => $a->task?->panel?->reference,
+                    'panel_name' => $a->task?->panel?->name,
+                    'actor'      => $a->actor ?? 'tech',
+                    'ago'        => $a->created_at?->diffForHumans(),
+                    'at'         => $a->created_at?->toIso8601String(),
+                ];
+            })->values(),
+        ]);
+    }
 }

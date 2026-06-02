@@ -172,12 +172,19 @@
                         }
                     @endphp
                     <a href="{{ route('admin.signalements.index') }}" data-tooltip="Signalements terrain"
+                       id="nav-signalements"
                        class="nav-item {{ request()->routeIs('admin.signalements.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></span>
                         <span class="nav-text">Signalements</span>
-                        @if($signalementsCount > 0)
-                            <span class="nav-badge red">{{ $signalementsCount }}</span>
-                        @endif
+                        {{-- Badge mis à jour live par le heartbeat (toutes les 20s).
+                             On le rend toujours dans le DOM (display:none si 0) pour
+                             que le JS n'ait pas à le créer dynamiquement. --}}
+                        <span class="nav-badge red"
+                              id="nav-signalements-badge"
+                              data-count="{{ $signalementsCount }}"
+                              style="{{ $signalementsCount > 0 ? '' : 'display:none' }}">
+                            {{ $signalementsCount }}
+                        </span>
                     </a>
                     @endif
                 </div>
@@ -532,6 +539,143 @@
         // Mise à jour instantanée du badge au focus (retour d'onglet)
         window.addEventListener('focus', refreshAlertBadge);
     </script>
+
+    {{-- ═══════════════════════════════════════════════════════════════
+         Signalements live — polling 20s pour :
+           - actualiser le badge sidebar
+           - toast + son quand un nouveau signal arrive (on est ailleurs)
+           - sur /admin/signalements, prepend nouvelles cartes sans reload
+         Pas de WebSocket : volume des signalements faible et compatible
+         avec n'importe quelle infra (Coolify, shared hosting…).
+       ═══════════════════════════════════════════════════════════════ --}}
+    @auth
+    <script>
+    (function () {
+        const HEARTBEAT_URL = "{{ route('admin.signalements.heartbeat') }}";
+        const POLL_MS       = 20000;
+        const badge         = document.getElementById('nav-signalements-badge');
+        if (!badge) return;
+        const onSignalementsPage = !!document.querySelector('[data-signalements-list]');
+
+        // État local — initialisé depuis le data-* du badge pour ne pas
+        // déclencher le toast au tout premier tick après chargement de page.
+        let lastKnownLatestId = parseInt(badge.dataset.latestId || '0', 10);
+        let firstTick         = true;
+
+        // ── Audio cue : un bip court généré via WebAudio (pas d'asset).
+        let audioCtx = null;
+        function beep() {
+            try {
+                audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.connect(g); g.connect(audioCtx.destination);
+                o.type = 'sine';
+                o.frequency.setValueAtTime(880, audioCtx.currentTime);
+                o.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.18);
+                g.gain.setValueAtTime(0.001, audioCtx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                o.start();
+                o.stop(audioCtx.currentTime + 0.26);
+            } catch (e) { /* navigateur bloque autoplay : silencieux */ }
+        }
+
+        // ── Toast minimal (réutilise les couleurs du thème).
+        function toast(html, href) {
+            const wrap = document.createElement('div');
+            wrap.style.cssText = `
+                position:fixed;right:18px;bottom:18px;z-index:99999;
+                background:linear-gradient(180deg,#fff7ed,#fff);
+                border:1px solid #fed7aa;border-radius:12px;
+                box-shadow:0 12px 32px -8px rgba(0,0,0,.25);
+                padding:14px 16px;max-width:340px;font-size:13px;
+                color:#9a3412;line-height:1.5;
+                animation:slideInRight .25s ease-out;
+                display:flex;align-items:flex-start;gap:10px;cursor:pointer`;
+            wrap.innerHTML = `
+                <div style="font-size:22px;line-height:1">⚠️</div>
+                <div style="flex:1;min-width:0">${html}</div>
+                <div style="font-size:18px;color:#b45309;line-height:1">×</div>`;
+            wrap.onclick = (e) => {
+                if (href && !e.target.closest('a')) window.location.href = href;
+                else wrap.remove();
+            };
+            document.body.appendChild(wrap);
+            setTimeout(() => { wrap.style.transition = 'opacity .4s'; wrap.style.opacity = '0'; }, 8000);
+            setTimeout(() => wrap.remove(), 8500);
+        }
+        if (!document.getElementById('signalement-toast-anim')) {
+            const s = document.createElement('style');
+            s.id = 'signalement-toast-anim';
+            s.textContent = '@keyframes slideInRight{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}';
+            document.head.appendChild(s);
+        }
+
+        function updateBadge(count) {
+            badge.dataset.count = count;
+            badge.textContent   = count;
+            badge.style.display = count > 0 ? '' : 'none';
+        }
+
+        async function tick() {
+            try {
+                const r = await fetch(HEARTBEAT_URL, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+                if (!r.ok) return;
+                const d = await r.json();
+
+                const prevCount = parseInt(badge.dataset.count || '0', 10);
+                updateBadge(d.pending_count);
+
+                const newLatestId = d.latest_id || 0;
+                const isNew = !firstTick && newLatestId > lastKnownLatestId;
+
+                if (isNew) {
+                    // Nouveaux signaux depuis le dernier tick.
+                    const fresh = (d.recent || []).filter(s => s.id > lastKnownLatestId);
+                    fresh.slice().reverse().forEach(s => {
+                        const ref = s.panel_ref ? `<strong>${s.panel_ref}</strong>` : 'Panneau';
+                        const name = s.panel_name ? ` — ${s.panel_name}` : '';
+                        const html = `
+                            <div style="font-weight:800;margin-bottom:2px">Nouveau signalement</div>
+                            <div>${ref}${name}</div>
+                            <div style="font-size:11.5px;color:#b45309;margin-top:3px">
+                                ${s.type_label} · ${s.actor || 'tech'} · ${s.ago || ''}
+                            </div>`;
+                        toast(html, "{{ route('admin.signalements.index') }}");
+                    });
+                    beep();
+
+                    // Sur la page liste, demande au script local de recharger
+                    // les cartes (ne force pas le reload — le script de page sait
+                    // prepend proprement avec flash highlight).
+                    if (onSignalementsPage) {
+                        window.dispatchEvent(new CustomEvent('signalements:new', {
+                            detail: { sinceId: lastKnownLatestId, count: d.pending_count }
+                        }));
+                    }
+                }
+
+                lastKnownLatestId = Math.max(lastKnownLatestId, newLatestId);
+                firstTick = false;
+            } catch (e) { /* silencieux */ }
+        }
+
+        // Premier tick après 1s pour ne pas charger juste au boot, puis poll régulier.
+        setTimeout(tick, 1000);
+        const interval = setInterval(tick, POLL_MS);
+
+        // Tick immédiat quand l'onglet redevient actif (économise du poll quand
+        // l'admin est sur un autre onglet).
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) tick();
+        });
+    })();
+    </script>
+    @endauth
 
     @stack('scripts')
 </body>
