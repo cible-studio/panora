@@ -665,6 +665,20 @@ Route::prefix('admin')
             ->middleware('role:admin')
             ->name('conflicts.resolve');
 
+        // ── Page admin "Signalements terrain" (problèmes signalés par tech) ──
+        // Liste, mise en maintenance (statut panneau MAINTENANCE) ou dismiss.
+        Route::get('signalements', [\App\Http\Controllers\Admin\SignalementsController::class, 'index'])
+            ->middleware('role:admin,mediaplanner')
+            ->name('signalements.index');
+        Route::post('signalements/{action}/maintenance', [\App\Http\Controllers\Admin\SignalementsController::class, 'resolveToMaintenance'])
+            ->middleware('role:admin,mediaplanner')
+            ->whereNumber('action')
+            ->name('signalements.maintenance');
+        Route::post('signalements/{action}/dismiss', [\App\Http\Controllers\Admin\SignalementsController::class, 'dismiss'])
+            ->middleware('role:admin,mediaplanner')
+            ->whereNumber('action')
+            ->name('signalements.dismiss');
+
         // ── Disponibilités ──────────────────── (admin + MP only) ──
         // Le commercial ne crée pas de réservation (matrice DISPONIBILITÉS).
         // Bloquer toute la section dispo (consultation + création) au

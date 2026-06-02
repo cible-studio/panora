@@ -545,6 +545,10 @@
             <button type="button" class="ts-report-opt" data-type="autre">📝 Autre problème</button>
         </div>
         <textarea id="ts-report-note" placeholder="Précisions (facultatif)…"></textarea>
+        <label class="ts-report-photo-btn" id="ts-report-photo-label">
+            <input type="file" id="ts-report-photo" accept="image/*" capture="environment" hidden>
+            <span id="ts-report-photo-label-text">📷 Joindre une photo (facultatif)</span>
+        </label>
         <div class="ts-report-actions">
             <button type="button" class="ts-btn-ghost" id="ts-report-cancel">Annuler</button>
             <button type="button" class="ts-btn-send" id="ts-report-send" disabled>Envoyer l'alerte</button>
@@ -597,6 +601,17 @@
     }
     .ts-report-opt.sel { border-color:#d97706; background:rgba(217,119,6,.10); color:#b45309; }
     #ts-report-note { width:100%; margin-top:10px; min-height:64px; padding:10px 12px; border:1px solid #e8eaee; border-radius:12px; font:inherit; font-size:14px; resize:vertical; }
+    .ts-report-photo-btn {
+        display:flex; align-items:center; justify-content:center; gap:8px;
+        margin-top:10px; min-height:46px; padding:0 14px;
+        background:rgba(59,130,246,.08); border:1.5px dashed rgba(59,130,246,.4);
+        color:#2563eb; border-radius:12px;
+        font-size:13px; font-weight:700; cursor:pointer;
+    }
+    .ts-report-photo-btn.has-file {
+        background:rgba(34,197,94,.08); border-color:rgba(34,197,94,.45); color:#16a34a;
+        border-style:solid;
+    }
     .ts-report-actions { display:flex; gap:10px; margin-top:14px; }
     .ts-btn-ghost { flex:1; min-height:50px; background:#f1f5f9; border:none; border-radius:12px; font-weight:700; font-size:15px; cursor:pointer; }
     .ts-btn-send { flex:2; min-height:50px; background:#d97706; color:#fff; border:none; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer; }
@@ -894,9 +909,33 @@
     (function initReport() {
         const modal  = document.getElementById('ts-report-modal');
         const refEl  = document.getElementById('ts-report-ref');
-        const noteEl = document.getElementById('ts-report-note');
-        const sendBtn= document.getElementById('ts-report-send');
-        const cancel = document.getElementById('ts-report-cancel');
+        const noteEl   = document.getElementById('ts-report-note');
+        const sendBtn  = document.getElementById('ts-report-send');
+        const cancel   = document.getElementById('ts-report-cancel');
+        const photoInp = document.getElementById('ts-report-photo');
+        const photoLbl = document.getElementById('ts-report-photo-label');
+        const photoTxt = document.getElementById('ts-report-photo-label-text');
+        let attachedPhoto = null;
+
+        photoInp?.addEventListener('change', async () => {
+            const f = photoInp.files?.[0];
+            if (!f) {
+                attachedPhoto = null;
+                photoLbl?.classList.remove('has-file');
+                if (photoTxt) photoTxt.textContent = '📷 Joindre une photo (facultatif)';
+                return;
+            }
+            // Compresse côté client (réutilise la fonction du flux photo principal)
+            try {
+                attachedPhoto = await compressImage(f);
+                photoLbl?.classList.add('has-file');
+                if (photoTxt) photoTxt.textContent = '✓ Photo prête';
+            } catch (e) {
+                attachedPhoto = f; // fallback original
+                photoLbl?.classList.add('has-file');
+                if (photoTxt) photoTxt.textContent = '✓ Photo prête (non compressée)';
+            }
+        });
         if (!modal) return;
         let currentTaskId = null, selectedType = null;
 
@@ -913,6 +952,11 @@
             modal.querySelectorAll('.ts-report-opt').forEach(o => o.classList.remove('sel'));
             const ref = pose.querySelector('.pose-ref')?.textContent?.trim();
             if (refEl) refEl.textContent = ref ? ('Panneau ' + ref + ' — choisis le problème.') : 'Choisis ce qui ne va pas.';
+            // Reset photo jointe pour ne pas hériter d'un précédent signalement
+            attachedPhoto = null;
+            if (photoInp) photoInp.value = '';
+            photoLbl?.classList.remove('has-file');
+            if (photoTxt) photoTxt.textContent = '📷 Joindre une photo (facultatif)';
             modal.classList.add('show');
         });
 
@@ -930,11 +974,25 @@
             if (!currentTaskId || !selectedType) return;
             sendBtn.disabled = true;
             try {
-                const res = await fetch(`/tech/${TOKEN}/poses/${currentTaskId}/report`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
-                    body: JSON.stringify({ type: selectedType, note: (noteEl?.value || '').trim() }),
-                });
+                // Si photo jointe → multipart, sinon JSON (plus léger).
+                let res;
+                if (attachedPhoto) {
+                    const fd = new FormData();
+                    fd.append('type', selectedType);
+                    fd.append('note', (noteEl?.value || '').trim());
+                    fd.append('photo', attachedPhoto, 'signalement.jpg');
+                    res = await fetch(`/tech/${TOKEN}/poses/${currentTaskId}/report`, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                        body: fd,
+                    });
+                } else {
+                    res = await fetch(`/tech/${TOKEN}/poses/${currentTaskId}/report`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                        body: JSON.stringify({ type: selectedType, note: (noteEl?.value || '').trim() }),
+                    });
+                }
                 const data = await res.json();
                 modal.classList.remove('show');
                 if (res.ok && data.ok) {

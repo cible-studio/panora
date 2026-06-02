@@ -411,6 +411,21 @@ class MaintenanceController extends Controller
 
         $this->notifier->notifyResolved($maintenance);
 
+        // Warning : si des signalements terrain restent non traités sur ce
+        // panneau (autres que celui qui a déclenché cette maintenance), on
+        // alerte l'admin pour qu'il décide. Évite de remettre en service un
+        // panneau dont d'autres problèmes ont été remontés et oubliés.
+        $pendingSignals = \App\Models\PoseTaskAction::where('action', 'problem_reported')
+            ->whereNull('resolved_at')
+            ->whereHas('task', fn($q) => $q->where('panel_id', $maintenance->panel_id))
+            ->count();
+
+        if ($pendingSignals > 0) {
+            return back()
+                ->with('success', 'Maintenance résolue ! Panneau remis en service. ✅')
+                ->with('warning', "⚠️ Attention : {$pendingSignals} signalement(s) terrain non traité(s) sur ce panneau — vérifie sur l'écran Signalements avant de le considérer comme OK.");
+        }
+
         return back()->with('success', 'Maintenance résolue ! Panneau remis en service. ✅');
     }
 

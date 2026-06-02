@@ -1,0 +1,180 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Enums\PanelStatus;
+use App\Http\Controllers\Controller;
+use App\Models\Maintenance;
+use App\Models\Panel;
+use App\Models\PoseTaskAction;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Workflow "Signalements terrain" :
+ *
+ *   tech signale problème (panneau cassé / accès / adresse / autre)
+ *       └─ PoseTaskAction::log(action='problem_reported', payload[type,note])
+ *           └─ vu ici par admin
+ *               ├─ "Mettre en maintenance" → statut panneau MAINTENANCE
+ *               │                            + Maintenance créée + résolution liée
+ *               └─ "Marquer traité"          → juste résolu (faux signalement…)
+ *
+ * Le badge sidebar compte les pose_task_actions où
+ * action='problem_reported' AND resolved_at IS NULL.
+ */
+class SignalementsController extends Controller
+{
+    /** Mapping problem_type → libellé + type_panne maintenance. */
+    private const PROBLEM_MAP = [
+        'panneau_casse'    => ['label' => 'Panneau cassé / abîmé',     'type_panne' => 'mecanique'],
+        'acces_bloque'     => ['label' => 'Accès bloqué / impossible', 'type_panne' => 'autre'],
+        'mauvaise_adresse' => ['label' => 'Mauvaise adresse / introuvable', 'type_panne' => 'autre'],
+        'autre'            => ['label' => 'Autre problème',            'type_panne' => 'autre'],
+    ];
+
+    public function index(Request $request)
+    {
+        $status = $request->input('status', 'pending'); // pending|all|resolved
+
+        $query = PoseTaskAction::query()
+            ->where('action', 'problem_reported')
+            ->with([
+                'task:id,panel_id,campaign_id,assigned_user_id',
+                'task.panel:id,reference,name,commune_id,adresse,quartier',
+                'task.panel.commune:id,name',
+                'task.panel.photos:id,panel_id,path,ordre',
+                'task.campaign:id,name,client_id',
+                'task.campaign.client:id,name',
+                'task.technicien:id,name',
+                'resolvedBy:id,name',
+                'maintenance:id,statut,date_signalement',
+            ]);
+
+        if ($status === 'pending')  $query->whereNull('resolved_at');
+        if ($status === 'resolved') $query->whereNotNull('resolved_at');
+
+        // Filtre type
+        if ($request->filled('type')) {
+            $query->whereJsonContains('payload->type', $request->type);
+        }
+
+        $signalements = $query->latest('created_at')->paginate(30)->withQueryString();
+
+        // Stats KPI
+        $kpi = [
+            'pending'     => PoseTaskAction::where('action', 'problem_reported')->whereNull('resolved_at')->count(),
+            'maintenance' => PoseTaskAction::where('action', 'problem_reported')->where('resolution_action', 'maintenance')->count(),
+            'dismissed'   => PoseTaskAction::where('action', 'problem_reported')->where('resolution_action', 'dismissed')->count(),
+            'total'       => PoseTaskAction::where('action', 'problem_reported')->count(),
+        ];
+
+        $problemLabels = collect(self::PROBLEM_MAP)->map(fn($v) => $v['label']);
+
+        return view('admin.signalements.index', compact(
+            'signalements', 'status', 'kpi', 'problemLabels'
+        ));
+    }
+
+    /**
+     * POST /admin/signalements/{action}/maintenance
+     * Passe le panneau en MAINTENANCE + crée la Maintenance + lie au signalement.
+     */
+    public function resolveToMaintenance(Request $request, PoseTaskAction $action)
+    {
+        $this->ensureActiveSignal($action);
+
+        $request->validate([
+            'priorite'    => 'nullable|in:basse,normale,haute,urgente',
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        $type      = $action->payload['type'] ?? 'autre';
+        $note      = $action->payload['note'] ?? null;
+        $mapping   = self::PROBLEM_MAP[$type] ?? self::PROBLEM_MAP['autre'];
+
+        $panel = $action->task?->panel;
+        if (!$panel) {
+            return back()->with('error', 'Panneau introuvable — signalement orphelin.');
+        }
+
+        $description = trim(
+            $mapping['label']
+            . ($note ? "\n\n— Note tech : " . $note : '')
+            . "\n\n— Signalé depuis le terrain par " . ($action->actor ?? 'technicien')
+            . " le " . $action->created_at->format('d/m/Y H:i')
+        );
+
+        DB::transaction(function () use ($action, $panel, $mapping, $description, $request) {
+            // 1. Création de la Maintenance liée
+            $maintenance = Maintenance::create([
+                'panel_id'         => $panel->id,
+                'signale_par'      => auth()->id(),
+                'type_panne'       => $mapping['type_panne'],
+                'priorite'         => $request->input('priorite', 'normale'),
+                'statut'           => 'signale',
+                'date_signalement' => now()->toDateString(),
+                'description'      => $request->input('description') ?: $description,
+            ]);
+
+            // 2. Bascule statut panneau en MAINTENANCE (sort de dispo)
+            $panel->update(['status' => PanelStatus::MAINTENANCE->value]);
+
+            // 3. Marque le signalement résolu et lié
+            $action->update([
+                'resolved_at'       => now(),
+                'resolved_by'       => auth()->id(),
+                'resolution_action' => 'maintenance',
+                'maintenance_id'    => $maintenance->id,
+            ]);
+
+            Log::info('signalement.resolved.maintenance', [
+                'action_id'      => $action->id,
+                'panel_id'       => $panel->id,
+                'maintenance_id' => $maintenance->id,
+                'admin_id'       => auth()->id(),
+            ]);
+        });
+
+        // Invalide le cache du badge sidebar
+        Cache::forget('admin.signalements.pending_count');
+
+        return back()->with('success', "Panneau {$panel->reference} mis en maintenance. Le signalement est traité.");
+    }
+
+    /**
+     * POST /admin/signalements/{action}/dismiss
+     * Clôture sans toucher au panneau (faux signalement, déjà connu…).
+     */
+    public function dismiss(Request $request, PoseTaskAction $action)
+    {
+        $this->ensureActiveSignal($action);
+
+        $action->update([
+            'resolved_at'       => now(),
+            'resolved_by'       => auth()->id(),
+            'resolution_action' => 'dismissed',
+        ]);
+
+        Cache::forget('admin.signalements.pending_count');
+
+        Log::info('signalement.dismissed', [
+            'action_id' => $action->id,
+            'admin_id'  => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Signalement marqué comme traité (sans maintenance).');
+    }
+
+    private function ensureActiveSignal(PoseTaskAction $action): void
+    {
+        if ($action->action !== 'problem_reported') {
+            abort(422, 'Cette action n\'est pas un signalement.');
+        }
+        if ($action->resolved_at !== null) {
+            abort(422, 'Ce signalement a déjà été traité.');
+        }
+    }
+}

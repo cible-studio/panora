@@ -14,16 +14,39 @@ class PoseTaskAction extends Model
         'actor',
         'ip_address',
         'created_at',
+        // ── Signalements terrain : résolution côté admin ──────────────
+        'resolved_at',
+        'resolved_by',
+        'resolution_action',
+        'maintenance_id',
     ];
 
     protected $casts = [
-        'payload'    => 'array',
-        'created_at' => 'datetime',
+        'payload'     => 'array',
+        'created_at'  => 'datetime',
+        'resolved_at' => 'datetime',
     ];
 
     public function task()
     {
         return $this->belongsTo(PoseTask::class, 'pose_task_id');
+    }
+
+    /** Admin qui a traité ce signalement. */
+    public function resolvedBy()
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
+    }
+
+    /** Maintenance créée à partir de ce signalement (si action=maintenance). */
+    public function maintenance()
+    {
+        return $this->belongsTo(Maintenance::class, 'maintenance_id');
+    }
+
+    public function isPending(): bool
+    {
+        return $this->action === 'problem_reported' && $this->resolved_at === null;
     }
 
     /**

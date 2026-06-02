@@ -402,9 +402,27 @@ class TechSpaceController extends Controller
         if (!$task) return response()->json(['ok' => false, 'error' => 'Pose introuvable.'], 404);
 
         $data = $request->validate([
-            'type' => 'required|string|in:panneau_casse,acces_bloque,mauvaise_adresse,autre',
-            'note' => 'nullable|string|max:500',
+            'type'  => 'required|string|in:panneau_casse,acces_bloque,mauvaise_adresse,autre',
+            'note'  => 'nullable|string|max:500',
+            // Photo optionnelle (preuve panneau cassé / accès). Compressée
+            // côté client donc on plafonne large (35 MB = limite Dockerfile).
+            'photo' => ['nullable', 'file', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:35840'],
         ]);
+
+        // Stockage photo (si fournie)
+        $photoPath = null;
+        if ($request->hasFile('photo')) {
+            try {
+                $folder   = 'signalements/' . now()->format('Y-m');
+                $filename = time() . '_' . \Illuminate\Support\Str::random(8) . '.jpg';
+                $photoPath = $request->file('photo')->storeAs($folder, $filename, 'public');
+            } catch (\Throwable $e) {
+                Log::warning('tech.space.report.photo_store_failed', [
+                    'task_id' => $task->id,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+        }
 
         $labels = [
             'panneau_casse'    => 'Panneau cassé / abîmé',
@@ -415,8 +433,9 @@ class TechSpaceController extends Controller
         $label = $labels[$data['type']] ?? 'Problème signalé';
 
         \App\Models\PoseTaskAction::log($task->id, 'problem_reported', [
-            'type' => $data['type'],
-            'note' => $data['note'] ?? null,
+            'type'       => $data['type'],
+            'note'       => $data['note'] ?? null,
+            'photo_path' => $photoPath,
         ], $tech->name, $request->ip());
 
         Log::warning('tech.space.problem_reported', [

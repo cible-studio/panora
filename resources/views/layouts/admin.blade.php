@@ -153,6 +153,32 @@
                             <span class="nav-badge red">{{ $conflictCount }}</span>
                         @endif
                     </a>
+
+                    @php
+                        // Signalements terrain à traiter : même pattern auto-correctif
+                        // que Conflits — sur la page Signalements, valeur fraîche +
+                        // mise à jour du cache pour les autres pages.
+                        if (request()->routeIs('admin.signalements.*')) {
+                            $signalementsCount = \App\Models\PoseTaskAction::where('action', 'problem_reported')
+                                ->whereNull('resolved_at')->count();
+                            \Illuminate\Support\Facades\Cache::put('admin.signalements.pending_count', $signalementsCount, 60);
+                        } else {
+                            $signalementsCount = \Illuminate\Support\Facades\Cache::remember(
+                                'admin.signalements.pending_count',
+                                60,
+                                fn() => \App\Models\PoseTaskAction::where('action', 'problem_reported')
+                                    ->whereNull('resolved_at')->count()
+                            );
+                        }
+                    @endphp
+                    <a href="{{ route('admin.signalements.index') }}" data-tooltip="Signalements terrain"
+                       class="nav-item {{ request()->routeIs('admin.signalements.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></span>
+                        <span class="nav-text">Signalements</span>
+                        @if($signalementsCount > 0)
+                            <span class="nav-badge red">{{ $signalementsCount }}</span>
+                        @endif
+                    </a>
                     @endif
                 </div>
 
