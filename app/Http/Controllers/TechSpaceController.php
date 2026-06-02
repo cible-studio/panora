@@ -84,7 +84,11 @@ class TechSpaceController extends Controller
                 'campaign:id,name,start_date,end_date,client_id,status',
                 'campaign.client:id,name',
                 'lastProblemReport',  // ⚠ pour le badge "déjà signalé"
-                'latestRejectedPige:id,pose_task_id,rejection_reason,created_at',
+                // ⚠ Pas de projection (select) ici : latestOfMany génère des
+                // joins internes, et `id`/`pose_task_id` non préfixés deviennent
+                // ambigus → "Column 'pose_task_id' is ambiguous". On laisse
+                // Eloquent utiliser `piges.*` (qualifié) par défaut.
+                'latestRejectedPige',
             ])
             ->where('assigned_user_id', $tech->id)
             ->whereNotNull('panel_id')
