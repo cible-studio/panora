@@ -104,6 +104,17 @@ class TechSpaceController extends Controller
         $totalAssigned = $totalActive + $totalDone;
         $progressPct   = $totalAssigned > 0 ? (int) round($totalDone / $totalAssigned * 100) : 0;
 
+        // Compteur des poses TERMINÉES regroupées par COMMUNE (pour la barre
+        // de progression par zone — le tech voit "ABOBO 2/5" et avance).
+        // Une seule requête, eager-load minimal sur panel.commune.
+        $doneByCommune = PoseTask::where('assigned_user_id', $tech->id)
+            ->where('status', PoseTaskStatus::COMPLETED->value)
+            ->with(['panel:id,commune_id', 'panel.commune:id,name'])
+            ->get(['id', 'panel_id'])
+            ->groupBy(fn($t) => $t->panel?->commune?->name ?? 'Sans commune')
+            ->map(fn($g) => $g->count())
+            ->all();
+
         // Marque les poses en retard (échéance passée) — sert au tri et au badge.
         $today = Carbon::today();
         $isOverdue = function ($task) use ($today) {
@@ -131,6 +142,7 @@ class TechSpaceController extends Controller
             'totalAssigned'    => $totalAssigned,
             'progressPct'      => $progressPct,
             'groupedByCommune' => $groupedByCommune,
+            'doneByCommune'    => $doneByCommune,
         ];
     }
 
