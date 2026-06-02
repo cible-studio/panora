@@ -152,6 +152,14 @@ class TechSpaceController extends Controller
             ->whereBetween('done_at', [$startOfDay, $endOfDay])
             ->count();
 
+        // Poses prévues aujourd'hui ENCORE actives — c'est exactement ce
+        // que le filtre KPI "Aujourd'hui" rend visible. Cohérence visuelle
+        // entre la valeur affichée et le contenu après clic.
+        $activeToday = $activeTasks->filter(function ($t) use ($startOfDay, $endOfDay) {
+            $d = $t->scheduled_at ?? $t->created_at;
+            return $d && \Carbon\Carbon::parse($d)->between($startOfDay, $endOfDay);
+        })->count();
+
         // Filtre piges du tech : robuste aux uploads historiques (user_id
         // pointait sur le commercial avant le fix). On accepte user_id direct
         // OU rattachement via une PoseTask assignée au tech.
@@ -206,6 +214,7 @@ class TechSpaceController extends Controller
             'doneByCommune'    => $doneByCommune,
             // Métriques journée
             'doneToday'        => $doneToday,
+            'activeToday'      => $activeToday,
             'pigesSentToday'   => $pigesSentToday,
             'zonesTodayCount'  => $zonesTodayCount,
             'zonesTodayList'   => $zonesActiveToday->merge($zonesDoneToday)->unique()->values()->all(),
@@ -368,6 +377,14 @@ class TechSpaceController extends Controller
             ->where('status', PoseTaskStatus::COMPLETED->value)
             ->whereBetween('done_at', [$startOfDay, $endOfDay])->count();
 
+        // Poses prévues aujourd'hui ENCORE actives (= ce que le filtre KPI
+        // "Aujourd'hui" affiche en cliquant) — cohérence compteur ↔ liste.
+        $activeToday = PoseTask::where('assigned_user_id', $tech->id)
+            ->whereNotIn('status', [PoseTaskStatus::COMPLETED->value, PoseTaskStatus::CANCELLED->value])
+            ->whereNotNull('panel_id')->whereNotNull('campaign_id')
+            ->whereBetween('scheduled_at', [$startOfDay, $endOfDay])
+            ->count();
+
         $pigesForTech = function ($q) use ($tech) {
             $q->where(function ($qq) use ($tech) {
                 $qq->where('user_id', $tech->id)
@@ -409,6 +426,7 @@ class TechSpaceController extends Controller
             'totalAssigned'   => $totalAssigned,
             'progressPct'     => $progressPct,
             'doneToday'       => $doneToday,
+            'activeToday'     => $activeToday,
             'pigesSentToday'  => $pigesSentToday,
             'pigesTotal'      => $pigesTotal,
             'pigesPending'    => $pigesPending,
