@@ -2,8 +2,10 @@
 namespace App\Services;
 
 use App\Mail\MaintenanceMail;
+use App\Mail\ClientPanelMaintenanceMail;
 use App\Models\Maintenance;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -86,6 +88,116 @@ class MaintenanceNotifier
             );
         }
     }
+
+    /**
+     * Mise en maintenance d'un panneau — informe les clients de TOUTES les
+     * campagnes en cours qui contiennent ce panneau.
+     *
+     * Récap : pour chaque client touché, un seul mail listant tous les
+     * panneaux de la campagne actuellement indisponibles (évite le spam si
+     * plusieurs panneaux tombent en série).
+     *
+     * Dedup 60s par campagne : si N panneaux passent en maintenance dans la
+     * minute, un seul mail récap est envoyé par campagne touchée.
+     */
+    public function notifyClientCampaignDown(Maintenance $m): void
+    {
+        $m->loadMissing('panel');
+        if (!$m->panel) return;
+
+        // Campagnes actives/planifiées/en pause contenant ce panneau.
+        $campaigns = \App\Models\Campaign::query()
+            ->whereIn('status', ['planifie', 'actif', 'pause'])
+            ->whereHas('panels', fn($q) => $q->where('panels.id', $m->panel_id))
+            ->with(['client:id,name,email', 'panels:id,reference,name'])
+            ->get();
+
+        foreach ($campaigns as $campaign) {
+            $client = $campaign->client;
+            if (!$client?->email) {
+                Log::info('maintenance.notify.client.skip.no_email', [
+                    'maintenance_id' => $m->id,
+                    'campaign_id'    => $campaign->id,
+                ]);
+                continue;
+            }
+
+            $dedupKey = "client-maintenance-down-{$campaign->id}";
+            if (Cache::has($dedupKey)) {
+                Log::info('maintenance.notify.client.dedup', [
+                    'campaign_id'    => $campaign->id,
+                    'maintenance_id' => $m->id,
+                ]);
+                continue;
+            }
+            Cache::put($dedupKey, true, 60);
+
+            // Récap de TOUTES les maintenances ouvertes sur les panneaux
+            // de cette campagne — le client voit l'état global.
+            $maintenancesActives = Maintenance::query()
+                ->whereIn('statut', self::STATUTS_OUVERTS_FOR_CLIENT)
+                ->whereIn('panel_id', $campaign->panels->pluck('id'))
+                ->with('panel:id,reference,name')
+                ->orderBy('date_signalement')
+                ->get();
+
+            $this->mailer->sendSilently(
+                $client->email,
+                new ClientPanelMaintenanceMail($campaign, $maintenancesActives, 'down'),
+                context: [
+                    'event'             => 'client.maintenance.down',
+                    'maintenance_id'    => $m->id,
+                    'campaign_id'       => $campaign->id,
+                    'maintenance_count' => $maintenancesActives->count(),
+                ]
+            );
+        }
+    }
+
+    /**
+     * Résolution d'une maintenance — un panneau revient en ligne sur les
+     * campagnes en cours. Un mail par client touché.
+     */
+    public function notifyClientCampaignBack(Maintenance $m): void
+    {
+        $m->loadMissing('panel');
+        if (!$m->panel) return;
+
+        $campaigns = \App\Models\Campaign::query()
+            ->whereIn('status', ['planifie', 'actif', 'pause'])
+            ->whereHas('panels', fn($q) => $q->where('panels.id', $m->panel_id))
+            ->with(['client:id,name,email', 'panels:id,reference,name'])
+            ->get();
+
+        foreach ($campaigns as $campaign) {
+            $client = $campaign->client;
+            if (!$client?->email) continue;
+
+            $dedupKey = "client-maintenance-back-{$campaign->id}";
+            if (Cache::has($dedupKey)) continue;
+            Cache::put($dedupKey, true, 60);
+
+            $maintenancesActives = Maintenance::query()
+                ->whereIn('statut', self::STATUTS_OUVERTS_FOR_CLIENT)
+                ->whereIn('panel_id', $campaign->panels->pluck('id'))
+                ->with('panel:id,reference,name')
+                ->get();
+
+            $this->mailer->sendSilently(
+                $client->email,
+                new ClientPanelMaintenanceMail($campaign, $maintenancesActives, 'back', $m),
+                context: [
+                    'event'                 => 'client.maintenance.back',
+                    'maintenance_id'        => $m->id,
+                    'campaign_id'           => $campaign->id,
+                    'maintenances_restantes' => $maintenancesActives->count(),
+                ]
+            );
+        }
+    }
+
+    /** Statuts de maintenance considérés "encore en cours" côté client. */
+    private const STATUTS_OUVERTS_FOR_CLIENT = ['signale', 'en_cours'];
 
     /**
      * Maintenance modifiée (description / type / priorité hors raise).

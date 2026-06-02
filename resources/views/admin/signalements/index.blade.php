@@ -163,16 +163,18 @@
                     ✓ Marquer traité
                 </button>
             </form>
-            <form method="POST" action="{{ route('admin.signalements.maintenance', $sig->id) }}"
-                  onsubmit="return confirm('Mettre le panneau {{ $panel?->reference }} en maintenance ? Il sortira des disponibilités et une fiche maintenance sera créée.')"
-                  style="margin:0">
-                @csrf
-                <button type="submit"
-                        style="padding:7px 14px;min-height:34px;background:#f97316;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:5px"
-                        title="Bascule le panneau en MAINTENANCE + crée la fiche">
-                    🔧 Mettre en maintenance
-                </button>
-            </form>
+            <button type="button"
+                    onclick='openMaintenanceModal(@json([
+                        "actionId"  => $sig->id,
+                        "panelRef"  => $panel?->reference,
+                        "panelName" => $panel?->name,
+                        "url"       => route("admin.signalements.maintenance", $sig->id),
+                        "csrf"      => csrf_token(),
+                    ]))'
+                    style="padding:7px 14px;min-height:34px;background:#f97316;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:5px"
+                    title="Bascule le panneau en MAINTENANCE + crée la fiche + informe le client">
+                🔧 Mettre en maintenance
+            </button>
         </div>
         @endif
     </div>
@@ -191,5 +193,100 @@
 @endforelse
 
 {{ $signalements->links() }}
+
+{{-- ─────────────────────────────────────────────────────────
+     Modal "Mettre en maintenance" — collecte la durée prévue
+     que le client recevra par mail (combien de temps son
+     panneau est down + date de retour estimée).
+   ───────────────────────────────────────────────────────── --}}
+<div id="maintenanceModal"
+     style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:16px">
+    <div style="background:var(--surface);border-radius:14px;max-width:480px;width:100%;box-shadow:0 30px 80px -20px rgba(0,0,0,.4);overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#fff7ed,#fff);display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;border-radius:10px;background:#f97316;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px">🔧</div>
+            <div style="flex:1;min-width:0">
+                <div style="font-size:15px;font-weight:800;color:var(--text)">Mettre en maintenance</div>
+                <div id="maintenanceModalPanel" style="font-size:12.5px;color:var(--text2);font-family:monospace"></div>
+            </div>
+            <button type="button" onclick="closeMaintenanceModal()"
+                    style="background:transparent;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1">×</button>
+        </div>
+
+        <form id="maintenanceModalForm" method="POST" action="" style="padding:18px 20px 16px">
+            <input type="hidden" name="_token" id="maintenanceModalCsrf" value="">
+
+            <div style="background:#fef3c7;border:1px solid #fde68a;color:#92400e;padding:10px 12px;border-radius:8px;font-size:12.5px;margin-bottom:14px;line-height:1.45">
+                ℹ️ Le panneau sortira des disponibilités. <strong>Les clients
+                des campagnes en cours seront prévenus par email</strong> avec
+                la durée que tu saisis ci-dessous.
+            </div>
+
+            <label style="display:block;font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:6px">
+                Durée prévue d'indisponibilité (en jours) <span style="color:#ef4444">*</span>
+            </label>
+            <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+                <input type="number" name="duree_prevue_jours" id="maintenanceModalDuree"
+                       min="1" max="365" value="7" required
+                       style="flex:1;min-width:120px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-weight:600">
+                @foreach([1 => '1j', 3 => '3j', 7 => '1 sem', 14 => '2 sem', 30 => '1 mois'] as $val => $lbl)
+                    <button type="button"
+                            onclick="document.getElementById('maintenanceModalDuree').value={{ $val }}"
+                            style="padding:6px 10px;border:1px solid var(--border);background:var(--surface2);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text2)">
+                        {{ $lbl }}
+                    </button>
+                @endforeach
+            </div>
+
+            <label style="display:block;font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:6px">
+                Priorité
+            </label>
+            <select name="priorite"
+                    style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13.5px;margin-bottom:14px;background:var(--surface)">
+                <option value="basse">Basse</option>
+                <option value="normale" selected>Normale</option>
+                <option value="haute">Haute</option>
+                <option value="urgente">Urgente</option>
+            </select>
+
+            <label style="display:block;font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:6px">
+                Note interne (facultatif)
+            </label>
+            <textarea name="description" rows="2" maxlength="1000" placeholder="Précisions techniques pour l'équipe maintenance…"
+                      style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:vertical;margin-bottom:18px"></textarea>
+
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button type="button" onclick="closeMaintenanceModal()"
+                        style="padding:9px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;color:var(--text2)">
+                    Annuler
+                </button>
+                <button type="submit"
+                        style="padding:9px 18px;background:#f97316;border:none;color:#fff;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+                    🔧 Mettre en maintenance
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openMaintenanceModal(data) {
+    const modal = document.getElementById('maintenanceModal');
+    document.getElementById('maintenanceModalForm').action = data.url;
+    document.getElementById('maintenanceModalCsrf').value = data.csrf;
+    document.getElementById('maintenanceModalPanel').textContent =
+        (data.panelRef || '—') + (data.panelName ? ' · ' + data.panelName : '');
+    modal.style.display = 'flex';
+    setTimeout(() => document.getElementById('maintenanceModalDuree').focus(), 50);
+}
+function closeMaintenanceModal() {
+    document.getElementById('maintenanceModal').style.display = 'none';
+}
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeMaintenanceModal();
+});
+document.getElementById('maintenanceModal').addEventListener('click', (e) => {
+    if (e.target.id === 'maintenanceModal') closeMaintenanceModal();
+});
+</script>
 
 </x-admin-layout>

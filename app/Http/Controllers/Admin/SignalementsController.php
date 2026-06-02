@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Maintenance;
 use App\Models\Panel;
 use App\Models\PoseTaskAction;
+use App\Services\MaintenanceNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -82,13 +83,18 @@ class SignalementsController extends Controller
      * POST /admin/signalements/{action}/maintenance
      * Passe le panneau en MAINTENANCE + crée la Maintenance + lie au signalement.
      */
-    public function resolveToMaintenance(Request $request, PoseTaskAction $action)
+    public function resolveToMaintenance(Request $request, PoseTaskAction $action, MaintenanceNotifier $notifier)
     {
         $this->ensureActiveSignal($action);
 
         $request->validate([
-            'priorite'    => 'nullable|in:basse,normale,haute,urgente',
-            'description' => 'nullable|string|max:1000',
+            'priorite'           => 'nullable|in:basse,normale,haute,urgente',
+            'description'        => 'nullable|string|max:1000',
+            'duree_prevue_jours' => 'required|integer|min:1|max:365',
+        ], [
+            'duree_prevue_jours.required' => 'Indique la durée estimée pour informer le client.',
+            'duree_prevue_jours.min'      => 'La durée doit être d\'au moins 1 jour.',
+            'duree_prevue_jours.max'      => 'Durée maximale : 365 jours.',
         ]);
 
         $type      = $action->payload['type'] ?? 'autre';
@@ -107,16 +113,23 @@ class SignalementsController extends Controller
             . " le " . $action->created_at->format('d/m/Y H:i')
         );
 
-        DB::transaction(function () use ($action, $panel, $mapping, $description, $request) {
+        $durationDays = (int) $request->input('duree_prevue_jours');
+        $dateFinPrevue = now()->startOfDay()->addDays($durationDays);
+
+        $createdMaintenance = null;
+
+        DB::transaction(function () use ($action, $panel, $mapping, $description, $request, $durationDays, $dateFinPrevue, &$createdMaintenance) {
             // 1. Création de la Maintenance liée
             $maintenance = Maintenance::create([
-                'panel_id'         => $panel->id,
-                'signale_par'      => auth()->id(),
-                'type_panne'       => $mapping['type_panne'],
-                'priorite'         => $request->input('priorite', 'normale'),
-                'statut'           => 'signale',
-                'date_signalement' => now()->toDateString(),
-                'description'      => $request->input('description') ?: $description,
+                'panel_id'           => $panel->id,
+                'signale_par'        => auth()->id(),
+                'type_panne'         => $mapping['type_panne'],
+                'priorite'           => $request->input('priorite', 'normale'),
+                'statut'             => 'signale',
+                'date_signalement'   => now()->toDateString(),
+                'duree_prevue_jours' => $durationDays,
+                'date_fin_prevue'    => $dateFinPrevue->toDateString(),
+                'description'        => $request->input('description') ?: $description,
             ]);
 
             // 2. Bascule statut panneau en MAINTENANCE (sort de dispo)
@@ -136,12 +149,27 @@ class SignalementsController extends Controller
                 'maintenance_id' => $maintenance->id,
                 'admin_id'       => auth()->id(),
             ]);
+
+            $createdMaintenance = $maintenance;
         });
 
         // Invalide le cache du badge sidebar
         Cache::forget('admin.signalements.pending_count');
 
-        return back()->with('success', "Panneau {$panel->reference} mis en maintenance. Le signalement est traité.");
+        // Best-effort : prévient les clients des campagnes en cours touchées
+        // par ce panneau. Si la notif casse, le métier ne tombe pas.
+        if ($createdMaintenance) {
+            try {
+                $notifier->notifyClientCampaignDown($createdMaintenance);
+            } catch (\Throwable $e) {
+                Log::warning('signalement.notify_client_down.failed', [
+                    'maintenance_id' => $createdMaintenance->id,
+                    'error'          => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return back()->with('success', "Panneau {$panel->reference} mis en maintenance. Le signalement est traité, les clients ont été informés.");
     }
 
     /**

@@ -234,6 +234,34 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
         <div style="font-size:12px;">Cette campagne n'a pas encore de panneaux assignés.</div>
     </div>
     @else
+    @php
+        // Bandeau global maintenance — informe le client en un coup d'œil
+        // si certains de ses panneaux ne sont temporairement pas diffusés.
+        $panelsInMaint = $campaign->panels->filter(fn($p) => $p->activeMaintenance);
+        $maintCount    = $panelsInMaint->count();
+        $maxReturn     = $panelsInMaint
+            ->map(fn($p) => $p->activeMaintenance?->date_fin_prevue)
+            ->filter()
+            ->max();
+    @endphp
+    @if($maintCount > 0)
+    <div style="margin-bottom:14px;padding:14px 18px;border-radius:12px;background:linear-gradient(180deg,#fff7ed,#fffbeb);border:1px solid #fed7aa;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div style="width:42px;height:42px;border-radius:11px;background:#f97316;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🔧</div>
+        <div style="flex:1;min-width:200px;font-size:13px;color:#9a3412;line-height:1.45;">
+            <div style="font-weight:800;margin-bottom:3px;font-size:14px;">
+                {{ $maintCount }} panneau{{ $maintCount > 1 ? 'x sont' : ' est' }} actuellement en maintenance
+            </div>
+            <div style="color:#b45309;">
+                @if($maxReturn)
+                    Retour complet estimé au plus tard le
+                    <strong>{{ \Carbon\Carbon::parse($maxReturn)->format('d/m/Y') }}</strong>.
+                @endif
+                Vos autres panneaux poursuivent leur diffusion normalement.
+            </div>
+        </div>
+    </div>
+    @endif
+
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;">
         @foreach($campaign->panels as $panel)
         @php
@@ -242,12 +270,15 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
             $panelPiges = $pigesVerif[$panel->id] ?? collect();
             $isPosed    = !is_null($panelPose);
             $hasProof   = $panelPiges->isNotEmpty();
-            // Couleur bordure : vert si pigé, violet si posé, grise sinon
-            $borderClr  = $hasProof ? 'rgba(34,197,94,.35)' : ($isPosed ? 'rgba(139,92,246,.35)' : 'var(--border)');
+            $activeMaint = $panel->activeMaintenance;
+            // Couleur bordure : orange si maintenance, vert si pigé, violet si posé, grise sinon
+            $borderClr  = $activeMaint
+                ? 'rgba(249,115,22,.45)'
+                : ($hasProof ? 'rgba(34,197,94,.35)' : ($isPosed ? 'rgba(139,92,246,.35)' : 'var(--border)'));
         @endphp
 
-        <div style="background:var(--surface);border:1px solid {{ $borderClr }};border-radius:14px;overflow:hidden;transition:border-color .2s,transform .15s;"
-             onmouseover="this.style.transform='translateY(-2px)';this.style.borderColor='{{ $hasProof ? 'rgba(34,197,94,.5)' : ($isPosed ? 'rgba(139,92,246,.5)' : 'rgba(226,6,19,.25)') }}'"
+        <div style="background:var(--surface);border:1px solid {{ $borderClr }};border-radius:14px;overflow:hidden;transition:border-color .2s,transform .15s;{{ $activeMaint ? 'box-shadow:0 0 0 1px rgba(249,115,22,.10);' : '' }}"
+             onmouseover="this.style.transform='translateY(-2px)';this.style.borderColor='{{ $activeMaint ? 'rgba(249,115,22,.6)' : ($hasProof ? 'rgba(34,197,94,.5)' : ($isPosed ? 'rgba(139,92,246,.5)' : 'rgba(226,6,19,.25)')) }}'"
              onmouseout="this.style.transform='';this.style.borderColor='{{ $borderClr }}'">
 
             {{-- Photo du panneau --}}
@@ -263,7 +294,12 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
                 @endif
 
                 {{-- Indicateur statut coin haut gauche --}}
-                <div style="position:absolute;top:8px;left:8px;display:flex;gap:4px;">
+                <div style="position:absolute;top:8px;left:8px;display:flex;gap:4px;flex-wrap:wrap;max-width:calc(100% - 16px);">
+                    @if($activeMaint)
+                    <span style="padding:2px 7px;border-radius:20px;font-size:9px;font-weight:700;background:rgba(249,115,22,.92);color:#fff;backdrop-filter:blur(4px);">
+                        🔧 En maintenance
+                    </span>
+                    @endif
                     @if($isPosed)
                     <span style="padding:2px 7px;border-radius:20px;font-size:9px;font-weight:700;background:rgba(139,92,246,.85);color:#fff;backdrop-filter:blur(4px);">
                         ✓ Posé
@@ -311,6 +347,35 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
                     </div>
                     @endif
                 </div>
+
+                {{-- Bloc maintenance : visible uniquement si le panneau est down.
+                     Le client voit la date de retour estimée + un message
+                     rassurant — la même info qu'il a reçue par email. --}}
+                @if($activeMaint)
+                <div style="background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.20);border-radius:10px;padding:9px 11px;margin-bottom:10px;">
+                    <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#ea580c;margin-bottom:4px;">
+                        🔧 Maintenance en cours
+                    </div>
+                    @if($activeMaint->date_fin_prevue)
+                        @php $remaining = $activeMaint->daysRemaining(); @endphp
+                        <div style="font-size:11px;color:#9a3412;line-height:1.4;">
+                            Retour prévu le
+                            <strong>{{ $activeMaint->date_fin_prevue->format('d/m/Y') }}</strong>
+                            @if($remaining !== null && $remaining > 0)
+                                <span style="color:var(--text3);">(dans {{ $remaining }} jour{{ $remaining > 1 ? 's' : '' }})</span>
+                            @elseif($remaining !== null && $remaining === 0)
+                                <span style="color:#16a34a;">(aujourd'hui)</span>
+                            @elseif($remaining !== null && $remaining < 0)
+                                <span style="color:#ef4444;">(en cours de prolongation)</span>
+                            @endif
+                        </div>
+                    @else
+                        <div style="font-size:11px;color:#9a3412;line-height:1.4;">
+                            Notre équipe technique intervient au plus vite.
+                        </div>
+                    @endif
+                </div>
+                @endif
 
                 {{-- Statut pose --}}
                 <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:8px;">

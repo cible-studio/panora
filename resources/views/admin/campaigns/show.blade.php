@@ -817,6 +817,37 @@
         </div>
         @endif
 
+        {{-- Bandeau maintenance globale : si au moins un panneau interne de la
+             campagne est en maintenance ouverte, on l'affiche en tête de tableau
+             pour que l'admin voie tout de suite l'impact sur la diffusion. --}}
+        @php
+            $panelsInMaint = $campaign->panels->filter(fn($p) => $p->activeMaintenance);
+            $maintCount    = $panelsInMaint->count();
+            $maxReturn     = $panelsInMaint
+                ->map(fn($p) => $p->activeMaintenance?->date_fin_prevue)
+                ->filter()
+                ->max();
+        @endphp
+        @if($maintCount > 0)
+            <div style="margin-bottom:14px;padding:12px 16px;border-radius:10px;background:linear-gradient(180deg,#fff7ed,#fffbeb);border:1px solid #fed7aa;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <div style="width:38px;height:38px;border-radius:10px;background:#f97316;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px">🔧</div>
+                <div style="flex:1;min-width:200px;font-size:13px;color:#9a3412">
+                    <div style="font-weight:800;margin-bottom:2px">
+                        {{ $maintCount }} panneau{{ $maintCount > 1 ? 'x' : '' }} en maintenance
+                    </div>
+                    <div style="color:#b45309">
+                        @if($maxReturn)
+                            Retour complet estimé au plus tard le
+                            <strong>{{ \Carbon\Carbon::parse($maxReturn)->format('d/m/Y') }}</strong>.
+                        @else
+                            Durée non renseignée — vérifie les fiches maintenance.
+                        @endif
+                        Le client a été informé par email automatiquement.
+                    </div>
+                </div>
+            </div>
+        @endif
+
         {{-- Tableau panneaux (avec pagination JS si > 25 panneaux) --}}
         @php $totalPanelsRows = $campaign->panels->count() + $campaign->externalPanels->count(); @endphp
         <div class="overflow-x-auto" id="camp-panels-wrap">
@@ -944,10 +975,37 @@
                         </td>
                         <td class="px-5 py-4">
                             <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">
-                                <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold border"
-                                      style="background:{{ $campBadge['bg'] }};color:{{ $campBadge['color'] }};border-color:{{ $campBadge['border'] }}">
-                                    {{ $campBadge['label'] }}
-                                </span>
+                                @php $activeMaint = $panel->activeMaintenance; @endphp
+                                @if($activeMaint)
+                                    {{-- Panneau en maintenance — badge dédié + date retour estimée.
+                                         Le client voit la même info dans son espace (cohérence). --}}
+                                    <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold border"
+                                          style="background:rgba(249,115,22,.10);color:#ea580c;border-color:rgba(249,115,22,.30)"
+                                          title="Maintenance #{{ $activeMaint->id }} — statut {{ $activeMaint->statut }}">
+                                        🔧 Maintenance
+                                    </span>
+                                    @if($activeMaint->date_fin_prevue)
+                                        @php $remaining = $activeMaint->daysRemaining(); @endphp
+                                        <span style="font-size:10.5px;color:var(--text3);font-weight:600"
+                                              title="Date de retour estimée">
+                                            Retour ~{{ $activeMaint->date_fin_prevue->format('d/m') }}
+                                            @if($remaining !== null)
+                                                @if($remaining < 0)
+                                                    · <span style="color:#ef4444">en retard {{ abs($remaining) }}j</span>
+                                                @elseif($remaining === 0)
+                                                    · <span style="color:#16a34a">aujourd'hui</span>
+                                                @else
+                                                    · J-{{ $remaining }}
+                                                @endif
+                                            @endif
+                                        </span>
+                                    @endif
+                                @else
+                                    <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold border"
+                                          style="background:{{ $campBadge['bg'] }};color:{{ $campBadge['color'] }};border-color:{{ $campBadge['border'] }}">
+                                        {{ $campBadge['label'] }}
+                                    </span>
+                                @endif
                                 @if($deferredStart)
                                     <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;background:rgba(245,158,11,.10);color:#d97706;border:1px solid rgba(245,158,11,.25);font-size:10px;font-weight:700;letter-spacing:.2px"
                                           title="Ce panneau rejoint la campagne plus tard car il était occupé.">

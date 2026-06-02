@@ -283,6 +283,14 @@ class MaintenanceController extends Controller
 
             if ($maintenance->statut === 'resolu') {
                 $this->notifier->notifyResolved($maintenance);
+                try {
+                    $this->notifier->notifyClientCampaignBack($maintenance);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('maintenance.update_notify_client_back.failed', [
+                        'maintenance_id' => $maintenance->id,
+                        'error'          => $e->getMessage(),
+                    ]);
+                }
             }
         } else {
             // Hors transition vers close : notif si changement technicien
@@ -410,6 +418,18 @@ class MaintenanceController extends Controller
         );
 
         $this->notifier->notifyResolved($maintenance);
+
+        // Informe les clients des campagnes en cours que ce panneau est de
+        // retour en ligne. Best-effort — ne casse pas la résolution si la
+        // notif échoue.
+        try {
+            $this->notifier->notifyClientCampaignBack($maintenance);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('maintenance.notify_client_back.failed', [
+                'maintenance_id' => $maintenance->id,
+                'error'          => $e->getMessage(),
+            ]);
+        }
 
         // Warning : si des signalements terrain restent non traités sur ce
         // panneau (autres que celui qui a déclenché cette maintenance), on
