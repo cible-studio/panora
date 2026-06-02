@@ -152,7 +152,24 @@ class TechSpaceController extends Controller
             ->whereBetween('done_at', [$startOfDay, $endOfDay])
             ->count();
 
-        $pigesSentToday = \App\Models\Pige::where('user_id', $tech->id)
+        // Filtre piges du tech : robuste aux uploads historiques (user_id
+        // pointait sur le commercial avant le fix). On accepte user_id direct
+        // OU rattachement via une PoseTask assignée au tech.
+        $pigesForTech = function ($q) use ($tech) {
+            $q->where(function ($qq) use ($tech) {
+                $qq->where('user_id', $tech->id)
+                   ->orWhereExists(function ($sub) use ($tech) {
+                       $sub->select(\Illuminate\Support\Facades\DB::raw(1))
+                           ->from('pose_tasks')
+                           ->where('pose_tasks.assigned_user_id', $tech->id)
+                           ->whereColumn('pose_tasks.panel_id',    'piges.panel_id')
+                           ->whereColumn('pose_tasks.campaign_id', 'piges.campaign_id');
+                   });
+            });
+        };
+
+        $pigesSentToday = \App\Models\Pige::query()
+            ->tap($pigesForTech)
             ->whereBetween('taken_at', [$startOfDay, $endOfDay])
             ->count();
 
@@ -175,9 +192,9 @@ class TechSpaceController extends Controller
         $zonesTodayCount = $zonesActiveToday->merge($zonesDoneToday)->unique()->count();
 
         // Piges du tech, tout temps : permet le compteur du bouton "Mes piges"
-        // (peut être 0, on n'affiche le badge que si > 0).
-        $pigesTotal = \App\Models\Pige::where('user_id', $tech->id)->count();
-        $pigesRejected = \App\Models\Pige::where('user_id', $tech->id)
+        // (peut être 0, on n'affiche le badge que si > 0). Même filtre robuste.
+        $pigesTotal = \App\Models\Pige::query()->tap($pigesForTech)->count();
+        $pigesRejected = \App\Models\Pige::query()->tap($pigesForTech)
             ->where('status', 'rejete')->count();
 
         return [
@@ -309,7 +326,22 @@ class TechSpaceController extends Controller
             ->first();
         if (!$tech) abort(404, 'Lien invalide ou compte désactivé.');
 
-        $piges = \App\Models\Pige::where('user_id', $tech->id)
+        // Filtre robuste : on récupère les piges du tech soit directement
+        // via user_id (nouveau pattern), soit via la PoseTask correspondante
+        // (panel + campagne assignés à ce tech) pour ne pas perdre les
+        // piges historiques où user_id pointait sur le commercial créateur
+        // de la campagne (bug corrigé).
+        $piges = \App\Models\Pige::query()
+            ->where(function ($q) use ($tech) {
+                $q->where('user_id', $tech->id)
+                  ->orWhereExists(function ($sub) use ($tech) {
+                      $sub->select(\Illuminate\Support\Facades\DB::raw(1))
+                          ->from('pose_tasks')
+                          ->where('pose_tasks.assigned_user_id', $tech->id)
+                          ->whereColumn('pose_tasks.panel_id',    'piges.panel_id')
+                          ->whereColumn('pose_tasks.campaign_id', 'piges.campaign_id');
+                  });
+            })
             ->with([
                 'panel:id,reference,name,commune_id',
                 'panel.commune:id,name',
@@ -318,8 +350,18 @@ class TechSpaceController extends Controller
             ->orderByDesc('taken_at')
             ->paginate(30);
 
-        // Compteurs globaux pour la sidebar / chips.
-        $base = \App\Models\Pige::where('user_id', $tech->id);
+        // Compteurs globaux (même filtre tech robuste) pour les KPI.
+        $base = \App\Models\Pige::query()
+            ->where(function ($q) use ($tech) {
+                $q->where('user_id', $tech->id)
+                  ->orWhereExists(function ($sub) use ($tech) {
+                      $sub->select(\Illuminate\Support\Facades\DB::raw(1))
+                          ->from('pose_tasks')
+                          ->where('pose_tasks.assigned_user_id', $tech->id)
+                          ->whereColumn('pose_tasks.panel_id',    'piges.panel_id')
+                          ->whereColumn('pose_tasks.campaign_id', 'piges.campaign_id');
+                  });
+            });
         $kpi = [
             'total'    => (clone $base)->count(),
             'pending'  => (clone $base)->where('status', 'en_attente')->count(),
@@ -474,17 +516,25 @@ class TechSpaceController extends Controller
                          . trim($data['contradicts_signalement_reason']);
         }
 
+        // ⚠ Historique : avant ce commit, user_id était forcé à
+        //   $task->campaign->user_id (le commercial créateur de la campagne)
+        // → la vue tech "Mes piges" filtrait par user_id et ne retrouvait
+        //   pas les piges envoyées par le tech. Correction : c'est BIEN le
+        //   tech qui upload, donc user_id = $tech->id. Et on lie la pige
+        //   à la PoseTask (pose_task_id) pour le filtrage robuste côté
+        //   tech-space (et les jointures admin futures).
         $pige = Pige::create([
-            'panel_id'    => $task->panel_id,
-            'campaign_id' => $task->campaign_id,
-            'user_id'     => $task->campaign->user_id ?? $tech->id,
-            'photo_path'  => $path,
-            'taken_at'    => now(),
-            'gps_lat'     => $data['gps_lat'] ?? null,
-            'gps_lng'     => $data['gps_lng'] ?? null,
-            'notes'       => implode(' · ', $noteParts),
-            'status'      => 'en_attente',
-            'client_uuid' => $data['client_uuid'] ?? null,
+            'panel_id'     => $task->panel_id,
+            'campaign_id'  => $task->campaign_id,
+            'pose_task_id' => $task->id,
+            'user_id'      => $tech->id,
+            'photo_path'   => $path,
+            'taken_at'     => now(),
+            'gps_lat'      => $data['gps_lat'] ?? null,
+            'gps_lng'      => $data['gps_lng'] ?? null,
+            'notes'        => implode(' · ', $noteParts),
+            'status'       => 'en_attente',
+            'client_uuid'  => $data['client_uuid'] ?? null,
         ]);
 
         // Marque la tâche comme réalisée si pas déjà fait.
