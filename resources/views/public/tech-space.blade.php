@@ -70,6 +70,15 @@
             color: var(--text2); font-size: 11.5px; font-weight: 700;
             text-decoration: none; flex-shrink: 0;
             transition: transform .15s, border-color .15s;
+            white-space: nowrap;
+        }
+        .header-chip .chip-text { display: inline; }
+        @media (max-width: 420px) {
+            /* Sous 420px, le chip se réduit à l'icône + badge pour laisser
+               la place au kicker "Espace Technicien" + logo sans tronquer. */
+            .header-chip .chip-text { display: none; }
+            .header-chip { padding: 6px 9px; }
+            .header-kicker { font-size: 9px; }
         }
         .header-chip:active { transform: scale(.97); border-color: var(--accent); }
         .header-chip .chip-badge {
@@ -525,6 +534,11 @@
         .pose-act + .pose-act { border-left: 1px solid var(--border); }
         .pose-act:active { background: var(--surface2); }
         .pose-act.act-go { color: #2563eb; }
+        .pose-act.act-arrive { color: #6d28d9; }
+        .pose-act.act-arrive:disabled {
+            color: #22c55e; opacity: 1; cursor: default;
+            background: rgba(34,197,94,.08);
+        }
         .pose-act.act-warn { color: #b45309; }
 
         /* Bandeau "déjà signalé" — visible et persistent au-dessus de la
@@ -589,8 +603,9 @@
         {{-- Bloc droit : label "Espace Technicien" + chip "Mes piges" côte à côte. --}}
         <span class="header-kicker" style="flex:0 0 auto;text-align:right;line-height:1.15">Espace<br>Technicien</span>
         <a href="{{ route('tech.space.piges', $token) }}"
-           class="header-chip {{ ($pigesRejected ?? 0) > 0 ? 'has-warn' : '' }}">
-            📸 Mes piges
+           class="header-chip {{ ($pigesRejected ?? 0) > 0 ? 'has-warn' : '' }}"
+           aria-label="Mes piges">
+            <span aria-hidden="true">📸</span><span class="chip-text">Mes piges</span>
             @if(($pigesTotal ?? 0) > 0)
                 <span class="chip-badge" data-piges-chip-badge>
                     {{ ($pigesRejected ?? 0) > 0 ? $pigesRejected : $pigesTotal }}
@@ -618,18 +633,18 @@
         </button>
         <button type="button" class="kpi-card kpi-today" data-kpi-filter="today" aria-pressed="false">
             <div class="kpi-label">Aujourd'hui</div>
-            <div class="kpi-value" data-kpi-value="doneToday">{{ $doneToday ?? 0 }}</div>
-            <div class="kpi-sub">posée{{ ($doneToday ?? 0) > 1 ? 's' : '' }} ce jour</div>
+            <div class="kpi-value" data-kpi-value="activeToday">{{ $activeToday ?? 0 }}</div>
+            <div class="kpi-sub">à faire ce jour @if(($doneToday ?? 0) > 0)· <strong data-done-today>{{ $doneToday }}</strong> faite{{ $doneToday > 1 ? 's' : '' }}@endif</div>
         </button>
         <a href="{{ route('tech.space.piges', $token) }}" class="kpi-card kpi-piges" data-kpi-link>
             <div class="kpi-label">Piges</div>
             <div class="kpi-value" data-kpi-value="pigesSentToday">{{ $pigesSentToday ?? 0 }}</div>
             <div class="kpi-sub">envoyée{{ ($pigesSentToday ?? 0) > 1 ? 's' : '' }} ce jour</div>
         </a>
-        <button type="button" class="kpi-card kpi-zones" data-kpi-filter="zones" aria-pressed="false">
+        <button type="button" class="kpi-card kpi-zones" data-kpi-action="scroll-zones">
             <div class="kpi-label">Zones</div>
             <div class="kpi-value" data-kpi-value="zonesTodayCount">{{ $zonesTodayCount ?? 0 }}</div>
-            <div class="kpi-sub">couverte{{ ($zonesTodayCount ?? 0) > 1 ? 's' : '' }} aujourd'hui</div>
+            <div class="kpi-sub">tap pour naviguer ↓</div>
         </button>
     </div>
 
@@ -767,6 +782,7 @@
                     @endphp
                     <div class="pose pose-line {{ $lastProblem ? 'has-problem' : '' }} {{ $rejPige ? 'has-reject' : '' }}"
                          data-task-id="{{ $task->id }}"
+                         data-task-status="{{ $status->value }}"
                          data-search="{{ $searchHay }}"
                          data-lat="{{ $task->panel?->latitude }}"
                          data-lng="{{ $task->panel?->longitude }}"
@@ -828,7 +844,19 @@
                             <span class="pose-cam" aria-hidden="true">📷</span>
                         </label>
                         <div class="pose-actions-row">
-                            <a class="pose-act act-go" href="{{ $goUrl }}" target="_blank" rel="noopener">🧭 Y aller</a>
+                            <a class="pose-act act-go" href="{{ $goUrl }}" target="_blank" rel="noopener" data-go-maps>🧭 Y aller</a>
+                            {{-- Bouton "Sur place" : visible si pas encore terminé.
+                                 Désactivé si déjà en_cours pour éviter les re-clics. --}}
+                            <button type="button"
+                                    class="pose-act act-arrive"
+                                    data-action="arrive"
+                                    {{ $status->value === 'en_cours' ? 'disabled' : '' }}>
+                                @if($status->value === 'en_cours')
+                                    ✓ Sur place
+                                @else
+                                    📍 Sur place
+                                @endif
+                            </button>
                             <button type="button" class="pose-act act-warn" data-action="report">⚠️ Problème</button>
                         </div>
                     </div>
@@ -944,32 +972,46 @@
     const TOKEN = @json($token);
 
     // ── KPI cliquables : filtre la liste des poses sans reload ─────
-    // Filters supportés :
-    //   - 'all'   : toutes les poses actives (défaut)
-    //   - 'today' : seulement scheduled_at = aujourd'hui
-    //   - 'zones' : ouvre tout en mode "vue d'ensemble" (= equivalent all
-    //               mais ajoute des séparateurs visuels par commune existants)
     function applyKpiFilter(name) {
         const poses = document.querySelectorAll('.pose[data-task-id]');
+        let visible = 0;
         poses.forEach(p => {
             let show = true;
-            if (name === 'today') {
-                show = p.dataset.scheduledToday === '1';
-            }
-            // 'all' et 'zones' = tout affiché ; 'zones' garde le filtrage par
-            // groupe commune que la vue rend déjà côté Blade.
+            if (name === 'today') show = p.dataset.scheduledToday === '1';
             p.classList.toggle('is-filtered-out', !show);
             if (show) {
+                visible++;
                 p.classList.add('is-revealed');
                 setTimeout(() => p.classList.remove('is-revealed'), 400);
             }
         });
 
-        // Masque les sections commune désormais vides (toutes leurs poses filtrées)
+        // Masque les sections commune désormais vides
         document.querySelectorAll('.day-section').forEach(section => {
             const remaining = section.querySelectorAll('.pose:not(.is-filtered-out)').length;
             section.style.display = remaining === 0 ? 'none' : '';
         });
+
+        // Empty state si le filtre ne laisse rien
+        let emptyEl = document.getElementById('kpi-filter-empty');
+        if (visible === 0 && name !== 'all') {
+            if (!emptyEl) {
+                emptyEl = document.createElement('div');
+                emptyEl.id = 'kpi-filter-empty';
+                emptyEl.style.cssText = 'background:var(--surface);border:1px dashed var(--border);border-radius:14px;padding:32px 18px;text-align:center;color:var(--text3);margin-bottom:16px';
+                emptyEl.innerHTML = '<div style="font-size:36px;margin-bottom:8px;opacity:.4">🗓️</div><div style="font-size:14px;font-weight:700;color:var(--text2);margin-bottom:4px" data-empty-title></div><div style="font-size:12px" data-empty-sub></div>';
+                document.querySelector('.container').insertBefore(emptyEl, document.querySelector('.day-section'));
+            }
+            const titles = {
+                today: ['Pas de pose prévue aujourd\'hui', 'Tes prochaines missions arriveront via WhatsApp.'],
+            };
+            const [t, s] = titles[name] || ['Aucune pose dans cette catégorie', ''];
+            emptyEl.querySelector('[data-empty-title]').textContent = t;
+            emptyEl.querySelector('[data-empty-sub]').textContent   = s;
+            emptyEl.style.display = '';
+        } else if (emptyEl) {
+            emptyEl.style.display = 'none';
+        }
     }
 
     document.querySelectorAll('[data-kpi-filter]').forEach(btn => {
@@ -982,6 +1024,74 @@
             });
             applyKpiFilter(name);
         });
+    });
+
+    // KPI "Zones" : pas un filtre — scroll smooth vers la première zone.
+    const zonesBtn = document.querySelector('[data-kpi-action="scroll-zones"]');
+    if (zonesBtn) {
+        zonesBtn.addEventListener('click', () => {
+            const firstSection = document.querySelector('.day-section');
+            if (firstSection) firstSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    }
+
+    // ── Progression auto : "Y aller" bumpe en_route (25%) + ouvre Maps ──
+    document.addEventListener('click', async (e) => {
+        const goBtn = e.target.closest('[data-go-maps]');
+        if (!goBtn) return;
+        const pose = goBtn.closest('[data-task-id]');
+        if (!pose) return;
+        const currentStatus = pose.dataset.taskStatus;
+        // Bump uniquement si statut planifiee (pas régression sur en_cours, etc.)
+        if (currentStatus !== 'planifiee') return;
+        const taskId = pose.dataset.taskId;
+        try {
+            const r = await fetch(`/tech/${TOKEN}/poses/${taskId}/status`, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'status=en_route',
+                credentials: 'same-origin',
+            });
+            if (r.ok) {
+                pose.dataset.taskStatus = 'en_route';
+                const dot = pose.querySelector('.pose-dot');
+                if (dot) dot.style.background = '#8b5cf6'; // violet EN_ROUTE
+            }
+        } catch (e) { /* silencieux, on n'empêche pas Maps */ }
+        // Le lien suit son cours (target=_blank) — pas de preventDefault.
+    });
+
+    // ── Bouton "Sur place" : bump en_cours (60%) ────────────────────
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-action="arrive"]');
+        if (!btn || btn.disabled) return;
+        const pose = btn.closest('[data-task-id]');
+        if (!pose) return;
+        const taskId = pose.dataset.taskId;
+        const original = btn.innerHTML;
+        btn.disabled = true; btn.innerHTML = '⏳ …';
+        try {
+            const r = await fetch(`/tech/${TOKEN}/poses/${taskId}/status`, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'status=en_cours',
+                credentials: 'same-origin',
+            });
+            const data = await r.json().catch(() => ({}));
+            if (r.ok && data.ok) {
+                pose.dataset.taskStatus = 'en_cours';
+                btn.innerHTML = '✓ Sur place';
+                const dot = pose.querySelector('.pose-dot');
+                if (dot) dot.style.background = '#3b82f6'; // bleu IN_PROGRESS
+                toast('Position confirmée — bonne pose !', 'success');
+            } else {
+                btn.disabled = false; btn.innerHTML = original;
+                toast(data.error || 'Erreur', 'error');
+            }
+        } catch (err) {
+            btn.disabled = false; btn.innerHTML = original;
+            toast('Erreur réseau', 'error');
+        }
     });
 
     // ── Polling heartbeat — KPI live + détection nouvelle pose ────
@@ -1022,9 +1132,13 @@
             }
 
             bumpKpi('totalActive',     d.totalActive);
-            bumpKpi('doneToday',       d.doneToday);
+            bumpKpi('activeToday',     d.activeToday);
             bumpKpi('pigesSentToday',  d.pigesSentToday);
             bumpKpi('zonesTodayCount', d.zonesTodayCount);
+
+            // Le sub-label "Aujourd'hui" rappelle aussi le nb posées du jour
+            const doneTodayEl = document.querySelector('[data-done-today]');
+            if (doneTodayEl) doneTodayEl.textContent = d.doneToday;
 
             // MAJ chip "Mes piges" badge (rejected si > 0, sinon total)
             const chipBadge = document.querySelector('[data-piges-chip-badge]');
