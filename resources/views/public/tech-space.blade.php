@@ -115,11 +115,28 @@
             border-radius: 12px; padding: 10px 11px;
             display: flex; flex-direction: column; gap: 2px;
             position: relative; overflow: hidden;
+            /* L'élément est devenu button/a interactif */
+            text-align: left; cursor: pointer; font: inherit; color: inherit;
+            text-decoration: none;
+            transition: transform .15s cubic-bezier(.16,1,.3,1),
+                        border-color .15s, box-shadow .15s, background .15s;
         }
         .kpi-card::before {
             content: ''; position: absolute; left: 0; top: 0; bottom: 0;
             width: 3px; background: var(--kpi-clr, var(--accent));
+            transition: width .2s;
         }
+        .kpi-card:hover {
+            border-color: color-mix(in srgb, var(--kpi-clr, var(--accent)) 60%, transparent);
+            box-shadow: 0 6px 20px -8px color-mix(in srgb, var(--kpi-clr, var(--accent)) 50%, transparent);
+        }
+        .kpi-card:active { transform: scale(.97); }
+        .kpi-card.is-active {
+            background: color-mix(in srgb, var(--kpi-clr, var(--accent)) 8%, var(--surface));
+            border-color: var(--kpi-clr, var(--accent));
+            box-shadow: 0 6px 22px -6px color-mix(in srgb, var(--kpi-clr, var(--accent)) 50%, transparent);
+        }
+        .kpi-card.is-active::before { width: 5px; }
         .kpi-card .kpi-label {
             font-size: 9.5px; font-weight: 800; letter-spacing: .6px;
             text-transform: uppercase; color: var(--text3);
@@ -129,6 +146,13 @@
             font-size: 22px; font-weight: 800; color: var(--kpi-clr, var(--text));
             line-height: 1.1; margin-top: 1px;
             font-family: ui-monospace, 'SF Mono', monospace;
+            transition: transform .25s cubic-bezier(.16,1,.3,1);
+        }
+        .kpi-card .kpi-value.kpi-bump { animation: kpiBump .6s cubic-bezier(.16,1,.3,1); }
+        @keyframes kpiBump {
+            0%   { transform: scale(1); }
+            30%  { transform: scale(1.25); color: var(--kpi-clr, var(--text)); }
+            100% { transform: scale(1); }
         }
         .kpi-card .kpi-sub {
             font-size: 10.5px; color: var(--text3); margin-top: 1px;
@@ -138,6 +162,41 @@
         .kpi-today { --kpi-clr: #3b82f6; }
         .kpi-piges { --kpi-clr: #22c55e; }
         .kpi-zones { --kpi-clr: #8b5cf6; }
+
+        /* Bandeau "nouvelle pose assignée" (polling détecte nouvelle assignation) */
+        .new-task-banner {
+            display: none; cursor: pointer; margin: 0 16px 12px;
+            padding: 10px 14px; border-radius: 10px;
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: #fff; font-weight: 700; font-size: 13px;
+            text-align: center; box-shadow: 0 8px 24px -6px rgba(59,130,246,.5);
+            animation: pulseBlue 1.6s ease-in-out infinite;
+        }
+        @keyframes pulseBlue {
+            0%, 100% { transform: scale(1); }
+            50%      { transform: scale(1.015); }
+        }
+
+        /* Live dot dans le header (visible pendant le polling actif) */
+        .live-indicator {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 9.5px; font-weight: 700;
+            color: #22c55e; letter-spacing: .4px; text-transform: uppercase;
+            opacity: 0; transition: opacity .4s;
+        }
+        .live-indicator.is-pulsing { opacity: 1; }
+        .live-indicator::before {
+            content: ''; width: 6px; height: 6px; border-radius: 50%;
+            background: #22c55e;
+        }
+
+        /* Animation entrée/sortie cards quand on filtre */
+        .pose.is-filtered-out { display: none; }
+        .pose.is-revealed { animation: revealCard .35s cubic-bezier(.16,1,.3,1) both; }
+        @keyframes revealCard {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
 
         /* Progression à paliers (10/25/50/75/100) */
         .progress-staged {
@@ -525,14 +584,15 @@
 
     <div class="header-top">
         <img src="{{ asset('images/panora.png') }}" alt="Panora by CIBLE" class="brand-logo">
-        <span class="header-kicker">Espace<br>Technicien</span>
-        {{-- Chip "Mes piges" : clic ouvre l'historique des piges du tech.
-             Badge rouge si certaines ont été rejetées (action requise). --}}
+        <span class="live-indicator" data-live-indicator>live</span>
+        <div style="flex:1"></div>
+        {{-- Bloc droit : label "Espace Technicien" + chip "Mes piges" côte à côte. --}}
+        <span class="header-kicker" style="flex:0 0 auto;text-align:right;line-height:1.15">Espace<br>Technicien</span>
         <a href="{{ route('tech.space.piges', $token) }}"
            class="header-chip {{ ($pigesRejected ?? 0) > 0 ? 'has-warn' : '' }}">
             📸 Mes piges
             @if(($pigesTotal ?? 0) > 0)
-                <span class="chip-badge">
+                <span class="chip-badge" data-piges-chip-badge>
                     {{ ($pigesRejected ?? 0) > 0 ? $pigesRejected : $pigesTotal }}
                 </span>
             @endif
@@ -547,28 +607,30 @@
         </div>
     </div>
 
-    {{-- Grille KPI — 4 cartes : à faire / fait aujourd'hui / piges aujourd'hui / zones jour --}}
-    <div class="kpi-grid">
-        <div class="kpi-card kpi-todo">
+    {{-- Grille KPI — 4 cartes cliquables (filtre la liste en dessous).
+         Polling 20s met à jour data-kpi-value en douceur. État actif
+         marqué par aria-pressed + classe 'is-active'. --}}
+    <div class="kpi-grid" role="group" aria-label="Filtres de poses">
+        <button type="button" class="kpi-card kpi-todo is-active" data-kpi-filter="all" aria-pressed="true">
             <div class="kpi-label">À faire</div>
-            <div class="kpi-value" data-total-active>{{ $totalActive }}</div>
+            <div class="kpi-value" data-kpi-value="totalActive" data-total-active>{{ $totalActive }}</div>
             <div class="kpi-sub">poses en attente</div>
-        </div>
-        <div class="kpi-card kpi-today">
+        </button>
+        <button type="button" class="kpi-card kpi-today" data-kpi-filter="today" aria-pressed="false">
             <div class="kpi-label">Aujourd'hui</div>
-            <div class="kpi-value">{{ $doneToday ?? 0 }}</div>
+            <div class="kpi-value" data-kpi-value="doneToday">{{ $doneToday ?? 0 }}</div>
             <div class="kpi-sub">posée{{ ($doneToday ?? 0) > 1 ? 's' : '' }} ce jour</div>
-        </div>
-        <div class="kpi-card kpi-piges">
+        </button>
+        <a href="{{ route('tech.space.piges', $token) }}" class="kpi-card kpi-piges" data-kpi-link>
             <div class="kpi-label">Piges</div>
-            <div class="kpi-value">{{ $pigesSentToday ?? 0 }}</div>
+            <div class="kpi-value" data-kpi-value="pigesSentToday">{{ $pigesSentToday ?? 0 }}</div>
             <div class="kpi-sub">envoyée{{ ($pigesSentToday ?? 0) > 1 ? 's' : '' }} ce jour</div>
-        </div>
-        <div class="kpi-card kpi-zones">
+        </a>
+        <button type="button" class="kpi-card kpi-zones" data-kpi-filter="zones" aria-pressed="false">
             <div class="kpi-label">Zones</div>
-            <div class="kpi-value">{{ $zonesTodayCount ?? 0 }}</div>
+            <div class="kpi-value" data-kpi-value="zonesTodayCount">{{ $zonesTodayCount ?? 0 }}</div>
             <div class="kpi-sub">couverte{{ ($zonesTodayCount ?? 0) > 1 ? 's' : '' }} aujourd'hui</div>
-        </div>
+        </button>
     </div>
 
     {{-- Progression à paliers visuels (10/25/50/75/100) — encourageant et lisible --}}
@@ -601,6 +663,11 @@
         @endif
     </div>
     @endif
+</div>
+
+{{-- Bandeau live : nouvelle pose assignée pendant que tu es sur la page --}}
+<div class="new-task-banner" data-new-task-banner onclick="window.location.reload()">
+    🆕 <span data-new-task-text>Nouvelle pose assignée</span> — clic pour actualiser
 </div>
 
 <div class="container">
@@ -694,11 +761,17 @@
                         $problemAgo   = $lastProblem?->created_at?->diffForHumans(null, true);
                     @endphp
                     @php $rejPige = $task->latestRejectedPige; @endphp
+                    @php
+                        $sched = $task->scheduled_at ?? $task->created_at;
+                        $isToday = $sched && \Carbon\Carbon::parse($sched)->isToday();
+                    @endphp
                     <div class="pose pose-line {{ $lastProblem ? 'has-problem' : '' }} {{ $rejPige ? 'has-reject' : '' }}"
                          data-task-id="{{ $task->id }}"
                          data-search="{{ $searchHay }}"
                          data-lat="{{ $task->panel?->latitude }}"
                          data-lng="{{ $task->panel?->longitude }}"
+                         data-scheduled-today="{{ $isToday ? '1' : '0' }}"
+                         data-commune="{{ $task->panel?->commune?->name }}"
                          @if($lastProblem)
                          data-blocking-signal-type="{{ $problemType }}"
                          data-blocking-signal-label="{{ $problemLabel }}"
@@ -869,6 +942,114 @@
     'use strict';
     const CSRF  = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     const TOKEN = @json($token);
+
+    // ── KPI cliquables : filtre la liste des poses sans reload ─────
+    // Filters supportés :
+    //   - 'all'   : toutes les poses actives (défaut)
+    //   - 'today' : seulement scheduled_at = aujourd'hui
+    //   - 'zones' : ouvre tout en mode "vue d'ensemble" (= equivalent all
+    //               mais ajoute des séparateurs visuels par commune existants)
+    function applyKpiFilter(name) {
+        const poses = document.querySelectorAll('.pose[data-task-id]');
+        poses.forEach(p => {
+            let show = true;
+            if (name === 'today') {
+                show = p.dataset.scheduledToday === '1';
+            }
+            // 'all' et 'zones' = tout affiché ; 'zones' garde le filtrage par
+            // groupe commune que la vue rend déjà côté Blade.
+            p.classList.toggle('is-filtered-out', !show);
+            if (show) {
+                p.classList.add('is-revealed');
+                setTimeout(() => p.classList.remove('is-revealed'), 400);
+            }
+        });
+
+        // Masque les sections commune désormais vides (toutes leurs poses filtrées)
+        document.querySelectorAll('.day-section').forEach(section => {
+            const remaining = section.querySelectorAll('.pose:not(.is-filtered-out)').length;
+            section.style.display = remaining === 0 ? 'none' : '';
+        });
+    }
+
+    document.querySelectorAll('[data-kpi-filter]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const name = btn.dataset.kpiFilter;
+            document.querySelectorAll('.kpi-card[data-kpi-filter]').forEach(b => {
+                const active = b === btn;
+                b.classList.toggle('is-active', active);
+                b.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+            applyKpiFilter(name);
+        });
+    });
+
+    // ── Polling heartbeat — KPI live + détection nouvelle pose ────
+    const HEARTBEAT_URL = "{{ route('tech.space.heartbeat', $token) }}";
+    const POLL_MS = 20000;
+    const liveDot = document.querySelector('[data-live-indicator]');
+    // Plus haut ID de pose actuellement dans le DOM — sert de baseline pour
+    // détecter "nouvelle pose assignée" entre 2 ticks heartbeat.
+    let lastKnownTaskId = Array.from(document.querySelectorAll('.pose[data-task-id]'))
+        .reduce((max, el) => Math.max(max, parseInt(el.dataset.taskId, 10) || 0), 0);
+    let firstTick = true;
+
+    function bumpKpi(name, newVal) {
+        const el = document.querySelector(`[data-kpi-value="${name}"]`);
+        if (!el) return;
+        const oldVal = parseInt(el.textContent.trim(), 10) || 0;
+        if (oldVal === newVal) return;
+        el.textContent = newVal;
+        el.classList.remove('kpi-bump');
+        void el.offsetWidth; // force reflow pour relancer l'anim
+        el.classList.add('kpi-bump');
+    }
+
+    async function heartbeatTick() {
+        try {
+            const r = await fetch(HEARTBEAT_URL, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            if (!r.ok) return;
+            const d = await r.json();
+            if (!d.ok) return;
+
+            // Pulse "live"
+            if (liveDot) {
+                liveDot.classList.add('is-pulsing');
+                setTimeout(() => liveDot.classList.remove('is-pulsing'), 600);
+            }
+
+            bumpKpi('totalActive',     d.totalActive);
+            bumpKpi('doneToday',       d.doneToday);
+            bumpKpi('pigesSentToday',  d.pigesSentToday);
+            bumpKpi('zonesTodayCount', d.zonesTodayCount);
+
+            // MAJ chip "Mes piges" badge (rejected si > 0, sinon total)
+            const chipBadge = document.querySelector('[data-piges-chip-badge]');
+            if (chipBadge) {
+                const v = d.pigesRejected > 0 ? d.pigesRejected : d.pigesTotal;
+                if (parseInt(chipBadge.textContent.trim(), 10) !== v) {
+                    chipBadge.textContent = v;
+                }
+            }
+
+            // Détection nouvelle pose assignée
+            if (!firstTick && d.latestTaskId > lastKnownTaskId) {
+                const banner = document.querySelector('[data-new-task-banner]');
+                if (banner) banner.style.display = 'block';
+            }
+            lastKnownTaskId = Math.max(lastKnownTaskId, d.latestTaskId || 0);
+            firstTick = false;
+        } catch (e) { /* silencieux */ }
+    }
+
+    setTimeout(heartbeatTick, 1500);
+    setInterval(heartbeatTick, POLL_MS);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) heartbeatTick();
+    });
 
     // ── Feedback fort : overlay plein écran + vibration ──
     function flashSuccess(msg) {
@@ -1088,6 +1269,49 @@
     }
 
     // ── Upload photo + auto-completion ───────────────────────
+    // ── Aperçu photo avant upload ────────────────────────────────
+    // Le tech voit ce qu'il s'apprête à envoyer (flou, cadrage, etc.) et
+    // peut "Reprendre" sans avoir envoyé une mauvaise photo. Retour :
+    //   Promise<boolean> — true = envoyer ; false = annulé / reprendre
+    function askPhotoPreview(file, panelRef) {
+        return new Promise((resolve) => {
+            const url = URL.createObjectURL(file);
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `position:fixed;inset:0;z-index:99998;background:rgba(15,23,42,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;animation:fadeIn .2s`;
+            overlay.innerHTML = `
+                <style>@keyframes fadeIn{from{opacity:0}to{opacity:1}}</style>
+                <div style="color:#fff;font-size:13px;font-weight:600;margin-bottom:8px;text-align:center">
+                    Aperçu de la photo${panelRef ? ' · <strong>'+panelRef+'</strong>' : ''}
+                </div>
+                <img src="${url}" alt="Aperçu" style="max-width:100%;max-height:60vh;border-radius:14px;box-shadow:0 16px 40px -8px rgba(0,0,0,.6);object-fit:contain;background:#000">
+                <div style="color:#cbd5e1;font-size:11.5px;margin-top:10px;text-align:center;line-height:1.4">
+                    Vérifie que le panneau et l'affichage sont nets et bien visibles avant d'envoyer.
+                </div>
+                <div style="display:flex;gap:10px;margin-top:18px;width:100%;max-width:380px">
+                    <button type="button" data-act="cancel"
+                            style="flex:1;padding:13px 14px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent">
+                        📷 Reprendre
+                    </button>
+                    <button type="button" data-act="confirm"
+                            style="flex:1;padding:13px 14px;background:linear-gradient(135deg,#e8a020,#c2570d);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 8px 20px -4px rgba(232,160,32,.5);-webkit-tap-highlight-color:transparent">
+                        ✅ Envoyer
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            const close = (val) => {
+                URL.revokeObjectURL(url);
+                overlay.remove();
+                resolve(val);
+            };
+            overlay.querySelector('[data-act="confirm"]').addEventListener('click', () => close(true));
+            overlay.querySelector('[data-act="cancel"]').addEventListener('click',  () => close(false));
+            document.addEventListener('keydown', function esc(ev) {
+                if (ev.key === 'Escape') { close(false); document.removeEventListener('keydown', esc); }
+            });
+        });
+    }
+
     document.addEventListener('change', async (e) => {
         const input = e.target.closest('[data-photo-input]');
         if (!input || !input.files?.[0]) return;
@@ -1095,6 +1319,18 @@
         const pose  = label?.closest('[data-task-id]');
         const taskId = pose?.dataset.taskId;
         if (!taskId) return;
+
+        // 0. Aperçu : le tech voit sa photo avant qu'on déclenche quoi que
+        //    ce soit (compression, GPS, upload). S'il refuse, on reset
+        //    l'input — il pourra reprendre sans pénalité.
+        const preview = input.files[0];
+        const panelRef = pose?.querySelector('.pose-ref')?.textContent?.trim()
+                       || pose?.dataset.taskId;
+        const confirmed = await askPhotoPreview(preview, panelRef);
+        if (!confirmed) {
+            input.value = '';
+            return;
+        }
 
         // Garde-fou contradiction : si signalement non résolu sur cette pose,
         // on demande une justification AVANT de compresser/uploader pour ne

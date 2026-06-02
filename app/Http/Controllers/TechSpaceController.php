@@ -335,6 +335,92 @@ class TechSpaceController extends Controller
      * Marque AUSSI la pose comme réalisée si elle ne l'était pas déjà.
      */
     /**
+     * GET /tech/{token}/heartbeat
+     *
+     * Endpoint JSON ultra-léger appelé en polling par le dashboard tech
+     * (tech-space + tech-piges) pour mettre à jour les KPI sans reload :
+     *   - À faire / Aujourd'hui / Piges / Zones (compteurs jour)
+     *   - Progression globale (% + ratio)
+     *   - Status piges (pending / verified / rejected) pour la page piges
+     *   - latest_task_id pour détecter une nouvelle assignation
+     */
+    public function heartbeat(string $token)
+    {
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->first();
+        if (!$tech) return response()->json(['ok' => false], 404);
+
+        $today      = Carbon::today();
+        $startOfDay = $today->copy()->startOfDay();
+        $endOfDay   = $today->copy()->endOfDay();
+
+        $totalActive = PoseTask::where('assigned_user_id', $tech->id)
+            ->whereNotNull('panel_id')->whereNotNull('campaign_id')
+            ->whereNotIn('status', [PoseTaskStatus::COMPLETED->value, PoseTaskStatus::CANCELLED->value])
+            ->count();
+        $totalDone = PoseTask::where('assigned_user_id', $tech->id)
+            ->where('status', PoseTaskStatus::COMPLETED->value)->count();
+        $totalAssigned = $totalActive + $totalDone;
+        $progressPct = $totalAssigned > 0 ? (int) round($totalDone / $totalAssigned * 100) : 0;
+
+        $doneToday = PoseTask::where('assigned_user_id', $tech->id)
+            ->where('status', PoseTaskStatus::COMPLETED->value)
+            ->whereBetween('done_at', [$startOfDay, $endOfDay])->count();
+
+        $pigesForTech = function ($q) use ($tech) {
+            $q->where(function ($qq) use ($tech) {
+                $qq->where('user_id', $tech->id)
+                   ->orWhereExists(function ($sub) use ($tech) {
+                       $sub->select(\Illuminate\Support\Facades\DB::raw(1))
+                           ->from('pose_tasks')
+                           ->where('pose_tasks.assigned_user_id', $tech->id)
+                           ->whereColumn('pose_tasks.panel_id',    'piges.panel_id')
+                           ->whereColumn('pose_tasks.campaign_id', 'piges.campaign_id');
+                   });
+            });
+        };
+        $pigesSentToday = \App\Models\Pige::query()->tap($pigesForTech)
+            ->whereBetween('taken_at', [$startOfDay, $endOfDay])->count();
+        $pigesTotal     = \App\Models\Pige::query()->tap($pigesForTech)->count();
+        $pigesPending   = \App\Models\Pige::query()->tap($pigesForTech)->where('status', 'en_attente')->count();
+        $pigesVerified  = \App\Models\Pige::query()->tap($pigesForTech)->where('status', 'verifie')->count();
+        $pigesRejected  = \App\Models\Pige::query()->tap($pigesForTech)->where('status', 'rejete')->count();
+
+        // Zones couvertes aujourd'hui (poses faites + poses du jour restantes)
+        $zonesTodayCount = PoseTask::where('assigned_user_id', $tech->id)
+            ->where(function ($q) use ($startOfDay, $endOfDay) {
+                $q->whereBetween('done_at', [$startOfDay, $endOfDay])
+                  ->orWhereBetween('scheduled_at', [$startOfDay, $endOfDay]);
+            })
+            ->with('panel:id,commune_id')
+            ->get(['id', 'panel_id'])
+            ->pluck('panel.commune_id')->filter()->unique()->count();
+
+        // Dernière PoseTask assignée — sert à détecter une nouvelle pose
+        // arrivée pendant que le tech est sur la page (toast + son).
+        $latestTask = PoseTask::where('assigned_user_id', $tech->id)
+            ->latest('id')->first(['id', 'created_at']);
+
+        return response()->json([
+            'ok'              => true,
+            'totalActive'     => $totalActive,
+            'totalDone'       => $totalDone,
+            'totalAssigned'   => $totalAssigned,
+            'progressPct'     => $progressPct,
+            'doneToday'       => $doneToday,
+            'pigesSentToday'  => $pigesSentToday,
+            'pigesTotal'      => $pigesTotal,
+            'pigesPending'    => $pigesPending,
+            'pigesVerified'   => $pigesVerified,
+            'pigesRejected'   => $pigesRejected,
+            'zonesTodayCount' => $zonesTodayCount,
+            'latestTaskId'    => $latestTask?->id ?? 0,
+            'serverNow'       => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
      * GET /tech/{token}/piges
      *
      * Historique des piges du tech : tout statut confondu (en_attente,
@@ -342,12 +428,20 @@ class TechSpaceController extends Controller
      * si applicable. Pagination simple (30 par page). Le tech voit ce
      * qu'il a envoyé, ce qui est validé, ce qu'il doit reprendre.
      */
-    public function piges(string $token)
+    public function piges(Request $request, string $token)
     {
         $tech = User::where('tech_public_token', $token)
             ->where('is_active', true)
             ->first();
         if (!$tech) abort(404, 'Lien invalide ou compte désactivé.');
+
+        // Filtre ?status= depuis les KPI tiles cliquables (en_attente /
+        // verifie / rejete / all). 'all' ou absence = pas de filtre.
+        $statusFilter = $request->input('status');
+        $validStatus  = ['en_attente', 'verifie', 'rejete'];
+        if (!in_array($statusFilter, $validStatus, true)) {
+            $statusFilter = null;
+        }
 
         // Filtre robuste : on récupère les piges du tech soit directement
         // via user_id (nouveau pattern), soit via la PoseTask correspondante
@@ -365,13 +459,15 @@ class TechSpaceController extends Controller
                           ->whereColumn('pose_tasks.campaign_id', 'piges.campaign_id');
                   });
             })
+            ->when($statusFilter, fn($q, $s) => $q->where('status', $s))
             ->with([
                 'panel:id,reference,name,commune_id',
                 'panel.commune:id,name',
                 'campaign:id,name',
             ])
             ->orderByDesc('taken_at')
-            ->paginate(30);
+            ->paginate(30)
+            ->withQueryString();
 
         // Compteurs globaux (même filtre tech robuste) pour les KPI.
         $base = \App\Models\Pige::query()
@@ -392,7 +488,7 @@ class TechSpaceController extends Controller
             'rejected' => (clone $base)->where('status', 'rejete')->count(),
         ];
 
-        return view('public.tech-piges', compact('tech', 'token', 'piges', 'kpi'));
+        return view('public.tech-piges', compact('tech', 'token', 'piges', 'kpi', 'statusFilter'));
     }
 
     public function uploadPhoto(Request $request, string $token, int $taskId)
