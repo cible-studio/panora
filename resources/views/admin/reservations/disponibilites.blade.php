@@ -312,7 +312,7 @@
                 <div class="flex items-center gap-4 flex-wrap">
                     <div>
                         <span id="sel-count" class="text-3xl font-black text-[var(--accent)]">0</span>
-                        <span class="text-sm text-[var(--text2)] ml-2">panneau(x) — </span>
+                        <span class="text-sm text-[var(--text2)] ml-2"><span id="sel-label-panneaux">panneaux</span> — </span>
                         <span id="sel-amount" class="text-base font-bold text-[var(--accent)]">0 FCFA/mois</span>
                     </div>
                     {{-- Décomposition libres / options : visible seulement si la
@@ -320,7 +320,7 @@
                          visuel inutile : "5 libres + 0 en option"). --}}
                     <div id="sel-breakdown" class="hidden text-xs flex items-center gap-3" style="line-height:1.3">
                         <span style="color:#22c55e">
-                            <strong id="sel-libre-n">0</strong> libre(s)
+                            <strong id="sel-libre-n">0</strong> <span id="sel-label-libres">libres</span>
                         </span>
                         <span style="color:#f97316">
                             + <strong id="sel-option-n">0</strong> en option
@@ -328,7 +328,7 @@
                     </div>
                     <div id="sel-ext-badge"
                         class="hidden px-2 py-0.5 text-xs text-blue-500 border border-blue-500/30 bg-blue-500/10 rounded-lg">
-                        dont <span id="sel-ext-n">0</span> externe(s)
+                        dont <span id="sel-ext-n">0</span> <span id="sel-label-externes">externes</span>
                     </div>
                 </div>
                 <div class="flex gap-2 items-center flex-wrap">
@@ -1802,7 +1802,8 @@
                         _el('modal-errors').classList.add('hidden');
                         _el('modal-date-err').classList.add('hidden');
                         _el('modal-client-err').classList.add('hidden');
-                        _el('modal-summary').textContent = `${S.sel.ids.length} panneau(x) sélectionné(s)`;
+                        const _nSel = S.sel.ids.length;
+                        _el('modal-summary').textContent = `${_nSel} ${_nSel > 1 ? 'panneaux sélectionnés' : 'panneau sélectionné'}`;
 
                         // Reset montant personnalisé
                         this._customAmount = null;
@@ -1866,10 +1867,13 @@
                                     .map(([_, psd]) => 'démarre le ' + psd.split('-').reverse().join('/'))
                                     .join(', ');
                                 const more = incoherent.length > 3
-                                    ? ' + ' + (incoherent.length - 3) + ' autre(s)' : '';
-                                errTxt.innerHTML = '⚠️ ' + incoherent.length
-                                    + ' panneau(x) ont un démarrage APRÈS la nouvelle date de fin ('
-                                    + list + more + '). Ils seront <strong>exclus</strong> de la réservation. '
+                                    ? ' + ' + (incoherent.length - 3) + (incoherent.length - 3 > 1 ? ' autres' : ' autre') : '';
+                                const _nIn = incoherent.length;
+                                errTxt.innerHTML = '⚠️ ' + _nIn
+                                    + (_nIn > 1 ? ' panneaux ont' : ' panneau a')
+                                    + ' un démarrage APRÈS la nouvelle date de fin ('
+                                    + list + more + '). ' + (_nIn > 1 ? 'Ils seront <strong>exclus</strong>' : 'Il sera <strong>exclu</strong>')
+                                    + ' de la réservation. '
                                     + 'Étendez la période ou retirez-les depuis le tableau.';
                             }
                         }
@@ -2320,14 +2324,17 @@
                             el.style.display = show ? 'inline-flex' : 'none';
                             if (show) el.innerHTML = html;
                         };
-                        set('stat-total', `📊 <strong>${stats.total}</strong> panneau(x)`);
-                        set('stat-dispo', `✅ <strong>${stats.disponibles}</strong> disponible(s)`, hasPeriod && stats
-                            .disponibles > 0);
-                        set('stat-occupes', `🔒 <strong>${stats.occupes}</strong> occupé(s)`, hasPeriod && stats
-                            .occupes > 0);
-                        set('stat-options', `⏳ <strong>${stats.options||0}</strong> en option`, hasPeriod && (stats
-                            .options || 0) > 0);
-                        set('stat-ext', `🤝 <strong>${stats.externes}</strong> externe(s)`, stats.externes > 0);
+                        // Helper pluriel français : > 1 → pluriel, sinon singulier
+                        const pl = (n, s, p) => (n > 1 ? p : s);
+                        set('stat-total', `📊 <strong>${stats.total}</strong> ${pl(stats.total, 'panneau', 'panneaux')}`);
+                        set('stat-dispo', `✅ <strong>${stats.disponibles}</strong> ${pl(stats.disponibles, 'disponible', 'disponibles')}`,
+                            hasPeriod && stats.disponibles > 0);
+                        set('stat-occupes', `🔒 <strong>${stats.occupes}</strong> ${pl(stats.occupes, 'occupé', 'occupés')}`,
+                            hasPeriod && stats.occupes > 0);
+                        set('stat-options', `⏳ <strong>${stats.options||0}</strong> en option`,
+                            hasPeriod && (stats.options || 0) > 0);
+                        set('stat-ext', `🤝 <strong>${stats.externes}</strong> ${pl(stats.externes, 'externe', 'externes')}`,
+                            stats.externes > 0);
                     },
 
                     _renderPagination(stats) {
@@ -2364,10 +2371,15 @@
                         _el('sel-count').textContent = n;
                         _el('sel-amount').textContent = Math.round(total).toLocaleString('fr-FR') + ' FCFA/mois';
                         _el('topbar-count').textContent = n;
+                        // Pluriel dynamique sur le label « panneau / panneaux »
+                        const labelP = _el('sel-label-panneaux');
+                        if (labelP) labelP.textContent = n > 1 ? 'panneaux' : 'panneau';
                         const eb = _el('sel-ext-badge');
                         if (eb) {
                             eb.classList.toggle('hidden', nExt === 0);
                             _el('sel-ext-n').textContent = nExt;
+                            const labelE = _el('sel-label-externes');
+                            if (labelE) labelE.textContent = nExt > 1 ? 'externes' : 'externe';
                         }
 
                         // Affichage breakdown libre/option (caché si 0 option)
@@ -2376,6 +2388,8 @@
                             bd.classList.toggle('hidden', nOption === 0);
                             const elL = _el('sel-libre-n');  if (elL) elL.textContent = nLibre;
                             const elO = _el('sel-option-n'); if (elO) elO.textContent = nOption;
+                            const labelL = _el('sel-label-libres');
+                            if (labelL) labelL.textContent = nLibre > 1 ? 'libres' : 'libre';
                         }
 
                         // Label dynamique du bouton "Tout sélectionner / désélectionner"

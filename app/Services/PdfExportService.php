@@ -46,21 +46,25 @@ class PdfExportService
 
     public function exportPanelList(array $filters = []): mixed
     {
-        // Le bouton s'appelle "Générer PDF liste" → on doit utiliser la vue
-        // TABLE compacte (disponibilites-list), pas la vue images A4-par-
-        // panneau qui prenait 5+ minutes sur 364 panneaux et générait un
-        // PDF de ~100 Mo (souvent timeout/abandon navigateur).
+        // Deux modes :
+        //   - 'list'   (défaut) : tableau compact (disponibilites-list, paysage)
+        //   - 'images' : 1 page A4 par panneau avec photo (disponibilites-images, portrait)
         //
-        // Limites mémoire/temps relevées pour absorber 500+ panneaux sans
-        // tomber sur max_execution_time / memory_limit.
-        @set_time_limit(180);
+        // hide_status et hide_price sont indépendants — on peut masquer les
+        // prix tout en gardant le statut visible (ex: liste pour client).
+        //
+        // Limites mémoire/temps relevées pour absorber 500+ panneaux.
+        @set_time_limit(300);
         @ini_set('memory_limit', '512M');
+
+        $mode = ($filters['mode'] ?? 'list') === 'images' ? 'images' : 'list';
 
         $query = Panel::with([
             'commune:id,name',
             'zone:id,name',
             'format:id,name,width,height',
             'category:id,name',
+            'photos:id,panel_id,path,ordre',
         ]);
 
         if (!empty($filters['commune_id'])) {
@@ -73,9 +77,15 @@ class PdfExportService
             $query->where('zone_id', (int) $filters['zone_id']);
         }
 
-        $panels      = $query->orderBy('reference')->get();
+        $panelsRaw = $query->orderBy('reference')->get();
+
+        // Décorrélation hide_status / hide_price :
+        //   - hide_status seul → tableau sans la colonne statut (prix gardé)
+        //   - hide_price  seul → tableau sans tarif (statut gardé)
+        //   - les deux    → tableau client-friendly (ni statut ni prix)
         $hideStatus  = !empty($filters['hide_status']);
-        $showPricing = !$hideStatus;
+        $hidePrice   = !empty($filters['hide_price']);
+        $showPricing = !$hidePrice;
         $logoSrc     = $this->getLogoPdf();
 
         $commune = !empty($filters['commune_id'])
@@ -85,28 +95,50 @@ class PdfExportService
         $startDate    = $filters['start_date'] ?? null;
         $endDate      = $filters['end_date']   ?? null;
         $dureeEnMois  = 1;
-        $totalMensuel = (float) $panels->sum(fn($p) => (float) ($p->monthly_rate ?? 0));
+        $totalMensuel = (float) $panelsRaw->sum(fn($p) => (float) ($p->monthly_rate ?? 0));
         $totalPeriode = $totalMensuel;
         $generated    = now()->format('d/m/Y à H:i');
 
-        $pdf = Pdf::loadView('admin.reservations.pdf.disponibilites-list', [
-            'panels'       => $panels,
-            'startDate'    => $startDate,
-            'endDate'      => $endDate,
-            'dureeEnMois'  => $dureeEnMois,
-            'totalMensuel' => $totalMensuel,
-            'totalPeriode' => $totalPeriode,
-            'generated'    => $generated,
-            'hideStatus'   => $hideStatus,
-            'showPricing'  => $showPricing,
-            'logoSrc'      => $logoSrc,
-        ])
-            ->setPaper('a4', 'landscape')   // table plus lisible en paysage
-            ->setOptions($this->dompdfOptions());
+        if ($mode === 'images') {
+            // Vue "1 panneau par page" → on enrichit avec photo_src (data-URI)
+            // pour que DomPDF embarque l'image (pas d'accès réseau).
+            // compactPhoto=true : downscale 800×600 + JPEG q60 → PDF 10× plus
+            // léger et rendu 5-10× plus rapide vs photos pleine résolution.
+            $panels = $panelsRaw->map(fn($p) => $this->enrichPanel($p, true))->all();
 
-        $filename = 'liste-panneaux' . ($commune ? '-' . \Str::slug($commune->name) : '') . '-' . now()->format('Ymd_His');
-        // download() force Content-Disposition: attachment → téléchargement
-        // immédiat (le stream précédent affichait inline = preview navigateur).
+            $pdf = Pdf::loadView('admin.reservations.pdf.disponibilites-images', [
+                'panels'       => $panels,
+                'startDate'    => $startDate,
+                'endDate'      => $endDate,
+                'dureeEnMois'  => $dureeEnMois,
+                'totalMensuel' => $totalMensuel,
+                'totalPeriode' => $totalPeriode,
+                'generated'    => $generated,
+                'hideStatus'   => $hideStatus,
+                'showPricing'  => $showPricing,
+                'logoSrc'      => $logoSrc,
+            ])
+                ->setPaper('a4', 'portrait')   // 1 page = 1 panneau plein
+                ->setOptions($this->dompdfOptions());
+        } else {
+            $pdf = Pdf::loadView('admin.reservations.pdf.disponibilites-list', [
+                'panels'       => $panelsRaw,
+                'startDate'    => $startDate,
+                'endDate'      => $endDate,
+                'dureeEnMois'  => $dureeEnMois,
+                'totalMensuel' => $totalMensuel,
+                'totalPeriode' => $totalPeriode,
+                'generated'    => $generated,
+                'hideStatus'   => $hideStatus,
+                'showPricing'  => $showPricing,
+                'logoSrc'      => $logoSrc,
+            ])
+                ->setPaper('a4', 'landscape')   // table plus lisible en paysage
+                ->setOptions($this->dompdfOptions());
+        }
+
+        $suffix   = $mode === 'images' ? '-images' : '';
+        $filename = 'inventaire-panneaux' . $suffix . ($commune ? '-' . \Str::slug($commune->name) : '') . '-' . now()->format('Ymd_His');
         return $pdf->download("{$filename}.pdf");
     }
 
@@ -144,15 +176,21 @@ class PdfExportService
     // HELPER : enrichir un modèle Panel pour la vue PDF
     // ══════════════════════════════════════════════════════════════
 
-    public function enrichPanel(Panel $panel): array
+    public function enrichPanel(Panel $panel, bool $compactPhoto = false): array
     {
         // Photo principale : on charge en base64 pour DomPDF (qui ne sait pas
         // suivre les URLs locales) + on garde un fallback URL pour le HTML web.
+        //
+        // $compactPhoto = true → downscale agressif (800×600 max, JPEG q60)
+        //   utilisé pour les exports catalogue 1 panneau/page sur tout le
+        //   parc (sinon 364 photos haute résolution = PDF 100+ Mo & 5+ min).
         $photo = $panel->photos->sortBy('ordre')->first();
         $photoBase64 = null;
         $photoUrl    = null;
         if ($photo) {
-            $photoBase64 = $this->photoToDataUri($photo->path);
+            $photoBase64 = $compactPhoto
+                ? $this->photoToDataUriCompact($photo->path)
+                : $this->photoToDataUri($photo->path);
             if (!$photoBase64) {
                 $photoUrl = asset('storage/' . ltrim($photo->path, '/'));
             }

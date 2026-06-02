@@ -183,10 +183,10 @@ trait PdfAssets
 
     /**
      * Redimensionne une image (JPG/PNG/GIF/WEBP) à $maxW × $maxH max en
-     * conservant le ratio, puis renvoie un data-URI JPEG qualité 78.
-     * Retourne null si GD n'arrive pas à lire le fichier.
+     * conservant le ratio, puis renvoie un data-URI JPEG.
+     * Qualité JPEG paramétrable (défaut 78). Retourne null si GD échoue.
      */
-    private function downscaleImage(string $path, int $maxW, int $maxH): ?string
+    private function downscaleImage(string $path, int $maxW, int $maxH, int $quality = 78): ?string
     {
         try {
             $info = @getimagesize($path);
@@ -213,7 +213,7 @@ trait PdfAssets
             imagecopyresampled($dst, $src, 0, 0, 0, 0, $dstW, $dstH, $srcW, $srcH);
 
             ob_start();
-            imagejpeg($dst, null, 78);
+            imagejpeg($dst, null, $quality);
             $bin = ob_get_clean();
 
             imagedestroy($src);
@@ -227,5 +227,63 @@ trait PdfAssets
             ]);
             return null;
         }
+    }
+
+    /**
+     * Version compacte de photoToDataUri() destinée aux PDFs catalogue
+     * (1 panneau / page) où on a souvent 100+ panneaux et où la résolution
+     * d'origine produit un PDF de plusieurs dizaines de Mo + temps de
+     * rendu prohibitif.
+     *
+     * Force un downscale à 800×600 max + JPEG qualité 60, indépendamment
+     * de la taille d'origine. Réduction typique : 10-50× la taille du
+     * data-URI vs photoToDataUri(). Retourne null si le fichier est
+     * introuvable ou si GD échoue.
+     */
+    protected function photoToDataUriCompact(?string $relativePath, int $maxW = 600, int $maxH = 450, int $quality = 50): ?string
+    {
+        if (!$relativePath) return null;
+
+        $rel = ltrim($relativePath, '/');
+        if (preg_match('#^https?://[^/]+/storage/(.+)$#', $relativePath, $m)) {
+            $rel = $m[1];
+        }
+
+        $candidates = [
+            storage_path('app/public/' . $rel),
+            storage_path('app/' . $rel),
+            public_path('storage/' . $rel),
+            public_path($rel),
+        ];
+        if (str_starts_with($relativePath, '/') || preg_match('/^[A-Za-z]:[\\\\\/]/', $relativePath)) {
+            array_unshift($candidates, $relativePath);
+        }
+
+        foreach ($candidates as $path) {
+            if (!is_file($path) || !is_readable($path)) continue;
+
+            // Optimisation : photo déjà petite (< 80 KB) → on l'embed directement,
+            // pas la peine de passer par GD (qui coûte 200-500 ms par photo).
+            // Pour 364 panneaux avec photos déjà compressées, on économise des
+            // minutes de traitement.
+            if (filesize($path) <= 80_000) {
+                $mime = mime_content_type($path) ?: 'image/jpeg';
+                return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
+            }
+
+            // Photo plus lourde → downscale GD si dispo, sinon embed brut
+            if (extension_loaded('gd')) {
+                $downscaled = $this->downscaleImage($path, $maxW, $maxH, $quality);
+                if ($downscaled !== null) return $downscaled;
+            }
+            // Fallback : embed brut (mieux que rien, accepte la taille)
+            $mime = mime_content_type($path) ?: 'image/jpeg';
+            return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
+        }
+
+        \Illuminate\Support\Facades\Log::info('pdf.photo.compact_not_found', [
+            'requested' => $relativePath,
+        ]);
+        return null;
     }
 }

@@ -234,7 +234,7 @@
 
     {{-- LOGO --}}
     <div class="auth-logo mt-4 flex flex-col items-center">
-        <img class="w-40" src="{{ asset('images/panora.png') }}" alt="Logo">
+        <img class="w-52" src="{{ asset('images/panora.png') }}" alt="Logo">
         <div class="auth-logo-sub mt-3">Régie OOH · Plateforme</div>
         <div class="auth-logo-line"></div>
     </div>
