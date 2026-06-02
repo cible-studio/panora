@@ -586,6 +586,41 @@
         }, 3000);
     }
 
+    // ── Compression image côté client (canvas) ─────────────────
+    // Réduit la photo à 2400 px max + JPEG q=0.85. Bénéfices :
+    //  - convertit HEIC/HEIF iPhone en JPEG (sinon GD serveur refuse) ;
+    //  - ramène 20-30 MB de photo brute à 200-500 KB ;
+    //  - upload rapide même en 4G médiocre.
+    // Best-effort : si le navigateur ne sait pas décoder (HEIC sur vieux
+    // Android), on renvoie le fichier original — le serveur tentera
+    // (Intervention) et a un fallback "stockage tel quel".
+    async function compressImage(file, maxSize = 2400, quality = 0.85) {
+        try {
+            return await new Promise((resolve, reject) => {
+                const img = new Image();
+                const url = URL.createObjectURL(file);
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+                    if (w > maxSize || h > maxSize) {
+                        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+                        else       { w = Math.round(w * maxSize / h); h = maxSize; }
+                    }
+                    const c = document.createElement('canvas');
+                    c.width = w; c.height = h;
+                    c.getContext('2d').drawImage(img, 0, 0, w, h);
+                    c.toBlob(b => b ? resolve(b) : reject(new Error('compress')), 'image/jpeg', quality);
+                };
+                img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')); };
+                img.src = url;
+            });
+        } catch (e) {
+            // Décodage impossible (ex: HEIC sur navigateur sans support natif).
+            // On laisse passer l'original — le serveur fera ce qu'il peut.
+            return file;
+        }
+    }
+
     // ── Géolocalisation robuste (best-effort, ne bloque pas l'upload) ──
     // 1er essai haute précision (10 s — zones difficiles), retry en précision
     // dégradée (réseau/cellule) avant d'abandonner. Renvoie aussi acc (±m).
@@ -687,14 +722,22 @@
 
         const file = input.files[0];
         const originalLabel = label.innerHTML;
-        label.innerHTML = '📍 GPS…';
+        label.innerHTML = '🔄 Compression…';
         label.style.pointerEvents = 'none';
 
+        // 1) Compression locale (HEIC iPhone → JPEG, gros fichier → ~500 KB)
+        const blob = await compressImage(file);
+
+        // 2) GPS pendant la compression aurait gagné un peu de temps, on garde
+        //    la séquence simple : compress puis GPS puis envoi.
+        label.innerHTML = '📍 GPS…';
         const gps = await getPosition();
         label.innerHTML = (gps && gps.acc) ? `📍 ±${Math.round(gps.acc)} m · envoi…` : '⏳ Envoi…';
 
+        // 3) FormData. Si compression a réussi → blob JPEG, sinon file original.
         const form = new FormData();
-        form.append('photo', file);
+        const isBlob = blob instanceof Blob && blob !== file;
+        form.append('photo', blob, isBlob ? 'photo.jpg' : (file.name || 'photo.jpg'));
         if (gps) {
             form.append('gps_lat', gps.lat.toFixed(6));
             form.append('gps_lng', gps.lng.toFixed(6));
@@ -712,9 +755,14 @@
                 },
                 body: form,
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.ok) {
-                toast(data.error || 'Erreur upload', 'error');
+                // Remonte d'abord les erreurs de validation Laravel (422),
+                // sinon le message du controller, sinon un fallback explicite
+                // avec le code HTTP — beaucoup plus utile sur le terrain.
+                const validation = data.errors ? Object.values(data.errors).flat().join(' · ') : '';
+                const msg = validation || data.error || data.message || `Erreur ${res.status}`;
+                toast(msg, 'error');
                 label.innerHTML = originalLabel;
                 label.style.pointerEvents = '';
                 input.value = '';

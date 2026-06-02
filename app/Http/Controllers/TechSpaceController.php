@@ -258,10 +258,13 @@ class TechSpaceController extends Controller
         }
 
         $data = $request->validate([
-            // Plafond : 15 MB suffit pour une pige photo en qualité confort.
-            // La plupart des smartphones produisent ~3-5 MB en JPEG. On garde
-            // de la marge pour les modes HEIC/PRO sans saturer le stockage.
-            'photo'    => ['required', 'image', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:15360'],
+            // Plafond aligné sur upload_max_filesize du Dockerfile (35 MB) :
+            // iPhone en mode HEIC/PRO produit jusqu'à 25-30 MB en photo brute.
+            // La règle `image` de Laravel utilise getimagesize() qui ne supporte
+            // PAS HEIC → on s'en passe (rejette les vrais iPhone) et on se fie
+            // à `mimes` + `file` pour le whitelist + size. Le contenu est de
+            // toute façon revalidé par Intervention\Image au chargement.
+            'photo'    => ['required', 'file', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:35840'],
             'gps_lat'  => 'nullable|numeric|between:-90,90',
             'gps_lng'  => 'nullable|numeric|between:-180,180',
             'notes'    => 'nullable|string|max:500',
