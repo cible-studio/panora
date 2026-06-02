@@ -505,6 +505,15 @@ Route::prefix('admin')
             ->whereNumber('invoice')->name('invoices.pdf');
 
         Route::middleware('role:admin')->group(function () {
+            // ── Lookups JSON pour le formulaire facture ─────────────
+            // Servent au formulaire create/edit pour auto-remplir le client
+            // quand on choisit une campagne (et inversement filtrer les
+            // campagnes par client) + récupérer le montant HT déjà connu.
+            Route::get('invoices/lookup/client/{client}/campaigns', [InvoiceController::class, 'lookupClientCampaigns'])
+                ->whereNumber('client')->name('invoices.lookup.client-campaigns');
+            Route::get('invoices/lookup/campaign/{campaign}', [InvoiceController::class, 'lookupCampaignInfo'])
+                ->whereNumber('campaign')->name('invoices.lookup.campaign-info');
+
             Route::get('invoices/create', [InvoiceController::class, 'create'])->name('invoices.create');
             Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
             Route::get('invoices/{invoice}/edit', [InvoiceController::class, 'edit'])

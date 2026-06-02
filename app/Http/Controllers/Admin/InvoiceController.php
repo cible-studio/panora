@@ -74,10 +74,10 @@ class InvoiceController extends Controller
         ));
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $clients   = Client::orderBy('name')->get();
-        $campaigns = Campaign::with('client')->orderBy('name')->get();
+        $campaigns = Campaign::with('client:id,name')->orderBy('name')->get();
 
         // Générer référence automatique
         $reference = 'FAC-' . date('Y') . '-' . str_pad(
@@ -85,9 +85,107 @@ class InvoiceController extends Controller
             3, '0', STR_PAD_LEFT
         );
 
+        // Préselection depuis querystring (ex: bouton "Facturer" sur la fiche
+        // campagne admin → /admin/invoices/create?campaign_id=42). Le JS du
+        // formulaire récupère ensuite client + montant via les lookups.
+        $preselect = [
+            'client_id'   => $request->query('client_id'),
+            'campaign_id' => $request->query('campaign_id'),
+        ];
+
+        // Si une campagne est préselectionnée, on peut résoudre client +
+        // montant ici pour éviter un round-trip JS dès le chargement.
+        $preselectAmount = null;
+        if ($preselect['campaign_id']) {
+            $camp = Campaign::with('reservation')->find($preselect['campaign_id']);
+            if ($camp) {
+                $preselect['client_id'] = $preselect['client_id'] ?? $camp->client_id;
+                $preselectAmount = $camp->remainingToBillHt();
+                if ($preselectAmount <= 0) {
+                    // Déjà tout facturé : on remet le montant complet pour
+                    // qu'il soit éditable, et on prévient l'admin en bandeau.
+                    $preselectAmount = $camp->computedAmountHt();
+                }
+            }
+        }
+
         return view('admin.invoices.create', compact(
-            'clients', 'campaigns', 'reference'
+            'clients', 'campaigns', 'reference',
+            'preselect', 'preselectAmount'
         ));
+    }
+
+    /**
+     * Lookup JSON : campagnes d'un client donné, avec montant HT de
+     * référence, déjà facturé et reste à facturer. Sert au select
+     * "Campagne" du formulaire qui se refiltre quand le client change.
+     *
+     * Réponse :
+     *   { campaigns: [ { id, name, status, period, amount_ht,
+     *                    billed_ht, remaining_ht, fully_billed }, ... ] }
+     */
+    public function lookupClientCampaigns(Client $client)
+    {
+        $rows = Campaign::with('reservation:id,total_amount')
+            ->where('client_id', $client->id)
+            ->orderByDesc('start_date')
+            ->get(['id', 'name', 'status', 'start_date', 'end_date', 'client_id', 'reservation_id', 'total_amount']);
+
+        return response()->json([
+            'campaigns' => $rows->map(function (Campaign $c) {
+                $ht        = $c->computedAmountHt();
+                $billed    = $c->alreadyBilledHt();
+                $remaining = max(0.0, $ht - $billed);
+                return [
+                    'id'           => $c->id,
+                    'name'         => $c->name,
+                    'status'       => is_object($c->status) ? $c->status->value : $c->status,
+                    'period'       => optional($c->start_date)->format('d/m/Y') . ' → ' . optional($c->end_date)->format('d/m/Y'),
+                    'amount_ht'    => round($ht, 2),
+                    'billed_ht'    => round($billed, 2),
+                    'remaining_ht' => round($remaining, 2),
+                    'fully_billed' => $billed >= $ht - 0.01 && $ht > 0,
+                ];
+            })->values(),
+        ]);
+    }
+
+    /**
+     * Lookup JSON : info d'une campagne donnée pour pré-remplir le
+     * formulaire facture (client + montant HT suggéré).
+     *
+     * Réponse :
+     *   { client: {id,name,email}, amount_ht, billed_ht, remaining_ht,
+     *     suggested_amount_ht, fully_billed, name, period }
+     */
+    public function lookupCampaignInfo(Campaign $campaign)
+    {
+        $campaign->loadMissing('client:id,name,email', 'reservation:id,total_amount');
+
+        $ht        = $campaign->computedAmountHt();
+        $billed    = $campaign->alreadyBilledHt();
+        $remaining = max(0.0, $ht - $billed);
+
+        // Montant suggéré : reste à facturer si > 0, sinon montant complet
+        // (cas où l'admin veut sciemment refacturer ou avoir-éditer).
+        $suggested = $remaining > 0 ? $remaining : $ht;
+
+        return response()->json([
+            'id'                  => $campaign->id,
+            'name'                => $campaign->name,
+            'period'              => optional($campaign->start_date)->format('d/m/Y') . ' → ' . optional($campaign->end_date)->format('d/m/Y'),
+            'status'              => is_object($campaign->status) ? $campaign->status->value : $campaign->status,
+            'client'              => $campaign->client ? [
+                'id'    => $campaign->client->id,
+                'name'  => $campaign->client->name,
+                'email' => $campaign->client->email,
+            ] : null,
+            'amount_ht'           => round($ht, 2),
+            'billed_ht'           => round($billed, 2),
+            'remaining_ht'        => round($remaining, 2),
+            'suggested_amount_ht' => round($suggested, 2),
+            'fully_billed'        => $billed >= $ht - 0.01 && $ht > 0,
+        ]);
     }
 
     public function store(Request $request)
@@ -102,10 +200,23 @@ class InvoiceController extends Controller
             'paid_at'     => 'nullable|date',
         ]);
 
+        // Cohérence campagne ↔ client : si une campagne est liée à la
+        // facture, son client_id DOIT correspondre à celui de la facture.
+        // Sinon on a une facture orpheline : campagne X facturée au client Y.
+        // On corrige d'autorité (le client de la campagne fait foi).
+        $clientId = (int) $request->input('client_id');
+        if ($request->filled('campaign_id')) {
+            $camp = Campaign::find($request->input('campaign_id'));
+            if ($camp && (int) $camp->client_id !== $clientId) {
+                $clientId = (int) $camp->client_id;
+            }
+        }
+
         $amountTtc = $request->amount * (1 + $request->tva / 100);
 
         Invoice::create([
             ...$request->all(),
+            'client_id'  => $clientId,
             'amount_ttc' => $amountTtc,
             'created_by' => auth()->id(),
             'status'     => 'brouillon',
@@ -124,7 +235,7 @@ class InvoiceController extends Controller
     public function edit(Invoice $invoice)
     {
         $clients   = Client::orderBy('name')->get();
-        $campaigns = Campaign::orderBy('name')->get();
+        $campaigns = Campaign::with('client:id,name')->orderBy('name')->get();
         return view('admin.invoices.edit', compact(
             'invoice', 'clients', 'campaigns'
         ));
@@ -141,10 +252,20 @@ class InvoiceController extends Controller
             'status'      => 'required|in:brouillon,envoyee,payee,annulee',
         ]);
 
+        // Cohérence campagne ↔ client (cf. store).
+        $clientId = (int) $request->input('client_id');
+        if ($request->filled('campaign_id')) {
+            $camp = Campaign::find($request->input('campaign_id'));
+            if ($camp && (int) $camp->client_id !== $clientId) {
+                $clientId = (int) $camp->client_id;
+            }
+        }
+
         $amountTtc = $request->amount * (1 + $request->tva / 100);
 
         $invoice->update([
             ...$request->except('_token', '_method'),
+            'client_id'  => $clientId,
             'amount_ttc' => $amountTtc,
         ]);
 
