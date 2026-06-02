@@ -260,6 +260,9 @@ class ClientDashboardController extends Controller
             'panels.photos',
             'panels.commune:id,name',
             'panels.format:id,name,width,height',
+            // Maintenance ouverte sur chaque panneau — sert au badge
+            // "🔧 retour DD/MM" côté espace client. Même donnée que admin.
+            'panels.activeMaintenance',
             'externalPanels.commune:id,name',
             'externalPanels.format:id,name,width,height',
             'externalPanels.agency:id,name',

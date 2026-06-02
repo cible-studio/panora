@@ -89,6 +89,18 @@ class Panel extends Model
         return $this->hasMany(Maintenance::class);
     }
 
+    /**
+     * Maintenance actuellement ouverte (signale OU en_cours) la plus récente.
+     * Permet aux vues de récupérer l'état actuel d'un panneau en un eager-load
+     * — pas de N+1 ni de calcul applicatif sur chaque ligne.
+     */
+    public function activeMaintenance()
+    {
+        return $this->hasOne(Maintenance::class)
+            ->whereIn('statut', Maintenance::STATUTS_OUVERTS)
+            ->latestOfMany('date_signalement');
+    }
+
     public function poseTasks()
     {
         return $this->hasMany(PoseTask::class);

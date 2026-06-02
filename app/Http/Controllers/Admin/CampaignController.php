@@ -160,6 +160,9 @@ class CampaignController extends Controller
             'reservation:id,reference,status,start_date,end_date',
             'panels.commune:id,name',
             'panels.format:id,name',
+            // Maintenance ouverte la plus récente sur chaque panneau — sert
+            // à afficher un badge "🔧 retour le DD/MM" dans la vue.
+            'panels.activeMaintenance',
             'externalPanels.commune:id,name',
             'externalPanels.format:id,name',
             'externalPanels.agency:id,name',

@@ -16,13 +16,36 @@ class Maintenance extends Model
         'technicien_id', 'signale_par',
         'type_panne', 'priorite', 'statut',
         'date_signalement', 'date_resolution',
+        'duree_prevue_jours', 'date_fin_prevue',
         'description', 'solution',
     ];
 
     protected $casts = [
         'date_signalement' => 'date',
         'date_resolution'  => 'date',
+        'date_fin_prevue'  => 'date',
+        'duree_prevue_jours' => 'integer',
     ];
+
+    /**
+     * Jours restants avant la date de fin prévue (ou null si pas définie).
+     * Négatif = en retard.
+     */
+    public function daysRemaining(): ?int
+    {
+        if (!$this->date_fin_prevue) return null;
+        return (int) now()->startOfDay()->diffInDays($this->date_fin_prevue->startOfDay(), false);
+    }
+
+    /**
+     * True si la maintenance est ouverte ET dépasse la date prévue.
+     */
+    public function isOverdue(): bool
+    {
+        if (!$this->date_fin_prevue) return false;
+        if (in_array($this->statut, self::STATUTS_FERMES, true)) return false;
+        return $this->date_fin_prevue->lt(now()->startOfDay());
+    }
 
     public function panel()
     {
