@@ -199,16 +199,16 @@
                          data-update-url="{{ route('admin.campaigns.total', $campaign) }}"
                          data-can-edit="{{ $can['update'] && !in_array($campaign->status->value, ['termine', 'annule']) ? '1' : '0' }}">
                         <div class="flex items-center justify-between mb-2">
-                            <div class="text-xs uppercase font-semibold" style="color:var(--text3)">💰 Montant total</div>
+                            <div class="text-xs uppercase font-semibold" style="color:var(--text3)">💰 Montant total <span style="font-size:9px;color:var(--text3);font-weight:500">(HT)</span></div>
                             @if($can['update'] && !in_array($campaign->status->value, ['termine', 'annule']))
                                 <span data-total-edit-btn
-                                      title="Modifier le montant total (override)"
+                                      title="Modifier le montant total HT (override)"
                                       style="cursor:pointer;font-size:11px;color:var(--accent);font-weight:600">✏️ Ajuster</span>
                             @endif
                         </div>
                         <div class="text-2xl font-bold" style="color:var(--accent)">
                             <span data-campaign-total>{{ number_format($campaign->total_amount, 0, ',', ' ') }}</span>
-                            <span class="text-xs font-normal" style="color:var(--text3)">FCFA</span>
+                            <span class="text-xs font-normal" style="color:var(--text3)">FCFA HT</span>
                         </div>
                         @php
                             $isOverridden = $campaign->isTotalAmountOverridden();
@@ -335,22 +335,59 @@
                     @endphp
 
                     @if($campaign->invoices->isNotEmpty())
+                        {{-- Récap HT/TTC en tête : les chiffres affichés ici sont
+                             en HT pour être comparables au "Montant total HT" de
+                             gauche. Le TTC est rappelé en sous-info pour la
+                             cohérence avec la liste des factures. --}}
+                        <div class="mb-3 p-3 rounded-xl" style="background:var(--surface2);border:1px solid var(--border)">
+                            <div class="grid grid-cols-3 gap-2 text-center">
+                                <div>
+                                    <div class="text-[10px] uppercase font-semibold" style="color:var(--text3)">Total campagne</div>
+                                    <div class="text-sm font-bold" style="color:var(--text)">{{ number_format($expectedHt, 0, ',', ' ') }} <span class="text-[10px]" style="color:var(--text3)">HT</span></div>
+                                </div>
+                                <div>
+                                    <div class="text-[10px] uppercase font-semibold" style="color:var(--text3)">Déjà facturé</div>
+                                    <div class="text-sm font-bold" style="color:#3aa835">{{ number_format($billedHt, 0, ',', ' ') }} <span class="text-[10px]" style="color:var(--text3)">HT</span></div>
+                                </div>
+                                <div>
+                                    <div class="text-[10px] uppercase font-semibold" style="color:var(--text3)">Reste</div>
+                                    <div class="text-sm font-bold" style="color:{{ $remainHt > 0 ? '#f97316' : 'var(--text3)' }}">{{ number_format($remainHt, 0, ',', ' ') }} <span class="text-[10px]" style="color:var(--text3)">HT</span></div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             @foreach($campaign->invoices as $inv)
+                                @php
+                                    $stCfg = match($inv->status) {
+                                        'payee'     => ['c'=>'#16a34a','bg'=>'rgba(34,197,94,.10)','l'=>'Payée'],
+                                        'envoyee'   => ['c'=>'#3b82f6','bg'=>'rgba(59,130,246,.10)','l'=>'Envoyée'],
+                                        'brouillon' => ['c'=>'#6b7280','bg'=>'rgba(107,114,128,.10)','l'=>'Brouillon'],
+                                        'annulee'   => ['c'=>'#ef4444','bg'=>'rgba(239,68,68,.10)','l'=>'Annulée'],
+                                        default     => ['c'=>'var(--text3)','bg'=>'var(--surface3)','l'=>$inv->status],
+                                    };
+                                @endphp
                                 <a href="{{ route('admin.invoices.show', $inv) }}"
                                    class="flex justify-between items-center py-3 px-4 rounded-xl border transition group"
                                    style="background:var(--surface2);border-color:var(--border);text-decoration:none"
                                    onmouseover="this.style.borderColor='var(--accent)'"
                                    onmouseout="this.style.borderColor='var(--border)'"
-                                   title="Ouvrir la facture {{ $inv->reference ?? '#'.$inv->id }}">
-                                    <span class="font-mono text-sm group-hover:underline" style="color:var(--accent)">
-                                        {{ $inv->reference ?? '#'.$inv->id }}
-                                    </span>
-                                    <div class="flex items-center gap-3">
-                                        <span class="font-bold text-sm" style="color:var(--text)">
-                                            {{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA
+                                   title="Ouvrir la facture {{ $inv->reference ?? '#'.$inv->id }} — HT {{ number_format($inv->amount, 0, ',', ' ') }} / TTC {{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA">
+                                    <div class="flex flex-col gap-1">
+                                        <span class="font-mono text-sm group-hover:underline" style="color:var(--accent)">
+                                            {{ $inv->reference ?? '#'.$inv->id }}
                                         </span>
-                                        <span style="color:var(--text3);font-size:14px">→</span>
+                                        <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:{{ $stCfg['bg'] }};color:{{ $stCfg['c'] }};align-self:flex-start">
+                                            {{ $stCfg['l'] }}
+                                        </span>
+                                    </div>
+                                    <div class="flex flex-col items-end">
+                                        <span class="font-bold text-sm" style="color:var(--text)">
+                                            {{ number_format($inv->amount, 0, ',', ' ') }} <span style="font-size:10px;color:var(--text3)">HT</span>
+                                        </span>
+                                        <span style="font-size:11px;color:var(--text3)">
+                                            {{ number_format($inv->amount_ttc, 0, ',', ' ') }} FCFA TTC
+                                        </span>
                                     </div>
                                 </a>
                             @endforeach
