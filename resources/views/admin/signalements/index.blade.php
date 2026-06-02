@@ -164,13 +164,11 @@
                 </button>
             </form>
             <button type="button"
-                    onclick='openMaintenanceModal(@json([
-                        "actionId"  => $sig->id,
-                        "panelRef"  => $panel?->reference,
-                        "panelName" => $panel?->name,
-                        "url"       => route("admin.signalements.maintenance", $sig->id),
-                        "csrf"      => csrf_token(),
-                    ]))'
+                    class="js-open-maintenance"
+                    data-url="{{ route('admin.signalements.maintenance', $sig->id) }}"
+                    data-csrf="{{ csrf_token() }}"
+                    data-panel-ref="{{ $panel?->reference }}"
+                    data-panel-name="{{ $panel?->name }}"
                     style="padding:7px 14px;min-height:34px;background:#f97316;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:5px"
                     title="Bascule le panneau en MAINTENANCE + crée la fiche + informe le client">
                 🔧 Mettre en maintenance
@@ -269,18 +267,22 @@
 </div>
 
 <script>
-function openMaintenanceModal(data) {
-    const modal = document.getElementById('maintenanceModal');
-    document.getElementById('maintenanceModalForm').action = data.url;
-    document.getElementById('maintenanceModalCsrf').value = data.csrf;
-    document.getElementById('maintenanceModalPanel').textContent =
-        (data.panelRef || '—') + (data.panelName ? ' · ' + data.panelName : '');
-    modal.style.display = 'flex';
-    setTimeout(() => document.getElementById('maintenanceModalDuree').focus(), 50);
-}
 function closeMaintenanceModal() {
     document.getElementById('maintenanceModal').style.display = 'none';
 }
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.js-open-maintenance');
+    if (!btn) return;
+    const modal = document.getElementById('maintenanceModal');
+    document.getElementById('maintenanceModalForm').action = btn.dataset.url;
+    document.getElementById('maintenanceModalCsrf').value  = btn.dataset.csrf;
+    const ref  = btn.dataset.panelRef || '—';
+    const name = btn.dataset.panelName || '';
+    document.getElementById('maintenanceModalPanel').textContent =
+        ref + (name ? ' · ' + name : '');
+    modal.style.display = 'flex';
+    setTimeout(() => document.getElementById('maintenanceModalDuree').focus(), 50);
+});
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeMaintenanceModal();
 });
