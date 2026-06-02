@@ -487,12 +487,21 @@ window.PigeDetail = {
         if (!reason) { document.getElementById('reject-err').style.display = 'block'; return; }
         document.getElementById('reject-err').style.display = 'none';
         try {
+            // Relit le token au submit : si la session a été régénérée
+            // depuis l'ouverture de la page, le const CSRF figé planterait
+            // en 419 CSRF mismatch.
+            const freshToken = document.querySelector('meta[name=csrf-token]')?.content || CSRF;
             const res = await fetch(`/admin/piges/${PIGE_ID}/reject`, {
                 method: 'POST',
-                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                headers: { 'X-CSRF-TOKEN': freshToken, 'Accept': 'application/json', 'Content-Type': 'application/json' },
                 body: JSON.stringify({ rejection_reason: reason })
             });
-            const data = await res.json();
+            if (res.status === 419) {
+                alert('Ta session a expiré. La page va se recharger.');
+                location.reload();
+                return;
+            }
+            const data = await res.json().catch(() => ({}));
             if (data.success) { this.closeReject(); window.location.reload(); }
             else alert(data.message || 'Erreur.');
         } catch { alert('Erreur de connexion.'); }

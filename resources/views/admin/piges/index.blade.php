@@ -609,22 +609,31 @@ window.PigeActions = {
     document.getElementById('reject-error').style.display = 'none';
 
     try {
+        // Toujours relire le token au submit (le const CSRF figé au chargement
+        // devient obsolète si la session expire entre temps → 419).
+        const freshToken = document.querySelector('meta[name=csrf-token]')?.content || CSRF;
         const res = await fetch(`/admin/piges/${this._rejectId}/reject`, {
             method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            headers: { 'X-CSRF-TOKEN': freshToken, 'Accept': 'application/json', 'Content-Type': 'application/json' },
             body: JSON.stringify({ rejection_reason: reason }),
         });
-        const data = await res.json();
+        // 419 = session expirée / CSRF mismatch → on guide l'utilisateur
+        if (res.status === 419) {
+            this._showToast('Session expirée. La page va se recharger…', 'error');
+            setTimeout(() => location.reload(), 1500);
+            return;
+        }
+        const data = await res.json().catch(() => ({}));
         if (data.success) {
             // Mise à jour avec les données retournées
             this._updateCard(this._rejectId, 'rejete', { rejection_reason: reason });
             this.closeRejectModal();
             this._showToast(data.message || 'Pige rejetée.', 'warning');
-            
+
             // Mettre à jour les compteurs KPI
             this._updateStats();
         } else {
-            this._showToast(data.message, 'error');
+            this._showToast(data.message || 'Erreur.', 'error');
             }
         } catch { this._showToast('Erreur de connexion.', 'error'); }
     },
