@@ -129,6 +129,12 @@ Route::prefix('tech')->middleware(['throttle:60,1', \App\Http\Middleware\SetFren
     Route::get('/{token}/poses', [\App\Http\Controllers\TechSpaceController::class, 'show'])
         ->name('tech.space');
 
+    // Historique piges du tech — statuts (en_attente / verifie / rejete)
+    // + photo + raison de rejet visible direct. Cliqué depuis le chip
+    // "📸 Mes piges" du header tech-space.
+    Route::get('/{token}/piges', [\App\Http\Controllers\TechSpaceController::class, 'piges'])
+        ->name('tech.space.piges');
+
     Route::post('/{token}/poses/{task}/status', [\App\Http\Controllers\TechSpaceController::class, 'updateStatus'])
         ->whereNumber('task')
         ->name('tech.space.status');

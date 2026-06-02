@@ -38,47 +38,157 @@
             line-height: 1.55;
         }
 
-        /* ── Header sticky — charte CIBLE claire ───────────────── */
+        /* ── Header sticky — dashboard tech CIBLE ──────────────── */
         .header {
             position: sticky; top: 0; z-index: 50;
-            background: var(--surface);
+            background: linear-gradient(180deg, #fff 0%, #fffaf0 100%);
             color: var(--text);
-            padding: 14px 16px;
+            padding: 14px 16px 12px;
             padding-top: max(14px, env(safe-area-inset-top));
             border-bottom: 1px solid var(--border);
-            box-shadow: 0 2px 10px rgba(15,23,42,.04);
+            box-shadow: 0 4px 18px -8px rgba(232,160,32,.18);
         }
-        .header-row {
-            display: flex; align-items: center; gap: 14px;
+        .header-top {
+            display: flex; align-items: center; gap: 12px;
+            margin-bottom: 12px;
         }
         .brand-logo {
             flex: 0 0 auto;
-            height: 44px; width: auto; display: block;
+            height: 38px; width: auto; display: block;
             object-fit: contain;
         }
-        .header-info { flex: 1; min-width: 0; }
-        .brand-kicker {
+        .header-kicker {
+            flex: 1; min-width: 0;
             font-size: 10px; font-weight: 800; letter-spacing: 1.3px;
             text-transform: uppercase; color: var(--accent-dark);
-            display: block;
+            line-height: 1.2;
         }
-        .header h1 {
-            font-size: 20px; font-weight: 800; margin: 1px 0 0;
-            letter-spacing: -0.2px; color: var(--text);
-        }
-        .header .stats {
-            display: flex; gap: 8px; margin-top: 10px;
-            font-size: 12.5px; flex-wrap: wrap;
-        }
-        .header .stats .stat {
-            padding: 5px 10px; border-radius: 999px;
+        .header-chip {
             display: inline-flex; align-items: center; gap: 5px;
-            border: 1px solid var(--border); background: var(--surface2);
-            color: var(--text2);
+            padding: 6px 11px; border-radius: 999px;
+            background: var(--surface); border: 1px solid var(--border);
+            color: var(--text2); font-size: 11.5px; font-weight: 700;
+            text-decoration: none; flex-shrink: 0;
+            transition: transform .15s, border-color .15s;
         }
-        .header .stats .stat strong { color: var(--text); font-weight: 800; }
-        .header .stats .stat-todo strong { color: var(--accent-dark); }
-        .header .stats .stat-done strong { color: var(--done); }
+        .header-chip:active { transform: scale(.97); border-color: var(--accent); }
+        .header-chip .chip-badge {
+            background: var(--accent); color: #fff; font-weight: 800;
+            padding: 1px 6px; border-radius: 999px; font-size: 10px;
+            min-width: 16px; text-align: center;
+        }
+        .header-chip.has-warn .chip-badge { background: #ef4444; }
+
+        /* Hero — salut + résumé */
+        .hero {
+            display: flex; align-items: center; gap: 12px;
+            margin-bottom: 14px;
+        }
+        .hero-avatar {
+            width: 46px; height: 46px; border-radius: 50%;
+            background: linear-gradient(135deg, #e8a020 0%, #c2570d 100%);
+            color: #fff; font-weight: 800; font-size: 18px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; box-shadow: 0 4px 12px -2px rgba(232,160,32,.45);
+        }
+        .hero-text { flex: 1; min-width: 0; }
+        .hero-text h1 {
+            font-size: 19px; font-weight: 800; margin: 0;
+            letter-spacing: -0.3px; color: var(--text);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .hero-subline {
+            font-size: 12px; color: var(--text2);
+            margin-top: 1px;
+        }
+
+        /* Grille KPI — 4 cartes, 2x2 sur mobile, 1x4 sur grand écran */
+        .kpi-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 8px; margin-bottom: 12px;
+        }
+        @media (max-width: 480px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .kpi-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 10px 11px;
+            display: flex; flex-direction: column; gap: 2px;
+            position: relative; overflow: hidden;
+        }
+        .kpi-card::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+            width: 3px; background: var(--kpi-clr, var(--accent));
+        }
+        .kpi-card .kpi-label {
+            font-size: 9.5px; font-weight: 800; letter-spacing: .6px;
+            text-transform: uppercase; color: var(--text3);
+            line-height: 1.2;
+        }
+        .kpi-card .kpi-value {
+            font-size: 22px; font-weight: 800; color: var(--kpi-clr, var(--text));
+            line-height: 1.1; margin-top: 1px;
+            font-family: ui-monospace, 'SF Mono', monospace;
+        }
+        .kpi-card .kpi-sub {
+            font-size: 10.5px; color: var(--text3); margin-top: 1px;
+            line-height: 1.2; min-height: 13px;
+        }
+        .kpi-todo  { --kpi-clr: #f97316; }
+        .kpi-today { --kpi-clr: #3b82f6; }
+        .kpi-piges { --kpi-clr: #22c55e; }
+        .kpi-zones { --kpi-clr: #8b5cf6; }
+
+        /* Progression à paliers (10/25/50/75/100) */
+        .progress-staged {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 11px 13px;
+        }
+        .progress-staged-head {
+            display: flex; justify-content: space-between; align-items: baseline;
+            font-size: 11px; color: var(--text2); margin-bottom: 6px;
+            font-weight: 600;
+        }
+        .progress-staged-head strong {
+            font-size: 14px; color: var(--text); font-weight: 800;
+            font-family: ui-monospace, 'SF Mono', monospace;
+        }
+        .progress-staged-track {
+            position: relative; height: 10px;
+            background: #f1f5f9; border-radius: 999px; overflow: hidden;
+        }
+        .progress-staged-fill {
+            height: 100%; border-radius: 999px;
+            background: linear-gradient(90deg, #f97316 0%, #f59e0b 25%, #3b82f6 50%, #22c55e 100%);
+            transition: width .5s cubic-bezier(.16,1,.3,1);
+        }
+        .progress-staged-marks {
+            display: flex; justify-content: space-between;
+            margin-top: 5px;
+        }
+        .progress-staged-marks span {
+            font-size: 9.5px; color: var(--text3); font-weight: 700;
+            font-family: ui-monospace, monospace;
+            position: relative;
+        }
+        .progress-staged-marks span.passed { color: var(--text); }
+        .progress-staged-marks span.passed::before {
+            content: '✓ '; color: #22c55e;
+        }
+
+        /* Récap zones aujourd'hui — petit chip */
+        .today-recap {
+            margin-top: 10px; font-size: 11.5px; color: var(--text2);
+            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+            line-height: 1.4;
+        }
+        .today-recap .zone-pill {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 9px; border-radius: 999px;
+            background: rgba(139, 92, 246, .10); color: #6d28d9;
+            font-weight: 700; font-size: 11px;
+            border: 1px solid rgba(139, 92, 246, .20);
+        }
 
         /* ── Container ─────────────────────────────────────────── */
         .container { padding: 16px; max-width: 600px; margin: 0 auto; }
@@ -402,25 +512,93 @@
 </head>
 <body>
 
+@php
+    $initial = mb_strtoupper(mb_substr($tech->name, 0, 1));
+    $zonesLabel = $zonesTodayCount > 0
+        ? $zonesTodayCount . ' zone' . ($zonesTodayCount > 1 ? 's' : '')
+        : 'Aucune zone';
+    $heroSub = $totalActive > 0
+        ? "$totalActive pose" . ($totalActive > 1 ? 's' : '') . " à faire · $zonesLabel à couvrir"
+        : 'Aucune pose en attente — tu es à jour';
+@endphp
 <div class="header">
-    <div class="header-row">
+
+    <div class="header-top">
         <img src="{{ asset('images/panora.png') }}" alt="Panora by CIBLE" class="brand-logo">
-        <div class="header-info">
-            <span class="brand-kicker">Espace technicien · CIBLE CI</span>
+        <span class="header-kicker">Espace<br>Technicien</span>
+        {{-- Chip "Mes piges" : clic ouvre l'historique des piges du tech.
+             Badge rouge si certaines ont été rejetées (action requise). --}}
+        <a href="{{ route('tech.space.piges', $token) }}"
+           class="header-chip {{ ($pigesRejected ?? 0) > 0 ? 'has-warn' : '' }}">
+            📸 Mes piges
+            @if(($pigesTotal ?? 0) > 0)
+                <span class="chip-badge">
+                    {{ ($pigesRejected ?? 0) > 0 ? $pigesRejected : $pigesTotal }}
+                </span>
+            @endif
+        </a>
+    </div>
+
+    <div class="hero">
+        <div class="hero-avatar">{{ $initial }}</div>
+        <div class="hero-text">
             <h1>Bonjour {{ $tech->name }}</h1>
-            <div class="stats">
-                <div class="stat stat-todo">📋 <strong data-total-active>{{ $totalActive }}</strong> à faire</div>
-                <div class="stat stat-done">✅ <strong>{{ $totalDone }}</strong> faite{{ $totalDone > 1 ? 's' : '' }}</div>
-            </div>
+            <div class="hero-subline">{{ $heroSub }}</div>
         </div>
     </div>
-    @if(($totalAssigned ?? 0) > 0)
-    <div class="progress-wrap">
-        <div class="progress-bar"><div class="progress-fill" style="width:{{ $progressPct ?? 0 }}%"></div></div>
-        <div class="progress-meta">
-            <span>{{ $totalDone }}/{{ $totalAssigned }} terminées</span>
-            <span><strong>{{ $progressPct }}%</strong></span>
+
+    {{-- Grille KPI — 4 cartes : à faire / fait aujourd'hui / piges aujourd'hui / zones jour --}}
+    <div class="kpi-grid">
+        <div class="kpi-card kpi-todo">
+            <div class="kpi-label">À faire</div>
+            <div class="kpi-value" data-total-active>{{ $totalActive }}</div>
+            <div class="kpi-sub">poses en attente</div>
         </div>
+        <div class="kpi-card kpi-today">
+            <div class="kpi-label">Aujourd'hui</div>
+            <div class="kpi-value">{{ $doneToday ?? 0 }}</div>
+            <div class="kpi-sub">posée{{ ($doneToday ?? 0) > 1 ? 's' : '' }} ce jour</div>
+        </div>
+        <div class="kpi-card kpi-piges">
+            <div class="kpi-label">Piges</div>
+            <div class="kpi-value">{{ $pigesSentToday ?? 0 }}</div>
+            <div class="kpi-sub">envoyée{{ ($pigesSentToday ?? 0) > 1 ? 's' : '' }} ce jour</div>
+        </div>
+        <div class="kpi-card kpi-zones">
+            <div class="kpi-label">Zones</div>
+            <div class="kpi-value">{{ $zonesTodayCount ?? 0 }}</div>
+            <div class="kpi-sub">couverte{{ ($zonesTodayCount ?? 0) > 1 ? 's' : '' }} aujourd'hui</div>
+        </div>
+    </div>
+
+    {{-- Progression à paliers visuels (10/25/50/75/100) — encourageant et lisible --}}
+    @if(($totalAssigned ?? 0) > 0)
+    <div class="progress-staged">
+        <div class="progress-staged-head">
+            <span>Progression globale</span>
+            <strong>{{ $totalDone }}/{{ $totalAssigned }} · {{ $progressPct }}%</strong>
+        </div>
+        <div class="progress-staged-track">
+            <div class="progress-staged-fill" style="width:{{ $progressPct ?? 0 }}%"></div>
+        </div>
+        <div class="progress-staged-marks">
+            @foreach([10, 25, 50, 75, 100] as $m)
+                <span class="{{ $progressPct >= $m ? 'passed' : '' }}">{{ $m }}%</span>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
+    {{-- Récap zones de la journée (visible si au moins une zone) --}}
+    @if(!empty($zonesTodayList))
+    <div class="today-recap">
+        <span style="font-weight:700;color:var(--text2)">📍 Zones du jour :</span>
+        @foreach(array_slice($zonesTodayList, 0, 4) as $zone)
+            <span class="zone-pill">{{ $zone }}</span>
+        @endforeach
+        @if(count($zonesTodayList) > 4)
+            <span style="color:var(--text3);font-size:11px">+{{ count($zonesTodayList) - 4 }}</span>
+        @endif
     </div>
     @endif
 </div>
