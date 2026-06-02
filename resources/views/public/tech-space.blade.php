@@ -520,7 +520,11 @@
                          data-task-id="{{ $task->id }}"
                          data-search="{{ $searchHay }}"
                          data-lat="{{ $task->panel?->latitude }}"
-                         data-lng="{{ $task->panel?->longitude }}">
+                         data-lng="{{ $task->panel?->longitude }}"
+                         @if($lastProblem)
+                         data-blocking-signal-type="{{ $problemType }}"
+                         data-blocking-signal-label="{{ $problemLabel }}"
+                         @endif>
                         {{-- Bandeau ROUGE "photo refusée par le superviseur" — motif
                              visible direct, le tech sait quoi corriger en re-prenant
                              la photo. Prioritaire sur le bandeau signalement. --}}
@@ -834,6 +838,77 @@
         return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${alpha})`;
     }
 
+    // ── Modale "justifier la pige malgré signalement" ───────
+    // Le tech a signalé un problème non résolu sur cette pose mais
+    // tente d'envoyer une pige : on impose une justification écrite
+    // (min 10 caractères) qui sera tracée dans pige.notes côté admin.
+    // Retourne une Promise<string|null> — null si annulation.
+    function askContradictionReason(signalLabel) {
+        return new Promise((resolve) => {
+            // Construit la modale à la volée pour éviter d'alourdir le DOM
+            // initial. Une seule instance à la fois (remove à la fermeture).
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.6);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:16px`;
+            overlay.innerHTML = `
+                <div style="background:#fff;border-radius:14px;max-width:440px;width:100%;box-shadow:0 30px 80px -20px rgba(0,0,0,.4);overflow:hidden">
+                    <div style="padding:16px 20px;background:linear-gradient(180deg,#fff7ed,#fff);border-bottom:1px solid #fed7aa;display:flex;align-items:flex-start;gap:10px">
+                        <div style="font-size:22px;line-height:1">⚠️</div>
+                        <div>
+                            <div style="font-size:15px;font-weight:800;color:#9a3412;margin-bottom:2px">Pige malgré signalement</div>
+                            <div style="font-size:12.5px;color:#b45309;line-height:1.45">
+                                Tu as signalé ce panneau comme <strong>« ${signalLabel} »</strong>.
+                                Si tu envoies quand même une pige, justifie-le (le superviseur le verra).
+                            </div>
+                        </div>
+                    </div>
+                    <div style="padding:16px 20px">
+                        <label style="display:block;font-size:12.5px;font-weight:700;color:#1f2937;margin-bottom:6px">
+                            Justification <span style="color:#ef4444">*</span>
+                        </label>
+                        <textarea id="contradiction-reason-input" rows="3"
+                                  maxlength="1000"
+                                  placeholder="Ex: panneau finalement remis en état, ou photo du visuel encore visible malgré la casse, etc."
+                                  style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13.5px;resize:vertical;font-family:inherit"></textarea>
+                        <div id="contradiction-reason-counter" style="font-size:11px;color:#6b7280;text-align:right;margin-top:4px">0 / 10 min</div>
+                        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+                            <button type="button" data-action="cancel"
+                                    style="padding:9px 16px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;color:#4b5563">
+                                Annuler la pige
+                            </button>
+                            <button type="button" data-action="confirm" disabled
+                                    style="padding:9px 18px;background:#f97316;border:none;color:#fff;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;opacity:.5">
+                                Envoyer quand même
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(overlay);
+            const ta      = overlay.querySelector('#contradiction-reason-input');
+            const counter = overlay.querySelector('#contradiction-reason-counter');
+            const btnOk   = overlay.querySelector('[data-action="confirm"]');
+            const btnNo   = overlay.querySelector('[data-action="cancel"]');
+            ta.focus();
+            ta.addEventListener('input', () => {
+                const n = ta.value.trim().length;
+                counter.textContent = `${n} / 10 min`;
+                const ok = n >= 10;
+                btnOk.disabled = !ok;
+                btnOk.style.opacity = ok ? '1' : '.5';
+                btnOk.style.cursor  = ok ? 'pointer' : 'not-allowed';
+            });
+            function close(val) { overlay.remove(); resolve(val); }
+            btnOk.addEventListener('click', () => {
+                const v = ta.value.trim();
+                if (v.length >= 10) close(v);
+            });
+            btnNo.addEventListener('click', () => close(null));
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+            document.addEventListener('keydown', function esc(ev) {
+                if (ev.key === 'Escape') { close(null); document.removeEventListener('keydown', esc); }
+            });
+        });
+    }
+
     // ── Upload photo + auto-completion ───────────────────────
     document.addEventListener('change', async (e) => {
         const input = e.target.closest('[data-photo-input]');
@@ -842,6 +917,21 @@
         const pose  = label?.closest('[data-task-id]');
         const taskId = pose?.dataset.taskId;
         if (!taskId) return;
+
+        // Garde-fou contradiction : si signalement non résolu sur cette pose,
+        // on demande une justification AVANT de compresser/uploader pour ne
+        // pas perdre le travail si annulation. La justification part dans
+        // FormData et le serveur la trace dans pige.notes.
+        let contradictionReason = null;
+        const blockingLabel = pose?.dataset.blockingSignalLabel;
+        if (blockingLabel) {
+            contradictionReason = await askContradictionReason(blockingLabel);
+            if (contradictionReason === null) {
+                // Tech a annulé → on reset l'input et on n'envoie rien.
+                input.value = '';
+                return;
+            }
+        }
 
         const file = input.files[0];
         const originalLabel = label.innerHTML;
@@ -868,6 +958,12 @@
         // Idempotence anti double-envoi / reprise réseau
         form.append('client_uuid', (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(16).slice(2))));
 
+        // Si on a une justification de contradiction signalement → on l'ajoute
+        // pour que le serveur ne renvoie pas le 422 dédié et trace la note.
+        if (contradictionReason) {
+            form.append('contradicts_signalement_reason', contradictionReason);
+        }
+
         try {
             const url = `/tech/${TOKEN}/poses/${taskId}/photo`;
             const res = await fetch(url, {
@@ -879,7 +975,33 @@
                 body: form,
             });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok || !data.ok) {
+
+            // Fallback défensif : si le serveur réclame une justification
+            // (data-attribute mal posé / cache JS périmé / route forcée),
+            // on ouvre la modale ici, on re-tente l'upload avec la raison.
+            if (res.status === 422 && data.requires_contradiction_reason) {
+                label.innerHTML = originalLabel;
+                label.style.pointerEvents = '';
+                const reason = await askContradictionReason(data.signalement_label || 'un problème');
+                if (reason === null) { input.value = ''; return; }
+                form.set('contradicts_signalement_reason', reason);
+                label.innerHTML = '⏳ Renvoi…';
+                label.style.pointerEvents = 'none';
+                const res2 = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                    body: form,
+                });
+                const data2 = await res2.json().catch(() => ({}));
+                if (!res2.ok || !data2.ok) {
+                    toast(data2.error || `Erreur ${res2.status}`, 'error');
+                    label.innerHTML = originalLabel;
+                    label.style.pointerEvents = '';
+                    input.value = '';
+                    return;
+                }
+                Object.assign(data, data2); // continue avec data du retry
+            } else if (!res.ok || !data.ok) {
                 // Remonte d'abord les erreurs de validation Laravel (422),
                 // sinon le message du controller, sinon un fallback explicite
                 // avec le code HTTP — beaucoup plus utile sur le terrain.
