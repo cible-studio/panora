@@ -83,14 +83,14 @@
             'autre'            => '#6b7280',
         ][$type] ?? '#6b7280';
     @endphp
-    <div class="card" style="margin-bottom:12px;border-left:4px solid {{ $sig->resolved_at ? 'var(--border)' : $typeColor }};overflow:hidden">
-        <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+    <div class="card" style="margin-bottom:10px;padding:14px;border-left:3px solid {{ $sig->resolved_at ? 'var(--border)' : $typeColor }};overflow:hidden">
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
             {{-- Vignette du panneau --}}
-            <div style="flex:0 0 64px">
+            <div style="flex:0 0 48px">
                 @if($thumbUrl)
-                    <div style="width:64px;height:64px;border-radius:10px;background:url('{{ $thumbUrl }}') center/cover no-repeat;border:1px solid var(--border)"></div>
+                    <div style="width:48px;height:48px;border-radius:8px;background:url('{{ $thumbUrl }}') center/cover no-repeat;border:1px solid var(--border)"></div>
                 @else
-                    <div style="width:64px;height:64px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--text3)">🪧</div>
+                    <div style="width:48px;height:48px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--text3)">🪧</div>
                 @endif
             </div>
 
@@ -150,26 +150,27 @@
 
         </div>
 
-        {{-- Actions : ligne pleine largeur en bas de la carte (responsive,
-             ne déborde plus, même sur écran moyen). --}}
+        {{-- Actions compactes — alignées à droite, dimensions raisonnables. --}}
         @if(!$sig->resolved_at)
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-            <form method="POST" action="{{ route('admin.signalements.maintenance', $sig->id) }}"
-                  onsubmit="return confirm('Mettre le panneau {{ $panel?->reference }} en maintenance ? Il sortira des disponibilités et une fiche maintenance sera créée.')"
-                  style="flex:1 1 220px">
-                @csrf
-                <button type="submit"
-                        style="width:100%;padding:10px 14px;background:#f97316;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px">
-                    🔧 Mettre en maintenance
-                </button>
-            </form>
+        <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
             <form method="POST" action="{{ route('admin.signalements.dismiss', $sig->id) }}"
                   onsubmit="return confirm('Marquer le signalement comme traité, sans toucher au panneau ?')"
-                  style="flex:1 1 180px">
+                  style="margin:0">
                 @csrf
                 <button type="submit"
-                        style="width:100%;padding:10px 14px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px">
+                        style="padding:7px 14px;min-height:34px;background:var(--surface);color:var(--text2);border:1px solid var(--border);border-radius:8px;font-weight:600;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:5px"
+                        title="Clôturer sans toucher au panneau">
                     ✓ Marquer traité
+                </button>
+            </form>
+            <form method="POST" action="{{ route('admin.signalements.maintenance', $sig->id) }}"
+                  onsubmit="return confirm('Mettre le panneau {{ $panel?->reference }} en maintenance ? Il sortira des disponibilités et une fiche maintenance sera créée.')"
+                  style="margin:0">
+                @csrf
+                <button type="submit"
+                        style="padding:7px 14px;min-height:34px;background:#f97316;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:5px"
+                        title="Bascule le panneau en MAINTENANCE + crée la fiche">
+                    🔧 Mettre en maintenance
                 </button>
             </form>
         </div>

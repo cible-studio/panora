@@ -426,19 +426,28 @@ class TechSpaceController extends Controller
             'photo' => ['nullable', 'file', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:35840'],
         ]);
 
-        // Anti-spam : refuser un nouveau signalement si le MÊME type est
-        // déjà en file (non résolu) sur cette pose. Évite de saturer l'admin
-        // et d'embrouiller le tech qui ne savait plus s'il avait déjà cliqué.
+        // Anti-spam : UN SEUL signalement actif par pose (peu importe le type).
+        // Si le tech veut signaler une autre chose, il doit attendre que le
+        // précédent soit traité côté admin — sinon on accumule des doublons
+        // (vu en prod : 1 même panneau avec 2 signalements de types différents
+        // créés par un test, ouvre la porte à des dizaines).
         $existing = \App\Models\PoseTaskAction::where('pose_task_id', $task->id)
             ->where('action', 'problem_reported')
             ->whereNull('resolved_at')
-            ->whereJsonContains('payload->type', $data['type'])
             ->first();
 
         if ($existing) {
+            $existingType = $existing->payload['type'] ?? 'autre';
+            $existingLabel = [
+                'panneau_casse'    => 'Panneau cassé / abîmé',
+                'acces_bloque'     => 'Accès bloqué / impossible',
+                'mauvaise_adresse' => 'Mauvaise adresse / introuvable',
+                'autre'            => 'Autre problème',
+            ][$existingType] ?? 'Problème signalé';
+
             return response()->json([
                 'ok'          => false,
-                'error'       => "Tu as déjà signalé ce problème il y a {$existing->created_at->diffForHumans(null, true)}. Le superviseur l'a en file — pas besoin de re-signaler.",
+                'error'       => "Tu as déjà un signalement actif sur ce panneau : « {$existingLabel} » (il y a {$existing->created_at->diffForHumans(null, true)}). Le superviseur le traite — attends qu'il soit clôturé avant d'en envoyer un autre.",
                 'already'     => true,
                 'reported_at' => $existing->created_at->toIso8601String(),
             ], 409);
@@ -472,6 +481,10 @@ class TechSpaceController extends Controller
             'note'       => $data['note'] ?? null,
             'photo_path' => $photoPath,
         ], $tech->name, $request->ip());
+
+        // Invalide le cache du badge sidebar "Signalements" pour que l'admin
+        // voie tout de suite le nouveau compte (sans attendre le TTL 60s).
+        \Illuminate\Support\Facades\Cache::forget('admin.signalements.pending_count');
 
         Log::warning('tech.space.problem_reported', [
             'task_id' => $task->id,

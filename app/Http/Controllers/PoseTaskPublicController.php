@@ -305,6 +305,19 @@ class PoseTaskPublicController extends Controller
         ];
         $label = $labels[$data['type']] ?? 'Problème signalé';
 
+        // Anti-spam : UN seul signalement actif par pose, peu importe le type.
+        $existing = \App\Models\PoseTaskAction::where('pose_task_id', $task->id)
+            ->where('action', 'problem_reported')
+            ->whereNull('resolved_at')
+            ->first();
+        if ($existing) {
+            $existingLabel = $labels[$existing->payload['type'] ?? 'autre'] ?? 'Problème signalé';
+            return response()->json([
+                'ok'    => false,
+                'error' => "Un signalement actif existe déjà sur ce panneau : « {$existingLabel} » (il y a {$existing->created_at->diffForHumans(null, true)}). Attends qu'il soit traité.",
+            ], 409);
+        }
+
         PoseTaskAction::log($task->id, 'problem_reported', [
             'type' => $data['type'],
             'note' => $data['note'] ?? null,
@@ -336,6 +349,9 @@ class PoseTaskPublicController extends Controller
             footer: 'Tâche pose #' . $task->id,
             dedupKey: 'pose-problem-' . $task->id . '-' . $data['type'],
         );
+
+        // Badge sidebar admin "Signalements" : invalidation du compteur cache.
+        \Illuminate\Support\Facades\Cache::forget('admin.signalements.pending_count');
 
         return response()->json([
             'ok'      => true,
