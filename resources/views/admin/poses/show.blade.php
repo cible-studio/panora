@@ -219,21 +219,24 @@ $sIconLg = match($poseTask->status) {
                     </div>
                 </div>
 
-                {{-- Progression actuelle --}}
-                <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+                {{-- Progression actuelle — mise à jour live par polling (15s).
+                     Cf. script en bas de la vue : appelle /admin/pose-tasks/progress
+                     et met à jour les data-* ci-dessous sans full reload. --}}
+                <div data-progress-card data-task-id="{{ $poseTask->id }}"
+                     style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
                     <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-                        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)">📊 Progression rapportée</div>
-                        <div style="font-family:ui-monospace,monospace;font-size:13px;color:var(--text);font-weight:700">{{ $progress }} %</div>
+                        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)">📊 Progression rapportée <span data-live-dot style="display:none;color:#22c55e;font-size:9px">● live</span></div>
+                        <div style="font-family:ui-monospace,monospace;font-size:13px;color:var(--text);font-weight:700"><span data-progress-value>{{ $progress }}</span> %</div>
                     </div>
                     <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden">
-                        <div style="width:{{ $progress }}%;height:100%;background:{{ $progColor ?? '#ef4444' }};transition:width .3s"></div>
+                        <div data-progress-fill style="width:{{ $progress }}%;height:100%;background:{{ $progColor ?? '#ef4444' }};transition:width .5s cubic-bezier(.16,1,.3,1)"></div>
                     </div>
-                    <div style="display:flex;gap:14px;margin-top:8px;font-size:11px;color:var(--text3)">
-                        <div>Démarré : <strong style="color:var(--text)">{{ $poseTask->started_at?->format('d/m/Y H:i') ?? '—' }}</strong></div>
-                        <div>Terminé : <strong style="color:var(--text)">{{ $poseTask->done_at?->format('d/m/Y H:i') ?? '—' }}</strong></div>
-                        @if($poseTask->real_minutes)
-                            <div>Durée : <strong style="color:var(--accent)">{{ $poseTask->real_minutes }} min</strong></div>
-                        @endif
+                    <div style="display:flex;gap:14px;margin-top:8px;font-size:11px;color:var(--text3);flex-wrap:wrap">
+                        <div>Démarré : <strong data-started-at style="color:var(--text)">{{ $poseTask->started_at?->format('d/m/Y H:i') ?? '—' }}</strong></div>
+                        <div>Terminé : <strong data-done-at style="color:var(--text)">{{ $poseTask->done_at?->format('d/m/Y H:i') ?? '—' }}</strong></div>
+                        <div data-real-minutes style="{{ $poseTask->real_minutes ? '' : 'display:none' }}">
+                            Durée : <strong style="color:var(--accent)"><span data-real-min-value>{{ $poseTask->real_minutes }}</span> min</strong>
+                        </div>
                     </div>
                 </div>
 
@@ -488,6 +491,83 @@ window.Confirm = {
 };
 document.getElementById('modal-confirm').addEventListener('click', function(e) { if(e.target===this) Confirm.cancel(); });
 document.addEventListener('keydown', e => { if(e.key==='Escape') Confirm.cancel(); });
+
+// ── Progression rapportée — polling live (15s) ─────────────────
+// Réutilise l'endpoint GET /admin/pose-tasks/progress?ids[]={id} qui
+// renvoie progress + couleur + dates + statut pour la tâche. La barre
+// se met à jour en douceur, un petit "● live" apparaît quand le polling
+// est actif et clignote au tick. Pas de full reload — l'admin voit
+// l'avancée du tech en quasi temps réel.
+(function () {
+    const card = document.querySelector('[data-progress-card]');
+    if (!card) return;
+    const taskId = card.dataset.taskId;
+    const ENDPOINT = "{{ route('admin.pose-tasks.progress') }}";
+    const POLL_MS = 15000;
+
+    const valueEl = card.querySelector('[data-progress-value]');
+    const fillEl  = card.querySelector('[data-progress-fill]');
+    const startEl = card.querySelector('[data-started-at]');
+    const doneEl  = card.querySelector('[data-done-at]');
+    const realW   = card.querySelector('[data-real-minutes]');
+    const realV   = card.querySelector('[data-real-min-value]');
+    const liveDot = card.querySelector('[data-live-dot]');
+
+    let stopped = false;
+
+    function fmtDate(iso) {
+        if (!iso) return '—';
+        const d = new Date(iso);
+        const pad = n => String(n).padStart(2, '0');
+        return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    async function tick() {
+        try {
+            const url = `${ENDPOINT}?ids[]=${encodeURIComponent(taskId)}`;
+            const r = await fetch(url, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            if (!r.ok) return;
+            const data = await r.json();
+            const t = (data.tasks || data || []).find(x => String(x.id) === String(taskId));
+            if (!t) return;
+
+            // Pulse "live" pour signaler la mise à jour
+            liveDot.style.display = 'inline';
+            liveDot.style.opacity = '1';
+            setTimeout(() => { liveDot.style.transition='opacity .6s'; liveDot.style.opacity='.35'; }, 200);
+
+            valueEl.textContent = t.percent;
+            fillEl.style.width  = t.percent + '%';
+            if (t.color) fillEl.style.background = t.color;
+
+            startEl.textContent = fmtDate(t.started_at);
+            doneEl.textContent  = fmtDate(t.done_at);
+
+            // Durée seulement si réelle
+            if (t.is_done && t.real_minutes) {
+                realW.style.display = '';
+                realV.textContent = t.real_minutes;
+            }
+
+            // Une fois terminé, on stoppe le polling — la valeur ne bougera plus.
+            if (t.is_done && !stopped) {
+                stopped = true;
+                clearInterval(interval);
+            }
+        } catch (e) { /* silencieux */ }
+    }
+
+    // Premier tick rapide pour confirmer l'état, puis intervalle régulier.
+    setTimeout(tick, 1500);
+    const interval = setInterval(tick, POLL_MS);
+    // Tick immédiat au retour d'onglet (le tech a peut-être avancé)
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && !stopped) tick();
+    });
+})();
 </script>
 @endpush
 </x-admin-layout>

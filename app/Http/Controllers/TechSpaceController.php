@@ -279,9 +279,32 @@ class TechSpaceController extends Controller
             ], 422);
         }
 
+        // Auto-sync progress_percent depuis le nouveau statut : le widget
+        // admin "Progression rapportée" sur la fiche pose suit ainsi en
+        // quasi temps réel l'avancée du tech sans intervention manuelle.
+        $progressMap = [
+            PoseTaskStatus::PLANNED->value     => 0,
+            PoseTaskStatus::EN_ROUTE->value    => 25,
+            PoseTaskStatus::IN_PROGRESS->value => 60,
+            PoseTaskStatus::COMPLETED->value   => 100,
+        ];
+
         $update = ['status' => $newStatus->value];
+        if (array_key_exists($newStatus->value, $progressMap)) {
+            $update['progress_percent'] = $progressMap[$newStatus->value];
+        }
+        // Premier mouvement (>=25%) → started_at si pas déjà défini
+        if (($update['progress_percent'] ?? 0) > 0 && !$task->started_at) {
+            $update['started_at'] = now();
+        }
         if ($newStatus === PoseTaskStatus::COMPLETED) {
             $update['done_at'] = now();
+            // real_minutes calculable seulement si started_at était posé
+            if ($task->started_at) {
+                $update['real_minutes'] = max(1, (int) round(
+                    $task->started_at->diffInMinutes(now())
+                ));
+            }
         }
 
         $task->update($update);
@@ -546,10 +569,21 @@ class TechSpaceController extends Controller
         // alors que la pige était bel et bien créée.
         $currentStatus = PoseTaskStatus::tryFrom((string) $task->status);
         if ($currentStatus && !$currentStatus->isTerminal()) {
-            $task->update([
-                'status'  => PoseTaskStatus::COMPLETED->value,
-                'done_at' => now(),
-            ]);
+            // Bump progression à 100% + started_at si pas déjà posé +
+            // real_minutes si on peut calculer. Cohérent avec updateStatus().
+            $taskUpdate = [
+                'status'           => PoseTaskStatus::COMPLETED->value,
+                'done_at'          => now(),
+                'progress_percent' => 100,
+            ];
+            if (!$task->started_at) {
+                $taskUpdate['started_at'] = now();
+            } else {
+                $taskUpdate['real_minutes'] = max(1, (int) round(
+                    $task->started_at->diffInMinutes(now())
+                ));
+            }
+            $task->update($taskUpdate);
         }
 
         self::invalidateCache($tech->id);
