@@ -352,8 +352,15 @@ class TechSpaceController extends Controller
             'client_uuid' => $data['client_uuid'] ?? null,
         ]);
 
-        // Marque la tâche comme réalisée si pas déjà fait
-        if (!$task->status->isTerminal()) {
+        // Marque la tâche comme réalisée si pas déjà fait.
+        // ⚠️ PoseTask::$status n'est PAS casté en enum (décision conservée
+        // pour ne pas casser les comparaisons string existantes), donc on
+        // passe par tryFrom() pour utiliser ->isTerminal() proprement.
+        // Avant : $task->status->isTerminal() → "Call to a member function
+        // isTerminal() on string" en prod, le tech voyait l'erreur PHP
+        // alors que la pige était bel et bien créée.
+        $currentStatus = PoseTaskStatus::tryFrom((string) $task->status);
+        if ($currentStatus && !$currentStatus->isTerminal()) {
             $task->update([
                 'status'  => PoseTaskStatus::COMPLETED->value,
                 'done_at' => now(),
