@@ -124,14 +124,19 @@ class PoseTask extends Model
 
     /**
      * Dernier signalement de problème terrain (panneau cassé / accès bloqué /
-     * mauvaise adresse / autre) — pour afficher au tech qu'il a déjà signalé
-     * et au MP/admin pour suivi. Utilise latestOfMany pour ne ramener qu'une
-     * ligne par PoseTask même en eager loading.
+     * mauvaise adresse / autre) ENCORE OUVERT — pour afficher au tech qu'il
+     * a déjà signalé et au MP/admin pour suivi.
+     *
+     * Filtre `resolved_at IS NULL` : dès que l'admin traite le signal (mise
+     * en maintenance ou "marquer traité"), il disparaît du badge tech →
+     * le tech peut re-signaler si un nouveau problème apparaît, sans voir
+     * l'ancien rappel obsolète. Sinon il pense que l'admin n'a rien fait.
      */
     public function lastProblemReport(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(PoseTaskAction::class)
             ->where('action', 'problem_reported')
+            ->whereNull('resolved_at')
             ->latestOfMany('created_at');
     }
 
