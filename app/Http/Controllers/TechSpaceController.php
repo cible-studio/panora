@@ -343,7 +343,12 @@ class TechSpaceController extends Controller
                 // Pour détecter le cas "tech a signalé un problème non résolu
                 // ET tente quand même d'envoyer une pige" → on force la
                 // justification de la contradiction (voir bloc plus bas).
-                'lastProblemReport:id,pose_task_id,payload,created_at,resolved_at',
+                //
+                // ⚠ Pas de projection (select) ici : latestOfMany génère des
+                // joins internes, et `id`/`pose_task_id`/`created_at` non
+                // préfixés deviennent ambigus → SQLSTATE[23000] 1052. Même
+                // pattern que latestRejectedPige (cf. fix précédent).
+                'lastProblemReport',
             ])
             ->where('id', $taskId)
             ->where('assigned_user_id', $tech->id)
