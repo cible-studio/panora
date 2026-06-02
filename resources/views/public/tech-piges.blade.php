@@ -56,19 +56,55 @@
             background: var(--surface); border: 1px solid var(--border);
             border-radius: 10px; padding: 8px 9px; text-align: center;
             position: relative; overflow: hidden;
+            text-decoration: none; color: inherit; cursor: pointer;
+            transition: transform .15s, border-color .15s, box-shadow .15s, background .15s;
+        }
+        .kpi-tile:hover {
+            border-color: color-mix(in srgb, var(--tile-clr, var(--accent)) 60%, transparent);
+            box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--tile-clr, var(--accent)) 50%, transparent);
+        }
+        .kpi-tile:active { transform: scale(.97); }
+        .kpi-tile.is-active {
+            background: color-mix(in srgb, var(--tile-clr, var(--accent)) 10%, var(--surface));
+            border-color: var(--tile-clr, var(--accent));
+            box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--tile-clr, var(--accent)) 60%, transparent);
         }
         .kpi-tile .kt-value {
             font-size: 17px; font-weight: 800;
             font-family: ui-monospace, monospace;
+            transition: transform .25s cubic-bezier(.16,1,.3,1);
+        }
+        .kpi-tile .kt-value.kt-bump { animation: ktBump .55s cubic-bezier(.16,1,.3,1); }
+        @keyframes ktBump {
+            0%   { transform: scale(1); }
+            30%  { transform: scale(1.3); }
+            100% { transform: scale(1); }
         }
         .kpi-tile .kt-label {
             font-size: 9.5px; font-weight: 700; letter-spacing: .4px;
             text-transform: uppercase; color: var(--text3); margin-top: 1px;
         }
+        .kpi-tile.kt-total    { --tile-clr: #6b7280; }
+        .kpi-tile.kt-pending  { --tile-clr: #f59e0b; }
+        .kpi-tile.kt-verified { --tile-clr: #22c55e; }
+        .kpi-tile.kt-rejected { --tile-clr: #ef4444; }
         .kpi-tile.kt-total    .kt-value { color: var(--text); }
         .kpi-tile.kt-pending  .kt-value { color: #f59e0b; }
         .kpi-tile.kt-verified .kt-value { color: #22c55e; }
         .kpi-tile.kt-rejected .kt-value { color: #ef4444; }
+
+        /* Live indicator dans le header */
+        .live-indicator {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 9.5px; font-weight: 700;
+            color: #22c55e; letter-spacing: .4px; text-transform: uppercase;
+            opacity: 0; transition: opacity .4s; margin-left: 8px;
+        }
+        .live-indicator.is-pulsing { opacity: 1; }
+        .live-indicator::before {
+            content: ''; width: 6px; height: 6px; border-radius: 50%;
+            background: #22c55e;
+        }
 
         .container { padding: 14px; max-width: 600px; margin: 0 auto; }
 
@@ -146,24 +182,35 @@
     <div class="header-top">
         <a href="{{ route('tech.space', $token) }}" class="back-btn">← Retour</a>
         <h1 style="flex:1">📸 Mes piges</h1>
+        <span class="live-indicator" data-live-indicator>live</span>
     </div>
-    <div class="kpi-row">
-        <div class="kpi-tile kt-total">
-            <div class="kt-value">{{ $kpi['total'] }}</div>
+    {{-- KPI tiles cliquables comme filtres (server-side ?status=) +
+         polling 20s anime les valeurs au passage de chaque tick. --}}
+    <div class="kpi-row" role="group" aria-label="Filtres piges">
+        <a href="{{ route('tech.space.piges', $token) }}"
+           class="kpi-tile kt-total {{ !$statusFilter ? 'is-active' : '' }}"
+           aria-pressed="{{ !$statusFilter ? 'true' : 'false' }}">
+            <div class="kt-value" data-kpi-value="pigesTotal">{{ $kpi['total'] }}</div>
             <div class="kt-label">Total</div>
-        </div>
-        <div class="kpi-tile kt-pending">
-            <div class="kt-value">{{ $kpi['pending'] }}</div>
+        </a>
+        <a href="{{ route('tech.space.piges', [$token, 'status' => 'en_attente']) }}"
+           class="kpi-tile kt-pending {{ $statusFilter === 'en_attente' ? 'is-active' : '' }}"
+           aria-pressed="{{ $statusFilter === 'en_attente' ? 'true' : 'false' }}">
+            <div class="kt-value" data-kpi-value="pigesPending">{{ $kpi['pending'] }}</div>
             <div class="kt-label">En attente</div>
-        </div>
-        <div class="kpi-tile kt-verified">
-            <div class="kt-value">{{ $kpi['verified'] }}</div>
+        </a>
+        <a href="{{ route('tech.space.piges', [$token, 'status' => 'verifie']) }}"
+           class="kpi-tile kt-verified {{ $statusFilter === 'verifie' ? 'is-active' : '' }}"
+           aria-pressed="{{ $statusFilter === 'verifie' ? 'true' : 'false' }}">
+            <div class="kt-value" data-kpi-value="pigesVerified">{{ $kpi['verified'] }}</div>
             <div class="kt-label">Validées</div>
-        </div>
-        <div class="kpi-tile kt-rejected">
-            <div class="kt-value">{{ $kpi['rejected'] }}</div>
+        </a>
+        <a href="{{ route('tech.space.piges', [$token, 'status' => 'rejete']) }}"
+           class="kpi-tile kt-rejected {{ $statusFilter === 'rejete' ? 'is-active' : '' }}"
+           aria-pressed="{{ $statusFilter === 'rejete' ? 'true' : 'false' }}">
+            <div class="kt-value" data-kpi-value="pigesRejected">{{ $kpi['rejected'] }}</div>
             <div class="kt-label">Refusées</div>
-        </div>
+        </a>
     </div>
 </div>
 
@@ -243,6 +290,53 @@
         </div>
     @endif
 </div>
+
+<script>
+// Polling heartbeat 20s — met à jour les KPI tiles sans reload.
+// Pas de reload de la liste : si tu cliques un filtre, la page se
+// recharge (server-side filter), donc le KPI live anime seulement
+// le compteur en haut, pas le contenu en bas.
+(function () {
+    const URL = "{{ route('tech.space.heartbeat', $token) }}";
+    const liveDot = document.querySelector('[data-live-indicator]');
+
+    function bumpVal(name, newVal) {
+        const el = document.querySelector(`[data-kpi-value="${name}"]`);
+        if (!el) return;
+        const oldVal = parseInt(el.textContent.trim(), 10) || 0;
+        if (oldVal === newVal) return;
+        el.textContent = newVal;
+        el.classList.remove('kt-bump');
+        void el.offsetWidth;
+        el.classList.add('kt-bump');
+    }
+
+    async function tick() {
+        try {
+            const r = await fetch(URL, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            if (!r.ok) return;
+            const d = await r.json();
+            if (!d.ok) return;
+            if (liveDot) {
+                liveDot.classList.add('is-pulsing');
+                setTimeout(() => liveDot.classList.remove('is-pulsing'), 600);
+            }
+            bumpVal('pigesTotal',    d.pigesTotal);
+            bumpVal('pigesPending',  d.pigesPending);
+            bumpVal('pigesVerified', d.pigesVerified);
+            bumpVal('pigesRejected', d.pigesRejected);
+        } catch (e) { /* silencieux */ }
+    }
+    setTimeout(tick, 1500);
+    setInterval(tick, 20000);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) tick();
+    });
+})();
+</script>
 
 </body>
 </html>

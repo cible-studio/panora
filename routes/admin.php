@@ -135,6 +135,10 @@ Route::prefix('tech')->middleware(['throttle:60,1', \App\Http\Middleware\SetFren
     Route::get('/{token}/piges', [\App\Http\Controllers\TechSpaceController::class, 'piges'])
         ->name('tech.space.piges');
 
+    // Heartbeat JSON tech : KPI dashboard live (polling 20s côté JS).
+    Route::get('/{token}/heartbeat', [\App\Http\Controllers\TechSpaceController::class, 'heartbeat'])
+        ->name('tech.space.heartbeat');
+
     Route::post('/{token}/poses/{task}/status', [\App\Http\Controllers\TechSpaceController::class, 'updateStatus'])
         ->whereNumber('task')
         ->name('tech.space.status');
