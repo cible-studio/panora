@@ -135,6 +135,17 @@ class PoseTask extends Model
             ->latestOfMany('created_at');
     }
 
+    /**
+     * Dernière pige REJETÉE par le MP — pour afficher au tech le motif du
+     * refus directement sur la carte (sans nécessiter qu'il ouvre la pose).
+     */
+    public function latestRejectedPige(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Pige::class)
+            ->where('status', 'rejete')
+            ->latestOfMany('created_at');
+    }
+
     // ── HELPERS ───────────────────────────────────────────────────
  
     public function isLate(): bool

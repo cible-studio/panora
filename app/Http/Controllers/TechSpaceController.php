@@ -84,6 +84,7 @@ class TechSpaceController extends Controller
                 'campaign:id,name,start_date,end_date,client_id,status',
                 'campaign.client:id,name',
                 'lastProblemReport',  // ⚠ pour le badge "déjà signalé"
+                'latestRejectedPige:id,pose_task_id,rejection_reason,created_at',
             ])
             ->where('assigned_user_id', $tech->id)
             ->whereNotNull('panel_id')
@@ -408,6 +409,24 @@ class TechSpaceController extends Controller
             // côté client donc on plafonne large (35 MB = limite Dockerfile).
             'photo' => ['nullable', 'file', 'mimes:jpeg,jpg,png,webp,heic,heif', 'max:35840'],
         ]);
+
+        // Anti-spam : refuser un nouveau signalement si le MÊME type est
+        // déjà en file (non résolu) sur cette pose. Évite de saturer l'admin
+        // et d'embrouiller le tech qui ne savait plus s'il avait déjà cliqué.
+        $existing = \App\Models\PoseTaskAction::where('pose_task_id', $task->id)
+            ->where('action', 'problem_reported')
+            ->whereNull('resolved_at')
+            ->whereJsonContains('payload->type', $data['type'])
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'ok'          => false,
+                'error'       => "Tu as déjà signalé ce problème il y a {$existing->created_at->diffForHumans(null, true)}. Le superviseur l'a en file — pas besoin de re-signaler.",
+                'already'     => true,
+                'reported_at' => $existing->created_at->toIso8601String(),
+            ], 409);
+        }
 
         // Stockage photo (si fournie)
         $photoPath = null;

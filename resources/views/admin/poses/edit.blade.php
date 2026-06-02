@@ -105,7 +105,7 @@ window.__EDIT__ = {
                         <div class="pose-section-title">Panneau</div>
                         <div id="panels-stats-text" style="font-size:11px;color:var(--text3)"></div>
                     </div>
-                    <div class="pose-section-sub">Panneau concerné — cliquez pour changer</div>
+                    <div class="pose-section-sub">Panneau concerné — verrouillé en édition</div>
                 </div>
             </div>
 
@@ -122,8 +122,17 @@ window.__EDIT__ = {
 
             <input type="hidden" name="panel_id" id="edit-panel-id" value="{{ $poseTask->panel_id }}">
 
-            {{-- Liste panneaux campagne avec recherche --}}
-            <div id="panels-campaign-zone" style="display:{{ $poseTask->campaign_id ? 'block' : 'none' }}">
+            {{-- Note verrou — le panneau d'une pose ne peut pas être modifié
+                 après création (le changer = créer une autre intervention).
+                 Pour basculer sur un autre panneau, annuler cette pose et en
+                 créer une nouvelle. --}}
+            <div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);font-size:12px;color:var(--text2);margin-bottom:12px">
+                🔒 <div>Le panneau d'une pose <strong>ne peut pas être changé</strong> après création. Pour intervenir sur un autre panneau, annule cette pose et crée-en une nouvelle.</div>
+            </div>
+
+            {{-- Liste panneaux campagne avec recherche (masquée en édition :
+                 le panneau est verrouillé, seul le current ci-dessus s'affiche). --}}
+            <div id="panels-campaign-zone" style="display:none">
                 <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
                     <div style="position:relative;flex:1">
                         <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -155,8 +164,8 @@ window.__EDIT__ = {
                 </div>
             </div>
 
-            {{-- Panneau libre (sans campagne) --}}
-            <div id="panels-free-zone" style="display:{{ !$poseTask->campaign_id ? 'block' : 'none' }}">
+            {{-- Panneau libre (sans campagne) — masqué en édition aussi. --}}
+            <div id="panels-free-zone" style="display:none">
                 <select id="sel-panel-free" style="width:100%">
                     <option value="">Rechercher un panneau par référence ou nom…</option>
                     @if(!$poseTask->campaign_id && $poseTask->panel)

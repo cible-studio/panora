@@ -363,6 +363,23 @@
         .pose-line.has-problem .pose-act.act-warn {
             background: rgba(245, 158, 11, .08);
         }
+
+        /* Bandeau ROUGE — photo refusée par MP (motif visible) */
+        .pose-rejected-banner {
+            font-size: 12.5px; font-weight: 700;
+            padding: 10px 12px;
+            background: rgba(239, 68, 68, .10);
+            color: #b91c1c;
+            border-bottom: 1px solid rgba(239, 68, 68, .25);
+            display: block;
+        }
+        .pose-rejected-banner .reject-reason {
+            font-weight: 500;
+        }
+        .pose-line.has-reject {
+            border-color: rgba(239, 68, 68, .45);
+            box-shadow: 0 1px 4px rgba(239, 68, 68, .18);
+        }
     </style>
 </head>
 <body>
@@ -466,11 +483,26 @@
                         $problemLabel = $problemLabels[$problemType] ?? null;
                         $problemAgo   = $lastProblem?->created_at?->diffForHumans(null, true);
                     @endphp
-                    <div class="pose pose-line {{ $lastProblem ? 'has-problem' : '' }}"
+                    @php $rejPige = $task->latestRejectedPige; @endphp
+                    <div class="pose pose-line {{ $lastProblem ? 'has-problem' : '' }} {{ $rejPige ? 'has-reject' : '' }}"
                          data-task-id="{{ $task->id }}"
                          data-search="{{ $searchHay }}"
                          data-lat="{{ $task->panel?->latitude }}"
                          data-lng="{{ $task->panel?->longitude }}">
+                        {{-- Bandeau ROUGE "photo refusée par le superviseur" — motif
+                             visible direct, le tech sait quoi corriger en re-prenant
+                             la photo. Prioritaire sur le bandeau signalement. --}}
+                        @if($rejPige)
+                            <div class="pose-rejected-banner">
+                                🚫 <strong>Photo refusée par le superviseur</strong>
+                                @if($rejPige->rejection_reason)
+                                    · <span class="reject-reason">{{ $rejPige->rejection_reason }}</span>
+                                @endif
+                                <div style="font-size:11px;opacity:.85;margin-top:2px">
+                                    Reprends une photo et envoie-la depuis cette pose.
+                                </div>
+                            </div>
+                        @endif
                         {{-- Bandeau "déjà signalé" — rappel au tech pour ne pas
                              re-signaler le même problème sans le savoir. --}}
                         <div class="pose-reported-banner" data-problem-banner

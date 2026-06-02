@@ -83,19 +83,19 @@
             'autre'            => '#6b7280',
         ][$type] ?? '#6b7280';
     @endphp
-    <div class="card" style="margin-bottom:12px;border-left:4px solid {{ $sig->resolved_at ? 'var(--border)' : $typeColor }}">
+    <div class="card" style="margin-bottom:12px;border-left:4px solid {{ $sig->resolved_at ? 'var(--border)' : $typeColor }};overflow:hidden">
         <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
             {{-- Vignette du panneau --}}
-            <div style="flex:0 0 72px">
+            <div style="flex:0 0 64px">
                 @if($thumbUrl)
-                    <div style="width:72px;height:72px;border-radius:10px;background:url('{{ $thumbUrl }}') center/cover no-repeat;border:1px solid var(--border)"></div>
+                    <div style="width:64px;height:64px;border-radius:10px;background:url('{{ $thumbUrl }}') center/cover no-repeat;border:1px solid var(--border)"></div>
                 @else
-                    <div style="width:72px;height:72px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3)">🪧</div>
+                    <div style="width:64px;height:64px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--text3)">🪧</div>
                 @endif
             </div>
 
-            {{-- Infos --}}
-            <div style="flex:1;min-width:240px">
+            {{-- Infos (prend toute la place restante) --}}
+            <div style="flex:1 1 280px;min-width:0">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
                     <span style="font-family:monospace;font-size:14px;font-weight:800;color:var(--accent-dark)">
                         {{ $panel?->reference ?? '—' }}
@@ -148,28 +148,32 @@
                 @endif
             </div>
 
-            {{-- Actions --}}
-            @if(!$sig->resolved_at)
-            <div style="display:flex;gap:8px;flex-direction:column;min-width:200px">
-                <form method="POST" action="{{ route('admin.signalements.maintenance', $sig->id) }}"
-                      onsubmit="return confirm('Mettre le panneau {{ $panel?->reference }} en maintenance ? Il sortira des disponibilités et une fiche maintenance sera créée.')">
-                    @csrf
-                    <button type="submit"
-                            style="width:100%;padding:10px 14px;background:#f97316;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">
-                        🔧 Mettre en maintenance
-                    </button>
-                </form>
-                <form method="POST" action="{{ route('admin.signalements.dismiss', $sig->id) }}"
-                      onsubmit="return confirm('Marquer le signalement comme traité, sans toucher au panneau ?')">
-                    @csrf
-                    <button type="submit"
-                            style="width:100%;padding:10px 14px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">
-                        ✓ Marquer traité
-                    </button>
-                </form>
-            </div>
-            @endif
         </div>
+
+        {{-- Actions : ligne pleine largeur en bas de la carte (responsive,
+             ne déborde plus, même sur écran moyen). --}}
+        @if(!$sig->resolved_at)
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+            <form method="POST" action="{{ route('admin.signalements.maintenance', $sig->id) }}"
+                  onsubmit="return confirm('Mettre le panneau {{ $panel?->reference }} en maintenance ? Il sortira des disponibilités et une fiche maintenance sera créée.')"
+                  style="flex:1 1 220px">
+                @csrf
+                <button type="submit"
+                        style="width:100%;padding:10px 14px;background:#f97316;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px">
+                    🔧 Mettre en maintenance
+                </button>
+            </form>
+            <form method="POST" action="{{ route('admin.signalements.dismiss', $sig->id) }}"
+                  onsubmit="return confirm('Marquer le signalement comme traité, sans toucher au panneau ?')"
+                  style="flex:1 1 180px">
+                @csrf
+                <button type="submit"
+                        style="width:100%;padding:10px 14px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px">
+                    ✓ Marquer traité
+                </button>
+            </form>
+        </div>
+        @endif
     </div>
 @empty
     <div class="card" style="text-align:center;padding:60px 20px;color:var(--text3)">
