@@ -140,6 +140,46 @@ class TechSpaceController extends Controller
                 return ($hasOverdue ? '0' : '1') . str_pad((string) (9999 - $tasks->count()), 4, '0', STR_PAD_LEFT);
             });
 
+        // ── Métriques "aujourd'hui" pour le dashboard tech ────────────
+        // Distinction importante : totalDone = depuis toujours ; les chiffres
+        // ci-dessous ne portent QUE sur la journée en cours, ce qui donne
+        // au tech un retour sur son activité du jour (1 poste = 1 sprint).
+        $startOfDay = $today->copy()->startOfDay();
+        $endOfDay   = $today->copy()->endOfDay();
+
+        $doneToday = PoseTask::where('assigned_user_id', $tech->id)
+            ->where('status', PoseTaskStatus::COMPLETED->value)
+            ->whereBetween('done_at', [$startOfDay, $endOfDay])
+            ->count();
+
+        $pigesSentToday = \App\Models\Pige::where('user_id', $tech->id)
+            ->whereBetween('taken_at', [$startOfDay, $endOfDay])
+            ->count();
+
+        // Zones distinctes touchées aujourd'hui (poses faites + poses prévues
+        // restantes). Donne au tech un cap géographique pour sa journée.
+        $zonesActiveToday = $activeTasks
+            ->pluck('panel.commune.name')
+            ->filter()
+            ->unique()
+            ->values();
+        $zonesDoneToday = PoseTask::where('assigned_user_id', $tech->id)
+            ->where('status', PoseTaskStatus::COMPLETED->value)
+            ->whereBetween('done_at', [$startOfDay, $endOfDay])
+            ->with('panel:id,commune_id', 'panel.commune:id,name')
+            ->get(['id', 'panel_id'])
+            ->pluck('panel.commune.name')
+            ->filter()
+            ->unique()
+            ->values();
+        $zonesTodayCount = $zonesActiveToday->merge($zonesDoneToday)->unique()->count();
+
+        // Piges du tech, tout temps : permet le compteur du bouton "Mes piges"
+        // (peut être 0, on n'affiche le badge que si > 0).
+        $pigesTotal = \App\Models\Pige::where('user_id', $tech->id)->count();
+        $pigesRejected = \App\Models\Pige::where('user_id', $tech->id)
+            ->where('status', 'rejete')->count();
+
         return [
             'totalActive'      => $totalActive,
             'totalDone'        => $totalDone,
@@ -147,6 +187,14 @@ class TechSpaceController extends Controller
             'progressPct'      => $progressPct,
             'groupedByCommune' => $groupedByCommune,
             'doneByCommune'    => $doneByCommune,
+            // Métriques journée
+            'doneToday'        => $doneToday,
+            'pigesSentToday'   => $pigesSentToday,
+            'zonesTodayCount'  => $zonesTodayCount,
+            'zonesTodayList'   => $zonesActiveToday->merge($zonesDoneToday)->unique()->values()->all(),
+            // Piges global tech (pour le bouton historique)
+            'pigesTotal'       => $pigesTotal,
+            'pigesRejected'    => $pigesRejected,
         ];
     }
 
@@ -246,6 +294,42 @@ class TechSpaceController extends Controller
      * Upload de la photo de pige (preuve d'affichage).
      * Marque AUSSI la pose comme réalisée si elle ne l'était pas déjà.
      */
+    /**
+     * GET /tech/{token}/piges
+     *
+     * Historique des piges du tech : tout statut confondu (en_attente,
+     * verifie, rejete) avec photo, campagne, panneau, date, motif de rejet
+     * si applicable. Pagination simple (30 par page). Le tech voit ce
+     * qu'il a envoyé, ce qui est validé, ce qu'il doit reprendre.
+     */
+    public function piges(string $token)
+    {
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->first();
+        if (!$tech) abort(404, 'Lien invalide ou compte désactivé.');
+
+        $piges = \App\Models\Pige::where('user_id', $tech->id)
+            ->with([
+                'panel:id,reference,name,commune_id',
+                'panel.commune:id,name',
+                'campaign:id,name',
+            ])
+            ->orderByDesc('taken_at')
+            ->paginate(30);
+
+        // Compteurs globaux pour la sidebar / chips.
+        $base = \App\Models\Pige::where('user_id', $tech->id);
+        $kpi = [
+            'total'    => (clone $base)->count(),
+            'pending'  => (clone $base)->where('status', 'en_attente')->count(),
+            'verified' => (clone $base)->where('status', 'verifie')->count(),
+            'rejected' => (clone $base)->where('status', 'rejete')->count(),
+        ];
+
+        return view('public.tech-piges', compact('tech', 'token', 'piges', 'kpi'));
+    }
+
     public function uploadPhoto(Request $request, string $token, int $taskId)
     {
         $tech = User::where('tech_public_token', $token)
