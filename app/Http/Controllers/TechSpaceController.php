@@ -83,6 +83,7 @@ class TechSpaceController extends Controller
                 'panel.photos:id,panel_id,path,ordre',
                 'campaign:id,name,start_date,end_date,client_id,status',
                 'campaign.client:id,name',
+                'lastProblemReport',  // ⚠ pour le badge "déjà signalé"
             ])
             ->where('assigned_user_id', $tech->id)
             ->whereNotNull('panel_id')

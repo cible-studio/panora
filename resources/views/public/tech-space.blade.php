@@ -339,6 +339,30 @@
         .pose-act:active { background: var(--surface2); }
         .pose-act.act-go { color: #2563eb; }
         .pose-act.act-warn { color: #b45309; }
+
+        /* Bandeau "déjà signalé" — visible et persistent au-dessus de la
+           ligne de la pose. Le tech le voit à chaque chargement et ne
+           re-signale plus le même problème sans réfléchir. */
+        .pose-reported-banner {
+            font-size: 12px; font-weight: 700;
+            padding: 8px 12px;
+            background: rgba(245, 158, 11, .10);
+            color: #b45309;
+            border-bottom: 1px solid rgba(245, 158, 11, .22);
+            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+        }
+        .pose-reported-banner .reported-when {
+            color: #92400e; font-weight: 500;
+        }
+        /* La carte d'une pose avec problème déjà signalé a un liseré
+           ambré subtil pour qu'on la repère dans la liste. */
+        .pose-line.has-problem {
+            border-color: rgba(245, 158, 11, .35);
+            box-shadow: 0 1px 3px rgba(245, 158, 11, .15);
+        }
+        .pose-line.has-problem .pose-act.act-warn {
+            background: rgba(245, 158, 11, .08);
+        }
     </style>
 </head>
 <body>
@@ -429,11 +453,31 @@
                             $task->campaign?->client?->name,
                         ])));
                     @endphp
-                    <div class="pose pose-line"
+                    @php
+                        // Dernier signalement de problème terrain (s'il y en a un)
+                        $lastProblem = $task->lastProblemReport;
+                        $problemLabels = [
+                            'panneau_casse'    => 'Panneau cassé',
+                            'acces_bloque'     => 'Accès bloqué',
+                            'mauvaise_adresse' => 'Mauvaise adresse',
+                            'autre'            => 'Autre problème',
+                        ];
+                        $problemType  = $lastProblem?->payload['type'] ?? null;
+                        $problemLabel = $problemLabels[$problemType] ?? null;
+                        $problemAgo   = $lastProblem?->created_at?->diffForHumans(null, true);
+                    @endphp
+                    <div class="pose pose-line {{ $lastProblem ? 'has-problem' : '' }}"
                          data-task-id="{{ $task->id }}"
                          data-search="{{ $searchHay }}"
                          data-lat="{{ $task->panel?->latitude }}"
                          data-lng="{{ $task->panel?->longitude }}">
+                        {{-- Bandeau "déjà signalé" — rappel au tech pour ne pas
+                             re-signaler le même problème sans le savoir. --}}
+                        <div class="pose-reported-banner" data-problem-banner
+                             style="{{ $lastProblem ? '' : 'display:none' }}">
+                            ⚠ Tu as déjà signalé : <strong data-problem-label>{{ $problemLabel ?: '—' }}</strong>
+                            <span class="reported-when" data-problem-when>{{ $problemAgo ? 'il y a '.$problemAgo : '' }}</span>
+                        </div>
                         {{-- Geste 1 : tap n'importe où sur la ligne = caméra arrière --}}
                         <label class="pose-main" data-action="photo">
                             <input type="file" accept="image/*" capture="environment" data-photo-input>
@@ -895,6 +939,26 @@
                 modal.classList.remove('show');
                 if (res.ok && data.ok) {
                     flashSuccess('Signalement envoyé&nbsp;!');
+
+                    // Inscrit le rappel "déjà signalé" sur la ligne de la
+                    // pose : le tech ne re-signalera plus le même problème
+                    // sans s'en rendre compte (cas plusieurs panneaux).
+                    const TYPE_LABELS = {
+                        panneau_casse:    'Panneau cassé',
+                        acces_bloque:     'Accès bloqué',
+                        mauvaise_adresse: 'Mauvaise adresse',
+                        autre:            'Autre problème',
+                    };
+                    const pose = document.querySelector(`.pose-line[data-task-id="${currentTaskId}"]`);
+                    if (pose) {
+                        pose.classList.add('has-problem');
+                        const banner = pose.querySelector('[data-problem-banner]');
+                        const lbl = pose.querySelector('[data-problem-label]');
+                        const whn = pose.querySelector('[data-problem-when]');
+                        if (banner) banner.style.display = '';
+                        if (lbl) lbl.textContent = TYPE_LABELS[selectedType] || 'Problème signalé';
+                        if (whn) whn.textContent = "à l'instant";
+                    }
                 } else {
                     toast(data.error || data.message || 'Erreur', 'error');
                     sendBtn.disabled = false;

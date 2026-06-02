@@ -122,6 +122,19 @@ class PoseTask extends Model
         return $this->hasMany(PoseTaskAction::class)->orderByDesc('created_at');
     }
 
+    /**
+     * Dernier signalement de problème terrain (panneau cassé / accès bloqué /
+     * mauvaise adresse / autre) — pour afficher au tech qu'il a déjà signalé
+     * et au MP/admin pour suivi. Utilise latestOfMany pour ne ramener qu'une
+     * ligne par PoseTask même en eager loading.
+     */
+    public function lastProblemReport(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(PoseTaskAction::class)
+            ->where('action', 'problem_reported')
+            ->latestOfMany('created_at');
+    }
+
     // ── HELPERS ───────────────────────────────────────────────────
  
     public function isLate(): bool
