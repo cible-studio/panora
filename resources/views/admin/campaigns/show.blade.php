@@ -325,6 +325,15 @@
                             <span class="text-[10px] px-2 py-0.5 rounded-full" style="background:var(--surface3);color:var(--text3)">{{ $campaign->invoices->count() }} facture{{ $campaign->invoices->count() > 1 ? 's' : '' }}</span>
                         @endif
                     </div>
+                    @php
+                        // Montant attendu vs déjà facturé — pour suggérer le
+                        // bon montant lors de l'émission d'une facture.
+                        $expectedHt = $campaign->computedAmountHt();
+                        $billedHt   = $campaign->alreadyBilledHt();
+                        $remainHt   = max(0.0, $expectedHt - $billedHt);
+                        $isAdmin    = auth()->user()?->role?->value === 'admin';
+                    @endphp
+
                     @if($campaign->invoices->isNotEmpty())
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             @foreach($campaign->invoices as $inv)
@@ -346,11 +355,40 @@
                                 </a>
                             @endforeach
                         </div>
+
+                        @if($isAdmin && $remainHt > 0)
+                            {{-- Reste à facturer connu → bouton complémentaire. --}}
+                            <div class="mt-3 flex items-center justify-between gap-3 p-3 rounded-xl border border-dashed"
+                                 style="border-color:var(--border);background:rgba(58,168,53,.04)">
+                                <div class="text-xs" style="color:var(--text2)">
+                                    Reste à facturer :
+                                    <strong style="color:var(--accent)">{{ number_format($remainHt, 0, ',', ' ') }} FCFA HT</strong>
+                                </div>
+                                <a href="{{ route('admin.invoices.create', ['campaign_id' => $campaign->id]) }}"
+                                   class="btn btn-primary btn-sm"
+                                   style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#3aa835;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:12px;text-decoration:none">
+                                    ➕ Facture complémentaire
+                                </a>
+                            </div>
+                        @endif
                     @else
                         <div class="text-center py-6 rounded-xl border border-dashed" style="border-color:var(--border)">
                             <div class="text-3xl mb-2">💰</div>
                             <div class="text-sm font-semibold" style="color:var(--accent)">À facturer</div>
-                            <div class="text-xs mt-1" style="color:var(--text3)">Aucune facture émise pour le moment</div>
+                            @if($expectedHt > 0)
+                                <div class="text-xs mt-1" style="color:var(--text3)">
+                                    Montant attendu : <strong style="color:var(--text2)">{{ number_format($expectedHt, 0, ',', ' ') }} FCFA HT</strong>
+                                </div>
+                            @else
+                                <div class="text-xs mt-1" style="color:var(--text3)">Aucune facture émise pour le moment</div>
+                            @endif
+                            @if($isAdmin)
+                                <a href="{{ route('admin.invoices.create', ['campaign_id' => $campaign->id]) }}"
+                                   class="btn btn-primary mt-3"
+                                   style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#3aa835;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none">
+                                    💸 Émettre une facture
+                                </a>
+                            @endif
                         </div>
                     @endif
                 </div>

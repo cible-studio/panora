@@ -195,6 +195,67 @@ class Campaign extends Model
         return max(1, (int) ceil($this->billableMonths()));
     }
 
+    // ── Facturation : montant HT de référence ────────────────────────
+    //
+    // Une campagne porte un montant HT "vrai" qui est, par ordre de
+    // préférence :
+    //
+    //   1. campaigns.total_amount (snapshot saisi/calculé à la création
+    //      ou override admin via total_amount_overridden_*)
+    //   2. reservations.total_amount de la résa parente (négocié globalement)
+    //   3. somme des reservation_panels.total_price pour cette résa
+    //      (= unit_price × billableMonths déjà calculé en pivot)
+    //   4. 0 — pas de panneaux, pas de résa, pas de prix
+    //
+    // Servir cette valeur côté facturation évite que l'admin tape un
+    // montant à la main alors qu'il est déjà connu dans le système.
+
+    public function computedAmountHt(): float
+    {
+        if ($this->total_amount !== null) {
+            return (float) $this->total_amount;
+        }
+
+        if (!$this->reservation_id) return 0.0;
+
+        $resa = $this->relationLoaded('reservation')
+            ? $this->reservation
+            : Reservation::find($this->reservation_id);
+
+        if (!$resa) return 0.0;
+        if ($resa->total_amount !== null) {
+            return (float) $resa->total_amount;
+        }
+
+        // Fallback : somme du pivot reservation_panels.total_price.
+        return (float) \Illuminate\Support\Facades\DB::table('reservation_panels')
+            ->where('reservation_id', $resa->id)
+            ->sum('total_price');
+    }
+
+    /**
+     * Total HT déjà facturé pour cette campagne — somme des factures
+     * non annulées (brouillon + envoyée + payée). Sert à proposer un
+     * montant "reste à facturer" cohérent en cas de facturation multiple.
+     */
+    public function alreadyBilledHt(): float
+    {
+        return (float) Invoice::query()
+            ->where('campaign_id', $this->id)
+            ->whereIn('status', ['brouillon', 'envoyee', 'payee'])
+            ->sum('amount');
+    }
+
+    /**
+     * Reste à facturer HT = montant de référence − déjà facturé.
+     * Borné à 0 pour ne pas suggérer de montant négatif si la campagne
+     * a été sur-facturée par erreur (l'admin reverra son historique).
+     */
+    public function remainingToBillHt(): float
+    {
+        return max(0.0, $this->computedAmountHt() - $this->alreadyBilledHt());
+    }
+
     /**
      * Lot 9.1 — S'assure qu'une PoseTask existe pour chaque panneau
      * interne de la campagne. Idempotent. À appeler par les orchestrateurs
