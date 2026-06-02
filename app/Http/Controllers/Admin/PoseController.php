@@ -441,9 +441,11 @@ class PoseController extends Controller
             ->orderBy('day')
             ->get();
 
-        // ─── Top 5 commerciaux (CA sur campagnes créées dans la période) ───
+        // ─── Top commerciaux — base commune (par CA + par nb campagnes) ─
         // Commercial assigné prioritaire, fallback créateur. Hors annulées.
-        $topCommerciaux = \DB::table('campaigns')
+        // On récupère TOUS les commerciaux puis on trie en mémoire pour
+        // produire 2 classements distincts à partir d'une seule requête.
+        $allCommerciaux = \DB::table('campaigns')
             ->join('users', 'users.id', '=', \DB::raw('COALESCE(campaigns.commercial_user_id, campaigns.user_id)'))
             ->where('campaigns.created_at', '>=', $since)
             ->where('campaigns.status', '!=', 'annule')
@@ -454,15 +456,16 @@ class PoseController extends Controller
                 \DB::raw('SUM(campaigns.total_amount) as ca_total')
             )
             ->groupBy('users.id', 'users.name')
-            ->orderByDesc('ca_total')
-            ->limit(5)
             ->get();
+
+        $topCommerciaux       = $allCommerciaux->sortByDesc('ca_total')->take(5)->values();
+        $topCommerciauxByNb   = $allCommerciaux->sortByDesc('nb_campagnes')->take(5)->values();
 
         return view('admin.poses.sla', compact(
             'days', 'totalPoses', 'onTime', 'late', 'onTimeRate', 'medianDelay',
             'pigesTotal', 'pigesRejetees', 'pigesVerifiees', 'firstTimeRate',
             'avgValidationHours', 'topTechs', 'topCommunes', 'trend',
-            'topCommerciaux',
+            'topCommerciaux', 'topCommerciauxByNb',
             'pigesWithGps', 'pigesOutZone', 'pigesWarnZone', 'outZoneRate'
         ));
     }

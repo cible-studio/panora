@@ -197,36 +197,73 @@
     </div>
 </div>
 
-{{-- ── Top Commerciaux (section séparée — CA campagnes sur la période) ── --}}
-<div class="sla-section" style="margin-bottom:18px">
-    <div class="sla-section-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        Top commerciaux ({{ $days }}j) — CA généré
+{{-- ── Top Commerciaux (2 colonnes : par CA + par nb campagnes) ── --}}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px" class="sla-cols">
+
+    {{-- Top par CA généré --}}
+    <div class="sla-section" style="margin-bottom:0">
+        <div class="sla-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Top commerciaux ({{ $days }}j) — CA généré
+        </div>
+        @if($topCommerciaux->isEmpty())
+            <div style="text-align:center;padding:30px 0;color:var(--text3);font-size:12px">
+                Aucune campagne créée sur la période
+            </div>
+        @else
+            @foreach($topCommerciaux as $i => $com)
+            @php $rank = $i + 1; $rankClass = match($rank){1=>'sla-rank-1',2=>'sla-rank-2',3=>'sla-rank-3',default=>'sla-rank-default'}; @endphp
+            <div class="sla-rank-row">
+                <div class="sla-rank {{ $rankClass }}">{{ $rank }}</div>
+                <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $com->name }}</div>
+                    <div style="font-size:11px;color:var(--text3);margin-top:2px">
+                        {{ $com->nb_campagnes }} campagne{{ $com->nb_campagnes > 1 ? 's' : '' }}
+                    </div>
+                </div>
+                <div style="text-align:right;flex-shrink:0">
+                    <div style="font-size:14px;font-weight:700;color:#3aa835">
+                        {{ number_format($com->ca_total, 0, ',', ' ') }}
+                    </div>
+                    <div style="font-size:9px;color:var(--text3);text-transform:uppercase">FCFA</div>
+                </div>
+            </div>
+            @endforeach
+        @endif
     </div>
-    @if($topCommerciaux->isEmpty())
-        <div style="text-align:center;padding:30px 0;color:var(--text3);font-size:12px">
-            Aucune campagne créée sur la période
+
+    {{-- Top par nombre de campagnes vendues --}}
+    <div class="sla-section" style="margin-bottom:0">
+        <div class="sla-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+            Top commerciaux ({{ $days }}j) — nb campagnes
         </div>
-    @else
-        @foreach($topCommerciaux as $i => $com)
-        @php $rank = $i + 1; $rankClass = match($rank){1=>'sla-rank-1',2=>'sla-rank-2',3=>'sla-rank-3',default=>'sla-rank-default'}; @endphp
-        <div class="sla-rank-row">
-            <div class="sla-rank {{ $rankClass }}">{{ $rank }}</div>
-            <div style="flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $com->name }}</div>
-                <div style="font-size:11px;color:var(--text3);margin-top:2px">
-                    {{ $com->nb_campagnes }} campagne{{ $com->nb_campagnes > 1 ? 's' : '' }}
+        @if($topCommerciauxByNb->isEmpty())
+            <div style="text-align:center;padding:30px 0;color:var(--text3);font-size:12px">
+                Aucune campagne créée sur la période
+            </div>
+        @else
+            @foreach($topCommerciauxByNb as $i => $com)
+            @php $rank = $i + 1; $rankClass = match($rank){1=>'sla-rank-1',2=>'sla-rank-2',3=>'sla-rank-3',default=>'sla-rank-default'}; @endphp
+            <div class="sla-rank-row">
+                <div class="sla-rank {{ $rankClass }}">{{ $rank }}</div>
+                <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $com->name }}</div>
+                    <div style="font-size:11px;color:var(--text3);margin-top:2px">
+                        {{ number_format($com->ca_total, 0, ',', ' ') }} FCFA
+                    </div>
+                </div>
+                <div style="text-align:right;flex-shrink:0">
+                    <div style="font-size:14px;font-weight:700;color:#3b82f6">
+                        {{ $com->nb_campagnes }}
+                    </div>
+                    <div style="font-size:9px;color:var(--text3);text-transform:uppercase">campagne{{ $com->nb_campagnes > 1 ? 's' : '' }}</div>
                 </div>
             </div>
-            <div style="text-align:right;flex-shrink:0">
-                <div style="font-size:14px;font-weight:700;color:#3aa835">
-                    {{ number_format($com->ca_total, 0, ',', ' ') }}
-                </div>
-                <div style="font-size:9px;color:var(--text3);text-transform:uppercase">FCFA</div>
-            </div>
-        </div>
-        @endforeach
-    @endif
+            @endforeach
+        @endif
+    </div>
+
 </div>
 
 {{-- ── Tendance poses réalisées ─────────────────────────────── --}}
