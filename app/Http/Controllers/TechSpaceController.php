@@ -253,7 +253,14 @@ class TechSpaceController extends Controller
             ->first();
         if (!$tech) return response()->json(['ok' => false, 'error' => 'Lien invalide ou compte désactivé.'], 404);
 
-        $task = PoseTask::with(['campaign:id,name,status,user_id', 'panel:id,reference'])
+        $task = PoseTask::with([
+                'campaign:id,name,status,user_id',
+                'panel:id,reference',
+                // Pour détecter le cas "tech a signalé un problème non résolu
+                // ET tente quand même d'envoyer une pige" → on force la
+                // justification de la contradiction (voir bloc plus bas).
+                'lastProblemReport:id,pose_task_id,payload,created_at,resolved_at',
+            ])
             ->where('id', $taskId)
             ->where('assigned_user_id', $tech->id)
             ->first();
@@ -287,7 +294,37 @@ class TechSpaceController extends Controller
             'gps_lng'  => 'nullable|numeric|between:-180,180',
             'notes'    => 'nullable|string|max:500',
             'client_uuid' => 'nullable|string|max:64',
+            // Justification obligatoire quand le tech a un signalement ouvert
+            // sur cette pose. Vérifié plus bas (côté serveur — l'erreur 422
+            // sert de fallback si le JS frontend a été contourné).
+            'contradicts_signalement_reason' => 'nullable|string|min:10|max:1000',
         ]);
+
+        // ── Garde-fou contradiction signalement ↔ pige ────────────────
+        // Si le tech a déjà signalé un problème NON RÉSOLU sur cette pose
+        // (panneau cassé / accès / adresse / autre), une pige envoyée
+        // est contradictoire. On exige une justification écrite — sinon
+        // 422 structuré pour que le frontend ouvre la modale dédiée.
+        $blockingSignal = $task->lastProblemReport;
+        if ($blockingSignal && empty(trim($data['contradicts_signalement_reason'] ?? ''))) {
+            $signalType  = $blockingSignal->payload['type'] ?? 'autre';
+            $labels = [
+                'panneau_casse'    => 'Panneau cassé / abîmé',
+                'acces_bloque'     => 'Accès bloqué / impossible',
+                'mauvaise_adresse' => 'Mauvaise adresse / introuvable',
+                'autre'            => 'Autre problème',
+            ];
+            $signalLabel = $labels[$signalType] ?? 'Problème';
+
+            return response()->json([
+                'ok'                            => false,
+                'requires_contradiction_reason' => true,
+                'signalement_type'              => $signalType,
+                'signalement_label'             => $signalLabel,
+                'error'                         => "Tu as signalé ce panneau comme « {$signalLabel} ». "
+                    . "Justifie pourquoi tu envoies quand même une pige (10 caractères min).",
+            ], 422);
+        }
 
         // Idempotence : même tentative déjà traitée (double tap / reprise
         // réseau) → on renvoie la pige existante sans dupliquer.
@@ -338,6 +375,15 @@ class TechSpaceController extends Controller
         $noteParts = ['[via espace tech]'];
         $noteParts[] = 'Tech: ' . $tech->name;
         if (!empty($data['notes'])) $noteParts[] = $data['notes'];
+
+        // Trace de contradiction signalement → pige : visible côté MP/admin
+        // au moment de la validation pige. Le préfixe ⚠ permet un grep et
+        // un filtre rapide ("piges contradictoires").
+        if ($blockingSignal && !empty($data['contradicts_signalement_reason'])) {
+            $signalType  = $blockingSignal->payload['type'] ?? 'autre';
+            $noteParts[] = "⚠ CONTRADICTION SIGNALEMENT type=\"{$signalType}\" — justif: "
+                         . trim($data['contradicts_signalement_reason']);
+        }
 
         $pige = Pige::create([
             'panel_id'    => $task->panel_id,
