@@ -38,47 +38,47 @@
             line-height: 1.55;
         }
 
-        /* ── Header sticky ─────────────────────────────────────── */
+        /* ── Header sticky — charte CIBLE claire ───────────────── */
         .header {
             position: sticky; top: 0; z-index: 50;
-            background: linear-gradient(135deg, #0b1220 0%, #111c30 55%, #1a2845 100%);
-            color: #fff;
-            padding: 14px 16px calc(16px + env(safe-area-inset-top)) 16px;
+            background: var(--surface);
+            color: var(--text);
+            padding: 14px 16px;
             padding-top: max(14px, env(safe-area-inset-top));
-            box-shadow: 0 2px 14px rgba(0,0,0,.20);
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 2px 10px rgba(15,23,42,.04);
         }
-        .header-top {
-            display: flex; align-items: center; justify-content: space-between;
-            gap: 12px; margin-bottom: 6px;
-        }
-        .header .brand {
-            display: flex; align-items: center; gap: 10px;
-        }
-        .brand-kicker {
-            font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
-            text-transform: uppercase; color: rgba(255,255,255,.65);
+        .header-row {
+            display: flex; align-items: center; gap: 14px;
         }
         .brand-logo {
-            height: 26px; width: auto; display: block;
-            object-fit: contain; opacity: .95;
-            filter: drop-shadow(0 1px 2px rgba(0,0,0,.25));
+            flex: 0 0 auto;
+            height: 44px; width: auto; display: block;
+            object-fit: contain;
+        }
+        .header-info { flex: 1; min-width: 0; }
+        .brand-kicker {
+            font-size: 10px; font-weight: 800; letter-spacing: 1.3px;
+            text-transform: uppercase; color: var(--accent-dark);
+            display: block;
         }
         .header h1 {
-            font-size: 22px; font-weight: 800; margin: 2px 0 0;
-            letter-spacing: -0.3px;
+            font-size: 20px; font-weight: 800; margin: 1px 0 0;
+            letter-spacing: -0.2px; color: var(--text);
         }
         .header .stats {
-            display: flex; gap: 8px; margin-top: 12px;
+            display: flex; gap: 8px; margin-top: 10px;
             font-size: 12.5px; flex-wrap: wrap;
         }
         .header .stats .stat {
-            background: rgba(255,255,255,.09);
-            backdrop-filter: blur(6px);
-            padding: 7px 11px; border-radius: 999px;
-            display: inline-flex; align-items: center; gap: 6px;
-            border: 1px solid rgba(255,255,255,.06);
+            padding: 5px 10px; border-radius: 999px;
+            display: inline-flex; align-items: center; gap: 5px;
+            border: 1px solid var(--border); background: var(--surface2);
+            color: var(--text2);
         }
-        .header .stats .stat strong { color: var(--accent); font-weight: 800; }
+        .header .stats .stat strong { color: var(--text); font-weight: 800; }
+        .header .stats .stat-todo strong { color: var(--accent-dark); }
+        .header .stats .stat-done strong { color: var(--done); }
 
         /* ── Container ─────────────────────────────────────────── */
         .container { padding: 16px; max-width: 600px; margin: 0 auto; }
@@ -217,51 +217,69 @@
         }
 
         /* ═══ PARTIE B — refonte zone/lignes compactes ═══ */
-        /* Barre de progression dans l'en-tête */
-        .progress-wrap { margin-top: 14px; }
+        /* Barre de progression dans l'en-tête (charte claire) */
+        .progress-wrap { margin-top: 12px; }
         .progress-bar {
             height: 10px; border-radius: 999px;
-            background: rgba(255,255,255,.10);
+            background: var(--surface2);
             overflow: hidden;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,.25);
+            border: 1px solid var(--border);
         }
         .progress-fill {
             height: 100%; border-radius: 999px;
-            background: linear-gradient(90deg, #22c55e 0%, #16a34a 50%, #14b8a6 100%);
-            box-shadow: 0 0 8px rgba(34,197,94,.45);
+            background: linear-gradient(90deg, #16a34a, #22c55e);
             transition: width .5s cubic-bezier(.4,.0,.2,1);
         }
         .progress-meta {
-            font-size: 11.5px; opacity: .80;
-            margin-top: 7px; font-weight: 600;
+            font-size: 11.5px; color: var(--text3);
+            margin-top: 6px; font-weight: 600;
             display: flex; justify-content: space-between;
         }
+        .progress-meta strong { color: var(--text); }
 
-        /* En-tête de zone (commune) — bouton plein largeur, lisible plein soleil */
+        /* En-tête de zone (commune) — avec mini barre de progression de la zone */
         .commune-header {
-            display: flex; align-items: center; justify-content: space-between;
-            width: 100%; padding: 13px 16px;
+            display: flex; align-items: center; gap: 14px;
+            width: 100%; padding: 12px 14px;
             background: var(--surface); color: var(--text);
             border: 1px solid var(--border); border-radius: 14px;
             margin-bottom: 10px;
-            font-size: 15px; font-weight: 800;
-            cursor: pointer; font-family: inherit;
             text-align: left;
             box-shadow: 0 1px 2px rgba(15,23,42,.04);
             transition: box-shadow .15s, transform .08s;
         }
-        .commune-header:active { transform: scale(.998); }
+        .commune-header .ch-left {
+            display: flex; align-items: center; gap: 10px;
+            flex: 0 0 auto;
+        }
         .commune-header h2 {
             margin: 0; font-size: 15px; font-weight: 800;
             display: flex; align-items: center; gap: 8px;
         }
         .commune-header .count {
-            font-size: 12px; font-weight: 700;
+            font-size: 11.5px; font-weight: 700;
             background: var(--surface2); border: 1px solid var(--border);
             color: var(--text2); padding: 3px 9px; border-radius: 999px;
+            white-space: nowrap;
         }
-        .commune-header.has-overdue { border-color: rgba(239,68,68,.30); }
+        /* Mini barre de progression PAR ZONE — visuel "ABOBO 40%" immédiat */
+        .commune-header .ch-progress {
+            flex: 1 1 auto; min-width: 60px;
+            height: 6px; border-radius: 999px;
+            background: var(--surface2);
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .commune-header .ch-progress-fill {
+            height: 100%; border-radius: 999px;
+            background: linear-gradient(90deg, var(--accent), var(--accent-dark));
+            transition: width .5s cubic-bezier(.4,.0,.2,1);
+        }
+        .commune-header.has-overdue { border-color: rgba(239,68,68,.30); background: rgba(239,68,68,.03); }
         .commune-header.has-overdue h2::before { content: '🔥'; }
+        .commune-header.has-overdue .ch-progress-fill {
+            background: linear-gradient(90deg, #f97316, #ef4444);
+        }
 
         /* Ligne pose compacte — vignette + ref + statut, tap = caméra */
         .pose-line {
@@ -385,21 +403,24 @@
 <body>
 
 <div class="header">
-    <div class="header-top">
-        <div class="brand">
-            <span class="brand-kicker">Espace technicien</span>
+    <div class="header-row">
+        <img src="{{ asset('images/panora.png') }}" alt="Panora by CIBLE" class="brand-logo">
+        <div class="header-info">
+            <span class="brand-kicker">Espace technicien · CIBLE CI</span>
+            <h1>Bonjour {{ $tech->name }}</h1>
+            <div class="stats">
+                <div class="stat stat-todo">📋 <strong data-total-active>{{ $totalActive }}</strong> à faire</div>
+                <div class="stat stat-done">✅ <strong>{{ $totalDone }}</strong> faite{{ $totalDone > 1 ? 's' : '' }}</div>
+            </div>
         </div>
-        <img src="{{ asset('images/panora-blanc.png') }}" alt="Panora by CIBLE" class="brand-logo">
-    </div>
-    <h1>Bonjour {{ $tech->name }}</h1>
-    <div class="stats">
-        <div class="stat">📋 <strong data-total-active>{{ $totalActive }}</strong> à faire</div>
-        <div class="stat">✅ <strong>{{ $totalDone }}</strong> faite{{ $totalDone > 1 ? 's' : '' }}</div>
     </div>
     @if(($totalAssigned ?? 0) > 0)
     <div class="progress-wrap">
         <div class="progress-bar"><div class="progress-fill" style="width:{{ $progressPct ?? 0 }}%"></div></div>
-        <div class="progress-meta">{{ $totalDone }}/{{ $totalAssigned }} ({{ $progressPct }}%)</div>
+        <div class="progress-meta">
+            <span>{{ $totalDone }}/{{ $totalAssigned }} terminées</span>
+            <span><strong>{{ $progressPct }}%</strong></span>
+        </div>
     </div>
     @endif
 </div>
@@ -434,10 +455,21 @@
                     return $d && \Carbon\Carbon::parse($d)->startOfDay()->lt($today);
                 });
             @endphp
+            @php
+                $doneZone   = $doneByCommune[$communeName] ?? 0;
+                $activeZone = $tasks->count();
+                $totalZone  = $activeZone + $doneZone;
+                $pctZone    = $totalZone > 0 ? (int) round($doneZone / $totalZone * 100) : 0;
+            @endphp
             <div class="day-section">
                 <div class="commune-header {{ $hasOverdue ? 'has-overdue' : '' }}">
-                    <h2>📍 {{ $communeName }}</h2>
-                    <span class="count">{{ $tasks->count() }} pose{{ $tasks->count() > 1 ? 's' : '' }}</span>
+                    <div class="ch-left">
+                        <h2>📍 {{ $communeName }}</h2>
+                        <span class="count">{{ $doneZone }}/{{ $totalZone }} faite{{ $totalZone > 1 ? 's' : '' }}</span>
+                    </div>
+                    <div class="ch-progress" title="{{ $pctZone }}% de la zone terminée">
+                        <div class="ch-progress-fill" style="width:{{ $pctZone }}%"></div>
+                    </div>
                 </div>
 
                 @foreach($tasks as $task)

@@ -84,7 +84,11 @@ class TechSpaceController extends Controller
                 'campaign:id,name,start_date,end_date,client_id,status',
                 'campaign.client:id,name',
                 'lastProblemReport',  // ⚠ pour le badge "déjà signalé"
-                'latestRejectedPige:id,pose_task_id,rejection_reason,created_at',
+                // ⚠ Pas de projection (select) ici : latestOfMany génère des
+                // joins internes, et `id`/`pose_task_id` non préfixés deviennent
+                // ambigus → "Column 'pose_task_id' is ambiguous". On laisse
+                // Eloquent utiliser `piges.*` (qualifié) par défaut.
+                'latestRejectedPige',
             ])
             ->where('assigned_user_id', $tech->id)
             ->whereNotNull('panel_id')
@@ -103,6 +107,17 @@ class TechSpaceController extends Controller
             ->count();
         $totalAssigned = $totalActive + $totalDone;
         $progressPct   = $totalAssigned > 0 ? (int) round($totalDone / $totalAssigned * 100) : 0;
+
+        // Compteur des poses TERMINÉES regroupées par COMMUNE (pour la barre
+        // de progression par zone — le tech voit "ABOBO 2/5" et avance).
+        // Une seule requête, eager-load minimal sur panel.commune.
+        $doneByCommune = PoseTask::where('assigned_user_id', $tech->id)
+            ->where('status', PoseTaskStatus::COMPLETED->value)
+            ->with(['panel:id,commune_id', 'panel.commune:id,name'])
+            ->get(['id', 'panel_id'])
+            ->groupBy(fn($t) => $t->panel?->commune?->name ?? 'Sans commune')
+            ->map(fn($g) => $g->count())
+            ->all();
 
         // Marque les poses en retard (échéance passée) — sert au tri et au badge.
         $today = Carbon::today();
@@ -131,6 +146,7 @@ class TechSpaceController extends Controller
             'totalAssigned'    => $totalAssigned,
             'progressPct'      => $progressPct,
             'groupedByCommune' => $groupedByCommune,
+            'doneByCommune'    => $doneByCommune,
         ];
     }
 
