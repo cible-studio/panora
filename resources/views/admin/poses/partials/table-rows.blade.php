@@ -177,10 +177,11 @@
     }
 
     /* ─── Boutons d'action des poses ──────────────────────────────
-       Anciennement définis uniquement dans poses/index.blade.php →
+       Anciennement définis uniquement dans poses/index.blade.php
        quand le partial était inclus depuis campaigns/poses.blade.php
        les boutons ressortaient pâles/invisibles (CSS absente). On
-       déplace ici via @once pour garantir le rendu partout. */
+       déplace ici (dans le bloc once du partial) pour garantir le
+       rendu partout. */
     .action-btn {
         display:inline-flex;align-items:center;justify-content:center;
         width:34px;height:34px;border-radius:9px;

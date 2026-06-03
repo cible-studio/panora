@@ -926,9 +926,9 @@ cursor: pointer;
 .btn-reset { display:flex;align-items:center;justify-content:center;height:38px;padding:0 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text3);text-decoration:none;font-size:12px;transition:all .15s;cursor:pointer;font-weight:500; }
 .btn-reset:hover { border-color:var(--accent);color:var(--accent); }
 
-/* .action-btn et variantes : styles centralisés dans
-   admin/poses/partials/table-rows.blade.php (chargés via @once),
-   pour que la vue admin.campaigns.poses qui inclut le même partial
+/* .action-btn et variantes : styles centralises dans le partial
+   admin/poses/partials/table-rows.blade.php (charges via Blade once),
+   pour que la vue admin.campaigns.poses qui inclut le meme partial
    ait aussi les boutons stylés. */
 
 /* ── Toolbar Actions Groupées — pattern Gmail inline ─────────────────
