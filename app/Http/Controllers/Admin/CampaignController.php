@@ -1087,6 +1087,20 @@ class CampaignController extends Controller
                 'La campagne a déjà commencé le ' . $campaign->start_date->format('d/m/Y') . '.');
         }
 
+        // ⚠ Garde anti-saisie incohérente : une campagne PLANIFIEE ne peut
+        // pas avoir une start_date dans le passé. Cela créait des campagnes
+        // "planifiées" déjà en retard, qui ne s'activaient pas automatiquement
+        // au bon jour (cron sync regarde start_date <= today mais le statut
+        // resté planifie ne déclenche aucune logique terrain).
+        if ($campaign->status === CampaignStatus::PLANIFIE
+            && $newStart->lt($today)) {
+            return back()->withInput()->with('error',
+                '❌ Une campagne planifiée ne peut pas avoir une date de début dans le passé. ' .
+                'Choisis aujourd\'hui (' . $today->format('d/m/Y') . ') ou une date future. ' .
+                'Pour saisir une campagne déjà commencée, crée-la directement en statut Actif.'
+            );
+        }
+
         // Statut recalculé en fonction des nouvelles dates
         $data['status'] = $this->calculateStatus($newStart, $newEnd, $campaign->status);
 
