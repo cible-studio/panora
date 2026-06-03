@@ -93,6 +93,47 @@
         .kpi-tile.kt-verified .kt-value { color: #22c55e; }
         .kpi-tile.kt-rejected .kt-value { color: #ef4444; }
 
+        /* Toggle Statut actuel / Historique complet */
+        .view-toggle {
+            display: flex; gap: 6px; margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .vt-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px; border-radius: 999px;
+            background: var(--surface); border: 1px solid var(--border);
+            color: var(--text2); font-size: 11.5px; font-weight: 700;
+            text-decoration: none; cursor: pointer; font-family: inherit;
+            transition: all .15s;
+        }
+        .vt-chip:active { transform: scale(.96); }
+        .vt-chip.is-active {
+            background: var(--accent); color: #fff; border-color: var(--accent);
+            box-shadow: 0 4px 12px -4px rgba(232,160,32,.45);
+        }
+        .vt-chip .vt-badge {
+            background: rgba(0,0,0,.10); padding: 1px 6px; border-radius: 999px;
+            font-size: 10px; font-weight: 800;
+            font-family: ui-monospace, monospace;
+        }
+        .vt-chip.is-active .vt-badge { background: rgba(255,255,255,.25); }
+
+        /* Pige obsolète (mode Historique) : opacité réduite + badge "ancienne" */
+        .pige-card.is-superseded {
+            opacity: .65;
+            border-style: dashed;
+        }
+        .pige-card.is-superseded .pige-thumb {
+            filter: grayscale(.4);
+        }
+        .pige-superseded-badge {
+            display: inline-block; margin-top: 4px;
+            padding: 2px 7px; border-radius: 999px;
+            background: rgba(107,114,128,.12); color: #4b5563;
+            font-size: 9.5px; font-weight: 800;
+            letter-spacing: .3px; text-transform: uppercase;
+        }
+
         /* Live indicator dans le header */
         .live-indicator {
             display: inline-flex; align-items: center; gap: 4px;
@@ -185,32 +226,65 @@
         <span class="live-indicator" data-live-indicator>live</span>
     </div>
     {{-- KPI tiles cliquables comme filtres (server-side ?status=) +
-         polling 20s anime les valeurs au passage de chaque tick. --}}
+         polling 20s anime les valeurs au passage de chaque tick.
+         Le mode de vue (?view=current|all) est conservé sur chaque clic. --}}
+    @php $vp = $view === 'all' ? ['view' => 'all'] : []; @endphp
     <div class="kpi-row" role="group" aria-label="Filtres piges">
-        <a href="{{ route('tech.space.piges', $token) }}"
+        <a href="{{ route('tech.space.piges', array_merge([$token], $vp)) }}"
            class="kpi-tile kt-total {{ !$statusFilter ? 'is-active' : '' }}"
            aria-pressed="{{ !$statusFilter ? 'true' : 'false' }}">
             <div class="kt-value" data-kpi-value="pigesTotal">{{ $kpi['total'] }}</div>
             <div class="kt-label">Total</div>
         </a>
-        <a href="{{ route('tech.space.piges', [$token, 'status' => 'en_attente']) }}"
+        <a href="{{ route('tech.space.piges', array_merge([$token, 'status' => 'en_attente'], $vp)) }}"
            class="kpi-tile kt-pending {{ $statusFilter === 'en_attente' ? 'is-active' : '' }}"
            aria-pressed="{{ $statusFilter === 'en_attente' ? 'true' : 'false' }}">
             <div class="kt-value" data-kpi-value="pigesPending">{{ $kpi['pending'] }}</div>
             <div class="kt-label">En attente</div>
         </a>
-        <a href="{{ route('tech.space.piges', [$token, 'status' => 'verifie']) }}"
+        <a href="{{ route('tech.space.piges', array_merge([$token, 'status' => 'verifie'], $vp)) }}"
            class="kpi-tile kt-verified {{ $statusFilter === 'verifie' ? 'is-active' : '' }}"
            aria-pressed="{{ $statusFilter === 'verifie' ? 'true' : 'false' }}">
             <div class="kt-value" data-kpi-value="pigesVerified">{{ $kpi['verified'] }}</div>
             <div class="kt-label">Validées</div>
         </a>
-        <a href="{{ route('tech.space.piges', [$token, 'status' => 'rejete']) }}"
+        <a href="{{ route('tech.space.piges', array_merge([$token, 'status' => 'rejete'], $vp)) }}"
            class="kpi-tile kt-rejected {{ $statusFilter === 'rejete' ? 'is-active' : '' }}"
            aria-pressed="{{ $statusFilter === 'rejete' ? 'true' : 'false' }}">
             <div class="kt-value" data-kpi-value="pigesRejected">{{ $kpi['rejected'] }}</div>
             <div class="kt-label">Refusées</div>
         </a>
+    </div>
+
+    {{-- Toggle de vue : "Statut actuel" (déduplication par panneau, garde
+         la pige la plus récente) vs "Historique complet" (toutes les
+         piges, audit). Par défaut on est en "Statut actuel" pour éviter
+         qu'un panneau re-piggé apparaisse en double (refusée + en attente).
+         Le 2e bouton n'apparaît que s'il y a effectivement de l'historique
+         masqué — sinon il serait perçu comme inutile. --}}
+    @php
+        $currentLinkArgs = $statusFilter
+            ? [$token, 'status' => $statusFilter]
+            : [$token];
+        $allLinkArgs = array_merge($currentLinkArgs, ['view' => 'all']);
+        $hiddenInCurrent = max(0, $historyTotal - $kpi['total']);
+    @endphp
+    <div class="view-toggle" role="group" aria-label="Mode d'affichage">
+        <a href="{{ route('tech.space.piges', $currentLinkArgs) }}"
+           class="vt-chip {{ $view === 'current' ? 'is-active' : '' }}"
+           title="Affiche uniquement la pige la plus récente par panneau">
+            🎯 Statut actuel
+        </a>
+        @if($view === 'all' || $hiddenInCurrent > 0)
+        <a href="{{ route('tech.space.piges', $allLinkArgs) }}"
+           class="vt-chip {{ $view === 'all' ? 'is-active' : '' }}"
+           title="Affiche toutes les piges, y compris les anciennes refaites">
+            📜 Historique complet
+            @if($hiddenInCurrent > 0 && $view === 'current')
+                <span class="vt-badge">+{{ $hiddenInCurrent }}</span>
+            @endif
+        </a>
+        @endif
     </div>
 </div>
 
@@ -227,7 +301,8 @@
                 ? \Illuminate\Support\Facades\Storage::url($p->photo_path)
                 : null;
         @endphp
-        <div class="pige-card">
+<div class="pige-card {{ ($p->is_superseded ?? false) ? 'is-superseded' : '' }}"
+             title="{{ ($p->is_superseded ?? false) ? 'Une pige plus récente existe pour ce panneau.' : '' }}">
             @if($photoUrl)
                 <a class="pige-thumb"
                    style="background-image:url('{{ $photoUrl }}')"
@@ -245,7 +320,12 @@
                 </div>
             @endif
             <div class="pige-body">
-                <div class="pige-ref">{{ $p->panel?->reference ?? '—' }}</div>
+                <div class="pige-ref">
+                    {{ $p->panel?->reference ?? '—' }}
+                    @if($p->is_superseded ?? false)
+                        <span class="pige-superseded-badge">↻ Repiggée</span>
+                    @endif
+                </div>
                 <div class="pige-meta">
                     @if($p->panel?->name)
                         <span>{{ $p->panel->name }}</span>
