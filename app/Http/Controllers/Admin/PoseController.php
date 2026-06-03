@@ -43,7 +43,11 @@ class PoseController extends Controller
             'panel:id,reference,name,commune_id',
             'panel.commune:id,name',
             'campaign' => fn($q) => $q->withTrashed()->select('id', 'name', 'status', 'deleted_at'),
-            'technicien:id,name',
+            // ⚠ whatsapp_number indispensable pour l'avertissement "Pas
+            // de WhatsApp" affiché dans la colonne technicien — sans cette
+            // colonne, le badge rouge s'affichait pour TOUS les techs même
+            // ceux qui ont un numéro configuré.
+            'technicien:id,name,whatsapp_number',
         ])->withCount([
             'piges as pige_count',
             'piges as pige_verifie_count' => fn($q) => $q->where('status', 'verifie'),
