@@ -1111,7 +1111,7 @@ class CampaignController extends Controller
 
         $data['updated_by'] = auth()->id();
 
-        DB::transaction(function () use ($campaign, $data) {
+        DB::transaction(function () use ($campaign, $data, $oldStatus) {
             $campaign->update($data);
 
             // Si dates changées et qu'il y a une réservation liée, on doit
@@ -1126,6 +1126,35 @@ class CampaignController extends Controller
             // Recalcul du montant si la durée a changé
             if ($campaign->wasChanged(['start_date', 'end_date'])) {
                 $this->campaignService->recalculateCampaignAmount($campaign->fresh());
+            }
+
+            // ⚠ Bug fix : calculateStatus() peut faire passer la campagne
+            // d'un statut à l'autre (ex: PLANIFIE → ACTIF si start_date
+            // ramenée à today). Sans le sync, les panneaux restent à
+            // CONFIRME alors que la campagne diffuse. On propage la
+            // transition de statut aux panneaux pour cohérence inventaire.
+            if ($campaign->wasChanged('status')) {
+                try {
+                    $panelIds = $campaign->panels()->pluck('panels.id')->all();
+                    $extIds   = $campaign->externalPanels()->pluck('external_panels.id')->all();
+                    if (!empty($panelIds)) {
+                        app(\App\Services\AvailabilityService::class)->syncPanelStatuses($panelIds);
+                    }
+                    if (!empty($extIds)) {
+                        app(\App\Services\AvailabilityService::class)->syncExternalPanelStatuses($extIds);
+                    }
+                    Log::info('campaign.update.status_changed', [
+                        'campaign_id' => $campaign->id,
+                        'old_status'  => $oldStatus->value,
+                        'new_status'  => $campaign->status->value,
+                        'panels_synced' => count($panelIds) + count($extIds),
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::warning('campaign.update.sync_failed', [
+                        'campaign_id' => $campaign->id,
+                        'error'       => $e->getMessage(),
+                    ]);
+                }
             }
         });
 
