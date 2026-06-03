@@ -1765,6 +1765,29 @@ class CampaignController extends Controller
                 'status'     => $newStatus->value,
                 'updated_by' => auth()->id(),
             ]);
+
+            // Propagation aux panneaux : ACTIF → PAUSE doit faire passer
+            // les panneaux d'OCCUPE à CONFIRME (le client a payé, la résa
+            // est toujours active, mais plus de diffusion terrain). Sans
+            // cette sync les panneaux restaient en OCCUPE en pause —
+            // incohérent avec la légende admin "En affichage".
+            try {
+                $panelIds = $campaign->panels()->pluck('panels.id')->all();
+                $extIds   = $campaign->externalPanels()->pluck('external_panels.id')->all();
+                if (!empty($panelIds)) {
+                    app(\App\Services\AvailabilityService::class)->syncPanelStatuses($panelIds);
+                }
+                if (!empty($extIds)) {
+                    app(\App\Services\AvailabilityService::class)->syncExternalPanelStatuses($extIds);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('campaign.status_update.sync_failed', [
+                    'campaign_id' => $campaign->id,
+                    'new_status'  => $newStatus->value,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
+
             $alertLevel = 'info';
             $alertIcon  = '🔄';
             $alertVerb  = 'a changé le statut de';
