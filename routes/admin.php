@@ -150,6 +150,18 @@ Route::prefix('tech')->middleware(['throttle:60,1', \App\Http\Middleware\SetFren
     Route::get('/{token}/poses/route-sheet', [\App\Http\Controllers\TechSpaceController::class, 'routeSheet'])
         ->name('tech.space.route-sheet');
 
+    // Vue Carte (Leaflet + cluster) — markers colorés par statut, popups
+    // avec actions (Y aller, Voir la pose). Indispensable au-delà de 30
+    // poses pour visualiser la densité et planifier la tournée.
+    Route::get('/{token}/poses/map', [\App\Http\Controllers\TechSpaceController::class, 'map'])
+        ->name('tech.space.map');
+
+    // TSP nearest-neighbor : prend la position du tech (lat/lng) et
+    // retourne l'ordre optimal de tournée (greedy) pour minimiser le
+    // trajet total. JSON pur, consommé par les vues liste et map.
+    Route::get('/{token}/poses/optimize', [\App\Http\Controllers\TechSpaceController::class, 'optimizeTour'])
+        ->name('tech.space.optimize');
+
     Route::post('/{token}/poses/{task}/status', [\App\Http\Controllers\TechSpaceController::class, 'updateStatus'])
         ->whereNumber('task')
         ->name('tech.space.status');

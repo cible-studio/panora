@@ -871,6 +871,52 @@
             font-size: 11px;
         }
 
+        /* Badge numéro de tournée (TSP) — visible en mode "Optimiser tournée" */
+        .pose-line.tour-mode .pose-thumb::after {
+            content: attr(data-tour-step);
+            position: absolute;
+            top: -8px; left: -8px;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #fff; width: 22px; height: 22px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 800;
+            box-shadow: 0 4px 10px -2px rgba(34,197,94,.5);
+            border: 2px solid #fff;
+            font-family: ui-monospace, monospace;
+        }
+        .pose-line.tour-mode .pose-thumb { position: relative; }
+        .pose-line.tour-mode {
+            border-color: rgba(34,197,94,.35);
+            box-shadow: 0 0 0 1px rgba(34,197,94,.15), 0 4px 12px -4px rgba(34,197,94,.2);
+        }
+        .pose-tour-leg {
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 1px 7px; border-radius: 999px;
+            background: rgba(34,197,94,.12);
+            color: #15803d; font-weight: 700;
+            font-size: 11px;
+        }
+
+        /* Banner total tournée affiché en haut */
+        .tour-summary {
+            display: none;
+            margin: 0 0 12px;
+            padding: 10px 14px; border-radius: 12px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border: 1px solid rgba(34,197,94,.35);
+            color: #166534;
+            font-size: 12.5px; font-weight: 700; line-height: 1.45;
+            display: flex; gap: 10px; align-items: center;
+        }
+        .tour-summary.show { display: flex; }
+        .tour-summary strong { color: #14532d; }
+        .tour-summary button {
+            margin-left: auto;
+            background: transparent; border: 1px solid rgba(34,197,94,.4);
+            color: #166534; padding: 5px 10px; border-radius: 8px;
+            font-size: 11.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+        }
+
         /* Bandeau offline (Service Worker fallback) */
         .offline-banner {
             display: none; position: fixed; left: 0; right: 0; bottom: 0;
@@ -1024,12 +1070,21 @@
 <div class="controls-bar">
     <div class="controls-bar-row">
         <select id="ts-search" data-placeholder="🔍 Rechercher panneau, commune, campagne…"></select>
+        <a class="ctrl-btn" href="{{ route('tech.space.map', $token) }}" title="Vue Carte interactive">
+            🗺<span style="margin-left:2px;font-size:11px">Carte</span>
+        </a>
         <button type="button" class="ctrl-btn" id="ts-distance-btn" title="Trier par distance depuis ma position">
             🧭<span style="margin-left:2px;font-size:11px" id="ts-distance-label">Distance</span>
+        </button>
+        <button type="button" class="ctrl-btn" id="ts-tour-btn" title="Optimiser l'ordre de tournée (nearest-neighbor)">
+            🚀<span style="margin-left:2px;font-size:11px" id="ts-tour-label">Tournée</span>
         </button>
         <a class="ctrl-btn" href="{{ route('tech.space.route-sheet', $token) }}" target="_blank" rel="noopener" title="Feuille de route imprimable">
             🖨
         </a>
+        <span class="ctrl-btn" id="ts-sync-badge" style="display:none;background:rgba(245,158,11,.15);color:#b45309;border-color:rgba(245,158,11,.4);cursor:pointer" title="Photos en attente d'envoi (offline)">
+            📤<span style="margin-left:2px;font-size:11px" id="ts-sync-count">0</span>
+        </span>
     </div>
 </div>
 @endif
@@ -1084,6 +1139,13 @@
                 </div>
             </div>
         @endif
+
+        {{-- Banner mode tournée — visible quand TSP optimisé activé --}}
+        <div class="tour-summary" id="ts-tour-summary">
+            <span>🚀</span>
+            <span>Tournée optimisée : <strong id="ts-tour-count">0</strong> arrêts · <strong id="ts-tour-total">0 km</strong> au total</span>
+            <button type="button" id="ts-tour-quit">Quitter</button>
+        </div>
 
         {{-- ═══ HERO « PROCHAINE POSE » ═══
              Showcasing de la pose la plus prioritaire (retard → aujourd'hui
@@ -2020,6 +2082,19 @@
                 }, 400);
             }
         } catch (err) {
+            // En mode offline (ou erreur fetch), on enqueue la photo pour
+            // un rejouage automatique au retour réseau (Background Sync).
+            // Évite au tech de perdre sa photo après avoir parcouru un km
+            // pour atteindre un panneau dans une zone sans réseau.
+            if (typeof window.queueOfflinePhoto === 'function'
+                && (navigator.onLine === false || err.name === 'TypeError')) {
+                try {
+                    await window.queueOfflinePhoto(taskId, blob instanceof Blob ? blob : file, gps, contradictionReason);
+                    label.innerHTML = '📤 En attente';
+                    setTimeout(() => { label.innerHTML = originalLabel; label.style.pointerEvents = ''; input.value = ''; }, 1500);
+                    return;
+                } catch (e) { /* fallback toast classique */ }
+            }
             toast('Erreur réseau', 'error');
             label.innerHTML = originalLabel;
             label.style.pointerEvents = '';
@@ -2757,16 +2832,290 @@ window.addEventListener('DOMContentLoaded', function () {
             .catch(() => { /* échec silencieux : pas critique */ });
     }
 
-    // ─── 15. Détection online / offline ─────────────────────────
+    // ─── 15. Détection online / offline + flush queue Background Sync ──
     const offlineBanner = document.getElementById('ts-offline-banner');
     function updateOfflineState() {
         if (!offlineBanner) return;
         if (navigator.onLine === false) offlineBanner.classList.add('show');
         else offlineBanner.classList.remove('show');
+        // Retour online → on tente de rejouer la queue offline
+        if (navigator.onLine !== false) flushUploadQueue();
     }
     window.addEventListener('online',  updateOfflineState);
     window.addEventListener('offline', updateOfflineState);
     updateOfflineState();
+
+    // ═══════════════════════════════════════════════════════════════
+    // ─── 16. MODE TOURNÉE — TSP nearest-neighbor côté serveur ────
+    //
+    // Le tech clique "🚀 Tournée" → on demande la géoloc → on POST l'IDs
+    // des cards rendues à /poses/optimize → le serveur renvoie l'ordre
+    // optimal + distances cumulées. On réordonne les cards en mode
+    // "tournée" (badge numéro, ordre forcé sur toutes les sections,
+    // groupage par zone désactivé visuellement).
+    // ═══════════════════════════════════════════════════════════════
+    const TOUR_URL = "{{ route('tech.space.optimize', $token) }}";
+    const tourBtn = document.getElementById('ts-tour-btn');
+    const tourSummary = document.getElementById('ts-tour-summary');
+    let tourActive = false;
+    let originalParentByCard = new Map(); // pour restaurer le DOM
+
+    function preserveOriginalOrder() {
+        document.querySelectorAll('.pose[data-task-id]').forEach(c => {
+            originalParentByCard.set(c, { parent: c.parentNode, index: Array.from(c.parentNode.children).indexOf(c) });
+        });
+    }
+    preserveOriginalOrder();
+
+    function exitTourMode() {
+        tourActive = false;
+        tourBtn?.classList.remove('is-active');
+        document.getElementById('ts-tour-label').textContent = 'Tournée';
+        tourSummary?.classList.remove('show');
+        document.querySelectorAll('.pose.tour-mode').forEach(c => {
+            c.classList.remove('tour-mode');
+            c.removeAttribute('data-tour-step');
+            c.querySelector('.pose-tour-leg')?.remove();
+        });
+        // Restaure la position d'origine de chaque card
+        originalParentByCard.forEach((info, card) => {
+            const ref = info.parent.children[info.index];
+            if (ref && ref !== card) info.parent.insertBefore(card, ref);
+            else info.parent.appendChild(card);
+        });
+        document.querySelectorAll('.day-section').forEach(sec => { sec.style.display = ''; });
+        applyFilters();
+    }
+
+    tourBtn?.addEventListener('click', async () => {
+        if (tourActive) { exitTourMode(); return; }
+        if (!navigator.geolocation) {
+            toastSmall('Géoloc indisponible.', 'error');
+            return;
+        }
+        tourBtn.disabled = true;
+        document.getElementById('ts-tour-label').textContent = '🛰…';
+        const pos = await getGeoPosition();
+        if (!pos) {
+            tourBtn.disabled = false;
+            document.getElementById('ts-tour-label').textContent = 'Tournée';
+            toastSmall('Position indisponible — autorise la localisation.', 'error');
+            return;
+        }
+        document.getElementById('ts-tour-label').textContent = '🔄…';
+        try {
+            const ids = Array.from(document.querySelectorAll('.pose[data-task-id]'))
+                .map(c => parseInt(c.dataset.taskId, 10)).filter(Boolean);
+            const u = new URL(TOUR_URL, location.origin);
+            u.searchParams.set('lat', pos.lat.toFixed(6));
+            u.searchParams.set('lng', pos.lng.toFixed(6));
+            u.searchParams.set('scope', 'rendered');
+            ids.forEach(id => u.searchParams.append('ids[]', id));
+            const r = await fetch(u.toString(), { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+            const d = await r.json();
+            if (!r.ok || !d.ok) throw new Error('optimize');
+            applyTourOrder(d.order, d.total_meters);
+        } catch (e) {
+            toastSmall('Calcul impossible — réessayer.', 'error');
+            document.getElementById('ts-tour-label').textContent = 'Tournée';
+        } finally {
+            tourBtn.disabled = false;
+        }
+    });
+
+    function applyTourOrder(order, totalMeters) {
+        tourActive = true;
+        tourBtn.classList.add('is-active');
+        document.getElementById('ts-tour-label').textContent = '✓';
+
+        // 1. Annule les filtres pour révéler toutes les cards de la tournée
+        document.querySelectorAll('.day-section').forEach(s => s.style.display = '');
+
+        // 2. Crée une section "Tournée" en tête, déplace toutes les cards
+        //    selon l'ordre TSP, ajoute le badge numéro + la distance leg.
+        let tourSec = document.getElementById('ts-tour-section');
+        if (!tourSec) {
+            tourSec = document.createElement('div');
+            tourSec.id = 'ts-tour-section';
+            tourSec.className = 'day-section';
+            tourSec.innerHTML = '<div class="commune-header"><div class="ch-left"><h2 style="color:#15803d">🚀 Tournée optimisée</h2><span class="count">' + order.length + ' arrêts</span></div></div>';
+            const empty = document.getElementById('ts-empty-filter');
+            empty.parentNode.insertBefore(tourSec, empty.nextSibling);
+        } else {
+            // reset content sauf header
+            tourSec.querySelector('.count').textContent = order.length + ' arrêts';
+            // remove previous cards
+            Array.from(tourSec.querySelectorAll('.pose')).forEach(c => c.remove());
+        }
+
+        order.forEach((step, idx) => {
+            const card = document.querySelector(`.pose[data-task-id="${step.id}"]`);
+            if (!card) return;
+            card.classList.add('tour-mode');
+            card.setAttribute('data-tour-step', idx + 1);
+            // Ajoute / met à jour le pill "leg distance"
+            let leg = card.querySelector('.pose-tour-leg');
+            if (!leg) {
+                leg = document.createElement('span');
+                leg.className = 'pose-tour-leg';
+                const sub = card.querySelector('.pose-sub');
+                if (sub) sub.appendChild(leg);
+            }
+            leg.textContent = '🚀 +' + formatDistance(step.leg_meters);
+            tourSec.appendChild(card);
+        });
+
+        // 3. Masque les autres sections (les cards y ont été déplacées)
+        document.querySelectorAll('.day-section').forEach(sec => {
+            if (sec === tourSec) return;
+            if (!sec.querySelector('.pose[data-task-id]')) sec.style.display = 'none';
+        });
+
+        // 4. Affiche la banner total
+        document.getElementById('ts-tour-count').textContent = order.length;
+        document.getElementById('ts-tour-total').textContent = totalMeters >= 1000
+            ? (totalMeters / 1000).toFixed(1).replace('.0', '') + ' km'
+            : totalMeters + ' m';
+        tourSummary.classList.add('show');
+        tourSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    document.getElementById('ts-tour-quit')?.addEventListener('click', exitTourMode);
+
+    // ═══════════════════════════════════════════════════════════════
+    // ─── 17. BACKGROUND SYNC photo offline ────────────────────────
+    //
+    // Stratégie : si le tech upload une photo en mode offline (ou si
+    // l'upload échoue par timeout réseau), on enqueue le FormData
+    // sérialisé en IndexedDB. Au retour online (ou au prochain load
+    // de la page), on rejoue les uploads en arrière-plan. Le tech voit
+    // un badge "📤 N en attente" dans la barre de contrôles + un toast
+    // au succès du rejouage.
+    //
+    // Fonctionne sur Chrome / Edge / Android (Background Sync API) et
+    // sur iOS Safari via fallback rejouage au load (online event).
+    // ═══════════════════════════════════════════════════════════════
+    const SYNC_DB  = 'panora-tech-uploads';
+    const SYNC_STORE = 'queue';
+
+    function openDb() {
+        return new Promise((resolve, reject) => {
+            const r = indexedDB.open(SYNC_DB, 1);
+            r.onupgradeneeded = () => {
+                const db = r.result;
+                if (!db.objectStoreNames.contains(SYNC_STORE)) {
+                    db.createObjectStore(SYNC_STORE, { keyPath: 'id', autoIncrement: true });
+                }
+            };
+            r.onsuccess = () => resolve(r.result);
+            r.onerror = () => reject(r.error);
+        });
+    }
+    async function queueCount() {
+        try {
+            const db = await openDb();
+            return new Promise(resolve => {
+                const tx = db.transaction(SYNC_STORE, 'readonly');
+                const req = tx.objectStore(SYNC_STORE).count();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve(0);
+            });
+        } catch (e) { return 0; }
+    }
+    async function refreshSyncBadge() {
+        const n = await queueCount();
+        const badge = document.getElementById('ts-sync-badge');
+        const cnt   = document.getElementById('ts-sync-count');
+        if (!badge) return;
+        if (n > 0) { badge.style.display = ''; cnt.textContent = n; }
+        else badge.style.display = 'none';
+    }
+
+    // Hook minimal : intercepte les échecs réseau d'upload photo (le
+    // pipeline existant fait fetch /poses/{id}/photo). On enrichit ce
+    // pipeline en ré-utilisant la fonction window.queueOfflinePhoto
+    // qui peut être appelée depuis le handler photo en cas d'erreur.
+    window.queueOfflinePhoto = async function (taskId, file, gps, contradictionReason) {
+        try {
+            const db = await openDb();
+            const tx = db.transaction(SYNC_STORE, 'readwrite');
+            const fileBuf = await file.arrayBuffer();
+            tx.objectStore(SYNC_STORE).add({
+                taskId,
+                fileBuf,
+                fileName: file.name || 'photo.jpg',
+                fileType: file.type || 'image/jpeg',
+                gps,
+                contradictionReason,
+                queuedAt: new Date().toISOString(),
+                token: '{{ $token }}',
+            });
+            tx.oncomplete = () => {
+                refreshSyncBadge();
+                toastSmall('📤 Photo en attente — sera envoyée au retour réseau', 'info');
+            };
+        } catch (e) {
+            console.warn('queueOfflinePhoto failed', e);
+        }
+    };
+
+    async function flushUploadQueue() {
+        try {
+            const db = await openDb();
+            const all = await new Promise(resolve => {
+                const tx = db.transaction(SYNC_STORE, 'readonly');
+                const req = tx.objectStore(SYNC_STORE).getAll();
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = () => resolve([]);
+            });
+            if (!all.length) { refreshSyncBadge(); return; }
+            let okCount = 0, failCount = 0;
+            for (const entry of all) {
+                try {
+                    const blob = new Blob([entry.fileBuf], { type: entry.fileType });
+                    const fd = new FormData();
+                    fd.append('photo', blob, entry.fileName);
+                    if (entry.gps?.lat) fd.append('gps_lat', entry.gps.lat);
+                    if (entry.gps?.lng) fd.append('gps_lng', entry.gps.lng);
+                    if (entry.contradictionReason) fd.append('contradicts_signalement_reason', entry.contradictionReason);
+                    fd.append('client_uuid', 'queue-' + entry.id);
+                    const r = await fetch(`/tech/${entry.token}/poses/${entry.taskId}/photo`, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+                        body: fd,
+                    });
+                    if (r.ok) {
+                        okCount++;
+                        await new Promise(resolve => {
+                            const tx = db.transaction(SYNC_STORE, 'readwrite');
+                            tx.objectStore(SYNC_STORE).delete(entry.id);
+                            tx.oncomplete = resolve; tx.onerror = resolve;
+                        });
+                    } else {
+                        failCount++;
+                    }
+                } catch (e) {
+                    failCount++;
+                }
+            }
+            refreshSyncBadge();
+            if (okCount > 0) {
+                toastSmall(`✓ ${okCount} photo${okCount > 1 ? 's' : ''} envoyée${okCount > 1 ? 's' : ''} (différé)`, 'success');
+            }
+            if (failCount > 0) {
+                toastSmall(`${failCount} photo${failCount > 1 ? 's' : ''} en échec — réessayer plus tard`, 'error');
+            }
+        } catch (e) {
+            console.warn('flushUploadQueue failed', e);
+        }
+    }
+    window.flushUploadQueue = flushUploadQueue;
+
+    document.getElementById('ts-sync-badge')?.addEventListener('click', flushUploadQueue);
+
+    // Init badge + flush si online (cas Safari sans Background Sync API)
+    refreshSyncBadge();
+    if (navigator.onLine !== false) flushUploadQueue();
 });
 </script>
 
