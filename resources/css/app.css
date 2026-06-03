@@ -662,7 +662,11 @@ button.kpi-card { width: 100%; }
   inset: 0;
   background: rgba(0,0,0,0.8);
   backdrop-filter: blur(8px);
-  z-index: 100;
+  /* z-index >> 10000 du .select2-container (cf. plus bas).
+     Sans ça, le Select2 "Tapez la référence ou le nom du panneau..."
+     présent sous la modale d'annulation de réservation venait recouvrir
+     le bouton « Confirmer l'annulation ». */
+  z-index: 10010;
   display: flex;
   align-items: center;
   justify-content: center;
