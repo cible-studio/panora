@@ -175,6 +175,24 @@
         .pose-table-wrap .pose-progress-fill,
         .pose-table-wrap .pose-progress-text { display: none !important; }
     }
+
+    /* ─── Boutons d'action des poses ──────────────────────────────
+       Anciennement définis uniquement dans poses/index.blade.php →
+       quand le partial était inclus depuis campaigns/poses.blade.php
+       les boutons ressortaient pâles/invisibles (CSS absente). On
+       déplace ici via @once pour garantir le rendu partout. */
+    .action-btn {
+        display:inline-flex;align-items:center;justify-content:center;
+        width:34px;height:34px;border-radius:9px;
+        border:1px solid var(--border);background:var(--surface2);
+        color:var(--text2);text-decoration:none;cursor:pointer;
+        transition:all .15s;flex-shrink:0;
+    }
+    .action-btn:hover { background:var(--surface3);border-color:var(--border2);color:var(--text); }
+    .action-btn-success { border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.08);color:#22c55e; }
+    .action-btn-success:hover { background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.5); }
+    .action-btn-accent { border-color:rgba(232,160,32,.3);background:rgba(232,160,32,.08);color:var(--accent); }
+    .action-btn-accent:hover { background:rgba(232,160,32,.18);border-color:rgba(232,160,32,.5); }
 </style>
 @endonce
 
