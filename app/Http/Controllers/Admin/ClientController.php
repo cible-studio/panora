@@ -72,10 +72,33 @@ class ClientController extends Controller
                 }
             ]);
 
-        // RBAC commercial : un commercial ne voit que LES CLIENTS QU'IL A
-        // CRÉÉS (client.user_id == uid). Admin/MP voient tout.
+        // RBAC commercial : un commercial voit DEUX catégories de clients :
+        //  1) Ceux qu'il a CRÉÉS (client.user_id == uid)
+        //  2) Ceux RATTACHÉS À UNE DE SES CAMPAGNES (assignation par admin/MP
+        //     via campaign.commercial_user_id, OU via résa source, OU créateur
+        //     fallback) — couvre les 4 cas de « ses campagnes ».
+        // Admin/MP voient tout.
         if (auth()->user()?->role?->value === 'commercial') {
-            $query->where('user_id', auth()->id());
+            $uid = auth()->id();
+            $query->where(function ($q) use ($uid) {
+                $q->where('user_id', $uid)
+                  ->orWhereHas('campaigns', function ($c) use ($uid) {
+                      $c->where(function ($cc) use ($uid) {
+                          $cc->where('commercial_user_id', $uid)
+                             ->orWhereHas('reservation', fn($r) =>
+                                  $r->where('commercial_user_id', $uid)
+                                    ->orWhere(function ($rr) use ($uid) {
+                                        $rr->whereNull('commercial_user_id')
+                                           ->where('user_id', $uid);
+                                    })
+                             )
+                             ->orWhere(function ($qqq) use ($uid) {
+                                 $qqq->whereDoesntHave('reservation')
+                                     ->where('user_id', $uid);
+                             });
+                      });
+                  });
+            });
         }
 
         // Bug 5.1 — filtre "Clients avec campagne active"

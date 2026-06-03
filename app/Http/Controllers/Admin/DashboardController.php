@@ -59,8 +59,29 @@ class DashboardController extends Controller
             ->when($isCommercial, $scopeCampaignCommercial)
             ->count();
 
-        // RBAC commercial : ne compte que les clients qu'il a créés
-        $totalClients = Client::when($isCommercial, fn($q) => $q->where('user_id', $uid))
+        // RBAC commercial : clients créés OU rattachés à une de ses campagnes
+        // (assignation directe par admin/MP, via résa, ou créateur fallback)
+        $totalClients = Client::when($isCommercial, function ($q) use ($uid) {
+                $q->where(function ($qq) use ($uid) {
+                    $qq->where('user_id', $uid)
+                       ->orWhereHas('campaigns', function ($c) use ($uid) {
+                           $c->where(function ($cc) use ($uid) {
+                               $cc->where('commercial_user_id', $uid)
+                                  ->orWhereHas('reservation', fn($r) =>
+                                       $r->where('commercial_user_id', $uid)
+                                         ->orWhere(function ($rr) use ($uid) {
+                                             $rr->whereNull('commercial_user_id')
+                                                ->where('user_id', $uid);
+                                         })
+                                  )
+                                  ->orWhere(function ($qqq) use ($uid) {
+                                      $qqq->whereDoesntHave('reservation')
+                                          ->where('user_id', $uid);
+                                  });
+                           });
+                       });
+                });
+            })
             ->count();
 
         $maintenancesUrgentes = Maintenance::where('priorite', 'urgente')

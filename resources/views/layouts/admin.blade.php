@@ -94,10 +94,12 @@
                         <span class="nav-text">Piges Photos</span>
                     </a>
                     @endif
+                    @if($isAdmin || $isMP)
                     <a href="{{ route('admin.taxes.index') }}" data-tooltip="Taxes Communes" class="nav-item {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
                         <span class="nav-text">Taxes Communes</span>
                     </a>
+                    @endif
                     @if(Auth::user()?->role === \App\Enums\UserRole::ADMIN)
                     <a href="{{ route('admin.invoices.index') }}" data-tooltip="Facturation" class="nav-item {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
