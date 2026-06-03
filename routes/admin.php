@@ -712,12 +712,11 @@ Route::prefix('admin')
             ->whereNumber('action')
             ->name('signalements.dismiss');
 
-        // ── Disponibilités ──────────────────── (admin + MP only) ──
-        // Le commercial ne crée pas de réservation (matrice DISPONIBILITÉS).
-        // Bloquer toute la section dispo (consultation + création) au
-        // commercial. Si tu veux laisser la consultation au commercial,
-        // déplace le GET hors du groupe.
-        Route::middleware('role:admin,mediaplanner')->group(function () {
+        // ── Disponibilités ─────────────────── (admin + MP + commercial) ──
+        // Le commercial peut maintenant créer des réservations depuis l'espace
+        // disponibilités (matrice DISPONIBILITÉS étendue). La policy
+        // ReservationPolicy::create couvre l'autorisation fine.
+        Route::middleware('role:admin,mediaplanner,commercial')->group(function () {
             Route::get('disponibilites', [ReservationController::class, 'disponibilites'])->name('reservations.disponibilites');
             Route::post('disponibilites/confirmer', [ReservationController::class, 'confirmerSelection'])->name('reservations.confirmer-selection');
 
