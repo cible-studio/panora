@@ -290,23 +290,49 @@ window.TaxModule = (function () {
         try {
             const r = await fetch(`{{ route('admin.taxes.calcul') }}?${params}`, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                credentials: 'same-origin',
             });
-            const data = await r.json();
+
+            // ── Session expirée / non authentifié ─────────────────────
+            // Laravel renvoie 401 quand le cookie session est mort. On
+            // affiche un message clair invitant à rafraîchir, plutôt que
+            // de planter sur data.kpi indéfini.
+            if (r.status === 401 || r.status === 419) {
+                document.getElementById('tax-table-body').innerHTML =
+                    '<tr><td colspan="9" style="text-align:center;padding:40px;color:#ef4444;">⏱️ Session expirée — <a href="" onclick="event.preventDefault();window.location.reload()" style="color:#3b82f6;text-decoration:underline">rafraîchir la page</a> et se reconnecter.</td></tr>';
+                return;
+            }
+
+            // Autres erreurs HTTP : message générique sans crash JS.
+            if (!r.ok) {
+                document.getElementById('tax-table-body').innerHTML =
+                    `<tr><td colspan="9" style="text-align:center;padding:40px;color:#ef4444;">Erreur serveur (HTTP ${r.status}). Réessaie ou contacte un admin.</td></tr>`;
+                return;
+            }
+
+            const data = await r.json().catch(() => null);
+            if (!data || !data.kpi) {
+                document.getElementById('tax-table-body').innerHTML =
+                    '<tr><td colspan="9" style="text-align:center;padding:40px;color:#ef4444;">Réponse serveur invalide. Réessaie.</td></tr>';
+                return;
+            }
+
             currentData = data;
             renderKpis(data.kpi);
             renderTable(getFilteredSortedCommunes());
             document.getElementById('period-label').textContent =
-                `${buildPeriodLabel()} · ${data.kpi.communes_actives} commune(s) · ${data.kpi.panneaux_total} panneau(x)`;
+                `${buildPeriodLabel()} · ${data.kpi.communes_actives ?? 0} commune(s) · ${data.kpi.panneaux_total ?? 0} panneau(x)`;
         } catch (e) {
             console.error(e);
             document.getElementById('tax-table-body').innerHTML =
-                '<tr><td colspan="10" style="text-align:center;padding:40px;color:#ef4444;">Erreur de chargement.</td></tr>';
+                '<tr><td colspan="9" style="text-align:center;padding:40px;color:#ef4444;">Erreur de chargement (réseau).</td></tr>';
         } finally {
             document.getElementById('tax-loading').style.display = 'none';
         }
     }
 
     function renderKpis(kpi) {
+        if (!kpi) return;
         document.querySelectorAll('.tax-kpi-value').forEach(el => {
             const key = el.dataset.kpi;
             el.textContent = fmt(kpi[key] || 0);
