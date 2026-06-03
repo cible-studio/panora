@@ -192,11 +192,21 @@ class PigeService
                 // Réactive la pose (était passée à COMPLETED via Observer
                 // à l'upload). Le tech peut maintenant re-uploader via le
                 // même lien public.
+                //
+                // ⚠ On redescend aussi progress_percent à 60% (= valeur
+                // associée à IN_PROGRESS dans TechSpaceController::updateStatus
+                // et uploadPhoto). Sans ça, la barre admin restait à 100%
+                // pour une pose pourtant marquée "encore en cours" — l'admin
+                // n'avait aucun signal visuel que la pose était revenue dans
+                // sa file. real_minutes effacé : la durée pose-pose n'a plus
+                // de sens jusqu'à la prochaine complétion.
                 $currentStatus = $poseTask->status?->value ?? $poseTask->status;
                 if ($currentStatus === \App\Enums\PoseTaskStatus::COMPLETED->value) {
                     $poseTask->forceFill([
-                        'status'  => \App\Enums\PoseTaskStatus::IN_PROGRESS->value,
-                        'done_at' => null,
+                        'status'           => \App\Enums\PoseTaskStatus::IN_PROGRESS->value,
+                        'done_at'          => null,
+                        'progress_percent' => 60,
+                        'real_minutes'     => null,
                     ])->save();
                 }
 
