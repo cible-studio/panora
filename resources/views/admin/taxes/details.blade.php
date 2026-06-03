@@ -107,8 +107,14 @@
                     </select>
                 </div>
                 @if(!empty($filters))
-                <div class="filter-group">
-                    <a href="{{ route('admin.taxes.details') }}" class="btn btn-ghost btn-sm">✕ Reset</a>
+                <div class="filter-group" style="display:flex;align-items:flex-end">
+                    <a href="{{ route('admin.taxes.details') }}"
+                       class="btn btn-ghost"
+                       style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;font-weight:600;font-size:13px;text-decoration:none;color:var(--text2);height:38px;line-height:1"
+                       title="Effacer tous les filtres et revenir à la vue par défaut">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        Réinitialiser les filtres
+                    </a>
                 </div>
                 @endif
             </div>
@@ -154,15 +160,34 @@
 
     {{-- ═══ TABLEAU DÉTAILLÉ ═══ --}}
     <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
             <div class="card-title">📋 Détail par panneau</div>
-            @if($lines->isNotEmpty())
-                <div style="font-size:12px;color:var(--text3);">
-                    Période :
-                    <strong>{{ $lines->first()['period_start']?->format('d/m/Y') }}
-                    → {{ $lines->first()['period_end']?->format('d/m/Y') }}</strong>
-                </div>
-            @endif
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                @if($lines->isNotEmpty())
+                    <div style="font-size:12px;color:var(--text3);">
+                        Période :
+                        <strong>{{ $lines->first()['period_start']?->format('d/m/Y') }}
+                        → {{ $lines->first()['period_end']?->format('d/m/Y') }}</strong>
+                    </div>
+                @endif
+                @if($paginator->total() > 0)
+                    {{-- Sélecteur "par page" qui poste sur GET avec les filtres préservés. --}}
+                    <form method="GET" action="{{ route('admin.taxes.details') }}"
+                          style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3)">
+                        @foreach(request()->except(['per_page','page']) as $k => $v)
+                            <input type="hidden" name="{{ $k }}" value="{{ $v }}">
+                        @endforeach
+                        <label for="per-page-select" style="white-space:nowrap">Par page :</label>
+                        <select name="per_page" id="per-page-select"
+                                onchange="this.form.submit()"
+                                style="height:30px;padding:0 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text)">
+                            @foreach([25, 50, 100, 200] as $opt)
+                                <option value="{{ $opt }}" {{ $perPage === $opt ? 'selected' : '' }}>{{ $opt }}</option>
+                            @endforeach
+                        </select>
+                    </form>
+                @endif
+            </div>
         </div>
         <div class="table-wrap">
             <table>
@@ -181,7 +206,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @forelse($lines as $row)
+                @forelse($paginator as $row)
                     @php
                         $tc = $typeColors[$row['type']] ?? ['bg' => 'var(--surface2)', 'c' => 'var(--text2)'];
                     @endphp
@@ -233,7 +258,7 @@
                 @if($lines->isNotEmpty())
                 <tfoot>
                     <tr style="background:var(--surface2);font-weight:800;">
-                        <td colspan="9" style="text-align:right;padding:14px 16px;">TOTAL :</td>
+                        <td colspan="9" style="text-align:right;padding:14px 16px;">TOTAL <span style="font-weight:500;color:var(--text3);font-size:11px">({{ number_format($paginator->total(), 0, ',', ' ') }} ligne(s), toutes pages) :</span></td>
                         <td style="text-align:right;color:var(--accent);font-size:15px;padding:14px 16px;">
                             {{ number_format($totals['total'], 0, ',', ' ') }} FCFA
                         </td>
@@ -242,6 +267,23 @@
                 @endif
             </table>
         </div>
+
+        {{-- Pagination + récap pages — affichée seulement s'il y a + d'1 page --}}
+        @if($paginator->hasPages())
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-top:1px solid var(--border);flex-wrap:wrap;gap:10px">
+                <div style="font-size:12px;color:var(--text3)">
+                    Affichage des lignes
+                    <strong style="color:var(--text)">{{ $paginator->firstItem() }}</strong>
+                    à
+                    <strong style="color:var(--text)">{{ $paginator->lastItem() }}</strong>
+                    sur
+                    <strong style="color:var(--text)">{{ number_format($paginator->total(), 0, ',', ' ') }}</strong>
+                </div>
+                <div>
+                    {{ $paginator->onEachSide(1)->links() }}
+                </div>
+            </div>
+        @endif
     </div>
 
     <div style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center;">
