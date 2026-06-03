@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\CampaignService;
 use App\Services\AvailabilityService;
 use App\Services\AlertService;
+use App\Services\CampaignAmountConsistency;
 
 use App\Models\Campaign;
 use App\Models\Client;
@@ -197,7 +198,20 @@ class CampaignController extends Controller
         // Panneaux disponibles : chargés en AJAX à l'ouverture du modal (cf. méthode availablePanels())
         // pour ne pas pénaliser le rendu initial de la page.
 
-        return view('admin.campaigns.show', compact('campaign', 'can', 'allowed', 'commerciaux'));
+        // Cohérence facturation campagne vs résa (best-effort) — le bandeau
+        // reste visible tant que l'écart existe, pas seulement au moment de
+        // l'action. Sinon l'admin oublie au prochain chargement de la fiche.
+        $amountConsistency = null;
+        try {
+            $amountConsistency = app(CampaignAmountConsistency::class)->check($campaign);
+        } catch (\Throwable $e) {
+            Log::warning('campaign.show.amount_check_failed', [
+                'campaign_id' => $campaign->id,
+                'error'       => $e->getMessage(),
+            ]);
+        }
+
+        return view('admin.campaigns.show', compact('campaign', 'can', 'allowed', 'commerciaux', 'amountConsistency'));
     }
 
     /**
@@ -955,9 +969,37 @@ class CampaignController extends Controller
                 $msg .= ' (envoi email au client échoué — vérifie les logs)';
             }
 
-            return redirect()
+            $redirect = redirect()
                 ->route('admin.campaigns.show', $campaign)
                 ->with('success', $msg);
+
+            // Avertit l'admin si les dates de campagne aboutissent à un
+            // montant différent de celui facturé sur la résa (ex: campagne
+            // 03/06→21/08 = 3 mois → 270k, mais résa 07/06→25/07 = 2 mois
+            // → 180k figés). Sans ce signal, la divergence reste invisible.
+            try {
+                $check = app(CampaignAmountConsistency::class)->check($campaign->fresh());
+                if ($check && !$check['matches']) {
+                    $redirect = $redirect->with(
+                        'warning',
+                        app(CampaignAmountConsistency::class)->humanMessage($check)
+                    );
+                    Log::info('campaign.created.amount_drift', [
+                        'campaign_id' => $campaign->id,
+                        'expected'    => $check['expected'],
+                        'stored'      => $check['stored'],
+                        'diff'        => $check['diff'],
+                        'source'      => $check['source'],
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('campaign.created.amount_check_failed', [
+                    'campaign_id' => $campaign->id,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
+
+            return $redirect;
 
         } catch (\Exception $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -1189,9 +1231,36 @@ class CampaignController extends Controller
             $message .= " La campagne a été automatiquement marquée comme terminée.";
         }
 
-        return redirect()
+        $redirect = redirect()
             ->route('admin.campaigns.show', $campaign)
             ->with('success', $message);
+
+        // Idem store() : signaler les écarts entre montant stocké et montant
+        // attendu pour la nouvelle période. Pas de recalcul auto — l'admin
+        // décide (ajuster la résa, accepter l'écart, ou overrider le total).
+        try {
+            $check = app(CampaignAmountConsistency::class)->check($campaign->fresh());
+            if ($check && !$check['matches']) {
+                $redirect = $redirect->with(
+                    'warning',
+                    app(CampaignAmountConsistency::class)->humanMessage($check)
+                );
+                Log::info('campaign.updated.amount_drift', [
+                    'campaign_id' => $campaign->id,
+                    'expected'    => $check['expected'],
+                    'stored'      => $check['stored'],
+                    'diff'        => $check['diff'],
+                    'source'      => $check['source'],
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('campaign.updated.amount_check_failed', [
+                'campaign_id' => $campaign->id,
+                'error'       => $e->getMessage(),
+            ]);
+        }
+
+        return $redirect;
     }
 
     /** Calcule le statut cible d'une campagne à partir de ses nouvelles dates */

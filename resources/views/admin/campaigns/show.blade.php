@@ -117,6 +117,56 @@
         </div>
     @endif
 
+    {{-- ── BANDEAU COHÉRENCE FACTURATION ──
+         Reste visible tant que le montant facturé ne correspond pas au
+         montant calculé pour la période réelle de la campagne. Pas de
+         recalcul automatique — l'admin décide (ajuster les dates de la
+         résa, modifier les prix négociés, ou conserver l'écart en
+         connaissance de cause). --}}
+    @if(!empty($amountConsistency) && !$amountConsistency['matches'])
+        @php
+            $ac      = $amountConsistency;
+            $diffAbs = number_format(abs($ac['diff']), 0, ',', ' ');
+            $expFmt  = number_format($ac['expected'], 0, ',', ' ');
+            $stoFmt  = number_format($ac['stored'],   0, ',', ' ');
+            $sign    = $ac['diff'] > 0 ? '+' : '−';
+            $startH  = \Carbon\Carbon::parse($ac['period']['start'])->format('d/m/Y');
+            $endH    = \Carbon\Carbon::parse($ac['period']['end'])->format('d/m/Y');
+        @endphp
+        <div class="mb-6 rounded-xl border p-4 flex items-start gap-4"
+             style="background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.35)">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
+                 style="background:rgba(245,158,11,0.18)">💰</div>
+            <div class="flex-1 min-w-0">
+                <div class="font-bold text-sm" style="color:#d97706">
+                    Écart de facturation détecté sur la période {{ $startH }} → {{ $endH }}
+                </div>
+                <div class="text-sm mt-1.5" style="color:var(--text2);line-height:1.55">
+                    Montant actuellement facturé : <strong>{{ $stoFmt }} FCFA</strong>.
+                    Montant attendu pour cette période : <strong style="color:#d97706">{{ $expFmt }} FCFA</strong>
+                    <span style="opacity:.85">({{ $sign }}{{ $diffAbs }} FCFA)</span>.
+                </div>
+                <div class="text-xs mt-2" style="color:var(--text3);line-height:1.5">
+                    @if($ac['source'] === 'reservation')
+                        Source : prix négociés figés sur la réservation liée
+                        @if($campaign->reservation)
+                            <a href="{{ route('admin.reservations.show', $campaign->reservation) }}"
+                               style="color:var(--accent);text-decoration:underline">{{ $campaign->reservation->reference }}</a>.
+                        @endif
+                        Pour réaligner : ajustez la période de la réservation (puis le total sera recalculé sur le pivot)
+                        ou conservez l'écart si la campagne couvre intentionnellement plus que la facturation.
+                    @else
+                        Source : tarif catalogue × durée campagne. Ajustez les prix négociés des panneaux
+                        ou la durée de la campagne pour réaligner.
+                    @endif
+                    @if($ac['overridden'])
+                        <br><strong style="color:#d97706">⚙ Montant manuel en vigueur</strong> — il ne sera pas écrasé automatiquement.
+                    @endif
+                </div>
+            </div>
+        </div>
+    @endif
+
     {{-- ── BANDEAU MOTIF D'ANNULATION ── (si campagne annulée) --}}
     @if($campaign->status->value === 'annule' && ($campaign->cancellation_reason || $campaign->cancellation_notes))
         @php
