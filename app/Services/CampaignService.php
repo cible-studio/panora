@@ -594,15 +594,27 @@ class CampaignService
 
             $cancelledPoses = $this->cancelPendingPoseTasks($campaign, 'Campagne annulée');
 
+            // Factures liées NON encore payées → auto-annulation. Le client
+            // ne devrait plus rien à ce titre. Les factures déjà 'payee'
+            // restent intactes (un encaissement réel a eu lieu — traitement
+            // séparé en avoir/remboursement).
+            $cancelledInvoices = \App\Models\Invoice::where('campaign_id', $campaign->id)
+                ->whereIn('status', ['brouillon', 'envoyee'])
+                ->update([
+                    'status'  => 'annulee',
+                    'paid_at' => null,
+                ]);
+
             $this->syncAllPanels($internalIds, $externalIds);
 
             Log::info('campaign.cancelled', [
-                'campaign_id'    => $campaign->id,
-                'reason'         => $reason,
-                'panels_freed'   => count($internalIds),
-                'externals_freed'=> count($externalIds),
-                'poses_cancelled'=> $cancelledPoses,
-                'user_id'        => auth()->id(),
+                'campaign_id'        => $campaign->id,
+                'reason'             => $reason,
+                'panels_freed'       => count($internalIds),
+                'externals_freed'    => count($externalIds),
+                'poses_cancelled'    => $cancelledPoses,
+                'invoices_cancelled' => $cancelledInvoices,
+                'user_id'            => auth()->id(),
             ]);
         });
     }
