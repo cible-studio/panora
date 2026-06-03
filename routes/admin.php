@@ -139,6 +139,17 @@ Route::prefix('tech')->middleware(['throttle:60,1', \App\Http\Middleware\SetFren
     Route::get('/{token}/heartbeat', [\App\Http\Controllers\TechSpaceController::class, 'heartbeat'])
         ->name('tech.space.heartbeat');
 
+    // Recherche AJAX scalable : source pour Select2 (paginé, full-text sur
+    // référence/nom/commune/campagne/client). Permet au tech de trouver
+    // une pose précise même si elle n'est pas dans le SSR initial (cap 200).
+    Route::get('/{token}/poses/search', [\App\Http\Controllers\TechSpaceController::class, 'searchPoses'])
+        ->name('tech.space.search');
+
+    // Feuille de route imprimable / PDF — toutes les poses du tech sur
+    // une page, groupées par commune, optimisée pour A4. Filet offline.
+    Route::get('/{token}/poses/route-sheet', [\App\Http\Controllers\TechSpaceController::class, 'routeSheet'])
+        ->name('tech.space.route-sheet');
+
     Route::post('/{token}/poses/{task}/status', [\App\Http\Controllers\TechSpaceController::class, 'updateStatus'])
         ->whereNumber('task')
         ->name('tech.space.status');
