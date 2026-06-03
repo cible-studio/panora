@@ -45,6 +45,27 @@
     {{-- ════════════════════ COLONNE GAUCHE ════════════════════ --}}
     <div style="display:flex;flex-direction:column;gap:16px">
 
+        {{-- ⚠ Bandeau incohérence : campagne liée annulée. La facture ne
+             devrait plus pouvoir suivre son cycle normal (envoi/paiement).
+             L'admin doit décider : annuler la facture (🚫 traçable) ou
+             clarifier la situation s'il y a eu un paiement réel hors flow. --}}
+        @if($invoice->campaign?->status?->value === 'annule' && !in_array($invoice->status, ['annulee', 'payee']))
+            <div style="background:linear-gradient(180deg,#fef2f2,#fee2e2);border:1px solid #fca5a5;border-radius:12px;padding:14px 18px;display:flex;align-items:flex-start;gap:14px">
+                <div style="width:38px;height:38px;border-radius:10px;background:#ef4444;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">⚠️</div>
+                <div style="flex:1;min-width:0;line-height:1.5">
+                    <div style="font-weight:800;color:#991b1b;font-size:14px;margin-bottom:3px">
+                        Campagne liée annulée
+                    </div>
+                    <div style="font-size:12.5px;color:#7f1d1d">
+                        La campagne <a href="{{ route('admin.campaigns.show', $invoice->campaign) }}" style="color:#991b1b;font-weight:700">{{ $invoice->campaign->name }}</a>
+                        a été annulée. Le client ne devrait plus rien à ce titre.
+                        Annule cette facture (bouton 🚫) ou recrée-en une si tu reprends la campagne.
+                        L'envoi au client et le marquage payé sont bloqués pour éviter une facturation fantôme.
+                    </div>
+                </div>
+            </div>
+        @endif
+
         {{-- CARD PRINCIPALE : référence + statut + montants --}}
         <div class="card">
             <div class="card-header">

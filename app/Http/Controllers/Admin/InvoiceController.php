@@ -329,6 +329,15 @@ class InvoiceController extends Controller
                 "Seules les factures en brouillon peuvent être envoyées (statut actuel : {$invoice->status}).");
         }
 
+        // ⚠ Même garde : pas d'envoi au client si la campagne est annulée
+        // (le client serait surpris de recevoir une facture pour quelque
+        // chose qu'on lui a dit ne pas exécuter).
+        $invoice->loadMissing('campaign:id,status');
+        if ($invoice->campaign?->status?->value === 'annule') {
+            return $this->statusResponse($request, $invoice, false,
+                "🚫 Campagne liée annulée — envoi au client bloqué. Annule la facture ou recrée-en une après reprise de la campagne.");
+        }
+
         $invoice->update([
             'status'    => 'envoyee',
             'issued_at' => $invoice->issued_at ?? now(),
@@ -386,6 +395,18 @@ class InvoiceController extends Controller
         if (!in_array($invoice->status, ['envoyee', 'brouillon'])) {
             return $this->statusResponse($request, $invoice, false,
                 "Cette facture est déjà {$invoice->status}.");
+        }
+
+        // ⚠ Garde anti-incohérence : on ne marque pas une facture comme
+        // payée si la campagne liée a été annulée. Le client n'est plus
+        // censé devoir cette somme — la voie correcte est d'annuler la
+        // facture (markCancelled). Si un paiement réel a déjà été reçu,
+        // l'admin doit clarifier la situation (avoir, remboursement).
+        $invoice->loadMissing('campaign:id,name,status');
+        $campStatus = $invoice->campaign?->status?->value;
+        if ($campStatus === 'annule') {
+            return $this->statusResponse($request, $invoice, false,
+                "🚫 Campagne liée annulée — paiement bloqué. Annule la facture (🚫) ou clarifie la situation avant de marquer payée.");
         }
 
         $invoice->update([
