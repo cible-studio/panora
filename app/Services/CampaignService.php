@@ -452,6 +452,18 @@ class CampaignService
             'updated_by' => auth()->id(),
         ]);
 
+        // ⚠ Bug fix : avant ce sync, les panneaux héritaient du statut
+        // CONFIRME de leur Réservation parente et n'étaient JAMAIS bumpés
+        // à OCCUPE quand la campagne démarrait (cf. AvailabilityService::
+        // syncPanelStatuses qui détecte les campagnes actives). L'admin
+        // voyait alors "Confirmé" éternellement même pendant l'affichage.
+        // On force la sync sur tous les panneaux de la campagne après
+        // l'activation pour propager OCCUPE immédiatement.
+        $this->syncAllPanels(
+            $this->collectAllPanelIds($campaign),
+            $this->collectAllExternalPanelIds($campaign),
+        );
+
         // Mail au client : uniquement à la première activation (pas à la
         // reprise depuis PAUSE — le client a déjà reçu l'annonce initiale).
         $mailSent = false;
