@@ -28,17 +28,20 @@ class RapportController extends Controller
         if ($user?->role?->value !== 'commercial') return $query;
 
         $uid = $user->id;
+        // 4 cas couverts :
+        //  1) campaign.commercial_user_id == uid (assignation directe admin/MP)
+        //  2) Via résa source : reservation.commercial_user_id == uid
+        //  3) Résa sans commercial : reservation.user_id == uid (créateur)
+        //  4) Campagne manuelle sans résa : campaign.user_id == uid
         return $query->where(function ($q) use ($uid) {
-            // Campagne avec une résa : commercial_user_id == uid
-            // OU (pas de commercial assigné → user_id de la résa == uid)
-            $q->whereHas('reservation', fn($r) =>
+            $q->where('commercial_user_id', $uid)
+              ->orWhereHas('reservation', fn($r) =>
                     $r->where('commercial_user_id', $uid)
                       ->orWhere(function ($rr) use ($uid) {
                           $rr->whereNull('commercial_user_id')
                              ->where('user_id', $uid);
                       })
                 )
-              // OU campagne directe sans réservation : user_id == uid
               ->orWhere(function ($qqq) use ($uid) {
                   $qqq->whereDoesntHave('reservation')->where('user_id', $uid);
               });

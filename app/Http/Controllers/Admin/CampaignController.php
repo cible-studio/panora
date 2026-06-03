@@ -53,12 +53,17 @@ class CampaignController extends Controller
                 'invoices' => fn($q) => $q->select(['id','campaign_id','status','amount_ttc','paid_at','reference'])->latest(),
             ])
             ->withCount(['panels', 'externalPanels', 'invoices'])
-            // RBAC : un commercial ne voit que SES campagnes (via la résa
-            // source ou en fallback campaign.user_id).
+            // RBAC : un commercial voit SES campagnes — couvre 4 cas :
+            //  1) Campagne directement assignée à lui (campaign.commercial_user_id)
+            //     — cas typique : admin/MP attribue une campagne au commercial
+            //  2) Via la résa source : reservation.commercial_user_id == uid
+            //  3) Résa sans commercial : reservation.user_id == uid (créateur)
+            //  4) Campagne manuelle sans résa : campaign.user_id == uid
             ->when(auth()->user()?->role?->value === 'commercial', function ($q) {
                 $uid = auth()->id();
                 $q->where(function ($qq) use ($uid) {
-                    $qq->whereHas('reservation', fn($r) =>
+                    $qq->where('commercial_user_id', $uid)
+                       ->orWhereHas('reservation', fn($r) =>
                             $r->where('commercial_user_id', $uid)
                               ->orWhere(function ($rr) use ($uid) {
                                   $rr->whereNull('commercial_user_id')
@@ -66,8 +71,6 @@ class CampaignController extends Controller
                               })
                        )
                        ->orWhere(function ($qqq) use ($uid) {
-                           // Campagnes manuelles sans réservation source : on
-                           // se rabat sur le créateur de la campagne.
                            $qqq->whereDoesntHave('reservation')
                                ->where('user_id', $uid);
                        });

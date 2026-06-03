@@ -72,6 +72,12 @@ class ClientController extends Controller
                 }
             ]);
 
+        // RBAC commercial : un commercial ne voit que LES CLIENTS QU'IL A
+        // CRÉÉS (client.user_id == uid). Admin/MP voient tout.
+        if (auth()->user()?->role?->value === 'commercial') {
+            $query->where('user_id', auth()->id());
+        }
+
         // Bug 5.1 — filtre "Clients avec campagne active"
         if ($request->boolean('active_only')) {
             $query->whereHas('campaigns', fn($q) => $q->where('status', 'actif'));

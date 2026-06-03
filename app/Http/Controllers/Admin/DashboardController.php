@@ -30,10 +30,16 @@ class DashboardController extends Controller
             ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
             ->count();
 
-        // Campagnes filtrées via résa source pour le commercial.
+        // Campagnes du commercial — 4 cas couverts :
+        //  1) campaign.commercial_user_id == uid (assignation directe par
+        //     admin/MP — cas le plus fréquent en pratique)
+        //  2) Via résa source : reservation.commercial_user_id == uid
+        //  3) Résa sans commercial : reservation.user_id == uid (créateur)
+        //  4) Campagne manuelle sans résa : campaign.user_id == uid
         $scopeCampaignCommercial = function ($q) use ($uid) {
             $q->where(function ($qq) use ($uid) {
-                $qq->whereHas('reservation', fn($r) =>
+                $qq->where('commercial_user_id', $uid)
+                   ->orWhereHas('reservation', fn($r) =>
                         $r->where('commercial_user_id', $uid)
                           ->orWhere(function ($rr) use ($uid) {
                               $rr->whereNull('commercial_user_id')
@@ -53,7 +59,9 @@ class DashboardController extends Controller
             ->when($isCommercial, $scopeCampaignCommercial)
             ->count();
 
-        $totalClients = Client::count();
+        // RBAC commercial : ne compte que les clients qu'il a créés
+        $totalClients = Client::when($isCommercial, fn($q) => $q->where('user_id', $uid))
+            ->count();
 
         $maintenancesUrgentes = Maintenance::where('priorite', 'urgente')
             ->where('statut', '!=', 'resolu')->count();
@@ -108,7 +116,7 @@ class DashboardController extends Controller
         if ($isCommercial) {
             $caMensuel = \App\Models\CampaignPanel::with('panel')
                 ->where('type', 'interne')
-                ->whereHas('campaign', function ($q) use ($uid, $scopeCampaignCommercial) {
+                ->whereHas('campaign', function ($q) use ($scopeCampaignCommercial) {
                     $q->where('status', 'actif');
                     $scopeCampaignCommercial($q);
                 })
@@ -118,7 +126,7 @@ class DashboardController extends Controller
             // CA mois précédent commercial (même périmètre, période m-1)
             $caMoisPrecedent = \App\Models\CampaignPanel::with('panel')
                 ->where('type', 'interne')
-                ->whereHas('campaign', function ($q) use ($uid, $scopeCampaignCommercial) {
+                ->whereHas('campaign', function ($q) use ($scopeCampaignCommercial) {
                     $q->where('start_date', '<=', now()->subMonth()->endOfMonth())
                       ->where('end_date',   '>=', now()->subMonth()->startOfMonth())
                       ->whereNotIn('status', ['annule']);
