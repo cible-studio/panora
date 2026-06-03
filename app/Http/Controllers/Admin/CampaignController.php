@@ -892,6 +892,8 @@ class CampaignController extends Controller
 
                 $campaign = Campaign::create($data);
 
+                $internalIds = [];
+                $externalIds = [];
                 if ($reservation !== null) {
                     $internalIds = $reservation->panels->pluck('id')->all();
                     if (!empty($internalIds)) {
@@ -915,6 +917,29 @@ class CampaignController extends Controller
 
                 // Lot 9.1 — Auto-création tâches de pose après sync panneaux
                 $campaign->ensurePoseTasksAutoCreated();
+
+                // ⚠ Bug fix : si la campagne démarre ACTIF (start_date <=
+                // aujourd'hui), les panneaux hérités de la résa étaient
+                // restés à CONFIRMÉ dans l'inventaire — la campagne diffusait
+                // mais "Disponibilité" affichait CONFIRMÉ. On propage les
+                // statuts aux panneaux dès la création pour aligner
+                // immédiatement l'inventaire sur la réalité terrain.
+                // Best-effort (try/catch) : un fail ici ne doit pas annuler
+                // la création — le user a déjà sa campagne, on ne fait que
+                // resynchroniser un état dérivé.
+                try {
+                    if (!empty($internalIds)) {
+                        $this->availability->syncPanelStatuses($internalIds);
+                    }
+                    if (!empty($externalIds)) {
+                        $this->availability->syncExternalPanelStatuses($externalIds);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('campaign.created.panel_sync_failed', [
+                        'campaign_id' => $campaign->id,
+                        'error'       => $e->getMessage(),
+                    ]);
+                }
 
                 Log::info('campaign.created', [
                     'campaign_id'      => $campaign->id,
@@ -1175,7 +1200,12 @@ class CampaignController extends Controller
             // ramenée à today). Sans le sync, les panneaux restent à
             // CONFIRME alors que la campagne diffuse. On propage la
             // transition de statut aux panneaux pour cohérence inventaire.
-            if ($campaign->wasChanged('status')) {
+            // ⚠ Étendu aux changements de dates même sans changement de
+            // statut : si la résa initiale avait CONFIRMÉ le panneau et
+            // que les nouvelles dates de campagne placent today dans la
+            // fenêtre, le panneau doit basculer EN_AFFICHAGE — sync
+            // idempotent, donc safe d'appeler à chaque update significatif.
+            if ($campaign->wasChanged(['status', 'start_date', 'end_date'])) {
                 try {
                     $panelIds = $campaign->panels()->pluck('panels.id')->all();
                     $extIds   = $campaign->externalPanels()->pluck('external_panels.id')->all();
