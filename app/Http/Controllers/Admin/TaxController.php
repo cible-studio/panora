@@ -18,6 +18,22 @@ use Barryvdh\DomPDF\Facade\Pdf;
 class TaxController extends Controller
 {
     /**
+     * Liste des mois (1..12) couverts par une (period_type, period_value).
+     * Sert à l'agrégation des paiements multi-périodicité — un paiement
+     * mensuel-Y-2 couvre [2], un trimestriel-Y-1 couvre [1,2,3], un
+     * annuel-Y-0 couvre [1..12].
+     */
+    private static function monthsForPeriod(string $type, int $value): array
+    {
+        return match ($type) {
+            'mensuel'     => [$value],
+            'trimestriel' => range(($value - 1) * 3 + 1, $value * 3),
+            'annuel'      => range(1, 12),
+            default       => [],
+        };
+    }
+
+    /**
      * Vue principale module Taxes — refonte 2025 :
      * - Tabs Mensuel / Trimestriel / Annuel avec sélecteur de période
      * - Calcul live ODP + TM via /admin/taxes/calcul (AJAX)
@@ -45,7 +61,7 @@ class TaxController extends Controller
      * Vue détaillée par panneau (Évolution 4 — point 5.6).
      *
      * Affiche pour chaque panneau éligible une ligne par type de taxe
-     * (TM / ODP / DB) avec commune, dimensions, statut, client, campagne,
+     * (TM / ODP) avec commune, dimensions, statut, client, campagne,
      * période, montant — chaque montant peut être justifié à partir de
      * cette vue lors d'un contrôle commune.
      *
@@ -384,14 +400,24 @@ class TaxController extends Controller
             ->whereNotNull('odp_rate')
             ->get(['id', 'name', 'odp_rate', 'tm_rate']);
 
-        // Index des paiements existants pour cette période
-        $payments = CommuneTaxPayment::where('period_type', $periodType)
-            ->where('period_year', $periodYear)
-            ->where('period_value', $periodValue)
-            ->get()
-            ->keyBy('commune_id');
+        // ── Agrégation des paiements multi-périodicité ──────────────
+        // Bug avant : on ne lookupait que les paiements de la périodicité
+        // EXACTE demandée (mensuel/trimestriel/annuel). Conséquence : payer
+        // ADIAKE en mensuel février → la vue trimestre Q1 et la vue annuelle
+        // affichaient "Non payé" comme si rien n'avait été versé.
+        //
+        // Fix : on charge TOUS les paiements de l'année et on agrège ceux
+        // qui couvrent la fenêtre de mois de la période demandée. Prorata
+        // appliqué quand un paiement déborde la fenêtre (ex: paiement
+        // annuel vu en Q1 = 25% du montant payé).
+        $queryMonths = self::monthsForPeriod($periodType, $periodValue);
 
-        $rows = $communes->map(function ($commune) use ($nbMois, $payments) {
+        $allPayments = CommuneTaxPayment::where('period_year', $periodYear)
+            ->whereIn('period_type', ['mensuel', 'trimestriel', 'annuel'])
+            ->get()
+            ->groupBy('commune_id');
+
+        $rows = $communes->map(function ($commune) use ($nbMois, $allPayments, $queryMonths, $periodType, $periodYear, $periodValue) {
             $tmRate  = (float) ($commune->tm_rate ?: 1000);
             $odpRate = (float) $commune->odp_rate;
 
@@ -425,13 +451,46 @@ class TaxController extends Controller
                 ->filter()
                 ->values();
 
-            $payment = $payments->get($commune->id);
             $odpTheo = (float) $lignes->sum('odp');
             $tmTheo  = (float) $lignes->sum('tm');
-            $odpPaye = (float) ($payment?->odp_paye ?? 0);
-            $tmPaye  = (float) ($payment?->tm_paye  ?? 0);
             $totalTheo = $odpTheo + $tmTheo;
-            $totalPaye = $odpPaye + $tmPaye;
+
+            // Agrégation des paiements de cette commune × intersection
+            // avec la fenêtre de la période demandée.
+            $communePayments = $allPayments->get($commune->id) ?? collect();
+            $odpPaye = 0.0;
+            $tmPaye  = 0.0;
+            $latestPaidAt = null;
+            $anyAttestation = false;
+            $directPaymentId = null;
+
+            foreach ($communePayments as $p) {
+                $paymentMonths = self::monthsForPeriod($p->period_type, $p->period_value);
+                $overlap = array_values(array_intersect($paymentMonths, $queryMonths));
+                if (empty($overlap)) continue;
+                $prorata = count($overlap) / count($paymentMonths);
+
+                $odpPaye += ((float) $p->odp_paye) * $prorata;
+                $tmPaye  += ((float) $p->tm_paye)  * $prorata;
+
+                if ($p->paid_at) {
+                    if (!$latestPaidAt || $p->paid_at->gt($latestPaidAt)) {
+                        $latestPaidAt = $p->paid_at;
+                    }
+                }
+                $anyAttestation = $anyAttestation || (bool) $p->attestation_recue;
+
+                // ID du paiement direct (= même périodicité ET même valeur)
+                // → utilisé par le bouton "Modifier" pour rééditer cette
+                // ligne précise. S'il n'existe pas, le bouton restera "Payer".
+                if ($p->period_type === $periodType && (int) $p->period_value === (int) $periodValue) {
+                    $directPaymentId = $p->id;
+                }
+            }
+
+            $odpPaye = round($odpPaye, 2);
+            $tmPaye  = round($tmPaye,  2);
+            $totalPaye = round($odpPaye + $tmPaye, 2);
 
             $statut = match (true) {
                 $totalTheo === 0.0           => 'aucun',
@@ -453,11 +512,11 @@ class TaxController extends Controller
                 'odp_paye'       => $odpPaye,
                 'tm_paye'        => $tmPaye,
                 'total_paye'     => $totalPaye,
-                'solde'          => $totalTheo - $totalPaye,
-                'paid_at'        => $payment?->paid_at?->format('d/m/Y'),
-                'attestation'    => (bool) ($payment?->attestation_recue),
+                'solde'          => max(0, $totalTheo - $totalPaye),
+                'paid_at'        => $latestPaidAt?->format('d/m/Y'),
+                'attestation'    => $anyAttestation,
                 'statut'         => $statut,
-                'payment_id'     => $payment?->id,
+                'payment_id'     => $directPaymentId,
                 'lignes'         => $lignes,
             ];
         })
