@@ -101,24 +101,52 @@ class DashboardController extends Controller
         ])
         ->toArray();
 
-        // CA mensuel réel = somme des tarifs des panneaux occupés
-        $caMensuel = \App\Models\Panel::whereIn('status', ['occupe', 'option', 'confirme'])
-            ->sum('monthly_rate');
+        // ── CA Mensuel ─────────────────────────────────────────────
+        // Pour ADMIN/MP : CA global = somme des tarifs des panneaux occupés
+        // Pour COMMERCIAL : CA personnel = somme des tarifs des panneaux
+        // dans ses campagnes actives (commercial assigné OU créateur).
+        if ($isCommercial) {
+            $caMensuel = \App\Models\CampaignPanel::with('panel')
+                ->where('type', 'interne')
+                ->whereHas('campaign', function ($q) use ($uid, $scopeCampaignCommercial) {
+                    $q->where('status', 'actif');
+                    $scopeCampaignCommercial($q);
+                })
+                ->get()
+                ->sum(fn($cp) => (float) ($cp->panel?->monthly_rate ?? 0));
 
-        // CA mois précédent pour la variation
-        $caMoisPrecedent = \App\Models\CampaignPanel::with('panel')
-            ->where('type', 'interne')
-            ->whereHas('campaign', fn($q) =>
-                $q->where('start_date', '<=', now()->subMonth()->endOfMonth())
-                  ->where('end_date', '>=', now()->subMonth()->startOfMonth())
-                  ->whereNotIn('status', ['annule'])
-            )
-            ->get()
-            ->sum(fn($cp) => (float)($cp->panel?->monthly_rate ?? 0));
+            // CA mois précédent commercial (même périmètre, période m-1)
+            $caMoisPrecedent = \App\Models\CampaignPanel::with('panel')
+                ->where('type', 'interne')
+                ->whereHas('campaign', function ($q) use ($uid, $scopeCampaignCommercial) {
+                    $q->where('start_date', '<=', now()->subMonth()->endOfMonth())
+                      ->where('end_date',   '>=', now()->subMonth()->startOfMonth())
+                      ->whereNotIn('status', ['annule']);
+                    $scopeCampaignCommercial($q);
+                })
+                ->get()
+                ->sum(fn($cp) => (float) ($cp->panel?->monthly_rate ?? 0));
+        } else {
+            $caMensuel = \App\Models\Panel::whereIn('status', ['occupe', 'option', 'confirme'])
+                ->sum('monthly_rate');
+
+            $caMoisPrecedent = \App\Models\CampaignPanel::with('panel')
+                ->where('type', 'interne')
+                ->whereHas('campaign', fn($q) =>
+                    $q->where('start_date', '<=', now()->subMonth()->endOfMonth())
+                      ->where('end_date',   '>=', now()->subMonth()->startOfMonth())
+                      ->whereNotIn('status', ['annule'])
+                )
+                ->get()
+                ->sum(fn($cp) => (float) ($cp->panel?->monthly_rate ?? 0));
+        }
 
         $variationCA = $caMoisPrecedent > 0
             ? round((($caMensuel - $caMoisPrecedent) / $caMoisPrecedent) * 100, 1)
             : null;
+
+        // Label de la carte CA — adapté au rôle pour clarté
+        $caLabel = $isCommercial ? 'Mon CA Mensuel (FCFA)' : 'CA Mensuel (FCFA)';
 
         return view('dashboard', compact(
             'totalPanneaux', 'panneauxLibres', 'panneauxOccupes',
@@ -129,7 +157,7 @@ class DashboardController extends Controller
             'dernieresReservations', 'dernieresMaintenances',
             'campagnesRecentes', 'dernieresAlertes',
             'tauxOccupation', 'tauxParCommune',
-            'caMensuel', 'variationCA'
+            'caMensuel', 'variationCA', 'caLabel', 'isCommercial'
         ));
     }
 }

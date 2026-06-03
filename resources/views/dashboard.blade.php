@@ -62,10 +62,12 @@
                             : number_format($ca, 0, ',', ' ');
                     @endphp
                 </div>
-                <div class="kpi-card__label">CA Mensuel (FCFA)</div>
+                <div class="kpi-card__label">{{ $caLabel ?? 'CA Mensuel (FCFA)' }}</div>
                 <div class="kpi-card__sub">
                     @if(isset($variationCA) && $variationCA !== null)
                         {{ $variationCA >= 0 ? '↑' : '↓' }} {{ abs($variationCA) }}% vs mois précédent
+                    @elseif(!empty($isCommercial))
+                        Mes campagnes actives
                     @else
                         Voir panneaux occupés
                     @endif

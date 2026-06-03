@@ -14,6 +14,42 @@ use Illuminate\Support\Facades\DB;
 
 class RapportController extends Controller
 {
+    /**
+     * RBAC commerciaux : un commercial ne voit dans les rapports QUE ses
+     * propres campagnes (commercial assigné OU créateur fallback). Admin/MP
+     * voient tout.
+     *
+     * Application : $this->scopeUserCampaigns(Campaign::query()->where(...))
+     * sur CHAQUE point d'entrée Campaign de ce controller.
+     */
+    protected function scopeUserCampaigns($query)
+    {
+        $user = auth()->user();
+        if ($user?->role?->value !== 'commercial') return $query;
+
+        $uid = $user->id;
+        return $query->where(function ($q) use ($uid) {
+            // Campagne avec une résa : commercial_user_id == uid
+            // OU (pas de commercial assigné → user_id de la résa == uid)
+            $q->whereHas('reservation', fn($r) =>
+                    $r->where('commercial_user_id', $uid)
+                      ->orWhere(function ($rr) use ($uid) {
+                          $rr->whereNull('commercial_user_id')
+                             ->where('user_id', $uid);
+                      })
+                )
+              // OU campagne directe sans réservation : user_id == uid
+              ->orWhere(function ($qqq) use ($uid) {
+                  $qqq->whereDoesntHave('reservation')->where('user_id', $uid);
+              });
+        });
+    }
+
+    protected function isCommercial(): bool
+    {
+        return auth()->user()?->role?->value === 'commercial';
+    }
+
     public function index(Request $request, DashboardKpiService $kpi)
     {
         // ── Résolution de la période : presets OU dates custom ─────
@@ -76,12 +112,16 @@ class RapportController extends Controller
             if ($filterCity)     $query->whereHas('commune', fn($c) => $c->where('city', $filterCity));
             return $query;
         };
-        $applyCampaignFilters = function ($query) use ($filterClient, $filterCommune, $filterCity, $filterCategory, $applyPanelFilters) {
+        // Le scope RBAC commercial est injecté dans applyCampaignFilters
+        // → toutes les queries Campaign de ce controller sont filtrées
+        // automatiquement (pas besoin de modifier chaque ligne).
+        $self = $this;
+        $applyCampaignFilters = function ($query) use ($filterClient, $filterCommune, $filterCity, $filterCategory, $applyPanelFilters, $self) {
             if ($filterClient) $query->where('client_id', $filterClient);
             if ($filterCommune || $filterCity || $filterCategory) {
                 $query->whereHas('panels', fn($p) => $applyPanelFilters($p));
             }
-            return $query;
+            return $self->scopeUserCampaigns($query);
         };
 
         // ── Stats globales ──────────────────────────────────────
@@ -547,8 +587,10 @@ class RapportController extends Controller
 
         // Selects pour les filtres UI
         $clients   = \App\Models\Client::orderBy('name')->get(['id', 'name']);
-        $campaigns = \App\Models\Campaign::whereYear('start_date', '<=', $year)
-            ->whereYear('end_date', '>=', $year)
+        $campaigns = $this->scopeUserCampaigns(
+                \App\Models\Campaign::whereYear('start_date', '<=', $year)
+                    ->whereYear('end_date', '>=', $year)
+            )
             ->orderBy('name')
             ->get(['id', 'name', 'client_id']);
         $communes  = \App\Models\Commune::orderBy('name')->get(['id', 'name']);
@@ -727,13 +769,16 @@ class RapportController extends Controller
         $taux  = $total > 0 ? round(($occ / $total) * 100) : 0;
 
         // Campagnes touchant la commune (via panels) + externalPanels
-        $campagnes = Campaign::query()
-            ->whereYear('start_date', '<=', $annee)
-            ->whereYear('end_date', '>=', $annee)
-            ->where(function ($q) use ($commune) {
-                $q->whereHas('panels', fn($p) => $p->where('commune_id', $commune->id))
-                  ->orWhereHas('externalPanels', fn($p) => $p->where('commune_id', $commune->id));
-            })
+        // RBAC commercial : seules ses campagnes
+        $campagnes = $this->scopeUserCampaigns(
+                Campaign::query()
+                    ->whereYear('start_date', '<=', $annee)
+                    ->whereYear('end_date', '>=', $annee)
+                    ->where(function ($q) use ($commune) {
+                        $q->whereHas('panels', fn($p) => $p->where('commune_id', $commune->id))
+                          ->orWhereHas('externalPanels', fn($p) => $p->where('commune_id', $commune->id));
+                    })
+            )
             ->with('client:id,name')
             ->orderByDesc('start_date')
             ->limit(20)
@@ -742,12 +787,15 @@ class RapportController extends Controller
         // Top 5 clients : CA cumulé sur l'année pour cette commune.
         // On regroupe à partir des campagnes ci-dessus pour rester cohérent
         // avec ce qu'affiche le tableau drilldown.
-        $topClients = Campaign::query()
-            ->whereYear('start_date', $annee)
-            ->where(function ($q) use ($commune) {
-                $q->whereHas('panels', fn($p) => $p->where('commune_id', $commune->id))
-                  ->orWhereHas('externalPanels', fn($p) => $p->where('commune_id', $commune->id));
-            })
+        // RBAC commercial : limité à ses campagnes
+        $topClients = $this->scopeUserCampaigns(
+                Campaign::query()
+                    ->whereYear('start_date', $annee)
+                    ->where(function ($q) use ($commune) {
+                        $q->whereHas('panels', fn($p) => $p->where('commune_id', $commune->id))
+                          ->orWhereHas('externalPanels', fn($p) => $p->where('commune_id', $commune->id));
+                    })
+            )
             ->select('client_id', DB::raw('SUM(total_amount) as ca'), DB::raw('COUNT(*) as nb'))
             ->groupBy('client_id')
             ->orderByDesc('ca')
@@ -757,12 +805,13 @@ class RapportController extends Controller
 
         // Tarif moyen + CA total commune (toutes campagnes confondues sur l'année)
         $tarifMoyen = (float) Panel::where('commune_id', $commune->id)->avg('monthly_rate') ?? 0;
-        $caAnnee = Campaign::whereYear('start_date', $annee)
+        $caAnnee = $this->scopeUserCampaigns(
+            Campaign::whereYear('start_date', $annee)
             ->where(function ($q) use ($commune) {
                 $q->whereHas('panels', fn($p) => $p->where('commune_id', $commune->id))
                   ->orWhereHas('externalPanels', fn($p) => $p->where('commune_id', $commune->id));
             })
-            ->sum('total_amount');
+        )->sum('total_amount');
 
         return response()->json([
             'commune' => [
@@ -1094,8 +1143,10 @@ class RapportController extends Controller
         $annee = (int) ($request->annee ?? date('Y'));
         $anneesDisponibles = range(date('Y'), max(2020, date('Y') - 5));
 
-        $cancelledAll = Campaign::where('status', 'annule')
-            ->whereYear('updated_at', $annee)
+        $cancelledAll = $this->scopeUserCampaigns(
+                Campaign::where('status', 'annule')
+                    ->whereYear('updated_at', $annee)
+            )
             ->with(['client:id,name', 'user:id,name'])
             ->orderByDesc('updated_at')
             ->get();
@@ -1153,8 +1204,11 @@ class RapportController extends Controller
 
         // Périmètre : campagnes qui CHEVAUCHENT la période (commencent
         // avant la fin et finissent après le début).
-        $baseQuery = fn() => Campaign::where('start_date', '<=', $dateTo)
-                                    ->where('end_date',   '>=', $dateFrom);
+        // RBAC commercial : filtré automatiquement via scopeUserCampaigns.
+        $baseQuery = fn() => $this->scopeUserCampaigns(
+            Campaign::where('start_date', '<=', $dateTo)
+                    ->where('end_date',   '>=', $dateFrom)
+        );
 
         // ── 1. Comptes par statut ──────────────────────────────────
         $byStatus = $baseQuery()
