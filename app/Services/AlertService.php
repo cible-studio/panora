@@ -662,9 +662,22 @@ class AlertService
     // STATS / READ — lecture optimisée
     // ══════════════════════════════════════════════════════════════════
 
+    /**
+     * Restreint une query Alert à l'utilisateur courant (sauf admin).
+     * Admin voit toutes les alertes (système + ciblées). Tout autre rôle
+     * (MP / Commercial / Technique) ne voit que les alertes qui lui sont
+     * destinées (user_id == auth()->id()).
+     */
+    protected function scopeCurrentUser($query)
+    {
+        $user = auth()->user();
+        if ($user?->role?->value === 'admin') return $query;
+        return $query->where('user_id', $user?->id);
+    }
+
     public function unreadCount(): int
     {
-        return Alert::unread()->count();
+        return $this->scopeCurrentUser(Alert::unread())->count();
     }
 
     /**
@@ -673,7 +686,7 @@ class AlertService
      */
     public function unreadSummary(): array
     {
-        $row = Alert::unread()
+        $row = $this->scopeCurrentUser(Alert::unread())
             ->selectRaw("
                 COUNT(*) as total,
                 SUM(CASE WHEN niveau = 'danger'  THEN 1 ELSE 0 END) as danger,
@@ -700,7 +713,7 @@ class AlertService
      */
     public function activeSummary(array $filters = []): array
     {
-        $q = Alert::active();
+        $q = $this->scopeCurrentUser(Alert::active());
 
         if (!empty($filters['type']))   $q->ofType($filters['type']);
         if (!empty($filters['niveau'])) $q->ofNiveau($filters['niveau']);
@@ -723,7 +736,7 @@ class AlertService
 
     public function latest(int $limit = 8)
     {
-        return Alert::unread()
+        return $this->scopeCurrentUser(Alert::unread())
             ->latest('triggered_at')
             ->limit($limit)
             ->get(['id', 'type', 'niveau', 'title', 'message', 'lien', 'triggered_at']);
@@ -731,11 +744,12 @@ class AlertService
 
     /**
      * Marque toutes les alertes non lues comme lues — atomique.
-     * Retourne le nombre de lignes affectées.
+     * Retourne le nombre de lignes affectées. Scope par utilisateur courant
+     * (un commercial ne marque pas comme lues celles des autres).
      */
     public function markAllAsRead(): int
     {
-        return Alert::unread()->update(['is_read' => true]);
+        return $this->scopeCurrentUser(Alert::unread())->update(['is_read' => true]);
     }
 
     /**

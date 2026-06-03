@@ -12,6 +12,31 @@ class AlertController extends Controller
 {
     public function __construct(protected AlertService $alertService) {}
 
+    /**
+     * Scope RBAC : admin voit tout, autres rôles ne voient QUE leurs
+     * alertes (user_id == auth()->id()). Centralisé pour cohérence avec
+     * AlertService::scopeCurrentUser().
+     */
+    protected function scopeCurrentUser($query)
+    {
+        $user = auth()->user();
+        if ($user?->role?->value === 'admin') return $query;
+        return $query->where('user_id', $user?->id);
+    }
+
+    /**
+     * Vérifie qu'une alerte appartient à l'utilisateur courant (sauf admin).
+     * Renvoie 403 sinon — empêche un commercial d'agir sur l'alerte d'un autre.
+     */
+    protected function authorizeAlert(Alert $alert): void
+    {
+        $user = auth()->user();
+        if ($user?->role?->value === 'admin') return;
+        if ($alert->user_id !== $user?->id) {
+            abort(403, "Cette alerte ne vous appartient pas.");
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════════
     // INDEX — page principale.
     //
@@ -29,8 +54,8 @@ class AlertController extends Controller
             $markedCount = $this->alertService->markAllAsRead();
         }
 
-        // Liste paginée avec filtres
-        $query = Alert::active()->latest('triggered_at');
+        // Liste paginée avec filtres — scope RBAC : non-admin ne voit que ses alertes
+        $query = $this->scopeCurrentUser(Alert::active())->latest('triggered_at');
 
         // Filtres "neutres" appliqués au périmètre + au calcul des compteurs
         if ($request->filled('type')) {
@@ -91,6 +116,7 @@ class AlertController extends Controller
 
     public function markRead(Alert $alert)
     {
+        $this->authorizeAlert($alert);
         $alert->markRead();
         return request()->wantsJson() || request()->ajax()
             ? response()->json(['success' => true, 'unread_count' => $this->alertService->unreadCount()])
@@ -108,6 +134,7 @@ class AlertController extends Controller
 
     public function destroy(Alert $alert)
     {
+        $this->authorizeAlert($alert);
         $alert->delete();
         return request()->wantsJson() || request()->ajax()
             ? response()->json(['success' => true, 'unread_count' => $this->alertService->unreadCount()])
@@ -120,6 +147,7 @@ class AlertController extends Controller
      */
     public function archive(Alert $alert)
     {
+        $this->authorizeAlert($alert);
         $alert->archive();
         return request()->wantsJson() || request()->ajax()
             ? response()->json(['success' => true])
@@ -138,7 +166,8 @@ class AlertController extends Controller
             'ids.*'  => 'integer|exists:alerts,id',
         ]);
 
-        $alerts = Alert::whereIn('id', $data['ids'])->get();
+        // RBAC : non-admin ne peut agir que sur SES alertes
+        $alerts = $this->scopeCurrentUser(Alert::whereIn('id', $data['ids']))->get();
         $applied = 0;
 
         foreach ($alerts as $a) {
