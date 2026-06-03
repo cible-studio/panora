@@ -33,18 +33,25 @@ class ReservationPolicy
         ], true);
     }
 
-    /** Créer une réservation : Media Planner uniquement. */
+    /** Créer une réservation : Media Planner et Commercial. */
     public function create(User $user): bool
     {
-        return $user->role === UserRole::MEDIAPLANNER;
+        return in_array($user->role, [
+            UserRole::MEDIAPLANNER,
+            UserRole::COMMERCIAL,
+        ], true);
     }
 
-    /** Modifier (panneaux, période, prix) : MP, et seulement si éditable. */
+    /** Modifier (panneaux, période, prix) : MP et Commercial (sur les
+     *  siennes, le scope view filtre déjà), seulement si éditable. */
     public function update(User $user, Reservation $reservation): bool
     {
         if (!$reservation->isEditable()) return false;
         if ($reservation->client?->trashed()) return false;
-        return $user->role === UserRole::MEDIAPLANNER;
+        return in_array($user->role, [
+            UserRole::MEDIAPLANNER,
+            UserRole::COMMERCIAL,
+        ], true);
     }
 
     /**

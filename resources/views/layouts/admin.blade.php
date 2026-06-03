@@ -54,12 +54,12 @@
                         <span class="nav-text">Tableau de bord</span>
                     </a>
                     @php $u = auth()->user(); $isAdmin = $u?->role?->value === 'admin'; $isMP = $u?->role?->value === 'mediaplanner'; $isCom = $u?->role?->value === 'commercial'; @endphp
-                    @if($isAdmin || $isMP)
+                    {{-- Disponibilités : visible aux 3 rôles staff (admin, MP, commercial)
+                         depuis l'ouverture aux commerciaux pour faire des réservations. --}}
                     <a href="{{ route('admin.reservations.disponibilites') }}" data-tooltip="Disponibilités" class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span>
                         <span class="nav-text">Disponibilités</span>
                     </a>
-                    @endif
                     <a href="{{ route('admin.panels.index') }}" data-tooltip="Inventaire" class="nav-item {{ request()->routeIs('admin.panels.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
                         <span class="nav-text">Inventaire</span>
