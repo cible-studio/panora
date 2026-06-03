@@ -513,7 +513,34 @@
                         @endforeach
                     </div>
                     @else
-                        <p class="text-center text-sm py-3" style="color:var(--text3)">Aucune transition disponible</p>
+                        {{-- État terminal (annule / termine) : message clair pour
+                             que l'admin ne se demande pas pourquoi rien n'est cliquable. --}}
+                        @if($campaign->status->value === 'annule')
+                            <div style="background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.20);border-radius:10px;padding:12px 14px;text-align:left">
+                                <div style="font-size:13px;font-weight:800;color:#b91c1c;margin-bottom:4px">🚫 Campagne annulée</div>
+                                <div style="font-size:12px;color:#7f1d1d;line-height:1.5">
+                                    Statut terminal — aucune transition possible.
+                                    @if($campaign->cancellation_reason)
+                                        Motif : <strong>{{ ucfirst($campaign->cancellation_reason) }}</strong>.
+                                    @endif
+                                    @if($campaign->cancellation_notes)
+                                        <br><em>{{ $campaign->cancellation_notes }}</em>
+                                    @endif
+                                    <br><span style="opacity:.85">Panneaux libérés, factures non payées annulées, poses annulées.</span>
+                                </div>
+                            </div>
+                        @elseif($campaign->status->value === 'termine')
+                            <div style="background:rgba(107,114,128,.06);border:1px solid rgba(107,114,128,.20);border-radius:10px;padding:12px 14px;text-align:left">
+                                <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px">✅ Campagne terminée</div>
+                                <div style="font-size:12px;color:var(--text2);line-height:1.5">
+                                    Statut terminal — aucune transition possible.
+                                    Tu peux toujours <strong>renommer</strong> la campagne ou <strong>émettre une facture complémentaire</strong>
+                                    si nécessaire (saisie historique).
+                                </div>
+                            </div>
+                        @else
+                            <p class="text-center text-sm py-3" style="color:var(--text3)">Aucune transition disponible</p>
+                        @endif
                     @endif
 
                     {{-- Bouton "Lien pige campagne" retiré — unification workflow.

@@ -4,7 +4,15 @@
     $daysLeft      = $campaign->daysRemaining();
     $pct           = $isRunning ? $campaign->progressPercent() : 0;
     $endingSoon    = $campaign->isEndingSoon();
-    $isNonFacturee = in_array($campaign->status->value, ['actif','termine']) && ($campaign->invoices_count ?? 0) === 0;
+    // Bug #1 fix : la fiche détail affichait "À facturer" même sur planifie,
+    // mais la liste ne le proposait qu'aux actif/termine — incohérent. On
+    // étend à planifie/pause. annule/termine sans facture restent muettes
+    // (rien à facturer si campagne annulée; termine sans facture = oubli
+    // intentionnel ou déjà clos).
+    $isNonFacturee = in_array($campaign->status->value, ['planifie','actif','pause','termine'])
+        && ($campaign->invoices_count ?? 0) === 0
+        && (float) ($campaign->total_amount ?? 0) > 0;
+    $isCancelledRow = $campaign->status->value === 'annule';
 
     $latestInvoice = $campaign->invoices->first();
     $invoiceCfg = $latestInvoice ? match($latestInvoice->status) {
@@ -69,7 +77,11 @@
         <span class="badge-panels">{{ ($campaign->panels_count ?? 0) + ($campaign->external_panels_count ?? 0) }} 🪧</span>
     </td>
     <td class="amount">
-        {{ number_format($campaign->total_amount, 0, ',', ' ') }} <span>FCFA</span>
+        @if($campaign->total_amount !== null && (float) $campaign->total_amount > 0)
+            {{ number_format($campaign->total_amount, 0, ',', ' ') }} <span>FCFA HT</span>
+        @else
+            <span class="badge-muted">—</span>
+        @endif
     </td>
     <td>
         <span class="status-badge" style="background:{{ $statusCfg['bg'] }};color:{{ $statusCfg['color'] }};border-color:{{ $statusCfg['border'] }}">
@@ -138,10 +150,32 @@
         <div class="actions">
             <a href="{{ route('admin.campaigns.show', $campaign) }}" class="btn-icon" title="Voir">👁</a>
             @can('update', $campaign)
-            <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn-icon" title="Modifier">✏️</a>
+                @if($campaign->status->value === 'termine')
+                    {{-- TERMINÉE : edit form refusé par le controller. On désactive
+                         le bouton et on renvoie sur la fiche détail où un bouton
+                         dédié "Renommer" (modal) est dispo (saisie d'historique). --}}
+                    <a href="{{ route('admin.campaigns.show', $campaign) }}#section-actions"
+                       class="btn-icon"
+                       style="opacity:.6"
+                       title="Campagne terminée — utilise « Renommer » sur la fiche">✏️</a>
+                @else
+                    <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn-icon" title="Modifier">✏️</a>
+                @endif
             @endcan
             @can('delete', $campaign)
-            <button class="btn-icon btn-delete" onclick="openDeleteCampaign({{ $campaign->id }}, '{{ addslashes($campaign->name) }}')" title="Supprimer">🗑</button>
+                @if($isCancelledRow)
+                    <button class="btn-icon btn-delete"
+                            onclick="openDeleteCampaign({{ $campaign->id }}, '{{ addslashes($campaign->name) }}')"
+                            title="Supprimer définitivement (campagne annulée)">🗑</button>
+                @else
+                    {{-- delete() service refuse si pas annulée. Bouton désactivé
+                         pour éviter le clic dans le vide + tooltip explicatif. --}}
+                    <button type="button"
+                            class="btn-icon"
+                            disabled
+                            style="opacity:.4;cursor:not-allowed"
+                            title="Suppression réservée aux campagnes annulées. Annule d'abord la campagne.">🗑</button>
+                @endif
             @endcan
         </div>
     </td>
