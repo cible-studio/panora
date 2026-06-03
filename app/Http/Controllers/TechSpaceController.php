@@ -278,7 +278,19 @@ class TechSpaceController extends Controller
         ]);
 
         $newStatus = PoseTaskStatus::from($data['status']);
-        $current   = $task->status;
+
+        // ⚠ PoseTask::$status n'est PAS casté en enum (décision conservée
+        // pour ne pas casser les comparaisons string existantes), donc on
+        // doit le résoudre manuellement avant d'appeler ->allowedTransitions().
+        // Sans ça : "Call to a member function allowedTransitions() on string"
+        // au clic « Sur place » → 500 silencieux côté tech.
+        $current = PoseTaskStatus::tryFrom((string) $task->status);
+        if (!$current) {
+            return response()->json([
+                'ok'    => false,
+                'error' => "Statut actuel inconnu (« {$task->status} ») — contacte ton superviseur.",
+            ], 422);
+        }
 
         // Vérifie la transition est autorisée (cf. PoseTaskStatus::allowedTransitions)
         if (!in_array($newStatus, $current->allowedTransitions(), true)) {
