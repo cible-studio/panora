@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Feuille de route — {{ $tech->name }} · Panora</title>
+
+    {{-- Favicon Panora (aligné sur le layout admin pour cohérence onglet) --}}
+    <link rel="icon" href="{{ asset('images/faviconl.png') }}" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="{{ asset('images/favicond.png') }}" media="(prefers-color-scheme: dark)">
+    <link rel="shortcut icon" href="{{ asset('images/faviconl.png') }}">
     <style>
         @page { size: A4 portrait; margin: 12mm 10mm; }
         * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -24,6 +29,13 @@
             display: flex; justify-content: space-between; align-items: flex-start;
             margin-bottom: 12mm; padding-bottom: 6mm;
             border-bottom: 2px solid #e8a020;
+            gap: 14mm;
+        }
+        .header-l { display: flex; align-items: center; gap: 8mm; flex: 1; min-width: 0; }
+        .header-l .brand-mark {
+            flex: 0 0 auto;
+            height: 16mm; width: auto; display: block;
+            object-fit: contain;
         }
         .header-l h1 {
             margin: 0; font-size: 18pt; color: #c2570d;
@@ -34,6 +46,7 @@
         }
         .header-r {
             text-align: right; font-size: 9.5pt; color: #6b7280;
+            flex: 0 0 auto;
         }
         .header-r strong { color: #111827; font-size: 11pt; }
 
@@ -144,8 +157,11 @@
 
 <div class="header">
     <div class="header-l">
-        <h1>Feuille de route — {{ $tech->name }}</h1>
-        <div class="sub">Toutes les poses actives, groupées par commune · à jour le {{ now()->format('d/m/Y H:i') }}</div>
+        <img src="{{ asset('images/panora.png') }}" alt="Panora by CIBLE" class="brand-mark">
+        <div>
+            <h1>Feuille de route — {{ $tech->name }}</h1>
+            <div class="sub">Toutes les poses actives, groupées par commune · à jour le {{ now()->format('d/m/Y H:i') }}</div>
+        </div>
     </div>
     <div class="header-r">
         <div><strong>Panora</strong> · CIBLE CI</div>

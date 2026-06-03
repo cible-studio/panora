@@ -6,6 +6,11 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Mes poses — {{ $tech->name }} · Panora</title>
 
+    {{-- Favicon Panora (aligné sur le layout admin pour cohérence onglet) --}}
+    <link rel="icon" href="{{ asset('images/faviconl.png') }}" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="{{ asset('images/favicond.png') }}" media="(prefers-color-scheme: dark)">
+    <link rel="shortcut icon" href="{{ asset('images/faviconl.png') }}">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -897,7 +902,11 @@
             font-size: 11px;
         }
 
-        /* Banner total tournée affiché en haut */
+        /* Banner total tournée affiché en haut.
+           ⚠ Pas de `display: flex` dans la base (sinon override `display: none`
+           et la bannière apparaît au load avant tout calcul). Seule `.show`
+           bascule en flex — sans ça "Quitter" était inopérant (la classe
+           tombait mais le display restait flex). */
         .tour-summary {
             display: none;
             margin: 0 0 12px;
@@ -906,7 +915,7 @@
             border: 1px solid rgba(34,197,94,.35);
             color: #166534;
             font-size: 12.5px; font-weight: 700; line-height: 1.45;
-            display: flex; gap: 10px; align-items: center;
+            gap: 10px; align-items: center;
         }
         .tour-summary.show { display: flex; }
         .tour-summary strong { color: #14532d; }
