@@ -110,7 +110,8 @@
                         <select id="f-statut" class="filter-select" onchange="DISPO.set('statut', this.value)">
                             <option value="tous">Tous</option>
                             <option value="libre">✅ Disponible</option>
-                            <option value="occupe">🔒 Occupé</option>
+                            <option value="occupe">🔴 Occupé</option>
+                            <option value="confirme">🟣 Confirmé</option>
                             <option value="option">⏳ En option</option>
                             <option value="maintenance">🔧 Maintenance</option>
                         </select>
@@ -1332,10 +1333,14 @@
                         bd: 'rgba(249,115,22,.5)'
                     },
                     confirme: {
+                        // Désambiguïsation OCCUPE vs CONFIRME : l'enum PHP
+                        // PanelStatus distingue OCCUPE (affichage en cours,
+                        // rouge) de CONFIRME (signé, pose à venir, violet).
+                        // Le JS hérite maintenant des bonnes couleurs.
                         l: 'Confirmé',
-                        c: '#e20613',
-                        b: 'rgba(226,6,19,.08)',
-                        bd: 'rgba(226,6,19,.3)'
+                        c: '#8b5cf6',
+                        b: 'rgba(139,92,246,.10)',
+                        bd: 'rgba(139,92,246,.40)'
                     },
                     maintenance: {
                         l: 'Maintenance',
