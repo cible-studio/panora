@@ -912,12 +912,38 @@
 
             {{-- Si une demande de décalage a déjà été envoyée et n'a pas
                  encore été traitée par l'admin, on informe le client.
-                 Évite qu'il re-clique en pensant que rien ne s'est passé. --}}
+                 Évite qu'il re-clique en pensant que rien ne s'est passé.
+                 Et surtout : on lui montre l'estimation du nouveau montant
+                 pour qu'il sache que le prix va changer avec la nouvelle
+                 période (et reste négociable). --}}
             @if($reservation->hasPendingDateChange())
-                <div style="margin-top:14px;background:linear-gradient(180deg,#fff7ed,#fffbeb);border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;font-size:13px;color:#9a3412;line-height:1.5">
+                @php
+                    $estimatedNew = $reservation->estimateAmountForDates(
+                        $reservation->requested_start_date,
+                        $reservation->requested_end_date
+                    );
+                    $currentAmt = (float) ($reservation->total_amount ?? 0);
+                    $diff = $estimatedNew - $currentAmt;
+                    $hasDiff = abs($diff) > 0.01;
+                @endphp
+                <div style="margin-top:14px;background:linear-gradient(180deg,#fff7ed,#fffbeb);border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;font-size:13px;color:#9a3412;line-height:1.55">
                     <strong>🗓 Demande de décalage transmise</strong> — nouvelles dates souhaitées :
-                    <strong>{{ $reservation->requested_start_date->format('d/m/Y') }} → {{ $reservation->requested_end_date->format('d/m/Y') }}</strong>.
-                    Notre équipe te répondra rapidement. Tu peux toujours confirmer la proposition initiale ou la refuser en attendant.
+                    <strong>{{ $reservation->requested_start_date->format('d/m/Y') }} → {{ $reservation->requested_end_date->format('d/m/Y') }}</strong>.<br>
+                    @if($hasDiff)
+                        <span style="display:inline-block;margin-top:6px">
+                            💰 Nouveau montant estimé :
+                            <strong>{{ number_format($estimatedNew, 0, ',', ' ') }} FCFA HT</strong>
+                            <span style="color:{{ $diff > 0 ? '#92400e' : '#16a34a' }};font-weight:700">
+                                ({{ $diff > 0 ? '+' : '' }}{{ number_format($diff, 0, ',', ' ') }} FCFA)
+                            </span>
+                            <span style="display:block;font-size:11.5px;color:#9a3412;opacity:.85;margin-top:2px">
+                                Reste négociable — le montant définitif sera précisé dans la réponse de notre équipe.
+                            </span>
+                        </span><br>
+                    @endif
+                    <span style="display:inline-block;margin-top:4px">
+                        Notre équipe te répondra rapidement. Tu peux toujours confirmer la proposition initiale ou la refuser en attendant.
+                    </span>
                 </div>
             @endif
 
@@ -985,6 +1011,24 @@
                           placeholder="Ex : « Je préfère démarrer après mon salon le 15/07 », ou « Décaler de 2 semaines »…"
                           style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13.5px;resize:vertical;font-family:inherit"></textarea>
             </label>
+
+            {{-- Estimation live du nouveau montant. Calculée côté JS à partir
+                 de la durée saisie × le tarif total mensuel actuel. Donne
+                 au client une transparence sur l'impact financier avant
+                 d'envoyer sa demande. --}}
+            <div id="dc-amount-preview"
+                 style="display:none;margin-top:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#9a3412;line-height:1.5">
+                <div>
+                    💰 Estimation du nouveau montant :
+                    <strong id="dc-amount-new">—</strong>
+                    <span id="dc-amount-diff" style="font-weight:700"></span>
+                </div>
+                <div style="font-size:11px;color:#b45309;margin-top:3px">
+                    Montant actuel : <span id="dc-amount-old">{{ number_format((float) $reservation->total_amount, 0, ',', ' ') }} FCFA</span>
+                    · le montant définitif reste négociable et confirmé par notre équipe.
+                </div>
+            </div>
+
             <div id="dc-error" style="display:none;color:#b91c1c;font-size:12px;margin-top:8px"></div>
             <div class="modal-warning" style="margin-top:12px">
                 Pendant que ta demande est en attente, tu peux toujours <strong>confirmer la proposition initiale</strong> ou la refuser.
@@ -1055,13 +1099,57 @@
     function openDateChangeModal()  { document.getElementById('modal-date-change').classList.add('open'); }
     function closeDateChangeModal() { document.getElementById('modal-date-change').classList.remove('open'); }
 
-    // Validation côté client : end > start + pas dans le passé
+    // Validation côté client : end > start + pas dans le passé + estimation live
     (function () {
         const form = document.getElementById('form-date-change');
         if (!form) return;
         const start = document.getElementById('dc-start');
         const end   = document.getElementById('dc-end');
         const err   = document.getElementById('dc-error');
+        const previewBox = document.getElementById('dc-amount-preview');
+        const newSpan    = document.getElementById('dc-amount-new');
+        const diffSpan   = document.getElementById('dc-amount-diff');
+
+        // Tarif mensuel total des panneaux = total_amount / billableMonths actuel.
+        // Permet de recalculer le total estimé pour n'importe quelle durée.
+        const CURRENT_AMOUNT  = {{ (float) ($reservation->total_amount ?? 0) }};
+        const CURRENT_MONTHS  = {{ (float) ($reservation->billableMonths() ?? 0.5) }};
+        const MONTHLY_TOTAL   = CURRENT_MONTHS > 0 ? CURRENT_AMOUNT / CURRENT_MONTHS : 0;
+
+        function billableMonthsJS(startStr, endStr) {
+            if (!startStr || !endStr) return 0;
+            const s = new Date(startStr + 'T00:00:00');
+            const e = new Date(endStr + 'T00:00:00');
+            if (e <= s) return 0;
+            const days = Math.round((e - s) / 86400000) + 1;
+            const full = Math.floor(days / 30);
+            const rem  = days % 30;
+            let frac = 0;
+            if (rem >= 1 && rem <= 15) frac = 0.5;
+            else if (rem > 15)         frac = 1;
+            return Math.max(full + frac, 0.5);
+        }
+        function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA'; }
+
+        function updatePreview() {
+            const months = billableMonthsJS(start.value, end.value);
+            if (months <= 0 || MONTHLY_TOTAL <= 0) {
+                previewBox.style.display = 'none';
+                return;
+            }
+            const estimated = MONTHLY_TOTAL * months;
+            const diff = estimated - CURRENT_AMOUNT;
+            newSpan.textContent = fmt(estimated);
+            if (Math.abs(diff) < 1) {
+                diffSpan.textContent = '';
+            } else {
+                const sign = diff > 0 ? '+' : '';
+                diffSpan.textContent = ` (${sign}${fmt(diff)})`;
+                diffSpan.style.color = diff > 0 ? '#92400e' : '#16a34a';
+            }
+            previewBox.style.display = 'block';
+        }
+
         function show(msg) { err.textContent = msg; err.style.display = 'block'; }
         function clear() { err.style.display = 'none'; }
         // Auto-ajuste end si start passe au-delà
@@ -1069,7 +1157,12 @@
             if (end.value && end.value <= start.value) end.value = '';
             end.min = start.value;
             clear();
+            updatePreview();
         });
+        end?.addEventListener('change', () => { clear(); updatePreview(); });
+        // Initial : si les inputs sont déjà pré-remplis aux dates actuelles
+        updatePreview();
+
         form.addEventListener('submit', (e) => {
             clear();
             const sv = start.value, ev = end.value;

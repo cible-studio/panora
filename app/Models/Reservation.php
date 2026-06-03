@@ -140,6 +140,49 @@ class Reservation extends Model
     }
 
     /**
+     * Estime ce que serait total_amount si on appliquait (start, end) à
+     * la réservation, SANS rien persister. Base : somme des unit_price
+     * du pivot × billableMonths calculé sur ces dates.
+     *
+     * Utilisé côté UI client/admin pour prévisualiser l'impact financier
+     * d'un décalage AVANT de l'appliquer (page proposition, modale de
+     * contre-proposition admin, modale de demande de décalage client).
+     */
+    public function estimateAmountForDates(\DateTimeInterface|string $start, \DateTimeInterface|string $end): float
+    {
+        $s = \Carbon\Carbon::parse($start);
+        $e = \Carbon\Carbon::parse($end);
+        if ($e->lte($s)) return 0.0;
+
+        $days = (int) $s->copy()->startOfDay()->diffInDays($e->copy()->startOfDay()) + 1;
+        $full = (int) floor($days / 30);
+        $rem  = $days % 30;
+        $frac = 0.0;
+        if ($rem >= 1 && $rem <= 15) $frac = 0.5;
+        elseif ($rem > 15)            $frac = 1.0;
+        $months = max($full + $frac, 0.5);
+
+        $rows = \Illuminate\Support\Facades\DB::table('reservation_panels')
+            ->where('reservation_id', $this->id)
+            ->get(['panel_id', 'external_panel_id', 'unit_price', 'source']);
+
+        $sum = 0.0;
+        foreach ($rows as $r) {
+            $unit = (float) ($r->unit_price ?? 0);
+            if ($unit <= 0) {
+                if ($r->source === 'externe' && $r->external_panel_id) {
+                    $unit = (float) (\App\Models\ExternalPanel::where('id', $r->external_panel_id)->value('monthly_rate') ?? 0);
+                } elseif ($r->panel_id) {
+                    $unit = (float) (\App\Models\Panel::where('id', $r->panel_id)->value('monthly_rate') ?? 0);
+                }
+            }
+            $sum += $unit * $months;
+        }
+
+        return round($sum, 2);
+    }
+
+    /**
      * Recalcule total_price de chaque ligne pivot (interne + externe) et
      * total_amount de la réservation à partir de la nouvelle durée.
      *
