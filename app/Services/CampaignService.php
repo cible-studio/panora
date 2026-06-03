@@ -605,6 +605,18 @@ class CampaignService
                     'paid_at' => null,
                 ]);
 
+            // Alertes liées non lues → archivage. Inutile que l'admin voie
+            // encore "campagne se termine bientôt" ou "demande de décalage"
+            // sur une campagne qui n'existe plus métier. Trace conservée
+            // via archived_at (pas un delete dur).
+            $archivedAlerts = \App\Models\Alert::where('related_type', \App\Models\Campaign::class)
+                ->where('related_id', $campaign->id)
+                ->whereNull('archived_at')
+                ->update([
+                    'archived_at' => now(),
+                    'is_read'     => true,
+                ]);
+
             $this->syncAllPanels($internalIds, $externalIds);
 
             Log::info('campaign.cancelled', [
@@ -614,6 +626,7 @@ class CampaignService
                 'externals_freed'    => count($externalIds),
                 'poses_cancelled'    => $cancelledPoses,
                 'invoices_cancelled' => $cancelledInvoices,
+                'alerts_archived'    => $archivedAlerts,
                 'user_id'            => auth()->id(),
             ]);
         });
