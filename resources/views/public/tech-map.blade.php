@@ -6,6 +6,11 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Carte — {{ $tech->name }} · Panora</title>
 
+    {{-- Favicon Panora (aligné sur le layout admin pour cohérence onglet) --}}
+    <link rel="icon" href="{{ asset('images/faviconl.png') }}" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="{{ asset('images/favicond.png') }}" media="(prefers-color-scheme: dark)">
+    <link rel="shortcut icon" href="{{ asset('images/faviconl.png') }}">
+
     <link rel="manifest" href="{{ asset('tech.webmanifest') }}">
     <meta name="theme-color" content="#e8a020">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -45,6 +50,10 @@
             display: flex; gap: 10px; align-items: center;
             box-shadow: 0 4px 14px -8px rgba(232,160,32,.2);
             z-index: 1000;
+        }
+        .header .brand-logo {
+            flex: 0 0 auto;
+            height: 30px; width: auto; display: block; object-fit: contain;
         }
         .header h1 {
             margin: 0; font-size: 14.5px; font-weight: 800;
@@ -196,6 +205,7 @@
 
 <div class="header">
     <a href="{{ route('tech.space', $token) }}" class="back">←</a>
+    <img src="{{ asset('images/panora.png') }}" alt="Panora by CIBLE" class="brand-logo">
     <div style="flex:1;min-width:0">
         <h1>🗺 Carte — {{ $tech->name }}</h1>
         <div class="subtitle">
