@@ -76,6 +76,13 @@ class TechSpaceController extends Controller
         // silencieux à chaque accès via panel->adresse.
         // Le tech raisonne "où je vais", pas "quelle campagne" → on charge
         // de quoi reconnaître le lieu (photo du panneau) et y aller (lat/lng).
+        //
+        // ⚠ Scalabilité : à 500+ poses, on évite de tout rendre en SSR
+        // (DOM 5k+ nœuds = mobile en souffrance). On SSR-rend les SSR_CAP
+        // les plus urgentes (retard d'abord, puis aujourd'hui, puis le
+        // reste). Au-delà, la recherche Select2 (endpoint searchPoses())
+        // sert de point d'entrée — elle requête la BDD complète et injecte
+        // dynamiquement la carte sélectionnée si elle n'est pas en SSR.
         $activeTasks = PoseTask::with([
                 'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude',
                 'panel.commune:id,name',
@@ -100,8 +107,40 @@ class TechSpaceController extends Controller
             ->orderBy('scheduled_at')
             ->get();
 
+        $totalActiveAll = $activeTasks->count();
+
+        // Cap du SSR : 200 cartes max. Au-delà, on garde les plus urgentes
+        // dans le rendu initial (en retard → aujourd'hui → reste) et la
+        // recherche Select2 / la feuille de route donnent accès au reste.
+        // 200 ≈ 3000 nœuds DOM, encore confortable sur mobile bas de gamme.
+        $ssrCap = (int) config('tech_space.ssr_cap', 200);
+        $today  = Carbon::today();
+        $startOfDay = $today->copy()->startOfDay();
+        $endOfDay   = $today->copy()->endOfDay();
+        $isLate = function ($t) use ($today) {
+            $d = $t->scheduled_at ?? $t->created_at;
+            return $d && Carbon::parse($d)->startOfDay()->lt($today);
+        };
+        $isTodayTask = function ($t) use ($startOfDay, $endOfDay) {
+            $d = $t->scheduled_at ?? $t->created_at;
+            return $d && Carbon::parse($d)->between($startOfDay, $endOfDay);
+        };
+        if ($totalActiveAll > $ssrCap) {
+            // Priorité : retard d'abord (timestamp asc), puis aujourd'hui,
+            // puis le reste. Ce tri remplace l'orderBy DB pour le SSR.
+            $activeTasks = $activeTasks->sortBy(function ($t) use ($isLate, $isTodayTask) {
+                $bucket = $isLate($t) ? 0 : ($isTodayTask($t) ? 1 : 2);
+                $ts     = optional($t->scheduled_at)->timestamp ?? PHP_INT_MAX;
+                return sprintf('%d-%020d', $bucket, $ts);
+            })->take($ssrCap)->values();
+        }
+
         // Stats pour l'en-tête + barre de progression (faites / assignées).
-        $totalActive   = $activeTasks->count();
+        // ⚠ totalActive = total réel (non capé), pour ne pas mentir à l'admin
+        // sur les KPI. Le SSR n'en rend qu'une partie ($activeTasks→count()),
+        // mais le tech voit "X poses au total" exact (= $totalActiveAll).
+        $totalActive   = $totalActiveAll;
+        $totalRendered = $activeTasks->count();
         $totalDone     = PoseTask::where('assigned_user_id', $tech->id)
             ->where('status', PoseTaskStatus::COMPLETED->value)
             ->count();
@@ -119,24 +158,19 @@ class TechSpaceController extends Controller
             ->map(fn($g) => $g->count())
             ->all();
 
-        // Marque les poses en retard (échéance passée) — sert au tri et au badge.
-        $today = Carbon::today();
-        $isOverdue = function ($task) use ($today) {
-            $date = $task->scheduled_at ?? $task->created_at;
-            return $date && Carbon::parse($date)->startOfDay()->lt($today);
-        };
-
         // Regroupement par COMMUNE/ZONE (le tech fait une zone entière avant
         // de se déplacer), pas par campagne ni par date. À l'intérieur d'une
         // zone : les poses en retard d'abord, puis par échéance.
+        // ⚠ $isLate, $today, $startOfDay, $endOfDay sont déjà définis plus
+        // haut (avant le cap SSR) — on les réutilise sans les redéclarer.
         $groupedByCommune = $activeTasks
-            ->sortBy(fn($t) => [$isOverdue($t) ? 0 : 1, optional($t->scheduled_at)->timestamp ?? PHP_INT_MAX])
+            ->sortBy(fn($t) => [$isLate($t) ? 0 : 1, optional($t->scheduled_at)->timestamp ?? PHP_INT_MAX])
             ->groupBy(fn($t) => $t->panel?->commune?->name ?? 'Sans commune')
             // Ordre des zones : celles qui contiennent du retard d'abord,
             // puis les plus grosses (plus de poses) → le tech attaque le
             // plus urgent / le plus rentable en déplacement.
-            ->sortBy(function ($tasks) use ($isOverdue) {
-                $hasOverdue = $tasks->contains(fn($t) => $isOverdue($t));
+            ->sortBy(function ($tasks) use ($isLate) {
+                $hasOverdue = $tasks->contains(fn($t) => $isLate($t));
                 return ($hasOverdue ? '0' : '1') . str_pad((string) (9999 - $tasks->count()), 4, '0', STR_PAD_LEFT);
             });
 
@@ -144,21 +178,22 @@ class TechSpaceController extends Controller
         // Distinction importante : totalDone = depuis toujours ; les chiffres
         // ci-dessous ne portent QUE sur la journée en cours, ce qui donne
         // au tech un retour sur son activité du jour (1 poste = 1 sprint).
-        $startOfDay = $today->copy()->startOfDay();
-        $endOfDay   = $today->copy()->endOfDay();
-
         $doneToday = PoseTask::where('assigned_user_id', $tech->id)
             ->where('status', PoseTaskStatus::COMPLETED->value)
             ->whereBetween('done_at', [$startOfDay, $endOfDay])
             ->count();
 
-        // Poses prévues aujourd'hui ENCORE actives — c'est exactement ce
-        // que le filtre KPI "Aujourd'hui" rend visible. Cohérence visuelle
-        // entre la valeur affichée et le contenu après clic.
-        $activeToday = $activeTasks->filter(function ($t) use ($startOfDay, $endOfDay) {
-            $d = $t->scheduled_at ?? $t->created_at;
-            return $d && \Carbon\Carbon::parse($d)->between($startOfDay, $endOfDay);
-        })->count();
+        // Poses prévues aujourd'hui ENCORE actives — requête DB dédiée pour
+        // rester correcte même quand le SSR a capé (sinon on sous-compterait
+        // à grande échelle puisque $activeTasks aurait été tronqué).
+        $activeToday = PoseTask::where('assigned_user_id', $tech->id)
+            ->whereNotNull('panel_id')->whereNotNull('campaign_id')
+            ->whereNotIn('status', [
+                PoseTaskStatus::COMPLETED->value,
+                PoseTaskStatus::CANCELLED->value,
+            ])
+            ->whereBetween('scheduled_at', [$startOfDay, $endOfDay])
+            ->count();
 
         // Filtre piges du tech : robuste aux uploads historiques (user_id
         // pointait sur le commercial avant le fix). On accepte user_id direct
@@ -205,13 +240,54 @@ class TechSpaceController extends Controller
         $pigesRejected = \App\Models\Pige::query()->tap($pigesForTech)
             ->where('status', 'rejete')->count();
 
+        // Liste TOC zones : agrégat global (toutes poses actives, pas seulement
+        // SSR) → chip cliquable sticky pour navigation directe. Une requête
+        // groupée sur la BDD pour rester rapide même à 5k+ poses.
+        $allZones = PoseTask::where('assigned_user_id', $tech->id)
+            ->whereNotNull('panel_id')->whereNotNull('campaign_id')
+            ->whereNotIn('status', [
+                PoseTaskStatus::COMPLETED->value,
+                PoseTaskStatus::CANCELLED->value,
+            ])
+            ->join('panels', 'panels.id', '=', 'pose_tasks.panel_id')
+            ->join('communes', 'communes.id', '=', 'panels.commune_id')
+            ->groupBy('communes.id', 'communes.name')
+            ->orderBy('communes.name')
+            ->get([
+                'communes.name as commune_name',
+                \Illuminate\Support\Facades\DB::raw('COUNT(pose_tasks.id) as total_active'),
+            ])
+            ->map(function ($row) use ($doneByCommune) {
+                $done  = (int) ($doneByCommune[$row->commune_name] ?? 0);
+                $active = (int) $row->total_active;
+                $total  = $active + $done;
+                return [
+                    'name'   => $row->commune_name,
+                    'active' => $active,
+                    'done'   => $done,
+                    'total'  => $total,
+                    'pct'    => $total > 0 ? (int) round($done / $total * 100) : 0,
+                ];
+            })
+            ->all();
+
+        // "Prochaine pose" = la plus prioritaire actuellement assignée.
+        // Ordre : retard d'abord, puis aujourd'hui, puis échéance la plus
+        // proche. C'est ce qu'on met en hero "focus card" en haut.
+        $nextTask = $activeTasks->first(fn($t) => $isLate($t))
+                  ?? $activeTasks->first(fn($t) => $isTodayTask($t))
+                  ?? $activeTasks->first();
+
         return [
             'totalActive'      => $totalActive,
+            'totalRendered'    => $totalRendered,
             'totalDone'        => $totalDone,
             'totalAssigned'    => $totalAssigned,
             'progressPct'      => $progressPct,
             'groupedByCommune' => $groupedByCommune,
             'doneByCommune'    => $doneByCommune,
+            'allZones'         => $allZones,
+            'nextTask'         => $nextTask,
             // Métriques journée
             'doneToday'        => $doneToday,
             'activeToday'      => $activeToday,
@@ -222,6 +298,235 @@ class TechSpaceController extends Controller
             'pigesTotal'       => $pigesTotal,
             'pigesRejected'    => $pigesRejected,
         ];
+    }
+
+    /**
+     * GET /tech/{token}/poses/search
+     *
+     * Source AJAX pour Select2 — recherche full-text sur référence, nom,
+     * commune, campagne, adresse, quartier, client. Renvoie un payload
+     * paginé (per_page=20 par défaut) avec metadata par pose pour rendre
+     * directement la card si elle n'est pas en SSR.
+     *
+     * Paramètres :
+     *   - q          : texte de recherche (str)
+     *   - commune    : filtre commune exacte (str)
+     *   - status     : filtre statut (planifiee|en_route|en_cours)
+     *   - late       : 1 = uniquement en retard
+     *   - today      : 1 = uniquement échéance aujourd'hui
+     *   - problem    : 1 = uniquement avec signalement non résolu
+     *   - reject     : 1 = uniquement avec dernière pige refusée
+     *   - sort       : 'urgency' (défaut) | 'distance' (avec ?lat & ?lng)
+     *   - page       : pagination Select2
+     *   - per_page   : taille de page (max 50)
+     */
+    public function searchPoses(Request $request, string $token)
+    {
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->first();
+        if (!$tech) return response()->json(['results' => [], 'pagination' => ['more' => false]], 404);
+
+        $q        = trim((string) $request->input('q', ''));
+        $commune  = trim((string) $request->input('commune', ''));
+        $status   = trim((string) $request->input('status', ''));
+        $late     = (int) $request->input('late', 0) === 1;
+        $today    = (int) $request->input('today', 0) === 1;
+        $problem  = (int) $request->input('problem', 0) === 1;
+        $reject   = (int) $request->input('reject', 0) === 1;
+        $sort     = $request->input('sort', 'urgency');
+        $page     = max(1, (int) $request->input('page', 1));
+        $perPage  = min(50, max(5, (int) $request->input('per_page', 20)));
+
+        $validStatus = ['planifiee', 'en_route', 'en_cours'];
+        if (!in_array($status, $validStatus, true)) $status = '';
+
+        $todayDate = Carbon::today();
+        $startOfDay = $todayDate->copy()->startOfDay();
+        $endOfDay   = $todayDate->copy()->endOfDay();
+
+        $base = PoseTask::with([
+                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude',
+                'panel.commune:id,name',
+                'panel.format:id,name',
+                'panel.photos:id,panel_id,path,ordre',
+                'campaign:id,name,client_id,status',
+                'campaign.client:id,name',
+                'lastProblemReport',
+                'latestRejectedPige',
+            ])
+            ->where('assigned_user_id', $tech->id)
+            ->whereNotNull('panel_id')->whereNotNull('campaign_id')
+            ->whereNotIn('status', [
+                PoseTaskStatus::COMPLETED->value,
+                PoseTaskStatus::CANCELLED->value,
+            ]);
+
+        if ($status !== '') {
+            $base->where('status', $status);
+        }
+        if ($late) {
+            $base->where('scheduled_at', '<', $startOfDay);
+        }
+        if ($today) {
+            $base->whereBetween('scheduled_at', [$startOfDay, $endOfDay]);
+        }
+        if ($commune !== '') {
+            $base->whereHas('panel.commune', fn($qq) => $qq->where('name', $commune));
+        }
+        if ($problem) {
+            $base->whereHas('lastProblemReport');
+        }
+        if ($reject) {
+            $base->whereHas('latestRejectedPige');
+        }
+        if ($q !== '') {
+            // Recherche texte sur les champs visibles côté tech. Pas de
+            // FTS (MySQL natif suffit pour ces volumes), juste des LIKE
+            // qualifiés avec eager-load via whereHas.
+            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
+            $base->where(function ($qq) use ($like) {
+                $qq->whereHas('panel', function ($pp) use ($like) {
+                    $pp->where('reference', 'like', $like)
+                       ->orWhere('name', 'like', $like)
+                       ->orWhere('adresse', 'like', $like)
+                       ->orWhere('quartier', 'like', $like);
+                })->orWhereHas('panel.commune', fn($cc) => $cc->where('name', 'like', $like))
+                  ->orWhereHas('campaign', fn($cc) => $cc->where('name', 'like', $like))
+                  ->orWhereHas('campaign.client', fn($cc) => $cc->where('name', 'like', $like));
+            });
+        }
+
+        // Tri par défaut : urgence (retard d'abord, puis échéance)
+        $base->orderByRaw('(scheduled_at IS NULL) ASC')->orderBy('scheduled_at');
+
+        $totalMatches = (clone $base)->count();
+        $tasks = $base->skip(($page - 1) * $perPage)->take($perPage + 1)->get();
+        $hasMore = $tasks->count() > $perPage;
+        if ($hasMore) $tasks = $tasks->take($perPage);
+
+        // Tri par distance optionnel — recalcul côté PHP si on a lat/lng tech
+        if ($sort === 'distance' && $request->filled(['lat', 'lng'])) {
+            $tLat = (float) $request->input('lat');
+            $tLng = (float) $request->input('lng');
+            $tasks = $tasks->sortBy(function ($t) use ($tLat, $tLng) {
+                $pLat = $t->panel?->latitude; $pLng = $t->panel?->longitude;
+                if ($pLat === null || $pLng === null) return PHP_FLOAT_MAX;
+                return self::haversine($tLat, $tLng, (float) $pLat, (float) $pLng);
+            })->values();
+        }
+
+        $results = $tasks->map(function ($t) {
+            $status = $t->status instanceof PoseTaskStatus
+                ? $t->status
+                : PoseTaskStatus::tryFrom((string) $t->status);
+            $firstPhoto = $t->panel?->photos?->sortBy('ordre')->first();
+            $thumb = $firstPhoto ? asset('storage/' . $firstPhoto->path) : null;
+            $isLateLocal = $t->scheduled_at && Carbon::parse($t->scheduled_at)->startOfDay()->lt(Carbon::today());
+
+            // Texte affiché dans Select2 : ref + name + commune (court)
+            $ref     = $t->panel?->reference ?? '#' . $t->id;
+            $name    = $t->panel?->name ?? '';
+            $communeName = $t->panel?->commune?->name ?? '—';
+            $text    = trim($ref . ' · ' . $communeName . ($name ? ' — ' . \Illuminate\Support\Str::limit($name, 50) : ''));
+
+            return [
+                'id'           => $t->id,
+                'text'         => $text,
+                'ref'          => $ref,
+                'name'         => $name,
+                'commune'      => $communeName,
+                'adresse'      => $t->panel?->adresse,
+                'quartier'     => $t->panel?->quartier,
+                'campaign'     => $t->campaign?->name,
+                'client'       => $t->campaign?->client?->name,
+                'status'       => $status?->value,
+                'status_label' => $status?->label(),
+                'status_color' => $status?->color(),
+                'is_late'      => (bool) $isLateLocal,
+                'has_problem'  => $t->lastProblemReport !== null,
+                'has_reject'   => $t->latestRejectedPige !== null,
+                'reject_reason'=> $t->latestRejectedPige?->rejection_reason,
+                'lat'          => $t->panel?->latitude,
+                'lng'          => $t->panel?->longitude,
+                'thumb_url'    => $thumb,
+                'scheduled_at' => optional($t->scheduled_at)->toIso8601String(),
+                'format'       => $t->panel?->format?->name,
+            ];
+        })->values();
+
+        return response()->json([
+            'results'    => $results,
+            'pagination' => ['more' => $hasMore],
+            'total'      => $totalMatches,
+        ]);
+    }
+
+    /**
+     * GET /tech/{token}/poses/route-sheet
+     *
+     * Feuille de route imprimable / PDF — toutes les poses actives du
+     * tech sur une page A4 portrait, groupées par commune, avec
+     * référence, nom, adresse, GPS, format, échéance, statut, campagne.
+     *
+     * Permet au tech d'imprimer sa journée le matin et de bosser même
+     * sans réseau (filet de sécurité offline).
+     */
+    public function routeSheet(string $token)
+    {
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->first();
+        if (!$tech) abort(404, 'Lien invalide ou compte désactivé.');
+
+        // Sur la feuille de route on charge TOUT, pas le cap SSR. Le tech
+        // imprime / sauvegarde en PDF et utilise ça comme référence terrain.
+        $activeTasks = PoseTask::with([
+                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude',
+                'panel.commune:id,name',
+                'panel.format:id,name',
+                'campaign:id,name,client_id',
+                'campaign.client:id,name',
+            ])
+            ->where('assigned_user_id', $tech->id)
+            ->whereNotNull('panel_id')->whereNotNull('campaign_id')
+            ->whereNotIn('status', [
+                PoseTaskStatus::COMPLETED->value,
+                PoseTaskStatus::CANCELLED->value,
+            ])
+            ->orderBy('scheduled_at')
+            ->get();
+
+        $today = Carbon::today();
+        $isLate = fn($t) => $t->scheduled_at && Carbon::parse($t->scheduled_at)->startOfDay()->lt($today);
+
+        $groupedByCommune = $activeTasks
+            ->sortBy(fn($t) => [$isLate($t) ? 0 : 1, optional($t->scheduled_at)->timestamp ?? PHP_INT_MAX])
+            ->groupBy(fn($t) => $t->panel?->commune?->name ?? 'Sans commune')
+            ->sortBy(fn($g, $k) => $k);
+
+        return view('public.tech-route-sheet', [
+            'tech'             => $tech,
+            'token'            => $token,
+            'total'            => $activeTasks->count(),
+            'groupedByCommune' => $groupedByCommune,
+            'isLate'           => $isLate,
+        ]);
+    }
+
+    /**
+     * Distance haversine (mètres) entre 2 points GPS.
+     * Utilisé pour le tri par distance dans searchPoses() — précision
+     * suffisante pour ordonner une tournée intra-ville.
+     */
+    protected static function haversine(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $R = 6371000.0; // rayon terrestre en mètres
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2
+           + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+        return $R * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     /**

@@ -1,0 +1,27 @@
+{
+    "name": "Panora · Espace Technicien",
+    "short_name": "Panora Tech",
+    "description": "Tournée de pose terrain — CIBLE CI",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#fff7ed",
+    "theme_color": "#e8a020",
+    "categories": ["productivity", "business"],
+    "lang": "fr",
+    "icons": [
+        {
+            "src": "/images/favicond.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/images/faviconl.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}

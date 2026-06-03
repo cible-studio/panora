@@ -1,0 +1,166 @@
+/*
+ * Service Worker — espace technicien Panora (CIBLE CI)
+ *
+ * Stratégie offline-first volontairement minimaliste :
+ *   - cache-first sur les assets statiques (CSS Select2, fonts, images
+ *     panneau /storage/) → ouverture instantanée hors-ligne
+ *   - network-first sur les pages tech (/tech/...) avec fallback cache
+ *     → l'utilisateur voit la dernière version connue si la 4G coupe
+ *   - bypass sur les actions POST (upload photo, status, report) :
+ *     ces actions DOIVENT atteindre le réseau, on ne les bufferise pas
+ *     ici (l'UI gère les retries via toast).
+ *
+ * Versioning du cache : SW_VERSION dans le nom. Bump à chaque release
+ * de la PWA pour purger les anciens caches. Pas d'auto-update aggressive
+ * — on attend que le tech ferme/rouvre la PWA pour swap (skipWaiting()
+ * désactivé pour éviter de couper un upload en cours).
+ */
+
+const SW_VERSION = 'v1.0.0';
+const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
+const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
+const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
+
+// Pré-cache minimal au install (sans la page tech elle-même : on la
+// cache au premier hit en mode network-first).
+const PRECACHE_URLS = [
+    '/images/panora.png',
+    '/images/favicond.png',
+    '/images/panel-placeholder.svg',
+    '/tech.webmanifest',
+    'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css',
+    'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js',
+    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap',
+];
+
+// ─── Install : pré-cache + activate immédiat ────────────────────────
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(STATIC_CACHE)
+            .then((cache) => cache.addAll(PRECACHE_URLS).catch(() => {
+                // Ne pas faire échouer l'install si un CDN refuse :
+                // les ressources se cacheront au runtime.
+            }))
+    );
+    // skipWaiting volontairement DÉSACTIVÉ — on ne veut pas couper un
+    // upload en cours. Le nouveau SW prendra effet au prochain reload.
+});
+
+// ─── Activate : purge des anciens caches ────────────────────────────
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((keys) =>
+            Promise.all(
+                keys
+                    .filter((k) => k.startsWith('panora-tech-') && !k.endsWith(SW_VERSION))
+                    .map((k) => caches.delete(k))
+            )
+        ).then(() => self.clients.claim())
+    );
+});
+
+// ─── Fetch : routing par type de requête ────────────────────────────
+self.addEventListener('fetch', (event) => {
+    const req = event.request;
+
+    // Ne JAMAIS intercepter les actions mutantes : photo, status, report.
+    // Ces requêtes DOIVENT atteindre le serveur, le buffering offline
+    // ouvre trop de bugs (envoi en double, photo corrompue, etc.).
+    if (req.method !== 'GET') {
+        return; // passe-plat navigateur
+    }
+
+    const url = new URL(req.url);
+
+    // 1) Pages tech (/tech/{token}/poses, /piges, /poses/route-sheet) :
+    //    network-first avec fallback cache → le tech voit toujours la
+    //    dernière version connue si offline.
+    if (url.pathname.startsWith('/tech/') && req.destination === 'document') {
+        event.respondWith(networkFirst(req, PAGES_CACHE));
+        return;
+    }
+
+    // 2) Heartbeat (GET JSON) : network-only, pas de cache (on veut le
+    //    vrai compteur live). Si pas de réseau, fail silently → l'UI
+    //    affiche le dernier état SSR.
+    if (url.pathname.includes('/heartbeat')) {
+        return;
+    }
+
+    // 3) Photos panneau /storage/, fonts CDN, Select2 : cache-first
+    //    avec MAJ en arrière-plan (stale-while-revalidate).
+    if (url.pathname.startsWith('/storage/')
+        || url.hostname.includes('cdnjs.cloudflare.com')
+        || url.hostname.includes('fonts.googleapis.com')
+        || url.hostname.includes('fonts.gstatic.com')) {
+        event.respondWith(staleWhileRevalidate(req, RUNTIME_CACHE));
+        return;
+    }
+
+    // 4) Assets statiques de l'app (CSS, JS, images) : cache-first.
+    if (req.destination === 'script' || req.destination === 'style'
+        || req.destination === 'image' || req.destination === 'font') {
+        event.respondWith(staleWhileRevalidate(req, STATIC_CACHE));
+        return;
+    }
+
+    // 5) Search endpoint (Select2 AJAX) : network-first, fallback cache.
+    //    Permet au tech de retrouver les dernières recherches même
+    //    hors-ligne (utile pour repérer un panneau précis).
+    if (url.pathname.includes('/poses/search')) {
+        event.respondWith(networkFirst(req, RUNTIME_CACHE));
+        return;
+    }
+
+    // Fallback : passe-plat sans cache.
+});
+
+// ─── Stratégies ──────────────────────────────────────────────────────
+
+async function networkFirst(request, cacheName) {
+    try {
+        const fresh = await fetch(request);
+        if (fresh && fresh.status === 200) {
+            const cache = await caches.open(cacheName);
+            cache.put(request, fresh.clone()).catch(() => {});
+        }
+        return fresh;
+    } catch (err) {
+        const cache = await caches.open(cacheName);
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        // Page offline générique si rien en cache
+        return new Response(
+            '<!DOCTYPE html><meta charset="utf-8"><title>Hors ligne</title>'
+            + '<style>body{font-family:system-ui;padding:40px;text-align:center;color:#374151}'
+            + 'h1{color:#c2570d}</style>'
+            + '<h1>📵 Hors ligne</h1><p>Connecte-toi à Internet pour charger l\'espace technicien.</p>'
+            + '<p><a href="javascript:location.reload()" style="color:#c2570d;font-weight:700">Réessayer</a></p>',
+            { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 503 }
+        );
+    }
+}
+
+async function staleWhileRevalidate(request, cacheName) {
+    const cache = await caches.open(cacheName);
+    const cached = await cache.match(request);
+    const fetchPromise = fetch(request)
+        .then((fresh) => {
+            if (fresh && fresh.status === 200) {
+                cache.put(request, fresh.clone()).catch(() => {});
+            }
+            return fresh;
+        })
+        .catch(() => cached); // si réseau down, on garde cached
+    return cached || fetchPromise;
+}
+
+// ─── Sync message : la page peut demander un purge cache (dev) ──────
+self.addEventListener('message', (event) => {
+    if (event.data?.type === 'PURGE_CACHE') {
+        caches.keys()
+            .then((keys) => Promise.all(keys.filter((k) => k.startsWith('panora-tech-')).map((k) => caches.delete(k))))
+            .then(() => event.ports[0]?.postMessage({ ok: true }));
+    }
+});

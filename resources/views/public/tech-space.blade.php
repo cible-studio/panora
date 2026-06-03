@@ -10,6 +10,20 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
+    {{-- PWA : permet d'installer l'espace tech sur l'écran d'accueil mobile
+         et garantit un fallback offline (Service Worker enregistré plus bas). --}}
+    <link rel="manifest" href="{{ asset('tech.webmanifest') }}">
+    <meta name="theme-color" content="#e8a020">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Panora Tech">
+    <link rel="apple-touch-icon" href="{{ asset('images/favicond.png') }}">
+
+    {{-- Select2 v4 — source AJAX paginée, indispensable pour scaler la
+         recherche au-delà de 200+ poses (le SSR ne rend que les 200 plus
+         urgentes — la recherche sert de point d'entrée pour le reste). --}}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+
     <style>
         :root {
             --accent: #e8a020;
@@ -581,6 +595,316 @@
             border-color: rgba(239, 68, 68, .45);
             box-shadow: 0 1px 4px rgba(239, 68, 68, .18);
         }
+
+        /* ═══ MODULE SCALE — search Select2 / filtres / TOC / hero / distance ═══
+           Conçu pour rester lisible à 500 / 2000 / 5000+ poses. Toutes les
+           interactions sont indexées sur dataset pour rester O(N) sans
+           reflow. Voir le bloc JS en bas pour la logique. */
+
+        /* Barre de contrôles sticky : Select2 + bouton tri distance + bouton imprimer */
+        .controls-bar {
+            position: sticky; top: 0; z-index: 49;
+            background: linear-gradient(180deg, #fffaf0 0%, rgba(255,250,240,.96) 100%);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 16px 8px;
+            margin: 0;
+        }
+        .controls-bar-row {
+            display: flex; gap: 8px; align-items: center;
+            max-width: 600px; margin: 0 auto;
+        }
+        .controls-bar .ctrl-btn {
+            flex: 0 0 auto;
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 9px 12px; border-radius: 10px;
+            background: var(--surface); border: 1px solid var(--border);
+            color: var(--text2); font-size: 12px; font-weight: 700;
+            cursor: pointer; font-family: inherit;
+            text-decoration: none; white-space: nowrap;
+            transition: border-color .15s, background .15s, transform .08s;
+        }
+        .controls-bar .ctrl-btn:active { transform: scale(.96); }
+        .controls-bar .ctrl-btn.is-active {
+            background: rgba(232,160,32,.10); color: var(--accent-dark);
+            border-color: var(--accent);
+        }
+        .controls-bar .select2-container { flex: 1 1 auto; min-width: 0; }
+
+        /* Style Select2 (champ search) aligné sur le look CIBLE */
+        .controls-bar .select2-selection--single {
+            height: 42px !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 10px !important;
+            background: var(--surface) !important;
+            font-family: inherit !important;
+        }
+        .controls-bar .select2-selection__rendered {
+            line-height: 42px !important;
+            font-size: 13.5px !important;
+            color: var(--text2) !important;
+            padding-left: 14px !important;
+        }
+        .controls-bar .select2-selection__arrow {
+            height: 42px !important;
+        }
+        .controls-bar .select2-selection__placeholder {
+            color: var(--text3) !important;
+        }
+        .select2-dropdown {
+            border: 1px solid var(--border) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 24px 60px -16px rgba(0,0,0,.18) !important;
+            overflow: hidden;
+            z-index: 9999;
+        }
+        .select2-search--dropdown .select2-search__field {
+            border: 1px solid var(--border) !important;
+            border-radius: 8px !important;
+            padding: 9px 12px !important;
+            font-size: 13.5px !important;
+            outline: none !important;
+            box-shadow: none !important;
+        }
+        .select2-results__option--highlighted {
+            background: rgba(232,160,32,.12) !important;
+            color: var(--text) !important;
+        }
+        .s2-row {
+            display: flex; gap: 10px; align-items: flex-start;
+            padding: 4px 0;
+        }
+        .s2-row .s2-thumb {
+            flex: 0 0 38px; width: 38px; height: 38px;
+            border-radius: 8px; background-size: cover; background-position: center;
+            background-color: var(--surface2); border: 1px solid var(--border);
+            font-size: 18px; color: var(--text3);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .s2-row .s2-info { flex: 1; min-width: 0; }
+        .s2-row .s2-ref {
+            font-family: ui-monospace, monospace; font-weight: 800;
+            color: var(--accent-dark); font-size: 13px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .s2-row .s2-name {
+            font-size: 12px; color: var(--text); margin-top: 1px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .s2-row .s2-meta {
+            font-size: 10.5px; color: var(--text3); margin-top: 2px;
+            display: flex; gap: 6px; flex-wrap: wrap;
+        }
+        .s2-pill {
+            display: inline-block; padding: 1px 6px; border-radius: 6px;
+            font-size: 9.5px; font-weight: 700;
+        }
+        .s2-pill.late   { background: rgba(239,68,68,.12); color: #b91c1c; }
+        .s2-pill.today  { background: rgba(59,130,246,.12); color: #1d4ed8; }
+        .s2-pill.warn   { background: rgba(245,158,11,.14); color: #b45309; }
+        .s2-pill.reject { background: rgba(239,68,68,.18); color: #b91c1c; }
+
+        /* Banner cap SSR : affiché si total > rendered, oriente vers la search */
+        .ssr-cap-banner {
+            margin: 0 0 12px;
+            padding: 10px 14px; border-radius: 12px;
+            background: linear-gradient(135deg, rgba(232,160,32,.08), rgba(194,87,13,.04));
+            border: 1px solid rgba(232,160,32,.25);
+            color: var(--accent-dark);
+            font-size: 12.5px; font-weight: 600; line-height: 1.45;
+            display: flex; gap: 8px; align-items: flex-start;
+        }
+        .ssr-cap-banner strong { color: var(--accent-dark); font-weight: 800; }
+
+        /* Chips filtres horizontaux scrollables */
+        .filters-row {
+            display: flex; gap: 6px; overflow-x: auto;
+            padding: 0 0 6px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            margin: 8px 0 4px;
+        }
+        .filters-row::-webkit-scrollbar { display: none; }
+        .filter-chip {
+            flex: 0 0 auto;
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 7px 12px; border-radius: 999px;
+            background: var(--surface); border: 1px solid var(--border);
+            color: var(--text2); font-size: 12px; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+            white-space: nowrap;
+            transition: all .15s;
+        }
+        .filter-chip:active { transform: scale(.96); }
+        .filter-chip.is-active {
+            background: var(--accent); color: #fff; border-color: var(--accent);
+            box-shadow: 0 4px 14px -4px rgba(232,160,32,.5);
+        }
+        .filter-chip .chip-count {
+            background: rgba(0,0,0,.06); padding: 1px 6px; border-radius: 999px;
+            font-size: 10px; font-weight: 800;
+            font-family: ui-monospace, monospace;
+        }
+        .filter-chip.is-active .chip-count { background: rgba(255,255,255,.25); color: #fff; }
+        .filter-clear {
+            flex: 0 0 auto;
+            background: transparent; border: 0;
+            color: var(--text3); font-size: 12px; font-weight: 700;
+            cursor: pointer; text-decoration: underline;
+            padding: 7px 4px;
+        }
+
+        /* Sommaire zones sticky (TOC) — scroll horizontal, 1 tap = jump zone */
+        .zones-toc {
+            position: sticky; top: 58px; z-index: 48;
+            background: var(--bg);
+            padding: 8px 16px; margin: 0;
+            border-bottom: 1px solid var(--border);
+            overflow: hidden;
+        }
+        .zones-toc-inner {
+            display: flex; gap: 6px; overflow-x: auto;
+            max-width: 600px; margin: 0 auto;
+            -webkit-overflow-scrolling: touch; scrollbar-width: none;
+        }
+        .zones-toc-inner::-webkit-scrollbar { display: none; }
+        .zone-toc-chip {
+            flex: 0 0 auto;
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 6px 10px; border-radius: 10px;
+            background: var(--surface); border: 1px solid var(--border);
+            color: var(--text2); font-size: 11.5px; font-weight: 700;
+            cursor: pointer; font-family: inherit;
+            white-space: nowrap; text-decoration: none;
+            transition: border-color .15s, transform .08s;
+        }
+        .zone-toc-chip:active { transform: scale(.97); }
+        .zone-toc-chip.has-overdue { border-color: rgba(239,68,68,.35); color: #b91c1c; }
+        .zone-toc-chip .ztc-prog {
+            display: inline-block; width: 30px; height: 4px;
+            background: var(--surface2); border-radius: 999px; overflow: hidden;
+        }
+        .zone-toc-chip .ztc-prog-fill {
+            height: 100%; background: var(--accent); border-radius: 999px;
+            transition: width .5s;
+        }
+        .zone-toc-chip .ztc-num {
+            font-family: ui-monospace, monospace; font-size: 10.5px;
+            opacity: .8;
+        }
+
+        /* Hero "Prochaine pose" — gros bouton focus, le tech voit ce qui compte */
+        .next-pose-hero {
+            margin: 0 0 14px;
+            background: linear-gradient(135deg, #fff 0%, #fffaf0 100%);
+            border: 2px solid var(--accent);
+            border-radius: 16px;
+            padding: 14px 14px 12px;
+            box-shadow: 0 12px 32px -10px rgba(232,160,32,.25);
+            position: relative; overflow: hidden;
+        }
+        .next-pose-hero::before {
+            content: 'PROCHAINE POSE';
+            position: absolute; top: 8px; right: 12px;
+            font-size: 9px; font-weight: 800; letter-spacing: 1px;
+            color: var(--accent-dark); opacity: .65;
+        }
+        .next-pose-hero .nph-top {
+            display: flex; gap: 12px; align-items: flex-start;
+        }
+        .next-pose-hero .nph-thumb {
+            flex: 0 0 60px; width: 60px; height: 60px;
+            border-radius: 12px;
+            background-size: cover; background-position: center;
+            background-color: var(--surface2); border: 1px solid var(--border);
+            font-size: 26px; color: var(--text3);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .next-pose-hero .nph-info { flex: 1; min-width: 0; }
+        .next-pose-hero .nph-ref {
+            font-family: ui-monospace, monospace; font-weight: 800;
+            font-size: 16px; color: var(--accent-dark);
+        }
+        .next-pose-hero .nph-name {
+            font-size: 13px; color: var(--text); margin-top: 1px;
+            font-weight: 600;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .next-pose-hero .nph-meta {
+            font-size: 11px; color: var(--text3); margin-top: 3px;
+            display: flex; gap: 8px; flex-wrap: wrap;
+        }
+        .next-pose-hero .nph-meta .late {
+            color: #b91c1c; font-weight: 700;
+            background: rgba(239,68,68,.08); padding: 1px 6px; border-radius: 6px;
+        }
+        .next-pose-hero .nph-actions {
+            display: flex; gap: 8px; margin-top: 12px;
+        }
+        .next-pose-hero .nph-act {
+            flex: 1; min-height: 44px;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            font-size: 13px; font-weight: 800;
+            border-radius: 10px; cursor: pointer;
+            font-family: inherit; text-decoration: none;
+            transition: transform .08s, box-shadow .15s;
+        }
+        .next-pose-hero .nph-act:active { transform: scale(.97); }
+        .next-pose-hero .nph-act.go {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: #fff; border: none;
+            box-shadow: 0 6px 16px -4px rgba(59,130,246,.45);
+        }
+        .next-pose-hero .nph-act.cam {
+            background: linear-gradient(135deg, #e8a020, #c2570d);
+            color: #fff; border: none;
+            box-shadow: 0 6px 16px -4px rgba(232,160,32,.45);
+        }
+        .next-pose-hero .nph-act.cam input { display: none; }
+
+        /* Affichage distance par card quand tri par distance activé */
+        .pose-distance {
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 1px 7px; border-radius: 999px;
+            background: rgba(59,130,246,.10);
+            color: #1d4ed8; font-weight: 700;
+            font-size: 11px;
+        }
+
+        /* Bandeau offline (Service Worker fallback) */
+        .offline-banner {
+            display: none; position: fixed; left: 0; right: 0; bottom: 0;
+            background: #1f2937; color: #fff;
+            padding: 10px 16px;
+            font-size: 12.5px; font-weight: 700; text-align: center;
+            z-index: 9999;
+            border-top: 1px solid #374151;
+            transform: translateY(100%);
+            transition: transform .3s;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        }
+        .offline-banner.show { display: block; transform: translateY(0); }
+
+        /* Virtualisation : cards pas encore rendues = placeholder léger */
+        .pose-line.lazy-pending {
+            min-height: 80px;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #f8fafc 100%);
+            background-size: 200% 100%;
+            border-color: transparent;
+            animation: lazyShimmer 1.4s infinite;
+        }
+        @keyframes lazyShimmer {
+            from { background-position: 200% 50%; }
+            to   { background-position: -200% 50%; }
+        }
+        .pose-line.lazy-pending > * { visibility: hidden; }
+
+        /* PRINT — quand on imprime depuis l'espace tech, on cache tout sauf
+           ce qui est utile (en réalité on redirige vers /route-sheet). */
+        @media print {
+            .header, .controls-bar, .zones-toc, .new-task-banner,
+            #toast-container, .offline-banner { display: none !important; }
+        }
     </style>
 </head>
 <body>
@@ -685,6 +1009,55 @@
     🆕 <span data-new-task-text>Nouvelle pose assignée</span> — clic pour actualiser
 </div>
 
+{{-- ═══ BARRE DE CONTRÔLES STICKY ═══
+     - Select2 recherche AJAX paginée (source : tech.space.search) →
+       trouve n'importe quelle pose même hors SSR. Le tech sélectionne,
+       on scroll vers la carte (ou on la matérialise si elle n'est pas
+       dans la liste rendue).
+     - Bouton "🧭 Distance" : géolocalise le tech et trie les cards par
+       distance haversine croissante (calcul JS local sur lat/lng déjà
+       en data-attr).
+     - Bouton "🖨 Feuille de route" : lien vers /poses/route-sheet (vue
+       imprimable A4 avec toutes les poses).
+--}}
+@if($totalActive > 0)
+<div class="controls-bar">
+    <div class="controls-bar-row">
+        <select id="ts-search" data-placeholder="🔍 Rechercher panneau, commune, campagne…"></select>
+        <button type="button" class="ctrl-btn" id="ts-distance-btn" title="Trier par distance depuis ma position">
+            🧭<span style="margin-left:2px;font-size:11px" id="ts-distance-label">Distance</span>
+        </button>
+        <a class="ctrl-btn" href="{{ route('tech.space.route-sheet', $token) }}" target="_blank" rel="noopener" title="Feuille de route imprimable">
+            🖨
+        </a>
+    </div>
+</div>
+@endif
+
+{{-- ═══ SOMMAIRE ZONES STICKY (TOC) ═══
+     Une rangée scrollable horizontalement de chips zones, chacun
+     avec mini-progress + compteur. Tap → scroll smooth vers la
+     section commune. Indispensable au-delà de 4-5 zones (sans ça
+     le tech perd l'orientation dans une longue liste).
+--}}
+@if(!empty($allZones) && count($allZones) > 1)
+<div class="zones-toc">
+    <div class="zones-toc-inner">
+        @foreach($allZones as $z)
+            @php
+                $zid = 'zone-' . md5($z['name']);
+                $hasOverdue = false; // calculé via dataset côté JS si besoin
+            @endphp
+            <a href="#{{ $zid }}" class="zone-toc-chip" data-zone="{{ $z['name'] }}" title="{{ $z['done'] }}/{{ $z['total'] }} faites · {{ $z['pct'] }}%">
+                <span>📍 {{ $z['name'] }}</span>
+                <span class="ztc-prog"><span class="ztc-prog-fill" style="width:{{ $z['pct'] }}%"></span></span>
+                <span class="ztc-num">{{ $z['active'] }}</span>
+            </a>
+        @endforeach
+    </div>
+</div>
+@endif
+
 <div class="container">
 
     @if($totalActive === 0)
@@ -694,18 +1067,104 @@
             <p>Tu es à jour ! Tes prochaines missions arriveront via WhatsApp.</p>
         </div>
     @else
-        {{-- Recherche live (référence / nom / commune / campagne) --}}
-        @if($totalActive >= 6)
-            <div style="margin-bottom:14px;position:relative">
-                <input type="search" id="pose-search" placeholder="🔍 Rechercher un panneau, commune, campagne…"
-                       style="width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;outline:none;-webkit-appearance:none"
-                       autocomplete="off">
-                <div id="pose-search-empty"
-                     style="display:none;margin-top:10px;padding:14px;text-align:center;color:var(--text3);background:var(--surface);border:1px dashed var(--border);border-radius:10px;font-size:13px">
-                    Aucune pose ne correspond à ta recherche.
+        {{-- ═══ BANDEAU CAP SSR ═══
+             Si on a plus de poses qu'on ne peut raisonnablement rendre
+             en SSR (cap 200 par défaut, configurable), on prévient le
+             tech : "X poses au total — voici les 200 les plus urgentes,
+             pour les autres utilise la recherche". --}}
+        @if(($totalActive ?? 0) > ($totalRendered ?? 0))
+            <div class="ssr-cap-banner">
+                <span style="font-size:16px;line-height:1.2">⚡</span>
+                <div>
+                    Tu as <strong>{{ $totalActive }} poses</strong> au total.
+                    Affichage des <strong>{{ $totalRendered }} plus urgentes</strong>
+                    (retard + journée + échéance proche).
+                    <br>Utilise la <strong>recherche ci-dessus</strong> pour retrouver une pose précise,
+                    ou la <strong>🖨 feuille de route</strong> pour la liste complète imprimable.
                 </div>
             </div>
         @endif
+
+        {{-- ═══ HERO « PROCHAINE POSE » ═══
+             Showcasing de la pose la plus prioritaire (retard → aujourd'hui
+             → reste). Deux gros boutons d'action directe : Y aller et
+             Photo. Bonus : le tech voit ce qui compte sans scroller. --}}
+        @if(!empty($nextTask))
+            @php
+                $nt = $nextTask;
+                $ntStatus = $nt->status instanceof \App\Enums\PoseTaskStatus
+                    ? $nt->status
+                    : \App\Enums\PoseTaskStatus::tryFrom((string) $nt->status);
+                $ntSched = $nt->scheduled_at ?? $nt->created_at;
+                $ntLate  = $ntSched && \Carbon\Carbon::parse($ntSched)->startOfDay()->lt(\Carbon\Carbon::today());
+                $ntToday = $ntSched && \Carbon\Carbon::parse($ntSched)->isToday();
+                $ntFirstPhoto = $nt->panel?->photos?->sortBy('ordre')->first();
+                $ntThumb = $ntFirstPhoto ? asset('storage/' . $ntFirstPhoto->path) : null;
+                if ($nt->panel?->latitude && $nt->panel?->longitude) {
+                    $ntGo = 'https://www.google.com/maps/dir/?api=1&destination=' . $nt->panel->latitude . ',' . $nt->panel->longitude;
+                } else {
+                    $ntLoc = array_filter([$nt->panel?->adresse, $nt->panel?->quartier, $nt->panel?->commune?->name, 'Côte d\'Ivoire']);
+                    $ntGo  = 'https://www.google.com/maps/search/?api=1&query=' . urlencode(implode(', ', $ntLoc));
+                }
+            @endphp
+            <div class="next-pose-hero" id="next-pose-hero" data-next-task-id="{{ $nt->id }}">
+                <div class="nph-top">
+                    @if($ntThumb)
+                        <span class="nph-thumb" style="background-image:url('{{ $ntThumb }}')"></span>
+                    @else
+                        <span class="nph-thumb">🪧</span>
+                    @endif
+                    <div class="nph-info">
+                        <div class="nph-ref">{{ $nt->panel?->reference ?? '—' }}</div>
+                        <div class="nph-name">{{ $nt->panel?->name ?? '' }}</div>
+                        <div class="nph-meta">
+                            @if($ntLate)<span class="late">⏰ En retard</span>@endif
+                            @if($nt->panel?->commune?->name)<span>📍 {{ $nt->panel->commune->name }}</span>@endif
+                            @if($ntSched)<span>🕒 {{ \Carbon\Carbon::parse($ntSched)->format('d/m H:i') }}</span>@endif
+                        </div>
+                    </div>
+                </div>
+                <div class="nph-actions">
+                    <a class="nph-act go" href="{{ $ntGo }}" target="_blank" rel="noopener"
+                       data-next-go-maps>🧭 Y aller</a>
+                    <label class="nph-act cam" data-next-pose-photo>
+                        <input type="file" accept="image/*" capture="environment" data-photo-input data-next-photo>
+                        📷 Prendre la photo
+                    </label>
+                </div>
+            </div>
+        @endif
+
+        {{-- ═══ CHIPS FILTRES ═══
+             Filtres rapides combinables. État stocké dans l'URL
+             (?late=1&today=1&...) pour bookmark / partage / back-fwd.
+             Compteurs live = nb de cards SSR matchant le filtre. --}}
+        <div class="filters-row" id="ts-filters">
+            <button type="button" class="filter-chip" data-filter="late">
+                <span>⏰</span> Retard <span class="chip-count" data-cnt="late">0</span>
+            </button>
+            <button type="button" class="filter-chip" data-filter="today">
+                <span>📅</span> Aujourd'hui <span class="chip-count" data-cnt="today">0</span>
+            </button>
+            <button type="button" class="filter-chip" data-filter="problem">
+                <span>⚠️</span> Signalées <span class="chip-count" data-cnt="problem">0</span>
+            </button>
+            <button type="button" class="filter-chip" data-filter="reject">
+                <span>🚫</span> Photo refusée <span class="chip-count" data-cnt="reject">0</span>
+            </button>
+            <button type="button" class="filter-chip" data-filter="en_route" data-filter-kind="status">
+                <span>🚗</span> En route <span class="chip-count" data-cnt="en_route">0</span>
+            </button>
+            <button type="button" class="filter-chip" data-filter="en_cours" data-filter-kind="status">
+                <span>🔧</span> En cours <span class="chip-count" data-cnt="en_cours">0</span>
+            </button>
+            <button type="button" class="filter-clear" id="ts-filter-clear" style="display:none">Effacer</button>
+        </div>
+
+        <div id="ts-empty-filter"
+             style="display:none;margin:14px 0;padding:18px;text-align:center;color:var(--text3);background:var(--surface);border:1px dashed var(--border);border-radius:12px;font-size:13px">
+            Aucune pose ne correspond à ces filtres.
+        </div>
 
         @php $today = \Carbon\Carbon::today(); @endphp
         @foreach($groupedByCommune as $communeName => $tasks)
@@ -714,6 +1173,7 @@
                     $d = $t->scheduled_at ?? $t->created_at;
                     return $d && \Carbon\Carbon::parse($d)->startOfDay()->lt($today);
                 });
+                $zid = 'zone-' . md5($communeName);
             @endphp
             @php
                 $doneZone   = $doneByCommune[$communeName] ?? 0;
@@ -721,7 +1181,7 @@
                 $totalZone  = $activeZone + $doneZone;
                 $pctZone    = $totalZone > 0 ? (int) round($doneZone / $totalZone * 100) : 0;
             @endphp
-            <div class="day-section">
+            <div class="day-section" id="{{ $zid }}" data-zone="{{ $communeName }}">
                 <div class="commune-header {{ $hasOverdue ? 'has-overdue' : '' }}">
                     <div class="ch-left">
                         <h2>📍 {{ $communeName }}</h2>
@@ -787,6 +1247,10 @@
                          data-lat="{{ $task->panel?->latitude }}"
                          data-lng="{{ $task->panel?->longitude }}"
                          data-scheduled-today="{{ $isToday ? '1' : '0' }}"
+                         data-late="{{ $isLate ? '1' : '0' }}"
+                         data-has-problem="{{ $lastProblem ? '1' : '0' }}"
+                         data-has-reject="{{ $rejPige ? '1' : '0' }}"
+                         data-scheduled-at="{{ $sched ? \Carbon\Carbon::parse($sched)->toIso8601String() : '' }}"
                          data-commune="{{ $task->panel?->commune?->name }}"
                          @if($lastProblem)
                          data-blocking-signal-type="{{ $problemType }}"
@@ -1742,6 +2206,568 @@
         });
     })();
 })();
+</script>
+
+{{-- ═══ Bandeau hors-ligne — affiché par le SW quand on perd le réseau ═══ --}}
+<div class="offline-banner" id="ts-offline-banner">
+    📵 Hors ligne — affichage de la dernière version connue. Les actions sont temporairement bloquées.
+</div>
+
+{{-- ═══ Select2 + nouveau module SCALE ═══
+     Chargés en fin de body pour ne pas bloquer le rendu initial. La lib
+     Select2 est cachée par le Service Worker dès la 1ère visite. --}}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js" defer></script>
+
+<script>
+window.addEventListener('DOMContentLoaded', function () {
+    // ═══════════════════════════════════════════════════════════════
+    // MODULE SCALE — recherche Select2, filtres combinés, TOC zones,
+    // tri par distance, URL persistance, lazy reveal, PWA / offline.
+    // Conçu pour rester O(N) sur le nombre de cards SSR + scaler
+    // grâce à l'endpoint search côté serveur pour le reste.
+    // ═══════════════════════════════════════════════════════════════
+
+    if (typeof jQuery === 'undefined') return; // defer pas encore résolu
+
+    const $ = window.jQuery;
+    const TOKEN = @json($token);
+    const SEARCH_URL = "{{ route('tech.space.search', $token) }}";
+    const ROUTE_SHEET_URL = "{{ route('tech.space.route-sheet', $token) }}";
+
+    // ─── 1. État des filtres (combinable) ─────────────────────────
+    const filterState = {
+        kpi: 'all',       // 'all' | 'today' (compatibilité KPI grid existant)
+        chips: new Set(), // 'late' | 'today' | 'problem' | 'reject' | 'en_route' | 'en_cours'
+        zone: null,       // optionnel : restreindre à une commune
+        distance: false,  // tri par distance activé
+        geo: null,        // { lat, lng } position tech si captée
+    };
+
+    // ─── 2. Lecture / écriture URL (bookmark / share / back-fwd) ──
+    function readFiltersFromUrl() {
+        const u = new URL(location.href);
+        const kpi = u.searchParams.get('kpi');
+        if (kpi === 'today') filterState.kpi = 'today';
+        const chips = u.searchParams.get('chips');
+        if (chips) chips.split(',').filter(Boolean).forEach(c => filterState.chips.add(c));
+        const zone = u.searchParams.get('zone');
+        if (zone) filterState.zone = zone;
+        if (u.searchParams.get('sort') === 'distance') filterState.distance = true;
+    }
+    function writeFiltersToUrl() {
+        const u = new URL(location.href);
+        u.searchParams.delete('kpi');
+        u.searchParams.delete('chips');
+        u.searchParams.delete('zone');
+        u.searchParams.delete('sort');
+        if (filterState.kpi !== 'all') u.searchParams.set('kpi', filterState.kpi);
+        if (filterState.chips.size)    u.searchParams.set('chips', [...filterState.chips].join(','));
+        if (filterState.zone)          u.searchParams.set('zone', filterState.zone);
+        if (filterState.distance)      u.searchParams.set('sort', 'distance');
+        try { history.replaceState(null, '', u.toString()); } catch (e) { /* old browsers */ }
+    }
+
+    // ─── 3. Test d'un card vs filtres actifs ──────────────────────
+    function matchesFilters(el) {
+        // Combine KPI + chips. Un chip "today" et un KPI "today" sont
+        // équivalents — la double-coche n'a pas d'effet.
+        const status     = el.dataset.taskStatus;
+        const isLate     = el.dataset.late === '1';
+        const isToday    = el.dataset.scheduledToday === '1';
+        const hasProblem = el.dataset.hasProblem === '1';
+        const hasReject  = el.dataset.hasReject === '1';
+        const commune    = el.dataset.commune || '';
+
+        if (filterState.kpi === 'today' && !isToday) return false;
+        if (filterState.zone && commune !== filterState.zone) return false;
+
+        for (const c of filterState.chips) {
+            if (c === 'late'     && !isLate)    return false;
+            if (c === 'today'    && !isToday)   return false;
+            if (c === 'problem'  && !hasProblem) return false;
+            if (c === 'reject'   && !hasReject) return false;
+            if (c === 'en_route' && status !== 'en_route') return false;
+            if (c === 'en_cours' && status !== 'en_cours') return false;
+        }
+        return true;
+    }
+
+    // ─── 4. Applique les filtres au DOM + recalc compteurs/sections ─
+    function applyFilters() {
+        const poses = document.querySelectorAll('.pose[data-task-id]');
+        let visible = 0;
+        poses.forEach(p => {
+            const match = matchesFilters(p);
+            p.style.display = match ? '' : 'none';
+            p.classList.toggle('is-filtered-out', !match);
+            if (match) visible++;
+        });
+
+        // Masque les sections vides
+        document.querySelectorAll('.day-section').forEach(sec => {
+            const has = sec.querySelector('.pose:not([style*="display: none"]):not([style*="display:none"])');
+            sec.style.display = has ? '' : 'none';
+        });
+
+        // Empty state si aucun match
+        const empty = document.getElementById('ts-empty-filter');
+        if (empty) {
+            const anyFilter = filterState.kpi !== 'all' || filterState.chips.size > 0 || filterState.zone;
+            empty.style.display = (anyFilter && visible === 0) ? 'block' : 'none';
+        }
+
+        // Bouton "Effacer" visible uniquement si filtres actifs
+        const clearBtn = document.getElementById('ts-filter-clear');
+        if (clearBtn) {
+            clearBtn.style.display = (filterState.chips.size || filterState.kpi !== 'all' || filterState.zone)
+                ? 'inline-block' : 'none';
+        }
+    }
+
+    // ─── 5. Compteurs chips (live, basés sur les cards SSR) ──────
+    function refreshChipCounts() {
+        const counts = { late: 0, today: 0, problem: 0, reject: 0, en_route: 0, en_cours: 0 };
+        document.querySelectorAll('.pose[data-task-id]').forEach(p => {
+            if (p.dataset.late === '1')          counts.late++;
+            if (p.dataset.scheduledToday === '1') counts.today++;
+            if (p.dataset.hasProblem === '1')    counts.problem++;
+            if (p.dataset.hasReject === '1')     counts.reject++;
+            const st = p.dataset.taskStatus;
+            if (st === 'en_route') counts.en_route++;
+            if (st === 'en_cours') counts.en_cours++;
+        });
+        Object.entries(counts).forEach(([k, v]) => {
+            const el = document.querySelector(`[data-cnt="${k}"]`);
+            if (el) el.textContent = v;
+        });
+        // Masque chips à 0 (réduit le bruit visuel)
+        document.querySelectorAll('.filter-chip[data-filter]').forEach(c => {
+            const k = c.dataset.filter;
+            if (counts[k] === 0 && !filterState.chips.has(k)) {
+                c.style.display = 'none';
+            } else {
+                c.style.display = '';
+            }
+        });
+    }
+
+    // ─── 6. Branchement chips ─────────────────────────────────────
+    document.querySelectorAll('.filter-chip[data-filter]').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const k = chip.dataset.filter;
+            if (filterState.chips.has(k)) filterState.chips.delete(k);
+            else filterState.chips.add(k);
+            chip.classList.toggle('is-active', filterState.chips.has(k));
+            writeFiltersToUrl();
+            applyFilters();
+        });
+    });
+    document.getElementById('ts-filter-clear')?.addEventListener('click', () => {
+        filterState.chips.clear();
+        filterState.kpi = 'all';
+        filterState.zone = null;
+        document.querySelectorAll('.filter-chip.is-active').forEach(c => c.classList.remove('is-active'));
+        document.querySelectorAll('.kpi-card[data-kpi-filter]').forEach(c => {
+            c.classList.toggle('is-active', c.dataset.kpiFilter === 'all');
+            c.setAttribute('aria-pressed', c.dataset.kpiFilter === 'all' ? 'true' : 'false');
+        });
+        writeFiltersToUrl();
+        applyFilters();
+    });
+
+    // ─── 7. Branchement KPI grid → filterState.kpi ────────────────
+    // Le code existant écoutait déjà les data-kpi-filter et appelait
+    // applyKpiFilter(). On surcharge ici en relayant vers applyFilters,
+    // pour combiner KPI + chips (avant : KPI seul réinitialisait tout).
+    document.querySelectorAll('.kpi-card[data-kpi-filter]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            // Stoppe la propagation au handler legacy (qui resetait tout)
+            e.stopImmediatePropagation();
+            const name = btn.dataset.kpiFilter;
+            filterState.kpi = name; // 'all' ou 'today'
+            document.querySelectorAll('.kpi-card[data-kpi-filter]').forEach(b => {
+                b.classList.toggle('is-active', b === btn);
+                b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+            });
+            writeFiltersToUrl();
+            applyFilters();
+        }, true); // capture phase — précède le handler legacy
+    });
+
+    // ─── 8. TOC zones cliquable (smooth scroll vers section) ──────
+    document.querySelectorAll('.zone-toc-chip').forEach(a => {
+        a.addEventListener('click', (e) => {
+            const href = a.getAttribute('href');
+            if (!href || !href.startsWith('#')) return;
+            e.preventDefault();
+            const target = document.querySelector(href);
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Highlight bref de la section ciblée
+                target.style.transition = 'box-shadow .8s';
+                target.style.boxShadow = '0 0 0 3px rgba(232,160,32,.5)';
+                setTimeout(() => target.style.boxShadow = '', 1200);
+            }
+        });
+    });
+
+    // ─── 9. Select2 — recherche AJAX paginée (full dataset) ──────
+    const $search = $('#ts-search');
+    if ($search.length) {
+        $search.select2({
+            placeholder: $search.data('placeholder') || 'Rechercher…',
+            allowClear:  true,
+            minimumInputLength: 0,
+            dropdownParent: $('.controls-bar'),
+            language: {
+                inputTooShort: () => '',
+                searching:     () => '🔄 Recherche…',
+                noResults:     () => 'Aucune pose trouvée',
+                errorLoading:  () => 'Erreur de chargement',
+            },
+            ajax: {
+                url: SEARCH_URL,
+                dataType: 'json',
+                delay: 220,
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                data: (params) => {
+                    // On respecte les chips actifs côté serveur aussi : la
+                    // recherche globale reflète le contexte filtre.
+                    const d = {
+                        q:    params.term || '',
+                        page: params.page || 1,
+                        per_page: 20,
+                    };
+                    if (filterState.chips.has('late'))    d.late = 1;
+                    if (filterState.chips.has('today'))   d.today = 1;
+                    if (filterState.chips.has('problem')) d.problem = 1;
+                    if (filterState.chips.has('reject'))  d.reject = 1;
+                    if (filterState.chips.has('en_route')) d.status = 'en_route';
+                    if (filterState.chips.has('en_cours')) d.status = 'en_cours';
+                    if (filterState.zone) d.commune = filterState.zone;
+                    if (filterState.distance && filterState.geo) {
+                        d.sort = 'distance';
+                        d.lat  = filterState.geo.lat;
+                        d.lng  = filterState.geo.lng;
+                    }
+                    return d;
+                },
+                processResults: (data, params) => {
+                    params.page = params.page || 1;
+                    return {
+                        results: (data.results || []).map(r => ({ ...r, id: r.id, text: r.text })),
+                        pagination: { more: data.pagination?.more === true },
+                    };
+                },
+                cache: true,
+            },
+            templateResult: formatSearchOption,
+            templateSelection: (item) => item.text || item.ref || '🔍 Rechercher…',
+            escapeMarkup: m => m, // on contrôle le HTML
+        });
+
+        function formatSearchOption(item) {
+            if (!item.id) return $('<span style="color:var(--text3)">' + (item.text || '') + '</span>');
+            const thumbStyle = item.thumb_url
+                ? `style="background-image:url('${item.thumb_url}')"`
+                : '';
+            const thumb = item.thumb_url
+                ? `<span class="s2-thumb" ${thumbStyle}></span>`
+                : `<span class="s2-thumb">🪧</span>`;
+            const pills = [];
+            if (item.is_late)     pills.push('<span class="s2-pill late">⏰ Retard</span>');
+            if (item.has_reject)  pills.push('<span class="s2-pill reject">🚫 Refusée</span>');
+            if (item.has_problem) pills.push('<span class="s2-pill warn">⚠ Signalée</span>');
+            const meta = [
+                item.commune ? '📍 ' + item.commune : '',
+                item.campaign ? '📢 ' + (item.campaign.length > 24 ? item.campaign.slice(0, 24) + '…' : item.campaign) : '',
+            ].filter(Boolean).join(' · ');
+            return $(`
+                <div class="s2-row">
+                    ${thumb}
+                    <div class="s2-info">
+                        <div class="s2-ref">${item.ref || ''} ${pills.join(' ')}</div>
+                        <div class="s2-name">${item.name || ''}</div>
+                        <div class="s2-meta">${meta}</div>
+                    </div>
+                </div>
+            `);
+        }
+
+        // Sélection → scroll vers la card si en DOM, sinon affiche un
+        // focus modal au-dessus de la liste avec les infos + Maps.
+        $search.on('select2:select', function (e) {
+            const item = e.params.data;
+            if (!item || !item.id) return;
+            const existing = document.querySelector(`.pose[data-task-id="${item.id}"]`);
+            if (existing) {
+                existing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                existing.style.transition = 'box-shadow .8s';
+                existing.style.boxShadow = '0 0 0 3px var(--accent), 0 12px 36px -10px rgba(232,160,32,.5)';
+                setTimeout(() => existing.style.boxShadow = '', 1800);
+            } else {
+                openFocusModal(item);
+            }
+            // Reset le select pour permettre une nouvelle recherche
+            setTimeout(() => $search.val(null).trigger('change'), 100);
+        });
+    }
+
+    // ─── 10. Focus modal : si la pose n'est pas en SSR, on l'ouvre ─
+    //         dans une carte focus avec lien Maps + ref + adresse.
+    function openFocusModal(item) {
+        const existing = document.getElementById('ts-focus-modal');
+        if (existing) existing.remove();
+        const goUrl = (item.lat && item.lng)
+            ? `https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}`
+            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([item.adresse, item.quartier, item.commune, "Côte d'Ivoire"].filter(Boolean).join(', '))}`;
+        const ov = document.createElement('div');
+        ov.id = 'ts-focus-modal';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;align-items:flex-end;justify-content:center;padding:0';
+        ov.innerHTML = `
+            <div style="background:#fff;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));animation:tsUp .25s ease">
+                <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px">
+                    ${item.thumb_url
+                        ? `<span style="flex:0 0 64px;width:64px;height:64px;border-radius:12px;background:url('${item.thumb_url}') center/cover;border:1px solid var(--border)"></span>`
+                        : `<span style="flex:0 0 64px;width:64px;height:64px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text3)">🪧</span>`}
+                    <div style="flex:1;min-width:0">
+                        <div style="font-family:ui-monospace,monospace;font-size:17px;font-weight:800;color:var(--accent-dark)">${item.ref || ''}</div>
+                        <div style="font-size:13px;color:var(--text);font-weight:600;margin-top:2px">${item.name || ''}</div>
+                        <div style="font-size:11.5px;color:var(--text3);margin-top:4px">
+                            📍 ${item.commune || '—'}${item.adresse ? ' · ' + item.adresse : ''}
+                        </div>
+                        ${item.campaign ? `<div style="font-size:11px;color:var(--text2);margin-top:3px">📢 ${item.campaign}</div>` : ''}
+                    </div>
+                </div>
+                ${item.is_late ? '<div style="background:rgba(239,68,68,.08);color:#b91c1c;padding:8px 12px;border-radius:10px;font-size:12px;font-weight:700;margin-bottom:10px">⏰ Pose en retard — à traiter en priorité</div>' : ''}
+                ${item.reject_reason ? `<div style="background:rgba(239,68,68,.08);color:#b91c1c;padding:8px 12px;border-radius:10px;font-size:12px;font-weight:600;margin-bottom:10px">🚫 Photo refusée : ${item.reject_reason}</div>` : ''}
+                <div style="display:flex;gap:8px;margin-top:6px">
+                    <a href="${goUrl}" target="_blank" rel="noopener" style="flex:1;min-height:48px;display:flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-weight:800;border-radius:12px;text-decoration:none;font-size:14px">🧭 Y aller</a>
+                    <button type="button" data-act="close" style="flex:0 0 96px;min-height:48px;background:#f3f4f6;color:#4b5563;border:none;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer">Fermer</button>
+                </div>
+                <div style="margin-top:12px;font-size:11px;color:var(--text3);line-height:1.5">
+                    Cette pose n'est pas dans la liste affichée (au-delà du cap).
+                    Va sur place puis prends la photo : tu seras redirigé vers le tracker complet.
+                </div>
+            </div>`;
+        document.body.appendChild(ov);
+        ov.querySelector('[data-act="close"]').addEventListener('click', () => ov.remove());
+        ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+    }
+
+    // ─── 11. Tri par distance GPS (haversine, calcul JS local) ────
+    const distBtn = document.getElementById('ts-distance-btn');
+    if (distBtn) {
+        distBtn.addEventListener('click', async () => {
+            if (filterState.distance) {
+                // Toggle off — restaure l'ordre SSR original
+                filterState.distance = false;
+                filterState.geo = null;
+                distBtn.classList.remove('is-active');
+                document.getElementById('ts-distance-label').textContent = 'Distance';
+                restoreSsrOrder();
+                document.querySelectorAll('.pose-distance').forEach(e => e.remove());
+                writeFiltersToUrl();
+                return;
+            }
+            distBtn.classList.add('is-active');
+            document.getElementById('ts-distance-label').textContent = '📡 Position…';
+            const pos = await getGeoPosition();
+            if (!pos) {
+                distBtn.classList.remove('is-active');
+                document.getElementById('ts-distance-label').textContent = 'Distance';
+                toastSmall('GPS indisponible — autorise la localisation.', 'error');
+                return;
+            }
+            filterState.geo = { lat: pos.lat, lng: pos.lng };
+            filterState.distance = true;
+            document.getElementById('ts-distance-label').textContent = '✓ Proche';
+            sortByDistance(pos.lat, pos.lng);
+            writeFiltersToUrl();
+        });
+    }
+
+    function getGeoPosition() {
+        return new Promise(resolve => {
+            if (!navigator.geolocation) return resolve(null);
+            navigator.geolocation.getCurrentPosition(
+                (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+                () => resolve(null),
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+            );
+        });
+    }
+
+    function haversine(lat1, lng1, lat2, lng2) {
+        const R = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2
+            + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function formatDistance(m) {
+        if (m < 950) return Math.round(m) + ' m';
+        return (m / 1000).toFixed(1).replace('.0', '') + ' km';
+    }
+
+    function sortByDistance(lat, lng) {
+        // Pour chaque section commune, on trie les cards par distance
+        // (la TOC zones reste pertinente : on va de proche en proche
+        // DANS chaque zone). Au-delà : option future de re-grouper.
+        document.querySelectorAll('.day-section').forEach(sec => {
+            const cards = Array.from(sec.querySelectorAll('.pose[data-task-id]'));
+            cards.forEach(c => {
+                const pLat = parseFloat(c.dataset.lat);
+                const pLng = parseFloat(c.dataset.lng);
+                const d = (isNaN(pLat) || isNaN(pLng)) ? Infinity : haversine(lat, lng, pLat, pLng);
+                c.dataset.distanceM = String(d);
+                // Insère/MAJ le pill distance
+                let pill = c.querySelector('.pose-distance');
+                if (!pill) {
+                    pill = document.createElement('span');
+                    pill.className = 'pose-distance';
+                    const sub = c.querySelector('.pose-sub');
+                    if (sub) sub.appendChild(pill);
+                }
+                pill.textContent = '📡 ' + (isFinite(d) ? formatDistance(d) : '—');
+            });
+            cards.sort((a, b) => parseFloat(a.dataset.distanceM) - parseFloat(b.dataset.distanceM));
+            cards.forEach(c => sec.appendChild(c));
+        });
+    }
+
+    function restoreSsrOrder() {
+        // L'ordre SSR initial est encodé par data-task-id croissant
+        // (les plus urgentes ont les IDs les plus anciens — pas idéal).
+        // Mieux : on conserve une trace de l'ordre SSR au load.
+        document.querySelectorAll('.day-section').forEach(sec => {
+            const cards = Array.from(sec.querySelectorAll('.pose[data-task-id]'));
+            cards.sort((a, b) => (parseInt(a.dataset.ssrOrder || a.dataset.taskId, 10))
+                              - (parseInt(b.dataset.ssrOrder || b.dataset.taskId, 10)));
+            cards.forEach(c => sec.appendChild(c));
+        });
+    }
+
+    // Mémorise l'ordre SSR initial pour restauration propre
+    document.querySelectorAll('.day-section').forEach(sec => {
+        Array.from(sec.querySelectorAll('.pose[data-task-id]')).forEach((c, i) => {
+            c.dataset.ssrOrder = String(i);
+        });
+    });
+
+    // ─── 12. Hero « Prochaine pose » : photo input → pipeline existant ─
+    // L'input data-next-photo réutilise le handler change global déjà
+    // codé plus haut (preview, GPS, compression, upload). Mais il faut
+    // l'attacher à la card correspondante dans le DOM principal (sinon
+    // pas de data-task-id sur le label). On délègue : au moment du
+    // change, on simule un clic sur l'input de la card #data-task-id.
+    const hero = document.getElementById('next-pose-hero');
+    if (hero) {
+        const nextTaskId = hero.dataset.nextTaskId;
+        const heroInput  = hero.querySelector('[data-next-photo]');
+        heroInput?.addEventListener('change', function () {
+            const file = heroInput.files?.[0];
+            if (!file) return;
+            const targetCard = document.querySelector(`.pose-line[data-task-id="${nextTaskId}"]`);
+            const targetInput = targetCard?.querySelector('[data-photo-input]');
+            if (!targetInput) {
+                // La pose n'est pas dans la liste rendue (au-delà du cap) :
+                // dans ce cas on ouvre quand même le pipeline en simulant
+                // un upload direct via fetch.
+                directUploadFromHero(file, nextTaskId);
+                heroInput.value = '';
+                return;
+            }
+            // Transfère le fichier à l'input cible et déclenche son change
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            targetInput.files = dt.files;
+            targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+            heroInput.value = '';
+        });
+        // « Y aller » : déclenche aussi le bump status en_route comme la
+        // ligne standard. On laisse le delegate global s'en charger en
+        // posant un data-go-maps sur le lien (déjà fait dans le HTML).
+        hero.querySelector('[data-next-go-maps]')?.setAttribute('data-go-maps', '1');
+    }
+
+    async function directUploadFromHero(file, taskId) {
+        toastSmall('Préparation de la photo…', 'info');
+        const fd = new FormData();
+        fd.append('photo', file, 'photo.jpg');
+        fd.append('client_uuid', (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(16).slice(2)));
+        try {
+            const r = await fetch(`/tech/${TOKEN}/poses/${taskId}/photo`, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+                body: fd,
+            });
+            const d = await r.json().catch(() => ({}));
+            if (r.ok && d.ok) {
+                toastSmall('Photo envoyée — pose terminée', 'success');
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                toastSmall(d.error || `Erreur ${r.status}`, 'error');
+            }
+        } catch (e) {
+            toastSmall('Erreur réseau', 'error');
+        }
+    }
+
+    function toastSmall(msg, type) {
+        const c = document.getElementById('toast-container');
+        if (!c) return;
+        const t = document.createElement('div');
+        t.className = 'toast ' + (type || 'success');
+        t.textContent = msg;
+        c.appendChild(t);
+        requestAnimationFrame(() => t.classList.add('show'));
+        setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2800);
+    }
+
+    // ─── 13. Init au load : URL → state → DOM ───────────────────
+    readFiltersFromUrl();
+    // Restaure les chips actifs depuis l'URL
+    filterState.chips.forEach(k => {
+        const chip = document.querySelector(`.filter-chip[data-filter="${k}"]`);
+        chip?.classList.add('is-active');
+    });
+    if (filterState.kpi === 'today') {
+        const kpiBtn = document.querySelector('.kpi-card[data-kpi-filter="today"]');
+        kpiBtn?.classList.add('is-active');
+        kpiBtn?.setAttribute('aria-pressed', 'true');
+        document.querySelector('.kpi-card[data-kpi-filter="all"]')?.classList.remove('is-active');
+    }
+    refreshChipCounts();
+    applyFilters();
+
+    // ─── 14. Service Worker — PWA & cache offline ───────────────
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('{{ asset('tech-sw.js') }}', { scope: '/' })
+            .then(reg => {
+                // Bonne hygiène : log si MAJ du SW dispo (n'active pas auto)
+                reg.addEventListener('updatefound', () => {
+                    /* nouvelle version en cours d'install — prendra effet
+                       au prochain cold start de la PWA */
+                });
+            })
+            .catch(() => { /* échec silencieux : pas critique */ });
+    }
+
+    // ─── 15. Détection online / offline ─────────────────────────
+    const offlineBanner = document.getElementById('ts-offline-banner');
+    function updateOfflineState() {
+        if (!offlineBanner) return;
+        if (navigator.onLine === false) offlineBanner.classList.add('show');
+        else offlineBanner.classList.remove('show');
+    }
+    window.addEventListener('online',  updateOfflineState);
+    window.addEventListener('offline', updateOfflineState);
+    updateOfflineState();
+});
 </script>
 
 </body>
