@@ -224,6 +224,21 @@ class PropositionService
                 // des panneaux (l'observer `created` est trop tôt, panneaux
                 // pas encore liés à ce moment-là).
                 $campaign->ensurePoseTasksAutoCreated();
+
+                // ⚠ Bug fix : si la campagne est créée directement en ACTIF
+                // (start_date == today), les panneaux doivent passer à
+                // OCCUPE immédiatement. Sans ce sync ils restaient à
+                // CONFIRME (hérité de la transition résa OPTION→CONFIRME)
+                // et l'admin voyait "Confirmé" alors que la campagne
+                // diffusait déjà sur le terrain. Pour une campagne PLANIFIE
+                // (future), le sync est aussi sain : il maintient CONFIRME
+                // correctement et corrige tout reliquat OCCUPE.
+                if (!empty($panelIds)) {
+                    $availability->syncPanelStatuses($panelIds);
+                }
+                if (!empty($extIds)) {
+                    $availability->syncExternalPanelStatuses($extIds);
+                }
             } else {
                 $campaign = $reservation->campaign;
             }
