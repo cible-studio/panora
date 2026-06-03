@@ -445,6 +445,28 @@ class CampaignService
             return ['ok' => false, 'error' => $err];
         }
 
+        // ⚠ Garde anti-démarrage prématuré : une campagne planifiée pour
+        // une date future ne doit pas pouvoir être activée manuellement
+        // avant sa start_date. Sinon le statut campagne passe ACTIF mais
+        // le sync des panneaux ne les bumpe pas à OCCUPE (filtre
+        // start_date <= today), créant un état incohérent. Le scheduler
+        // 'campaigns:activate-planned' se charge déjà de la transition
+        // automatique au bon jour.
+        // Exception : transition PAUSE → ACTIF (reprise) reste autorisée
+        // même si on est encore avant start_date — l'admin sait ce qu'il fait.
+        if ($campaign->status === CampaignStatus::PLANIFIE
+            && $campaign->start_date
+            && $campaign->start_date->copy()->startOfDay()->isFuture()) {
+            $startFmt = $campaign->start_date->format('d/m/Y');
+            $days     = (int) now()->startOfDay()->diffInDays($campaign->start_date->copy()->startOfDay());
+            return [
+                'ok'    => false,
+                'error' => "📅 Cette campagne est planifiée pour le {$startFmt} (dans {$days} jour" . ($days > 1 ? 's' : '') . "). "
+                    . "Elle s'activera automatiquement à cette date. "
+                    . "Pour démarrer plus tôt, modifie d'abord la date de début depuis « ✏️ Modifier ».",
+            ];
+        }
+
         $wasFromPlanifie = $campaign->status === CampaignStatus::PLANIFIE;
 
         $campaign->update([

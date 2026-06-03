@@ -228,8 +228,50 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load('client', 'campaign', 'creator');
-        return view('admin.invoices.show', compact('invoice'));
+        $invoice->load([
+            'client',
+            'campaign:id,name,client_id,status,start_date,end_date,total_amount,total_panels',
+            'campaign.reservation:id,reference',
+            'creator',
+        ]);
+
+        // Autres factures du même client (max 6, exclut celle-ci) — colonne droite
+        $otherInvoices = $invoice->client_id
+            ? Invoice::where('client_id', $invoice->client_id)
+                ->where('id', '!=', $invoice->id)
+                ->orderByDesc('issued_at')->orderByDesc('id')
+                ->limit(6)
+                ->get(['id', 'reference', 'amount', 'amount_ttc', 'tva', 'status', 'issued_at', 'paid_at', 'campaign_id'])
+            : collect();
+
+        // Stats globales client : nb factures + total payé + total dû
+        $clientStats = null;
+        if ($invoice->client_id) {
+            $allClientInvoices = Invoice::where('client_id', $invoice->client_id)
+                ->select('status', 'amount_ttc')
+                ->get();
+            $clientStats = [
+                'count_total'   => $allClientInvoices->count(),
+                'count_paid'    => $allClientInvoices->where('status', 'payee')->count(),
+                'count_pending' => $allClientInvoices->whereIn('status', ['brouillon', 'envoyee'])->count(),
+                'sum_paid_ttc'  => (float) $allClientInvoices->where('status', 'payee')->sum('amount_ttc'),
+                'sum_pending_ttc' => (float) $allClientInvoices->whereIn('status', ['brouillon', 'envoyee'])->sum('amount_ttc'),
+            ];
+        }
+
+        // Récap campagne si liée : déjà facturé / reste à facturer
+        $campaignBilling = null;
+        if ($invoice->campaign) {
+            $campaignBilling = [
+                'expected_ht'  => $invoice->campaign->computedAmountHt(),
+                'billed_ht'    => $invoice->campaign->alreadyBilledHt(),
+                'remaining_ht' => $invoice->campaign->remainingToBillHt(),
+            ];
+        }
+
+        return view('admin.invoices.show', compact(
+            'invoice', 'otherInvoices', 'clientStats', 'campaignBilling'
+        ));
     }
 
     public function edit(Invoice $invoice)

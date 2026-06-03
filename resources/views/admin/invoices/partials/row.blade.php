@@ -2,8 +2,28 @@
     <td>
         <span style="font-family:monospace; color:var(--accent); font-weight:700;">{{ $invoice->reference }}</span>
     </td>
-    <td><strong>{{ $invoice->client?->name ?? '—' }}</strong></td>
-    <td style="font-size:12px; color:var(--text3);">{{ $invoice->campaign?->name ?? '—' }}</td>
+    <td>
+        @if($invoice->client)
+            <a href="{{ route('admin.clients.show', $invoice->client) }}"
+               style="color:var(--text);font-weight:700;text-decoration:none;border-bottom:1px dashed var(--border2)"
+               title="Voir la fiche client">
+                {{ $invoice->client->name }}
+            </a>
+        @else
+            <span style="color:var(--text3)">—</span>
+        @endif
+    </td>
+    <td style="font-size:12px;">
+        @if($invoice->campaign)
+            <a href="{{ route('admin.campaigns.show', $invoice->campaign) }}"
+               style="color:var(--text2);text-decoration:none;border-bottom:1px dashed var(--border2)"
+               title="Voir la campagne">
+                {{ $invoice->campaign->name }}
+            </a>
+        @else
+            <span style="color:var(--text3)">—</span>
+        @endif
+    </td>
     <td>{{ number_format($invoice->amount, 0, ',', ' ') }} FCFA</td>
     <td>{{ rtrim(rtrim(number_format($invoice->tva, 2, ',', ''), '0'), ',') }}%</td>
     <td style="color:var(--accent); font-weight:700;">{{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA</td>

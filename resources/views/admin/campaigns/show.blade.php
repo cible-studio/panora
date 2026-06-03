@@ -11,6 +11,13 @@
             @php
                 $panelsCount = $campaign->panels->count() + $campaign->externalPanels->count();
                 $isFirstStart = $campaign->status->value === 'planifie';
+                // ⚠ Garde anti-démarrage prématuré : si la campagne est
+                // planifiée pour une date future, le service refusera.
+                // Côté UI on désactive le bouton + on explique pourquoi
+                // dans le tooltip (cohérent avec le message backend).
+                $tooEarly = $isFirstStart
+                    && $campaign->start_date
+                    && $campaign->start_date->copy()->startOfDay()->isFuture();
                 $label = $isFirstStart ? '▶ Démarrer la campagne' : '▶ Reprendre';
                 $confirmMsg = $isFirstStart
                     ? ($panelsCount > 0
@@ -18,12 +25,24 @@
                         : 'Cette campagne n\'a aucun panneau — ajoutez d\'abord des panneaux avant l\'activation.')
                     : 'Reprendre la campagne ?';
             @endphp
-            <form method="POST" action="{{ route('admin.campaigns.activate', $campaign) }}"
-                  style="display:inline;"
-                  onsubmit="return confirm({{ json_encode($confirmMsg) }});">
-                @csrf
-                <button type="submit" class="btn btn-primary btn-sm">{{ $label }}</button>
-            </form>
+            @if($tooEarly)
+                @php
+                    $daysUntil = (int) now()->startOfDay()->diffInDays($campaign->start_date->copy()->startOfDay());
+                @endphp
+                <button type="button" class="btn btn-ghost btn-sm"
+                        disabled
+                        style="opacity:.55;cursor:not-allowed"
+                        title="Démarrage automatique le {{ $campaign->start_date->format('d/m/Y') }} (dans {{ $daysUntil }} jour{{ $daysUntil > 1 ? 's' : '' }}). Pour démarrer plus tôt, modifie la date de début.">
+                    📅 Démarrage le {{ $campaign->start_date->format('d/m') }} · J-{{ $daysUntil }}
+                </button>
+            @else
+                <form method="POST" action="{{ route('admin.campaigns.activate', $campaign) }}"
+                      style="display:inline;"
+                      onsubmit="return confirm({{ json_encode($confirmMsg) }});">
+                    @csrf
+                    <button type="submit" class="btn btn-primary btn-sm">{{ $label }}</button>
+                </form>
+            @endif
         @endif
         @php $isTermineeTop = $campaign->status->value === 'termine'; @endphp
         @if($can['update'] && !$isTermineeTop)
