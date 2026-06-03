@@ -2311,11 +2311,21 @@ class ReservationController extends Controller
             'date_change_requested_at' => null,
         ]);
 
+        // ⚠ Recalcul du montant : la durée change → total_price de chaque
+        // ligne pivot (= unit_price × billableMonths) doit être réécrit,
+        // et total_amount de la résa aussi. Sans ça : 3 jours = 0.5 mois
+        // = 45 000F était conservé même après extension à 1 mois = 90 000F.
+        $recalc = $reservation->fresh()->recalculatePivotAndTotal();
+        $reservation->refresh();
+
         \Illuminate\Support\Facades\Log::info('reservation.date_change.accepted', [
-            'reservation_id' => $reservation->id,
-            'old'            => $oldStart->format('Y-m-d') . ' → ' . $oldEnd->format('Y-m-d'),
-            'new'            => $newStart->format('Y-m-d') . ' → ' . $newEnd->format('Y-m-d'),
-            'by_user_id'     => auth()->id(),
+            'reservation_id'  => $reservation->id,
+            'old_period'      => $oldStart->format('Y-m-d') . ' → ' . $oldEnd->format('Y-m-d'),
+            'new_period'      => $newStart->format('Y-m-d') . ' → ' . $newEnd->format('Y-m-d'),
+            'old_amount'      => $recalc['old_amount'],
+            'new_amount'      => $recalc['new_amount'],
+            'billable_months' => $recalc['billable_months'],
+            'by_user_id'      => auth()->id(),
         ]);
 
         if ($reservation->client?->email && $reservation->proposition_slug) {
@@ -2326,6 +2336,8 @@ class ReservationController extends Controller
                         context: \App\Mail\PropositionDateChangeMail::CONTEXT_ACCEPTED,
                         oldPeriod: $oldStart->format('d/m/Y') . ' → ' . $oldEnd->format('d/m/Y'),
                         newPeriod: $newStart->format('d/m/Y') . ' → ' . $newEnd->format('d/m/Y'),
+                        oldAmount: $recalc['old_amount'],
+                        newAmount: $recalc['new_amount'],
                     ));
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::warning('reservation.date_change.accept_mail_failed', [
@@ -2335,7 +2347,15 @@ class ReservationController extends Controller
             }
         }
 
-        return back()->with('success', "✅ Nouvelles dates appliquées : {$newStart->format('d/m/Y')} → {$newEnd->format('d/m/Y')}. Le client a été notifié.");
+        $oldAmtFmt = number_format($recalc['old_amount'], 0, ',', ' ');
+        $newAmtFmt = number_format($recalc['new_amount'], 0, ',', ' ');
+        $diffFmt   = abs($recalc['new_amount'] - $recalc['old_amount']) > 0.01
+            ? " · montant ajusté : {$oldAmtFmt} → {$newAmtFmt} FCFA"
+            : '';
+
+        return back()->with('success',
+            "✅ Nouvelles dates appliquées : {$newStart->format('d/m/Y')} → {$newEnd->format('d/m/Y')}{$diffFmt}. Le client a été notifié."
+        );
     }
 
     /**
@@ -2387,6 +2407,105 @@ class ReservationController extends Controller
         }
 
         return back()->with('success', 'Demande de décalage refusée. Le client a été notifié — dates initiales conservées.');
+    }
+
+    /**
+     * Admin contre-propose une période différente : applique les dates
+     * choisies par l'admin sur la résa (≠ ce que le client demandait,
+     * ≠ les dates initiales), recalcule le montant, et envoie un mail
+     * "contre-proposition" au client qui peut alors confirmer / refuser /
+     * re-soumettre encore d'autres dates.
+     *
+     * Utile quand l'admin ne peut pas accepter exactement la période
+     * demandée (panneau bloqué ailleurs, contraintes opérationnelles…)
+     * mais peut proposer une alternative.
+     */
+    public function counterDateChange(Request $request, Reservation $reservation)
+    {
+        if ($reservation->status->value !== 'en_attente') {
+            return back()->with('error', 'La réservation n\'est plus en attente — contre-proposition impossible.');
+        }
+
+        $data = $request->validate([
+            'counter_start_date' => 'required|date|after_or_equal:today',
+            'counter_end_date'   => 'required|date|after:counter_start_date',
+            'message'            => 'nullable|string|max:1000',
+        ], [
+            'counter_start_date.after_or_equal' => 'La date de début ne peut pas être dans le passé.',
+            'counter_end_date.after'            => 'La date de fin doit être strictement après la date de début.',
+        ]);
+
+        $newStart = \Carbon\Carbon::parse($data['counter_start_date']);
+        $newEnd   = \Carbon\Carbon::parse($data['counter_end_date']);
+        $oldStart = $reservation->start_date;
+        $oldEnd   = $reservation->end_date;
+
+        // Refuse si les dates proposées par l'admin sont identiques aux
+        // dates actuelles OU à celles demandées par le client (dans ces
+        // cas l'admin doit utiliser Accepter ou Refuser, pas Contre).
+        if ($newStart->equalTo($oldStart) && $newEnd->equalTo($oldEnd)) {
+            return back()->with('error', 'Tes dates proposées sont identiques aux dates actuelles — utilise « Refuser » si tu ne veux pas changer.');
+        }
+        if ($reservation->requested_start_date
+            && $newStart->equalTo($reservation->requested_start_date)
+            && $reservation->requested_end_date
+            && $newEnd->equalTo($reservation->requested_end_date)) {
+            return back()->with('error', 'Tes dates proposées sont identiques à celles demandées par le client — utilise « Accepter » directement.');
+        }
+
+        $reservation->update([
+            'start_date'               => $newStart,
+            'end_date'                 => $newEnd,
+            'requested_start_date'     => null,
+            'requested_end_date'       => null,
+            'date_change_note'         => null,
+            'date_change_requested_at' => null,
+        ]);
+
+        // Recalcul du montant comme pour acceptDateChange.
+        $recalc = $reservation->fresh()->recalculatePivotAndTotal();
+        $reservation->refresh();
+
+        \Illuminate\Support\Facades\Log::info('reservation.date_change.countered', [
+            'reservation_id'  => $reservation->id,
+            'old_period'      => $oldStart->format('Y-m-d') . ' → ' . $oldEnd->format('Y-m-d'),
+            'new_period'      => $newStart->format('Y-m-d') . ' → ' . $newEnd->format('Y-m-d'),
+            'old_amount'      => $recalc['old_amount'],
+            'new_amount'      => $recalc['new_amount'],
+            'billable_months' => $recalc['billable_months'],
+            'by_user_id'      => auth()->id(),
+        ]);
+
+        if ($reservation->client?->email && $reservation->proposition_slug) {
+            $message = trim((string) $request->input('message'));
+            try {
+                \Illuminate\Support\Facades\Mail::to($reservation->client->email)
+                    ->send(new \App\Mail\PropositionDateChangeMail(
+                        reservation: $reservation->fresh(['client']),
+                        context: \App\Mail\PropositionDateChangeMail::CONTEXT_COUNTER,
+                        reason: $message ?: null,
+                        oldPeriod: $oldStart->format('d/m/Y') . ' → ' . $oldEnd->format('d/m/Y'),
+                        newPeriod: $newStart->format('d/m/Y') . ' → ' . $newEnd->format('d/m/Y'),
+                        oldAmount: $recalc['old_amount'],
+                        newAmount: $recalc['new_amount'],
+                    ));
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('reservation.date_change.counter_mail_failed', [
+                    'reservation_id' => $reservation->id,
+                    'error'          => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $oldAmtFmt = number_format($recalc['old_amount'], 0, ',', ' ');
+        $newAmtFmt = number_format($recalc['new_amount'], 0, ',', ' ');
+        $diffFmt   = abs($recalc['new_amount'] - $recalc['old_amount']) > 0.01
+            ? " · montant ajusté : {$oldAmtFmt} → {$newAmtFmt} FCFA"
+            : '';
+
+        return back()->with('success',
+            "🔁 Contre-proposition envoyée au client : {$newStart->format('d/m/Y')} → {$newEnd->format('d/m/Y')}{$diffFmt}."
+        );
     }
 
     public function annuler(Request $request, Reservation $reservation)

@@ -28,6 +28,7 @@ class PropositionDateChangeMail extends Mailable
     public const CONTEXT_REQUESTED = 'requested';
     public const CONTEXT_ACCEPTED  = 'accepted';
     public const CONTEXT_REFUSED   = 'refused';
+    public const CONTEXT_COUNTER   = 'counter';
 
     public function __construct(
         public readonly Reservation $reservation,
@@ -35,10 +36,16 @@ class PropositionDateChangeMail extends Mailable
         public readonly ?string     $reason = null,
         // Pour le contexte 'requested' on a besoin des dates demandées
         // AVANT que l'admin ne les valide (donc encore présentes dans
-        // requested_*). Pour 'accepted' / 'refused' elles ont déjà été
-        // appliquées ou effacées → on les passe en paramètre.
+        // requested_*). Pour 'accepted' / 'refused' / 'counter' elles
+        // ont déjà été appliquées ou effacées → on les passe en paramètre.
         public readonly ?string     $oldPeriod = null,
         public readonly ?string     $newPeriod = null,
+        // Montants AVANT / APRÈS le recalcul pour que le client voit
+        // explicitement l'impact financier du décalage (mail accepted +
+        // counter). Pour requested on peut aussi anticiper le nouveau
+        // montant pour aider le commercial à arbitrer.
+        public readonly ?float      $oldAmount = null,
+        public readonly ?float      $newAmount = null,
     ) {}
 
     public function envelope(): Envelope
@@ -48,6 +55,7 @@ class PropositionDateChangeMail extends Mailable
             self::CONTEXT_REQUESTED => "🗓 Demande de décalage — proposition {$ref}",
             self::CONTEXT_ACCEPTED  => "✅ Décalage accepté — proposition {$ref}",
             self::CONTEXT_REFUSED   => "🗓 Demande de décalage — proposition {$ref}",
+            self::CONTEXT_COUNTER   => "🔁 Contre-proposition de dates — {$ref}",
             default                 => "Proposition {$ref} — mise à jour",
         };
 
@@ -75,6 +83,8 @@ class PropositionDateChangeMail extends Mailable
                 'reason'         => $this->reason,
                 'oldPeriod'      => $this->oldPeriod,
                 'newPeriod'      => $this->newPeriod,
+                'oldAmount'      => $this->oldAmount,
+                'newAmount'      => $this->newAmount,
                 'propositionUrl' => $propositionUrl,
                 'reservationUrl' => $reservationUrl,
             ],

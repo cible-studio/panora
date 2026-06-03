@@ -53,7 +53,7 @@
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <form method="POST" action="{{ route('admin.reservations.date-change.accept', $reservation) }}"
-                  onsubmit="return confirm('Appliquer les nouvelles dates : {{ $reservation->requested_start_date->format('d/m/Y') }} → {{ $reservation->requested_end_date->format('d/m/Y') }} ? Le client sera notifié.')">
+                  onsubmit="return confirm('Appliquer les nouvelles dates : {{ $reservation->requested_start_date->format('d/m/Y') }} → {{ $reservation->requested_end_date->format('d/m/Y') }} ? Le montant sera recalculé et le client notifié.')">
                 @csrf
                 <button type="submit"
                         style="padding:9px 14px;background:#16a34a;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer">
@@ -61,11 +61,72 @@
                 </button>
             </form>
             <button type="button"
+                    onclick="document.getElementById('counter-dc-modal').style.display='flex'"
+                    style="padding:9px 14px;background:#3b82f6;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer"
+                    title="Proposer d'autres dates au client (contre-proposition)">
+                🔁 Contre-proposer
+            </button>
+            <button type="button"
                     onclick="document.getElementById('refuse-dc-modal').style.display='flex'"
                     style="padding:9px 14px;background:#fff;color:#9a3412;border:1px solid #fed7aa;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer">
                 ✕ Refuser
             </button>
         </div>
+    </div>
+</div>
+
+{{-- Modal contre-proposition admin : dates alternatives + message --}}
+<div id="counter-dc-modal"
+     style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.6);backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:16px"
+     onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#fff;border-radius:14px;max-width:480px;width:100%;box-shadow:0 30px 80px -20px rgba(0,0,0,.4);overflow:hidden">
+        <div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;background:linear-gradient(180deg,#eff6ff,#fff);font-weight:800;color:#1e40af;display:flex;align-items:center;gap:8px">
+            🔁 Proposer d'autres dates au client
+        </div>
+        <form method="POST" action="{{ route('admin.reservations.date-change.counter', $reservation) }}" style="padding:16px 18px">
+            @csrf
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;font-size:12px;color:#4b5563;margin-bottom:14px;line-height:1.5">
+                <strong>Demande du client :</strong>
+                {{ $reservation->requested_start_date->format('d/m/Y') }} → {{ $reservation->requested_end_date->format('d/m/Y') }}.<br>
+                Propose une période alternative ci-dessous. Le client recevra un mail avec ces nouvelles dates et le montant ajusté, et pourra accepter, refuser ou re-soumettre.
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                <label style="display:block">
+                    <span style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:4px">Nouvelle date de début *</span>
+                    <input type="date" name="counter_start_date" required
+                           min="{{ now()->toDateString() }}"
+                           style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13.5px">
+                </label>
+                <label style="display:block">
+                    <span style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:4px">Nouvelle date de fin *</span>
+                    <input type="date" name="counter_end_date" required
+                           style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13.5px">
+                </label>
+            </div>
+
+            <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:4px">
+                Message pour le client (optionnel, max 1000)
+            </label>
+            <textarea name="message" rows="3" maxlength="1000"
+                      placeholder="Ex : « Les panneaux sont engagés du 15 au 25/07. On peut te proposer un démarrage le 26 ou un format alternatif. »"
+                      style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13.5px;resize:vertical;font-family:inherit"></textarea>
+
+            <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:11.5px;color:#92400e;margin-top:12px;line-height:1.5">
+                ⚠️ Les nouvelles dates s'appliqueront immédiatement à la réservation et le montant sera recalculé selon la durée. Le client recevra un email avec un lien pour valider.
+            </div>
+
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+                <button type="button" onclick="document.getElementById('counter-dc-modal').style.display='none'"
+                        style="padding:9px 14px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">
+                    Annuler
+                </button>
+                <button type="submit"
+                        style="padding:9px 18px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+                    🔁 Envoyer la contre-proposition
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
