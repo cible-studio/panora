@@ -243,14 +243,21 @@ class TechSpaceController extends Controller
         // Liste TOC zones : agrégat global (toutes poses actives, pas seulement
         // SSR) → chip cliquable sticky pour navigation directe. Une requête
         // groupée sur la BDD pour rester rapide même à 5k+ poses.
-        $allZones = PoseTask::where('assigned_user_id', $tech->id)
-            ->whereNotNull('panel_id')->whereNotNull('campaign_id')
-            ->whereNotIn('status', [
+        // ⚠ Le JOIN panels apporte une colonne `status` homonyme → toutes
+        // les colonnes ambiguës DOIVENT être qualifiées (`pose_tasks.status`,
+        // `pose_tasks.assigned_user_id`, `pose_tasks.panel_id`, etc.). Sans
+        // ça : "Column 'status' in where clause is ambiguous" → 500 sur la
+        // page tech-space en prod.
+        $allZones = PoseTask::query()
+            ->join('panels', 'panels.id', '=', 'pose_tasks.panel_id')
+            ->join('communes', 'communes.id', '=', 'panels.commune_id')
+            ->where('pose_tasks.assigned_user_id', $tech->id)
+            ->whereNotNull('pose_tasks.panel_id')
+            ->whereNotNull('pose_tasks.campaign_id')
+            ->whereNotIn('pose_tasks.status', [
                 PoseTaskStatus::COMPLETED->value,
                 PoseTaskStatus::CANCELLED->value,
             ])
-            ->join('panels', 'panels.id', '=', 'pose_tasks.panel_id')
-            ->join('communes', 'communes.id', '=', 'panels.commune_id')
             ->groupBy('communes.id', 'communes.name')
             ->orderBy('communes.name')
             ->get([

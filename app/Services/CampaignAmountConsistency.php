@@ -71,9 +71,14 @@ class CampaignAmountConsistency
             return null;
         }
 
-        $stored = $reservation
-            ? (float) $reservation->total_amount
-            : (float) $campaign->total_amount;
+        // ⚠ Le "stored" doit TOUJOURS être le montant facturé de la campagne
+        // (c'est ce qui apparaît sur la facture, dans la card MONTANT TOTAL).
+        // Avant : on lisait $reservation->total_amount → afficher 0 quand la
+        // résa technique liée n'avait pas de pivot (cas campagne directe à
+        // laquelle on ajoute des panneaux). Le bandeau permanent affichait
+        // alors "0 FCFA" alors que la campagne facturait bien 45 000 FCFA,
+        // ce qui contredisait le flash warning + la card "Montant total".
+        $stored = (float) $campaign->total_amount;
 
         $diff       = round($expected - $stored, 2);
         $matches    = abs($diff) < self::EPSILON;
