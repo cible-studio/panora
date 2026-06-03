@@ -120,18 +120,47 @@
                 <div class="card-title">✅ Marquer comme résolu</div>
             </div>
             <div class="card-body">
+                {{-- Affichage des erreurs de validation : avant cette
+                     section, un POST sans 'solution' échouait silencieusement
+                     (page rechargée, aucun feedback). --}}
+                @if($errors->any())
+                    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.30);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+                        <div style="font-size:12px;font-weight:800;color:#b91c1c;margin-bottom:4px">⚠️ Impossible de marquer comme résolu</div>
+                        <ul style="margin:0;padding-left:18px;color:#991b1b;font-size:12.5px;line-height:1.5">
+                            @foreach($errors->all() as $err)
+                                <li>{{ $err }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
                 <form method="POST"
-                      action="{{ route('admin.maintenances.resolve', $maintenance) }}">
+                      action="{{ route('admin.maintenances.resolve', $maintenance) }}"
+                      novalidate
+                      id="form-resolve-maintenance">
                     @csrf
                     <div class="mfg">
-                        <label>Solution apportée *</label>
-                        <textarea name="solution"
-                                  placeholder="Décrivez la solution..."></textarea>
+                        <label for="resolve-solution">Solution apportée <span style="color:#ef4444">*</span></label>
+                        <textarea id="resolve-solution"
+                                  name="solution"
+                                  required
+                                  minlength="3"
+                                  placeholder="Décrivez la solution apportée (obligatoire)..."
+                                  style="{{ $errors->has('solution') ? 'border-color:#ef4444;background:rgba(239,68,68,.04);' : '' }}">{{ old('solution') }}</textarea>
+                        @error('solution')
+                            <div style="color:#ef4444;font-size:11.5px;margin-top:4px">{{ $message }}</div>
+                        @enderror
                     </div>
                     <div class="mfg">
-                        <label>Date de résolution *</label>
-                        <input type="date" name="date_resolution"
-                               value="{{ date('Y-m-d') }}">
+                        <label for="resolve-date">Date de résolution <span style="color:#ef4444">*</span></label>
+                        <input type="date" id="resolve-date"
+                               name="date_resolution"
+                               required
+                               value="{{ old('date_resolution', date('Y-m-d')) }}"
+                               style="{{ $errors->has('date_resolution') ? 'border-color:#ef4444;background:rgba(239,68,68,.04);' : '' }}">
+                        @error('date_resolution')
+                            <div style="color:#ef4444;font-size:11.5px;margin-top:4px">{{ $message }}</div>
+                        @enderror
                     </div>
                     <button type="submit" class="btn btn-success" style="width:100%;">
                         ✅ Marquer résolu
@@ -139,6 +168,46 @@
                 </form>
             </div>
         </div>
+
+        <script>
+        // Garde-fou côté client : si la solution est vide, on bloque le submit
+        // et on focus le champ avec un message visible. Sans cette garde,
+        // l'utilisateur cliquait sans rien voir (textarea sans 'required'
+        // HTML5 ne déclenchait pas la validation native).
+        (function () {
+            const form = document.getElementById('form-resolve-maintenance');
+            if (!form) return;
+            const solution = form.querySelector('[name="solution"]');
+            const date     = form.querySelector('[name="date_resolution"]');
+            form.addEventListener('submit', (e) => {
+                const sVal = (solution?.value ?? '').trim();
+                if (sVal.length < 3) {
+                    e.preventDefault();
+                    solution.style.borderColor = '#ef4444';
+                    solution.style.background  = 'rgba(239,68,68,.04)';
+                    solution.focus();
+                    // Toast minimaliste sans dépendance
+                    let t = document.getElementById('resolve-toast');
+                    if (!t) {
+                        t = document.createElement('div');
+                        t.id = 'resolve-toast';
+                        t.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:99999;background:#fff;color:#b91c1c;border:1px solid rgba(239,68,68,.4);padding:12px 16px;border-radius:10px;font-size:13px;font-weight:700;box-shadow:0 12px 32px -8px rgba(0,0,0,.25);max-width:300px';
+                        document.body.appendChild(t);
+                    }
+                    t.textContent = '⚠️ La solution apportée est obligatoire (3 caractères min).';
+                    setTimeout(() => { t.style.transition='opacity .4s'; t.style.opacity='0'; }, 3500);
+                    setTimeout(() => t.remove(), 4000);
+                    return;
+                }
+                if (!date?.value) {
+                    e.preventDefault();
+                    date.style.borderColor = '#ef4444';
+                    date.focus();
+                    return;
+                }
+            });
+        })();
+        </script>
         @else
         <div class="card" style="border-left:3px solid var(--text3);">
             <div class="card-body" style="font-size:13px;color:var(--text2);">
