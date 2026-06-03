@@ -777,6 +777,10 @@ Route::prefix('admin')
                 ->name('reservations.date-change.accept');
             Route::post('reservations/{reservation}/date-change/refuse', [ReservationController::class, 'refuseDateChange'])
                 ->name('reservations.date-change.refuse');
+            // Contre-proposition admin : nouvelle période + message,
+            // appliquée à la résa et envoyée au client pour validation.
+            Route::post('reservations/{reservation}/date-change/counter', [ReservationController::class, 'counterDateChange'])
+                ->name('reservations.date-change.counter');
             // Actions groupées sur les réservations (admin + MP).
             // Action acceptées : 'cancel' (annulation en masse), 'delete'
             // (suppression — bloque si campagne active).

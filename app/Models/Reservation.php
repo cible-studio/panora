@@ -104,6 +104,92 @@ class Reservation extends Model
             && $this->requested_end_date !== null;
     }
 
+    // ── Facturation ──────────────────────────────────────────────────
+    //
+    // Règle métier CIBLE CI (identique Campaign::billableMonths) :
+    //   - 1 mois plein = 30 jours
+    //   - 1 à 15 jours résiduels  → +0.5 mois
+    //   - 16 à 29 jours résiduels → +1 mois
+    //   - minimum facturable      → 0.5 mois
+    //
+    // Avoir une méthode jumelle sur Reservation permet de recalculer
+    // proprement le total quand les dates changent (acceptDateChange,
+    // édition admin), sans dépendre du fait qu'une campagne soit déjà
+    // créée.
+
+    public function durationInDays(): int
+    {
+        if (!$this->start_date || !$this->end_date) return 0;
+        return (int) $this->start_date->copy()->startOfDay()
+                ->diffInDays($this->end_date->copy()->startOfDay()) + 1;
+    }
+
+    public function billableMonths(): float
+    {
+        $days = $this->durationInDays();
+        if ($days <= 0) return 0.5;
+
+        $full   = (int) floor($days / 30);
+        $remain = $days % 30;
+
+        $fraction = 0.0;
+        if ($remain >= 1 && $remain <= 15)      $fraction = 0.5;
+        elseif ($remain > 15)                    $fraction = 1.0;
+
+        return max($full + $fraction, 0.5);
+    }
+
+    /**
+     * Recalcule total_price de chaque ligne pivot (interne + externe) et
+     * total_amount de la réservation à partir de la nouvelle durée.
+     *
+     * Formule pivot : total_price = unit_price × billableMonths
+     * Le tarif catalogue panel.monthly_rate sert de fallback si unit_price
+     * est null (ne devrait pas arriver mais défense en profondeur).
+     *
+     * À appeler après tout changement de start_date / end_date.
+     *
+     * @return array{old_amount: float, new_amount: float, billable_months: float}
+     */
+    public function recalculatePivotAndTotal(): array
+    {
+        $months = $this->billableMonths();
+        $oldAmount = (float) ($this->total_amount ?? 0);
+
+        $rows = \Illuminate\Support\Facades\DB::table('reservation_panels')
+            ->where('reservation_id', $this->id)
+            ->get(['id', 'panel_id', 'external_panel_id', 'unit_price', 'source']);
+
+        $sum = 0.0;
+        foreach ($rows as $r) {
+            $unit = (float) ($r->unit_price ?? 0);
+            if ($unit <= 0) {
+                // Fallback tarif catalogue si unit_price manquant
+                if ($r->source === 'externe' && $r->external_panel_id) {
+                    $unit = (float) (\App\Models\ExternalPanel::where('id', $r->external_panel_id)
+                        ->value('monthly_rate') ?? 0);
+                } elseif ($r->panel_id) {
+                    $unit = (float) (\App\Models\Panel::where('id', $r->panel_id)
+                        ->value('monthly_rate') ?? 0);
+                }
+            }
+            $total = round($unit * $months, 2);
+            $sum += $total;
+            \Illuminate\Support\Facades\DB::table('reservation_panels')
+                ->where('id', $r->id)
+                ->update(['total_price' => $total]);
+        }
+
+        $newAmount = round($sum, 2);
+        $this->updateWithoutObservers(['total_amount' => $newAmount]);
+
+        return [
+            'old_amount'      => $oldAmount,
+            'new_amount'      => $newAmount,
+            'billable_months' => $months,
+        ];
+    }
+
     // Matrice des transitions autorisées
     public const ALLOWED_TRANSITIONS = [
         'en_attente' => ['confirme', 'refuse', 'annule'],
