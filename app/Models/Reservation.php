@@ -41,6 +41,11 @@ class Reservation extends Model
         'cancelled_by',
         // Motif refus client (proposition)
         'refus_reason_code',      // budget|zones|periode|concurrent|delais|autre
+        // Demande client de changement de dates depuis la proposition
+        'requested_start_date',
+        'requested_end_date',
+        'date_change_note',
+        'date_change_requested_at',
     ];
 
     /**
@@ -84,7 +89,20 @@ class Reservation extends Model
         'proposition_expires_at'      => 'datetime',
         'proposition_reminded_j2_at'  => 'datetime',
         'proposition_reminded_j5_at'  => 'datetime',
+        'requested_start_date'        => 'date',
+        'requested_end_date'          => 'date',
+        'date_change_requested_at'    => 'datetime',
     ];
+
+    /**
+     * True si le client a demandé un changement de dates pas encore traité.
+     */
+    public function hasPendingDateChange(): bool
+    {
+        return $this->date_change_requested_at !== null
+            && $this->requested_start_date !== null
+            && $this->requested_end_date !== null;
+    }
 
     // Matrice des transitions autorisées
     public const ALLOWED_TRANSITIONS = [

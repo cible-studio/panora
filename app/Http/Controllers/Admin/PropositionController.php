@@ -515,6 +515,102 @@ class PropositionController extends Controller
         ]);
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // PUBLIC — demande de changement de dates (négociation)
+    // Le client propose une nouvelle période ; la réservation reste
+    // EN_ATTENTE et l'admin reçoit alerte + mail pour arbitrer.
+    // ══════════════════════════════════════════════════════════════
+    public function demanderChangementDates(Request $request, string $reference, string $slug)
+    {
+        $reservation = $this->findBySlug($reference, $slug);
+        if (!$reservation) abort(404);
+
+        if ($block = $this->assertActionable($reservation, $reference, $slug, 'demander-changement-dates')) {
+            return $block;
+        }
+
+        $data = $request->validate([
+            'requested_start_date' => 'required|date|after_or_equal:today',
+            'requested_end_date'   => 'required|date|after:requested_start_date',
+            'note'                 => 'nullable|string|max:1000',
+        ], [
+            'requested_start_date.after_or_equal' => 'La date de début ne peut pas être dans le passé.',
+            'requested_end_date.after'            => 'La date de fin doit être strictement après la date de début.',
+        ]);
+
+        // Si les dates sont identiques à celles actuelles → on bloque,
+        // pas de raison de "demander" un changement vers la même chose.
+        if (\Carbon\Carbon::parse($data['requested_start_date'])->equalTo($reservation->start_date)
+            && \Carbon\Carbon::parse($data['requested_end_date'])->equalTo($reservation->end_date)) {
+            return redirect()->route('proposition.show', [$reference, $slug])
+                ->with('error', 'Les dates demandées sont identiques aux dates actuelles.');
+        }
+
+        $reservation->update([
+            'requested_start_date'     => $data['requested_start_date'],
+            'requested_end_date'       => $data['requested_end_date'],
+            'date_change_note'         => $data['note'] ?? null,
+            'date_change_requested_at' => now(),
+        ]);
+
+        // Notification admin : alerte in-app (visible immédiatement sur
+        // /admin/alertes) + email best-effort au commercial du dossier.
+        try {
+            \App\Services\AlertService::create(
+                'reservation',
+                'warning',
+                '🗓 Demande de décalage — ' . ($reservation->client?->name ?? 'Client'),
+                sprintf(
+                    'Le client souhaite décaler la proposition %s vers %s → %s. Ouvre la fiche réservation pour accepter ou refuser.',
+                    $reservation->reference,
+                    \Carbon\Carbon::parse($data['requested_start_date'])->format('d/m/Y'),
+                    \Carbon\Carbon::parse($data['requested_end_date'])->format('d/m/Y'),
+                ),
+                $reservation
+            );
+        } catch (\Throwable $e) {
+            Log::warning('proposition.date_change.alert_failed', [
+                'reservation_id' => $reservation->id,
+                'error'          => $e->getMessage(),
+            ]);
+        }
+
+        $commercial = $reservation->commercial ?? $reservation->user;
+        if ($commercial?->email) {
+            try {
+                \Illuminate\Support\Facades\Mail::raw(
+                    "Bonjour,\n\n"
+                    . "Le client {$reservation->client?->name} souhaite décaler la proposition {$reservation->reference}.\n\n"
+                    . "Dates actuelles : " . $reservation->start_date->format('d/m/Y') . " → " . $reservation->end_date->format('d/m/Y') . "\n"
+                    . "Dates demandées : " . \Carbon\Carbon::parse($data['requested_start_date'])->format('d/m/Y') . " → " . \Carbon\Carbon::parse($data['requested_end_date'])->format('d/m/Y') . "\n"
+                    . ($data['note'] ?? '' ? "\nNote du client : " . $data['note'] . "\n" : '')
+                    . "\nOuvre la fiche réservation pour accepter ou refuser : "
+                    . route('admin.reservations.show', $reservation),
+                    function ($m) use ($commercial, $reservation) {
+                        $m->to($commercial->email)
+                          ->subject('🗓 Demande de décalage proposition ' . $reservation->reference);
+                    }
+                );
+            } catch (\Throwable $e) {
+                Log::warning('proposition.date_change.mail_failed', [
+                    'reservation_id' => $reservation->id,
+                    'error'          => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Log::info('proposition.date_change.requested', [
+            'reservation_id'        => $reservation->id,
+            'old_start'             => $reservation->start_date->toDateString(),
+            'old_end'               => $reservation->end_date->toDateString(),
+            'requested_start'       => $data['requested_start_date'],
+            'requested_end'         => $data['requested_end_date'],
+        ]);
+
+        return redirect()->route('proposition.show', [$reference, $slug])
+            ->with('success', 'Ta demande de décalage a été transmise à notre équipe — tu recevras une réponse rapidement.');
+    }
+
     /**
      * Garde commune pour confirmer / refuser / retirer-panneau.
      *

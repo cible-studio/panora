@@ -902,10 +902,24 @@
                 <button type="button" class="btn btn-primary" id="btn-confirm" onclick="openConfirmModal()">
                     Confirmer la proposition
                 </button>
+                <button type="button" class="btn btn-secondary" onclick="openDateChangeModal()" style="background:#fff7ed;color:#9a3412;border:1px solid #fed7aa">
+                    🗓 Proposer d'autres dates
+                </button>
                 <button type="button" class="btn btn-danger" onclick="openRefusModal()">
                     Refuser
                 </button>
             </div>
+
+            {{-- Si une demande de décalage a déjà été envoyée et n'a pas
+                 encore été traitée par l'admin, on informe le client.
+                 Évite qu'il re-clique en pensant que rien ne s'est passé. --}}
+            @if($reservation->hasPendingDateChange())
+                <div style="margin-top:14px;background:linear-gradient(180deg,#fff7ed,#fffbeb);border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;font-size:13px;color:#9a3412;line-height:1.5">
+                    <strong>🗓 Demande de décalage transmise</strong> — nouvelles dates souhaitées :
+                    <strong>{{ $reservation->requested_start_date->format('d/m/Y') }} → {{ $reservation->requested_end_date->format('d/m/Y') }}</strong>.
+                    Notre équipe te répondra rapidement. Tu peux toujours confirmer la proposition initiale ou la refuser en attendant.
+                </div>
+            @endif
 
             <div class="cta-note">
                 Votre réponse est sécurisée et prise en compte immédiatement.
@@ -937,6 +951,51 @@
                 Je confirme
             </button>
         </div>
+    </div>
+</div>
+
+{{-- ────────── MODAL DEMANDE DÉCALAGE DATES ────────── --}}
+<div class="modal-overlay" id="modal-date-change" role="dialog" aria-modal="true">
+    <div class="modal">
+        <h3>🗓 Proposer d'autres dates</h3>
+        <p>
+            Indique-nous la période qui te convient mieux — notre équipe va vérifier la disponibilité
+            des panneaux à cette nouvelle période et te répondre rapidement.
+        </p>
+        <form method="POST" action="{{ route('proposition.demander-changement-dates', [$reference, $slug]) }}" id="form-date-change">
+            @csrf
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
+                <label style="display:block">
+                    <span style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#374151">Nouvelle date de début *</span>
+                    <input type="date" name="requested_start_date" id="dc-start" required
+                           min="{{ now()->toDateString() }}"
+                           value="{{ optional($reservation->start_date)->toDateString() }}"
+                           style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13.5px">
+                </label>
+                <label style="display:block">
+                    <span style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#374151">Nouvelle date de fin *</span>
+                    <input type="date" name="requested_end_date" id="dc-end" required
+                           value="{{ optional($reservation->end_date)->toDateString() }}"
+                           style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13.5px">
+                </label>
+            </div>
+            <label style="display:block;margin-top:12px">
+                <span style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#374151">Précisions (optionnel)</span>
+                <textarea name="note" rows="3" maxlength="1000"
+                          placeholder="Ex : « Je préfère démarrer après mon salon le 15/07 », ou « Décaler de 2 semaines »…"
+                          style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13.5px;resize:vertical;font-family:inherit"></textarea>
+            </label>
+            <div id="dc-error" style="display:none;color:#b91c1c;font-size:12px;margin-top:8px"></div>
+            <div class="modal-warning" style="margin-top:12px">
+                Pendant que ta demande est en attente, tu peux toujours <strong>confirmer la proposition initiale</strong> ou la refuser.
+            </div>
+            <div class="modal-btns">
+                <button type="button" class="btn btn-secondary" onclick="closeDateChangeModal()">Annuler</button>
+                <button type="submit" class="btn btn-primary" style="background:#f97316">
+                    🗓 Envoyer ma demande
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -993,6 +1052,33 @@
     function closeConfirmModal(){ document.getElementById('modal-confirm').classList.remove('open'); }
     function openRefusModal()   { document.getElementById('modal-refus').classList.add('open'); }
     function closeRefusModal()  { document.getElementById('modal-refus').classList.remove('open'); }
+    function openDateChangeModal()  { document.getElementById('modal-date-change').classList.add('open'); }
+    function closeDateChangeModal() { document.getElementById('modal-date-change').classList.remove('open'); }
+
+    // Validation côté client : end > start + pas dans le passé
+    (function () {
+        const form = document.getElementById('form-date-change');
+        if (!form) return;
+        const start = document.getElementById('dc-start');
+        const end   = document.getElementById('dc-end');
+        const err   = document.getElementById('dc-error');
+        function show(msg) { err.textContent = msg; err.style.display = 'block'; }
+        function clear() { err.style.display = 'none'; }
+        // Auto-ajuste end si start passe au-delà
+        start?.addEventListener('change', () => {
+            if (end.value && end.value <= start.value) end.value = '';
+            end.min = start.value;
+            clear();
+        });
+        form.addEventListener('submit', (e) => {
+            clear();
+            const sv = start.value, ev = end.value;
+            if (!sv || !ev) { e.preventDefault(); show('Renseigne les deux dates.'); return; }
+            if (ev <= sv) { e.preventDefault(); show('La date de fin doit être après la date de début.'); return; }
+            const today = new Date(); today.setHours(0,0,0,0);
+            if (new Date(sv) < today) { e.preventDefault(); show('La date de début ne peut pas être dans le passé.'); return; }
+        });
+    })();
 
     function submitConfirm() {
         const btn = document.getElementById('modal-confirm-btn');

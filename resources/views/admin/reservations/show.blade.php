@@ -27,6 +27,80 @@
 </x-slot>
 
 {{-- ══════════════════════════════════════════════════════
+     DEMANDE DE DÉCALAGE DE DATES (par le client, en attente)
+══════════════════════════════════════════════════════ --}}
+@if($reservation->hasPendingDateChange())
+<div class="mx-0 mb-4 rounded-xl border"
+     style="background:linear-gradient(180deg,#fff7ed,#fffbeb);border-color:#fed7aa;padding:14px 18px">
+    <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">
+        <div style="width:42px;height:42px;border-radius:11px;background:#f97316;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🗓</div>
+        <div style="flex:1;min-width:280px">
+            <div style="font-weight:800;color:#9a3412;margin-bottom:4px;font-size:14px">
+                Le client demande un décalage de dates
+            </div>
+            <div style="font-size:12.5px;color:#9a3412;line-height:1.5">
+                Période actuelle :
+                <strong>{{ $reservation->start_date->format('d/m/Y') }} → {{ $reservation->end_date->format('d/m/Y') }}</strong><br>
+                Période demandée :
+                <strong style="color:#ea580c">{{ $reservation->requested_start_date->format('d/m/Y') }} → {{ $reservation->requested_end_date->format('d/m/Y') }}</strong>
+                <span style="color:#b45309">· demandé {{ $reservation->date_change_requested_at?->diffForHumans() }}</span>
+            </div>
+            @if($reservation->date_change_note)
+                <div style="margin-top:8px;padding:8px 11px;background:#fff;border:1px solid #fed7aa;border-radius:8px;font-size:12.5px;color:#7c2d12;line-height:1.45">
+                    <strong>Note du client :</strong> {{ $reservation->date_change_note }}
+                </div>
+            @endif
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <form method="POST" action="{{ route('admin.reservations.date-change.accept', $reservation) }}"
+                  onsubmit="return confirm('Appliquer les nouvelles dates : {{ $reservation->requested_start_date->format('d/m/Y') }} → {{ $reservation->requested_end_date->format('d/m/Y') }} ? Le client sera notifié.')">
+                @csrf
+                <button type="submit"
+                        style="padding:9px 14px;background:#16a34a;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer">
+                    ✓ Accepter
+                </button>
+            </form>
+            <button type="button"
+                    onclick="document.getElementById('refuse-dc-modal').style.display='flex'"
+                    style="padding:9px 14px;background:#fff;color:#9a3412;border:1px solid #fed7aa;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer">
+                ✕ Refuser
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- Modal refus avec raison optionnelle envoyée au client --}}
+<div id="refuse-dc-modal"
+     style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.6);backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:16px"
+     onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#fff;border-radius:14px;max-width:440px;width:100%;box-shadow:0 30px 80px -20px rgba(0,0,0,.4);overflow:hidden">
+        <div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;background:linear-gradient(180deg,#fff7ed,#fff);font-weight:800;color:#9a3412">
+            Refuser le décalage demandé
+        </div>
+        <form method="POST" action="{{ route('admin.reservations.date-change.refuse', $reservation) }}" style="padding:16px 18px">
+            @csrf
+            <label style="display:block;font-size:12.5px;font-weight:700;color:#374151;margin-bottom:6px">
+                Message au client (optionnel, max 500)
+            </label>
+            <textarea name="reason" rows="3" maxlength="500"
+                      placeholder="Ex : « Cette nouvelle période n'est pas disponible sur les panneaux choisis » ou « Je te recontacte pour discuter d'alternatives »…"
+                      style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;resize:vertical;font-family:inherit"></textarea>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+                <button type="button" onclick="document.getElementById('refuse-dc-modal').style.display='none'"
+                        style="padding:9px 14px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">
+                    Annuler
+                </button>
+                <button type="submit"
+                        style="padding:9px 16px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+                    ✕ Refuser le décalage
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
+{{-- ══════════════════════════════════════════════════════
      ALERTE CLIENT SUPPRIMÉ
 ══════════════════════════════════════════════════════ --}}
 @if($reservation->client?->trashed())
