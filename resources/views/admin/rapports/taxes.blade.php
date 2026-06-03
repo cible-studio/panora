@@ -45,7 +45,11 @@
     </select>
     @if(!empty($filters))
         <a href="{{ route('admin.rapports.taxes', ['annee' => $year]) }}"
-           style="font-size:12px;color:var(--text3);text-decoration:underline;">✕ Reset</a>
+           style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;font-weight:600;font-size:13px;text-decoration:none;color:var(--text2);height:38px;line-height:1"
+           title="Effacer tous les filtres et revenir à la vue par défaut">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Réinitialiser les filtres
+        </a>
     @endif
     <span style="margin-left:auto;font-size:11px;color:var(--text3);">
         {{ $totals['communes'] ?? 0 }} commune(s) · {{ $totals['panel_max'] ?? 0 }} panneaux max simultanés
