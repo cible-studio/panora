@@ -73,6 +73,16 @@ class TaxReportService
         if (!empty($filters['client_id']))   $campaignsQuery->where('client_id', $filters['client_id']);
         if (!empty($filters['campaign_id'])) $campaignsQuery->where('id', $filters['campaign_id']);
 
+        // Filtre commune : on ne garde que les campagnes qui touchent la
+        // commune demandée — utilisé en aval pour les KPI et la matrice.
+        if (!empty($filters['commune_id'])) {
+            $cid = (int) $filters['commune_id'];
+            $campaignsQuery->where(function ($q) use ($cid) {
+                $q->whereHas('panels',        fn($p) => $p->where('commune_id', $cid))
+                  ->orWhereHas('externalPanels', fn($p) => $p->where('commune_id', $cid));
+            });
+        }
+
         $campaigns = $campaignsQuery->get(['id','client_id','start_date','end_date','status']);
 
         // Index commune_id → tarifs (évite N requêtes)
@@ -91,6 +101,14 @@ class TaxReportService
 
             $allPanels = $c->panels->concat($c->externalPanels)
                 ->filter(fn($p) => !empty($p->commune_id));
+
+            // Si filtre commune : on ignore les panneaux des autres communes
+            // de la même campagne — sinon une campagne ADJAME + COCODY ferait
+            // remonter COCODY dans le rapport filtré ADJAME.
+            if (!empty($filters['commune_id'])) {
+                $cid = (int) $filters['commune_id'];
+                $allPanels = $allPanels->filter(fn($p) => (int) $p->commune_id === $cid);
+            }
 
             // Pour chaque panneau on découpe l'occupation par mois
             foreach ($allPanels as $p) {
@@ -155,9 +173,9 @@ class TaxReportService
      * Renvoie une ligne par commune avec totaux ODP / TM / Total et la
      * répartition par trimestre (q1..q4).
      */
-    public function annualByCommune(int $year): Collection
+    public function annualByCommune(int $year, array $filters = []): Collection
     {
-        $monthly = $this->monthlyMatrix($year);
+        $monthly = $this->monthlyMatrix($year, $filters);
 
         return $monthly->groupBy('commune_id')->map(function ($rows, $communeId) {
             $first = $rows->first();
@@ -191,9 +209,9 @@ class TaxReportService
     /**
      * Totaux globaux annuels (toutes communes confondues).
      */
-    public function totals(int $year): array
+    public function totals(int $year, array $filters = []): array
     {
-        $monthly = $this->monthlyMatrix($year);
+        $monthly = $this->monthlyMatrix($year, $filters);
         $byMonth = [];
         for ($m = 1; $m <= 12; $m++) {
             $sum = $monthly->where('month', $m)->sum('total');
