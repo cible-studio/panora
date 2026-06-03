@@ -817,11 +817,15 @@ class PoseController extends Controller
         // Échec : message actionnable + lien fallback. On propose le lien
         // d'espace tech (multi-poses) — c'est le bon lien à partager
         // manuellement au technicien (multi-campagnes, stable).
+        // Ancien message ("vérifiez les logs serveur (whatsapp.failed)")
+        // était technique et inquiétant côté admin. En sandbox Twilio ou
+        // avec n° non vérifié, l'échec est attendu — on n'alarme plus,
+        // on action : copier le lien et le coller dans WhatsApp.
         $fallbackUrl = $tech->techPublicUrl();
         return back()->with(
             'warning',
-            "L'envoi automatique a échoué — vérifiez les logs serveur (whatsapp.failed). " .
-            "Vous pouvez partager le lien manuellement : {$fallbackUrl}"
+            "📱 WhatsApp automatique indisponible (sandbox Twilio ou n° non vérifié). " .
+            "Copie ce lien et envoie-le directement à {$tech->name} : {$fallbackUrl}"
         );
     }
 
