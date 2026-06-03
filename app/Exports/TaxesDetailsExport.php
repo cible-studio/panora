@@ -71,7 +71,7 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
 
     public function map($row): array
     {
-        $typeLabels = ['tm' => 'TM', 'odp' => 'ODP', 'db' => 'DB'];
+        $typeLabels = ['tm' => 'TM', 'odp' => 'ODP'];
         $statutLabels = [
             'libre'       => 'Libre',
             'occupe'      => 'Occupé',

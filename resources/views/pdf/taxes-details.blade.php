@@ -94,7 +94,6 @@
     <div class="kpi"><div class="lbl">Total</div><div class="val">{{ number_format($totals['total'], 0, ',', ' ') }} FCFA</div></div>
     <div class="kpi"><div class="lbl">TM</div><div class="val">{{ number_format($totals['by_type']['tm']  ?? 0, 0, ',', ' ') }}</div></div>
     <div class="kpi"><div class="lbl">ODP</div><div class="val">{{ number_format($totals['by_type']['odp'] ?? 0, 0, ',', ' ') }}</div></div>
-    <div class="kpi"><div class="lbl">DB</div><div class="val">{{ number_format($totals['by_type']['db']  ?? 0, 0, ',', ' ') }}</div></div>
     <div class="kpi"><div class="lbl">Panneaux</div><div class="val">{{ $totals['panels_count'] }}</div></div>
     <div class="kpi"><div class="lbl">Lignes</div><div class="val">{{ $totals['lines_count'] }}</div></div>
 </div>

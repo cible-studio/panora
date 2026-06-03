@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Historique tarifaire des taxes communales (ODP / TM / DB).
+ * Historique tarifaire des taxes communales (ODP / TM).
  *
  * Chaque modification d'un tarif sur la fiche commune génère une ligne
  * ici via un observer — permet de recalculer un montant passé en
@@ -24,7 +24,7 @@ class CommuneTaxRateHistory extends Model
     protected $table = 'commune_tax_rate_history';
 
     protected $fillable = [
-        'commune_id', 'odp_rate', 'tm_rate', 'db_rate',
+        'commune_id', 'odp_rate', 'tm_rate',
         'effective_from', 'effective_to', 'notes', 'created_by',
     ];
 
@@ -33,7 +33,6 @@ class CommuneTaxRateHistory extends Model
         'effective_to'   => 'date',
         'odp_rate'       => 'decimal:2',
         'tm_rate'        => 'decimal:2',
-        'db_rate'        => 'decimal:2',
     ];
 
     public function commune()

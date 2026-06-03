@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\Log;
 class TaxAutoService
 {
     /** @var string[] */
-    public const TYPES = ['odp', 'tm', 'db'];
+    public const TYPES = ['odp', 'tm'];
 
     /**
      * Calcule (sans persister) les lignes qui seraient créées pour
@@ -58,7 +58,7 @@ class TaxAutoService
             ->get(['id', 'commune_id', 'type', 'amount', 'status'])
             ->keyBy(fn($t) => $t->commune_id . ':' . $t->type);
 
-        $communes = Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate', 'db_rate']);
+        $communes = Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate']);
         $rows = [];
         $toCreate = 0;
         $existsCount = 0;
@@ -72,7 +72,6 @@ class TaxAutoService
                 $rate = (float) match ($type) {
                     'odp' => $commune->odp_rate,
                     'tm'  => $commune->tm_rate,
-                    'db'  => $commune->db_rate,
                     default => 0,
                 };
                 if ($rate <= 0) continue; // commune sans tarif sur ce type → skip

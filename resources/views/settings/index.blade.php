@@ -39,7 +39,6 @@
                                         data-region="{{ $commune->region }}"
                                         data-odp_rate="{{ $commune->odp_rate }}"
                                         data-tm_rate="{{ $commune->tm_rate }}"
-                                        data-db_rate="{{ $commune->db_rate }}"
                                         title="Modifier">✏️</button>
                                 <form method="POST"
                                       action="{{ route('admin.settings.communes.destroy', $commune) }}"
@@ -286,11 +285,6 @@
                         <label>Taux TM (FCFA)</label>
                         <input type="number" name="tm_rate" min="0" step="0.01">
                         <div class="field-error" data-error="tm_rate"></div>
-                    </div>
-                    <div class="mfg">
-                        <label>Taux DB (FCFA)</label>
-                        <input type="number" name="db_rate" min="0" step="0.01">
-                        <div class="field-error" data-error="db_rate"></div>
                     </div>
                 </div>
                 <div style="font-size:11px;color:var(--text3);margin-top:6px;">
