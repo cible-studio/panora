@@ -183,6 +183,14 @@ Route::prefix('proposition')->name('proposition.')->middleware(\App\Http\Middlew
         ->name('refuser')
         ->middleware('throttle:5,1');
 
+    // Demande client de décalage de dates (négociation aller-retour).
+    // La proposition reste EN_ATTENTE, l'admin reçoit une alerte + email
+    // et peut accepter (les nouvelles dates remplacent les actuelles) ou
+    // refuser (la demande est effacée et le client est notifié).
+    Route::post('/{reference}/{slug}/demander-changement-dates', [PropositionController::class, 'demanderChangementDates'])
+        ->name('demander-changement-dates')
+        ->middleware('throttle:5,1');
+
     Route::delete('/{reference}/{slug}/panneau/{panelId}', [PropositionController::class, 'retirerPanneau'])
         ->name('retirer-panneau')
         ->middleware('throttle:10,1');
@@ -763,6 +771,13 @@ Route::prefix('admin')
         Route::middleware('role:admin,mediaplanner')->group(function () {
             Route::patch('reservations/{reservation}/status', [ReservationController::class, 'updateStatus'])->name('reservations.update-status');
             Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])->name('reservations.annuler');
+
+            // Arbitrage admin sur une demande de décalage de dates initiée
+            // par le client depuis sa page de proposition.
+            Route::post('reservations/{reservation}/date-change/accept', [ReservationController::class, 'acceptDateChange'])
+                ->name('reservations.date-change.accept');
+            Route::post('reservations/{reservation}/date-change/refuse', [ReservationController::class, 'refuseDateChange'])
+                ->name('reservations.date-change.refuse');
             // Actions groupées sur les réservations (admin + MP).
             // Action acceptées : 'cancel' (annulation en masse), 'delete'
             // (suppression — bloque si campagne active).

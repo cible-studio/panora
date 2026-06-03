@@ -2282,6 +2282,124 @@ class ReservationController extends Controller
         }
     }
 
+    /**
+     * Admin accepte la demande client de décalage : applique les nouvelles
+     * dates et notifie le client. La proposition reste EN_ATTENTE — le
+     * client doit toujours la confirmer ou la refuser ensuite, mais sur
+     * la nouvelle période.
+     */
+    public function acceptDateChange(Request $request, Reservation $reservation)
+    {
+        if (!$reservation->hasPendingDateChange()) {
+            return back()->with('error', 'Aucune demande de décalage en attente.');
+        }
+        if ($reservation->status->value !== 'en_attente') {
+            return back()->with('error', 'La réservation n\'est plus en attente — décalage impossible.');
+        }
+
+        $newStart = $reservation->requested_start_date;
+        $newEnd   = $reservation->requested_end_date;
+        $oldStart = $reservation->start_date;
+        $oldEnd   = $reservation->end_date;
+
+        $reservation->update([
+            'start_date'               => $newStart,
+            'end_date'                 => $newEnd,
+            'requested_start_date'     => null,
+            'requested_end_date'       => null,
+            'date_change_note'         => null,
+            'date_change_requested_at' => null,
+        ]);
+
+        \Illuminate\Support\Facades\Log::info('reservation.date_change.accepted', [
+            'reservation_id' => $reservation->id,
+            'old'            => $oldStart->format('Y-m-d') . ' → ' . $oldEnd->format('Y-m-d'),
+            'new'            => $newStart->format('Y-m-d') . ' → ' . $newEnd->format('Y-m-d'),
+            'by_user_id'     => auth()->id(),
+        ]);
+
+        if ($reservation->client?->email && $reservation->proposition_slug) {
+            try {
+                \Illuminate\Support\Facades\Mail::raw(
+                    "Bonjour " . ($reservation->client->name ?? '') . ",\n\n"
+                    . "Bonne nouvelle : ta demande de décalage de la proposition {$reservation->reference} est acceptée.\n\n"
+                    . "Nouvelle période : " . $newStart->format('d/m/Y') . " → " . $newEnd->format('d/m/Y') . "\n\n"
+                    . "Tu peux maintenant confirmer ou refuser la proposition sur cette nouvelle période :\n"
+                    . route('proposition.show', [$reservation->reference, $reservation->proposition_slug]),
+                    function ($m) use ($reservation) {
+                        $m->to($reservation->client->email)
+                          ->subject('✅ Décalage accepté — proposition ' . $reservation->reference);
+                    }
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('reservation.date_change.accept_mail_failed', [
+                    'reservation_id' => $reservation->id,
+                    'error'          => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return back()->with('success', "✅ Nouvelles dates appliquées : {$newStart->format('d/m/Y')} → {$newEnd->format('d/m/Y')}. Le client a été notifié.");
+    }
+
+    /**
+     * Admin refuse la demande de décalage : on efface les champs requested_*
+     * et on garde les dates initiales. Le client reçoit un mail neutre.
+     */
+    public function refuseDateChange(Request $request, Reservation $reservation)
+    {
+        if (!$reservation->hasPendingDateChange()) {
+            return back()->with('error', 'Aucune demande de décalage en attente.');
+        }
+
+        $request->validate([
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        $requestedStart = $reservation->requested_start_date;
+        $requestedEnd   = $reservation->requested_end_date;
+
+        $reservation->update([
+            'requested_start_date'     => null,
+            'requested_end_date'       => null,
+            'date_change_note'         => null,
+            'date_change_requested_at' => null,
+        ]);
+
+        \Illuminate\Support\Facades\Log::info('reservation.date_change.refused', [
+            'reservation_id' => $reservation->id,
+            'requested'      => $requestedStart->format('Y-m-d') . ' → ' . $requestedEnd->format('Y-m-d'),
+            'by_user_id'     => auth()->id(),
+            'reason'         => $request->input('reason'),
+        ]);
+
+        if ($reservation->client?->email && $reservation->proposition_slug) {
+            $reason = trim((string) $request->input('reason'));
+            try {
+                \Illuminate\Support\Facades\Mail::raw(
+                    "Bonjour " . ($reservation->client->name ?? '') . ",\n\n"
+                    . "Nous n'avons pas pu répondre favorablement à ta demande de décalage de la proposition {$reservation->reference}.\n"
+                    . ($reason ? "\nRaison : {$reason}\n" : '')
+                    . "\nLa proposition reste valide sur la période initiale ({$reservation->start_date->format('d/m/Y')} → {$reservation->end_date->format('d/m/Y')}).\n"
+                    . "Tu peux la confirmer, la refuser ou faire une nouvelle proposition de dates ici :\n"
+                    . route('proposition.show', [$reservation->reference, $reservation->proposition_slug])
+                    . "\n\nContacte ton interlocuteur pour discuter d'alternatives si besoin.",
+                    function ($m) use ($reservation) {
+                        $m->to($reservation->client->email)
+                          ->subject('🗓 Demande de décalage — proposition ' . $reservation->reference);
+                    }
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('reservation.date_change.refuse_mail_failed', [
+                    'reservation_id' => $reservation->id,
+                    'error'          => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return back()->with('success', 'Demande de décalage refusée. Le client a été notifié — dates initiales conservées.');
+    }
+
     public function annuler(Request $request, Reservation $reservation)
     {
         if ($reservation->client?->trashed())
