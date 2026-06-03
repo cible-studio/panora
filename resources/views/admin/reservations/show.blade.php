@@ -1080,6 +1080,13 @@
 
             {{-- ✅ Motif d'annulation --}}
             <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:14px">
+                @if($errors->any())
+                    <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:10px">
+                        @foreach($errors->all() as $err)
+                            <div>⚠️ {{ $err }}</div>
+                        @endforeach
+                    </div>
+                @endif
                 <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px">
                     📋 Motif d'annulation (suivi qualité)
                 </div>
@@ -1102,8 +1109,8 @@
                               placeholder="Décrivez le contexte de l'annulation…"
                               style="width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border2);border-radius:8px;font-size:12px;color:var(--text);resize:vertical;box-sizing:border-box;outline:none;transition:border-color .2s"
                               onfocus="this.style.borderColor='var(--accent)'"
-                              onblur="this.style.borderColor='var(--border2)'"></textarea>
-                    <div style="font-size:10px;color:var(--text3);margin-top:3px">Utilisé pour le suivi qualité et les statistiques d'annulation.</div>
+                              onblur="this.style.borderColor='var(--border2)'">{{ old('cancel_reason') }}</textarea>
+                    <div style="font-size:10px;color:var(--text3);margin-top:3px">Si vide, le libellé de la catégorie sera utilisé comme motif.</div>
                 </div>
             </div>
 
@@ -1213,18 +1220,45 @@ function closeStatusModal(e) { if (!e || e.target === document.getElementById('m
 function openCancelModal()    { modalShow('modal-cancel'); }
 function closeCancelModal(e)  { if (!e || e.target === document.getElementById('modal-cancel')) modalHide('modal-cancel'); }
 
-// ✅ Préparer la soumission du formulaire d'annulation avec motif
+// ✅ Préparer la soumission du formulaire d'annulation avec motif.
+// Si l'admin n'a pas rempli le textarea "Précisions" (optionnel), on
+// retombe sur le libellé visible de la catégorie pour garder une trace
+// lisible côté historique. Sans ce fallback, le hidden partait vide et
+// (avant assouplissement backend) la validation échouait silencieusement.
 function prepareCancelSubmit(form) {
     const typeEl   = document.getElementById('cancel-type-select');
     const reasonEl = document.getElementById('cancel-reason-text');
-    if (typeEl)   document.getElementById('cancel-type-hidden').value   = typeEl.value;
-    if (reasonEl) document.getElementById('cancel-reason-hidden').value = reasonEl.value;
+    const typeHidden   = document.getElementById('cancel-type-hidden');
+    const reasonHidden = document.getElementById('cancel-reason-hidden');
+
+    if (typeEl && typeHidden) typeHidden.value = typeEl.value;
+
+    let reason = reasonEl ? reasonEl.value.trim() : '';
+    if (!reason && typeEl) {
+        const opt = typeEl.options[typeEl.selectedIndex];
+        reason = opt ? opt.text.trim() : '';
+    }
+    if (reasonHidden) reasonHidden.value = reason;
+
+    const btn = form.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Annulation…'; }
     return true;
 }
 
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') { modalHide('modal-status'); modalHide('modal-cancel'); }
 });
+
+// Si la validation a renvoyé des erreurs (catégorie manquante p. ex.),
+// on rouvre automatiquement la modale d'annulation pour que l'admin
+// voie le bandeau d'erreur — sans ça la page recharge sans signal visible.
+@if($errors->any() && old('cancel_type') !== null)
+document.addEventListener('DOMContentLoaded', function() {
+    openCancelModal();
+    const t = document.getElementById('cancel-type-select');
+    if (t && @json(old('cancel_type'))) t.value = @json(old('cancel_type'));
+});
+@endif
 
 // ✅ Ajouter un panneau — Select2 + AJAX
 @if($can['update'] && !in_array($reservation->status->value, ['annule','refuse','termine']))

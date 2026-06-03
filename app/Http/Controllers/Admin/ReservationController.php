@@ -35,6 +35,18 @@ class ReservationController extends Controller
 {
     use PdfAssets;
 
+    // Mapping libellé humain par catégorie d'annulation (source unique).
+    // Utilisé comme motif fallback quand l'admin laisse le textarea
+    // "Précisions" vide (cf. annuler() et bulkAction()), pour garder une
+    // trace lisible dans l'historique sans imposer une saisie libre.
+    public const CANCEL_TYPE_LABELS = [
+        'client_demande' => 'Client : demande d\'annulation',
+        'budget'         => 'Client : contrainte budgétaire',
+        'concurrent'     => 'Client : a choisi un concurrent',
+        'report'         => 'Report de campagne',
+        'autre'          => 'Autre motif',
+    ];
+
     public function __construct(
         protected AvailabilityService $availability,
         protected ReservationService $reservationService
@@ -2515,26 +2527,29 @@ class ReservationController extends Controller
         if (!$reservation->isCancellable())
             abort(403, 'Réservation non annulable.');
 
-        // Motif d'annulation OBLIGATOIRE (demande métier réunion 20/05).
-        // L'auditabilité des annulations est critique : sans motif, on ne
-        // peut pas comprendre rétroactivement pourquoi une résa a été
-        // annulée. Le `cancel_type` (catégorie) ET `cancel_reason` (libre)
-        // sont tous deux requis.
+        // Catégorie d'annulation obligatoire (auditabilité), précisions
+        // libres optionnelles. Si l'admin n'a rien tapé dans le textarea,
+        // on dérive un motif lisible depuis le label de la catégorie pour
+        // garder une trace humaine dans l'historique (avant : 422 silencieux
+        // côté form → la modale fermait sans message et la résa restait active).
         $request->validate([
             'cancel_type'   => 'required|string|max:50',
-            'cancel_reason' => 'required|string|min:5|max:500',
+            'cancel_reason' => 'nullable|string|max:500',
         ], [
-            'cancel_type.required'   => 'Choisissez une catégorie d\'annulation.',
-            'cancel_reason.required' => 'Le motif d\'annulation est obligatoire.',
-            'cancel_reason.min'      => 'Le motif doit faire au moins 5 caractères (soyez précis).',
+            'cancel_type.required' => 'Choisissez une catégorie d\'annulation.',
         ]);
 
         $panelCount = $reservation->panels->count() + $reservation->externalPanels->count();
 
-        // Extraire les données d'annulation
+        $cancelType   = $request->input('cancel_type');
+        $cancelReason = trim((string) $request->input('cancel_reason', ''));
+        if ($cancelReason === '') {
+            $cancelReason = self::CANCEL_TYPE_LABELS[$cancelType] ?? 'Annulation administrative';
+        }
+
         $cancelData = [
-            'cancel_type'   => $request->input('cancel_type'),
-            'cancel_reason' => $request->input('cancel_reason'),
+            'cancel_type'   => $cancelType,
+            'cancel_reason' => $cancelReason,
             'cancelled_at'  => now(),
             'cancelled_by'  => auth()->id(),
         ];
@@ -2574,19 +2589,24 @@ class ReservationController extends Controller
     public function bulkAction(Request $request)
     {
         // Validation alignée sur annuler() : pour action=cancel, on exige
-        // un motif typé + texte ≥5 chars (auditabilité critique demandée
-        // métier). Pour les autres actions, ces champs sont ignorés.
+        // une catégorie ; le texte libre reste optionnel et fallback sur
+        // le label de la catégorie si vide (cf. self::CANCEL_TYPE_LABELS).
         $data = $request->validate([
             'action'        => 'required|in:confirm,refuse,cancel,delete',
             'ids'           => 'required|array|min:1|max:200',
             'ids.*'         => 'integer|exists:reservations,id',
             'cancel_type'   => 'required_if:action,cancel|string|max:50',
-            'cancel_reason' => 'required_if:action,cancel|string|min:5|max:500',
+            'cancel_reason' => 'nullable|string|max:500',
         ], [
-            'cancel_type.required_if'   => 'Choisissez une catégorie d\'annulation.',
-            'cancel_reason.required_if' => 'Le motif d\'annulation est obligatoire (5 caractères min.).',
-            'cancel_reason.min'         => 'Le motif doit faire au moins 5 caractères (soyez précis).',
+            'cancel_type.required_if' => 'Choisissez une catégorie d\'annulation.',
         ]);
+
+        if ($data['action'] === 'cancel') {
+            $reasonInput = trim((string) ($data['cancel_reason'] ?? ''));
+            $data['cancel_reason'] = $reasonInput !== ''
+                ? $reasonInput
+                : (self::CANCEL_TYPE_LABELS[$data['cancel_type']] ?? 'Annulation administrative');
+        }
 
         // Confirmer / Refuser = changement de statut réservé aux admins
         // (cf. ReservationPolicy::updateStatus). On bloque tôt si un MP
