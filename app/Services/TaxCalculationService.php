@@ -15,14 +15,14 @@ use Illuminate\Support\Collection;
  *
  * Règles d'éligibilité (synthèse spec) :
  *
- *   | Statut panneau                  | TM | ODP | DB |
- *   | ──────────────────────────────  | ── | ─── | ── |
- *   | Exploité avec campagne active   | ✓  |  ✓  | ✓  |
- *   | Interne/maint. AVEC campagne    | ✓  |  ✓  | ✓  |
- *   | Interne/maint. SANS campagne    | ✗  |  ✓  | ✓  |
- *   | Vacant                          | ✗  |  ✓  | ✓  |
+ *   | Statut panneau                  | TM | ODP |
+ *   | ──────────────────────────────  | ── | ─── |
+ *   | Exploité avec campagne active   | ✓  |  ✓  |
+ *   | Interne/maint. AVEC campagne    | ✓  |  ✓  |
+ *   | Interne/maint. SANS campagne    | ✗  |  ✓  |
+ *   | Vacant                          | ✗  |  ✓  |
  *
- * → ODP & DB : tous les panneaux internes (catalogue), peu importe le
+ * → ODP : tous les panneaux internes (catalogue), peu importe le
  *   statut ou l'occupation.
  * → TM : uniquement si une campagne ACTIVE existe sur la période,
  *   couvre le panneau (interne ou maintenance peu importe).
@@ -34,8 +34,7 @@ class TaxCalculationService
 {
     public const TYPE_TM  = 'tm';
     public const TYPE_ODP = 'odp';
-    public const TYPE_DB  = 'db';
-    public const TYPES    = [self::TYPE_TM, self::TYPE_ODP, self::TYPE_DB];
+    public const TYPES    = [self::TYPE_TM, self::TYPE_ODP];
 
     public const PERIOD_MONTHLY    = 'mensuel';
     public const PERIOD_QUARTERLY  = 'trimestriel';
@@ -102,7 +101,7 @@ class TaxCalculationService
             // Si filtre client/campagne actif → on ne garde le panneau que
             // s'il a une campagne assignée correspondante. Sinon (pas de
             // filtre client/campagne) on garde tous les panneaux pour
-            // ODP/DB et on filtre TM individuellement.
+            // ODP et on filtre TM individuellement.
             $assignment = $campaignAssignmentMap[$panel->id] ?? null;
             $hasClientCampaignFilter = !empty($filters['client_id']) || !empty($filters['campaign_id']);
             if ($hasClientCampaignFilter && !$assignment) continue;
@@ -156,7 +155,6 @@ class TaxCalculationService
         return match ($type) {
             self::TYPE_TM  => $assignment !== null,  // campagne active requise
             self::TYPE_ODP => true,                  // tous panneaux internes
-            self::TYPE_DB  => true,                  // tous panneaux internes
             default        => false,
         };
     }

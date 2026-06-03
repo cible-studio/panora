@@ -19,11 +19,10 @@
     </x-slot>
 
     @php
-        $typeLabels = ['tm' => 'TM', 'odp' => 'ODP', 'db' => 'DB'];
+        $typeLabels = ['tm' => 'TM', 'odp' => 'ODP'];
         $typeColors = [
             'tm'  => ['bg' => 'rgba(34,197,94,.1)',  'c' => '#16a34a'],
             'odp' => ['bg' => 'rgba(249,115,22,.1)', 'c' => '#ea580c'],
-            'db'  => ['bg' => 'rgba(59,130,246,.1)', 'c' => '#2563eb'],
         ];
         $statutLabels = [
             'libre'       => '🟢 Libre',
@@ -105,7 +104,6 @@
                         <option value="">Toutes</option>
                         <option value="tm"  {{ ($filters['type'] ?? null) === 'tm'  ? 'selected' : '' }}>TM</option>
                         <option value="odp" {{ ($filters['type'] ?? null) === 'odp' ? 'selected' : '' }}>ODP</option>
-                        <option value="db"  {{ ($filters['type'] ?? null) === 'db'  ? 'selected' : '' }}>DB</option>
                     </select>
                 </div>
                 @if(!empty($filters))
@@ -134,11 +132,6 @@
                 'label' => 'ODP', 'val' => $totals['by_type']['odp'] ?? 0, 'sub' => 'domaine public',
                 'color' => '#f97316', 'unit' => ' FCFA',
                 'svg' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
-            ],
-            [
-                'label' => 'DB', 'val' => $totals['by_type']['db']  ?? 0, 'sub' => 'droits de bord',
-                'color' => '#3b82f6', 'unit' => ' FCFA',
-                'svg' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
             ],
             [
                 'label' => 'Panneaux', 'val' => $totals['panels_count'], 'sub' => 'concernés période',

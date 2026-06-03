@@ -20,12 +20,10 @@ class CommuneController extends Controller
             'region'   => 'nullable|string|max:100',
             'odp_rate' => 'nullable|numeric|min:0',
             'tm_rate'  => 'nullable|numeric|min:0',
-            'db_rate'  => 'nullable|numeric|min:0',
         ]);
 
         $data['odp_rate'] = $data['odp_rate'] ?? 0;
         $data['tm_rate']  = $data['tm_rate']  ?? 0;
-        $data['db_rate']  = $data['db_rate']  ?? 0;
 
         Commune::create($data);
 
@@ -41,19 +39,17 @@ class CommuneController extends Controller
             'region'   => 'nullable|string|max:100',
             'odp_rate' => 'nullable|numeric|min:0',
             'tm_rate'  => 'nullable|numeric|min:0',
-            'db_rate'  => 'nullable|numeric|min:0',
         ]);
 
         $data['odp_rate'] = $data['odp_rate'] ?? 0;
         $data['tm_rate']  = $data['tm_rate']  ?? 0;
-        $data['db_rate']  = $data['db_rate']  ?? 0;
 
         $commune->update($data);
 
         // L'observer CommuneObserver historise automatiquement les
         // changements de tarif — on précise juste ça à l'admin si un
         // tarif a effectivement bougé.
-        $changed = array_intersect_key($commune->getChanges(), array_flip(['odp_rate', 'tm_rate', 'db_rate']));
+        $changed = array_intersect_key($commune->getChanges(), array_flip(['odp_rate', 'tm_rate']));
         $msg = 'Commune modifiée avec succès !';
         if (!empty($changed)) {
             $msg .= ' Tarifs historisés (les calculs rétroactifs gardent les anciennes valeurs).';

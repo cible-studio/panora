@@ -22,8 +22,8 @@ class CommuneTaxPayment extends Model
 
     protected $fillable = [
         'commune_id', 'period_type', 'period_year', 'period_value',
-        'odp_theorique', 'tm_theorique', 'db_theorique',
-        'odp_paye', 'tm_paye', 'db_paye',
+        'odp_theorique', 'tm_theorique',
+        'odp_paye', 'tm_paye',
         'paid_at',
         'attestation_recue', 'attestation_date', 'attestation_path',
         'notes',
@@ -33,10 +33,8 @@ class CommuneTaxPayment extends Model
     protected $casts = [
         'odp_theorique'     => 'decimal:2',
         'tm_theorique'      => 'decimal:2',
-        'db_theorique'      => 'decimal:2',
         'odp_paye'          => 'decimal:2',
         'tm_paye'           => 'decimal:2',
-        'db_paye'           => 'decimal:2',
         'paid_at'           => 'date',
         'attestation_recue' => 'boolean',
         'attestation_date'  => 'date',
@@ -54,8 +52,8 @@ class CommuneTaxPayment extends Model
 
     public function getStatusAttribute(): string
     {
-        $theorique = (float) $this->odp_theorique + (float) $this->tm_theorique + (float) $this->db_theorique;
-        $paye      = (float) $this->odp_paye      + (float) $this->tm_paye      + (float) $this->db_paye;
+        $theorique = (float) $this->odp_theorique + (float) $this->tm_theorique;
+        $paye      = (float) $this->odp_paye      + (float) $this->tm_paye;
 
         if ($paye <= 0)              return 'non_paye';
         if ($paye >= $theorique - 1) return 'paye';
@@ -65,7 +63,7 @@ class CommuneTaxPayment extends Model
     public function getTotalTheoriqueAttribute(): float
     {
         return round(
-            (float) $this->odp_theorique + (float) $this->tm_theorique + (float) $this->db_theorique,
+            (float) $this->odp_theorique + (float) $this->tm_theorique,
             2
         );
     }
@@ -73,7 +71,7 @@ class CommuneTaxPayment extends Model
     public function getTotalPayeAttribute(): float
     {
         return round(
-            (float) $this->odp_paye + (float) $this->tm_paye + (float) $this->db_paye,
+            (float) $this->odp_paye + (float) $this->tm_paye,
             2
         );
     }

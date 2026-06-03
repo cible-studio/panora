@@ -10,13 +10,12 @@ class Commune extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 'code', 'city', 'region', 'odp_rate', 'tm_rate', 'db_rate',
+        'name', 'code', 'city', 'region', 'odp_rate', 'tm_rate',
     ];
 
     protected $casts = [
         'odp_rate' => 'decimal:2',
         'tm_rate'  => 'decimal:2',
-        'db_rate'  => 'decimal:2',
     ];
 
     public function zones()
@@ -46,7 +45,7 @@ class Commune extends Model
     }
 
     /**
-     * Tarifs ODP / TM / DB applicables à la date donnée.
+     * Tarifs ODP / TM applicables à la date donnée.
      * Cherche d'abord dans l'historique pour cohérence des calculs
      * rétroactifs (changement tarifaire en 2026 → un calcul sur janvier
      * doit utiliser le tarif de janvier, pas le nouveau).
@@ -54,7 +53,7 @@ class Commune extends Model
      * Fallback : tarifs courants de la fiche commune (utiles tant que
      * l'historique n'a pas encore été initialisé pour cette date).
      *
-     * @return array{odp:float, tm:float, db:float}
+     * @return array{odp:float, tm:float}
      */
     public function ratesAt(\DateTimeInterface|string $date): array
     {
@@ -72,14 +71,12 @@ class Commune extends Model
             return [
                 'odp' => (float) $row->odp_rate,
                 'tm'  => (float) $row->tm_rate,
-                'db'  => (float) $row->db_rate,
             ];
         }
 
         return [
             'odp' => (float) ($this->odp_rate ?? 0),
             'tm'  => (float) ($this->tm_rate ?? 0),
-            'db'  => (float) ($this->db_rate ?? 0),
         ];
     }
 }
