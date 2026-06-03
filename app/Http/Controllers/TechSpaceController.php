@@ -537,6 +537,172 @@ class TechSpaceController extends Controller
     }
 
     /**
+     * GET /tech/{token}/poses/map
+     *
+     * Vue Carte (Leaflet) — affiche toutes les poses actives du tech
+     * sur une carte avec clustering, markers colorés par statut, popup
+     * d'actions par pose (Y aller, Voir la pose, Photo). Indispensable
+     * au-delà de 30 poses pour visualiser la densité géographique et
+     * planifier la tournée.
+     */
+    public function map(string $token)
+    {
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->first();
+        if (!$tech) abort(404, 'Lien invalide ou compte désactivé.');
+
+        // On charge TOUT (pas le cap SSR) avec uniquement les données
+        // nécessaires au rendu carte : ref, name, commune, lat/lng,
+        // status, échéance. Les markers sans GPS sont exclus côté front.
+        $tasks = PoseTask::with([
+                'panel:id,reference,name,commune_id,format_id,adresse,quartier,latitude,longitude',
+                'panel.commune:id,name',
+                'campaign:id,name',
+            ])
+            ->where('assigned_user_id', $tech->id)
+            ->whereNotNull('panel_id')->whereNotNull('campaign_id')
+            ->whereNotIn('status', [
+                PoseTaskStatus::COMPLETED->value,
+                PoseTaskStatus::CANCELLED->value,
+            ])
+            ->orderBy('scheduled_at')
+            ->get();
+
+        $today = Carbon::today();
+
+        $points = $tasks->map(function ($t) use ($today) {
+            $lat = $t->panel?->latitude;
+            $lng = $t->panel?->longitude;
+            if ($lat === null || $lng === null) return null;
+            $status = $t->status instanceof PoseTaskStatus
+                ? $t->status
+                : PoseTaskStatus::tryFrom((string) $t->status);
+            $sched = $t->scheduled_at;
+            return [
+                'id'       => $t->id,
+                'lat'      => (float) $lat,
+                'lng'      => (float) $lng,
+                'ref'      => $t->panel?->reference ?? '#' . $t->id,
+                'name'     => $t->panel?->name ?? '',
+                'commune'  => $t->panel?->commune?->name ?? '',
+                'adresse'  => $t->panel?->adresse,
+                'campaign' => $t->campaign?->name,
+                'status'   => $status?->value,
+                'status_label' => $status?->label(),
+                'status_color' => $status?->color(),
+                'is_late'  => $sched && Carbon::parse($sched)->startOfDay()->lt($today),
+                'sched'    => optional($sched)->format('d/m H:i'),
+            ];
+        })->filter()->values();
+
+        $withoutGps = $tasks->count() - $points->count();
+
+        return view('public.tech-map', [
+            'tech'        => $tech,
+            'token'       => $token,
+            'points'      => $points,
+            'totalTasks'  => $tasks->count(),
+            'withoutGps'  => $withoutGps,
+        ]);
+    }
+
+    /**
+     * GET /tech/{token}/poses/optimize?lat=&lng=
+     *
+     * Ordre de tournée optimisé via heuristique nearest-neighbor :
+     * partant de la position du tech, on choisit à chaque étape la
+     * pose la plus proche encore non visitée. Pas optimal au sens
+     * strict (TSP NP-difficile), mais suffisamment proche pour
+     * l'usage terrain et instantané même à 200+ poses.
+     *
+     * Renvoie l'ordre des task_id + distances cumulées en mètres.
+     * L'UI re-ordonne les cards localement avec ces task_id.
+     */
+    public function optimizeTour(Request $request, string $token)
+    {
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->first();
+        if (!$tech) return response()->json(['ok' => false], 404);
+
+        $request->validate([
+            'lat'   => 'required|numeric',
+            'lng'   => 'required|numeric',
+            'scope' => 'nullable|in:rendered,all', // 'rendered' = limit aux ids fournis
+            'ids'   => 'nullable|array',
+            'ids.*' => 'integer',
+        ]);
+
+        $startLat = (float) $request->input('lat');
+        $startLng = (float) $request->input('lng');
+        $scope    = $request->input('scope', 'all');
+        $renderedIds = collect((array) $request->input('ids', []))->map(fn($x) => (int) $x)->filter()->all();
+
+        $q = PoseTask::with(['panel:id,reference,latitude,longitude'])
+            ->where('assigned_user_id', $tech->id)
+            ->whereNotNull('panel_id')->whereNotNull('campaign_id')
+            ->whereNotIn('status', [
+                PoseTaskStatus::COMPLETED->value,
+                PoseTaskStatus::CANCELLED->value,
+            ]);
+        if ($scope === 'rendered' && !empty($renderedIds)) {
+            $q->whereIn('id', $renderedIds);
+        }
+        $tasks = $q->get(['id', 'panel_id']);
+
+        // Garde uniquement les tâches géolocalisées (sans GPS = ignorées
+        // du calcul mais retournées en fin de liste pour info).
+        $geo  = [];
+        $noGps = [];
+        foreach ($tasks as $t) {
+            if ($t->panel?->latitude !== null && $t->panel?->longitude !== null) {
+                $geo[] = [
+                    'id'  => $t->id,
+                    'lat' => (float) $t->panel->latitude,
+                    'lng' => (float) $t->panel->longitude,
+                    'ref' => $t->panel->reference,
+                ];
+            } else {
+                $noGps[] = ['id' => $t->id, 'ref' => $t->panel?->reference];
+            }
+        }
+
+        // Heuristique nearest-neighbor : O(N²) — acceptable jusqu'à
+        // quelques milliers de points (≈ 200 ms pour 1000 points).
+        $order = [];
+        $cumulMeters = 0.0;
+        $curLat = $startLat; $curLng = $startLng;
+        $remaining = $geo;
+        while (!empty($remaining)) {
+            $bestIdx = null;
+            $bestD   = INF;
+            foreach ($remaining as $i => $p) {
+                $d = self::haversine($curLat, $curLng, $p['lat'], $p['lng']);
+                if ($d < $bestD) { $bestD = $d; $bestIdx = $i; }
+            }
+            $chosen = $remaining[$bestIdx];
+            $cumulMeters += $bestD;
+            $order[] = [
+                'id'           => $chosen['id'],
+                'ref'          => $chosen['ref'],
+                'leg_meters'   => (int) round($bestD),
+                'cumul_meters' => (int) round($cumulMeters),
+            ];
+            $curLat = $chosen['lat']; $curLng = $chosen['lng'];
+            array_splice($remaining, $bestIdx, 1);
+        }
+
+        return response()->json([
+            'ok'           => true,
+            'count'        => count($order),
+            'total_meters' => (int) round($cumulMeters),
+            'order'        => $order,
+            'no_gps'       => $noGps,
+        ]);
+    }
+
+    /**
      * Invalide le cache de l'espace tech après une modification (status,
      * upload). Appelé par updateStatus() + uploadPhoto() + côté service
      * quand un admin assigne une nouvelle pose.
