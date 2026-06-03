@@ -2320,17 +2320,13 @@ class ReservationController extends Controller
 
         if ($reservation->client?->email && $reservation->proposition_slug) {
             try {
-                \Illuminate\Support\Facades\Mail::raw(
-                    "Bonjour " . ($reservation->client->name ?? '') . ",\n\n"
-                    . "Bonne nouvelle : ta demande de décalage de la proposition {$reservation->reference} est acceptée.\n\n"
-                    . "Nouvelle période : " . $newStart->format('d/m/Y') . " → " . $newEnd->format('d/m/Y') . "\n\n"
-                    . "Tu peux maintenant confirmer ou refuser la proposition sur cette nouvelle période :\n"
-                    . route('proposition.show', [$reservation->reference, $reservation->proposition_slug]),
-                    function ($m) use ($reservation) {
-                        $m->to($reservation->client->email)
-                          ->subject('✅ Décalage accepté — proposition ' . $reservation->reference);
-                    }
-                );
+                \Illuminate\Support\Facades\Mail::to($reservation->client->email)
+                    ->send(new \App\Mail\PropositionDateChangeMail(
+                        reservation: $reservation->fresh(['client']),
+                        context: \App\Mail\PropositionDateChangeMail::CONTEXT_ACCEPTED,
+                        oldPeriod: $oldStart->format('d/m/Y') . ' → ' . $oldEnd->format('d/m/Y'),
+                        newPeriod: $newStart->format('d/m/Y') . ' → ' . $newEnd->format('d/m/Y'),
+                    ));
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::warning('reservation.date_change.accept_mail_failed', [
                     'reservation_id' => $reservation->id,
@@ -2376,19 +2372,12 @@ class ReservationController extends Controller
         if ($reservation->client?->email && $reservation->proposition_slug) {
             $reason = trim((string) $request->input('reason'));
             try {
-                \Illuminate\Support\Facades\Mail::raw(
-                    "Bonjour " . ($reservation->client->name ?? '') . ",\n\n"
-                    . "Nous n'avons pas pu répondre favorablement à ta demande de décalage de la proposition {$reservation->reference}.\n"
-                    . ($reason ? "\nRaison : {$reason}\n" : '')
-                    . "\nLa proposition reste valide sur la période initiale ({$reservation->start_date->format('d/m/Y')} → {$reservation->end_date->format('d/m/Y')}).\n"
-                    . "Tu peux la confirmer, la refuser ou faire une nouvelle proposition de dates ici :\n"
-                    . route('proposition.show', [$reservation->reference, $reservation->proposition_slug])
-                    . "\n\nContacte ton interlocuteur pour discuter d'alternatives si besoin.",
-                    function ($m) use ($reservation) {
-                        $m->to($reservation->client->email)
-                          ->subject('🗓 Demande de décalage — proposition ' . $reservation->reference);
-                    }
-                );
+                \Illuminate\Support\Facades\Mail::to($reservation->client->email)
+                    ->send(new \App\Mail\PropositionDateChangeMail(
+                        reservation: $reservation->fresh(['client']),
+                        context: \App\Mail\PropositionDateChangeMail::CONTEXT_REFUSED,
+                        reason: $reason ?: null,
+                    ));
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::warning('reservation.date_change.refuse_mail_failed', [
                     'reservation_id' => $reservation->id,
