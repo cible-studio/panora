@@ -1121,7 +1121,9 @@
             const s = new Date(startStr + 'T00:00:00');
             const e = new Date(endStr + 'T00:00:00');
             if (e <= s) return 0;
-            const days = Math.round((e - s) / 86400000) + 1;
+            // Même convention que Reservation::durationInDays (PHP) :
+            // 05/06 → 05/07 = 30 jours = 1 mois pile (pas 1 mois + 1 jour).
+            const days = Math.round((e - s) / 86400000);
             const full = Math.floor(days / 30);
             const rem  = days % 30;
             let frac = 0;

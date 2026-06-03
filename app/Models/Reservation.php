@@ -120,8 +120,13 @@ class Reservation extends Model
     public function durationInDays(): int
     {
         if (!$this->start_date || !$this->end_date) return 0;
+        // Convention CIBLE CI : la durée se compte en jours calendaires
+        // entre start et end (anniversaire de date inclus côté start,
+        // exclus côté end). Exemple : 05/06 → 05/07 = 30 jours pile = 1 mois.
+        // Si on incluait le jour de fin (+1 → 31 jours), le système
+        // facturait 1.5 mois pour une période d'un mois calendaire pile.
         return (int) $this->start_date->copy()->startOfDay()
-                ->diffInDays($this->end_date->copy()->startOfDay()) + 1;
+                ->diffInDays($this->end_date->copy()->startOfDay());
     }
 
     public function billableMonths(): float
@@ -154,7 +159,8 @@ class Reservation extends Model
         $e = \Carbon\Carbon::parse($end);
         if ($e->lte($s)) return 0.0;
 
-        $days = (int) $s->copy()->startOfDay()->diffInDays($e->copy()->startOfDay()) + 1;
+        // Même convention que durationInDays() : 30 jours pile = 1 mois.
+        $days = (int) $s->copy()->startOfDay()->diffInDays($e->copy()->startOfDay());
         $full = (int) floor($days / 30);
         $rem  = $days % 30;
         $frac = 0.0;
