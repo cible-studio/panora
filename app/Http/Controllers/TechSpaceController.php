@@ -951,52 +951,112 @@ class TechSpaceController extends Controller
             $statusFilter = null;
         }
 
-        // Filtre robuste : on récupère les piges du tech soit directement
-        // via user_id (nouveau pattern), soit via la PoseTask correspondante
-        // (panel + campagne assignés à ce tech) pour ne pas perdre les
-        // piges historiques où user_id pointait sur le commercial créateur
-        // de la campagne (bug corrigé).
+        // ─── Mode de vue ─────────────────────────────────────────────
+        // 'current' (défaut) : 1 ligne par panneau, garde uniquement la
+        //   pige la plus récente. C'est le statut COURANT du panneau.
+        //   Avant : un panneau dont la 1ère pige était refusée puis
+        //   re-piggée apparaissait DEUX fois (refusée + en attente) et
+        //   gonflait les KPI ("2 REFUSÉES" alors qu'aucun panneau ne
+        //   l'est réellement encore).
+        // 'all' : historique complet, toutes les piges (audit + suivi).
+        $view = $request->input('view', 'current');
+        if (!in_array($view, ['current', 'all'], true)) {
+            $view = 'current';
+        }
+
+        // Helper : filtre robuste « piges de ce tech » réutilisé partout.
+        // Soit user_id direct, soit rattachement via PoseTask assignée
+        // (couvre les piges historiques où user_id pointait sur le
+        // commercial créateur de la campagne — bug corrigé).
+        $pigesForTech = function ($q) use ($tech) {
+            $q->where(function ($qq) use ($tech) {
+                $qq->where('piges.user_id', $tech->id)
+                   ->orWhereExists(function ($sub) use ($tech) {
+                       $sub->select(\Illuminate\Support\Facades\DB::raw(1))
+                           ->from('pose_tasks')
+                           ->where('pose_tasks.assigned_user_id', $tech->id)
+                           ->whereColumn('pose_tasks.panel_id',    'piges.panel_id')
+                           ->whereColumn('pose_tasks.campaign_id', 'piges.campaign_id');
+                   });
+            });
+        };
+
+        // Helper : applique le filtre "vue courante" = pas de pige plus
+        // récente sur le même (panel, campagne). Implémenté en NOT EXISTS
+        // sur un alias `p2`. On ne filtre PAS par tech dans la sous-requête :
+        // un panneau dans une campagne est de fait assigné à un seul tech
+        // (cf. PoseTask unique par (panel, campaign)), donc toutes les
+        // piges du même couple sont du même tech. Évite des jointures
+        // corrélées coûteuses.
+        $applyCurrentView = function ($q) {
+            $q->whereNotExists(function ($sub) {
+                $sub->from('piges as p2')
+                    ->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->whereColumn('p2.panel_id',    'piges.panel_id')
+                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
+                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
+            });
+        };
+
         $piges = \App\Models\Pige::query()
-            ->where(function ($q) use ($tech) {
-                $q->where('user_id', $tech->id)
-                  ->orWhereExists(function ($sub) use ($tech) {
-                      $sub->select(\Illuminate\Support\Facades\DB::raw(1))
-                          ->from('pose_tasks')
-                          ->where('pose_tasks.assigned_user_id', $tech->id)
-                          ->whereColumn('pose_tasks.panel_id',    'piges.panel_id')
-                          ->whereColumn('pose_tasks.campaign_id', 'piges.campaign_id');
-                  });
-            })
-            ->when($statusFilter, fn($q, $s) => $q->where('status', $s))
+            ->tap($pigesForTech)
+            ->when($view === 'current', $applyCurrentView)
+            ->when($statusFilter, fn($q, $s) => $q->where('piges.status', $s))
             ->with([
                 'panel:id,reference,name,commune_id',
                 'panel.commune:id,name',
                 'campaign:id,name',
             ])
-            ->orderByDesc('taken_at')
+            ->orderByDesc('piges.taken_at')
             ->paginate(30)
             ->withQueryString();
 
-        // Compteurs globaux (même filtre tech robuste) pour les KPI.
+        // KPI calculés dans le MÊME mode de vue que la liste — sinon le
+        // compteur "REFUSÉES = 2" mentait par rapport à la liste affichée
+        // (qui n'en montrait qu'une, ou zéro, après déduplication).
         $base = \App\Models\Pige::query()
-            ->where(function ($q) use ($tech) {
-                $q->where('user_id', $tech->id)
-                  ->orWhereExists(function ($sub) use ($tech) {
-                      $sub->select(\Illuminate\Support\Facades\DB::raw(1))
-                          ->from('pose_tasks')
-                          ->where('pose_tasks.assigned_user_id', $tech->id)
-                          ->whereColumn('pose_tasks.panel_id',    'piges.panel_id')
-                          ->whereColumn('pose_tasks.campaign_id', 'piges.campaign_id');
-                  });
-            });
+            ->tap($pigesForTech)
+            ->when($view === 'current', $applyCurrentView);
         $kpi = [
             'total'    => (clone $base)->count(),
-            'pending'  => (clone $base)->where('status', 'en_attente')->count(),
-            'verified' => (clone $base)->where('status', 'verifie')->count(),
-            'rejected' => (clone $base)->where('status', 'rejete')->count(),
+            'pending'  => (clone $base)->where('piges.status', 'en_attente')->count(),
+            'verified' => (clone $base)->where('piges.status', 'verifie')->count(),
+            'rejected' => (clone $base)->where('piges.status', 'rejete')->count(),
         ];
 
-        return view('public.tech-piges', compact('tech', 'token', 'piges', 'kpi', 'statusFilter'));
+        // Compteur total historique — utile pour suggérer "voir l'historique
+        // complet" quand des piges sont masquées en mode courant.
+        $historyTotal = $view === 'current'
+            ? \App\Models\Pige::query()->tap($pigesForTech)->count()
+            : $kpi['total'];
+
+        // En mode 'all', marquer les piges qui ne sont PAS la plus récente
+        // sur leur (panel, campagne) → la vue les grise + badge "ancienne".
+        // Une seule requête whereIn + whereExists pour la page entière,
+        // évite N+1 silencieux.
+        if ($view === 'all') {
+            $idsOnPage = $piges->pluck('id')->all();
+            if (!empty($idsOnPage)) {
+                $supersededIds = \Illuminate\Support\Facades\DB::table('piges as p1')
+                    ->whereIn('p1.id', $idsOnPage)
+                    ->whereExists(function ($sub) {
+                        $sub->from('piges as p2')
+                            ->select(\Illuminate\Support\Facades\DB::raw(1))
+                            ->whereColumn('p2.panel_id',    'p1.panel_id')
+                            ->whereColumn('p2.campaign_id', 'p1.campaign_id')
+                            ->whereColumn('p2.taken_at',    '>', 'p1.taken_at');
+                    })
+                    ->pluck('p1.id')
+                    ->all();
+                $supersededSet = array_flip($supersededIds);
+                $piges->getCollection()->transform(function ($p) use ($supersededSet) {
+                    $p->is_superseded = isset($supersededSet[$p->id]);
+                    return $p;
+                });
+            }
+        }
+
+        return view('public.tech-piges', compact('tech', 'token', 'piges', 'kpi', 'statusFilter', 'view', 'historyTotal'));
     }
 
     public function uploadPhoto(Request $request, string $token, int $taskId)
