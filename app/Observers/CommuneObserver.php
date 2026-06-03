@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * CommuneObserver — historisation tarifaire automatique.
  *
- * À chaque modification d'un tarif (odp_rate / tm_rate / db_rate) sur
+ * À chaque modification d'un tarif (odp_rate / tm_rate) sur
  * une commune, on :
  *   1. ferme la ligne d'historique courante (effective_to = veille)
  *   2. crée une nouvelle ligne avec les nouveaux tarifs et effective_from
@@ -28,7 +28,7 @@ class CommuneObserver
     public function updated(Commune $commune): void
     {
         $changed = $commune->getChanges();
-        $rateChanged = array_intersect_key($changed, array_flip(['odp_rate', 'tm_rate', 'db_rate']));
+        $rateChanged = array_intersect_key($changed, array_flip(['odp_rate', 'tm_rate']));
         if (empty($rateChanged)) return;
 
         $today = Carbon::today();
@@ -49,7 +49,6 @@ class CommuneObserver
             'commune_id'     => $commune->id,
             'odp_rate'       => (float) $commune->odp_rate,
             'tm_rate'        => (float) $commune->tm_rate,
-            'db_rate'        => (float) $commune->db_rate,
             'effective_from' => $today,
             'effective_to'   => null,
             'created_by'     => auth()->id(),
