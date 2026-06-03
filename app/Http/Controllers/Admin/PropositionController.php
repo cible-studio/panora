@@ -578,19 +578,13 @@ class PropositionController extends Controller
         $commercial = $reservation->commercial ?? $reservation->user;
         if ($commercial?->email) {
             try {
-                \Illuminate\Support\Facades\Mail::raw(
-                    "Bonjour,\n\n"
-                    . "Le client {$reservation->client?->name} souhaite décaler la proposition {$reservation->reference}.\n\n"
-                    . "Dates actuelles : " . $reservation->start_date->format('d/m/Y') . " → " . $reservation->end_date->format('d/m/Y') . "\n"
-                    . "Dates demandées : " . \Carbon\Carbon::parse($data['requested_start_date'])->format('d/m/Y') . " → " . \Carbon\Carbon::parse($data['requested_end_date'])->format('d/m/Y') . "\n"
-                    . ($data['note'] ?? '' ? "\nNote du client : " . $data['note'] . "\n" : '')
-                    . "\nOuvre la fiche réservation pour accepter ou refuser : "
-                    . route('admin.reservations.show', $reservation),
-                    function ($m) use ($commercial, $reservation) {
-                        $m->to($commercial->email)
-                          ->subject('🗓 Demande de décalage proposition ' . $reservation->reference);
-                    }
-                );
+                // Mail template uniforme (x-mail.layout) — cohérent avec
+                // les autres notifications Panora.
+                \Illuminate\Support\Facades\Mail::to($commercial->email)
+                    ->send(new \App\Mail\PropositionDateChangeMail(
+                        reservation: $reservation->fresh(['client']),
+                        context: \App\Mail\PropositionDateChangeMail::CONTEXT_REQUESTED,
+                    ));
             } catch (\Throwable $e) {
                 Log::warning('proposition.date_change.mail_failed', [
                     'reservation_id' => $reservation->id,
