@@ -107,9 +107,28 @@ class TaxController extends Controller
             ->get(['id', 'name', 'client_id']);
         $anneesDispos = range(date('Y') + 1, max(2020, date('Y') - 5));
 
+        // Pagination du tableau (les totals/PDF/Excel restent sur la
+        // collection complète — la pagination est purement UI).
+        $perPage = (int) $request->input('per_page', 50);
+        $perPage = max(10, min(200, $perPage));
+        $page    = max(1, (int) $request->input('page', 1));
+        $totalLines = $lines->count();
+        $linesPage  = $lines->forPage($page, $perPage)->values();
+        $paginator  = new \Illuminate\Pagination\LengthAwarePaginator(
+            $linesPage,
+            $totalLines,
+            $perPage,
+            $page,
+            [
+                'path'  => $request->url(),
+                'query' => $request->query(),
+            ]
+        );
+
         return view('admin.taxes.details', compact(
             'lines', 'totals', 'year', 'periodType', 'periodValue',
-            'communes', 'clients', 'campaigns', 'anneesDispos', 'filters'
+            'communes', 'clients', 'campaigns', 'anneesDispos', 'filters',
+            'paginator', 'perPage'
         ));
     }
 
