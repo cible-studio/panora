@@ -1224,9 +1224,15 @@ class DashboardKpiService
             ]);
 
         if ($affected > 0) {
-            // Invalide tout cache lié au décappage / insights
+            // ⚠ Purger TOUS les caches dérivés du pivot decapped_at — sinon
+            // la bannière du haut (PANNEAUX CONCERNÉS / DÉCAPPÉS / EN ATTENTE
+            // / EN RETARD) et la pastille onglet "Décappages" restent
+            // bloquées sur les vieux compteurs après reload.
+            // Avant : seuls decap.v2.* étaient purgés → bug "le décompte
+            // ne diminue pas" rapporté.
             Cache::forget($this->cacheKey('decap.v2.50'));
             Cache::forget($this->cacheKey('decap.v2.99999'));
+            Cache::forget($this->cacheKey('decap_stats'));
         }
 
         return $affected > 0;
@@ -1272,8 +1278,11 @@ class DashboardKpiService
             ]);
 
         if ($affected > 0) {
+            // Idem markDecapped : purge complète sinon les KPI restent
+            // sur les vieux compteurs après l'action.
             Cache::forget($this->cacheKey('decap.v2.50'));
             Cache::forget($this->cacheKey('decap.v2.99999'));
+            Cache::forget($this->cacheKey('decap_stats'));
         }
 
         return $affected > 0;

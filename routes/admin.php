@@ -986,6 +986,10 @@ Route::prefix('admin')
             ->name('rapports.decap.mark');
         Route::post('/rapports/decap/mark-all', [RapportController::class, 'markAllDecapped'])
             ->name('rapports.decap.markAll');
+        // Endpoint JSON léger : KPI décappage frais (utilisé par le JS
+        // après chaque action pour MAJ la bannière sans page reload).
+        Route::get('/rapports/decap/summary', [RapportController::class, 'decapSummary'])
+            ->name('rapports.decap.summary');
         Route::get('/rapports/export/excel', [RapportController::class, 'exportExcel'])
             ->name('rapports.export.excel');
         Route::get('/rapports/export/pdf', [RapportController::class, 'exportPdf'])
