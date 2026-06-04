@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Feuille de route — {{ $tech->name }} · Panora</title>
+    <title>Ma liste papier — {{ $tech->name }} · Panora</title>
 
     {{-- Favicon Panora (aligné sur le layout admin pour cohérence onglet) --}}
     <link rel="icon" href="{{ asset('images/faviconl.png') }}" media="(prefers-color-scheme: light)">
@@ -147,11 +147,11 @@
 
 <div class="print-bar no-print">
     <div class="meta">
-        <strong>{{ $tech->name }}</strong> · feuille de route du {{ now()->format('d/m/Y') }} · {{ $total }} pose{{ $total > 1 ? 's' : '' }}
+        <strong>{{ $tech->name }}</strong> · ma liste du {{ now()->format('d/m/Y') }} · {{ $total }} panneau{{ $total > 1 ? 'x' : '' }}
     </div>
     <div style="display:flex;gap:8px">
-        <a href="{{ route('tech.space', $token) }}">← Retour à l'espace tech</a>
-        <button type="button" class="btn-print" onclick="window.print()">🖨 Imprimer / PDF</button>
+        <a href="{{ route('tech.space', $token) }}">← Retour</a>
+        <button type="button" class="btn-print" onclick="window.print()">🖨 Imprimer</button>
     </div>
 </div>
 
@@ -159,41 +159,41 @@
     <div class="header-l">
         <img src="{{ asset('images/panora.png') }}" alt="Panora by CIBLE" class="brand-mark">
         <div>
-            <h1>Feuille de route — {{ $tech->name }}</h1>
-            <div class="sub">Toutes les poses actives, groupées par commune · à jour le {{ now()->format('d/m/Y H:i') }}</div>
+            <h1>Ma liste — {{ $tech->name }}</h1>
+            <div class="sub">Tous les panneaux à poser, classés par zone · {{ now()->format('d/m/Y à H\hi') }}</div>
         </div>
     </div>
     <div class="header-r">
         <div><strong>Panora</strong> · CIBLE CI</div>
-        <div>Document à conserver pendant la tournée</div>
+        <div>Garde ce papier avec toi</div>
     </div>
 </div>
 
 @if($total === 0)
     <div style="padding:30mm 0;text-align:center;color:#9ca3af;font-size:13pt">
-        🎉 Aucune pose en attente — tu es à jour.
+        🎉 Rien à poser — tu es à jour !
     </div>
 @else
     <div class="summary">
         <div class="summary-item">
-            <div class="lbl">Poses à faire</div>
+            <div class="lbl">À poser</div>
             <div class="val">{{ $total }}</div>
-            <div class="sub">non terminées</div>
+            <div class="sub">panneaux</div>
         </div>
         <div class="summary-item">
-            <div class="lbl">Zones à couvrir</div>
+            <div class="lbl">Zones</div>
             <div class="val">{{ $groupedByCommune->count() }}</div>
-            <div class="sub">communes distinctes</div>
+            <div class="sub">villes</div>
         </div>
         <div class="summary-item">
             <div class="lbl">En retard</div>
             <div class="val" style="color:#b91c1c">
                 {{ $groupedByCommune->flatten(1)->filter(fn($t) => $isLate($t))->count() }}
             </div>
-            <div class="sub">échéance dépassée</div>
+            <div class="sub">à faire vite</div>
         </div>
         <div class="summary-item">
-            <div class="lbl">Date du jour</div>
+            <div class="lbl">Aujourd'hui</div>
             <div class="val">{{ now()->format('d/m') }}</div>
             <div class="sub">{{ now()->locale('fr')->isoFormat('dddd') }}</div>
         </div>
@@ -207,7 +207,7 @@
             <div class="commune-head">
                 <h2>📍 {{ $communeName }}</h2>
                 <div class="count">
-                    {{ $tasks->count() }} pose{{ $tasks->count() > 1 ? 's' : '' }}
+                    {{ $tasks->count() }} panneau{{ $tasks->count() > 1 ? 'x' : '' }}
                     @if($countLate > 0)
                         · <span style="color:#b91c1c;font-weight:700">{{ $countLate }} en retard</span>
                     @endif
@@ -217,12 +217,12 @@
                 <thead>
                     <tr>
                         <th style="width:5%">✓</th>
-                        <th style="width:13%">Référence</th>
+                        <th style="width:13%">N°</th>
                         <th style="width:24%">Panneau</th>
                         <th style="width:24%">Adresse / Quartier</th>
                         <th style="width:14%">GPS</th>
-                        <th style="width:10%">Format</th>
-                        <th style="width:10%">Statut</th>
+                        <th style="width:10%">Taille</th>
+                        <th style="width:10%">État</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -289,7 +289,7 @@
 @endif
 
 <div class="footer">
-    Panora · CIBLE CI · Feuille générée le {{ now()->format('d/m/Y à H:i') }} pour {{ $tech->name }}
+    Panora · CIBLE CI · Liste pour {{ $tech->name }}, faite le {{ now()->format('d/m/Y à H\hi') }}
 </div>
 
 <script>

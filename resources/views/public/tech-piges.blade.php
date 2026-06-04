@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <title>Mes piges — {{ $tech->name }} · Panora</title>
+    <title>Mes photos — {{ $tech->name }} · Panora</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -222,19 +222,19 @@
 <div class="header">
     <div class="header-top">
         <a href="{{ route('tech.space', $token) }}" class="back-btn">← Retour</a>
-        <h1 style="flex:1">📸 Mes piges</h1>
+        <h1 style="flex:1">📸 Mes photos</h1>
         <span class="live-indicator" data-live-indicator>live</span>
     </div>
     {{-- KPI tiles cliquables comme filtres (server-side ?status=) +
          polling 20s anime les valeurs au passage de chaque tick.
          Le mode de vue (?view=current|all) est conservé sur chaque clic. --}}
     @php $vp = $view === 'all' ? ['view' => 'all'] : []; @endphp
-    <div class="kpi-row" role="group" aria-label="Filtres piges">
+    <div class="kpi-row" role="group" aria-label="Trier mes photos">
         <a href="{{ route('tech.space.piges', array_merge([$token], $vp)) }}"
            class="kpi-tile kt-total {{ !$statusFilter ? 'is-active' : '' }}"
            aria-pressed="{{ !$statusFilter ? 'true' : 'false' }}">
             <div class="kt-value" data-kpi-value="pigesTotal">{{ $kpi['total'] }}</div>
-            <div class="kt-label">Total</div>
+            <div class="kt-label">Toutes</div>
         </a>
         <a href="{{ route('tech.space.piges', array_merge([$token, 'status' => 'en_attente'], $vp)) }}"
            class="kpi-tile kt-pending {{ $statusFilter === 'en_attente' ? 'is-active' : '' }}"
@@ -272,14 +272,14 @@
     <div class="view-toggle" role="group" aria-label="Mode d'affichage">
         <a href="{{ route('tech.space.piges', $currentLinkArgs) }}"
            class="vt-chip {{ $view === 'current' ? 'is-active' : '' }}"
-           title="Affiche uniquement la pige la plus récente par panneau">
-            🎯 Statut actuel
+           title="Une seule photo par panneau (la plus récente)">
+            📌 Photos d'aujourd'hui
         </a>
         @if($view === 'all' || $hiddenInCurrent > 0)
         <a href="{{ route('tech.space.piges', $allLinkArgs) }}"
            class="vt-chip {{ $view === 'all' ? 'is-active' : '' }}"
-           title="Affiche toutes les piges, y compris les anciennes refaites">
-            📜 Historique complet
+           title="Voir toutes les photos, même celles refaites">
+            📜 Tout voir
             @if($hiddenInCurrent > 0 && $view === 'current')
                 <span class="vt-badge">+{{ $hiddenInCurrent }}</span>
             @endif
@@ -302,7 +302,7 @@
                 : null;
         @endphp
 <div class="pige-card {{ ($p->is_superseded ?? false) ? 'is-superseded' : '' }}"
-             title="{{ ($p->is_superseded ?? false) ? 'Une pige plus récente existe pour ce panneau.' : '' }}">
+             title="{{ ($p->is_superseded ?? false) ? 'Tu as refait une photo de ce panneau après celle-ci.' : '' }}">
             @if($photoUrl)
                 <a class="pige-thumb"
                    style="background-image:url('{{ $photoUrl }}')"
@@ -323,7 +323,7 @@
                 <div class="pige-ref">
                     {{ $p->panel?->reference ?? '—' }}
                     @if($p->is_superseded ?? false)
-                        <span class="pige-superseded-badge">↻ Repiggée</span>
+                        <span class="pige-superseded-badge">↻ Refaite après</span>
                     @endif
                 </div>
                 <div class="pige-meta">
@@ -347,10 +347,10 @@
 
                 @if($p->status === 'rejete' && $p->rejection_reason)
                     <div class="pige-rejected-msg">
-                        <strong>Motif du refus :</strong>
+                        <strong>Pourquoi refusée :</strong>
                         {{ $p->rejection_reason }}
                         <div style="margin-top:4px;font-size:11px;color:#7f1d1d">
-                            Retourne à <a href="{{ route('tech.space', $token) }}" style="color:#7f1d1d;font-weight:700">Mes poses</a> et reprends une photo conforme.
+                            Va dans <a href="{{ route('tech.space', $token) }}" style="color:#7f1d1d;font-weight:700">Mes panneaux</a> pour refaire la photo.
                         </div>
                     </div>
                 @endif
@@ -359,8 +359,8 @@
     @empty
         <div class="empty">
             <div class="icon">📷</div>
-            <h2>Aucune pige envoyée</h2>
-            <p style="font-size:12.5px;margin:0">Tes photos de pose apparaîtront ici dès la première envoyée.</p>
+            <h2>Pas encore de photo</h2>
+            <p style="font-size:12.5px;margin:0">Dès que tu envoies ta première photo, elle apparaît ici.</p>
         </div>
     @endforelse
 

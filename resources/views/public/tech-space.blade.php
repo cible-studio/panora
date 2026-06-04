@@ -809,7 +809,7 @@
             position: relative; overflow: hidden;
         }
         .next-pose-hero::before {
-            content: 'PROCHAINE POSE';
+            content: 'À FAIRE EN PREMIER';
             position: absolute; top: 8px; right: 12px;
             font-size: 9px; font-weight: 800; letter-spacing: 1px;
             color: var(--accent-dark); opacity: .65;
@@ -970,8 +970,8 @@
         ? $zonesTodayCount . ' zone' . ($zonesTodayCount > 1 ? 's' : '')
         : 'Aucune zone';
     $heroSub = $totalActive > 0
-        ? "$totalActive pose" . ($totalActive > 1 ? 's' : '') . " à faire · $zonesLabel à couvrir"
-        : 'Aucune pose en attente — tu es à jour';
+        ? "$totalActive panneau" . ($totalActive > 1 ? 'x' : '') . " à poser · $zonesLabel"
+        : 'Rien à poser — bravo, tu es à jour !';
 @endphp
 <div class="header">
 
@@ -983,8 +983,8 @@
         <span class="header-kicker" style="flex:0 0 auto;text-align:right;line-height:1.15">Espace<br>Technicien</span>
         <a href="{{ route('tech.space.piges', $token) }}"
            class="header-chip {{ ($pigesRejected ?? 0) > 0 ? 'has-warn' : '' }}"
-           aria-label="Mes piges">
-            <span aria-hidden="true">📸</span><span class="chip-text">Mes piges</span>
+           aria-label="Mes photos">
+            <span aria-hidden="true">📸</span><span class="chip-text">Mes photos</span>
             @if(($pigesTotal ?? 0) > 0)
                 <span class="chip-badge" data-piges-chip-badge>
                     {{ ($pigesRejected ?? 0) > 0 ? $pigesRejected : $pigesTotal }}
@@ -1004,26 +1004,26 @@
     {{-- Grille KPI — 4 cartes cliquables (filtre la liste en dessous).
          Polling 20s met à jour data-kpi-value en douceur. État actif
          marqué par aria-pressed + classe 'is-active'. --}}
-    <div class="kpi-grid" role="group" aria-label="Filtres de poses">
+    <div class="kpi-grid" role="group" aria-label="Filtres rapides">
         <button type="button" class="kpi-card kpi-todo is-active" data-kpi-filter="all" aria-pressed="true">
             <div class="kpi-label">À faire</div>
             <div class="kpi-value" data-kpi-value="totalActive" data-total-active>{{ $totalActive }}</div>
-            <div class="kpi-sub">poses en attente</div>
+            <div class="kpi-sub">panneaux à poser</div>
         </button>
         <button type="button" class="kpi-card kpi-today" data-kpi-filter="today" aria-pressed="false">
             <div class="kpi-label">Aujourd'hui</div>
             <div class="kpi-value" data-kpi-value="activeToday">{{ $activeToday ?? 0 }}</div>
-            <div class="kpi-sub">à faire ce jour @if(($doneToday ?? 0) > 0)· <strong data-done-today>{{ $doneToday }}</strong> faite{{ $doneToday > 1 ? 's' : '' }}@endif</div>
+            <div class="kpi-sub">à poser aujourd'hui @if(($doneToday ?? 0) > 0)· <strong data-done-today>{{ $doneToday }}</strong> fait{{ $doneToday > 1 ? 's' : '' }} ✓@endif</div>
         </button>
         <a href="{{ route('tech.space.piges', $token) }}" class="kpi-card kpi-piges" data-kpi-link>
-            <div class="kpi-label">Piges</div>
+            <div class="kpi-label">Photos</div>
             <div class="kpi-value" data-kpi-value="pigesSentToday">{{ $pigesSentToday ?? 0 }}</div>
-            <div class="kpi-sub">envoyée{{ ($pigesSentToday ?? 0) > 1 ? 's' : '' }} ce jour</div>
+            <div class="kpi-sub">envoyée{{ ($pigesSentToday ?? 0) > 1 ? 's' : '' }} aujourd'hui</div>
         </a>
         <button type="button" class="kpi-card kpi-zones" data-kpi-action="scroll-zones">
             <div class="kpi-label">Zones</div>
             <div class="kpi-value" data-kpi-value="zonesTodayCount">{{ $zonesTodayCount ?? 0 }}</div>
-            <div class="kpi-sub">tap pour naviguer ↓</div>
+            <div class="kpi-sub">touche pour aller voir ↓</div>
         </button>
     </div>
 
@@ -1048,7 +1048,7 @@
     {{-- Récap zones de la journée (visible si au moins une zone) --}}
     @if(!empty($zonesTodayList))
     <div class="today-recap">
-        <span style="font-weight:700;color:var(--text2)">📍 Zones du jour :</span>
+        <span style="font-weight:700;color:var(--text2)">📍 Tes zones du jour :</span>
         @foreach(array_slice($zonesTodayList, 0, 4) as $zone)
             <span class="zone-pill">{{ $zone }}</span>
         @endforeach
@@ -1061,7 +1061,7 @@
 
 {{-- Bandeau live : nouvelle pose assignée pendant que tu es sur la page --}}
 <div class="new-task-banner" data-new-task-banner onclick="window.location.reload()">
-    🆕 <span data-new-task-text>Nouvelle pose assignée</span> — clic pour actualiser
+    🆕 <span data-new-task-text>On t'a donné un nouveau panneau</span> — touche pour voir
 </div>
 
 {{-- ═══ BARRE DE CONTRÔLES STICKY ═══
@@ -1078,20 +1078,20 @@
 @if($totalActive > 0)
 <div class="controls-bar">
     <div class="controls-bar-row">
-        <select id="ts-search" data-placeholder="🔍 Rechercher panneau, commune, campagne…"></select>
-        <a class="ctrl-btn" href="{{ route('tech.space.map', $token) }}" title="Vue Carte interactive">
+        <select id="ts-search" data-placeholder="🔍 Cherche un panneau, une rue, une ville…"></select>
+        <a class="ctrl-btn" href="{{ route('tech.space.map', $token) }}" title="Voir tous les panneaux sur une carte">
             🗺<span style="margin-left:2px;font-size:11px">Carte</span>
         </a>
-        <button type="button" class="ctrl-btn" id="ts-distance-btn" title="Trier par distance depuis ma position">
-            🧭<span style="margin-left:2px;font-size:11px" id="ts-distance-label">Distance</span>
+        <button type="button" class="ctrl-btn" id="ts-distance-btn" title="Voir les panneaux les plus proches de moi en premier">
+            📍<span style="margin-left:2px;font-size:11px" id="ts-distance-label">Près de moi</span>
         </button>
-        <button type="button" class="ctrl-btn" id="ts-tour-btn" title="Optimiser l'ordre de tournée (nearest-neighbor)">
-            🚀<span style="margin-left:2px;font-size:11px" id="ts-tour-label">Tournée</span>
+        <button type="button" class="ctrl-btn" id="ts-tour-btn" title="Calculer le meilleur ordre pour visiter tous les panneaux">
+            🚀<span style="margin-left:2px;font-size:11px" id="ts-tour-label">Mon chemin</span>
         </button>
-        <a class="ctrl-btn" href="{{ route('tech.space.route-sheet', $token) }}" target="_blank" rel="noopener" title="Feuille de route imprimable">
-            🖨
+        <a class="ctrl-btn" href="{{ route('tech.space.route-sheet', $token) }}" target="_blank" rel="noopener" title="Liste à imprimer ou à garder sur le téléphone">
+            🖨<span style="margin-left:2px;font-size:11px">Papier</span>
         </a>
-        <span class="ctrl-btn" id="ts-sync-badge" style="display:none;background:rgba(245,158,11,.15);color:#b45309;border-color:rgba(245,158,11,.4);cursor:pointer" title="Photos en attente d'envoi (offline)">
+        <span class="ctrl-btn" id="ts-sync-badge" style="display:none;background:rgba(245,158,11,.15);color:#b45309;border-color:rgba(245,158,11,.4);cursor:pointer" title="Photos à envoyer dès que tu as du réseau">
             📤<span style="margin-left:2px;font-size:11px" id="ts-sync-count">0</span>
         </span>
     </div>
@@ -1127,8 +1127,8 @@
     @if($totalActive === 0)
         <div class="empty">
             <div class="icon">🎉</div>
-            <h2>Aucune pose à effectuer</h2>
-            <p>Tu es à jour ! Tes prochaines missions arriveront via WhatsApp.</p>
+            <h2>Bravo, rien à poser !</h2>
+            <p>Tu es à jour. Tu recevras un message WhatsApp dès qu'il y aura un nouveau panneau.</p>
         </div>
     @else
         {{-- ═══ BANDEAU CAP SSR ═══
@@ -1140,11 +1140,10 @@
             <div class="ssr-cap-banner">
                 <span style="font-size:16px;line-height:1.2">⚡</span>
                 <div>
-                    Tu as <strong>{{ $totalActive }} poses</strong> au total.
-                    Affichage des <strong>{{ $totalRendered }} plus urgentes</strong>
-                    (retard + journée + échéance proche).
-                    <br>Utilise la <strong>recherche ci-dessus</strong> pour retrouver une pose précise,
-                    ou la <strong>🖨 feuille de route</strong> pour la liste complète imprimable.
+                    Tu as <strong>{{ $totalActive }} panneaux</strong> à poser.
+                    On te montre d'abord les <strong>{{ $totalRendered }} plus pressés</strong>.
+                    <br>Pour les autres : utilise la <strong>recherche en haut</strong> 🔍
+                    ou la <strong>🖨 liste papier</strong>.
                 </div>
             </div>
         @endif
@@ -1152,8 +1151,8 @@
         {{-- Banner mode tournée — visible quand TSP optimisé activé --}}
         <div class="tour-summary" id="ts-tour-summary">
             <span>🚀</span>
-            <span>Tournée optimisée : <strong id="ts-tour-count">0</strong> arrêts · <strong id="ts-tour-total">0 km</strong> au total</span>
-            <button type="button" id="ts-tour-quit">Quitter</button>
+            <span>Ton chemin : <strong id="ts-tour-count">0</strong> arrêts · <strong id="ts-tour-total">0 km</strong> en tout</span>
+            <button type="button" id="ts-tour-quit">Annuler</button>
         </div>
 
         {{-- ═══ HERO « PROCHAINE POSE » ═══
@@ -1212,29 +1211,29 @@
              Compteurs live = nb de cards SSR matchant le filtre. --}}
         <div class="filters-row" id="ts-filters">
             <button type="button" class="filter-chip" data-filter="late">
-                <span>⏰</span> Retard <span class="chip-count" data-cnt="late">0</span>
+                <span>⏰</span> En retard <span class="chip-count" data-cnt="late">0</span>
             </button>
             <button type="button" class="filter-chip" data-filter="today">
                 <span>📅</span> Aujourd'hui <span class="chip-count" data-cnt="today">0</span>
             </button>
             <button type="button" class="filter-chip" data-filter="problem">
-                <span>⚠️</span> Signalées <span class="chip-count" data-cnt="problem">0</span>
+                <span>⚠️</span> Avec souci <span class="chip-count" data-cnt="problem">0</span>
             </button>
             <button type="button" class="filter-chip" data-filter="reject">
-                <span>🚫</span> Photo refusée <span class="chip-count" data-cnt="reject">0</span>
+                <span>🚫</span> Photo à refaire <span class="chip-count" data-cnt="reject">0</span>
             </button>
             <button type="button" class="filter-chip" data-filter="en_route" data-filter-kind="status">
                 <span>🚗</span> En route <span class="chip-count" data-cnt="en_route">0</span>
             </button>
             <button type="button" class="filter-chip" data-filter="en_cours" data-filter-kind="status">
-                <span>🔧</span> En cours <span class="chip-count" data-cnt="en_cours">0</span>
+                <span>🔧</span> Sur place <span class="chip-count" data-cnt="en_cours">0</span>
             </button>
-            <button type="button" class="filter-clear" id="ts-filter-clear" style="display:none">Effacer</button>
+            <button type="button" class="filter-clear" id="ts-filter-clear" style="display:none">Tout voir</button>
         </div>
 
         <div id="ts-empty-filter"
              style="display:none;margin:14px 0;padding:18px;text-align:center;color:var(--text3);background:var(--surface);border:1px dashed var(--border);border-radius:12px;font-size:13px">
-            Aucune pose ne correspond à ces filtres.
+            Aucun panneau ne correspond. Touche « Tout voir » pour effacer le filtre.
         </div>
 
         @php $today = \Carbon\Carbon::today(); @endphp
@@ -1332,12 +1331,12 @@
                              la photo. Prioritaire sur le bandeau signalement. --}}
                         @if($rejPige)
                             <div class="pose-rejected-banner">
-                                🚫 <strong>Photo refusée par le superviseur</strong>
+                                🚫 <strong>Photo refusée</strong>
                                 @if($rejPige->rejection_reason)
                                     · <span class="reject-reason">{{ $rejPige->rejection_reason }}</span>
                                 @endif
                                 <div style="font-size:11px;opacity:.85;margin-top:2px">
-                                    Reprends une photo et envoie-la depuis cette pose.
+                                    Refais la photo et envoie-la d'ici.
                                 </div>
                             </div>
                         @endif
@@ -1345,7 +1344,7 @@
                              re-signaler le même problème sans le savoir. --}}
                         <div class="pose-reported-banner" data-problem-banner
                              style="{{ $lastProblem ? '' : 'display:none' }}">
-                            ⚠ Tu as déjà signalé : <strong data-problem-label>{{ $problemLabel ?: '—' }}</strong>
+                            ⚠ Tu as déjà dit : <strong data-problem-label>{{ $problemLabel ?: '—' }}</strong>
                             <span class="reported-when" data-problem-when>{{ $problemAgo ? 'il y a '.$problemAgo : '' }}</span>
                         </div>
                         {{-- Geste 1 : tap n'importe où sur la ligne = caméra arrière --}}
@@ -1371,7 +1370,7 @@
                                         <span>📢 {{ Str::limit($task->campaign->name, 28) }}</span>
                                     @endif
                                     @if($task->scheduled_at)
-                                        <span>{{ \Carbon\Carbon::parse($task->scheduled_at)->format('d/m H:i') }}</span>
+                                        <span>📅 {{ \Carbon\Carbon::parse($task->scheduled_at)->format('d/m à H\hi') }}</span>
                                     @endif
                                 </div>
                             </div>
@@ -1387,12 +1386,12 @@
                                     data-action="arrive"
                                     {{ $status->value === 'en_cours' ? 'disabled' : '' }}>
                                 @if($status->value === 'en_cours')
-                                    ✓ Sur place
+                                    ✓ J'y suis
                                 @else
-                                    📍 Sur place
+                                    📍 J'y suis
                                 @endif
                             </button>
-                            <button type="button" class="pose-act act-warn" data-action="report">⚠️ Problème</button>
+                            <button type="button" class="pose-act act-warn" data-action="report">⚠️ Souci</button>
                         </div>
                     </div>
                 @endforeach
@@ -1418,22 +1417,22 @@
 {{-- Modal "Signaler un problème" --}}
 <div id="ts-report-modal" aria-hidden="true">
     <div class="ts-report-card">
-        <h3>⚠️ Signaler un problème</h3>
-        <p class="ts-report-sub" id="ts-report-ref">Choisis ce qui ne va pas. Le superviseur sera alerté.</p>
+        <h3>⚠️ Tu as un souci ?</h3>
+        <p class="ts-report-sub" id="ts-report-ref">Touche le souci. Le bureau sera prévenu tout de suite.</p>
         <div class="ts-report-opts">
-            <button type="button" class="ts-report-opt" data-type="panneau_casse">🪧 Panneau cassé / abîmé</button>
-            <button type="button" class="ts-report-opt" data-type="acces_bloque">🚧 Accès bloqué / impossible</button>
-            <button type="button" class="ts-report-opt" data-type="mauvaise_adresse">📍 Mauvaise adresse / introuvable</button>
-            <button type="button" class="ts-report-opt" data-type="autre">📝 Autre problème</button>
+            <button type="button" class="ts-report-opt" data-type="panneau_casse">🪧 Le panneau est cassé</button>
+            <button type="button" class="ts-report-opt" data-type="acces_bloque">🚧 Je ne peux pas y aller</button>
+            <button type="button" class="ts-report-opt" data-type="mauvaise_adresse">📍 Je ne trouve pas l'adresse</button>
+            <button type="button" class="ts-report-opt" data-type="autre">📝 Autre souci</button>
         </div>
-        <textarea id="ts-report-note" placeholder="Précisions (facultatif)…"></textarea>
+        <textarea id="ts-report-note" placeholder="Tu peux écrire des détails (pas obligé)…"></textarea>
         <label class="ts-report-photo-btn" id="ts-report-photo-label">
             <input type="file" id="ts-report-photo" accept="image/*" capture="environment" hidden>
-            <span id="ts-report-photo-label-text">📷 Joindre une photo (facultatif)</span>
+            <span id="ts-report-photo-label-text">📷 Ajouter une photo (pas obligé)</span>
         </label>
         <div class="ts-report-actions">
             <button type="button" class="ts-btn-ghost" id="ts-report-cancel">Annuler</button>
-            <button type="button" class="ts-btn-send" id="ts-report-send" disabled>Envoyer l'alerte</button>
+            <button type="button" class="ts-btn-send" id="ts-report-send" disabled>Envoyer au bureau</button>
         </div>
     </div>
 </div>
@@ -1538,9 +1537,9 @@
                 document.querySelector('.container').insertBefore(emptyEl, document.querySelector('.day-section'));
             }
             const titles = {
-                today: ['Pas de pose prévue aujourd\'hui', 'Tes prochaines missions arriveront via WhatsApp.'],
+                today: ['Rien à poser aujourd\'hui', 'Tu recevras un message WhatsApp dès qu\'il y a du nouveau.'],
             };
-            const [t, s] = titles[name] || ['Aucune pose dans cette catégorie', ''];
+            const [t, s] = titles[name] || ['Aucun panneau ici', ''];
             emptyEl.querySelector('[data-empty-title]').textContent = t;
             emptyEl.querySelector('[data-empty-sub]').textContent   = s;
             emptyEl.style.display = '';
@@ -1618,14 +1617,14 @@
                 btn.innerHTML = '✓ Sur place';
                 const dot = pose.querySelector('.pose-dot');
                 if (dot) dot.style.background = '#3b82f6'; // bleu IN_PROGRESS
-                toast('Position confirmée — bonne pose !', 'success');
+                toast('Tu es bien sur place — bonne pose !', 'success');
             } else {
                 btn.disabled = false; btn.innerHTML = original;
                 toast(data.error || 'Erreur', 'error');
             }
         } catch (err) {
             btn.disabled = false; btn.innerHTML = original;
-            toast('Erreur réseau', 'error');
+            toast('Pas de réseau — réessaie quand ça revient', 'error');
         }
     });
 
@@ -1833,7 +1832,7 @@
             btn.innerHTML = originalText;
             toast(data.message, 'success');
         } catch (err) {
-            toast('Erreur réseau', 'error');
+            toast('Pas de réseau — réessaie quand ça revient', 'error');
             btn.disabled = false;
             btn.innerHTML = originalText;
         }
@@ -1862,26 +1861,26 @@
                     <div style="padding:16px 20px;background:linear-gradient(180deg,#fff7ed,#fff);border-bottom:1px solid #fed7aa;display:flex;align-items:flex-start;gap:10px">
                         <div style="font-size:22px;line-height:1">⚠️</div>
                         <div>
-                            <div style="font-size:15px;font-weight:800;color:#9a3412;margin-bottom:2px">Pige malgré signalement</div>
+                            <div style="font-size:15px;font-weight:800;color:#9a3412;margin-bottom:2px">Tu envoies une photo malgré le souci</div>
                             <div style="font-size:12.5px;color:#b45309;line-height:1.45">
-                                Tu as signalé ce panneau comme <strong>« ${signalLabel} »</strong>.
-                                Si tu envoies quand même une pige, justifie-le (le superviseur le verra).
+                                Tu as déjà dit : <strong>« ${signalLabel} »</strong>.
+                                Si tu envoies quand même la photo, dis pourquoi (le bureau le verra).
                             </div>
                         </div>
                     </div>
                     <div style="padding:16px 20px">
                         <label style="display:block;font-size:12.5px;font-weight:700;color:#1f2937;margin-bottom:6px">
-                            Justification <span style="color:#ef4444">*</span>
+                            Dis pourquoi <span style="color:#ef4444">*</span>
                         </label>
                         <textarea id="contradiction-reason-input" rows="3"
                                   maxlength="1000"
-                                  placeholder="Ex: panneau finalement remis en état, ou photo du visuel encore visible malgré la casse, etc."
+                                  placeholder="Ex : le panneau a été réparé, ou l'affiche est encore lisible…"
                                   style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13.5px;resize:vertical;font-family:inherit"></textarea>
-                        <div id="contradiction-reason-counter" style="font-size:11px;color:#6b7280;text-align:right;margin-top:4px">0 / 10 min</div>
+                        <div id="contradiction-reason-counter" style="font-size:11px;color:#6b7280;text-align:right;margin-top:4px">0 / 10 lettres mini</div>
                         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
                             <button type="button" data-action="cancel"
                                     style="padding:9px 16px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;color:#4b5563">
-                                Annuler la pige
+                                Annuler
                             </button>
                             <button type="button" data-action="confirm" disabled
                                     style="padding:9px 18px;background:#f97316;border:none;color:#fff;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;opacity:.5">
@@ -1898,7 +1897,7 @@
             ta.focus();
             ta.addEventListener('input', () => {
                 const n = ta.value.trim().length;
-                counter.textContent = `${n} / 10 min`;
+                counter.textContent = `${n} / 10 lettres mini`;
                 const ok = n >= 10;
                 btnOk.disabled = !ok;
                 btnOk.style.opacity = ok ? '1' : '.5';
@@ -1930,16 +1929,16 @@
             overlay.innerHTML = `
                 <style>@keyframes fadeIn{from{opacity:0}to{opacity:1}}</style>
                 <div style="color:#fff;font-size:13px;font-weight:600;margin-bottom:8px;text-align:center">
-                    Aperçu de la photo${panelRef ? ' · <strong>'+panelRef+'</strong>' : ''}
+                    Voici ta photo${panelRef ? ' · <strong>'+panelRef+'</strong>' : ''}
                 </div>
                 <img src="${url}" alt="Aperçu" style="max-width:100%;max-height:60vh;border-radius:14px;box-shadow:0 16px 40px -8px rgba(0,0,0,.6);object-fit:contain;background:#000">
                 <div style="color:#cbd5e1;font-size:11.5px;margin-top:10px;text-align:center;line-height:1.4">
-                    Vérifie que le panneau et l'affichage sont nets et bien visibles avant d'envoyer.
+                    Regarde si on voit bien le panneau et l'affiche. Si oui, envoie. Sinon, refais.
                 </div>
                 <div style="display:flex;gap:10px;margin-top:18px;width:100%;max-width:380px">
                     <button type="button" data-act="cancel"
                             style="flex:1;padding:13px 14px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent">
-                        📷 Reprendre
+                        📷 Refaire
                     </button>
                     <button type="button" data-act="confirm"
                             style="flex:1;padding:13px 14px;background:linear-gradient(135deg,#e8a020,#c2570d);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 8px 20px -4px rgba(232,160,32,.5);-webkit-tap-highlight-color:transparent">
@@ -2076,7 +2075,7 @@
                 input.value = '';
                 return;
             }
-            flashSuccess('Photo envoyée&nbsp;!');
+            flashSuccess('Photo envoyée&nbsp;! Bravo 🎉');
 
             // Pose réalisée → retire la card avec une petite animation
             // de fade-out plutôt que de recharger la page (préserve le
@@ -2104,7 +2103,7 @@
                     return;
                 } catch (e) { /* fallback toast classique */ }
             }
-            toast('Erreur réseau', 'error');
+            toast('Pas de réseau — réessaie quand ça revient', 'error');
             label.innerHTML = originalLabel;
             label.style.pointerEvents = '';
             input.value = '';
@@ -2258,7 +2257,7 @@
                 const data = await res.json();
                 modal.classList.remove('show');
                 if (res.ok && data.ok) {
-                    flashSuccess('Signalement envoyé&nbsp;!');
+                    flashSuccess('Souci envoyé au bureau&nbsp;!');
 
                     // Inscrit le rappel "déjà signalé" sur la ligne de la
                     // pose : le tech ne re-signalera plus le même problème
@@ -2284,7 +2283,7 @@
                     sendBtn.disabled = false;
                 }
             } catch (err) {
-                toast('Erreur réseau', 'error');
+                toast('Pas de réseau — réessaie quand ça revient', 'error');
                 sendBtn.disabled = false;
             }
         });
@@ -2294,7 +2293,7 @@
 
 {{-- ═══ Bandeau hors-ligne — affiché par le SW quand on perd le réseau ═══ --}}
 <div class="offline-banner" id="ts-offline-banner">
-    📵 Hors ligne — affichage de la dernière version connue. Les actions sont temporairement bloquées.
+    📵 Pas de réseau — tu peux quand même prendre des photos, on les enverra dès que ça revient.
 </div>
 
 {{-- ═══ Select2 + nouveau module SCALE ═══
@@ -2506,9 +2505,9 @@ window.addEventListener('DOMContentLoaded', function () {
             dropdownParent: $('.controls-bar'),
             language: {
                 inputTooShort: () => '',
-                searching:     () => '🔄 Recherche…',
-                noResults:     () => 'Aucune pose trouvée',
-                errorLoading:  () => 'Erreur de chargement',
+                searching:     () => '🔄 On cherche…',
+                noResults:     () => 'Aucun panneau trouvé',
+                errorLoading:  () => 'Problème — réessaie',
             },
             ajax: {
                 url: SEARCH_URL,
@@ -2624,15 +2623,15 @@ window.addEventListener('DOMContentLoaded', function () {
                         ${item.campaign ? `<div style="font-size:11px;color:var(--text2);margin-top:3px">📢 ${item.campaign}</div>` : ''}
                     </div>
                 </div>
-                ${item.is_late ? '<div style="background:rgba(239,68,68,.08);color:#b91c1c;padding:8px 12px;border-radius:10px;font-size:12px;font-weight:700;margin-bottom:10px">⏰ Pose en retard — à traiter en priorité</div>' : ''}
+                ${item.is_late ? '<div style="background:rgba(239,68,68,.08);color:#b91c1c;padding:8px 12px;border-radius:10px;font-size:12px;font-weight:700;margin-bottom:10px">⏰ En retard — fais celui-ci en premier</div>' : ''}
                 ${item.reject_reason ? `<div style="background:rgba(239,68,68,.08);color:#b91c1c;padding:8px 12px;border-radius:10px;font-size:12px;font-weight:600;margin-bottom:10px">🚫 Photo refusée : ${item.reject_reason}</div>` : ''}
                 <div style="display:flex;gap:8px;margin-top:6px">
                     <a href="${goUrl}" target="_blank" rel="noopener" style="flex:1;min-height:48px;display:flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-weight:800;border-radius:12px;text-decoration:none;font-size:14px">🧭 Y aller</a>
                     <button type="button" data-act="close" style="flex:0 0 96px;min-height:48px;background:#f3f4f6;color:#4b5563;border:none;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer">Fermer</button>
                 </div>
                 <div style="margin-top:12px;font-size:11px;color:var(--text3);line-height:1.5">
-                    Cette pose n'est pas dans la liste affichée (au-delà du cap).
-                    Va sur place puis prends la photo : tu seras redirigé vers le tracker complet.
+                    Ce panneau n'est pas dans ta liste du moment.
+                    Va sur place, prends la photo et envoie — tout sera enregistré.
                 </div>
             </div>`;
         document.body.appendChild(ov);
@@ -2661,7 +2660,7 @@ window.addEventListener('DOMContentLoaded', function () {
             if (!pos) {
                 distBtn.classList.remove('is-active');
                 document.getElementById('ts-distance-label').textContent = 'Distance';
-                toastSmall('GPS indisponible — autorise la localisation.', 'error');
+                toastSmall('On ne te trouve pas. Autorise le GPS sur ton téléphone.', 'error');
                 return;
             }
             filterState.geo = { lat: pos.lat, lng: pos.lng };
@@ -2779,7 +2778,7 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     async function directUploadFromHero(file, taskId) {
-        toastSmall('Préparation de la photo…', 'info');
+        toastSmall('On prépare ta photo…', 'info');
         const fd = new FormData();
         fd.append('photo', file, 'photo.jpg');
         fd.append('client_uuid', (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(16).slice(2)));
@@ -2791,13 +2790,13 @@ window.addEventListener('DOMContentLoaded', function () {
             });
             const d = await r.json().catch(() => ({}));
             if (r.ok && d.ok) {
-                toastSmall('Photo envoyée — pose terminée', 'success');
+                toastSmall('Photo envoyée — panneau posé !', 'success');
                 setTimeout(() => location.reload(), 1200);
             } else {
                 toastSmall(d.error || `Erreur ${r.status}`, 'error');
             }
         } catch (e) {
-            toastSmall('Erreur réseau', 'error');
+            toastSmall('Pas de réseau — réessaie quand ça revient', 'error');
         }
     }
 
@@ -2899,7 +2898,7 @@ window.addEventListener('DOMContentLoaded', function () {
     tourBtn?.addEventListener('click', async () => {
         if (tourActive) { exitTourMode(); return; }
         if (!navigator.geolocation) {
-            toastSmall('Géoloc indisponible.', 'error');
+            toastSmall('GPS bloqué — autorise-le pour utiliser cette option.', 'error');
             return;
         }
         tourBtn.disabled = true;
@@ -2908,7 +2907,7 @@ window.addEventListener('DOMContentLoaded', function () {
         if (!pos) {
             tourBtn.disabled = false;
             document.getElementById('ts-tour-label').textContent = 'Tournée';
-            toastSmall('Position indisponible — autorise la localisation.', 'error');
+            toastSmall('On ne te trouve pas — autorise le GPS.', 'error');
             return;
         }
         document.getElementById('ts-tour-label').textContent = '🔄…';
@@ -2925,7 +2924,7 @@ window.addEventListener('DOMContentLoaded', function () {
             if (!r.ok || !d.ok) throw new Error('optimize');
             applyTourOrder(d.order, d.total_meters);
         } catch (e) {
-            toastSmall('Calcul impossible — réessayer.', 'error');
+            toastSmall('On n\'arrive pas à calculer — essaie encore.', 'error');
             document.getElementById('ts-tour-label').textContent = 'Tournée';
         } finally {
             tourBtn.disabled = false;
@@ -2947,7 +2946,7 @@ window.addEventListener('DOMContentLoaded', function () {
             tourSec = document.createElement('div');
             tourSec.id = 'ts-tour-section';
             tourSec.className = 'day-section';
-            tourSec.innerHTML = '<div class="commune-header"><div class="ch-left"><h2 style="color:#15803d">🚀 Tournée optimisée</h2><span class="count">' + order.length + ' arrêts</span></div></div>';
+            tourSec.innerHTML = '<div class="commune-header"><div class="ch-left"><h2 style="color:#15803d">🚀 Mon chemin</h2><span class="count">' + order.length + ' arrêts</span></div></div>';
             const empty = document.getElementById('ts-empty-filter');
             empty.parentNode.insertBefore(tourSec, empty.nextSibling);
         } else {
@@ -3061,7 +3060,7 @@ window.addEventListener('DOMContentLoaded', function () {
             });
             tx.oncomplete = () => {
                 refreshSyncBadge();
-                toastSmall('📤 Photo en attente — sera envoyée au retour réseau', 'info');
+                toastSmall('📤 Photo gardée — on l\'enverra dès que tu as du réseau', 'info');
             };
         } catch (e) {
             console.warn('queueOfflinePhoto failed', e);
@@ -3109,10 +3108,10 @@ window.addEventListener('DOMContentLoaded', function () {
             }
             refreshSyncBadge();
             if (okCount > 0) {
-                toastSmall(`✓ ${okCount} photo${okCount > 1 ? 's' : ''} envoyée${okCount > 1 ? 's' : ''} (différé)`, 'success');
+                toastSmall(`✓ ${okCount} photo${okCount > 1 ? 's' : ''} envoyée${okCount > 1 ? 's' : ''} — merci !`, 'success');
             }
             if (failCount > 0) {
-                toastSmall(`${failCount} photo${failCount > 1 ? 's' : ''} en échec — réessayer plus tard`, 'error');
+                toastSmall(`${failCount} photo${failCount > 1 ? 's' : ''} pas encore envoyée${failCount > 1 ? 's' : ''} — on réessaiera`, 'error');
             }
         } catch (e) {
             console.warn('flushUploadQueue failed', e);

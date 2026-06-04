@@ -207,11 +207,11 @@
     <a href="{{ route('tech.space', $token) }}" class="back">←</a>
     <img src="{{ asset('images/panora.png') }}" alt="Panora by CIBLE" class="brand-logo">
     <div style="flex:1;min-width:0">
-        <h1>🗺 Carte — {{ $tech->name }}</h1>
+        <h1>🗺 Mes panneaux sur la carte</h1>
         <div class="subtitle">
-            {{ $points->count() }} pose{{ $points->count() > 1 ? 's' : '' }} géolocalisée{{ $points->count() > 1 ? 's' : '' }}
+            {{ $points->count() }} panneau{{ $points->count() > 1 ? 'x' : '' }} avec position
             @if($withoutGps > 0)
-                · <span style="color:var(--cancelled)">{{ $withoutGps }} sans GPS</span>
+                · <span style="color:var(--cancelled)">{{ $withoutGps }} sans position</span>
             @endif
         </div>
     </div>
@@ -221,29 +221,29 @@
     @if($points->isEmpty())
         <div class="empty-overlay">
             <div class="icon">🗺</div>
-            <h2>Aucune pose géolocalisée</h2>
+            <h2>Aucun panneau sur la carte</h2>
             <p>
-                Tes poses n'ont pas de coordonnées GPS enregistrées sur leurs panneaux.
-                Utilise la liste classique pour les retrouver via leur référence ou adresse.
+                Tes panneaux n'ont pas encore d'adresse GPS enregistrée.
+                Touche « Retour » et utilise la liste pour les retrouver par leur numéro ou leur rue.
             </p>
         </div>
     @endif
 </div>
 
 <div class="map-controls">
-    <button type="button" class="map-ctrl-btn" id="ts-locate-btn" title="Me localiser">📍</button>
-    <button type="button" class="map-ctrl-btn" id="ts-fit-btn" title="Tout voir">🔭</button>
+    <button type="button" class="map-ctrl-btn" id="ts-locate-btn" title="Voir où je suis">📍</button>
+    <button type="button" class="map-ctrl-btn" id="ts-fit-btn" title="Voir tous les panneaux">🔭</button>
 </div>
 
 @if($points->isNotEmpty())
 <div class="bottom-panel">
     <div class="stat">
-        <strong>{{ $points->count() }}</strong> pose{{ $points->count() > 1 ? 's' : '' }} sur la carte
+        <strong>{{ $points->count() }}</strong> panneau{{ $points->count() > 1 ? 'x' : '' }} sur la carte
         @if($withoutGps > 0)
-            <div class="nogps">⚠ {{ $withoutGps }} sans GPS (cf. liste)</div>
+            <div class="nogps">⚠ {{ $withoutGps }} sans position (cherche dans la liste)</div>
         @endif
     </div>
-    <button type="button" class="opt-btn" id="ts-optimize-btn">🧭 Optimiser la tournée</button>
+    <button type="button" class="opt-btn" id="ts-optimize-btn">🚀 Mon chemin</button>
 </div>
 @endif
 
@@ -379,7 +379,7 @@ window.addEventListener('DOMContentLoaded', function () {
             () => {
                 btn.textContent = '📍';
                 btn.classList.remove('is-active');
-                alert('Position indisponible — autorise la localisation.');
+                alert('On ne te trouve pas. Autorise le GPS sur ton téléphone.');
             },
             { enableHighAccuracy: true, timeout: 8000 }
         );
@@ -401,7 +401,7 @@ window.addEventListener('DOMContentLoaded', function () {
             // Toggle off → restaure les markers classiques
             tourActive = false;
             optBtn.classList.remove('is-active');
-            optBtn.textContent = '🧭 Optimiser la tournée';
+            optBtn.textContent = '🚀 Mon chemin';
             if (tourLine) { map.removeLayer(tourLine); tourLine = null; }
             // Remet les markers normaux
             Object.values(markerByTaskId).forEach(m => map.removeLayer(m));
@@ -415,14 +415,14 @@ window.addEventListener('DOMContentLoaded', function () {
             return;
         }
         if (!navigator.geolocation) {
-            alert('Géoloc indisponible — impossible d\'optimiser.');
+            alert('GPS bloqué — autorise-le pour calculer ton chemin.');
             return;
         }
         optBtn.disabled = true;
-        optBtn.textContent = '🛰 Localisation…';
+        optBtn.textContent = '🛰 On te cherche…';
         navigator.geolocation.getCurrentPosition(
             async (pos) => {
-                optBtn.textContent = '🔄 Calcul…';
+                optBtn.textContent = '🔄 On calcule…';
                 try {
                     const u = new URL(OPTIMIZE_URL, location.origin);
                     u.searchParams.set('lat', pos.coords.latitude.toFixed(6));
@@ -433,18 +433,18 @@ window.addEventListener('DOMContentLoaded', function () {
                     displayTour(d.order, [pos.coords.latitude, pos.coords.longitude], d.total_meters);
                     tourActive = true;
                     optBtn.classList.add('is-active');
-                    optBtn.textContent = `✓ ${(d.total_meters/1000).toFixed(1).replace('.0', '')} km — cliquer pour quitter`;
+                    optBtn.textContent = `✓ ${(d.total_meters/1000).toFixed(1).replace('.0', '')} km — touche pour annuler`;
                 } catch (e) {
-                    optBtn.textContent = '❌ Erreur, réessayer';
-                    setTimeout(() => optBtn.textContent = '🧭 Optimiser la tournée', 2000);
+                    optBtn.textContent = '❌ Réessaie';
+                    setTimeout(() => optBtn.textContent = '🚀 Mon chemin', 2000);
                 } finally {
                     optBtn.disabled = false;
                 }
             },
             () => {
                 optBtn.disabled = false;
-                optBtn.textContent = '🧭 Optimiser la tournée';
-                alert('Position indisponible.');
+                optBtn.textContent = '🚀 Mon chemin';
+                alert('On ne te trouve pas — autorise le GPS.');
             },
             { enableHighAccuracy: true, timeout: 10000 }
         );
