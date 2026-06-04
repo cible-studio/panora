@@ -1155,7 +1155,14 @@ class DashboardKpiService
      */
     public function decapList(int $limit = 50): Collection
     {
-        return $this->cached("decap.v2.{$limit}", function () use ($limit) {
+        $user = auth()->user();
+        $isCommercial = $user?->role?->value === 'commercial';
+        $uid = $isCommercial ? (int) $user->id : null;
+
+        // Compute fn : utilisée soit cachée (admin/MP), soit directe
+        // (commercial — pas de cache pour éviter les complexités
+        // d'invalidation per-user après mark/unmark/markAll).
+        $compute = function () use ($limit, $isCommercial, $uid) {
             $q = Campaign::with([
                     'client:id,name',
                     'panels:id,reference,name,commune_id',
@@ -1166,6 +1173,14 @@ class DashboardKpiService
                 ->where('end_date', '>=', now()->subDays(60))
                 ->whereNull('deleted_at')
                 ->orderBy('end_date');
+
+            // ⚠ Scope commercial : sans ça, un commercial voyait dans sa
+            // liste les campagnes d'autres commerciaux (filtre dimensionnel
+            // appliqué mais pas l'ownership). Aligné maintenant sur le
+            // scope canonique Campaign::forCommercialUser.
+            if ($isCommercial && $uid !== null) {
+                $q->forCommercialUser($uid);
+            }
 
             $this->applyCampaignEloquentFilters($q);
 
@@ -1201,7 +1216,11 @@ class DashboardKpiService
 
                 return $campaign;
             });
-        });
+        };
+
+        // Commercial : compute direct (cf. raison plus haut).
+        // Admin/MP : cache partagé sous la clé decap.v2.{$limit}.
+        return $isCommercial ? $compute() : $this->cached("decap.v2.{$limit}", $compute);
     }
 
     /**
@@ -1290,18 +1309,48 @@ class DashboardKpiService
 
     /**
      * Synthèse globale du décappage : combien faits / en attente / en retard.
+     *
+     * ⚠ Cohérence avec decapList() :
+     *   - même fenêtre temporelle (60 jours) — avant 90j ici / 60j ailleurs
+     *     créait un écart "banner = 17, liste visible = 3" (les 14 plus
+     *     anciens étaient comptés dans la stats mais hors de la liste).
+     *   - même scope commercial — un commercial doit voir SES retards,
+     *     pas le total entreprise. Avant : la banner mentait au commercial.
+     *
+     * Cache : seul l'admin/MP bénéficie du cache. Le commercial fait un
+     * compute direct (trop d'identités possibles + risque divergence) —
+     * la query reste rapide (whereIn sur ses campaign_ids).
      */
     public function decapStats(): array
     {
-        return $this->cached('decap_stats', function () {
+        $user = auth()->user();
+        $isCommercial = $user?->role?->value === 'commercial';
+        $uid = $isCommercial ? (int) $user->id : null;
+
+        $compute = function () use ($isCommercial, $uid) {
             $base = DB::table('campaign_panels')
                 ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
                 ->join('panels', 'panels.id', '=', 'campaign_panels.panel_id')
                 ->where('campaigns.status', 'termine')
                 ->whereNull('campaigns.deleted_at')
                 ->whereNull('panels.deleted_at')
-                ->where('campaigns.end_date', '>=', now()->subDays(90))
+                ->where('campaigns.end_date', '>=', now()->subDays(60))
                 ->where('campaigns.end_date', '<=', now());
+
+            // Scope commercial : on liste ses campagne_ids via le scope
+            // canonique Campaign::forCommercialUser, puis whereIn. Plus
+            // simple et lisible qu'une sous-requête whereExists chaînée.
+            if ($isCommercial && $uid !== null) {
+                $myCampaignIds = \App\Models\Campaign::forCommercialUser($uid)
+                    ->pluck('id')->all();
+                if (empty($myCampaignIds)) {
+                    return [
+                        'total' => 0, 'decapped' => 0, 'pending' => 0,
+                        'overdue' => 0, 'rate' => 0,
+                    ];
+                }
+                $base->whereIn('campaign_panels.campaign_id', $myCampaignIds);
+            }
 
             $this->applyFilters($base, ['targets' => ['panel', 'campaign']]);
 
@@ -1320,7 +1369,11 @@ class DashboardKpiService
                 'overdue'  => $overdue,
                 'rate'     => $total > 0 ? round(($decapped / $total) * 100, 1) : 0,
             ];
-        });
+        };
+
+        // Commercial : pas de cache (per-user serait ingérable côté
+        // invalidation, et le calcul est rapide). Admin/MP : cache normal.
+        return $isCommercial ? $compute() : $this->cached('decap_stats', $compute);
     }
 
     /**
