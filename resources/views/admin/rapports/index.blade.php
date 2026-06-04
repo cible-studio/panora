@@ -1386,12 +1386,17 @@ $kpiCards = [
 ══════════════════════════════════════════════════════════════ --}}
 <div id="panel-decap" class="rpt-panel" style="display:none">
 
-    {{-- ⚠ BANDEAU CRITIQUE : campagnes expirées non décappées --}}
-    @if(($decapStats['overdue'] ?? 0) > 0)
-    <div style="background:linear-gradient(135deg,rgba(220,38,38,.12),rgba(220,38,38,.06));border:1.5px solid rgba(220,38,38,.4);border-radius:14px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
+    {{-- ⚠ BANDEAU CRITIQUE : campagnes expirées non décappées.
+         Toujours rendu mais hidden via data-decap-overdue-banner pour que
+         le JS puisse le réafficher en cas d'unmark sans reload de page. --}}
+    <div data-decap-overdue-banner
+         style="background:linear-gradient(135deg,rgba(220,38,38,.12),rgba(220,38,38,.06));border:1.5px solid rgba(220,38,38,.4);border-radius:14px;padding:16px 20px;margin-bottom:16px;display:{{ ($decapStats['overdue'] ?? 0) > 0 ? 'flex' : 'none' }};align-items:center;gap:14px"
+         data-init-display="flex">
         <div style="font-size:32px;line-height:1;animation:rpt-pulse 1.6s ease-in-out infinite;width:44px;height:44px;border-radius:50%;background:rgba(220,38,38,.15);display:flex;align-items:center;justify-content:center">⚠️</div>
         <div style="flex:1">
-            <div style="font-size:14px;font-weight:800;color:#dc2626;margin-bottom:3px">{{ $decapStats['overdue'] }} panneau(x) en retard de décappage</div>
+            <div style="font-size:14px;font-weight:800;color:#dc2626;margin-bottom:3px">
+                <span data-decap-overdue-banner-count>{{ $decapStats['overdue'] }}</span> panneau(x) en retard de décappage
+            </div>
             <div style="font-size:12px;color:var(--text2);line-height:1.5">Campagne(s) terminée(s) depuis plus de <strong>7 jours</strong> avec affichage non retiré sur le terrain. Risque d'amende municipale et de plainte client. Planifiez les tournées de décappage en priorité.</div>
         </div>
         <a href="#" onclick="event.preventDefault();document.getElementById('decap-overdue-list')?.scrollIntoView({behavior:'smooth',block:'start'});"
@@ -1399,29 +1404,29 @@ $kpiCards = [
             Voir les retards →
         </a>
     </div>
-    @endif
 
-    {{-- Bandeau stats décappage (COMMIT C) --}}
+    {{-- Bandeau stats décappage (COMMIT C) — data-kpi=* permet la MAJ live
+         après mark/unmark sans recharger toute la page. --}}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
         <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:12px;padding:14px">
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Panneaux concernés</div>
-            <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">{{ number_format($decapStats['total']) }}</div>
+            <div data-decap-kpi="total" style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">{{ number_format($decapStats['total']) }}</div>
             <div style="font-size:10px;color:var(--text3);margin-top:2px">90 derniers jours</div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid #22c55e;border-radius:12px;padding:14px">
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Décappés</div>
-            <div style="font-size:24px;font-weight:800;color:#16a34a;margin-top:4px">{{ number_format($decapStats['decapped']) }}</div>
-            <div style="font-size:10px;color:#16a34a;margin-top:2px;font-weight:600">{{ $decapStats['rate'] }}% complétés</div>
+            <div data-decap-kpi="decapped" style="font-size:24px;font-weight:800;color:#16a34a;margin-top:4px">{{ number_format($decapStats['decapped']) }}</div>
+            <div style="font-size:10px;color:#16a34a;margin-top:2px;font-weight:600"><span data-decap-kpi="rate">{{ $decapStats['rate'] }}</span>% complétés</div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid #f59e0b;border-radius:12px;padding:14px">
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">En attente</div>
-            <div style="font-size:24px;font-weight:800;color:#d97706;margin-top:4px">{{ number_format($decapStats['pending']) }}</div>
+            <div data-decap-kpi="pending" style="font-size:24px;font-weight:800;color:#d97706;margin-top:4px">{{ number_format($decapStats['pending']) }}</div>
             <div style="font-size:10px;color:var(--text3);margin-top:2px">À planifier</div>
         </div>
-        <div style="background:var(--surface);border:1px solid {{ $decapStats['overdue'] > 0 ? 'rgba(220,38,38,.4)' : 'var(--border)' }};border-left:3px solid #dc2626;border-radius:12px;padding:14px">
+        <div data-decap-kpi-overdue-card style="background:var(--surface);border:1px solid {{ $decapStats['overdue'] > 0 ? 'rgba(220,38,38,.4)' : 'var(--border)' }};border-left:3px solid #dc2626;border-radius:12px;padding:14px">
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">En retard</div>
-            <div style="font-size:24px;font-weight:800;color:#dc2626;margin-top:4px">{{ number_format($decapStats['overdue']) }}</div>
-            <div style="font-size:10px;color:{{ $decapStats['overdue'] > 0 ? '#dc2626' : 'var(--text3)' }};margin-top:2px;font-weight:600">> 7j sans décappage</div>
+            <div data-decap-kpi="overdue" style="font-size:24px;font-weight:800;color:#dc2626;margin-top:4px">{{ number_format($decapStats['overdue']) }}</div>
+            <div data-decap-kpi-overdue-sub style="font-size:10px;color:{{ $decapStats['overdue'] > 0 ? '#dc2626' : 'var(--text3)' }};margin-top:2px;font-weight:600">> 7j sans décappage</div>
         </div>
     </div>
 
@@ -1441,11 +1446,14 @@ $kpiCards = [
                         $isOverdue     = $c->is_overdue;
                         $isComplete    = $c->decapped_count === $c->total_panels;
                     @endphp
-                    <details {{ $loop->first || $isOverdue ? '' : '' }}
+                    <details
                         @if($isOverdue && !isset($firstOverdueShown)) id="decap-overdue-list" @php $firstOverdueShown = true; @endphp @endif
+                        data-decap-campaign="{{ $c->id }}"
+                        data-decap-total="{{ $c->total_panels }}"
+                        data-decap-overdue="{{ $isOverdue ? '1' : '0' }}"
                         style="background:var(--surface2);border:1px solid {{ $isOverdue ? 'rgba(220,38,38,.3)' : 'var(--border)' }};border-radius:10px;overflow:hidden">
                         <summary style="padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;list-style:none">
-                            <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:{{ $isComplete ? '#22c55e' : ($isOverdue ? '#dc2626' : '#f59e0b') }};box-shadow:0 0 0 3px {{ $isComplete ? 'rgba(34,197,94,.2)' : ($isOverdue ? 'rgba(220,38,38,.2)' : 'rgba(245,158,11,.2)') }}"></span>
+                            <span data-decap-dot style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:{{ $isComplete ? '#22c55e' : ($isOverdue ? '#dc2626' : '#f59e0b') }};box-shadow:0 0 0 3px {{ $isComplete ? 'rgba(34,197,94,.2)' : ($isOverdue ? 'rgba(220,38,38,.2)' : 'rgba(245,158,11,.2)') }}"></span>
                             <div style="flex:1;min-width:0">
                                 <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                                     <a href="{{ route('admin.campaigns.show', $c->id) }}" style="color:var(--accent);text-decoration:none" onclick="event.stopPropagation()">{{ $c->name }}</a>
@@ -1461,11 +1469,11 @@ $kpiCards = [
                                 </div>
                             </div>
                             <div style="flex-shrink:0;text-align:right">
-                                <div style="font-size:12px;font-weight:700;color:{{ $isComplete ? '#16a34a' : 'var(--text)' }}">{{ $c->decapped_count }}/{{ $c->total_panels }}</div>
+                                <div data-decap-ratio style="font-size:12px;font-weight:700;color:{{ $isComplete ? '#16a34a' : 'var(--text)' }}">{{ $c->decapped_count }}/{{ $c->total_panels }}</div>
                                 <div style="height:4px;width:80px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:4px">
-                                    <div style="height:100%;width:{{ $c->decap_progress }}%;background:{{ $isComplete ? '#22c55e' : ($isOverdue ? '#dc2626' : '#f59e0b') }}"></div>
+                                    <div data-decap-bar style="height:100%;width:{{ $c->decap_progress }}%;background:{{ $isComplete ? '#22c55e' : ($isOverdue ? '#dc2626' : '#f59e0b') }}"></div>
                                 </div>
-                                <div style="font-size:10px;color:var(--text3);margin-top:2px">{{ $c->decap_progress }}% décappés</div>
+                                <div style="font-size:10px;color:var(--text3);margin-top:2px"><span data-decap-pct>{{ $c->decap_progress }}</span>% décappés</div>
                             </div>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" style="flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
                         </summary>
@@ -1490,19 +1498,23 @@ $kpiCards = [
                                 <tbody>
                                     @foreach($c->panels as $p)
                                         @php $isDone = $p->decapped_at !== null; @endphp
-                                        <tr id="decap-row-{{ $c->id }}-{{ $p->id }}" style="border-bottom:1px solid var(--border)">
+                                        <tr id="decap-row-{{ $c->id }}-{{ $p->id }}"
+                                            data-decap-row="1"
+                                            data-decap-panel="{{ $p->id }}"
+                                            data-decap-state="{{ $isDone ? 'done' : 'pending' }}"
+                                            style="border-bottom:1px solid var(--border)">
                                             <td style="padding:8px">
                                                 <a href="{{ route('admin.panels.show', $p->id) }}" style="font-family:monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $p->reference }}</a>
                                             </td>
                                             <td style="padding:8px;color:var(--text2)">{{ $p->commune?->name ?? '—' }}</td>
-                                            <td style="padding:8px">
+                                            <td style="padding:8px" data-decap-status-cell>
                                                 @if($isDone)
                                                     <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(34,197,94,.12);color:#16a34a">✓ Décappé le {{ \Carbon\Carbon::parse($p->decapped_at)->format('d/m H:i') }}</span>
                                                 @else
                                                     <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(245,158,11,.12);color:#d97706">En attente</span>
                                                 @endif
                                             </td>
-                                            <td style="padding:8px;text-align:right">
+                                            <td style="padding:8px;text-align:right" data-decap-action-cell>
                                                 @if($isDone)
                                                     <button type="button" onclick="Decap.unmark({{ $c->id }}, {{ $p->id }})"
                                                             style="font-size:10px;font-weight:600;padding:4px 10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);border-radius:6px;cursor:pointer">
@@ -3037,16 +3049,46 @@ window.PanelDrilldown = (function () {
 
 // ══════════════════════════════
 // DECAP — module marquage décappage (COMMIT C)
+//
+// Refactor : avant on faisait `location.reload()` après chaque action
+// → la page se rechargeait depuis le haut, le <details> ouvert se
+// refermait, le scroll position était perdu, et un cache oublié (cf.
+// DashboardKpiService::markDecapped fix) laissait la bannière sur les
+// vieux compteurs. L'admin avait l'impression "rien ne se passe et la
+// page redirige ailleurs".
+//
+// Maintenant : MAJ DOM en place + fetch JSON summary pour rafraîchir
+// les 4 KPI cards et la bannière "X en retard" SANS reload. État
+// <details> et scroll préservés.
 // ══════════════════════════════
 window.Decap = (function () {
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || D.csrf;
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || (typeof D !== 'undefined' ? D.csrf : '');
+    const SUMMARY_URL = '{{ route("admin.rapports.decap.summary") }}';
+    const MARK_URL    = '{{ route("admin.rapports.decap.mark") }}';
+    const MARKALL_URL = '{{ route("admin.rapports.decap.markAll") }}';
 
     async function postUpdate(campaignId, panelId, action, notes = null) {
         const body = new URLSearchParams({
             campaign_id: campaignId, panel_id: panelId, action,
         });
         if (notes) body.append('notes', notes);
-        const r = await fetch('{{ route("admin.rapports.decap.mark") }}', {
+        const r = await fetch(MARK_URL, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body,
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    }
+
+    async function postBulk(campaignId) {
+        const body = new URLSearchParams({ campaign_id: campaignId });
+        const r = await fetch(MARKALL_URL, {
             method: 'POST',
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
@@ -3072,20 +3114,110 @@ window.Decap = (function () {
         }, 2200);
     }
 
-    async function postBulk(campaignId) {
-        const body = new URLSearchParams({ campaign_id: campaignId });
-        const r = await fetch('{{ route("admin.rapports.decap.markAll") }}', {
-            method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': csrf,
-                'Accept': 'application/json',
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body,
-        });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
+    function fmt(n) {
+        return Number(n).toLocaleString('fr-FR').replace(/ /g, ' ');
+    }
+
+    // ─── MAJ DOM ligne panneau ──────────────────────────────────
+    function applyRowState(campaignId, panelId, done, at, by) {
+        const row = document.getElementById(`decap-row-${campaignId}-${panelId}`);
+        if (!row) return;
+        row.dataset.decapState = done ? 'done' : 'pending';
+        const statusCell = row.querySelector('[data-decap-status-cell]');
+        const actionCell = row.querySelector('[data-decap-action-cell]');
+        if (statusCell) {
+            if (done) {
+                const when = at || 'à l\'instant';
+                statusCell.innerHTML = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(34,197,94,.12);color:#16a34a">✓ Décappé le ${when}</span>`;
+            } else {
+                statusCell.innerHTML = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(245,158,11,.12);color:#d97706">En attente</span>`;
+            }
+        }
+        if (actionCell) {
+            if (done) {
+                actionCell.innerHTML = `<button type="button" onclick="Decap.unmark(${campaignId}, ${panelId})" style="font-size:10px;font-weight:600;padding:4px 10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);border-radius:6px;cursor:pointer">Annuler</button>`;
+            } else {
+                actionCell.innerHTML = `<button type="button" onclick="Decap.mark(${campaignId}, ${panelId})" style="font-size:10px;font-weight:700;padding:4px 10px;border:none;background:#22c55e;color:#fff;border-radius:6px;cursor:pointer">✓ Marquer décappé</button>`;
+            }
+        }
+    }
+
+    // ─── Recompte la barre/ratio de la campagne en lisant le tbody ──
+    function refreshCampaignSummary(campaignId) {
+        const block = document.querySelector(`[data-decap-campaign="${campaignId}"]`);
+        if (!block) return;
+        const total    = parseInt(block.dataset.decapTotal || '0', 10);
+        const isOverdue = block.dataset.decapOverdue === '1';
+        const doneCount = block.querySelectorAll('[data-decap-row][data-decap-state="done"]').length;
+        const pct = total > 0 ? Math.round(doneCount / total * 100) : 0;
+        const complete = total > 0 && doneCount === total;
+        const ratioEl = block.querySelector('[data-decap-ratio]');
+        const barEl   = block.querySelector('[data-decap-bar]');
+        const pctEl   = block.querySelector('[data-decap-pct]');
+        const dotEl   = block.querySelector('[data-decap-dot]');
+        const bulkBtn = block.querySelector('button[onclick*="Decap.markAll"]');
+        if (ratioEl) {
+            ratioEl.textContent = `${doneCount}/${total}`;
+            ratioEl.style.color = complete ? '#16a34a' : 'var(--text)';
+        }
+        if (barEl) {
+            barEl.style.width = `${pct}%`;
+            barEl.style.background = complete ? '#22c55e' : (isOverdue ? '#dc2626' : '#f59e0b');
+        }
+        if (pctEl) pctEl.textContent = pct;
+        if (dotEl) {
+            const color  = complete ? '#22c55e' : (isOverdue ? '#dc2626' : '#f59e0b');
+            const shadow = complete ? 'rgba(34,197,94,.2)' : (isOverdue ? 'rgba(220,38,38,.2)' : 'rgba(245,158,11,.2)');
+            dotEl.style.background = color;
+            dotEl.style.boxShadow  = `0 0 0 3px ${shadow}`;
+        }
+        // Cache le bouton bulk si plus rien à faire, l'affiche si reste
+        const pending = total - doneCount;
+        if (bulkBtn) {
+            const bulkWrap = bulkBtn.closest('div');
+            if (pending > 1) {
+                if (bulkWrap) bulkWrap.style.display = '';
+                bulkBtn.textContent = `✓✓ Marquer tous décappés (${pending})`;
+            } else {
+                if (bulkWrap) bulkWrap.style.display = 'none';
+            }
+        }
+    }
+
+    // ─── Fetch summary KPI + MAJ bannière + cards ──────────────
+    async function refreshGlobalKpis() {
+        try {
+            const r = await fetch(SUMMARY_URL, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                credentials: 'same-origin',
+            });
+            if (!r.ok) return;
+            const d = await r.json();
+            if (!d.ok) return;
+            const setKpi = (key, val) => {
+                const el = document.querySelector(`[data-decap-kpi="${key}"]`);
+                if (el) el.textContent = key === 'rate' ? Number(val).toFixed(1).replace(/\.0$/, '') : fmt(val);
+            };
+            setKpi('total',    d.total);
+            setKpi('decapped', d.decapped);
+            setKpi('pending',  d.pending);
+            setKpi('overdue',  d.overdue);
+            setKpi('rate',     d.rate);
+            // Bannière critique : afficher/masquer selon overdue
+            const banner = document.querySelector('[data-decap-overdue-banner]');
+            if (banner) {
+                banner.style.display = d.overdue > 0
+                    ? (banner.dataset.initDisplay || 'flex')
+                    : 'none';
+                const cnt = banner.querySelector('[data-decap-overdue-banner-count]');
+                if (cnt) cnt.textContent = fmt(d.overdue);
+            }
+            // Card "En retard" : bordure rouge si > 0
+            const overdueCard = document.querySelector('[data-decap-kpi-overdue-card]');
+            if (overdueCard) {
+                overdueCard.style.borderColor = d.overdue > 0 ? 'rgba(220,38,38,.4)' : 'var(--border)';
+            }
+        } catch (_) { /* silencieux : pas critique */ }
     }
 
     return {
@@ -3093,8 +3225,10 @@ window.Decap = (function () {
             try {
                 const res = await postUpdate(campaignId, panelId, 'mark');
                 if (!res.ok) { toast(res.message || 'Erreur.', 'error'); return; }
+                applyRowState(campaignId, panelId, true, res.at, res.by);
+                refreshCampaignSummary(campaignId);
+                refreshGlobalKpis();
                 toast('✓ Panneau marqué décappé');
-                setTimeout(() => location.reload(), 600);
             } catch (e) {
                 console.error(e);
                 toast('Erreur réseau.', 'error');
@@ -3105,8 +3239,10 @@ window.Decap = (function () {
             try {
                 const res = await postUpdate(campaignId, panelId, 'unmark');
                 if (!res.ok) { toast(res.message || 'Erreur.', 'error'); return; }
+                applyRowState(campaignId, panelId, false);
+                refreshCampaignSummary(campaignId);
+                refreshGlobalKpis();
                 toast('Décappage annulé');
-                setTimeout(() => location.reload(), 600);
             } catch (e) {
                 console.error(e);
                 toast('Erreur réseau.', 'error');
@@ -3117,8 +3253,17 @@ window.Decap = (function () {
             try {
                 const res = await postBulk(campaignId);
                 if (!res.ok) { toast(res.message || 'Erreur.', 'error'); return; }
+                // Toutes les lignes pending de cette campagne passent à done
+                const now = new Date();
+                const at = String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0')
+                         + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+                document.querySelectorAll(`[data-decap-campaign="${campaignId}"] [data-decap-row][data-decap-state="pending"]`).forEach(row => {
+                    const pid = parseInt(row.dataset.decapPanel, 10);
+                    if (pid) applyRowState(campaignId, pid, true, at);
+                });
+                refreshCampaignSummary(campaignId);
+                refreshGlobalKpis();
                 toast('✓ ' + res.count + ' panneaux décappés');
-                setTimeout(() => location.reload(), 800);
             } catch (e) {
                 console.error(e);
                 toast('Erreur réseau.', 'error');

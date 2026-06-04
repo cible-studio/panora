@@ -970,6 +970,26 @@ class RapportController extends Controller
      *   - La campagne doit être terminée (status='termine' && end_date <= now)
      *   - L'utilisateur doit avoir le droit (admin ou superadmin)
      */
+    /**
+     * GET endpoint léger : renvoie les KPI décappage frais en JSON.
+     * Appelé par le JS après chaque mark/unmark pour rafraîchir la
+     * bannière "PANNEAUX CONCERNÉS / DÉCAPPÉS / EN ATTENTE / EN RETARD"
+     * sans recharger toute la page (qui ferait perdre l'état des
+     * <details> ouverts et le scroll position).
+     */
+    public function decapSummary(DashboardKpiService $kpi)
+    {
+        $stats = $kpi->decapStats();
+        return response()->json([
+            'ok'        => true,
+            'total'     => (int) ($stats['total']    ?? 0),
+            'decapped'  => (int) ($stats['decapped'] ?? 0),
+            'pending'   => (int) ($stats['pending']  ?? 0),
+            'overdue'   => (int) ($stats['overdue']  ?? 0),
+            'rate'      => (float) ($stats['rate']   ?? 0),
+        ]);
+    }
+
     public function markDecapped(Request $request, DashboardKpiService $kpi)
     {
         $request->validate([
