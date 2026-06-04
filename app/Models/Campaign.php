@@ -150,6 +150,58 @@ class Campaign extends Model
                      ->doesntHave('invoices');
     }
 
+    /**
+     * RBAC commercial : restreint aux campagnes du commercial donné.
+     * Couvre 4 cas (source unique pour controllers + policies + KPI service) :
+     *   1) campaign.commercial_user_id == uid (assignation directe)
+     *   2) reservation.commercial_user_id == uid (résa parente)
+     *   3) reservation.user_id == uid (créateur fallback résa sans commercial)
+     *   4) campaign.user_id == uid (campagne directe sans résa)
+     *
+     * Avant cette refactorisation, le scope était dupliqué dans 4 endroits
+     * (DashboardController, CampaignController, RapportController,
+     * InvoiceController) avec des divergences silencieuses. La version
+     * unique évite qu'on en oublie un.
+     */
+    public function scopeForCommercialUser($query, int $userId)
+    {
+        return $query->where(function ($q) use ($userId) {
+            $q->where('commercial_user_id', $userId)
+              ->orWhereHas('reservation', fn($r) =>
+                    $r->where('commercial_user_id', $userId)
+                      ->orWhere(function ($rr) use ($userId) {
+                          $rr->whereNull('commercial_user_id')
+                             ->where('user_id', $userId);
+                      })
+              )
+              ->orWhere(function ($qq) use ($userId) {
+                  $qq->whereDoesntHave('reservation')
+                     ->where('user_id', $userId);
+              });
+        });
+    }
+
+    /**
+     * Test rapide : cette campagne appartient-elle au commercial donné ?
+     * Sert aux policies (CampaignPolicy::view, etc.) pour bloquer les
+     * IDOR sans re-jouer toute la query SQL.
+     */
+    public function belongsToCommercialUser(int $userId): bool
+    {
+        if ((int) $this->commercial_user_id === $userId) return true;
+        if ((int) ($this->user_id ?? 0) === $userId
+            && $this->reservation_id === null) return true;
+        $r = $this->relationLoaded('reservation') ? $this->reservation : null;
+        if (!$r && $this->reservation_id) {
+            $r = \App\Models\Reservation::find($this->reservation_id);
+        }
+        if (!$r) return false;
+        if ((int) ($r->commercial_user_id ?? 0) === $userId) return true;
+        if ($r->commercial_user_id === null
+            && (int) ($r->user_id ?? 0) === $userId) return true;
+        return false;
+    }
+
     public function scopeEndingSoon($query, int $days = 14)
     {
         return $query->running()

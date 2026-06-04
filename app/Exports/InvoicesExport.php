@@ -46,6 +46,14 @@ class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                 'creator:id,name',
             ]);
 
+        // RBAC commercial : si l'appelant a injecté commercial_user_id,
+        // on restreint le périmètre via le scope canonique. Sans ça,
+        // l'export Excel streamait toutes les factures même appelé par
+        // un commercial (FromQuery contourne la query du controller).
+        if (!empty($this->filters['commercial_user_id'])) {
+            $q->forCommercialUser((int) $this->filters['commercial_user_id']);
+        }
+
         if (!empty($this->filters['client_id'])) {
             $q->where('client_id', $this->filters['client_id']);
         }

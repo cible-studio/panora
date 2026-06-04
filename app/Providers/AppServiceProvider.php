@@ -7,12 +7,14 @@ use Illuminate\Support\Facades\Gate;
 use App\Models\Campaign;
 use App\Models\Commune;
 use App\Models\ExternalPanel;
+use App\Models\Invoice;
 use App\Models\Maintenance;
 use App\Models\Panel;
 use App\Models\Pige;
 use App\Models\PoseTask;
 use App\Models\Reservation;
 use App\Policies\CampaignPolicy;
+use App\Policies\InvoicePolicy;
 use App\Policies\MaintenancePolicy;
 use App\Policies\PanelPolicy;
 use App\Policies\PigePolicy;
@@ -83,6 +85,7 @@ class AppServiceProvider extends ServiceProvider
         // avec @can('proposition.send', $reservation) sans collision.
         Gate::policy(Reservation::class,  ReservationPolicy::class);
         Gate::policy(Campaign::class,     CampaignPolicy::class);
+        Gate::policy(Invoice::class,      InvoicePolicy::class);
         Gate::policy(PoseTask::class,     PoseTaskPolicy::class);
         Gate::policy(Pige::class,         PigePolicy::class);
         Gate::policy(Maintenance::class,  MaintenancePolicy::class);

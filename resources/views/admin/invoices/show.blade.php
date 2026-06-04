@@ -226,6 +226,38 @@
                                 </div>
                             @endif
                         </div>
+
+                        {{-- ⚠ Drift detection : la campagne a changé après
+                             l'émission de la facture (override admin OU
+                             modification des dates). Le montant attendu
+                             aujourd'hui diffère du montant facturé. On
+                             expose le delta pour décision admin. --}}
+                        @if(!empty($billingDrift))
+                            @php
+                                $bd = $billingDrift;
+                                $sign = $bd['diff'] > 0 ? '+' : '−';
+                                $abs  = number_format(abs($bd['diff']), 0, ',', ' ');
+                                $inv  = number_format($bd['invoice_amount_ht'], 0, ',', ' ');
+                                $exp  = number_format($bd['expected_now_ht'], 0, ',', ' ');
+                            @endphp
+                            <div style="margin-top:14px;padding:12px 14px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:10px;font-size:12.5px;line-height:1.5;color:#9a3412">
+                                <strong>⚠ Écart facturé / attendu</strong>
+                                @if($bd['overridden_after'])
+                                    — un <em>montant manuel</em> a été appliqué sur la campagne après l'émission.
+                                @else
+                                    — la campagne a été modifiée après l'émission de cette facture.
+                                @endif
+                                <div style="margin-top:6px;color:#7c2d12">
+                                    Facturé : <strong>{{ $inv }} FCFA HT</strong>
+                                    · Attendu aujourd'hui : <strong>{{ $exp }} FCFA HT</strong>
+                                    · Delta : <strong>{{ $sign }}{{ $abs }} FCFA</strong>
+                                </div>
+                                <div style="margin-top:4px;color:#92400e;font-size:11.5px">
+                                    Décide : annuler cette facture et en émettre une nouvelle, ou conserver
+                                    en l'état (avec une note interne).
+                                </div>
+                            </div>
+                        @endif
                     @endif
                 </div>
             </div>

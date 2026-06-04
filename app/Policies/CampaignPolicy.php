@@ -34,10 +34,18 @@ class CampaignPolicy
 
     public function view(User $user, Campaign $campaign): bool
     {
-        return in_array($user->role, [
-            UserRole::COMMERCIAL,
-            UserRole::MEDIAPLANNER,
-        ], true);
+        // MP voit tout — il pilote la production de toutes les campagnes.
+        if ($user->role === UserRole::MEDIAPLANNER) return true;
+
+        // Commercial : ownership obligatoire. Sans ça, c'était une IDOR
+        // (l'index filtrait mais une URL directe /admin/campaigns/{id}
+        // ouvrait n'importe quelle campagne, panneaux, montant, factures
+        // liées, marges — leak métier majeur).
+        if ($user->role === UserRole::COMMERCIAL) {
+            return $campaign->belongsToCommercialUser((int) $user->id);
+        }
+
+        return false;
     }
 
     /** Créer une campagne : Media Planner uniquement. Le commercial ne crée plus. */

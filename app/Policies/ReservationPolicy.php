@@ -27,10 +27,21 @@ class ReservationPolicy
 
     public function view(User $user, Reservation $reservation): bool
     {
-        return in_array($user->role, [
-            UserRole::COMMERCIAL,
-            UserRole::MEDIAPLANNER,
-        ], true);
+        // MP voit toutes les résas (consolidation production).
+        if ($user->role === UserRole::MEDIAPLANNER) return true;
+
+        // Commercial : ownership obligatoire. Avant : un commercial pouvait
+        // ouvrir /admin/reservations/{id} de n'importe qui par URL directe
+        // (panneaux, client, montant, propositions, historique) alors que
+        // l'index lui filtrait correctement. Fermeture de l'IDOR.
+        if ($user->role === UserRole::COMMERCIAL) {
+            $uid = (int) $user->id;
+            return (int) ($reservation->commercial_user_id ?? 0) === $uid
+                || ($reservation->commercial_user_id === null
+                    && (int) ($reservation->user_id ?? 0) === $uid);
+        }
+
+        return false;
     }
 
     /** Créer une réservation : Media Planner et Commercial. */
