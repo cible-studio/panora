@@ -126,7 +126,15 @@ class CampaignController extends Controller
             ]);
         }
 
-        $nonFactureesCount = Campaign::nonFacturees()->count();
+        // Scope commercial : même règle que la liste principale, sinon
+        // l'admin voyait "12 non facturées" mais le commercial voyait
+        // toujours le compteur global de l'entreprise au lieu de SES
+        // campagnes non facturées uniquement.
+        $isCommercial = auth()->user()?->role?->value === 'commercial';
+        $uid = (int) (auth()->id() ?? 0);
+        $nonFactureesCount = Campaign::nonFacturees()
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
+            ->count();
 
         // ── Compteur "ending soon" — UNIQUEMENT les campagnes qui ne
         // sont PAS déjà visibles dans la page courante ──────────────

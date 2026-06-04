@@ -12,28 +12,17 @@ class InvoiceController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Invoice::with('client', 'campaign', 'creator');
+        $this->authorize('viewAny', Invoice::class);
 
-        // RBAC : un commercial ne voit que les factures de SES campagnes
-        // (via campaign.reservation.commercial_user_id ou campaign.user_id).
-        if (auth()->user()?->role?->value === 'commercial') {
-            $uid = auth()->id();
-            $query->whereHas('campaign', function ($q) use ($uid) {
-                $q->where(function ($qq) use ($uid) {
-                    $qq->whereHas('reservation', fn($r) =>
-                            $r->where('commercial_user_id', $uid)
-                              ->orWhere(function ($rr) use ($uid) {
-                                  $rr->whereNull('commercial_user_id')
-                                     ->where('user_id', $uid);
-                              })
-                       )
-                       ->orWhere(function ($qqq) use ($uid) {
-                           $qqq->whereDoesntHave('reservation')
-                               ->where('user_id', $uid);
-                       });
-                });
-            });
-        }
+        $user = auth()->user();
+        $isCommercial = $user?->role?->value === 'commercial';
+        $uid = (int) ($user?->id ?? 0);
+
+        // RBAC : un commercial ne voit que les factures de SES campagnes.
+        // Délégué au scope canonique Invoice::scopeForCommercialUser
+        // (source unique, déjà alignée sur les autres controllers).
+        $query = Invoice::with('client', 'campaign', 'creator')
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
 
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);
@@ -49,12 +38,26 @@ class InvoiceController extends Controller
         }
 
         $invoices = $query->latest()->paginate(15)->withQueryString();
-        $clients  = Client::orderBy('name')->get();
 
-        $totalBrouillons = Invoice::where('status', 'brouillon')->count();
-        $totalEnvoyees   = Invoice::where('status', 'envoyee')->count();
-        $totalPayees     = Invoice::where('status', 'payee')->count();
-        $montantTotal    = Invoice::where('status', 'payee')->sum('amount_ttc');
+        // Liste des clients : si commercial, on ne propose dans le filtre
+        // que les clients pour lesquels il a au moins une facture (sinon
+        // il voyait tous les clients de l'entreprise dans la combobox).
+        $clients = Client::query()
+            ->when($isCommercial, fn($q) =>
+                $q->whereHas('invoices', fn($i) => $i->forCommercialUser($uid))
+            )
+            ->orderBy('name')
+            ->get();
+
+        // ⚠ Compteurs KPI : AVANT ils étaient calculés sur Invoice::query()
+        // sans scope → un commercial voyait le nb total entreprise + le CA
+        // payé GLOBAL (leak métier majeur). Maintenant scopés au commercial.
+        $kpiQuery = fn() => Invoice::query()
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
+        $totalBrouillons = (clone $kpiQuery())->where('status', 'brouillon')->count();
+        $totalEnvoyees   = (clone $kpiQuery())->where('status', 'envoyee')->count();
+        $totalPayees     = (clone $kpiQuery())->where('status', 'payee')->count();
+        $montantTotal    = (clone $kpiQuery())->where('status', 'payee')->sum('amount_ttc');
         
         // ✅ AJAX response
         if ($request->ajax() || $request->input('ajax')) {
@@ -228,26 +231,37 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
+        $this->authorize('view', $invoice);
+
         $invoice->load([
             'client',
-            'campaign:id,name,client_id,status,start_date,end_date,total_amount,total_panels',
+            'campaign:id,name,client_id,status,start_date,end_date,total_amount,total_panels,total_amount_overridden_at',
             'campaign.reservation:id,reference',
             'creator',
         ]);
 
-        // Autres factures du même client (max 6, exclut celle-ci) — colonne droite
+        $user = auth()->user();
+        $isCommercial = $user?->role?->value === 'commercial';
+        $uid = (int) ($user?->id ?? 0);
+
+        // Autres factures du même client (max 6, exclut celle-ci) — colonne
+        // droite. ⚠ Scoped au commercial : sinon il voyait les factures
+        // d'AUTRES commerciaux sur le même client (leak inter-commerciaux).
         $otherInvoices = $invoice->client_id
             ? Invoice::where('client_id', $invoice->client_id)
                 ->where('id', '!=', $invoice->id)
+                ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
                 ->orderByDesc('issued_at')->orderByDesc('id')
                 ->limit(6)
                 ->get(['id', 'reference', 'amount', 'amount_ttc', 'tva', 'status', 'issued_at', 'paid_at', 'campaign_id'])
             : collect();
 
-        // Stats globales client : nb factures + total payé + total dû
+        // Stats globales client : nb factures + total payé + total dû.
+        // Même scope que ci-dessus pour cohérence.
         $clientStats = null;
         if ($invoice->client_id) {
             $allClientInvoices = Invoice::where('client_id', $invoice->client_id)
+                ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
                 ->select('status', 'amount_ttc')
                 ->get();
             $clientStats = [
@@ -256,26 +270,60 @@ class InvoiceController extends Controller
                 'count_pending' => $allClientInvoices->whereIn('status', ['brouillon', 'envoyee'])->count(),
                 'sum_paid_ttc'  => (float) $allClientInvoices->where('status', 'payee')->sum('amount_ttc'),
                 'sum_pending_ttc' => (float) $allClientInvoices->whereIn('status', ['brouillon', 'envoyee'])->sum('amount_ttc'),
+                'scope'         => $isCommercial ? 'commercial' : 'global',
             ];
         }
 
-        // Récap campagne si liée : déjà facturé / reste à facturer
+        // Récap campagne si liée : déjà facturé / reste à facturer +
+        // détection de drift (la campagne a-t-elle été modifiée APRÈS
+        // l'émission de cette facture ? si oui, le montant peut être
+        // décorrélé du réel attendu — on alerte l'admin pour qu'il
+        // décide : refaire la facture, ou la conserver en l'état).
         $campaignBilling = null;
+        $billingDrift    = null;
         if ($invoice->campaign) {
+            $expectedHt   = (float) $invoice->campaign->computedAmountHt();
+            $billedHt     = (float) $invoice->campaign->alreadyBilledHt();
+            $remainingHt  = max(0.0, $expectedHt - $billedHt);
             $campaignBilling = [
-                'expected_ht'  => $invoice->campaign->computedAmountHt(),
-                'billed_ht'    => $invoice->campaign->alreadyBilledHt(),
-                'remaining_ht' => $invoice->campaign->remainingToBillHt(),
+                'expected_ht'  => round($expectedHt, 2),
+                'billed_ht'    => round($billedHt, 2),
+                'remaining_ht' => round($remainingHt, 2),
             ];
+
+            // Cas drift détectables :
+            //   1) total_amount_overridden_at > invoice.issued_at
+            //      → l'admin a force un override APRÈS l'émission
+            //   2) campaign.updated_at > invoice.issued_at ET
+            //      computedAmountHt() != invoice.amount (±1 FCFA)
+            //      → dates campagne modifiées, montant attendu a bougé
+            $issuedAt = $invoice->issued_at;
+            $invAmount = (float) $invoice->amount;
+            $diff = round($expectedHt - $invAmount, 2);
+            $matches = abs($diff) < 1.0;
+            $overriddenAfter = $invoice->campaign->total_amount_overridden_at
+                && $issuedAt
+                && $invoice->campaign->total_amount_overridden_at->gt($issuedAt);
+            if (!$matches && $issuedAt) {
+                $billingDrift = [
+                    'invoice_amount_ht' => round($invAmount, 2),
+                    'expected_now_ht'   => round($expectedHt, 2),
+                    'diff'              => $diff,
+                    'overridden_after'  => (bool) $overriddenAfter,
+                    'campaign_updated_at' => $invoice->campaign->updated_at?->toIso8601String(),
+                ];
+            }
         }
 
         return view('admin.invoices.show', compact(
-            'invoice', 'otherInvoices', 'clientStats', 'campaignBilling'
+            'invoice', 'otherInvoices', 'clientStats', 'campaignBilling', 'billingDrift'
         ));
     }
 
     public function edit(Invoice $invoice)
     {
+        $this->authorize('update', $invoice);
+
         $clients   = Client::orderBy('name')->get();
         $campaigns = Campaign::with('client:id,name')->orderBy('name')->get();
         return view('admin.invoices.edit', compact(
@@ -285,6 +333,8 @@ class InvoiceController extends Controller
 
     public function update(Request $request, Invoice $invoice)
     {
+        $this->authorize('update', $invoice);
+
         $request->validate([
             'client_id'   => 'required|exists:clients,id',
             'campaign_id' => 'nullable|exists:campaigns,id',
@@ -317,6 +367,8 @@ class InvoiceController extends Controller
 
     public function destroy(Invoice $invoice)
     {
+        $this->authorize('delete', $invoice);
+
         $invoice->delete();
         return redirect()->route('admin.invoices.index')
             ->with('success', 'Facture supprimée !');
@@ -324,6 +376,8 @@ class InvoiceController extends Controller
 
     public function markSent(Request $request, Invoice $invoice)
     {
+        $this->authorize('markSent', $invoice);
+
         if ($invoice->status !== 'brouillon') {
             return $this->statusResponse($request, $invoice, false,
                 "Seules les factures en brouillon peuvent être envoyées (statut actuel : {$invoice->status}).");
@@ -392,6 +446,8 @@ class InvoiceController extends Controller
 
     public function markPaid(Request $request, Invoice $invoice)
     {
+        $this->authorize('markPaid', $invoice);
+
         if (!in_array($invoice->status, ['envoyee', 'brouillon'])) {
             return $this->statusResponse($request, $invoice, false,
                 "Cette facture est déjà {$invoice->status}.");
@@ -422,6 +478,8 @@ class InvoiceController extends Controller
      */
     public function markCancelled(Request $request, Invoice $invoice)
     {
+        $this->authorize('markCancelled', $invoice);
+
         if ($invoice->status === 'annulee') {
             return $this->statusResponse($request, $invoice, false, 'Facture déjà annulée.');
         }
@@ -440,6 +498,8 @@ class InvoiceController extends Controller
      */
     public function revertDraft(Request $request, Invoice $invoice)
     {
+        $this->authorize('revertDraft', $invoice);
+
         if ($invoice->status === 'brouillon') {
             return $this->statusResponse($request, $invoice, false, 'Facture déjà en brouillon.');
         }
@@ -464,21 +524,33 @@ class InvoiceController extends Controller
 
         $invoice->load('client', 'campaign', 'creator');
 
+        // ⚠ Compteurs scopés au commercial — avant ils étaient globaux,
+        // donc la réponse AJAX leakait le CA total entreprise même quand
+        // c'était l'admin qui agissait sur la facture d'un commercial
+        // (l'admin garde son contexte mais on évite l'incohérence).
+        $user = auth()->user();
+        $isCommercial = $user?->role?->value === 'commercial';
+        $uid = (int) ($user?->id ?? 0);
+        $base = fn() => Invoice::query()
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
+
         return response()->json([
             'success'  => $ok,
             'message'  => $message,
             'row_html' => view('admin.invoices.partials.row', ['invoice' => $invoice])->render(),
             'counts'   => [
-                'brouillon' => Invoice::where('status', 'brouillon')->count(),
-                'envoyee'   => Invoice::where('status', 'envoyee')->count(),
-                'payee'     => Invoice::where('status', 'payee')->count(),
-                'ca'        => (float) Invoice::where('status', 'payee')->sum('amount_ttc'),
+                'brouillon' => (clone $base())->where('status', 'brouillon')->count(),
+                'envoyee'   => (clone $base())->where('status', 'envoyee')->count(),
+                'payee'     => (clone $base())->where('status', 'payee')->count(),
+                'ca'        => (float) (clone $base())->where('status', 'payee')->sum('amount_ttc'),
             ],
         ], $ok ? 200 : 422);
     }
 
     public function exportPdf(Invoice $invoice)
     {
+        $this->authorize('exportPdf', $invoice);
+
         $invoice->load('client', 'campaign', 'creator');
 
         $pdf = Pdf::loadView('pdf.invoice', compact('invoice'));
@@ -488,14 +560,73 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Export PDF du listing complet (filtres index appliqués).
-     * A4 paysage pour caser les 10 colonnes sans tronquer.
+     * Construit la query partagée par les exports : reprend les filtres
+     * client_id / status / date_from / date_to qu'on retrouve sur l'index.
+     * Centralisé ici pour éviter la divergence index ↔ export.
      */
+    private function filteredQuery(Request $request)
+    {
+        $user = auth()->user();
+        $isCommercial = $user?->role?->value === 'commercial';
+        $uid = (int) ($user?->id ?? 0);
+
+        // ⚠ Source partagée par exportListPdf + exportListExcel +
+        // InvoicesExport (Excel streaming). Avant : un commercial pouvait
+        // appeler /admin/invoices/export/pdf et obtenir un PDF de TOUTES
+        // les factures entreprise. Maintenant scopé à son périmètre.
+        $q = Invoice::with(['client', 'campaign', 'creator'])
+            ->when($isCommercial, fn($qq) => $qq->forCommercialUser($uid));
+
+        if ($request->filled('client_id')) {
+            $q->where('client_id', $request->client_id);
+        }
+        if ($request->filled('status')) {
+            $q->where('status', $request->status);
+        }
+        if ($request->filled('date_from')) {
+            $q->where('issued_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $q->where('issued_at', '<=', $request->date_to);
+        }
+
+        return $q->orderByDesc('issued_at')->orderByDesc('id');
+    }
+
     public function exportListPdf(Request $request)
+    {
+        $this->authorize('viewAny', Invoice::class);
+        return $this->exportListPdfInner($request);
+    }
+
+    public function exportListExcel(Request $request)
+    {
+        $this->authorize('viewAny', Invoice::class);
+
+        $user = auth()->user();
+        $isCommercial = $user?->role?->value === 'commercial';
+        $filters = $request->only(['client_id', 'status', 'date_from', 'date_to']);
+
+        // Propage le scope commercial au job Export (utilise les mêmes
+        // filtres + un commercial_user_id si fourni). Sans ça, l'export
+        // Excel streamait toutes les factures via une query parallèle.
+        if ($isCommercial) {
+            $filters['commercial_user_id'] = (int) $user->id;
+        }
+
+        $stamp = now()->format('Ymd-Hi');
+        return (new \App\Exports\InvoicesExport($filters))
+            ->download("factures-{$stamp}.xlsx");
+    }
+
+    /**
+     * Implémentation PDF (séparée pour permettre l'override d'authz).
+     * Garde la signature publique exportListPdf() inchangée pour les routes.
+     */
+    protected function exportListPdfInner(Request $request)
     {
         $invoices = $this->filteredQuery($request)->get();
 
-        // Récupère le nom du client filtré pour l'afficher dans le bandeau
         $clientName = null;
         if ($request->filled('client_id')) {
             $clientName = Client::where('id', $request->client_id)->value('name');
@@ -514,42 +645,5 @@ class InvoiceController extends Controller
 
         $stamp = now()->format('Ymd-Hi');
         return $pdf->download("factures-{$stamp}.pdf");
-    }
-
-    /**
-     * Export Excel du listing (filtres index appliqués). Streaming via
-     * FromQuery pour gérer les gros volumes sans saturer la RAM.
-     */
-    public function exportListExcel(Request $request)
-    {
-        $filters = $request->only(['client_id', 'status', 'date_from', 'date_to']);
-        $stamp = now()->format('Ymd-Hi');
-        return (new \App\Exports\InvoicesExport($filters))
-            ->download("factures-{$stamp}.xlsx");
-    }
-
-    /**
-     * Construit la query partagée par les exports : reprend les filtres
-     * client_id / status / date_from / date_to qu'on retrouve sur l'index.
-     * Centralisé ici pour éviter la divergence index ↔ export.
-     */
-    private function filteredQuery(Request $request)
-    {
-        $q = Invoice::with(['client', 'campaign', 'creator']);
-
-        if ($request->filled('client_id')) {
-            $q->where('client_id', $request->client_id);
-        }
-        if ($request->filled('status')) {
-            $q->where('status', $request->status);
-        }
-        if ($request->filled('date_from')) {
-            $q->where('issued_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $q->where('issued_at', '<=', $request->date_to);
-        }
-
-        return $q->orderByDesc('issued_at')->orderByDesc('id');
     }
 }

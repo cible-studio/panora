@@ -106,7 +106,12 @@ class DashboardController extends Controller
             ->when($isCommercial, $scopeCampaignCommercial)
             ->latest()->take(5)->get();
 
+        // ⚠ Scope commercial : avant, un commercial voyait les 5 dernières
+        // alertes GLOBALES de l'entreprise (résa/campagne d'autres commerciaux,
+        // problèmes terrain, etc.) — incohérent avec le KPI $alertesNonLues
+        // déjà scopé. Maintenant aligné.
         $dernieresAlertes = Alert::where('is_read', false)
+            ->when($isCommercial, fn($q) => $q->where('user_id', $uid))
             ->latest()->take(5)->get();
 
         $tauxOccupation = $totalPanneaux > 0
