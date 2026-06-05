@@ -2912,6 +2912,10 @@ class ReservationController extends Controller
     // Nouvelle méthode — modifier le prix d'un panneau dans une réservation
     public function updatePanelPrice(Request $request, Reservation $reservation, Panel $panel)
     {
+        // Ownership : un commercial ne peut modifier QUE ses propres résas
+        // (policy update vérifie commercial_user_id). Ferme l'IDOR.
+        $this->authorize('update', $reservation);
+
         $request->validate([
             'unit_price' => 'required|numeric|min:0',
         ]);
@@ -2940,6 +2944,8 @@ class ReservationController extends Controller
     // Pour réinitialiser au prix catalogue :
     public function resetPanelPrice(Reservation $reservation, Panel $panel)
     {
+        $this->authorize('update', $reservation);
+
         $months = $this->monthsBetween(
             $reservation->start_date->format('Y-m-d'),
             $reservation->end_date->format('Y-m-d')
@@ -2958,6 +2964,7 @@ class ReservationController extends Controller
     // ── EXTERNES : prix négocié + reset (mêmes endpoints que internes) ──
     public function updateExternalPanelPrice(Request $request, Reservation $reservation, ExternalPanel $panel)
     {
+        $this->authorize('update', $reservation);
         $request->validate(['unit_price' => 'required|numeric|min:0']);
         if (!$reservation->isEditable()) abort(403, 'Réservation non modifiable.');
 
@@ -2982,6 +2989,7 @@ class ReservationController extends Controller
 
     public function resetExternalPanelPrice(Reservation $reservation, ExternalPanel $panel)
     {
+        $this->authorize('update', $reservation);
         if (!$reservation->isEditable()) abort(403, 'Réservation non modifiable.');
 
         $months = $this->monthsBetween(
@@ -3023,6 +3031,8 @@ class ReservationController extends Controller
      */
     public function addPanel(Request $request, Reservation $reservation)
     {
+        $this->authorize('update', $reservation);
+
         if (!$reservation->isEditable()) {
             return response()->json(['success' => false, 'message' => 'Réservation non modifiable.'], 403);
         }
@@ -3148,6 +3158,8 @@ class ReservationController extends Controller
      */
     public function removePanel(Reservation $reservation, Panel $panel)
     {
+        $this->authorize('update', $reservation);
+
         if (!$reservation->isEditable()) {
             return back()->with('error', 'Réservation non modifiable — impossible de retirer un panneau.');
         }

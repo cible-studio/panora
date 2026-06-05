@@ -53,16 +53,27 @@ class ReservationPolicy
         ], true);
     }
 
-    /** Modifier (panneaux, période, prix) : MP et Commercial (sur les
-     *  siennes, le scope view filtre déjà), seulement si éditable. */
+    /** Modifier (panneaux, période, prix) :
+     *   - MP : toutes les réservations (consolidation production)
+     *   - Commercial : UNIQUEMENT les siennes (ownership commercial_user_id ==
+     *     uid, ou créateur fallback) — ferme IDOR sur les actions d'écriture
+     *   - Toujours conditionné à isEditable() + client non supprimé
+     */
     public function update(User $user, Reservation $reservation): bool
     {
         if (!$reservation->isEditable()) return false;
         if ($reservation->client?->trashed()) return false;
-        return in_array($user->role, [
-            UserRole::MEDIAPLANNER,
-            UserRole::COMMERCIAL,
-        ], true);
+
+        if ($user->role === UserRole::MEDIAPLANNER) return true;
+
+        if ($user->role === UserRole::COMMERCIAL) {
+            $uid = (int) $user->id;
+            return (int) ($reservation->commercial_user_id ?? 0) === $uid
+                || ($reservation->commercial_user_id === null
+                    && (int) ($reservation->user_id ?? 0) === $uid);
+        }
+
+        return false;
     }
 
     /**
