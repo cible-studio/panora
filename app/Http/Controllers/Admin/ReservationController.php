@@ -2302,6 +2302,9 @@ class ReservationController extends Controller
      */
     public function acceptDateChange(Request $request, Reservation $reservation)
     {
+        // Ownership : commercial limité à SES propres résas (policy update).
+        $this->authorize('update', $reservation);
+
         if (!$reservation->hasPendingDateChange()) {
             return back()->with('error', 'Aucune demande de décalage en attente.');
         }
@@ -2376,6 +2379,8 @@ class ReservationController extends Controller
      */
     public function refuseDateChange(Request $request, Reservation $reservation)
     {
+        $this->authorize('update', $reservation);
+
         if (!$reservation->hasPendingDateChange()) {
             return back()->with('error', 'Aucune demande de décalage en attente.');
         }
@@ -2434,6 +2439,8 @@ class ReservationController extends Controller
      */
     public function counterDateChange(Request $request, Reservation $reservation)
     {
+        $this->authorize('update', $reservation);
+
         if ($reservation->status->value !== 'en_attente') {
             return back()->with('error', 'La réservation n\'est plus en attente — contre-proposition impossible.');
         }

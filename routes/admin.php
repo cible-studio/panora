@@ -797,21 +797,25 @@ Route::prefix('admin')
             Route::patch('reservations/{reservation}/status', [ReservationController::class, 'updateStatus'])->name('reservations.update-status');
             Route::patch('reservations/{reservation}/annuler', [ReservationController::class, 'annuler'])->name('reservations.annuler');
 
-            // Arbitrage admin sur une demande de décalage de dates initiée
-            // par le client depuis sa page de proposition.
-            Route::post('reservations/{reservation}/date-change/accept', [ReservationController::class, 'acceptDateChange'])
-                ->name('reservations.date-change.accept');
-            Route::post('reservations/{reservation}/date-change/refuse', [ReservationController::class, 'refuseDateChange'])
-                ->name('reservations.date-change.refuse');
-            // Contre-proposition admin : nouvelle période + message,
-            // appliquée à la résa et envoyée au client pour validation.
-            Route::post('reservations/{reservation}/date-change/counter', [ReservationController::class, 'counterDateChange'])
-                ->name('reservations.date-change.counter');
             // Actions groupées sur les réservations (admin + MP).
             // Action acceptées : 'cancel' (annulation en masse), 'delete'
             // (suppression — bloque si campagne active).
             Route::post('reservations/bulk', [ReservationController::class, 'bulkAction'])
                 ->name('reservations.bulk');
+        });
+
+        // Arbitrage sur une demande de décalage de dates initiée par le
+        // client depuis sa page de proposition (accept / refuse / contre-
+        // proposition). Ouvert au commercial pour qu'il puisse arbitrer ses
+        // propres résas reçues par mail ; la policy update() limite à SES
+        // résas via commercial_user_id, et le controller appelle authorize().
+        Route::middleware('role:admin,mediaplanner,commercial')->group(function () {
+            Route::post('reservations/{reservation}/date-change/accept', [ReservationController::class, 'acceptDateChange'])
+                ->name('reservations.date-change.accept');
+            Route::post('reservations/{reservation}/date-change/refuse', [ReservationController::class, 'refuseDateChange'])
+                ->name('reservations.date-change.refuse');
+            Route::post('reservations/{reservation}/date-change/counter', [ReservationController::class, 'counterDateChange'])
+                ->name('reservations.date-change.counter');
         });
 
         // ── API interne — Liste des commerciaux pour la modale "Soumettre" ──
