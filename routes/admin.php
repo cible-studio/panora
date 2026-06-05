@@ -975,30 +975,57 @@ Route::prefix('admin')
             ->middleware('role:admin')
             ->whereNumber('campaign')->name('campaigns.destroy');
 
-        // ── Rapports business (lecture tous staff, filtré par owner via Policy) ──
-        Route::get('/rapports', [RapportController::class, 'index'])->name('rapports.index');
+        // ── Rapports business ──
+        // Politique RBAC :
+        //   • Index + AJAX + drilldown client + actions décappage + sa propre
+        //     vue campagnes → ouvert au commercial (filtré sur son périmètre
+        //     via DashboardKpiService scoping + RapportController::scopeUserCampaigns).
+        //   • Taxes, exports complets, drilldown communes globales, drilldown
+        //     panneaux globaux, motifs d'annulation entreprise → admin + MP
+        //     uniquement (le commercial n'a pas à voir le CA d'autres
+        //     commerciaux ni les taxes communales globales).
+        Route::get('/rapports',      [RapportController::class, 'index'])->name('rapports.index');
         Route::get('/rapports/ajax', [RapportController::class, 'ajax'])->name('rapports.ajax');
-        Route::get('/rapports/annulations', [RapportController::class, 'annulations'])->name('rapports.annulations');
-        Route::get('/rapports/communes/{commune}/detail', [RapportController::class, 'communeDetail'])
-            ->name('rapports.communes.detail');
         Route::get('/rapports/clients/{client}/detail', [RapportController::class, 'clientDetail'])
             ->whereNumber('client')->name('rapports.clients.detail');
-        Route::get('/rapports/panels/{panel}/detail', [RapportController::class, 'panelDetail'])
-            ->whereNumber('panel')->name('rapports.panels.detail');
-        Route::post('/rapports/decap/mark', [RapportController::class, 'markDecapped'])
+        Route::get('/rapports/campagnes', [RapportController::class, 'campagnes'])->name('rapports.campagnes');
+
+        // Actions / endpoints décappage (déjà scopés commercial — cf.
+        // DashboardKpiService::decapStats et decapList).
+        Route::post('/rapports/decap/mark',     [RapportController::class, 'markDecapped'])
             ->name('rapports.decap.mark');
         Route::post('/rapports/decap/mark-all', [RapportController::class, 'markAllDecapped'])
             ->name('rapports.decap.markAll');
-        // Endpoint JSON léger : KPI décappage frais (utilisé par le JS
-        // après chaque action pour MAJ la bannière sans page reload).
-        Route::get('/rapports/decap/summary', [RapportController::class, 'decapSummary'])
+        Route::get('/rapports/decap/summary',   [RapportController::class, 'decapSummary'])
             ->name('rapports.decap.summary');
-        Route::get('/rapports/export/excel', [RapportController::class, 'exportExcel'])
-            ->name('rapports.export.excel');
-        Route::get('/rapports/export/pdf', [RapportController::class, 'exportPdf'])
-            ->name('rapports.export.pdf');
-        Route::get('/rapports/taxes', [RapportController::class, 'taxes'])->name('rapports.taxes');
-        Route::get('/rapports/campagnes', [RapportController::class, 'campagnes'])->name('rapports.campagnes');
+
+        // ── Sections admin + MP (vue production / opérationnelle) ──
+        // MP = Media Planner : pilote la production et la diffusion. Il
+        // a besoin de voir le parc global, la performance panneaux, la
+        // répartition géographique, les taxes communales opérationnelles
+        // (ODP/TM payées par commune) et les motifs d'annulation pour
+        // analyse production. Il ne voit PAS le CA stratégique entreprise.
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('/rapports/annulations', [RapportController::class, 'annulations'])->name('rapports.annulations');
+            Route::get('/rapports/communes/{commune}/detail', [RapportController::class, 'communeDetail'])
+                ->name('rapports.communes.detail');
+            Route::get('/rapports/panels/{panel}/detail', [RapportController::class, 'panelDetail'])
+                ->whereNumber('panel')->name('rapports.panels.detail');
+            Route::get('/rapports/taxes', [RapportController::class, 'taxes'])->name('rapports.taxes');
+        });
+
+        // ── Exports complets — ADMIN UNIQUEMENT ──
+        // RapportDashboardExport génère 8 feuilles dont CA, Forecast,
+        // Synthèse exécutive — données financières stratégiques
+        // réservées à la direction. Si MP a besoin d'un export terrain,
+        // il passe par les exports modulaires (panels.export, campaigns.
+        // export, taxes.export) qui restent ouverts à son périmètre.
+        Route::middleware('role:admin')->group(function () {
+            Route::get('/rapports/export/excel', [RapportController::class, 'exportExcel'])
+                ->name('rapports.export.excel');
+            Route::get('/rapports/export/pdf', [RapportController::class, 'exportPdf'])
+                ->name('rapports.export.pdf');
+        });
 
     });
 
