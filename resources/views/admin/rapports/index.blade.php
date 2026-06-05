@@ -263,10 +263,10 @@ $kpiCards = [
 //   MP          : 5 cards — exclut 'ca' (CA stratégique entreprise).
 //                 Garde Occupation/Libres/Clients/Maintenance/Décaper.
 //   Commercial  : 2 cards — CA filtré + À décaper.
-// ⚠ On re-résout le rôle ici localement (au lieu de réutiliser le
-// $roleValue du préambule) : entre 2 blocs @php séparés dans une slot
+// NB : on re-resout le role ici localement (au lieu de reutiliser le
+// $roleValue du preambule) : entre 2 blocs @php separes dans une slot
 // de composant Blade, le partage de scope n'est pas garanti selon la
-// version de Laravel — d'où l'undefined variable signalé en prod.
+// version de Laravel — d'ou l'undefined variable signale en prod.
 $kpiRole = auth()->user()?->role?->value;
 $kpiCardsByRole = [
     'admin'        => null, // tous (6 cards)
@@ -314,7 +314,7 @@ if ($allowedKpiTabs !== null) {
     //               (réservés à la direction).
     // Commercial  : vue PERSONNELLE filtrée à ses campagnes. Périodes,
     //               ses campagnes, SON CA, ses décappages.
-    // ⚠ Re-résolution locale du rôle (cf. note sur le scope @php).
+    // NB : re-resolution locale du role (cf. note sur le scope @php).
     $tabRole = auth()->user()?->role?->value;
 
     $onglets = [
