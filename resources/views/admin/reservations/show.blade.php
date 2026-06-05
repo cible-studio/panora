@@ -1289,9 +1289,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 exclude_reservation_id: {{ $reservation->id }},
             }),
             processResults: data => ({
+                // Avant : on filtrait `.filter(p => p.available)` → la liste
+                // ne montrait que les libres, sans info sur les autres.
+                // Maintenant : on montre TOUS les panneaux avec leur statut
+                // (Libre / Option / Réservé) en badge devant ; les non-libres
+                // sont rendus non sélectionnables (disabled: true) — le
+                // commercial voit d'un coup d'œil l'état réel du parc sur
+                // la période sans avoir à deviner pourquoi il n'apparaît pas.
                 results: (Array.isArray(data) ? data : [])
-                    .filter(p => p.available)
-                    .map(p => ({ id: p.id, text: `${p.reference} — ${p.name}`, ...p })),
+                    .map(p => ({
+                        id:       p.id,
+                        text:     `${p.reference} — ${p.name}`,
+                        disabled: !p.available,
+                        ...p,
+                    })),
             }),
             cache: true,
         },
@@ -1302,8 +1313,29 @@ document.addEventListener('DOMContentLoaded', function() {
             const sourceBadge = isExt
                 ? `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);font-weight:700">🤝 ${p.agency_name||'Régie externe'}</span>`
                 : `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(232,160,32,.1);color:var(--accent);border:1px solid rgba(232,160,32,.25);font-weight:700">🏢 CIBLE</span>`;
-            return $(`<div style="padding:8px 12px;border-bottom:1px solid var(--border)">
+
+            // ─ Badge de statut devant le panneau ─
+            // Le badge reflète la dispo réelle SUR LA PÉRIODE de la résa,
+            // pas le statut DB du panneau (qui peut être stale).
+            //   available=true              → ✅ Libre  (vert)
+            //   blocking_status='en_attente'→ ⏳ Option (orange)
+            //   blocking_status='confirme'  → 🔒 Réservé (rouge)
+            //   sinon non-dispo             → ⛔ Indispo (gris)
+            let statusBadge = '';
+            if (p.available) {
+                statusBadge = `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.35);font-weight:700">✅ Libre</span>`;
+            } else if (p.blocking_status === 'en_attente') {
+                statusBadge = `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.35);font-weight:700">⏳ Option${p.release_date?' · libre '+p.release_date:''}</span>`;
+            } else if (p.blocking_status === 'confirme') {
+                statusBadge = `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.35);font-weight:700">🔒 Réservé${p.release_date?' · libre '+p.release_date:''}</span>`;
+            } else {
+                statusBadge = `<span style="font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(148,163,184,.15);color:#94a3b8;border:1px solid rgba(148,163,184,.35);font-weight:700">⛔ Indispo</span>`;
+            }
+
+            const dim = p.available ? '' : 'opacity:.55';
+            return $(`<div style="padding:8px 12px;border-bottom:1px solid var(--border);${dim}">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    ${statusBadge}
                     <span style="font-family:monospace;font-size:12px;font-weight:700;color:${refColor}">${p.reference||''}</span>
                     ${sourceBadge}
                     <span style="font-size:12px;color:var(--text)">${p.name||p.text}</span>
@@ -1316,7 +1348,10 @@ document.addEventListener('DOMContentLoaded', function() {
         templateSelection: p => {
             if (!p.id) return p.text;
             const tag = p.source === 'external' ? '🤝 ' : '';
-            return `${tag}${p.reference||''} — ${p.name||p.text}`;
+            // On ne peut sélectionner QUE du libre (les autres sont disabled),
+            // donc on annote le libellé final pour confirmation visuelle.
+            const ok = p.available !== false ? '✅ ' : '';
+            return `${ok}${tag}${p.reference||''} — ${p.name||p.text}`;
         },
         dropdownParent: $('#add-panel-card'),
         width: '100%',
