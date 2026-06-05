@@ -605,6 +605,73 @@ class PropositionController extends Controller
             ->with('success', 'Ta demande de décalage a été transmise à notre équipe — tu recevras une réponse rapidement.');
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // PUBLIC — annuler la demande de changement de dates
+    //
+    // Permet au client de retirer sa demande en attente et de revenir
+    // au choix initial (Confirmer / Refuser aux dates CIBLE). Sans
+    // cet endpoint, un client qui avait demandé un changement restait
+    // bloqué tant que CIBLE ne lui répondait pas — pas idéal s'il
+    // change d'avis.
+    // ══════════════════════════════════════════════════════════════
+    public function annulerDemandeChangementDates(string $reference, string $slug)
+    {
+        $reservation = $this->findBySlug($reference, $slug);
+        if (!$reservation) abort(404);
+
+        // On ne réutilise pas assertActionable() ici (il bloque déjà
+        // sur expiration/token, mais pas sur "pending change") car ce
+        // bouton n'est utile QUE quand une demande est en cours.
+        if ($reservation->status->value !== 'en_attente') {
+            return redirect()->route('proposition.show', [$reference, $slug])
+                ->with('error', 'Cette proposition n\'est plus en attente — impossible d\'annuler ta demande.');
+        }
+        if (!$reservation->hasPendingDateChange()) {
+            return redirect()->route('proposition.show', [$reference, $slug])
+                ->with('error', 'Aucune demande de décalage en cours.');
+        }
+
+        $oldRequested = [
+            'start' => $reservation->requested_start_date?->toDateString(),
+            'end'   => $reservation->requested_end_date?->toDateString(),
+        ];
+
+        $reservation->update([
+            'requested_start_date'     => null,
+            'requested_end_date'       => null,
+            'date_change_note'         => null,
+            'date_change_requested_at' => null,
+        ]);
+
+        // Alerte in-app pour le commercial — il saura que le client a
+        // retiré sa demande et qu'il peut ignorer la précédente.
+        try {
+            \App\Services\AlertService::create(
+                'reservation',
+                'info',
+                '↩ Demande de décalage annulée — ' . ($reservation->client?->name ?? 'Client'),
+                sprintf(
+                    'Le client a retiré sa demande de décalage sur %s. Tu n\'as plus à répondre — la proposition est de nouveau en attente de sa décision initiale.',
+                    $reservation->reference
+                ),
+                $reservation
+            );
+        } catch (\Throwable $e) {
+            Log::warning('proposition.date_change.cancel.alert_failed', [
+                'reservation_id' => $reservation->id,
+                'error'          => $e->getMessage(),
+            ]);
+        }
+
+        Log::info('proposition.date_change.cancelled', [
+            'reservation_id' => $reservation->id,
+            'old_requested'  => $oldRequested,
+        ]);
+
+        return redirect()->route('proposition.show', [$reference, $slug])
+            ->with('success', 'Ta demande de décalage a été annulée. Tu peux maintenant confirmer ou refuser la proposition aux dates initiales.');
+    }
+
     /**
      * Garde commune pour confirmer / refuser / retirer-panneau.
      *
@@ -662,6 +729,29 @@ class PropositionController extends Controller
                 'action'         => $action,
             ]);
             abort(404, 'Lien invalide.');
+        }
+
+        // ⚠ Bug critique fixé : si une demande de changement de dates
+        // est en attente (le client a proposé d'autres dates et CIBLE
+        // n'a pas encore répondu), on doit BLOQUER confirmer/refuser.
+        // Sinon le client peut cliquer "Confirmer" et confirmer aux
+        // dates ORIGINALES de CIBLE, croyant confirmer SA proposition
+        // → désalignement dangereux (client pense avoir les nouvelles
+        // dates, CIBLE active aux anciennes).
+        // demander-changement-dates reste autorisé pour modifier
+        // l'existant, annuler-changement-dates aussi pour revenir au
+        // choix initial.
+        if (in_array($action, ['confirmer', 'refuser'], true)
+            && $reservation->hasPendingDateChange()) {
+            Log::warning('proposition.action.blocked.pending_date_change', [
+                'reservation_id' => $reservation->id,
+                'reference'      => $reference,
+                'action'         => $action,
+                'requested_start'=> $reservation->requested_start_date?->toDateString(),
+                'requested_end'  => $reservation->requested_end_date?->toDateString(),
+            ]);
+            return redirect()->route('proposition.show', [$reference, $slug])
+                ->with('error', 'Tu as déjà demandé de nouvelles dates. Attends la réponse de notre équipe, ou annule ta demande pour revenir aux dates initiales.');
         }
 
         return null; // OK pour agir

@@ -892,31 +892,18 @@
         </div>
     @else
         <div class="cta">
-            <h3>Votre décision</h3>
-            <p>
-                Confirmez pour attribuer les emplacements et créer votre campagne, ou refusez si la
-                proposition ne convient pas. Notre équipe reste à votre disposition.
-            </p>
-
-            <div class="cta-buttons">
-                <button type="button" class="btn btn-primary" id="btn-confirm" onclick="openConfirmModal()">
-                    Confirmer la proposition
-                </button>
-                <button type="button" class="btn btn-secondary" onclick="openDateChangeModal()" style="background:#fff7ed;color:#9a3412;border:1px solid #fed7aa">
-                    🗓 Proposer d'autres dates
-                </button>
-                <button type="button" class="btn btn-danger" onclick="openRefusModal()">
-                    Refuser
-                </button>
-            </div>
-
-            {{-- Si une demande de décalage a déjà été envoyée et n'a pas
-                 encore été traitée par l'admin, on informe le client.
-                 Évite qu'il re-clique en pensant que rien ne s'est passé.
-                 Et surtout : on lui montre l'estimation du nouveau montant
-                 pour qu'il sache que le prix va changer avec la nouvelle
-                 période (et reste négociable). --}}
             @if($reservation->hasPendingDateChange())
+                {{-- ════════════════════════════════════════════════
+                     DEMANDE DE DÉCALAGE EN COURS
+                     Le client a proposé de nouvelles dates. Tant que
+                     CIBLE n'a pas validé, on BLOQUE Confirmer/Refuser
+                     pour éviter le piège : confirmer aux dates CIBLE
+                     alors que le client a demandé d'autres dates →
+                     campagne lancée sur les MAUVAISES dates.
+                     Le bouton "Modifier ma demande" reste possible
+                     pour ajuster les dates demandées, et "Annuler ma
+                     demande" pour revenir au choix initial.
+                ═══════════════════════════════════════════════════ --}}
                 @php
                     $estimatedNew = $reservation->estimateAmountForDates(
                         $reservation->requested_start_date,
@@ -926,30 +913,67 @@
                     $diff = $estimatedNew - $currentAmt;
                     $hasDiff = abs($diff) > 0.01;
                 @endphp
-                <div style="margin-top:14px;background:linear-gradient(180deg,#fff7ed,#fffbeb);border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;font-size:13px;color:#9a3412;line-height:1.55">
-                    <strong>🗓 Demande de décalage transmise</strong> — nouvelles dates souhaitées :
-                    <strong>{{ $reservation->requested_start_date->format('d/m/Y') }} → {{ $reservation->requested_end_date->format('d/m/Y') }}</strong>.<br>
+                <h3 style="display:flex;align-items:center;gap:8px">
+                    <span>🕒</span> En attente de notre réponse
+                </h3>
+                <p style="margin-bottom:14px">
+                    Tu as demandé un décalage de la période —
+                    <strong>{{ $reservation->requested_start_date->format('d/m/Y') }} → {{ $reservation->requested_end_date->format('d/m/Y') }}</strong>.
+                    Notre équipe va te répondre rapidement.
+                </p>
+                <div style="background:linear-gradient(180deg,#fff7ed,#fffbeb);border:1px solid #fed7aa;border-radius:10px;padding:14px 16px;font-size:13px;color:#9a3412;line-height:1.6;margin-bottom:14px">
                     @if($hasDiff)
-                        <span style="display:inline-block;margin-top:6px">
-                            💰 Nouveau montant estimé :
-                            <strong>{{ number_format($estimatedNew, 0, ',', ' ') }} FCFA HT</strong>
-                            <span style="color:{{ $diff > 0 ? '#92400e' : '#16a34a' }};font-weight:700">
-                                ({{ $diff > 0 ? '+' : '' }}{{ number_format($diff, 0, ',', ' ') }} FCFA)
-                            </span>
-                            <span style="display:block;font-size:11.5px;color:#9a3412;opacity:.85;margin-top:2px">
-                                Reste négociable — le montant définitif sera précisé dans la réponse de notre équipe.
-                            </span>
-                        </span><br>
+                        💰 Nouveau montant estimé :
+                        <strong>{{ number_format($estimatedNew, 0, ',', ' ') }} FCFA HT</strong>
+                        <span style="color:{{ $diff > 0 ? '#92400e' : '#16a34a' }};font-weight:700">
+                            ({{ $diff > 0 ? '+' : '' }}{{ number_format($diff, 0, ',', ' ') }} FCFA vs proposition initiale)
+                        </span>
+                        <div style="font-size:11.5px;opacity:.85;margin-top:4px">
+                            Le montant définitif sera confirmé dans la réponse de notre équipe.
+                        </div>
+                        <hr style="border:none;border-top:1px solid #fed7aa;margin:10px 0">
                     @endif
-                    <span style="display:inline-block;margin-top:4px">
-                        Notre équipe te répondra rapidement. Tu peux toujours confirmer la proposition initiale ou la refuser en attendant.
-                    </span>
+                    <strong>📌 Important</strong> — tu ne peux pas confirmer ou refuser tant que cette demande
+                    est en cours. Choisis l'une des actions ci-dessous.
+                </div>
+
+                <div class="cta-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="openDateChangeModal()" style="background:#fff7ed;color:#9a3412;border:1px solid #fed7aa">
+                        🗓 Modifier ma demande
+                    </button>
+                    <form method="POST" action="{{ route('proposition.annuler-demande-changement-dates', [$reference, $slug]) }}" style="display:inline" onsubmit="return confirm('Annuler ta demande de décalage et revenir aux dates initiales ?');">
+                        @csrf
+                        <button type="submit" class="btn btn-ghost" style="background:#f3f4f6;color:#4b5563;border:1px solid #e5e7eb">
+                            ↩ Annuler ma demande
+                        </button>
+                    </form>
+                </div>
+                <div class="cta-note">
+                    Une fois ta demande annulée, tu pourras à nouveau confirmer ou refuser la proposition initiale.
+                </div>
+            @else
+                <h3>Votre décision</h3>
+                <p>
+                    Confirmez pour attribuer les emplacements et créer votre campagne, ou refusez si la
+                    proposition ne convient pas. Notre équipe reste à votre disposition.
+                </p>
+
+                <div class="cta-buttons">
+                    <button type="button" class="btn btn-primary" id="btn-confirm" onclick="openConfirmModal()">
+                        Confirmer la proposition
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="openDateChangeModal()" style="background:#fff7ed;color:#9a3412;border:1px solid #fed7aa">
+                        🗓 Proposer d'autres dates
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="openRefusModal()">
+                        Refuser
+                    </button>
+                </div>
+
+                <div class="cta-note">
+                    Votre réponse est sécurisée et prise en compte immédiatement.
                 </div>
             @endif
-
-            <div class="cta-note">
-                Votre réponse est sécurisée et prise en compte immédiatement.
-            </div>
         </div>
     @endif
 
