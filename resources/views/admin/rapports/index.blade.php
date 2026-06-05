@@ -244,11 +244,21 @@ $kpiCards = [
     ],
 ];
 
-// RBAC commercial : ne montrer que les KPI cards alignées avec ses
-// onglets autorisés. Occupation/Libres/Maintenance/Clients dépendent
-// du parc et du portefeuille entreprise globale → masqués.
-if ($isCommercial) {
-    $allowedKpiTabs = ['ca', 'decap'];
+// RBAC : on n'affiche que les KPI cards alignées avec les onglets
+// autorisés au rôle courant. Détail :
+//   Admin       : 6 cards (Taux occupation, Libres, CA, Clients,
+//                 Maintenance, À décaper).
+//   MP          : 5 cards — exclut 'ca' (CA stratégique entreprise).
+//                 Garde Occupation/Libres/Clients/Maintenance/Décaper.
+//   Commercial  : 2 cards — CA filtré + À décaper.
+$role = auth()->user()?->role?->value;
+$kpiCardsByRole = [
+    'admin'        => null, // tous (6 cards)
+    'mediaplanner' => ['occupation', 'clients', 'zones', 'decap'], // 5 (sans 'ca')
+    'commercial'   => ['ca', 'decap'],                              // 2
+];
+$allowedKpiTabs = $kpiCardsByRole[$role] ?? null;
+if ($allowedKpiTabs !== null) {
     $kpiCards = array_values(array_filter(
         $kpiCards,
         fn($c) => in_array($c['tab'], $allowedKpiTabs, true)
@@ -279,7 +289,19 @@ if ($isCommercial) {
 {{-- ════ ONGLETS ════ --}}
 <div style="display:flex;gap:4px;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:6px;flex-wrap:wrap">
     @php
-    $isCommercial = auth()->user()?->role?->value === 'commercial';
+    // ── RBAC module Rapport — politique par rôle ──────────────
+    // Admin       : vue globale entreprise complète (CA stratégique,
+    //               EBITDA, synthèse exécutive direction, exports).
+    // MP          : vue PRODUCTION / opérationnelle. Parc, performance
+    //               panneaux, géo, clients, taxes, motifs annulation,
+    //               décappages. PAS de CA global ni d'insights stratégiques
+    //               (réservés à la direction).
+    // Commercial  : vue PERSONNELLE filtrée à ses campagnes. Périodes,
+    //               ses campagnes, SON CA, ses décappages.
+    $roleValue    = auth()->user()?->role?->value;
+    $isAdmin      = $roleValue === 'admin';
+    $isMP         = $roleValue === 'mediaplanner';
+    $isCommercial = $roleValue === 'commercial';
 
     $onglets = [
         ['id'=>'occupation','icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>','label'=>"Occupation"],
@@ -293,18 +315,24 @@ if ($isCommercial) {
         ['id'=>'insights',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11h.01M15 11h.01M18 21l-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3l-3 3z"/></svg>','label'=>'Insights & Alertes'],
     ];
 
-    // RBAC commercial : ne pas exposer les onglets vue globale entreprise.
-    //   Occupation/Panneaux/Zones/Clients/Insights = données du parc et du
-    //   CA global qui ne le concernent pas. Décappages reste pour qu'il
-    //   suive l'état de ses propres campagnes terminées.
-    //   Campagnes / Périodes / CA & Revenus restent — scopés sur SES
-    //   campagnes (cf. RapportController::scopeUserCampaigns +
-    //   DashboardKpiService scoping).
-    if ($isCommercial) {
-        $allowedCommercial = ['periodes', 'campagnes', 'ca', 'decap'];
+    // Mapping rôle → onglets autorisés (null = tous = admin).
+    $tabsByRole = [
+        'admin'        => null, // tous les 9
+        'mediaplanner' => [     // 7 : production / opérationnel
+            'occupation', 'panneaux', 'periodes', 'campagnes',
+            'zones', 'clients', 'decap',
+            // EXCLUS pour MP : 'ca' (CA stratégique entreprise),
+            //                  'insights' (synthèse exécutive direction).
+        ],
+        'commercial'   => [     // 4 : strictement personnel filtré
+            'periodes', 'campagnes', 'ca', 'decap',
+        ],
+    ];
+    $allowedTabs = $tabsByRole[$roleValue] ?? null;
+    if ($allowedTabs !== null) {
         $onglets = array_values(array_filter(
             $onglets,
-            fn($o) => in_array($o['id'], $allowedCommercial, true)
+            fn($o) => in_array($o['id'], $allowedTabs, true)
         ));
     }
     // Ids autorisés (sert plus bas à exclure les <div id="panel-X"> du DOM)

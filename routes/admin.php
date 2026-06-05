@@ -996,18 +996,32 @@ Route::prefix('admin')
         Route::get('/rapports/decap/summary',   [RapportController::class, 'decapSummary'])
             ->name('rapports.decap.summary');
 
-        // ── Sections admin/MP only (vue globale entreprise) ──
+        // ── Sections admin + MP (vue production / opérationnelle) ──
+        // MP = Media Planner : pilote la production et la diffusion. Il
+        // a besoin de voir le parc global, la performance panneaux, la
+        // répartition géographique, les taxes communales opérationnelles
+        // (ODP/TM payées par commune) et les motifs d'annulation pour
+        // analyse production. Il ne voit PAS le CA stratégique entreprise.
         Route::middleware('role:admin,mediaplanner')->group(function () {
             Route::get('/rapports/annulations', [RapportController::class, 'annulations'])->name('rapports.annulations');
             Route::get('/rapports/communes/{commune}/detail', [RapportController::class, 'communeDetail'])
                 ->name('rapports.communes.detail');
             Route::get('/rapports/panels/{panel}/detail', [RapportController::class, 'panelDetail'])
                 ->whereNumber('panel')->name('rapports.panels.detail');
+            Route::get('/rapports/taxes', [RapportController::class, 'taxes'])->name('rapports.taxes');
+        });
+
+        // ── Exports complets — ADMIN UNIQUEMENT ──
+        // RapportDashboardExport génère 8 feuilles dont CA, Forecast,
+        // Synthèse exécutive — données financières stratégiques
+        // réservées à la direction. Si MP a besoin d'un export terrain,
+        // il passe par les exports modulaires (panels.export, campaigns.
+        // export, taxes.export) qui restent ouverts à son périmètre.
+        Route::middleware('role:admin')->group(function () {
             Route::get('/rapports/export/excel', [RapportController::class, 'exportExcel'])
                 ->name('rapports.export.excel');
             Route::get('/rapports/export/pdf', [RapportController::class, 'exportPdf'])
                 ->name('rapports.export.pdf');
-            Route::get('/rapports/taxes', [RapportController::class, 'taxes'])->name('rapports.taxes');
         });
 
     });
