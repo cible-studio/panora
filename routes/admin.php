@@ -214,6 +214,13 @@ Route::prefix('proposition')->name('proposition.')->middleware(\App\Http\Middlew
         ->name('demander-changement-dates')
         ->middleware('throttle:5,1');
 
+    // Annulation de la demande client (retour aux dates initiales).
+    // Indispensable pour ne pas piéger le client qui change d'avis :
+    // sans ça, il restait bloqué tant que CIBLE n'avait pas répondu.
+    Route::post('/{reference}/{slug}/annuler-demande-changement-dates', [PropositionController::class, 'annulerDemandeChangementDates'])
+        ->name('annuler-demande-changement-dates')
+        ->middleware('throttle:5,1');
+
     Route::delete('/{reference}/{slug}/panneau/{panelId}', [PropositionController::class, 'retirerPanneau'])
         ->name('retirer-panneau')
         ->middleware('throttle:10,1');
