@@ -148,6 +148,11 @@ window.__RPT__ = {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </a>
 
+    {{-- Annulations entreprise + Taxes communales : admin/MP only.
+         Pour le commercial, on cache les liens (les routes sont déjà
+         bloquées côté backend, mais évite un 403 si l'admin a partagé
+         le lien ou si l'admin a cliqué par erreur côté UI commercial). --}}
+    @if(auth()->user()?->role?->value !== 'commercial')
     <a href="{{ route('admin.rapports.annulations') }}"
        style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-left:4px solid #ef4444;border-radius:12px;text-decoration:none;transition:transform .15s,border-color .15s,box-shadow .15s"
        onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(0,0,0,.08)'"
@@ -175,6 +180,7 @@ window.__RPT__ = {
         </div>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </a>
+    @endif
 </div>
 
 {{-- ════ CARDS KPI CLIQUABLES ════ --}}
@@ -231,13 +237,26 @@ $kpiCards = [
         'val'   => number_format($aDecaper->count()),
         'sub'   => 'fins de campagne proches',
         'color' => $aDecaper->count() > 0 ? '#ef4444' : '#22c55e',
-        'tab'   => 'zones',
+        // Avant : 'zones' → l'onglet "Zones & Communes" est masqué pour
+        // commercial. On redirige vers 'decap' qui est conservé.
+        'tab'   => 'decap',
         'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
     ],
 ];
+
+// RBAC commercial : ne montrer que les KPI cards alignées avec ses
+// onglets autorisés. Occupation/Libres/Maintenance/Clients dépendent
+// du parc et du portefeuille entreprise globale → masqués.
+if ($isCommercial) {
+    $allowedKpiTabs = ['ca', 'decap'];
+    $kpiCards = array_values(array_filter(
+        $kpiCards,
+        fn($c) => in_array($c['tab'], $allowedKpiTabs, true)
+    ));
+}
 @endphp
 
-<div id="kpi-cards" style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px">
+<div id="kpi-cards" style="display:grid;grid-template-columns:repeat({{ max(1, count($kpiCards)) }},1fr);gap:10px;margin-bottom:20px">
     @foreach($kpiCards as $card)
     <button type="button"
             id="kpi-{{ $card['id'] }}"
@@ -258,8 +277,10 @@ $kpiCards = [
 </div>
 
 {{-- ════ ONGLETS ════ --}}
-<div style="display:flex;gap:4px;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:6px">
+<div style="display:flex;gap:4px;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:6px;flex-wrap:wrap">
     @php
+    $isCommercial = auth()->user()?->role?->value === 'commercial';
+
     $onglets = [
         ['id'=>'occupation','icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>','label'=>"Occupation"],
         ['id'=>'panneaux',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>','label'=>'Performance panneaux'],
@@ -271,6 +292,23 @@ $kpiCards = [
         ['id'=>'decap',     'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>','label'=>'Décappages'],
         ['id'=>'insights',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11h.01M15 11h.01M18 21l-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3l-3 3z"/></svg>','label'=>'Insights & Alertes'],
     ];
+
+    // RBAC commercial : ne pas exposer les onglets vue globale entreprise.
+    //   Occupation/Panneaux/Zones/Clients/Insights = données du parc et du
+    //   CA global qui ne le concernent pas. Décappages reste pour qu'il
+    //   suive l'état de ses propres campagnes terminées.
+    //   Campagnes / Périodes / CA & Revenus restent — scopés sur SES
+    //   campagnes (cf. RapportController::scopeUserCampaigns +
+    //   DashboardKpiService scoping).
+    if ($isCommercial) {
+        $allowedCommercial = ['periodes', 'campagnes', 'ca', 'decap'];
+        $onglets = array_values(array_filter(
+            $onglets,
+            fn($o) => in_array($o['id'], $allowedCommercial, true)
+        ));
+    }
+    // Ids autorisés (sert plus bas à exclure les <div id="panel-X"> du DOM)
+    $allowedTabIds = array_column($onglets, 'id');
     @endphp
     @foreach($onglets as $o)
     <button id="tab-{{ $o['id'] }}" onclick="RPT.switchTab('{{ $o['id'] }}')"
@@ -287,8 +325,9 @@ $kpiCards = [
 </div>
 
 {{-- ══════════════════════════════════
-     ONGLET 1 — OCCUPATION
+     ONGLET 1 — OCCUPATION (admin/MP only)
 ══════════════════════════════════ --}}
+@if(in_array('occupation', $allowedTabIds, true))
 <div id="panel-occupation" class="rpt-panel">
 
     {{-- Jauge globale --}}
@@ -357,9 +396,12 @@ $kpiCards = [
     </div>
 </div>
 
+@endif {{-- panel-occupation --}}
+
 {{-- ══════════════════════════════════
-     ONGLET 2 — PÉRIODES
+     ONGLET 2 — PÉRIODES (commercial OK : scopé via applyCampaignFilters)
 ══════════════════════════════════ --}}
+@if(in_array('periodes', $allowedTabIds, true))
 <div id="panel-periodes" class="rpt-panel" style="display:none">
 
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
@@ -421,9 +463,12 @@ $kpiCards = [
     </div>
 </div>
 
+@endif {{-- panel-periodes --}}
+
 {{-- ══════════════════════════════════════════════════════════════
-     ONGLET — CAMPAGNES (analyse complète + recommandations)
+     ONGLET — CAMPAGNES (commercial OK : scopé)
 ══════════════════════════════════════════════════════════════ --}}
+@if(in_array('campagnes', $allowedTabIds, true))
 <div id="panel-campagnes" class="rpt-panel" style="display:none">
 
     {{-- Statuts campagnes : 5 cards --}}
@@ -602,9 +647,12 @@ $kpiCards = [
     </div>
 </div>
 
+@endif {{-- panel-campagnes --}}
+
 {{-- ══════════════════════════════════
-     ONGLET 3 — CA & REVENUS
+     ONGLET 3 — CA & REVENUS (commercial OK : scopé sur ses campagnes)
 ══════════════════════════════════ --}}
+@if(in_array('ca', $allowedTabIds, true))
 <div id="panel-ca" class="rpt-panel" style="display:none">
 
     {{-- 5 KPIs financiers : CA, ticket moyen, CA/panneau, CA/client, top client --}}
@@ -773,9 +821,12 @@ $kpiCards = [
     </div>
 </div>
 
+@endif {{-- panel-ca --}}
+
 {{-- ══════════════════════════════════
-     ONGLET 4 — ZONES & COMMUNES (HEATMAP)
+     ONGLET 4 — ZONES & COMMUNES (admin/MP only : parc géographique)
 ══════════════════════════════════ --}}
+@if(in_array('zones', $allowedTabIds, true))
 <div id="panel-zones" class="rpt-panel" style="display:none">
 
     {{-- Boutons mode --}}
@@ -908,9 +959,12 @@ $kpiCards = [
     @endif
 </div>
 
+@endif {{-- panel-zones --}}
+
 {{-- ══════════════════════════════════
-     ONGLET 5 — CLIENTS
+     ONGLET 5 — CLIENTS (admin/MP only : top clients entreprise)
 ══════════════════════════════════ --}}
+@if(in_array('clients', $allowedTabIds, true))
 <div id="panel-clients" class="rpt-panel" style="display:none">
 
     {{-- 3 podiums : Top CA / Top Volume / Top Fréquence --}}
@@ -1156,9 +1210,12 @@ $kpiCards = [
     </div>
 </div>
 
+@endif {{-- panel-clients --}}
+
 {{-- ══════════════════════════════════════════════════════════════
-     ONGLET — PERFORMANCE PANNEAUX (top + low)
+     ONGLET — PERFORMANCE PANNEAUX (admin/MP only : parc global)
 ══════════════════════════════════════════════════════════════ --}}
+@if(in_array('panneaux', $allowedTabIds, true))
 <div id="panel-panneaux" class="rpt-panel" style="display:none">
 
     {{-- Alertes performance panneaux (COMMIT E) --}}
@@ -1381,9 +1438,12 @@ $kpiCards = [
     </div>
 </div>
 
+@endif {{-- panel-panneaux --}}
+
 {{-- ══════════════════════════════════════════════════════════════
-     ONGLET — DÉCAPPAGES (campagnes terminées + à venir)
+     ONGLET — DÉCAPPAGES (commercial OK : scopé via decapStats + decapList)
 ══════════════════════════════════════════════════════════════ --}}
+@if(in_array('decap', $allowedTabIds, true))
 <div id="panel-decap" class="rpt-panel" style="display:none">
 
     {{-- ⚠ BANDEAU CRITIQUE : campagnes expirées non décappées.
@@ -1563,9 +1623,12 @@ $kpiCards = [
     </div>
 </div>
 
+@endif {{-- panel-decap --}}
+
 {{-- ══════════════════════════════════════════════════════════════
-     ONGLET — INSIGHTS & ALERTES
+     ONGLET — INSIGHTS & ALERTES (admin/MP only : tendances entreprise)
 ══════════════════════════════════════════════════════════════ --}}
+@if(in_array('insights', $allowedTabIds, true))
 <div id="panel-insights" class="rpt-panel" style="display:none">
 
     {{-- 🎯 SYNTHÈSE EXÉCUTIVE — direction (vue stratégique en haut) --}}
@@ -2004,6 +2067,7 @@ CIBLE CI — Affichage urbain</div>
     </div>
     @endif
 </div>
+@endif {{-- panel-insights --}}
 
 {{-- ════ STYLES ════ --}}
 <style>
@@ -2161,10 +2225,17 @@ window.RPT = {
     },
 
     switchTab(id) {
+        // Defensive : pour le commercial certains onglets sont absents du
+        // DOM (Occupation/Panneaux/Zones/Clients/Insights = vue globale
+        // entreprise). On no-op si l'élément cible n'existe pas, plutôt
+        // que de planter avec "Cannot read property 'classList' of null".
+        const tabEl   = document.getElementById('tab-'+id);
+        const panelEl = document.getElementById('panel-'+id);
+        if (!tabEl || !panelEl) return;
         document.querySelectorAll('.rpt-tab').forEach(t=>t.classList.remove('active'));
         document.querySelectorAll('.rpt-panel').forEach(p=>p.style.display='none');
-        document.getElementById('tab-'+id).classList.add('active');
-        document.getElementById('panel-'+id).style.display='block';
+        tabEl.classList.add('active');
+        panelEl.style.display='block';
         if (id==='occupation'&&!this._evolDone)     { this.renderEvol(); this.renderOccupationTrend(); this._evolDone=true; }
         if (id==='ca'        &&!this._caDone)       { this.renderCa();   this.renderRevenueTrend();    this.renderOccVsRevenue(); this._caDone=true; }
         if (id==='zones'     &&!this._hmDone)       { HM.init();         this._hmDone=true; }
