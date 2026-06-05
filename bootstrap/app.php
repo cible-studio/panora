@@ -60,6 +60,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // du cache par l'utilisateur. S'applique GLOBALEMENT (web + api)
         // pour couvrir aussi les pages publiques /pige, /proposition, etc.
         $middleware->append(\App\Http\Middleware\PreventStaleHtmlCache::class);
+
+        // Headers de sécurité standards (clickjacking, MIME-sniffing, HSTS,
+        // Referrer-Policy, Permissions-Policy) — appliqués partout.
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

@@ -692,8 +692,10 @@ Route::prefix('admin')
         // ⚠️ RÈGLE IMPORTANTE : routes GET spécifiques AVANT resource
         // ══════════════════════════════════════════════════════════
 
-        // Prix panneaux dans une réservation (internes + externes) = admin + MP
-        Route::middleware('role:admin,mediaplanner')->group(function () {
+        // Prix panneaux dans une réservation (internes + externes) :
+        // admin + MP + commercial. Le commercial est limité à SES résas
+        // via la policy update() (vérifie commercial_user_id).
+        Route::middleware('role:admin,mediaplanner,commercial')->group(function () {
             Route::patch('reservations/{reservation}/panels/{panel}/price',
                 [ReservationController::class, 'updatePanelPrice'])->name('reservations.panels.price');
             Route::post('reservations/{reservation}/panels/{panel}/price/reset',
@@ -768,11 +770,12 @@ Route::prefix('admin')
             ->middleware('throttle:60,1');
         Route::post('reservations/mark-seen', [ReservationController::class, 'markSeen'])->name('reservations.mark-seen');
 
-        // Ajout/modif panneaux et prix dans réservation = admin + MP
-        Route::middleware('role:admin,mediaplanner')->group(function () {
+        // Ajout/retrait de panneaux dans une réservation. Ouvert au commercial
+        // pour qu'il puisse compléter ses propres résas (qu'il reçoit par
+        // mail) ; la policy update() limite à SES résas via commercial_user_id.
+        Route::middleware('role:admin,mediaplanner,commercial')->group(function () {
             Route::post('reservations/{reservation}/panels/add', [ReservationController::class, 'addPanel']) ->name('reservations.panels.add');
             Route::delete('reservations/{reservation}/panels/{panel}', [ReservationController::class, 'removePanel'])->name('reservations.panels.remove');
-            // Prix panneaux dans réservation (déplacés ici depuis plus haut)
         });
 
         // CRUD Réservations (en dernier pour ne pas capturer les routes spécifiques)
