@@ -663,16 +663,84 @@ class AlertService
     // ══════════════════════════════════════════════════════════════════
 
     /**
-     * Restreint une query Alert à l'utilisateur courant (sauf admin).
-     * Admin voit toutes les alertes (système + ciblées). Tout autre rôle
-     * (MP / Commercial / Technique) ne voit que les alertes qui lui sont
-     * destinées (user_id == auth()->id()).
+     * Liste des TYPES d'alertes "broadcast" (user_id IS NULL, générées par
+     * le cron) qu'un rôle non-admin doit voir dans sa cloche/page Alertes.
+     *
+     * Les alertes ciblées (user_id == uid) sont TOUJOURS visibles à leur
+     * destinataire — cette liste règle UNIQUEMENT les alertes système.
+     *
+     * Pourquoi cette logique :
+     *   - Avant : scope = `WHERE user_id = uid` strict → MP ne voyait rien
+     *     des alertes "fin campagne J-7", "réservation en attente >48h",
+     *     etc., toutes générées avec user_id NULL par le cron.
+     *   - Maintenant : MP/Technique voient en plus les broadcasts pertinents
+     *     pour leur métier ; commercial reste strict (ses résas seulement).
+     */
+    public static function broadcastTypesForRole(string $role): array
+    {
+        return match ($role) {
+            // MP : pilotage production → tout ce qui touche planning campagnes,
+            // dispo panneaux, retards opérationnels, et messages clients.
+            'mediaplanner' => [
+                // Campagnes — fin / suivi
+                'fin_campagne_j7', 'fin_campagne_j3', 'fin_campagne_j0',
+                'campagne_sans_panneau', 'campagne_terminee', 'campagne_active',
+                // Réservations — alertes opérationnelles
+                'reservation_en_attente_longue', 'reservation_expiree',
+                'reservation_nouvelle',
+                'proposition_acceptee', 'proposition_refusee',
+                // Panneaux — état du parc
+                'conflit_reservation', 'panneau_maintenance',
+                // Poses — pilotage prod
+                'pose_planifiee', 'pose_terminee', 'pose_en_cours',
+                // Maintenances — visibilité production
+                'maintenance_signalee', 'maintenance_rouverte',
+                // Espace client
+                'satisfaction_recue', 'client_message',
+            ],
+
+            // Technique : terrain → poses, maintenances, piges.
+            'technique' => [
+                'pose_creee', 'pose_planifiee', 'pose_en_cours', 'pose_terminee',
+                'maintenance_signalee', 'maintenance_rouverte', 'maintenance_resolue',
+                'panneau_maintenance',
+                'pige_uploadee', 'pige_verifiee',
+                'avancement_pose',
+            ],
+
+            // Commercial : reste strict — uniquement ses alertes ciblées.
+            // Ses alertes pertinentes (reservation_nouvelle sur sa résa, etc.)
+            // doivent être créées avec opts['user_id' => $commercialId] côté
+            // controllers métier (ReservationController, etc.).
+            default => [],
+        };
+    }
+
+    /**
+     * Restreint une query Alert à l'utilisateur courant.
+     *
+     *   - Admin       : voit TOUT (alertes ciblées + broadcasts système)
+     *   - MP/Technique : voient leurs alertes ciblées + les broadcasts
+     *                    pertinents à leur rôle (cf. broadcastTypesForRole)
+     *   - Commercial  : strict — uniquement ses alertes ciblées
      */
     protected function scopeCurrentUser($query)
     {
         $user = auth()->user();
-        if ($user?->role?->value === 'admin') return $query;
-        return $query->where('user_id', $user?->id);
+        if (!$user) return $query->whereRaw('1 = 0');
+        if ($user->role?->value === 'admin') return $query;
+
+        $uid       = (int) $user->id;
+        $broadcast = self::broadcastTypesForRole($user->role->value);
+
+        return $query->where(function ($q) use ($uid, $broadcast) {
+            $q->where('user_id', $uid);
+            if (!empty($broadcast)) {
+                $q->orWhere(function ($qq) use ($broadcast) {
+                    $qq->whereNull('user_id')->whereIn('type', $broadcast);
+                });
+            }
+        });
     }
 
     public function unreadCount(): int

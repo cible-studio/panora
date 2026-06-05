@@ -13,28 +13,60 @@ class AlertController extends Controller
     public function __construct(protected AlertService $alertService) {}
 
     /**
-     * Scope RBAC : admin voit tout, autres rôles ne voient QUE leurs
-     * alertes (user_id == auth()->id()). Centralisé pour cohérence avec
-     * AlertService::scopeCurrentUser().
+     * Scope RBAC : admin voit tout, MP/Technique voient leurs alertes
+     * ciblées + les broadcasts pertinents à leur rôle, commercial reste
+     * strict. Mirroirise AlertService::scopeCurrentUser() — DOIT rester
+     * identique pour cohérence.
      */
     protected function scopeCurrentUser($query)
     {
         $user = auth()->user();
-        if ($user?->role?->value === 'admin') return $query;
-        return $query->where('user_id', $user?->id);
+        if (!$user) return $query->whereRaw('1 = 0');
+        if ($user->role?->value === 'admin') return $query;
+
+        $uid       = (int) $user->id;
+        $broadcast = \App\Services\AlertService::broadcastTypesForRole($user->role->value);
+
+        return $query->where(function ($q) use ($uid, $broadcast) {
+            $q->where('user_id', $uid);
+            if (!empty($broadcast)) {
+                $q->orWhere(function ($qq) use ($broadcast) {
+                    $qq->whereNull('user_id')->whereIn('type', $broadcast);
+                });
+            }
+        });
     }
 
     /**
-     * Vérifie qu'une alerte appartient à l'utilisateur courant (sauf admin).
-     * Renvoie 403 sinon — empêche un commercial d'agir sur l'alerte d'un autre.
+     * Vérifie qu'une alerte peut être manipulée par l'utilisateur courant :
+     *   - Admin              : oui sur tout
+     *   - Alerte ciblée      : OK si user_id == auth()->id()
+     *   - Broadcast (NULL)   : OK si le type est dans la liste de son rôle
+     *
+     * Renvoie 403 sinon — empêche un commercial d'agir sur l'alerte d'un autre,
+     * mais autorise MP/Technique à marquer comme lue / archiver les broadcasts
+     * système qu'ils sont censés voir.
      */
     protected function authorizeAlert(Alert $alert): void
     {
         $user = auth()->user();
-        if ($user?->role?->value === 'admin') return;
-        if ($alert->user_id !== $user?->id) {
-            abort(403, "Cette alerte ne vous appartient pas.");
+        if (!$user) abort(403);
+        if ($user->role?->value === 'admin') return;
+
+        // Alerte ciblée à moi → OK
+        if ($alert->user_id !== null && (int) $alert->user_id === (int) $user->id) {
+            return;
         }
+
+        // Alerte broadcast → OK si pertinent pour mon rôle
+        if ($alert->user_id === null) {
+            $broadcast = \App\Services\AlertService::broadcastTypesForRole($user->role->value);
+            if (in_array($alert->type, $broadcast, true)) {
+                return;
+            }
+        }
+
+        abort(403, "Cette alerte ne vous appartient pas.");
     }
 
     // ══════════════════════════════════════════════════════════════════
