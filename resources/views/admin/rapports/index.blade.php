@@ -263,13 +263,17 @@ $kpiCards = [
 //   MP          : 5 cards — exclut 'ca' (CA stratégique entreprise).
 //                 Garde Occupation/Libres/Clients/Maintenance/Décaper.
 //   Commercial  : 2 cards — CA filtré + À décaper.
-// $roleValue défini au préambule en tête de vue.
+// ⚠ On re-résout le rôle ici localement (au lieu de réutiliser le
+// $roleValue du préambule) : entre 2 blocs @php séparés dans une slot
+// de composant Blade, le partage de scope n'est pas garanti selon la
+// version de Laravel — d'où l'undefined variable signalé en prod.
+$kpiRole = auth()->user()?->role?->value;
 $kpiCardsByRole = [
     'admin'        => null, // tous (6 cards)
     'mediaplanner' => ['occupation', 'clients', 'zones', 'decap'], // 5 (sans 'ca')
     'commercial'   => ['ca', 'decap'],                              // 2
 ];
-$allowedKpiTabs = $kpiCardsByRole[$roleValue] ?? null;
+$allowedKpiTabs = $kpiCardsByRole[$kpiRole] ?? null;
 if ($allowedKpiTabs !== null) {
     $kpiCards = array_values(array_filter(
         $kpiCards,
@@ -310,8 +314,8 @@ if ($allowedKpiTabs !== null) {
     //               (réservés à la direction).
     // Commercial  : vue PERSONNELLE filtrée à ses campagnes. Périodes,
     //               ses campagnes, SON CA, ses décappages.
-    // $roleValue / $isAdmin / $isMP / $isCommercial sont définis au
-    // préambule en tête de vue, disponibles partout.
+    // ⚠ Re-résolution locale du rôle (cf. note sur le scope @php).
+    $tabRole = auth()->user()?->role?->value;
 
     $onglets = [
         ['id'=>'occupation','icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>','label'=>"Occupation"],
@@ -338,7 +342,7 @@ if ($allowedKpiTabs !== null) {
             'periodes', 'campagnes', 'ca', 'decap',
         ],
     ];
-    $allowedTabs = $tabsByRole[$roleValue] ?? null;
+    $allowedTabs = $tabsByRole[$tabRole] ?? null;
     if ($allowedTabs !== null) {
         $onglets = array_values(array_filter(
             $onglets,
