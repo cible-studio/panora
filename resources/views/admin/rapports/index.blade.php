@@ -264,7 +264,7 @@ $kpiCards = [
 //                 Garde Occupation/Libres/Clients/Maintenance/Décaper.
 //   Commercial  : 2 cards — CA filtré + À décaper.
 // NB : on re-resout le role ici localement (au lieu de reutiliser le
-// $roleValue du preambule) : entre 2 blocs @php separes dans une slot
+//      scope de la vue) car la vue est appelée de mani
 // de composant Blade, le partage de scope n'est pas garanti selon la
 // version de Laravel — d'ou l'undefined variable signale en prod.
 $kpiRole = auth()->user()?->role?->value;
