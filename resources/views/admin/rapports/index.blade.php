@@ -1,5 +1,17 @@
 <x-admin-layout title="Rapports & Analyses">
 
+{{-- ════ RBAC — variables disponibles GLOBALEMENT dans la vue ════
+     Définies au tout début pour qu'AUCUN bloc @php ne puisse hit un
+     $isCommercial undefined (cas reproduit en prod après déploiement
+     d'un commit qui référençait $isCommercial avant sa définition
+     locale). Source unique = la chaîne role->value. --}}
+@php
+    $roleValue    = auth()->user()?->role?->value;
+    $isAdmin      = $roleValue === 'admin';
+    $isMP         = $roleValue === 'mediaplanner';
+    $isCommercial = $roleValue === 'commercial';
+@endphp
+
 {{-- ════ DONNÉES SERVEUR ════ --}}
 <script>
 window.__RPT__ = {
@@ -251,13 +263,13 @@ $kpiCards = [
 //   MP          : 5 cards — exclut 'ca' (CA stratégique entreprise).
 //                 Garde Occupation/Libres/Clients/Maintenance/Décaper.
 //   Commercial  : 2 cards — CA filtré + À décaper.
-$role = auth()->user()?->role?->value;
+// $roleValue défini au préambule en tête de vue.
 $kpiCardsByRole = [
     'admin'        => null, // tous (6 cards)
     'mediaplanner' => ['occupation', 'clients', 'zones', 'decap'], // 5 (sans 'ca')
     'commercial'   => ['ca', 'decap'],                              // 2
 ];
-$allowedKpiTabs = $kpiCardsByRole[$role] ?? null;
+$allowedKpiTabs = $kpiCardsByRole[$roleValue] ?? null;
 if ($allowedKpiTabs !== null) {
     $kpiCards = array_values(array_filter(
         $kpiCards,
@@ -298,10 +310,8 @@ if ($allowedKpiTabs !== null) {
     //               (réservés à la direction).
     // Commercial  : vue PERSONNELLE filtrée à ses campagnes. Périodes,
     //               ses campagnes, SON CA, ses décappages.
-    $roleValue    = auth()->user()?->role?->value;
-    $isAdmin      = $roleValue === 'admin';
-    $isMP         = $roleValue === 'mediaplanner';
-    $isCommercial = $roleValue === 'commercial';
+    // $roleValue / $isAdmin / $isMP / $isCommercial sont définis au
+    // préambule en tête de vue, disponibles partout.
 
     $onglets = [
         ['id'=>'occupation','icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>','label'=>"Occupation"],
