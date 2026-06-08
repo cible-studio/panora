@@ -67,11 +67,12 @@
         </a>
         @endif
     </td>
-    {{-- Dates empilées + année à 2 chiffres pour gagner ~40% de largeur
-         sur la colonne Période sans perdre l'info clé (jour/mois). --}}
+    {{-- Période sur 1 seule ligne avec année 2 chiffres (gagne ~30% de
+         largeur sur l'ancien format dd/mm/YYYY → dd/mm/YYYY). --}}
     <td class="date-range">
-        <div>{{ $campaign->start_date->format('d/m/y') }}</div>
-        <div style="color:var(--text3)">→ {{ $campaign->end_date->format('d/m/y') }}</div>
+        {{ $campaign->start_date->format('d/m/y') }}
+        <span>→</span>
+        {{ $campaign->end_date->format('d/m/y') }}
     </td>
     <td class="duration">{{ $campaign->durationHuman() }}</td>
     <td class="text-center">
