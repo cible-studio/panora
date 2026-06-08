@@ -57,7 +57,7 @@
 </div>
 @endif
 
-<form method="POST" action="{{ $action }}" id="form-fne">
+<form method="POST" action="{{ $action }}" id="form-fne" class="invoice-form">
     @csrf
     @if($method === 'PUT') @method('PUT') @endif
 
@@ -134,7 +134,7 @@
         </div>
         <div class="card-body" style="padding:0">
             <div style="overflow-x:auto">
-                <table id="lines-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:880px">
+                <table id="lines-table" class="lines-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:920px">
                     <thead>
                         <tr style="background:var(--surface2);color:var(--text3);text-align:left">
                             <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;font-weight:700">Désignation</th>
@@ -150,19 +150,15 @@
                     <tbody id="lines-tbody">
                         @foreach($lines as $i => $l)
                             <tr class="line-row" data-index="{{ $i }}">
-                                <td style="padding:6px 8px;border-top:1px solid var(--border);min-width:220px">
-                                    {{-- Select2 AJAX panneau : recherche par référence/nom/commune.
-                                         À la sélection, auto-remplit commune + m² + PU HT/mois.
-                                         Tags activé → l'admin peut aussi taper du texte libre
-                                         (ex: une ligne forfaitaire qui n'est pas un panneau). --}}
+                                <td style="padding:8px 10px;border-top:1px solid var(--border);min-width:280px">
+                                    {{-- Select2 AJAX panneau (filtré par la campagne sélectionnée
+                                         en haut). À la sélection, auto-remplit commune + m² + PU. --}}
                                     <select name="lines[{{ $i }}][designation_picker]" class="line-designation" style="width:100%"></select>
-                                    {{-- Champ texte caché qui contient la désignation finale
-                                         envoyée au backend (texte du panneau OU texte libre). --}}
                                     <input type="hidden" name="lines[{{ $i }}][designation]" class="line-designation-value" value="{{ $l['designation'] ?? '' }}">
                                 </td>
-                                <td style="padding:6px 8px;border-top:1px solid var(--border);min-width:140px">
+                                <td style="padding:8px 10px;border-top:1px solid var(--border);min-width:160px">
                                     <select name="lines[{{ $i }}][commune_id]" class="line-commune" required style="width:100%">
-                                        <option value="">—</option>
+                                        <option value=""></option>
                                         @foreach($communes as $c)
                                             <option value="{{ $c->id }}"
                                                     data-odp="{{ $c->ratesAt(($isEdit ? $invoice->issued_at?->format('Y-m-d') : date('Y-m-d')))['odp'] }}"
@@ -173,29 +169,29 @@
                                         @endforeach
                                     </select>
                                 </td>
-                                <td style="padding:6px 8px;border-top:1px solid var(--border);text-align:center">
+                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:center;width:90px">
                                     <input type="number" name="lines[{{ $i }}][dimension_m2]" class="line-m2" required
                                            value="{{ $l['dimension_m2'] ?? 0 }}" min="0" step="0.01"
-                                           style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;text-align:right">
+                                           style="width:100%;text-align:right;font-family:ui-monospace,monospace">
                                 </td>
-                                <td style="padding:6px 8px;border-top:1px solid var(--border);text-align:right">
+                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:right;width:130px">
                                     <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required
                                            value="{{ $l['pu_ht_mensuel'] ?? 0 }}" min="0" step="1000"
-                                           style="width:110px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;text-align:right;font-family:ui-monospace,monospace">
+                                           style="width:100%;text-align:right;font-family:ui-monospace,monospace">
                                 </td>
-                                <td style="padding:6px 8px;border-top:1px solid var(--border);text-align:center">
+                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:center;width:75px">
                                     <input type="number" name="lines[{{ $i }}][quantite]" class="line-qte" required
                                            value="{{ $l['quantite'] ?? 1 }}" min="1" step="1"
-                                           style="width:55px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;text-align:right">
+                                           style="width:100%;text-align:right">
                                 </td>
-                                <td style="padding:6px 8px;border-top:1px solid var(--border);text-align:center">
+                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:center;width:85px">
                                     <input type="number" name="lines[{{ $i }}][duree_mois]" class="line-mois" required
                                            value="{{ $l['duree_mois'] ?? 1 }}" min="0.5" step="0.5"
-                                           style="width:65px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;text-align:right">
+                                           style="width:100%;text-align:right">
                                 </td>
-                                <td style="padding:6px 8px;border-top:1px solid var(--border);text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:var(--accent)" class="line-total">0</td>
-                                <td style="padding:6px 8px;border-top:1px solid var(--border);text-align:center">
-                                    <button type="button" class="btn btn-ghost btn-sm line-remove" style="color:var(--red);padding:4px 8px">🗑</button>
+                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:right;font-family:ui-monospace,monospace;font-weight:800;color:var(--accent);width:120px;white-space:nowrap" class="line-total">0 FCFA</td>
+                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:center;width:40px">
+                                    <button type="button" class="btn btn-ghost btn-sm line-remove" style="color:var(--red);padding:4px 8px;font-size:14px" title="Supprimer la ligne">🗑</button>
                                 </td>
                             </tr>
                         @endforeach
@@ -266,50 +262,121 @@
 </form>
 
 @push('styles')
-{{-- Select2 — chargé une seule fois côté form facture pour la
-     recherche AJAX panneau + commune. CSS standard CIBLE déjà
-     compatible (cf. controls-bar du module Pose). --}}
+{{-- Select2 v4 + style CIBLE unifié pour TOUS les Select2 du formulaire
+     facture (client, campagne, désignation, commune). Hauteur 40px
+     calée sur les autres <input> natifs, padding cohérent, focus
+     accent doré. Une seule règle CSS partagée pour cohérence visuelle. --}}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
 <style>
-    /* Aligne Select2 sur le look CIBLE (bordures, hauteur, focus accent) */
-    .select2-container--default .select2-selection--single {
+    /* ── Container Select2 : hauteur + look natif uniforme ────────── */
+    .invoice-form .select2-container--default .select2-selection--single {
+        height: 40px !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+        background: var(--surface) !important;
+        font-family: inherit !important;
+        transition: border-color .15s, box-shadow .15s;
+    }
+    .invoice-form .select2-container--default.select2-container--focus .select2-selection--single,
+    .invoice-form .select2-container--default.select2-container--open  .select2-selection--single {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 3px rgba(232,160,32,.12) !important;
+    }
+    .invoice-form .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 38px !important;
+        font-size: 13px !important;
+        color: var(--text) !important;
+        padding-left: 12px !important;
+        padding-right: 28px !important;
+    }
+    .invoice-form .select2-container--default .select2-selection__placeholder {
+        color: var(--text3) !important;
+    }
+    .invoice-form .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 38px !important;
+        right: 6px !important;
+    }
+    .invoice-form .select2-container--default .select2-selection--single .select2-selection__clear {
+        margin-right: 22px !important;
+        color: var(--text3) !important;
+    }
+
+    /* ── Dropdown : ombre douce + radius cohérent ─────────────────── */
+    .select2-dropdown {
+        border: 1px solid var(--border) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 24px 60px -16px rgba(0,0,0,.20) !important;
+        overflow: hidden;
+    }
+    .select2-search--dropdown { padding: 8px !important; }
+    .select2-search--dropdown .select2-search__field {
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+        padding: 8px 10px !important;
+        font-size: 13px !important;
+        outline: none !important;
+    }
+    .select2-search--dropdown .select2-search__field:focus {
+        border-color: var(--accent) !important;
+    }
+    .select2-results__option {
+        padding: 8px 12px !important;
+        font-size: 12.5px !important;
+    }
+    .select2-results__option--highlighted[aria-selected] {
+        background: rgba(232,160,32,.14) !important;
+        color: var(--text) !important;
+    }
+
+    /* ── Row Select2 dans la table des lignes (plus compact 34px) ── */
+    .lines-table .select2-container--default .select2-selection--single {
         height: 34px !important;
+        border-radius: 6px !important;
+    }
+    .lines-table .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 32px !important;
+        font-size: 12px !important;
+        padding-left: 10px !important;
+    }
+    .lines-table .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 32px !important;
+    }
+    .lines-table input[type="number"],
+    .lines-table input[type="text"] {
+        height: 34px !important;
+        padding: 0 10px !important;
         border: 1px solid var(--border) !important;
         border-radius: 6px !important;
         background: var(--surface) !important;
-        font-family: inherit !important;
-    }
-    .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 34px !important;
         font-size: 12px !important;
-        color: var(--text) !important;
-        padding-left: 10px !important;
     }
-    .select2-container--default .select2-selection--single .select2-selection__arrow { height: 32px !important; }
-    .select2-dropdown {
-        border: 1px solid var(--border) !important;
-        border-radius: 8px !important;
-        box-shadow: 0 20px 50px -16px rgba(0,0,0,.18) !important;
-    }
-    .select2-search--dropdown .select2-search__field {
-        border: 1px solid var(--border) !important;
-        border-radius: 6px !important;
-        padding: 8px 10px !important;
-        font-size: 12.5px !important;
+    .lines-table input[type="number"]:focus,
+    .lines-table input[type="text"]:focus {
+        border-color: var(--accent) !important;
         outline: none !important;
+        box-shadow: 0 0 0 2px rgba(232,160,32,.15) !important;
     }
-    .select2-results__option--highlighted {
-        background: rgba(232,160,32,.12) !important;
-        color: var(--text) !important;
+    .lines-table th {
+        padding: 10px 10px !important;
     }
-    .s2-pan-row { display: flex; gap: 10px; align-items: flex-start; padding: 4px 0; }
+    .lines-table td {
+        vertical-align: middle !important;
+    }
+
+    /* ── Template option PANNEAU (rich) ───────────────────────────── */
+    .s2-pan-row { display: flex; gap: 10px; align-items: flex-start; padding: 2px 0; }
     .s2-pan-info { flex: 1; min-width: 0; }
-    .s2-pan-ref { font-family: ui-monospace, monospace; font-weight: 800; color: var(--accent-dark); font-size: 12.5px; }
-    .s2-pan-name { font-size: 11.5px; color: var(--text); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .s2-pan-meta { font-size: 10px; color: var(--text3); margin-top: 2px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .s2-pan-ref { font-family: ui-monospace, monospace; font-weight: 800; color: var(--accent-dark); font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+    .s2-pan-name { font-size: 12px; color: var(--text); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .s2-pan-meta { font-size: 10.5px; color: var(--text3); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
     .s2-pan-pill { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 9.5px; font-weight: 700; }
     .s2-pan-pill.ext { background: rgba(59,130,246,.12); color: #1d4ed8; }
     .s2-pan-pill.int { background: rgba(232,160,32,.12); color: var(--accent-dark); }
+
+    /* ── Template option CAMPAGNE ─────────────────────────────────── */
+    .s2-camp-row { padding: 2px 0; }
+    .s2-camp-name { font-weight: 700; color: var(--text); font-size: 12.5px; }
+    .s2-camp-meta { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
 </style>
 @endpush
 
@@ -325,10 +392,118 @@
 
     const tbody = document.getElementById('lines-tbody');
     const addBtn = document.getElementById('add-line');
+    const clientSel = document.getElementById('inv-client');
     const campaignSel = document.getElementById('inv-campaign');
+    const $client = $(clientSel);
+    const $campaign = $(campaignSel);
     let nextIdx = {{ count($lines) }};
 
     function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA'; }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CLIENT + CAMPAGNE en Select2 avec cascading filter
+    // ═══════════════════════════════════════════════════════════════
+    $client.select2({
+        placeholder: '— Choisir un client —',
+        allowClear: true,
+        minimumResultsForSearch: 0,
+    });
+
+    function campaignTemplate(item) {
+        if (!item.id) return $('<span style="color:var(--text3)">' + (item.text || '') + '</span>');
+        const $opt = $(item.element);
+        const cid = $opt.data('client-id');
+        return $(
+            '<div class="s2-camp-row">' +
+                '<div class="s2-camp-name">' + (item.text || '').split(' — ')[0] + '</div>' +
+                (item.text && item.text.includes(' — ')
+                    ? '<div class="s2-camp-meta">👤 ' + item.text.split(' — ').slice(1).join(' — ') + '</div>'
+                    : '') +
+            '</div>'
+        );
+    }
+
+    $campaign.select2({
+        placeholder: clientSel?.value
+            ? '— Choisir une campagne (optionnel) —'
+            : '— Choisis d\'abord un client —',
+        allowClear: true,
+        minimumResultsForSearch: 0,
+        templateResult: campaignTemplate,
+        templateSelection: (item) => item.text || '— Aucune —',
+    });
+
+    // ── Filtre les options campagne selon le client choisi ──
+    // Les <option> portent data-client-id ; on masque celles qui ne
+    // correspondent pas. Quand le client change, on reset la campagne
+    // sélectionnée si elle n'est plus visible.
+    function refreshCampaignOptions() {
+        const cid = clientSel.value;
+        let visible = 0;
+        Array.from(campaignSel.options).forEach(opt => {
+            if (!opt.value) { opt.hidden = false; return; }
+            const ok = !cid || opt.dataset.clientId === cid;
+            opt.hidden = !ok;
+            opt.disabled = !ok; // pour le HTML form aussi
+            if (ok) visible++;
+        });
+        // Reset si la sélection courante ne matche plus le nouveau client
+        const cur = campaignSel.selectedOptions[0];
+        if (cur && cur.hidden) {
+            $campaign.val(null).trigger('change');
+        }
+        // Réinit le placeholder selon l'état
+        $campaign.select2('destroy');
+        $campaign.select2({
+            placeholder: cid
+                ? (visible > 0 ? '— Choisir une campagne (optionnel) —' : '— Aucune campagne pour ce client —')
+                : '— Choisis d\'abord un client —',
+            allowClear: true,
+            minimumResultsForSearch: 0,
+            templateResult: campaignTemplate,
+            templateSelection: (item) => item.text || '— Aucune —',
+        });
+    }
+
+    $client.on('select2:select select2:clear', () => {
+        refreshCampaignOptions();
+    });
+
+    $campaign.on('select2:select select2:clear', () => {
+        // Quand la campagne change, on doit aussi forcer le client
+        // (cohérence : si l'admin a choisi une campagne sans client,
+        // on remonte le client de la campagne automatiquement).
+        const opt = campaignSel.selectedOptions[0];
+        if (opt && opt.value) {
+            const camCid = opt.dataset.clientId;
+            if (camCid && clientSel.value !== camCid) {
+                $client.val(camCid).trigger('change');
+                refreshCampaignOptions();
+                // re-set la campagne après refresh
+                $campaign.val(opt.value).trigger('change');
+            }
+        }
+        // Toutes les lignes de désignation doivent être reset car les
+        // panneaux disponibles changent avec la campagne.
+        resetAllDesignations();
+    });
+
+    // Init initial : filtre selon le client pré-sélectionné
+    refreshCampaignOptions();
+    if (campaignSel.value) $campaign.trigger('change');
+
+    function resetAllDesignations() {
+        tbody.querySelectorAll('.line-row').forEach(row => {
+            const $sel = $(row.querySelector('.line-designation'));
+            $sel.val(null).trigger('change');
+            $sel.find('option').remove();
+            row.querySelector('.line-designation-value').value = '';
+            $sel.data('select2-init', false);
+            if ($sel.data('select2')) $sel.select2('destroy');
+            initLineSelect2(row);
+        });
+        recompute();
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // INIT SELECT2 — désignation (AJAX panneau) + commune (statique)
@@ -378,15 +553,17 @@
             }
             $design.select2({
                 placeholder: campaignSel?.value
-                    ? 'Chercher un panneau de la campagne ou taper du texte libre'
-                    : '⚠ Choisis une campagne pour rechercher des panneaux, ou tape du texte libre',
+                    ? 'Choisir un panneau de la campagne…'
+                    : 'Choisir une campagne d\'abord…',
                 allowClear: true,
                 tags: true,
                 minimumInputLength: 0,
                 language: {
                     noResults: () => campaignSel?.value
-                        ? 'Aucun panneau dans cette campagne ne correspond.'
-                        : 'Sélectionne d\'abord une campagne pour rechercher ses panneaux.',
+                        ? 'Aucun panneau correspondant — tape pour saisie libre.'
+                        : 'Choisis d\'abord une campagne en haut.',
+                    inputTooShort: () => 'Tape pour rechercher…',
+                    searching: () => 'Recherche…',
                 },
                 ajax: {
                     url: LOOKUP_PANELS_URL,
@@ -551,27 +728,6 @@
 
     ['remise_pct','services_impression','services_pose_depose'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', recompute);
-    });
-
-    // Quand la campagne change, on reset les Select2 désignation (car les
-    // panneaux de la précédente campagne ne sont plus valides) — sinon
-    // l'admin risque de garder une ligne pointant sur un panneau hors
-    // campagne. Le placeholder Select2 se met à jour selon la sélection.
-    campaignSel?.addEventListener('change', () => {
-        tbody.querySelectorAll('.line-designation').forEach(sel => {
-            const $sel = $(sel);
-            // Vide la sélection courante + l'option pré-chargée
-            $sel.val(null).trigger('change');
-            $sel.find('option').remove();
-            // Reset la désignation hidden
-            const row = sel.closest('.line-row');
-            if (row) row.querySelector('.line-designation-value').value = '';
-            // Re-init avec le bon placeholder
-            $sel.data('select2-init', false);
-            if ($sel.data('select2')) $sel.select2('destroy');
-            initLineSelect2(row);
-        });
-        recompute();
     });
 
     recompute();
