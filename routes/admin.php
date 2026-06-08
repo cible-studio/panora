@@ -562,6 +562,11 @@ Route::prefix('admin')
             Route::get('invoices/lookup/campaign/{campaign}', [InvoiceController::class, 'lookupCampaignInfo'])
                 ->whereNumber('campaign')->name('invoices.lookup.campaign-info');
 
+            // Recherche AJAX panneaux (Select2) — pré-remplit la ligne
+            // avec commune + m² + PU dès qu'un panneau est sélectionné.
+            Route::get('invoices/lookup/panels', [InvoiceController::class, 'lookupPanels'])
+                ->name('invoices.lookup.panels');
+
             Route::get('invoices/create', [InvoiceController::class, 'create'])->name('invoices.create');
             Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
 
