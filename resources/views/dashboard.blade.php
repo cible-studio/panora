@@ -105,7 +105,8 @@
                             <td><strong>{{ $campagne->client->name }}</strong></td>
                             <td>{{ $campagne->total_panels ?? $campagne->panels->count() }}</td>
                             <td>{{ $campagne->end_date->format('d/m/y') }}</td>
-                            <td>{{ $campagne->start_date->diffInDays($campagne->end_date) }}j</td>
+                            @php $duree = (int) $campagne->start_date->diffInDays($campagne->end_date); @endphp
+                            <td>{{ $duree }} {{ $duree > 1 ? 'jours' : 'jour' }}</td>
                             <td style="width:100px;">
                                 <div style="background:var(--surface3); border-radius:4px; height:6px;">
                                     <div style="background:var(--accent); height:6px; border-radius:4px; width:70%;"></div>

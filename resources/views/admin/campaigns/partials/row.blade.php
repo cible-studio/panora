@@ -91,7 +91,7 @@
         <div class="progress-bar">
             <div class="progress-fill" style="background:{{ $barColor }}; width:{{ $pct }}%;"></div>
         </div>
-        <div class="days-left">{{ number_format($pct, 1, ',', '') }}% écoulé · {{ $daysLeft }}j restants</div>
+        <div class="days-left">{{ number_format($pct, 1, ',', '') }}% écoulé · {{ $daysLeft }} {{ $daysLeft > 1 ? 'jours' : 'jour' }} restant{{ $daysLeft > 1 ? 's' : '' }}</div>
         @endif
     </td>
     @php

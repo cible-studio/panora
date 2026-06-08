@@ -1162,7 +1162,8 @@
                                             Retour ~{{ $activeMaint->date_fin_prevue->format('d/m') }}
                                             @if($remaining !== null)
                                                 @if($remaining < 0)
-                                                    · <span style="color:#ef4444">en retard {{ abs($remaining) }}j</span>
+                                                    @php $lateDays = (int) abs($remaining); @endphp
+                                                    · <span style="color:#ef4444">en retard {{ $lateDays }} {{ $lateDays > 1 ? 'jours' : 'jour' }}</span>
                                                 @elseif($remaining === 0)
                                                     · <span style="color:#16a34a">aujourd'hui</span>
                                                 @else
