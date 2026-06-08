@@ -68,12 +68,13 @@
         }
 
         .auth-image-tagline {
-            color: rgba(255, 255, 255, 0.9);
+            color: rgba(255, 255, 255, 0.95);
             font-family: 'DM Sans', sans-serif;
-            font-size: 28px;
-            font-weight: 700;
-            line-height: 1.25;
-            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+            font-size: 48px;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
             margin-bottom: 10px;
         }
 
@@ -118,7 +119,7 @@
                 flex: none;
             }
 
-            .auth-image-tagline { font-size: 20px; }
+            .auth-image-tagline { font-size: 34px; }
             .auth-image-overlay { padding: 28px; }
 
             .auth-form-panel {
@@ -143,7 +144,7 @@
 
             <div class="auth-image-overlay">
                 <div class="auth-image-tagline">
-                    Votre régie OOH<br>en un seul espace.
+                    PANORA <span style="font-weight:400;opacity:.85">by cible</span>
                 </div>
                 <div class="auth-image-sub">CIBLE CI · Côte d'Ivoire</div>
             </div>
