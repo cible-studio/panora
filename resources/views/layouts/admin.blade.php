@@ -324,6 +324,14 @@
             </div>
 
             <div class="page-content">{{ $slot }}</div>
+
+            {{-- Footer global admin — conformité affichée discrète mais
+                 systématique sur toutes les pages connectées. --}}
+            <footer style="padding:18px 24px 22px;text-align:center;color:#9ca3af;font-size:11px;letter-spacing:.3px;border-top:1px solid var(--border);margin-top:24px">
+                🔒 Données hébergées et sécurisées — Conformité RGPD
+                <span style="opacity:.5;margin:0 6px">·</span>
+                Panora © {{ date('Y') }} CIBLE CI
+            </footer>
         </div>
     </div>
 
