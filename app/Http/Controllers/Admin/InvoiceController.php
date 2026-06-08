@@ -238,6 +238,11 @@ class InvoiceController extends Controller
             'campaign:id,name,client_id,status,start_date,end_date,total_amount,total_panels,total_amount_overridden_at',
             'campaign.reservation:id,reference',
             'creator',
+            'lines.commune:id,name',
+            'payments.creator:id,name',
+            'lockedBy:id,name',
+            'creditNoteFor:id,reference',
+            'creditNotes',
         ]);
 
         $user = auth()->user();
@@ -374,6 +379,53 @@ class InvoiceController extends Controller
             ->with('success', 'Facture supprimée !');
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // GÉNÉRATION DEPUIS UNE CAMPAGNE
+    //
+    // Construit une facture FNE pré-remplie à partir des panneaux de
+    // la campagne (internes + externes), résout les tarifs ODP/TM
+    // historisés via Commune::ratesAt, génère les lignes et calcule
+    // les agrégats. Statut initial 'brouillon' — l'admin ajuste avant
+    // d'envoyer.
+    // ══════════════════════════════════════════════════════════════
+    public function fromCampaign(Request $request, Campaign $campaign, \App\Services\InvoiceFromCampaignBuilder $builder)
+    {
+        $this->authorize('create', Invoice::class);
+
+        if ($campaign->status?->value === 'annule') {
+            return back()->with('error', 'Campagne annulée — facturation bloquée.');
+        }
+
+        $opts = $request->validate([
+            'remise_pct'           => 'nullable|numeric|min:0|max:100',
+            'services_impression'  => 'nullable|numeric|min:0',
+            'services_pose_depose' => 'nullable|numeric|min:0',
+            'notes_client'         => 'nullable|string|max:2000',
+            'issued_at'            => 'nullable|date',
+        ]);
+
+        try {
+            $invoice = $builder->build($campaign, $opts);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('invoice.from_campaign.failed', [
+                'campaign_id' => $campaign->id,
+                'error'       => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Impossible de générer la facture : ' . $e->getMessage());
+        }
+
+        \Illuminate\Support\Facades\Log::info('invoice.from_campaign.success', [
+            'campaign_id' => $campaign->id,
+            'invoice_id'  => $invoice->id,
+            'reference'   => $invoice->reference,
+            'lines'       => $invoice->lines->count(),
+            'total'       => $invoice->total_a_payer,
+        ]);
+
+        return redirect()->route('admin.invoices.show', $invoice)
+            ->with('success', "Facture {$invoice->reference} générée depuis la campagne — {$invoice->lines->count()} ligne(s), total " . number_format($invoice->total_a_payer, 0, ',', ' ') . ' FCFA. Vérifie et envoie.');
+    }
+
     public function markSent(Request $request, Invoice $invoice)
     {
         $this->authorize('markSent', $invoice);
@@ -397,10 +449,135 @@ class InvoiceController extends Controller
             'issued_at' => $invoice->issued_at ?? now(),
         ]);
 
+        // ⚠ Verrouillage automatique à l'envoi : une facture envoyée est
+        // un document fiscal — elle ne doit plus être modifiable (lignes,
+        // remise, services) sauf déverrouillage explicite admin (action
+        // tracée). L'unlock() reste réservé à l'admin via la policy.
+        $invoice->lock(auth()->id());
+
         // ── Notification email client (lien public 30 jours sécurisé) ──
         $this->notifyClientInvoiceIssued($invoice);
 
-        return $this->statusResponse($request, $invoice, true, 'Facture envoyée au client par email.');
+        return $this->statusResponse($request, $invoice, true, 'Facture envoyée au client par email. 🔒 Verrouillée.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // VERROUILLAGE / DÉVERROUILLAGE (admin only via policy)
+    // ══════════════════════════════════════════════════════════════
+    public function lock(Request $request, Invoice $invoice)
+    {
+        $this->authorize('update', $invoice);
+        $invoice->lock(auth()->id());
+        return back()->with('success', '🔒 Facture verrouillée.');
+    }
+
+    public function unlock(Request $request, Invoice $invoice)
+    {
+        $this->authorize('update', $invoice);
+        $invoice->unlock();
+        \Illuminate\Support\Facades\Log::warning('invoice.unlocked', [
+            'invoice_id' => $invoice->id,
+            'by'         => auth()->id(),
+            'previous_lock' => $invoice->locked_at?->toIso8601String(),
+        ]);
+        return back()->with('warning', '🔓 Facture déverrouillée — modifications possibles, mais l\'action est tracée.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // VERSEMENTS — endpoints CRUD minimal
+    //
+    // Acompte / mensualités / solde — plusieurs paiements par facture
+    // sont autorisés. Le statut de paiement de la facture est dérivé
+    // (cf. Invoice::paymentStatus) — pas besoin de le maintenir
+    // manuellement. Si la somme >= total_a_payer, la facture passe
+    // automatiquement à 'payee' + paid_at = dernier versement.
+    // ══════════════════════════════════════════════════════════════
+    public function addPayment(Request $request, Invoice $invoice)
+    {
+        $this->authorize('markPaid', $invoice);
+
+        if ($invoice->status === 'annulee') {
+            return back()->with('error', 'Impossible d\'ajouter un versement à une facture annulée.');
+        }
+
+        $data = $request->validate([
+            'paid_at'   => 'required|date|before_or_equal:today',
+            'montant'   => 'required|numeric|min:1',
+            'mode'      => 'required|in:especes,cheque,virement,mobile_money,compensation,autre',
+            'reference' => 'nullable|string|max:100',
+            'note'      => 'nullable|string|max:1000',
+        ]);
+
+        // Garde anti-sur-paiement : on accepte légèrement au-dessus (arrondi)
+        // mais on bloque > 1.5 × total_a_payer (saisie manifestement erronée).
+        $remaining = $invoice->remainingAmount();
+        $totalDue  = (float) ($invoice->total_a_payer ?: $invoice->amount_ttc ?: 0);
+        if ($data['montant'] > $totalDue * 1.5 && $totalDue > 0) {
+            return back()->withInput()->with('error',
+                "Montant suspect : {$data['montant']} > 150% du total dû ({$totalDue}). "
+                . 'Vérifie et réessaye, ou émets un avoir si c\'est un trop-perçu.'
+            );
+        }
+
+        $payment = $invoice->payments()->create([
+            'paid_at'   => $data['paid_at'],
+            'montant'   => $data['montant'],
+            'mode'      => $data['mode'],
+            'reference' => $data['reference'] ?? null,
+            'note'      => $data['note'] ?? null,
+            'created_by'=> auth()->id(),
+        ]);
+
+        // Recalcul du statut dérivé : si la somme couvre le total,
+        // on bascule la facture en 'payee' avec paid_at = dernier paiement.
+        $invoice->refresh()->loadMissing('payments');
+        if ($invoice->paymentStatus() === 'soldee' && $invoice->status !== 'payee') {
+            $invoice->update([
+                'status'  => 'payee',
+                'paid_at' => $invoice->payments->max('paid_at'),
+            ]);
+        }
+
+        \Illuminate\Support\Facades\Log::info('invoice.payment.added', [
+            'invoice_id' => $invoice->id,
+            'payment_id' => $payment->id,
+            'montant'    => $payment->montant,
+            'by'         => auth()->id(),
+        ]);
+
+        return back()->with('success',
+            '✅ Versement de ' . number_format($data['montant'], 0, ',', ' ') . ' FCFA enregistré.'
+        );
+    }
+
+    public function removePayment(Request $request, Invoice $invoice, \App\Models\InvoicePayment $payment)
+    {
+        $this->authorize('markPaid', $invoice);
+
+        // Sécurité : le paiement doit appartenir à cette facture
+        if ($payment->invoice_id !== $invoice->id) {
+            abort(404);
+        }
+
+        $payment->delete();
+
+        // Si la facture était 'payee' grâce à ce versement, on rebascule
+        // selon le nouveau statut dérivé (partielle ou non_payee).
+        $invoice->refresh()->loadMissing('payments');
+        if ($invoice->status === 'payee' && $invoice->paymentStatus() !== 'soldee') {
+            $invoice->update([
+                'status'  => 'envoyee', // retour à l'état avant solde
+                'paid_at' => null,
+            ]);
+        }
+
+        \Illuminate\Support\Facades\Log::warning('invoice.payment.deleted', [
+            'invoice_id' => $invoice->id,
+            'payment_id' => $payment->id,
+            'by'         => auth()->id(),
+        ]);
+
+        return back()->with('warning', 'Versement supprimé.');
     }
 
     /**
