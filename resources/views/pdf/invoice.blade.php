@@ -384,6 +384,9 @@
         @endif
 
         <div class="footer-legal">{{ config('billing.legal_mentions') }}</div>
+        <div class="footer-legal" style="margin-top:6px;text-align:center;color:#9ca3af;letter-spacing:.3px">
+            🔒 Données hébergées et sécurisées — Conformité RGPD
+        </div>
     </div>
 
 </div>
