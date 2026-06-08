@@ -408,19 +408,24 @@
                              en HT pour être comparables au "Montant total HT" de
                              gauche. Le TTC est rappelé en sous-info pour la
                              cohérence avec la liste des factures. --}}
+                        {{-- data-billing-{expected,billed,remain} : ces nœuds
+                             sont rafraîchis en live par le JS après modif d'un
+                             prix panneau (sans reload). data-billing-billed
+                             reste constant (les factures émises ne bougent
+                             pas), il sert juste à recalculer le Reste. --}}
                         <div class="mb-3 p-3 rounded-xl" style="background:var(--surface2);border:1px solid var(--border)">
                             <div class="grid grid-cols-3 gap-2 text-center">
                                 <div>
                                     <div class="text-[10px] uppercase font-semibold" style="color:var(--text3)">Total campagne</div>
-                                    <div class="text-sm font-bold" style="color:var(--text)">{{ number_format($expectedHt, 0, ',', ' ') }} <span class="text-[10px]" style="color:var(--text3)">HT</span></div>
+                                    <div class="text-sm font-bold" style="color:var(--text)"><span data-billing-expected>{{ number_format($expectedHt, 0, ',', ' ') }}</span> <span class="text-[10px]" style="color:var(--text3)">HT</span></div>
                                 </div>
                                 <div>
                                     <div class="text-[10px] uppercase font-semibold" style="color:var(--text3)">Déjà facturé</div>
-                                    <div class="text-sm font-bold" style="color:#3aa835">{{ number_format($billedHt, 0, ',', ' ') }} <span class="text-[10px]" style="color:var(--text3)">HT</span></div>
+                                    <div class="text-sm font-bold" style="color:#3aa835"><span data-billing-billed="{{ (float) $billedHt }}">{{ number_format($billedHt, 0, ',', ' ') }}</span> <span class="text-[10px]" style="color:var(--text3)">HT</span></div>
                                 </div>
                                 <div>
                                     <div class="text-[10px] uppercase font-semibold" style="color:var(--text3)">Reste</div>
-                                    <div class="text-sm font-bold" style="color:{{ $remainHt > 0 ? '#f97316' : 'var(--text3)' }}">{{ number_format($remainHt, 0, ',', ' ') }} <span class="text-[10px]" style="color:var(--text3)">HT</span></div>
+                                    <div class="text-sm font-bold" data-billing-remain-color style="color:{{ $remainHt > 0 ? '#f97316' : 'var(--text3)' }}"><span data-billing-remain>{{ number_format($remainHt, 0, ',', ' ') }}</span> <span class="text-[10px]" style="color:var(--text3)">HT</span></div>
                                 </div>
                             </div>
                         </div>
@@ -465,10 +470,11 @@
                         @if($isAdmin && $remainHt > 0)
                             {{-- Reste à facturer connu → bouton complémentaire. --}}
                             <div class="mt-3 flex items-center justify-between gap-3 p-3 rounded-xl border border-dashed"
+                                 data-billing-remain-row
                                  style="border-color:var(--border);background:rgba(58,168,53,.04)">
                                 <div class="text-xs" style="color:var(--text2)">
                                     Reste à facturer :
-                                    <strong style="color:var(--accent)">{{ number_format($remainHt, 0, ',', ' ') }} FCFA HT</strong>
+                                    <strong style="color:var(--accent)"><span data-billing-remain>{{ number_format($remainHt, 0, ',', ' ') }}</span> FCFA HT</strong>
                                 </div>
                                 <a href="{{ route('admin.invoices.create', ['campaign_id' => $campaign->id]) }}"
                                    class="btn btn-primary btn-sm"
@@ -481,13 +487,13 @@
                         <div class="text-center py-6 rounded-xl border border-dashed" style="border-color:var(--border)">
                             <div class="text-3xl mb-2">💰</div>
                             <div class="text-sm font-semibold" style="color:var(--accent)">À facturer</div>
-                            @if($expectedHt > 0)
-                                <div class="text-xs mt-1" style="color:var(--text3)">
-                                    Montant attendu : <strong style="color:var(--text2)">{{ number_format($expectedHt, 0, ',', ' ') }} FCFA HT</strong>
-                                </div>
-                            @else
-                                <div class="text-xs mt-1" style="color:var(--text3)">Aucune facture émise pour le moment</div>
-                            @endif
+                            <div class="text-xs mt-1" style="color:var(--text3)" data-billing-expected-row>
+                                @if($expectedHt > 0)
+                                    Montant attendu : <strong style="color:var(--text2)"><span data-billing-expected>{{ number_format($expectedHt, 0, ',', ' ') }}</span> FCFA HT</strong>
+                                @else
+                                    Aucune facture émise pour le moment
+                                @endif
+                            </div>
                             @if($isAdmin)
                                 <div style="display:flex;flex-direction:column;gap:6px;align-items:center;margin-top:12px">
                                     {{-- Génération automatique FNE : crée invoice + lignes
@@ -1976,6 +1982,38 @@
                         // précédent (s'il existait) est devenu invalide.
                         const badge = totalCellRoot.querySelector('[data-override-badge]');
                         if (badge) badge.style.display = 'none';
+                    }
+
+                    // ── Bloc FACTURATION (live, sans reload) ───────────
+                    // Met à jour "Total campagne" / "Montant attendu" /
+                    // "Reste à facturer" — sinon ces chiffres restaient à
+                    // l'ancien montant tant qu'on ne rechargeait pas la page.
+                    if (typeof data.campaign_total === 'number') {
+                        const newExpected = data.campaign_total;
+                        document.querySelectorAll('[data-billing-expected]').forEach(el => {
+                            el.textContent = Math.round(newExpected).toLocaleString('fr-FR');
+                        });
+
+                        // Reste = Expected - Déjà facturé (Déjà facturé inchangé
+                        // par une modif de prix : on lit la valeur figée du DOM).
+                        const billedEl = document.querySelector('[data-billing-billed]');
+                        if (billedEl) {
+                            const billed = parseFloat(billedEl.dataset.billingBilled || 0);
+                            const newRemain = Math.max(0, newExpected - billed);
+                            document.querySelectorAll('[data-billing-remain]').forEach(el => {
+                                el.textContent = Math.round(newRemain).toLocaleString('fr-FR');
+                            });
+                            // Reste passe à 0 → on grise la couleur + masque le
+                            // bandeau "Facture complémentaire".
+                            const remainColor = document.querySelector('[data-billing-remain-color]');
+                            if (remainColor) {
+                                remainColor.style.color = newRemain > 0 ? '#f97316' : 'var(--text3)';
+                            }
+                            const remainRow = document.querySelector('[data-billing-remain-row]');
+                            if (remainRow) {
+                                remainRow.style.display = newRemain > 0 ? '' : 'none';
+                            }
+                        }
                     }
 
                     if (window.Toast) window.Toast.success('💰 Prix mis à jour. Montant total recalculé.');
