@@ -154,10 +154,39 @@ font-size: 12px;
 cursor: pointer;
 }
 .reset-btn:hover { background: var(--surface3); border-color: var(--danger); color: var(--danger); }
-.filter-select, .filter-input { height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--text);outline:none; }
-.filter-select:focus, .filter-input:focus { border-color:var(--accent); }
-.filter-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:block;margin-bottom:4px; }
-.filter-group { display:flex;flex-direction:column; }
+/* ── Filtres : selects natifs harmonisés avec le design system. ─────
+   Avant : aspect navigateur brut (flèche système, hauteur incohérente,
+   pas de hover/focus visible) — visuellement cassé à côté des cartes
+   KPI. On désactive l'apparence native + chevron SVG custom + transition
+   sur hover/focus. */
+.filter-select, .filter-input {
+    height: 40px;
+    padding: 0 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border2, var(--border));
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+    cursor: pointer;
+}
+.filter-select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    /* Chevron SVG inline (down-arrow) — couleur var(--text3) en hex */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+}
+.filter-select:hover, .filter-input:hover { background: var(--surface3, var(--surface2)); border-color: var(--text3); }
+.filter-select:focus, .filter-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232,160,32,.15); background: var(--surface2); }
+.filter-select option { background: var(--surface); color: var(--text); padding: 8px; }
+.filter-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--text3); display: block; margin-bottom: 6px; }
+.filter-group { display: flex; flex-direction: column; }
 .result-badge { height:38px;display:flex;align-items:center;font-size:12px;color:var(--text3);white-space:nowrap; }
 .spinner { display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:8px; }
 @keyframes spin { to { transform: rotate(360deg); } }
