@@ -70,12 +70,12 @@
         .auth-image-tagline {
             color: rgba(255, 255, 255, 0.95);
             font-family: 'DM Sans', sans-serif;
-            font-size: 48px;
+            font-size: 72px;
             font-weight: 800;
-            line-height: 1.1;
-            letter-spacing: 1px;
-            text-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
-            margin-bottom: 10px;
+            line-height: 1.05;
+            letter-spacing: 2px;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.55);
+            margin-bottom: 14px;
         }
 
         .auth-image-sub {
@@ -119,7 +119,7 @@
                 flex: none;
             }
 
-            .auth-image-tagline { font-size: 34px; }
+            .auth-image-tagline { font-size: 48px; }
             .auth-image-overlay { padding: 28px; }
 
             .auth-form-panel {
