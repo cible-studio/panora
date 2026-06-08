@@ -191,42 +191,97 @@ class InvoiceController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, \App\Services\InvoiceCalculator $calculator)
     {
-        $request->validate([
-            'client_id'   => 'required|exists:clients,id',
-            'campaign_id' => 'nullable|exists:campaigns,id',
-            'reference'   => 'required|unique:invoices,reference',
-            'amount'      => 'required|numeric|min:0',
-            'tva'         => 'required|numeric|min:0|max:100',
-            'issued_at'   => 'required|date',
-            'paid_at'     => 'nullable|date',
+        $data = $request->validate([
+            'client_id'             => 'required|exists:clients,id',
+            'campaign_id'           => 'nullable|exists:campaigns,id',
+            'reference'             => 'required|unique:invoices,reference',
+            'issued_at'             => 'required|date',
+            'notes_client'          => 'nullable|string|max:2000',
+            'remise_pct'            => 'nullable|numeric|min:0|max:100',
+            'services_impression'   => 'nullable|numeric|min:0',
+            'services_pose_depose'  => 'nullable|numeric|min:0',
+            'lines'                 => 'required|array|min:1',
+            'lines.*.designation'   => 'required|string|max:200',
+            'lines.*.commune_id'    => 'required|exists:communes,id',
+            'lines.*.dimension_m2'  => 'required|numeric|min:0',
+            'lines.*.pu_ht_mensuel' => 'required|numeric|min:0',
+            'lines.*.quantite'      => 'required|integer|min:1',
+            'lines.*.duree_mois'    => 'required|numeric|min:0.5',
+        ], [
+            'lines.required'        => 'Au moins une ligne de facturation est requise.',
+            'lines.*.commune_id.required' => 'Chaque ligne doit avoir une commune (pour résoudre ODP).',
         ]);
 
-        // Cohérence campagne ↔ client : si une campagne est liée à la
-        // facture, son client_id DOIT correspondre à celui de la facture.
-        // Sinon on a une facture orpheline : campagne X facturée au client Y.
-        // On corrige d'autorité (le client de la campagne fait foi).
-        $clientId = (int) $request->input('client_id');
-        if ($request->filled('campaign_id')) {
-            $camp = Campaign::find($request->input('campaign_id'));
+        // Cohérence campagne ↔ client : le client de la campagne fait foi.
+        $clientId = (int) $data['client_id'];
+        if (!empty($data['campaign_id'])) {
+            $camp = Campaign::find($data['campaign_id']);
             if ($camp && (int) $camp->client_id !== $clientId) {
                 $clientId = (int) $camp->client_id;
             }
         }
 
-        $amountTtc = $request->amount * (1 + $request->tva / 100);
+        $issuedAt = \Carbon\Carbon::parse($data['issued_at']);
 
-        Invoice::create([
-            ...$request->all(),
-            'client_id'  => $clientId,
-            'amount_ttc' => $amountTtc,
-            'created_by' => auth()->id(),
-            'status'     => 'brouillon',
-        ]);
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($data, $request, $clientId, $issuedAt, $calculator) {
+            $invoice = Invoice::create([
+                'reference'            => $data['reference'],
+                'client_id'            => $clientId,
+                'campaign_id'          => $data['campaign_id'] ?? null,
+                'created_by'           => auth()->id(),
+                'issued_at'            => $data['issued_at'],
+                'status'               => 'brouillon',
+                'tva'                  => $calculator->tvaRate(),
+                'remise_pct'           => (float) ($data['remise_pct'] ?? 0),
+                'services_impression'  => (float) ($data['services_impression'] ?? 0),
+                'services_pose_depose' => (float) ($data['services_pose_depose'] ?? 0),
+                'notes_client'         => $data['notes_client'] ?? null,
+                'campaign_year'        => $issuedAt->year,
+            ]);
 
-        return redirect()->route('admin.invoices.index')
-            ->with('success', 'Facture créée avec succès !');
+            $this->syncLines($invoice, $data['lines'], $issuedAt, $calculator);
+
+            $invoice = $calculator->recalculateAndPersist($invoice);
+
+            return redirect()->route('admin.invoices.show', $invoice)
+                ->with('success', "Facture {$invoice->reference} créée — {$invoice->lines->count()} ligne(s), total " . number_format($invoice->total_a_payer, 0, ',', ' ') . ' FCFA.');
+        });
+    }
+
+    /**
+     * Crée les InvoiceLines depuis le payload form, en résolvant les
+     * tarifs ODP/TM historisés via Commune::ratesAt(issued_at).
+     * Utilisé par store() ET update() (qui delete d'abord).
+     */
+    protected function syncLines(Invoice $invoice, array $linesInput, \Carbon\Carbon $issuedAt, \App\Services\InvoiceCalculator $calculator): void
+    {
+        $issuedDate = $issuedAt->toDateString();
+        $orderIdx = 0;
+        foreach ($linesInput as $l) {
+            $commune = \App\Models\Commune::find($l['commune_id']);
+            $rates = $commune?->ratesAt($issuedDate) ?? ['odp' => 0, 'tm' => 1000];
+
+            $lineData = [
+                'designation'           => $l['designation'],
+                'commune_id'            => $commune?->id,
+                'snapshot_commune_name' => $commune?->name,
+                'dimension_m2'          => (float) $l['dimension_m2'],
+                'pu_ht_mensuel'         => (float) $l['pu_ht_mensuel'],
+                'quantite'              => (int) $l['quantite'],
+                'duree_mois'            => (float) $l['duree_mois'],
+                'odp_rate_applique'     => (float) $rates['odp'],
+                'tm_rate_applique'      => (float) $rates['tm'],
+                'order_index'           => $orderIdx++,
+            ];
+
+            // Pré-calcul des totaux ligne (montant_ht, odp, tm)
+            $calc = $calculator->calculateLine($lineData);
+            $lineData = array_merge($lineData, $calc);
+
+            $invoice->lines()->create($lineData);
+        }
     }
 
     public function show(Invoice $invoice)
@@ -336,38 +391,72 @@ class InvoiceController extends Controller
         ));
     }
 
-    public function update(Request $request, Invoice $invoice)
+    public function update(Request $request, Invoice $invoice, \App\Services\InvoiceCalculator $calculator)
     {
         $this->authorize('update', $invoice);
 
-        $request->validate([
-            'client_id'   => 'required|exists:clients,id',
-            'campaign_id' => 'nullable|exists:campaigns,id',
-            'amount'      => 'required|numeric|min:0',
-            'tva'         => 'required|numeric|min:0|max:100',
-            'issued_at'   => 'required|date',
-            'status'      => 'required|in:brouillon,envoyee,payee,annulee',
+        // ⚠ Lock : interdit de modifier une facture verrouillée. L'admin
+        // doit déverrouiller d'abord (action tracée dans les logs).
+        if ($invoice->isLocked()) {
+            return back()->with('error',
+                '🔒 Facture verrouillée le ' . $invoice->locked_at->format('d/m/Y')
+                . ' — déverrouille-la d\'abord pour la modifier.'
+            );
+        }
+
+        $data = $request->validate([
+            'client_id'             => 'required|exists:clients,id',
+            'campaign_id'           => 'nullable|exists:campaigns,id',
+            'reference'             => 'required|unique:invoices,reference,' . $invoice->id,
+            'issued_at'             => 'required|date',
+            'notes_client'          => 'nullable|string|max:2000',
+            'remise_pct'            => 'nullable|numeric|min:0|max:100',
+            'services_impression'   => 'nullable|numeric|min:0',
+            'services_pose_depose'  => 'nullable|numeric|min:0',
+            'lines'                 => 'required|array|min:1',
+            'lines.*.designation'   => 'required|string|max:200',
+            'lines.*.commune_id'    => 'required|exists:communes,id',
+            'lines.*.dimension_m2'  => 'required|numeric|min:0',
+            'lines.*.pu_ht_mensuel' => 'required|numeric|min:0',
+            'lines.*.quantite'      => 'required|integer|min:1',
+            'lines.*.duree_mois'    => 'required|numeric|min:0.5',
         ]);
 
         // Cohérence campagne ↔ client (cf. store).
-        $clientId = (int) $request->input('client_id');
-        if ($request->filled('campaign_id')) {
-            $camp = Campaign::find($request->input('campaign_id'));
+        $clientId = (int) $data['client_id'];
+        if (!empty($data['campaign_id'])) {
+            $camp = Campaign::find($data['campaign_id']);
             if ($camp && (int) $camp->client_id !== $clientId) {
                 $clientId = (int) $camp->client_id;
             }
         }
 
-        $amountTtc = $request->amount * (1 + $request->tva / 100);
+        $issuedAt = \Carbon\Carbon::parse($data['issued_at']);
 
-        $invoice->update([
-            ...$request->except('_token', '_method'),
-            'client_id'  => $clientId,
-            'amount_ttc' => $amountTtc,
-        ]);
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($data, $invoice, $clientId, $issuedAt, $calculator) {
+            $invoice->update([
+                'reference'            => $data['reference'],
+                'client_id'            => $clientId,
+                'campaign_id'          => $data['campaign_id'] ?? null,
+                'issued_at'            => $data['issued_at'],
+                'remise_pct'           => (float) ($data['remise_pct'] ?? 0),
+                'services_impression'  => (float) ($data['services_impression'] ?? 0),
+                'services_pose_depose' => (float) ($data['services_pose_depose'] ?? 0),
+                'notes_client'         => $data['notes_client'] ?? null,
+                'campaign_year'        => $issuedAt->year,
+            ]);
 
-        return redirect()->route('admin.invoices.show', $invoice)
-            ->with('success', 'Facture modifiée !');
+            // Sync lignes : delete tout puis recrée. Plus simple que de
+            // matcher ligne par ligne, et la facture n'a pas encore été
+            // envoyée (lock empêche update sinon).
+            $invoice->lines()->delete();
+            $this->syncLines($invoice, $data['lines'], $issuedAt, $calculator);
+
+            $invoice = $calculator->recalculateAndPersist($invoice);
+
+            return redirect()->route('admin.invoices.show', $invoice)
+                ->with('success', "Facture {$invoice->reference} modifiée — total " . number_format($invoice->total_a_payer, 0, ',', ' ') . ' FCFA.');
+        });
     }
 
     public function destroy(Invoice $invoice)
