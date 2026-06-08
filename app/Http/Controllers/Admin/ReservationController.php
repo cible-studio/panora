@@ -2941,9 +2941,9 @@ class ReservationController extends Controller
             'total_price' => $request->unit_price * $months,
         ]);
 
-        // Recalculer le total de la réservation
-        $newTotal = $reservation->panels()->sum(DB::raw('reservation_panels.total_price'));
-        $reservation->update(['total_amount' => $newTotal]);
+        // refresh recalcule resa.total_amount ET propage à campaign.total_amount
+        // (sinon le bloc « À facturer » sur la page campagne reste figé).
+        $this->refreshReservationTotal($reservation);
 
         return back()->with('success', 'Prix mis à jour.');
     }
@@ -3019,13 +3019,25 @@ class ReservationController extends Controller
         return back()->with('success', 'Prix remis au tarif catalogue.');
     }
 
-    /** Recalcule total_amount = somme(total_price) sur reservation_panels (internes + externes). */
+    /** Recalcule total_amount = somme(total_price) sur reservation_panels
+     *  (internes + externes) ET propage le total à la/les campagne(s) liée(s)
+     *  par reservation_id — sinon le snapshot campaign.total_amount reste
+     *  stale et le bloc « À facturer » sur la page campagne affiche un
+     *  ancien montant après édition des prix panneaux. */
     private function refreshReservationTotal(Reservation $reservation): void
     {
-        $newTotal = (float) DB::table('reservation_panels')
+        $newTotal = round((float) DB::table('reservation_panels')
             ->where('reservation_id', $reservation->id)
-            ->sum('total_price');
-        $reservation->update(['total_amount' => round($newTotal, 2)]);
+            ->sum('total_price'), 2);
+
+        $reservation->update(['total_amount' => $newTotal]);
+
+        // Cascade au snapshot campagne (utilisé par computedAmountHt() et
+        // tous les blocs facturation). NB : update direct par query → pas
+        // d'événement model, donc pas de re-déclenchement d'observers qui
+        // re-calculeraient encore — on évite toute boucle.
+        \App\Models\Campaign::where('reservation_id', $reservation->id)
+            ->update(['total_amount' => $newTotal]);
     }
 
     /**
@@ -3115,10 +3127,13 @@ class ReservationController extends Controller
                 ]);
 
                 // Recalcul total réservation (somme des total_price du pivot)
-                $newTotal = (float) DB::table('reservation_panels')
+                $newTotal = round((float) DB::table('reservation_panels')
                     ->where('reservation_id', $reservation->id)
-                    ->sum('total_price');
-                $reservation->update(['total_amount' => round($newTotal, 2)]);
+                    ->sum('total_price'), 2);
+                $reservation->update(['total_amount' => $newTotal]);
+                // Cascade au snapshot campagne (bloc « À facturer »).
+                \App\Models\Campaign::where('reservation_id', $reservation->id)
+                    ->update(['total_amount' => $newTotal]);
 
                 $this->availability->syncPanelStatuses([$panelId]);
 
@@ -3187,10 +3202,13 @@ class ReservationController extends Controller
                 $reservation->panels()->detach($panel->id);
 
                 // Recalcul total réservation (somme des total_price du pivot)
-                $newTotal = (float) DB::table('reservation_panels')
+                $newTotal = round((float) DB::table('reservation_panels')
                     ->where('reservation_id', $reservation->id)
-                    ->sum('total_price');
-                $reservation->update(['total_amount' => round($newTotal, 2)]);
+                    ->sum('total_price'), 2);
+                $reservation->update(['total_amount' => $newTotal]);
+                // Cascade au snapshot campagne (bloc « À facturer »).
+                \App\Models\Campaign::where('reservation_id', $reservation->id)
+                    ->update(['total_amount' => $newTotal]);
 
                 // Le panneau retiré doit recalculer son statut (peut redevenir libre)
                 $this->availability->syncPanelStatuses([$panel->id]);
@@ -3290,10 +3308,13 @@ class ReservationController extends Controller
                 ]);
 
                 // Recalcul total réservation (somme internes + externes)
-                $newTotal = (float) DB::table('reservation_panels')
+                $newTotal = round((float) DB::table('reservation_panels')
                     ->where('reservation_id', $reservation->id)
-                    ->sum('total_price');
-                $reservation->update(['total_amount' => round($newTotal, 2)]);
+                    ->sum('total_price'), 2);
+                $reservation->update(['total_amount' => $newTotal]);
+                // Cascade au snapshot campagne (bloc « À facturer »).
+                \App\Models\Campaign::where('reservation_id', $reservation->id)
+                    ->update(['total_amount' => $newTotal]);
 
                 $this->availability->syncExternalPanelStatuses([$externalPanelId]);
 
