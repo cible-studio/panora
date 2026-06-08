@@ -22,8 +22,7 @@ enum PanelStatus: string
         return match($this) {
             self::LIBRE       => 'Libre',
             self::OPTION      => 'Option',
-            self::CONFIRME    => 'Vendu',       // ex "Réservé" — désambiguïsation :
-                                                // CONFIRME = engagement signé, pose à venir
+            self::CONFIRME    => 'Confirmé',    // engagement signé, pose à venir
                                                 // ≠ OPTION = en attente client.
             self::OCCUPE      => 'En affichage', // = pose effective sur le terrain.
             self::MAINTENANCE => 'Maintenance',
@@ -71,7 +70,7 @@ enum PanelStatus: string
                 'color'       => '#8b5cf6',
                 'bg'          => 'rgba(139,92,246,0.08)',
                 'border'      => 'rgba(139,92,246,0.3)',
-                'description' => 'Vendu — réservation ferme signée par le client. Pose à venir, non disponible.',
+                'description' => 'Confirmé — réservation ferme signée par le client. Pose à venir, non disponible.',
             ],
             self::MAINTENANCE => [
                 'icon'        => '🔧',
