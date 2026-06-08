@@ -121,40 +121,332 @@
                     </div>
                 </div>
 
-                {{-- MONTANTS --}}
-                <div style="margin-top:20px; padding:16px; background:var(--surface2);
-                            border-radius:10px; border:1px solid var(--border);">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                        <span style="color:var(--text3);">Montant HT</span>
-                        <span style="font-weight:600;">
-                            {{ number_format($invoice->amount, 0, ',', ' ') }} FCFA
-                        </span>
+                {{-- ════ LIGNES FACTURE (FNE) ════
+                     Affichées seulement s'il y a au moins une ligne en
+                     base (factures historiques avant la refonte n'en
+                     ont pas — l'affichage bascule alors sur l'ancien
+                     montant unique). --}}
+                @php
+                    $hasLines = $invoice->lines && $invoice->lines->isNotEmpty();
+                    $fmt = fn($v) => number_format((float) $v, 0, ',', ' ');
+                @endphp
+                @if($hasLines)
+                <div style="margin-top:20px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+                    <div style="background:var(--surface2);padding:8px 12px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">
+                        Détail des lignes ({{ $invoice->lines->count() }})
                     </div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                        <span style="color:var(--text3);">TVA ({{ rtrim(rtrim(number_format($invoice->tva, 2, ',', ''), '0'), ',') }}%)</span>
-                        <span style="font-weight:600;">
-                            {{ number_format($invoice->amount * $invoice->tva / 100, 0, ',', ' ') }} FCFA
-                        </span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between;
-                                padding-top:10px; border-top:1px solid var(--border);">
-                        <span style="font-weight:700; font-size:14px;">TOTAL TTC</span>
-                        <span style="font-weight:800; font-size:18px; color:var(--accent);">
-                            {{ number_format($invoice->amount_ttc, 0, ',', ' ') }} FCFA
-                        </span>
-                    </div>
-                </div>
-
-                @if($invoice->paid_at)
-                <div style="margin-top:16px; padding:12px; background:rgba(34,197,94,.1);
-                            border:1px solid rgba(34,197,94,.3); border-radius:8px;">
-                    <div style="color:var(--green); font-weight:600; font-size:12px;">
-                        ✅ Payée le {{ $invoice->paid_at->format('d/m/Y') }}
+                    <div style="overflow-x:auto">
+                        <table style="width:100%;border-collapse:collapse;font-size:12px">
+                            <thead>
+                                <tr style="background:var(--surface2);color:var(--text3);text-align:left">
+                                    <th style="padding:8px 10px;font-weight:700;font-size:10px;text-transform:uppercase">Désignation</th>
+                                    <th style="padding:8px 10px;font-weight:700;font-size:10px;text-transform:uppercase;text-align:right">PU HT</th>
+                                    <th style="padding:8px 10px;font-weight:700;font-size:10px;text-transform:uppercase;text-align:center">Qté</th>
+                                    <th style="padding:8px 10px;font-weight:700;font-size:10px;text-transform:uppercase;text-align:center">Mois</th>
+                                    <th style="padding:8px 10px;font-weight:700;font-size:10px;text-transform:uppercase;text-align:center">m²</th>
+                                    <th style="padding:8px 10px;font-weight:700;font-size:10px;text-transform:uppercase;text-align:right">Montant HT</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($invoice->lines as $l)
+                                    <tr style="border-top:1px solid var(--border)">
+                                        <td style="padding:8px 10px">
+                                            <div style="font-weight:600">{{ $l->designation }}</div>
+                                            @if($l->snapshot_commune_name)
+                                                <div style="font-size:10px;color:var(--text3);margin-top:1px">📍 {{ $l->snapshot_commune_name }}</div>
+                                            @endif
+                                        </td>
+                                        <td style="padding:8px 10px;text-align:right;font-family:ui-monospace,monospace">{{ $fmt($l->pu_ht_mensuel) }}</td>
+                                        <td style="padding:8px 10px;text-align:center">{{ $l->quantite }}</td>
+                                        <td style="padding:8px 10px;text-align:center">{{ rtrim(rtrim(number_format($l->duree_mois, 2, ',', ''), '0'), ',') }}</td>
+                                        <td style="padding:8px 10px;text-align:center">{{ rtrim(rtrim(number_format($l->dimension_m2, 2, ',', ''), '0'), ',') }}</td>
+                                        <td style="padding:8px 10px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:var(--accent)">{{ $fmt($l->montant_ht_ligne) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
                 </div>
                 @endif
+
+                {{-- ════ VENTILATION FNE ════
+                     Conformément à la facture normalisée électronique CI :
+                     TOTAL HT → TVA → TOTAL TTC, puis AUTRES TAXES détaillées
+                     (TSP/TM/ODP), puis services TTC, puis TOTAL À PAYER. --}}
+                <div style="margin-top:20px;padding:16px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
+                    @if($invoice->remise_pct > 0)
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px;color:var(--text3)">
+                            <span>Total HT brut</span>
+                            <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->amount) }} FCFA</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px;color:#b45309">
+                            <span>Remise ({{ rtrim(rtrim(number_format($invoice->remise_pct, 2, ',', ''), '0'), ',') }}%)</span>
+                            <span style="font-family:ui-monospace,monospace">− {{ $fmt(($invoice->amount * $invoice->remise_pct / 100)) }} FCFA</span>
+                        </div>
+                    @endif
+
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                        <span style="color:var(--text2);font-weight:600">TOTAL HT</span>
+                        <span style="font-weight:700;font-family:ui-monospace,monospace">{{ $fmt($invoice->net_ht ?: $invoice->amount) }} FCFA</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                        <span style="color:var(--text2);font-weight:600">TVA ({{ rtrim(rtrim(number_format($invoice->tva, 2, ',', ''), '0'), ',') }} %)</span>
+                        <span style="font-weight:700;font-family:ui-monospace,monospace">{{ $fmt($invoice->tva_amount ?: ($invoice->amount_ttc - $invoice->amount)) }} FCFA</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid var(--border);margin-bottom:14px">
+                        <span style="font-weight:800;font-size:13px">TOTAL TTC</span>
+                        <span style="font-weight:800;font-size:14px;font-family:ui-monospace,monospace">{{ $fmt($invoice->amount_ttc) }} FCFA</span>
+                    </div>
+
+                    @php
+                        $autres = (float) $invoice->tsp_amount + (float) $invoice->tm_total + (float) $invoice->odp_total;
+                        $servicesHt = (float) $invoice->services_impression + (float) $invoice->services_pose_depose;
+                        $servicesTtc = $servicesHt * (1 + (float) $invoice->tva / 100);
+                    @endphp
+
+                    @if($autres > 0)
+                        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">
+                            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Autres taxes</div>
+                            @if($invoice->tsp_amount > 0)
+                                <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
+                                    <span>TSP — Taxe de Soutien à la Production (3 %)</span>
+                                    <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->tsp_amount) }}</span>
+                                </div>
+                            @endif
+                            @if($invoice->tm_total > 0)
+                                <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
+                                    <span>TM — Taxe Municipale</span>
+                                    <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->tm_total) }}</span>
+                                </div>
+                            @endif
+                            @if($invoice->odp_total > 0)
+                                <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
+                                    <span>ODP — Occupation Domaine Public</span>
+                                    <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->odp_total) }}</span>
+                                </div>
+                            @endif
+                            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;padding-top:6px;border-top:1px dashed var(--border);margin-top:6px">
+                                <span>Sous-total autres taxes</span>
+                                <span style="font-family:ui-monospace,monospace">{{ $fmt($autres) }} FCFA</span>
+                            </div>
+                        </div>
+                    @endif
+
+                    @if($servicesHt > 0)
+                        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">
+                            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Services additionnels</div>
+                            @if($invoice->services_impression > 0)
+                                <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
+                                    <span>Impression (HT)</span>
+                                    <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->services_impression) }}</span>
+                                </div>
+                            @endif
+                            @if($invoice->services_pose_depose > 0)
+                                <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
+                                    <span>Pose & dépose (HT)</span>
+                                    <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->services_pose_depose) }}</span>
+                                </div>
+                            @endif
+                            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;padding-top:6px;border-top:1px dashed var(--border);margin-top:6px">
+                                <span>Sous-total services TTC (TVA 18%)</span>
+                                <span style="font-family:ui-monospace,monospace">{{ $fmt($servicesTtc) }} FCFA</span>
+                            </div>
+                        </div>
+                    @endif
+
+                    <div style="display:flex;justify-content:space-between;padding:12px 14px;background:linear-gradient(135deg, var(--accent), var(--accent-dark));color:#fff;border-radius:8px">
+                        <span style="font-weight:800;font-size:14px;letter-spacing:.3px">💰 TOTAL À PAYER</span>
+                        <span style="font-weight:800;font-size:18px;font-family:ui-monospace,monospace">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</span>
+                    </div>
+                </div>
+
+                {{-- ════ STATUT PAIEMENT (dérivé des versements) ════ --}}
+                @php
+                    $paid = $invoice->paidAmount();
+                    $remaining = $invoice->remainingAmount();
+                    $payStatus = $invoice->paymentStatus();
+                    $payConfig = match($payStatus) {
+                        'soldee'    => ['bg' => 'rgba(34,197,94,.10)',  'border' => 'rgba(34,197,94,.35)',  'color' => '#16a34a', 'icon' => '✅', 'label' => 'Soldée'],
+                        'partielle' => ['bg' => 'rgba(245,158,11,.10)', 'border' => 'rgba(245,158,11,.35)', 'color' => '#b45309', 'icon' => '⏳', 'label' => 'Partiellement payée'],
+                        'annulee'   => ['bg' => 'rgba(107,114,128,.10)','border' => 'rgba(107,114,128,.35)','color' => '#4b5563', 'icon' => '🚫', 'label' => 'Annulée'],
+                        default     => ['bg' => 'rgba(239,68,68,.08)',  'border' => 'rgba(239,68,68,.30)',  'color' => '#b91c1c', 'icon' => '❌', 'label' => 'Non payée'],
+                    };
+                @endphp
+                <div style="margin-top:16px;padding:12px 14px;background:{{ $payConfig['bg'] }};border:1px solid {{ $payConfig['border'] }};border-radius:10px;color:{{ $payConfig['color'] }}">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <span style="font-weight:800;font-size:13px">{{ $payConfig['icon'] }} {{ $payConfig['label'] }}</span>
+                        <span style="font-size:13px;font-weight:700;font-family:ui-monospace,monospace">
+                            {{ $fmt($paid) }} / {{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA
+                        </span>
+                    </div>
+                    @if($remaining > 0)
+                        <div style="margin-top:4px;font-size:11.5px;opacity:.85">
+                            Reste à payer : <strong>{{ $fmt($remaining) }} FCFA</strong>
+                        </div>
+                    @endif
+                </div>
+
+                {{-- ════ LOCK BADGE + DÉVERROUILLAGE ÉVENTUEL ════ --}}
+                @if($invoice->isLocked())
+                    <div style="margin-top:12px;padding:10px 14px;background:rgba(107,114,128,.10);border:1px dashed rgba(107,114,128,.35);border-radius:10px;font-size:11.5px;color:#4b5563">
+                        🔒 <strong>Facture verrouillée</strong> le {{ $invoice->locked_at->format('d/m/Y à H:i') }}@if($invoice->lockedBy) par {{ $invoice->lockedBy->name }}@endif.
+                        Document fiscal — modifications bloquées.
+                        @can('update', $invoice)
+                            <form method="POST" action="{{ route('admin.invoices.unlock', $invoice) }}" style="display:inline;margin-left:8px"
+                                  onsubmit="return confirm('Déverrouiller la facture ? Cette action sera tracée.');">
+                                @csrf @method('PATCH')
+                                <button type="submit" style="background:transparent;border:0;color:#b45309;font-weight:700;cursor:pointer;font-size:11.5px;text-decoration:underline">
+                                    🔓 Déverrouiller
+                                </button>
+                            </form>
+                        @endcan
+                    </div>
+                @endif
             </div>
         </div>
+
+        {{-- ════════════════════ CARD VERSEMENTS ════════════════════
+             Timeline des paiements + bouton "Ajouter un versement".
+             Visible uniquement si la facture n'est PAS un brouillon
+             (pas de paiement possible avant envoi).
+        ═════════════════════════════════════════════════════════════ --}}
+        @if(!in_array($invoice->status, ['brouillon', 'annulee']))
+            @php $payments = $invoice->payments ?? collect(); @endphp
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">💸 Versements <span style="font-weight:400;color:var(--text3);font-size:12px;margin-left:6px">({{ $payments->count() }})</span></div>
+                    @can('markPaid', $invoice)
+                        @if($remaining > 0)
+                            <button type="button" onclick="document.getElementById('modal-add-payment').classList.add('show')"
+                                    class="btn btn-primary btn-sm">
+                                + Ajouter un versement
+                            </button>
+                        @endif
+                    @endcan
+                </div>
+                <div class="card-body">
+                    @if($payments->isEmpty())
+                        <div style="padding:24px;text-align:center;color:var(--text3);font-size:13px;background:var(--surface2);border-radius:10px">
+                            Aucun versement enregistré pour cette facture.
+                        </div>
+                    @else
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                            @foreach($payments as $p)
+                                <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">
+                                    <div style="font-size:20px">
+                                        @switch($p->mode)
+                                            @case('especes') 💵 @break
+                                            @case('cheque') 📝 @break
+                                            @case('virement') 🏦 @break
+                                            @case('mobile_money') 📱 @break
+                                            @case('compensation') 🔄 @break
+                                            @default 💳
+                                        @endswitch
+                                    </div>
+                                    <div style="flex:1;min-width:0">
+                                        <div style="font-size:13px;font-weight:700">
+                                            {{ $fmt($p->montant) }} FCFA
+                                            <span style="font-weight:400;color:var(--text3);margin-left:6px;font-size:11.5px">{{ $p->mode_label }}</span>
+                                        </div>
+                                        <div style="font-size:11px;color:var(--text3);margin-top:1px">
+                                            {{ $p->paid_at->format('d/m/Y') }}
+                                            @if($p->reference) · Réf. <strong>{{ $p->reference }}</strong>@endif
+                                            @if($p->creator) · {{ $p->creator->name }}@endif
+                                        </div>
+                                        @if($p->note)
+                                            <div style="font-size:11px;color:var(--text2);margin-top:3px;font-style:italic">{{ $p->note }}</div>
+                                        @endif
+                                    </div>
+                                    @can('markPaid', $invoice)
+                                        <form method="POST" action="{{ route('admin.invoices.payments.remove', [$invoice, $p]) }}"
+                                              onsubmit="return confirm('Supprimer ce versement de {{ $fmt($p->montant) }} FCFA ?');">
+                                            @csrf @method('DELETE')
+                                            <button type="button" type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);font-size:11px"
+                                                    onclick="if(confirm('Supprimer ?')) this.form.submit();">
+                                                🗑
+                                            </button>
+                                        </form>
+                                    @endcan
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Modal ajout versement --}}
+            @can('markPaid', $invoice)
+            <div class="modal-overlay" id="modal-add-payment" role="dialog">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3>💸 Enregistrer un versement</h3>
+                        <button type="button" onclick="document.getElementById('modal-add-payment').classList.remove('show')" class="modal-close">×</button>
+                    </div>
+                    <form method="POST" action="{{ route('admin.invoices.payments.add', $invoice) }}">
+                        @csrf
+                        <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+                            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px">
+                                <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                                    <span style="color:var(--text3)">Total dû</span>
+                                    <span style="font-weight:700;font-family:ui-monospace,monospace">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                                    <span style="color:var(--text3)">Déjà payé</span>
+                                    <span style="font-weight:700;color:#16a34a;font-family:ui-monospace,monospace">{{ $fmt($paid) }} FCFA</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px dashed var(--border)">
+                                    <span style="color:var(--text2);font-weight:700">Reste à payer</span>
+                                    <span style="font-weight:800;color:var(--accent);font-family:ui-monospace,monospace">{{ $fmt($remaining) }} FCFA</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Montant (FCFA)</label>
+                                <input type="number" name="montant" step="1" min="1" required
+                                       value="{{ $remaining > 0 ? round($remaining) : '' }}"
+                                       style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:14px;font-weight:700;font-family:ui-monospace,monospace">
+                            </div>
+
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                                <div>
+                                    <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Date</label>
+                                    <input type="date" name="paid_at" required value="{{ date('Y-m-d') }}" max="{{ date('Y-m-d') }}"
+                                           style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px">
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mode</label>
+                                    <select name="mode" required style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px">
+                                        <option value="virement">🏦 Virement</option>
+                                        <option value="cheque">📝 Chèque</option>
+                                        <option value="mobile_money">📱 Mobile money</option>
+                                        <option value="especes">💵 Espèces</option>
+                                        <option value="compensation">🔄 Compensation (avoir)</option>
+                                        <option value="autre">💳 Autre</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Référence <span style="color:var(--text3);font-weight:400">(facultatif)</span></label>
+                                <input type="text" name="reference" maxlength="100" placeholder="N° chèque, ID transaction, etc."
+                                       style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px">
+                            </div>
+
+                            <div>
+                                <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Note <span style="color:var(--text3);font-weight:400">(facultatif)</span></label>
+                                <textarea name="note" rows="2" maxlength="1000" placeholder="Contexte, mention compta…"
+                                          style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px;resize:vertical"></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal-add-payment').classList.remove('show')">Annuler</button>
+                            <button type="submit" class="btn btn-primary">✅ Enregistrer le versement</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            @endcan
+        @endif
 
         {{-- CARD CAMPAGNE : détails + bilan facturation si liée --}}
         @if($invoice->campaign)

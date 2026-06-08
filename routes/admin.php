@@ -564,6 +564,12 @@ Route::prefix('admin')
 
             Route::get('invoices/create', [InvoiceController::class, 'create'])->name('invoices.create');
             Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
+
+            // Génération auto FNE depuis une campagne (utilise
+            // InvoiceFromCampaignBuilder : récupère panneaux internes
+            // + externes, résout ODP/TM historisés, calcule agrégats).
+            Route::post('invoices/from-campaign/{campaign}', [InvoiceController::class, 'fromCampaign'])
+                ->whereNumber('campaign')->name('invoices.from-campaign');
             Route::get('invoices/{invoice}/edit', [InvoiceController::class, 'edit'])
                 ->whereNumber('invoice')->name('invoices.edit');
             Route::put('invoices/{invoice}', [InvoiceController::class, 'update'])
@@ -576,6 +582,18 @@ Route::prefix('admin')
             Route::patch('invoices/{invoice}/pay',          [InvoiceController::class, 'markPaid'])->name('invoices.pay');
             Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'markCancelled'])->name('invoices.cancel');
             Route::patch('invoices/{invoice}/revert-draft', [InvoiceController::class, 'revertDraft'])->name('invoices.revert-draft');
+
+            // Verrouillage facture — auto à l'envoi, déverrouillage explicite
+            // par admin si correction nécessaire (action tracée en logs).
+            Route::patch('invoices/{invoice}/lock',   [InvoiceController::class, 'lock'])->name('invoices.lock');
+            Route::patch('invoices/{invoice}/unlock', [InvoiceController::class, 'unlock'])->name('invoices.unlock');
+
+            // Versements (acompte, mensualités, solde) — N paiements / facture.
+            // Le statut de la facture est dérivé de la somme des versements.
+            Route::post('invoices/{invoice}/payments', [InvoiceController::class, 'addPayment'])
+                ->name('invoices.payments.add');
+            Route::delete('invoices/{invoice}/payments/{payment}', [InvoiceController::class, 'removePayment'])
+                ->name('invoices.payments.remove');
         });
 
         // ════════════════════════════════════════════════
