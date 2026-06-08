@@ -1,0 +1,202 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Campaign;
+use App\Models\Commune;
+use App\Models\Invoice;
+use App\Models\InvoiceLine;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Construit une facture FNE pré-remplie depuis une campagne existante.
+ *
+ * Logique :
+ *   1. Récupère client, panneaux (internes + externes), durée
+ *   2. Pour chaque panneau, crée UNE ligne :
+ *      - PU = unit_price du pivot reservation_panels (prix négocié)
+ *        ou panel.monthly_rate (catalogue) en fallback
+ *      - dimension_m2 = panel.format.surface_m2
+ *      - duree_mois = campaign.billableMonths()
+ *      - commune = panel.commune
+ *      - tarif ODP/TM résolu via Commune::ratesAt(year-12-31)
+ *        (historisation pour cohérence sur recalcul futur)
+ *   3. Génère une référence FAC-YYYY-NNN unique
+ *   4. Persiste invoice + lignes, recalcule les agrégats via
+ *      InvoiceCalculator
+ *
+ * La facture créée est en statut 'brouillon' — l'admin peut ajuster
+ * avant l'envoi. Aucun verrou tant que pas en 'envoyee'.
+ */
+class InvoiceFromCampaignBuilder
+{
+    public function __construct(
+        protected InvoiceCalculator $calculator,
+    ) {}
+
+    /**
+     * @param Campaign $campaign
+     * @param array{
+     *   issued_at?: string|\DateTimeInterface,
+     *   remise_pct?: float,
+     *   services_impression?: float,
+     *   services_pose_depose?: float,
+     *   notes_client?: string
+     * } $opts
+     */
+    public function build(Campaign $campaign, array $opts = []): Invoice
+    {
+        $campaign->loadMissing([
+            'client', 'reservation',
+            'panels.commune', 'panels.format',
+            'externalPanels.commune', 'externalPanels.format',
+        ]);
+
+        $issuedAt = isset($opts['issued_at'])
+            ? \Carbon\Carbon::parse($opts['issued_at'])
+            : now();
+        $year = (int) $issuedAt->year;
+
+        // Durée facturable canonique CIBLE (cf. Campaign::billableMonths)
+        $dureeMois = (float) $campaign->billableMonths();
+
+        // Récupération unit_prices pivot (prix négociés) en une seule query
+        $negotiated = [];
+        if ($campaign->reservation_id) {
+            $rows = DB::table('reservation_panels')
+                ->where('reservation_id', $campaign->reservation_id)
+                ->get(['panel_id', 'external_panel_id', 'unit_price', 'source']);
+            foreach ($rows as $r) {
+                if ($r->panel_id) {
+                    $negotiated['int_' . $r->panel_id] = (float) $r->unit_price;
+                }
+                if ($r->external_panel_id) {
+                    $negotiated['ext_' . $r->external_panel_id] = (float) $r->unit_price;
+                }
+            }
+        }
+
+        return DB::transaction(function () use ($campaign, $opts, $issuedAt, $year, $dureeMois, $negotiated) {
+            // ─── Création facture brouillon ──────────────────────
+            $invoice = Invoice::create([
+                'reference'           => $this->generateReference($year),
+                'client_id'           => $campaign->client_id,
+                'campaign_id'         => $campaign->id,
+                'created_by'          => auth()->id() ?? $campaign->commercial_user_id ?? $campaign->user_id,
+                'issued_at'           => $issuedAt->toDateString(),
+                'status'              => 'brouillon',
+                'tva'                 => $this->calculator->tvaRate(),
+                'remise_pct'          => (float) ($opts['remise_pct'] ?? 0),
+                'services_impression' => (float) ($opts['services_impression'] ?? 0),
+                'services_pose_depose'=> (float) ($opts['services_pose_depose'] ?? 0),
+                'campaign_year'       => $year,
+                'notes_client'        => $opts['notes_client'] ?? config('billing.payment_terms_default'),
+            ]);
+
+            // ─── Lignes panneaux internes ────────────────────────
+            $orderIdx = 0;
+            foreach ($campaign->panels as $panel) {
+                $this->createLineForPanel(
+                    invoice: $invoice,
+                    panel: $panel,
+                    pivotKey: 'int_' . $panel->id,
+                    negotiated: $negotiated,
+                    dureeMois: $dureeMois,
+                    year: $year,
+                    orderIdx: $orderIdx++,
+                );
+            }
+
+            // ─── Lignes panneaux externes ────────────────────────
+            // Modèle distinct (ExternalPanel) mais structure proche.
+            // On reproduit la même logique pour homogénéité facture.
+            foreach ($campaign->externalPanels as $ext) {
+                $this->createLineForPanel(
+                    invoice: $invoice,
+                    panel: $ext,
+                    pivotKey: 'ext_' . $ext->id,
+                    negotiated: $negotiated,
+                    dureeMois: $dureeMois,
+                    year: $year,
+                    orderIdx: $orderIdx++,
+                    isExternal: true,
+                );
+            }
+
+            // ─── Recalcul agrégats facture ───────────────────────
+            return $this->calculator->recalculateAndPersist($invoice);
+        });
+    }
+
+    /**
+     * Crée une InvoiceLine pour un panneau donné (interne ou externe).
+     * Le snapshot commune_name + dimension_m2 garantit que la facture
+     * reste lisible si la fiche panneau est modifiée plus tard.
+     */
+    protected function createLineForPanel(
+        Invoice $invoice,
+        $panel,
+        string $pivotKey,
+        array $negotiated,
+        float $dureeMois,
+        int $year,
+        int $orderIdx,
+        bool $isExternal = false,
+    ): InvoiceLine {
+        $puHt = $negotiated[$pivotKey]
+            ?? (float) ($panel->monthly_rate ?? 0);
+
+        $m2 = $panel->format?->surface_m2 ?? 0;
+        $commune = $panel->commune;
+
+        // Résolution tarif historisé (fin d'année concernée pour
+        // capturer le tarif valide TOUTE l'année — ratesAt accepte
+        // une date entre effective_from et effective_to).
+        $rates = $commune?->ratesAt("{$year}-12-31") ?? ['odp' => 0, 'tm' => 1000];
+
+        // Désignation lisible : "ABG-001A — Abengourou rte gare UTI 4×3m"
+        $ref  = $panel->reference ?? ($isExternal ? 'EXT-' . $panel->id : 'PAN-' . $panel->id);
+        $name = $panel->name ?? '—';
+        $dim  = $panel->format?->dimensions_label ?? '';
+        $designation = trim("{$ref} — {$name}" . ($dim ? " {$dim}" : ''));
+
+        $line = new InvoiceLine([
+            'panel_id'              => $isExternal ? null : $panel->id,
+            'commune_id'            => $commune?->id,
+            'designation'           => $designation,
+            'snapshot_commune_name' => $commune?->name,
+            'dimension_m2'          => $m2,
+            'pu_ht_mensuel'         => $puHt,
+            'quantite'              => 1,
+            'duree_mois'            => $dureeMois,
+            'odp_rate_applique'     => (float) $rates['odp'],
+            'tm_rate_applique'      => (float) $rates['tm'],
+            'order_index'           => $orderIdx,
+        ]);
+
+        // Pré-calcul des montants ligne via le calculateur
+        $calc = $this->calculator->calculateLine($line->toArray());
+        $line->forceFill($calc);
+
+        $invoice->lines()->save($line);
+        return $line;
+    }
+
+    /**
+     * Numérotation FAC-YYYY-NNN avec compteur séquentiel sur l'année.
+     * Tente jusqu'à 5 fois en cas de collision (très rare).
+     */
+    protected function generateReference(int $year): string
+    {
+        $format = config('billing.reference_format', 'FAC-%s-%03d');
+        for ($i = 0; $i < 5; $i++) {
+            $count = Invoice::whereYear('created_at', $year)->count();
+            $ref = sprintf($format, $year, $count + 1 + $i);
+            if (!Invoice::where('reference', $ref)->exists()) {
+                return $ref;
+            }
+        }
+        // Fallback paranoïaque
+        return sprintf($format, $year, time() % 1000);
+    }
+}
