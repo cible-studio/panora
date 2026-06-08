@@ -161,6 +161,121 @@ class InvoiceController extends Controller
      *   { client: {id,name,email}, amount_ht, billed_ht, remaining_ht,
      *     suggested_amount_ht, fully_billed, name, period }
      */
+    /**
+     * Lookup AJAX : recherche un panneau dans une CAMPAGNE pour
+     * pré-remplir une ligne de facture (auto-complète commune, m², PU).
+     *
+     * ⚠ Politique métier validée : la recherche est STRICTEMENT limitée
+     *   aux panneaux de la campagne sélectionnée. Sans campagne, on ne
+     *   propose AUCUN panneau — l'admin doit soit choisir une campagne,
+     *   soit taper une désignation libre (tags Select2 côté front).
+     *
+     * Renvoie pour chaque panneau (interne ou externe) :
+     *   id, ref, name, designation (ref + name + dim), commune_id,
+     *   commune_name, dimension_m2, monthly_rate (catalogue),
+     *   pu_negotiated (pivot reservation_panels), pu_suggested
+     *   (négocié si dispo, sinon catalogue).
+     *
+     * Format Select2 (results + pagination.more).
+     */
+    public function lookupPanels(Request $request)
+    {
+        $q          = trim((string) $request->input('q', ''));
+        $campaignId = $request->input('campaign_id');
+        $page       = max(1, (int) $request->input('page', 1));
+        $perPage    = 20;
+
+        // Sans campagne sélectionnée → pas de recherche panneau possible.
+        // Le front affiche un hint et bascule en mode "tag libre" pour
+        // permettre quand même la saisie d'une désignation manuelle.
+        if (!$campaignId) {
+            return response()->json([
+                'results'    => [],
+                'pagination' => ['more' => false],
+                'hint'       => 'Sélectionne d\'abord une campagne pour rechercher ses panneaux. Sinon, tape une désignation libre.',
+            ]);
+        }
+
+        $campaign = Campaign::with([
+            'panels.commune:id,name',
+            'panels.format:id,name,width,height,surface',
+            'externalPanels.commune:id,name',
+            'externalPanels.format:id,name,width,height,surface',
+            'reservation',
+        ])->find($campaignId);
+
+        if (!$campaign) {
+            return response()->json(['results' => [], 'pagination' => ['more' => false]]);
+        }
+
+        // Récup prix négocié pivot (panel_id ou external_panel_id)
+        $negotiated = [];
+        if ($campaign->reservation_id) {
+            $rows = \Illuminate\Support\Facades\DB::table('reservation_panels')
+                ->where('reservation_id', $campaign->reservation_id)
+                ->get(['panel_id', 'external_panel_id', 'unit_price']);
+            foreach ($rows as $r) {
+                if ($r->panel_id)          $negotiated['int_' . $r->panel_id] = (float) $r->unit_price;
+                if ($r->external_panel_id) $negotiated['ext_' . $r->external_panel_id] = (float) $r->unit_price;
+            }
+        }
+
+        $all = collect();
+        foreach ($campaign->panels as $p) {
+            $all->push($this->panelToOption($p, 'int', $negotiated['int_' . $p->id] ?? null));
+        }
+        foreach ($campaign->externalPanels as $p) {
+            $all->push($this->panelToOption($p, 'ext', $negotiated['ext_' . $p->id] ?? null));
+        }
+
+        // Filtre texte côté collection (volumes raisonnables : 1 campagne)
+        if ($q !== '') {
+            $needle = mb_strtolower($q);
+            $all = $all->filter(fn($r) => str_contains(mb_strtolower($r['text']), $needle));
+        }
+        $total = $all->count();
+        $items = $all->forPage($page, $perPage)->values();
+
+        return response()->json([
+            'results'    => $items,
+            'pagination' => ['more' => $total > $page * $perPage],
+        ]);
+    }
+
+    /**
+     * Transforme un Panel (interne ou externe) en option Select2 avec
+     * tous les champs utiles pour pré-remplir la ligne de facture.
+     */
+    protected function panelToOption($panel, string $source, ?float $negotiatedPu): array
+    {
+        $m2          = (float) ($panel->format?->surface_m2 ?? 0);
+        $catalogRate = (float) ($panel->monthly_rate ?? 0);
+        $pu          = $negotiatedPu ?? $catalogRate;
+        $ref         = $panel->reference ?? ('#' . $panel->id);
+        $name        = $panel->name ?? '';
+        $communeName = $panel->commune?->name ?? '—';
+        $dimLabel    = $panel->format?->dimensions_label ?? '';
+
+        $designation = trim("{$ref} — {$name}" . ($dimLabel ? " {$dimLabel}" : ''));
+        $text        = trim("{$ref} · {$communeName}" . ($name ? " — {$name}" : ''));
+
+        return [
+            'id'             => $source . '_' . $panel->id,
+            'text'           => $text,
+            'designation'    => $designation,
+            'ref'            => $ref,
+            'name'           => $name,
+            'commune_id'     => $panel->commune?->id,
+            'commune_name'   => $communeName,
+            'dimension_m2'   => $m2,
+            'monthly_rate'   => $catalogRate,
+            'pu_negotiated'  => $negotiatedPu,
+            'pu_suggested'   => $pu,
+            'source'         => $source,
+            'is_external'    => $source === 'ext',
+        ];
+    }
+
     public function lookupCampaignInfo(Campaign $campaign)
     {
         $campaign->loadMissing('client:id,name,email', 'reservation:id,total_amount');

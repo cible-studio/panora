@@ -150,15 +150,18 @@
                     <tbody id="lines-tbody">
                         @foreach($lines as $i => $l)
                             <tr class="line-row" data-index="{{ $i }}">
-                                <td style="padding:6px 8px;border-top:1px solid var(--border)">
-                                    <input type="text" name="lines[{{ $i }}][designation]" required
-                                           value="{{ $l['designation'] ?? '' }}"
-                                           placeholder="Ex: ABG-001 — Treichville…"
-                                           style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px">
+                                <td style="padding:6px 8px;border-top:1px solid var(--border);min-width:220px">
+                                    {{-- Select2 AJAX panneau : recherche par référence/nom/commune.
+                                         À la sélection, auto-remplit commune + m² + PU HT/mois.
+                                         Tags activé → l'admin peut aussi taper du texte libre
+                                         (ex: une ligne forfaitaire qui n'est pas un panneau). --}}
+                                    <select name="lines[{{ $i }}][designation_picker]" class="line-designation" style="width:100%"></select>
+                                    {{-- Champ texte caché qui contient la désignation finale
+                                         envoyée au backend (texte du panneau OU texte libre). --}}
+                                    <input type="hidden" name="lines[{{ $i }}][designation]" class="line-designation-value" value="{{ $l['designation'] ?? '' }}">
                                 </td>
-                                <td style="padding:6px 8px;border-top:1px solid var(--border)">
-                                    <select name="lines[{{ $i }}][commune_id]" class="line-commune" required
-                                            style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--surface)">
+                                <td style="padding:6px 8px;border-top:1px solid var(--border);min-width:140px">
+                                    <select name="lines[{{ $i }}][commune_id]" class="line-commune" required style="width:100%">
                                         <option value="">—</option>
                                         @foreach($communes as $c)
                                             <option value="{{ $c->id }}"
@@ -262,18 +265,200 @@
     </div>
 </form>
 
+@push('styles')
+{{-- Select2 — chargé une seule fois côté form facture pour la
+     recherche AJAX panneau + commune. CSS standard CIBLE déjà
+     compatible (cf. controls-bar du module Pose). --}}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<style>
+    /* Aligne Select2 sur le look CIBLE (bordures, hauteur, focus accent) */
+    .select2-container--default .select2-selection--single {
+        height: 34px !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 6px !important;
+        background: var(--surface) !important;
+        font-family: inherit !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 34px !important;
+        font-size: 12px !important;
+        color: var(--text) !important;
+        padding-left: 10px !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow { height: 32px !important; }
+    .select2-dropdown {
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+        box-shadow: 0 20px 50px -16px rgba(0,0,0,.18) !important;
+    }
+    .select2-search--dropdown .select2-search__field {
+        border: 1px solid var(--border) !important;
+        border-radius: 6px !important;
+        padding: 8px 10px !important;
+        font-size: 12.5px !important;
+        outline: none !important;
+    }
+    .select2-results__option--highlighted {
+        background: rgba(232,160,32,.12) !important;
+        color: var(--text) !important;
+    }
+    .s2-pan-row { display: flex; gap: 10px; align-items: flex-start; padding: 4px 0; }
+    .s2-pan-info { flex: 1; min-width: 0; }
+    .s2-pan-ref { font-family: ui-monospace, monospace; font-weight: 800; color: var(--accent-dark); font-size: 12.5px; }
+    .s2-pan-name { font-size: 11.5px; color: var(--text); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .s2-pan-meta { font-size: 10px; color: var(--text3); margin-top: 2px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .s2-pan-pill { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 9.5px; font-weight: 700; }
+    .s2-pan-pill.ext { background: rgba(59,130,246,.12); color: #1d4ed8; }
+    .s2-pan-pill.int { background: rgba(232,160,32,.12); color: var(--accent-dark); }
+</style>
+@endpush
+
 @push('scripts')
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 <script>
 (function () {
     const TVA = {{ $tvaRate }};
     const TSP = {{ $tspRate }};
     const TM_DEFAULT = {{ $tmDefault }};
+    const LOOKUP_PANELS_URL = "{{ route('admin.invoices.lookup.panels') }}";
 
     const tbody = document.getElementById('lines-tbody');
     const addBtn = document.getElementById('add-line');
+    const campaignSel = document.getElementById('inv-campaign');
     let nextIdx = {{ count($lines) }};
 
     function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA'; }
+
+    // ═══════════════════════════════════════════════════════════════
+    // INIT SELECT2 — désignation (AJAX panneau) + commune (statique)
+    // ═══════════════════════════════════════════════════════════════
+    function s2Pan(item) {
+        if (!item.id) return $('<span style="color:var(--text3)">' + (item.text || '') + '</span>');
+        // Item issu de l'AJAX → on a tous les champs panneau
+        if (item.ref) {
+            const sourceBadge = item.is_external
+                ? '<span class="s2-pan-pill ext">🤝 Externe</span>'
+                : '<span class="s2-pan-pill int">🏢 CIBLE</span>';
+            return $(`
+                <div class="s2-pan-row">
+                    <div class="s2-pan-info">
+                        <div class="s2-pan-ref">${item.ref} ${sourceBadge}</div>
+                        <div class="s2-pan-name">${item.name || ''}</div>
+                        <div class="s2-pan-meta">
+                            <span>📍 ${item.commune_name || '—'}</span>
+                            ${item.dimension_m2 ? '<span>📐 ' + item.dimension_m2 + ' m²</span>' : ''}
+                            ${item.pu_suggested ? '<span style="color:var(--accent-dark);font-weight:700">' + Math.round(item.pu_suggested).toLocaleString('fr-FR') + ' F/mois</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+        // Item "tag" libre (l'admin a tapé du texte)
+        return $('<span>📝 ' + (item.text || '') + '</span>');
+    }
+
+    function s2PanSelection(item) {
+        if (!item.id && !item.text) return '— Choisir un panneau ou taper —';
+        return item.designation || item.text;
+    }
+
+    function initLineSelect2(row) {
+        const $design = $(row.querySelector('.line-designation'));
+        const $commune = $(row.querySelector('.line-commune'));
+
+        // ── Désignation : Select2 AJAX + tags (texte libre OK) ──
+        if (!$design.data('select2-init')) {
+            // Pré-remplissage : si la ligne a déjà une désignation
+            // (cas edit), on l'injecte comme option pré-sélectionnée.
+            const initialDesign = row.querySelector('.line-designation-value').value;
+            if (initialDesign) {
+                const opt = new Option(initialDesign, 'manual:' + initialDesign, true, true);
+                $design[0].appendChild(opt);
+            }
+            $design.select2({
+                placeholder: campaignSel?.value
+                    ? 'Chercher un panneau de la campagne ou taper du texte libre'
+                    : '⚠ Choisis une campagne pour rechercher des panneaux, ou tape du texte libre',
+                allowClear: true,
+                tags: true,
+                minimumInputLength: 0,
+                language: {
+                    noResults: () => campaignSel?.value
+                        ? 'Aucun panneau dans cette campagne ne correspond.'
+                        : 'Sélectionne d\'abord une campagne pour rechercher ses panneaux.',
+                },
+                ajax: {
+                    url: LOOKUP_PANELS_URL,
+                    delay: 220,
+                    dataType: 'json',
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    data: (params) => ({
+                        q: params.term || '',
+                        page: params.page || 1,
+                        campaign_id: campaignSel?.value || '',
+                    }),
+                    processResults: (data, params) => {
+                        params.page = params.page || 1;
+                        return {
+                            results: data.results || [],
+                            pagination: { more: data.pagination?.more === true },
+                        };
+                    },
+                    cache: true,
+                },
+                createTag: (params) => {
+                    const term = (params.term || '').trim();
+                    if (term === '') return null;
+                    // Tag = ligne libre. id préfixé "manual:" pour distinguer du panneau.
+                    return { id: 'manual:' + term, text: term, designation: term };
+                },
+                templateResult: s2Pan,
+                templateSelection: s2PanSelection,
+                escapeMarkup: m => m,
+            });
+            $design.data('select2-init', true);
+
+            $design.on('select2:select', function (e) {
+                const item = e.params.data;
+                const designationField = row.querySelector('.line-designation-value');
+                const m2Field          = row.querySelector('.line-m2');
+                const puField          = row.querySelector('.line-pu');
+
+                // Cas tag libre : on ne touche qu'à la désignation
+                if (String(item.id).startsWith('manual:')) {
+                    designationField.value = item.designation || item.text;
+                    recompute();
+                    return;
+                }
+
+                // Cas panneau : on remplit tout (designation, commune, m², PU)
+                designationField.value = item.designation || item.text;
+                if (item.dimension_m2 && m2Field) m2Field.value = item.dimension_m2;
+                if (item.pu_suggested && puField) puField.value = Math.round(item.pu_suggested);
+
+                // Sélectionner la commune dans le select Commune
+                if (item.commune_id) {
+                    $commune.val(String(item.commune_id)).trigger('change');
+                }
+                recompute();
+            });
+            $design.on('select2:clear', function () {
+                row.querySelector('.line-designation-value').value = '';
+                recompute();
+            });
+        }
+
+        // ── Commune : Select2 statique (consistance UX) ──
+        if (!$commune.data('select2-init')) {
+            $commune.select2({
+                placeholder: 'Commune',
+                minimumResultsForSearch: 0, // affiche le champ search dès 1+ communes
+            });
+            $commune.data('select2-init', true);
+            $commune.on('change', recompute);
+        }
+    }
 
     function recompute() {
         let htBrut = 0, totalTm = 0, totalOdp = 0;
@@ -319,10 +504,13 @@
     }
 
     function bindRow(row) {
-        row.querySelectorAll('input, select').forEach(el => {
+        // Inputs natifs (m², PU, qté, mois) → recompute live
+        row.querySelectorAll('input.line-m2, input.line-pu, input.line-qte, input.line-mois').forEach(el => {
             el.addEventListener('input', recompute);
-            el.addEventListener('change', recompute);
         });
+        // Select2 (désignation, commune) sont initialisés via initLineSelect2
+        initLineSelect2(row);
+
         const rm = row.querySelector('.line-remove');
         rm?.addEventListener('click', () => {
             if (tbody.querySelectorAll('.line-row').length <= 1) {
@@ -363,6 +551,27 @@
 
     ['remise_pct','services_impression','services_pose_depose'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', recompute);
+    });
+
+    // Quand la campagne change, on reset les Select2 désignation (car les
+    // panneaux de la précédente campagne ne sont plus valides) — sinon
+    // l'admin risque de garder une ligne pointant sur un panneau hors
+    // campagne. Le placeholder Select2 se met à jour selon la sélection.
+    campaignSel?.addEventListener('change', () => {
+        tbody.querySelectorAll('.line-designation').forEach(sel => {
+            const $sel = $(sel);
+            // Vide la sélection courante + l'option pré-chargée
+            $sel.val(null).trigger('change');
+            $sel.find('option').remove();
+            // Reset la désignation hidden
+            const row = sel.closest('.line-row');
+            if (row) row.querySelector('.line-designation-value').value = '';
+            // Re-init avec le bon placeholder
+            $sel.data('select2-init', false);
+            if ($sel.data('select2')) $sel.select2('destroy');
+            initLineSelect2(row);
+        });
+        recompute();
     });
 
     recompute();
