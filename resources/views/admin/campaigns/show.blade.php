@@ -2136,6 +2136,34 @@
                     // Met à jour le badge "Négocié par X · DD/MM HH:mm"
                     updateOverrideBadge(data.overridden_by, data.overridden_at_formatted);
 
+                    // ── Bloc FACTURATION (live, sans reload) ───────────
+                    // Même logique que dans le save() de l'édition prix
+                    // panneau : Total campagne / Montant attendu / Reste.
+                    // (Le Déjà facturé reste figé — une modif de prix ne
+                    // crée/supprime aucune facture émise.)
+                    const newExpected = parseFloat(data.total_amount);
+                    if (!isNaN(newExpected)) {
+                        document.querySelectorAll('[data-billing-expected]').forEach(el => {
+                            el.textContent = Math.round(newExpected).toLocaleString('fr-FR');
+                        });
+                        const billedEl = document.querySelector('[data-billing-billed]');
+                        if (billedEl) {
+                            const billed = parseFloat(billedEl.dataset.billingBilled || 0);
+                            const newRemain = Math.max(0, newExpected - billed);
+                            document.querySelectorAll('[data-billing-remain]').forEach(el => {
+                                el.textContent = Math.round(newRemain).toLocaleString('fr-FR');
+                            });
+                            const remainColor = document.querySelector('[data-billing-remain-color]');
+                            if (remainColor) {
+                                remainColor.style.color = newRemain > 0 ? '#f97316' : 'var(--text3)';
+                            }
+                            const remainRow = document.querySelector('[data-billing-remain-row]');
+                            if (remainRow) {
+                                remainRow.style.display = newRemain > 0 ? '' : 'none';
+                            }
+                        }
+                    }
+
                     // Toast de confirmation (system d'app — window.Toast)
                     if (window.Toast) window.Toast.success(data.message || '✅ Montant total mis à jour.');
                 } catch (e) {
