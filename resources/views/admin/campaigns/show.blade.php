@@ -489,11 +489,23 @@
                                 <div class="text-xs mt-1" style="color:var(--text3)">Aucune facture émise pour le moment</div>
                             @endif
                             @if($isAdmin)
-                                <a href="{{ route('admin.invoices.create', ['campaign_id' => $campaign->id]) }}"
-                                   class="btn btn-primary mt-3"
-                                   style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#3aa835;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none">
-                                    💸 Émettre une facture
-                                </a>
+                                <div style="display:flex;flex-direction:column;gap:6px;align-items:center;margin-top:12px">
+                                    {{-- Génération automatique FNE : crée invoice + lignes
+                                         + résout tarifs ODP/TM historisés en un clic. --}}
+                                    <form method="POST" action="{{ route('admin.invoices.from-campaign', $campaign) }}"
+                                          onsubmit="return confirm('Générer la facture FNE pour cette campagne ?\n\nElle sera créée en brouillon — vous pourrez ajuster avant l\'envoi.');"
+                                          style="display:inline">
+                                        @csrf
+                                        <button type="submit"
+                                                style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#3aa835;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+                                            ⚡ Générer la facture FNE
+                                        </button>
+                                    </form>
+                                    <a href="{{ route('admin.invoices.create', ['campaign_id' => $campaign->id]) }}"
+                                       style="color:var(--text3);font-size:11px;text-decoration:underline">
+                                        ou facture manuelle classique
+                                    </a>
+                                </div>
                             @endif
                         </div>
                     @endif
