@@ -281,9 +281,15 @@
         }
 
         try {
-            const response = await fetch(`{{ route("admin.taxes.index") }}?${params}`, {
+            // ⚠ Fix : on doit appeler admin.taxes.historique (qui renvoie
+            // {html, pagination, total} en JSON quand ajax=1), PAS
+            // admin.taxes.index qui rend la vue HTML standard. Avant :
+            // "SyntaxError: Unexpected token '<', '<!DOCTYPE'..." →
+            // response.json() plantait sur la page HTML retournée.
+            const response = await fetch(`{{ route("admin.taxes.historique") }}?${params}`, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
             });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
             const data = await response.json();
 
             if (data.html && elements.tableBody) {
