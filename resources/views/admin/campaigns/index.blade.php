@@ -684,7 +684,7 @@
         .data-table { width: 100%; border-collapse: collapse; }
         .data-table th {
             text-align: left;
-            padding: 10px 12px;
+            padding: 9px 8px;
             background: var(--surface2);
             font-size: 11px;
             font-weight: 600;
@@ -693,12 +693,30 @@
             border-bottom: 1px solid var(--border);
         }
         .data-table td {
-            padding: 12px 12px;
+            padding: 10px 8px;
             font-size: 13px;
             border-bottom: 1px solid var(--border);
             transition: background 0.12s;
         }
         .data-table tr:hover td { background: var(--surface2); }
+
+        /* Colonnes texte longues : on coupe à largeur fixe + ellipsis. Le
+           contenu complet reste accessible via title= (tooltip natif). Sans
+           ça, un nom de campagne ou un email de commercial faisait gonfler
+           la table au-delà du viewport → scroll horizontal forcé. */
+        .col-campaign   { max-width: 240px; }
+        .col-client     { max-width: 180px; }
+        .col-commercial { max-width: 160px; }
+        .col-campaign .campaign-name,
+        .col-client .client-link,
+        .col-client .client-deleted,
+        .col-commercial > div {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .date-range { font-size: 12px; line-height: 1.35; white-space: nowrap; }
 
         .campaign-name { font-weight: 700; color: var(--text); text-decoration: none; }
         .client-link { color: var(--text); text-decoration: none; font-weight: 500; }

@@ -44,8 +44,8 @@
                aria-label="Sélectionner {{ $campaign->name }}">
     </td>
     @endif
-    <td>
-        <a href="{{ route('admin.campaigns.show', $campaign) }}" class="campaign-name">
+    <td class="col-campaign">
+        <a href="{{ route('admin.campaigns.show', $campaign) }}" class="campaign-name" title="{{ $campaign->name }}">
             {{ $campaign->name }}
         </a>
         @if($endingSoon)
@@ -57,20 +57,21 @@
         </div>
         @endif
     </td>
-    <td>
+    <td class="col-client">
         @if($campaign->client?->trashed())
-        <span class="client-deleted">{{ $campaign->client->name ?? '—' }}</span>
+        <span class="client-deleted" title="{{ $campaign->client->name }}">{{ $campaign->client->name ?? '—' }}</span>
         <span class="deleted-badge">Supprimé</span>
         @else
-        <a href="{{ route('admin.clients.show', $campaign->client) }}" class="client-link">
+        <a href="{{ route('admin.clients.show', $campaign->client) }}" class="client-link" title="{{ $campaign->client?->name }}">
             {{ $campaign->client?->name ?? '—' }}
         </a>
         @endif
     </td>
+    {{-- Dates empilées + année à 2 chiffres pour gagner ~40% de largeur
+         sur la colonne Période sans perdre l'info clé (jour/mois). --}}
     <td class="date-range">
-        {{ $campaign->start_date->format('d/m/Y') }}
-        <span>→</span>
-        {{ $campaign->end_date->format('d/m/Y') }}
+        <div>{{ $campaign->start_date->format('d/m/y') }}</div>
+        <div style="color:var(--text3)">→ {{ $campaign->end_date->format('d/m/y') }}</div>
     </td>
     <td class="duration">{{ $campaign->durationHuman() }}</td>
     <td class="text-center">
@@ -136,12 +137,11 @@
         @endif
     </td>
     @endif
-    <td>
+    <td class="col-commercial">
         @if($rowCommercial)
-            <div style="font-weight:500;">{{ $rowCommercial->name }}</div>
-            @if($rowCommercial->email)
-            <div class="date-small">{{ $rowCommercial->email }}</div>
-            @endif
+            {{-- Email retiré de l'affichage : trop large, déjà accessible
+                 depuis la fiche détail. On le met juste en tooltip. --}}
+            <div style="font-weight:500" title="{{ $rowCommercial->email ?? $rowCommercial->name }}">{{ $rowCommercial->name }}</div>
         @else
             <span class="badge-muted">—</span>
         @endif
