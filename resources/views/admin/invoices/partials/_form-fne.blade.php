@@ -1,21 +1,24 @@
 {{--
-    Formulaire FNE partagé create + edit (version retravaillée).
-    Contrat inchangé (drop-in) : mêmes name="…", mêmes routes admin.invoices.*,
-    même config('billing.*'), même algorithme de calcul que InvoiceCalculator.
+    Formulaire facture FNE — refonte complète, design simple et robuste.
 
-    Variables attendues :
+    Contrat (drop-in inchangé) :
       $invoice, $clients, $campaigns, $reference, $preselect, $isEdit, $action, $method
 
-    Changements de cette version :
-      • Design : système de cartes unifié (.ifc) + récapitulatif FNE en pièce maîtresse.
-      • Selects : init Select2 idempotente, dropdowns lisibles, largeurs stables.
-      • Fix bug : l'ajout de ligne clone désormais un <template> propre au lieu de
-        recopier le HTML d'une ligne déjà initialisée par Select2 (évitait les
-        widgets dupliqués / cassés).
+    Choix techniques :
+      • Tout le CSS est scopé sous `.fne` → zéro conflit avec le reste du site.
+      • Selects NATIFS pour client / campagne / commune (cascading en vanilla JS) :
+        pas de Select2 inutile = pas de bug de fond transparent / z-index / largeur.
+      • Select2 UNIQUEMENT sur la désignation de ligne (qui a besoin d'AJAX pour
+        rechercher les panneaux de la campagne sélectionnée).
+      • Services annexes : N lignes libres (label + prix HT TVA-able).
+      • Récap calculé en direct.
 --}}
+
 @php
     $isEdit    = isset($invoice) && $invoice !== null;
+    $locked    = $isEdit && $invoice->isLocked();
     $rateDate  = $isEdit ? ($invoice->issued_at?->format('Y-m-d') ?? date('Y-m-d')) : date('Y-m-d');
+
     $oldLines  = old('lines');
     $lines     = $oldLines ?: ($isEdit && $invoice->lines->count() > 0
                     ? $invoice->lines->map(fn($l) => [
@@ -30,613 +33,737 @@
                         ['designation' => '', 'commune_id' => '', 'dimension_m2' => 0,
                          'pu_ht_mensuel' => 0, 'quantite' => 1, 'duree_mois' => 1],
                     ]);
+
+    $existingServices = $isEdit && $invoice->services
+        ? $invoice->services->map(fn($s) => ['label' => $s->label, 'prix_ht' => (float) $s->prix_ht])->all()
+        : [];
+    if ($isEdit && empty($existingServices)) {
+        if ((float) $invoice->services_impression > 0) {
+            $existingServices[] = ['label' => "Frais d'impression", 'prix_ht' => (float) $invoice->services_impression];
+        }
+        if ((float) $invoice->services_pose_depose > 0) {
+            $existingServices[] = ['label' => 'Frais de pose et dépose', 'prix_ht' => (float) $invoice->services_pose_depose];
+        }
+    }
+    $oldServices = old('services');
+    $services    = is_array($oldServices) && !empty($oldServices) ? $oldServices : $existingServices;
+
     $communes  = \App\Models\Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate']);
     $tvaRate   = (float) config('billing.tva_rate', 18);
     $tspRate   = (float) config('billing.tsp_rate', 3);
     $tmDefault = (float) config('billing.tm_default', 1000);
-    $locked    = $isEdit && $invoice->isLocked();
     $fmtPct    = fn($v) => rtrim(rtrim(number_format($v, 2, ',', ''), '0'), ',');
+
+    $selClient   = old('client_id',   $isEdit ? $invoice->client_id   : ($preselect['client_id']   ?? null));
+    $selCampaign = old('campaign_id', $isEdit ? $invoice->campaign_id : ($preselect['campaign_id'] ?? null));
 @endphp
 
-@if($errors->any())
-<div class="ifc-alert ifc-alert--error" role="alert">
-    <div class="ifc-alert-title">Vérifie les champs suivants</div>
-    @foreach($errors->all() as $error)
-        <div class="ifc-alert-line">{{ $error }}</div>
-    @endforeach
-</div>
-@endif
+<div class="fne">
 
-@if($locked)
-<div class="ifc-alert ifc-alert--locked">
-    🔒 <strong>Facture verrouillée</strong> le {{ $invoice->locked_at->format('d/m/Y à H:i') }}@if($invoice->lockedBy) par {{ $invoice->lockedBy->name }}@endif.
-    Déverrouille-la depuis la fiche détail pour la modifier (action tracée).
-</div>
-@endif
-
-<form method="POST" action="{{ $action }}" id="form-fne" class="invoice-form" autocomplete="off">
-    @csrf
-    @if($method === 'PUT') @method('PUT') @endif
-
-    {{-- ════════════ INFORMATIONS ════════════ --}}
-    <section class="ifc">
-        <header class="ifc-head">
-            <span class="ifc-chip">📄</span>
-            <div>
-                <div class="ifc-title">Informations</div>
-                <div class="ifc-sub">Client, campagne et entête de la facture</div>
-            </div>
-        </header>
-        <div class="ifc-body">
-            <div class="form-2col">
-                <div class="mfg">
-                    <label>Référence <span class="req">*</span></label>
-                    <input type="text" name="reference"
-                           value="{{ old('reference', $reference ?? ($invoice->reference ?? '')) }}"
-                           {{ $locked ? 'readonly' : '' }}
-                           class="{{ $errors->has('reference') ? 'error' : '' }}" required>
-                </div>
-                <div class="mfg">
-                    <label>Date d'émission <span class="req">*</span></label>
-                    <input type="date" name="issued_at"
-                           value="{{ old('issued_at', $isEdit ? $invoice->issued_at?->format('Y-m-d') : date('Y-m-d')) }}"
-                           {{ $locked ? 'readonly' : '' }} required>
-                </div>
-            </div>
-
-            @php
-                $selClient   = old('client_id', $isEdit ? $invoice->client_id : ($preselect['client_id'] ?? null));
-                $selCampaign = old('campaign_id', $isEdit ? $invoice->campaign_id : ($preselect['campaign_id'] ?? null));
-            @endphp
-
-            <div class="form-2col">
-                <div class="mfg">
-                    <label>Client <span class="req">*</span></label>
-                    <select name="client_id" id="inv-client" required {{ $locked ? 'disabled' : '' }}>
-                        <option value="">— Sélectionner —</option>
-                        @foreach($clients as $client)
-                        <option value="{{ $client->id }}" {{ (string) $selClient === (string) $client->id ? 'selected' : '' }}>
-                            {{ $client->name }}
-                        </option>
-                        @endforeach
-                    </select>
-                    @if($locked)
-                        <input type="hidden" name="client_id" value="{{ $invoice->client_id }}">
-                    @endif
-                </div>
-                <div class="mfg">
-                    <label>Campagne <span class="opt">— optionnel</span></label>
-                    <select name="campaign_id" id="inv-campaign" {{ $locked ? 'disabled' : '' }}>
-                        <option value="">— Aucune —</option>
-                        @foreach($campaigns as $campaign)
-                        <option value="{{ $campaign->id }}" data-client-id="{{ $campaign->client_id }}"
-                                {{ (string) $selCampaign === (string) $campaign->id ? 'selected' : '' }}>
-                            {{ $campaign->name }}@if($campaign->client) — {{ $campaign->client->name }}@endif
-                        </option>
-                        @endforeach
-                    </select>
-                </div>
-            </div>
-
-            <div class="mfg" style="margin-bottom:0">
-                <label>Notes / Conditions client <span class="opt">— affiché en bas de facture</span></label>
-                <textarea name="notes_client" rows="2" maxlength="2000" {{ $locked ? 'readonly' : '' }}
-                          placeholder="{{ config('billing.payment_terms_default') }}">{{ old('notes_client', $isEdit ? $invoice->notes_client : '') }}</textarea>
-            </div>
-        </div>
-    </section>
-
-    {{-- ════════════ LIGNES DE FACTURATION ════════════ --}}
-    <section class="ifc">
-        <header class="ifc-head">
-            <span class="ifc-chip">📋</span>
-            <div>
-                <div class="ifc-title">Lignes de facturation</div>
-                <div class="ifc-sub" id="lines-count-label">{{ count($lines) }} ligne{{ count($lines) > 1 ? 's' : '' }} · ajoute les panneaux à facturer</div>
-            </div>
-        </header>
-
-        <div class="lines-scroll">
-            <table id="lines-table" class="lines-table">
-                <thead>
-                    <tr>
-                        <th class="col-num">#</th>
-                        <th>Désignation</th>
-                        <th>Commune</th>
-                        <th class="num">m²</th>
-                        <th class="num">PU HT/mois</th>
-                        <th class="num">Qté</th>
-                        <th class="num">Mois</th>
-                        <th class="num">Total HT</th>
-                        <th class="act"></th>
-                    </tr>
-                </thead>
-                <tbody id="lines-tbody">
-                    @foreach($lines as $i => $l)
-                        <tr class="line-row" data-index="{{ $i }}">
-                            <td class="col-num"><span class="row-number">{{ $i + 1 }}</span></td>
-                            <td class="col-designation">
-                                <select name="lines[{{ $i }}][designation_picker]" class="line-designation" style="width:100%"></select>
-                                <input type="hidden" name="lines[{{ $i }}][designation]" class="line-designation-value" value="{{ $l['designation'] ?? '' }}">
-                            </td>
-                            <td class="col-commune">
-                                <select name="lines[{{ $i }}][commune_id]" class="line-commune" required style="width:100%">
-                                    <option value=""></option>
-                                    @foreach($communes as $c)
-                                        <option value="{{ $c->id }}"
-                                                data-odp="{{ $c->ratesAt($rateDate)['odp'] }}"
-                                                data-tm="{{ $c->ratesAt($rateDate)['tm'] }}"
-                                                {{ (string) ($l['commune_id'] ?? '') === (string) $c->id ? 'selected' : '' }}>
-                                            {{ $c->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </td>
-                            <td class="num col-m2"><input type="number" name="lines[{{ $i }}][dimension_m2]" class="line-m2" required value="{{ $l['dimension_m2'] ?? 0 }}" min="0" step="0.01"></td>
-                            <td class="num col-pu"><input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required value="{{ $l['pu_ht_mensuel'] ?? 0 }}" min="0" step="1000"></td>
-                            <td class="num col-qte"><input type="number" name="lines[{{ $i }}][quantite]" class="line-qte" required value="{{ $l['quantite'] ?? 1 }}" min="1" step="1"></td>
-                            <td class="num col-mois"><input type="number" name="lines[{{ $i }}][duree_mois]" class="line-mois" required value="{{ $l['duree_mois'] ?? 1 }}" min="0.5" step="0.5"></td>
-                            <td class="num col-total line-total">0 FCFA</td>
-                            <td class="act">
-                                <button type="button" class="btn-line-remove line-remove" title="Supprimer la ligne" aria-label="Supprimer cette ligne">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                                </button>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-
-        @unless($locked)
-        <footer class="ifc-foot">
-            <button type="button" id="add-line" class="btn-add-line">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Ajouter une ligne
-            </button>
-        </footer>
-        @endunless
-    </section>
-
-    {{-- ════════════ REMISE GLOBALE ════════════ --}}
-    {{-- Garde le design .ifc (HEAD) + sépare les services qui sont
-         maintenant N lignes libres (branche c1cc5c9) dans leur propre
-         carte juste en dessous. La remise reste seule ici : elle
-         s'applique au TOTAL HT panneaux, pas aux services. --}}
-    <section class="ifc">
-        <header class="ifc-head">
-            <span class="ifc-chip">⚙️</span>
-            <div>
-                <div class="ifc-title">Remise globale</div>
-                <div class="ifc-sub">S'applique au TOTAL HT des lignes panneaux · pas sur les services annexes</div>
-            </div>
-        </header>
-        <div class="ifc-body">
-            <div class="mfg" style="max-width:240px;margin-bottom:0">
-                <label>Remise globale (%)</label>
-                <input type="number" name="remise_pct" id="remise_pct" min="0" max="100" step="0.5"
-                       value="{{ old('remise_pct', $isEdit ? $invoice->remise_pct : 0) }}"
-                       {{ $locked ? 'readonly' : '' }}>
-            </div>
-        </div>
-    </section>
-
-    {{-- ════════════ SERVICES ANNEXES (N lignes libres) ════════════
-         Conserve la feature de la branche : services dynamiques avec
-         libellé libre + prix HT, soumis à TVA. Pré-remplis avec les
-         services existants + migration legacy depuis services_impression
-         / services_pose_depose. Habillé dans le design .ifc pour rester
-         cohérent avec les autres sections. --}}
-    @php
-        $existingServices = $isEdit && $invoice->services
-            ? $invoice->services->map(fn($s) => ['label' => $s->label, 'prix_ht' => (float) $s->prix_ht])->all()
-            : [];
-        if ($isEdit && empty($existingServices)) {
-            if ((float) $invoice->services_impression > 0) {
-                $existingServices[] = ['label' => "Frais d'impression", 'prix_ht' => (float) $invoice->services_impression];
-            }
-            if ((float) $invoice->services_pose_depose > 0) {
-                $existingServices[] = ['label' => 'Frais de pose et dépose', 'prix_ht' => (float) $invoice->services_pose_depose];
-            }
-        }
-        $oldServices = old('services');
-        $renderedServices = is_array($oldServices) && !empty($oldServices) ? $oldServices : $existingServices;
-    @endphp
-    <section class="ifc">
-        <header class="ifc-head">
-            <span class="ifc-chip">🧾</span>
-            <div style="flex:1;min-width:0">
-                <div class="ifc-title">Services annexes</div>
-                <div class="ifc-sub">Impression, pose, création… libellé libre + prix HT (TVA {{ $fmtPct($tvaRate) }} %)</div>
-            </div>
-            @unless($locked)
-                <button type="button" class="btn btn-ghost btn-sm" onclick="addService()" style="flex-shrink:0">+ Ajouter un service</button>
-            @endunless
-        </header>
-        <div class="ifc-body">
-            <div id="services-empty" style="padding:14px;text-align:center;color:var(--text3);font-size:12.5px;background:var(--surface2);border-radius:8px;display:{{ empty($renderedServices) ? 'block' : 'none' }}">
-                Aucun service annexe. Clique sur <strong>+ Ajouter un service</strong> pour facturer un libellé libre (TVA {{ $fmtPct($tvaRate) }} %).
-            </div>
-            <table id="services-table" style="width:100%;border-collapse:collapse;font-size:13px;display:{{ empty($renderedServices) ? 'none' : 'table' }}">
-                <thead>
-                    <tr style="background:var(--surface2);color:var(--text3);text-align:left">
-                        <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Libellé</th>
-                        <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;text-align:right;width:160px">Prix HT (FCFA)</th>
-                        <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;text-align:right;width:160px">TTC (TVA {{ $fmtPct($tvaRate) }} %)</th>
-                        <th style="width:50px"></th>
-                    </tr>
-                </thead>
-                <tbody id="services-tbody">
-                    @foreach($renderedServices as $i => $s)
-                    <tr class="service-row" data-idx="{{ $i }}" style="border-top:1px solid var(--border)">
-                        <td style="padding:6px 8px">
-                            <input type="text" name="services[{{ $i }}][label]" value="{{ $s['label'] ?? '' }}"
-                                   placeholder="Ex: Frais d'impression"
-                                   maxlength="200" required {{ $locked ? 'readonly' : '' }}
-                                   class="svc-label" style="width:100%">
-                        </td>
-                        <td style="padding:6px 8px">
-                            <input type="number" name="services[{{ $i }}][prix_ht]" value="{{ $s['prix_ht'] ?? 0 }}"
-                                   min="0" step="1000" required {{ $locked ? 'readonly' : '' }}
-                                   class="svc-prix" style="width:100%;text-align:right">
-                        </td>
-                        <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--accent)" class="svc-ttc">—</td>
-                        <td style="padding:6px 4px;text-align:center">
-                            @unless($locked)
-                                <button type="button" class="btn btn-ghost btn-sm" onclick="removeService(this)" title="Supprimer cette ligne" style="color:#ef4444;font-weight:700">✕</button>
-                            @endunless
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-                <tfoot>
-                    <tr style="border-top:2px solid var(--border)">
-                        <td colspan="2" style="padding:8px 10px;text-align:right;font-weight:700;color:var(--text2)">Sous-total services TTC</td>
-                        <td style="padding:8px 10px;text-align:right;font-weight:800;color:var(--accent)" id="services-subtotal">0 FCFA</td>
-                        <td></td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-    </section>
-
-    {{-- ════════════ RÉCAPITULATIF FNE (pièce maîtresse) ════════════ --}}
-    <section class="ifc recap">
-        <header class="ifc-head">
-            <span class="ifc-chip">💰</span>
-            <div>
-                <div class="ifc-title">Récapitulatif FNE</div>
-                <div class="ifc-sub">Calculé en direct au fil de la saisie</div>
-            </div>
-        </header>
-        <div class="ifc-body">
-            <div class="recap-cols">
-                {{-- Colonne principale : HT → TVA → TTC --}}
-                <div class="recap-block">
-                    <div class="recap-line"><span class="lbl">Total HT brut</span><span class="val" id="rec-brut">0 FCFA</span></div>
-                    <div class="recap-line"><span class="lbl">Remise</span><span class="val val-minus" id="rec-remise">0 FCFA</span></div>
-                    <div class="recap-sep"></div>
-                    <div class="recap-line strong"><span class="lbl">Total HT</span><span class="val" id="rec-netht">0 FCFA</span></div>
-                    <div class="recap-line"><span class="lbl">TVA ({{ $fmtPct($tvaRate) }} %)</span><span class="val" id="rec-tva">0 FCFA</span></div>
-                    <div class="recap-sep"></div>
-                    <div class="recap-line strong"><span class="lbl">Total TTC</span><span class="val" id="rec-ttc">0 FCFA</span></div>
-                </div>
-                {{-- Colonne : autres taxes + services --}}
-                <div class="recap-block recap-block--alt">
-                    <div class="recap-cap">Autres taxes &amp; services</div>
-                    <div class="recap-line sub"><span class="lbl">TSP ({{ $fmtPct($tspRate) }} %)</span><span class="val" id="rec-tsp">0 FCFA</span></div>
-                    <div class="recap-line sub"><span class="lbl">Taxe municipale (TM)</span><span class="val" id="rec-tm">0 FCFA</span></div>
-                    <div class="recap-line sub"><span class="lbl">Occupation domaine public (ODP)</span><span class="val" id="rec-odp">0 FCFA</span></div>
-                    <div class="recap-line sub"><span class="lbl">Services TTC</span><span class="val" id="rec-svc">0 FCFA</span></div>
-                </div>
-            </div>
-            <div class="recap-total">
-                <span class="recap-total-lbl">Total à payer</span>
-                <span class="recap-total-val" id="rec-total">0 FCFA</span>
-            </div>
-        </div>
-    </section>
-
-    <div class="ifc-actions">
-        <a href="{{ route('admin.invoices.index') }}" class="btn btn-ghost">Annuler</a>
-        @unless($locked)
-        <button type="submit" class="btn btn-primary">{{ $isEdit ? 'Enregistrer les modifications' : 'Créer la facture' }}</button>
-        @endunless
+    @if($errors->any())
+    <div class="fne-alert fne-alert--error">
+        <div class="fne-alert-title">⚠️ Vérifie les champs suivants</div>
+        @foreach($errors->all() as $error)
+            <div class="fne-alert-item">• {{ $error }}</div>
+        @endforeach
     </div>
-</form>
+    @endif
 
-{{-- ════════════ TEMPLATE LIGNE VIERGE (cloné par le JS, jamais initialisé tant que non inséré) ════════════ --}}
-<template id="line-tpl">
-    <tr class="line-row" data-index="__IDX__">
-        <td class="col-num"><span class="row-number">0</span></td>
-        <td class="col-designation">
-            <select name="lines[__IDX__][designation_picker]" class="line-designation" style="width:100%"></select>
-            <input type="hidden" name="lines[__IDX__][designation]" class="line-designation-value" value="">
-        </td>
-        <td class="col-commune">
-            <select name="lines[__IDX__][commune_id]" class="line-commune" required style="width:100%">
-                <option value=""></option>
-                @foreach($communes as $c)
-                    <option value="{{ $c->id }}" data-odp="{{ $c->ratesAt($rateDate)['odp'] }}" data-tm="{{ $c->ratesAt($rateDate)['tm'] }}">{{ $c->name }}</option>
-                @endforeach
-            </select>
-        </td>
-        <td class="num col-m2"><input type="number" name="lines[__IDX__][dimension_m2]" class="line-m2" required value="0" min="0" step="0.01"></td>
-        <td class="num col-pu"><input type="number" name="lines[__IDX__][pu_ht_mensuel]" class="line-pu" required value="0" min="0" step="1000"></td>
-        <td class="num col-qte"><input type="number" name="lines[__IDX__][quantite]" class="line-qte" required value="1" min="1" step="1"></td>
-        <td class="num col-mois"><input type="number" name="lines[__IDX__][duree_mois]" class="line-mois" required value="1" min="0.5" step="0.5"></td>
-        <td class="num col-total line-total">0 FCFA</td>
-        <td class="act">
-            <button type="button" class="btn-line-remove line-remove" title="Supprimer la ligne" aria-label="Supprimer cette ligne">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+    @if($locked)
+    <div class="fne-alert fne-alert--locked">
+        🔒 <strong>Facture verrouillée</strong> le {{ $invoice->locked_at->format('d/m/Y à H:i') }}@if($invoice->lockedBy) par {{ $invoice->lockedBy->name }}@endif.
+        Déverrouille-la depuis la fiche détail pour la modifier.
+    </div>
+    @endif
+
+    <form method="POST" action="{{ $action }}" id="fne-form" autocomplete="off">
+        @csrf
+        @if($method === 'PUT') @method('PUT') @endif
+
+        {{-- ════════════ 1. INFOS ════════════ --}}
+        <section class="fne-card">
+            <div class="fne-card-head">
+                <span class="fne-chip" style="--c:#3b82f6">📄</span>
+                <div>
+                    <div class="fne-card-title">Informations</div>
+                    <div class="fne-card-sub">Référence, dates, client et campagne</div>
+                </div>
+            </div>
+            <div class="fne-card-body">
+                <div class="fne-grid-2">
+                    <div class="fne-field">
+                        <label>Référence <span class="req">*</span></label>
+                        <input type="text" name="reference" required {{ $locked ? 'readonly' : '' }}
+                               value="{{ old('reference', $reference ?? ($invoice->reference ?? '')) }}"
+                               class="{{ $errors->has('reference') ? 'has-error' : '' }}">
+                    </div>
+                    <div class="fne-field">
+                        <label>Date d'émission <span class="req">*</span></label>
+                        <input type="date" name="issued_at" required {{ $locked ? 'readonly' : '' }}
+                               value="{{ old('issued_at', $isEdit ? $invoice->issued_at?->format('Y-m-d') : date('Y-m-d')) }}">
+                    </div>
+                </div>
+
+                <div class="fne-grid-2">
+                    <div class="fne-field">
+                        <label>Client <span class="req">*</span></label>
+                        <select name="client_id" id="fne-client" required {{ $locked ? 'disabled' : '' }}>
+                            <option value="">— Sélectionner —</option>
+                            @foreach($clients as $client)
+                                <option value="{{ $client->id }}" {{ (string) $selClient === (string) $client->id ? 'selected' : '' }}>
+                                    {{ $client->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @if($locked)<input type="hidden" name="client_id" value="{{ $invoice->client_id }}">@endif
+                    </div>
+                    <div class="fne-field">
+                        <label>Campagne <span class="opt">— optionnel</span></label>
+                        <select name="campaign_id" id="fne-campaign" {{ $locked ? 'disabled' : '' }}>
+                            <option value="">— Aucune —</option>
+                            @foreach($campaigns as $campaign)
+                                <option value="{{ $campaign->id }}" data-client-id="{{ $campaign->client_id }}"
+                                        {{ (string) $selCampaign === (string) $campaign->id ? 'selected' : '' }}>
+                                    {{ $campaign->name }}@if($campaign->client) — {{ $campaign->client->name }}@endif
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
+                <div class="fne-field">
+                    <label>Notes / Conditions client <span class="opt">— affiché en bas de facture</span></label>
+                    <textarea name="notes_client" rows="2" maxlength="2000" {{ $locked ? 'readonly' : '' }}
+                              placeholder="{{ config('billing.payment_terms_default') }}">{{ old('notes_client', $isEdit ? $invoice->notes_client : '') }}</textarea>
+                </div>
+            </div>
+        </section>
+
+        {{-- ════════════ 2. LIGNES DE FACTURATION ════════════ --}}
+        <section class="fne-card">
+            <div class="fne-card-head">
+                <span class="fne-chip" style="--c:#e8a020">📋</span>
+                <div>
+                    <div class="fne-card-title">Lignes de facturation</div>
+                    <div class="fne-card-sub" id="fne-lines-sub">{{ count($lines) }} ligne{{ count($lines) > 1 ? 's' : '' }} · panneaux à facturer</div>
+                </div>
+            </div>
+
+            <div class="fne-lines">
+                <div class="fne-lines-header">
+                    <div class="lh-num">#</div>
+                    <div class="lh-designation">Désignation</div>
+                    <div class="lh-commune">Commune</div>
+                    <div class="lh-num-cell">m²</div>
+                    <div class="lh-num-cell">PU HT/mois</div>
+                    <div class="lh-num-cell">Qté</div>
+                    <div class="lh-num-cell">Mois</div>
+                    <div class="lh-num-cell">Total HT</div>
+                    <div class="lh-act"></div>
+                </div>
+                <div id="fne-lines-body">
+                    @foreach($lines as $i => $l)
+                        @include('admin.invoices.partials._line-row', [
+                            'i'        => $i,
+                            'l'        => $l,
+                            'communes' => $communes,
+                            'rateDate' => $rateDate,
+                        ])
+                    @endforeach
+                </div>
+            </div>
+
+            @unless($locked)
+            <div class="fne-card-foot">
+                <button type="button" id="fne-add-line" class="fne-btn fne-btn-add">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Ajouter une ligne
+                </button>
+            </div>
+            @endunless
+        </section>
+
+        {{-- ════════════ 3. REMISE ════════════ --}}
+        <section class="fne-card">
+            <div class="fne-card-head">
+                <span class="fne-chip" style="--c:#a855f7">⚙️</span>
+                <div>
+                    <div class="fne-card-title">Remise globale</div>
+                    <div class="fne-card-sub">S'applique au total HT des lignes panneaux (pas sur les services)</div>
+                </div>
+            </div>
+            <div class="fne-card-body">
+                <div class="fne-field" style="max-width:240px;margin:0">
+                    <label>Remise (%)</label>
+                    <input type="number" name="remise_pct" id="fne-remise" min="0" max="100" step="0.5"
+                           value="{{ old('remise_pct', $isEdit ? $invoice->remise_pct : 0) }}" {{ $locked ? 'readonly' : '' }}>
+                </div>
+            </div>
+        </section>
+
+        {{-- ════════════ 4. SERVICES ANNEXES ════════════ --}}
+        <section class="fne-card">
+            <div class="fne-card-head">
+                <span class="fne-chip" style="--c:#22c55e">🧾</span>
+                <div style="flex:1;min-width:0">
+                    <div class="fne-card-title">Services annexes</div>
+                    <div class="fne-card-sub">Impression, pose, création… libellé libre + prix HT (TVA {{ $fmtPct($tvaRate) }}%)</div>
+                </div>
+                @unless($locked)
+                    <button type="button" class="fne-btn fne-btn-ghost" onclick="fneAddService()">+ Ajouter</button>
+                @endunless
+            </div>
+            <div class="fne-card-body" id="fne-svc-wrap">
+                <div id="fne-svc-empty" class="fne-empty" style="display:{{ empty($services) ? 'block' : 'none' }}">
+                    Aucun service annexe pour le moment.
+                </div>
+                <div id="fne-svc-rows" style="display:{{ empty($services) ? 'none' : 'block' }}">
+                    @foreach($services as $i => $s)
+                    <div class="fne-svc-row" data-idx="{{ $i }}">
+                        <div class="fne-field" style="flex:1;margin:0">
+                            <label>Libellé</label>
+                            <input type="text" name="services[{{ $i }}][label]" value="{{ $s['label'] ?? '' }}"
+                                   maxlength="200" placeholder="Ex: Frais d'impression" class="svc-label"
+                                   {{ $locked ? 'readonly' : '' }} required>
+                        </div>
+                        <div class="fne-field" style="width:140px;margin:0">
+                            <label>Prix HT (FCFA)</label>
+                            <input type="number" name="services[{{ $i }}][prix_ht]" value="{{ $s['prix_ht'] ?? 0 }}"
+                                   min="0" step="1000" class="svc-prix svc-num"
+                                   {{ $locked ? 'readonly' : '' }} required>
+                        </div>
+                        <div class="fne-field" style="width:140px;margin:0">
+                            <label>TTC</label>
+                            <div class="svc-ttc">—</div>
+                        </div>
+                        @unless($locked)
+                        <button type="button" class="fne-btn-remove" onclick="fneRemoveService(this)" title="Supprimer">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        </button>
+                        @endunless
+                    </div>
+                    @endforeach
+                </div>
+                <div class="fne-svc-subtotal" id="fne-svc-subtotal-wrap" style="display:{{ empty($services) ? 'none' : 'flex' }}">
+                    <span>Sous-total services TTC</span>
+                    <strong id="fne-svc-subtotal">0 FCFA</strong>
+                </div>
+            </div>
+        </section>
+
+        {{-- ════════════ 5. RÉCAP FNE ════════════ --}}
+        <section class="fne-card fne-recap">
+            <div class="fne-card-head">
+                <span class="fne-chip" style="--c:#e8a020">💰</span>
+                <div>
+                    <div class="fne-card-title">Récapitulatif FNE</div>
+                    <div class="fne-card-sub">Calculé en direct au fil de la saisie</div>
+                </div>
+            </div>
+            <div class="fne-recap-body">
+                <div class="fne-recap-grid">
+                    <div class="fne-recap-col">
+                        <div class="rl"><span>Total HT brut</span><span id="rec-brut">0 FCFA</span></div>
+                        <div class="rl"><span>Remise</span><span id="rec-remise" class="neg">0 FCFA</span></div>
+                        <div class="rl-sep"></div>
+                        <div class="rl strong"><span>Total HT</span><span id="rec-netht">0 FCFA</span></div>
+                        <div class="rl"><span>TVA ({{ $fmtPct($tvaRate) }}%)</span><span id="rec-tva">0 FCFA</span></div>
+                        <div class="rl-sep"></div>
+                        <div class="rl strong"><span>Total TTC</span><span id="rec-ttc">0 FCFA</span></div>
+                    </div>
+                    <div class="fne-recap-col alt">
+                        <div class="rl-cap">Autres taxes & services</div>
+                        <div class="rl sub"><span>TSP ({{ $fmtPct($tspRate) }}%)</span><span id="rec-tsp">0 FCFA</span></div>
+                        <div class="rl sub"><span>Taxe municipale (TM)</span><span id="rec-tm">0 FCFA</span></div>
+                        <div class="rl sub"><span>Domaine public (ODP)</span><span id="rec-odp">0 FCFA</span></div>
+                        <div class="rl sub"><span>Services TTC</span><span id="rec-svc">0 FCFA</span></div>
+                    </div>
+                </div>
+                <div class="fne-recap-total">
+                    <span class="lbl">Total à payer</span>
+                    <span class="val" id="rec-total">0 FCFA</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="fne-actions">
+            <a href="{{ route('admin.invoices.index') }}" class="fne-btn fne-btn-ghost">Annuler</a>
+            @unless($locked)
+            <button type="submit" class="fne-btn fne-btn-primary">
+                {{ $isEdit ? '✅ Enregistrer les modifications' : '✅ Créer la facture' }}
             </button>
-        </td>
-    </tr>
+            @endunless
+        </div>
+    </form>
+</div>
+
+{{-- ════════ Template ligne vierge (cloné par JS pour ajouter une nouvelle ligne) ════════ --}}
+<template id="fne-line-tpl">
+    @include('admin.invoices.partials._line-row', [
+        'i'        => '__IDX__',
+        'l'        => ['designation' => '', 'commune_id' => '', 'dimension_m2' => 0, 'pu_ht_mensuel' => 0, 'quantite' => 1, 'duree_mois' => 1],
+        'communes' => $communes,
+        'rateDate' => $rateDate,
+    ])
 </template>
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
 <style>
-    /* ════════════ SYSTÈME DE CARTES UNIFIÉ (.ifc) ════════════ */
-    .invoice-form .ifc {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        margin-bottom: 16px;
-        overflow: hidden;
-        box-shadow: 0 1px 2px rgba(0,0,0,.03), 0 12px 32px -22px rgba(0,0,0,.22);
-    }
-    .invoice-form .ifc-head {
-        display: flex; align-items: center; gap: 14px;
-        padding: 16px 20px;
-        border-bottom: 1px solid var(--border);
-        background: linear-gradient(135deg, rgba(232,160,32,.06), rgba(58,168,53,.035));
-    }
-    .invoice-form .ifc-chip {
-        width: 42px; height: 42px; flex-shrink: 0;
-        border-radius: 12px;
-        background: rgba(232,160,32,.12);
-        display: flex; align-items: center; justify-content: center;
-        font-size: 20px;
-    }
-    .invoice-form .ifc-title { font-size: 14.5px; font-weight: 800; color: var(--text); letter-spacing: -.01em; }
-    .invoice-form .ifc-sub   { font-size: 12px; color: var(--text3); margin-top: 1px; line-height: 1.35; }
-    .invoice-form .ifc-body  { padding: 18px 20px; }
-    .invoice-form .ifc-foot  {
-        padding: 14px 18px; border-top: 1px solid var(--border);
-        background: var(--surface2); display: flex; justify-content: center;
-    }
+/* ═══════════════════════════════════════════════════════════════
+   FNE — styles 100% scopés sous .fne pour éviter tout conflit.
+═══════════════════════════════════════════════════════════════ */
 
-    /* ════════════ BANDEAUX (erreurs / verrouillage) ════════════ */
-    .invoice-form ~ .ifc-alert, .ifc-alert { border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-size: 13px; }
-    .ifc-alert--error  { background: rgba(239,68,68,.07); border: 1px solid rgba(239,68,68,.28); color: #b91c1c; }
-    .ifc-alert--locked { background: rgba(107,114,128,.09); border: 1px solid rgba(107,114,128,.32); color: #374151; }
-    .ifc-alert-title { font-weight: 800; margin-bottom: 6px; }
-    .ifc-alert-line  { display: flex; gap: 6px; line-height: 1.5; }
-    .ifc-alert-line::before { content: "•"; opacity: .6; }
+.fne { max-width: 1040px; margin: 0 auto; }
 
-    /* ════════════ CHAMPS NATIFS ════════════ */
-    .invoice-form .mfg { margin-bottom: 14px; }
-    .invoice-form .mfg label {
-        display: block; font-size: 11px; font-weight: 700;
-        text-transform: uppercase; letter-spacing: .5px;
-        color: var(--text2); margin-bottom: 6px;
-    }
-    .invoice-form .mfg .req { color: var(--red, #ef4444); }
-    .invoice-form .mfg .opt { font-size: 11px; color: var(--text3); font-weight: 400; text-transform: none; letter-spacing: 0; }
-    .invoice-form .mfg input[type="text"],
-    .invoice-form .mfg input[type="number"],
-    .invoice-form .mfg input[type="date"],
-    .invoice-form .mfg textarea {
-        height: 42px; width: 100%; padding: 0 13px;
-        background: var(--surface); border: 1px solid var(--border);
-        border-radius: 9px; font-size: 13.5px; color: var(--text);
-        font-family: inherit; outline: none;
-        transition: border-color .15s, box-shadow .15s;
-    }
-    .invoice-form .mfg input[type="number"] { text-align: right; font-variant-numeric: tabular-nums; }
-    .invoice-form .mfg textarea { height: auto; min-height: 62px; padding: 10px 13px; line-height: 1.5; resize: vertical; text-align: left; }
-    .invoice-form .mfg input:hover, .invoice-form .mfg textarea:hover { border-color: var(--text3); }
-    .invoice-form .mfg input:focus, .invoice-form .mfg textarea:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(232,160,32,.16);
-    }
-    .invoice-form .mfg input.error { border-color: rgba(239,68,68,.55); }
-    .invoice-form .mfg input[readonly], .invoice-form .mfg input:disabled {
-        background: var(--surface2); color: var(--text2); cursor: not-allowed;
-    }
-    .invoice-form .form-2col, .invoice-form .form-3col { display: grid; gap: 14px; }
-    .invoice-form .form-2col { grid-template-columns: 1fr 1fr; }
-    .invoice-form .form-3col { grid-template-columns: repeat(3, 1fr); }
+/* Variables locales pour rester cohérent même si le thème global change */
+.fne {
+    --fne-bg:      var(--surface, #fff);
+    --fne-bg2:    var(--surface2, #f9fafb);
+    --fne-border: var(--border, #e5e7eb);
+    --fne-text:   var(--text, #111827);
+    --fne-text2:  var(--text2, #4b5563);
+    --fne-text3:  var(--text3, #9ca3af);
+    --fne-accent: var(--accent, #e8a020);
+    --fne-accent-dark: var(--accent-dark, #c97d10);
+    --fne-red:    #ef4444;
+    --fne-green:  #22c55e;
+}
 
-    /* ════════════ TABLEAU DES LIGNES ════════════ */
-    .lines-scroll {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: thin;
-    }
-    .lines-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 940px; }
-    .lines-table thead tr { background: var(--surface2); border-bottom: 1px solid var(--border); }
-    .lines-table th {
-        padding: 11px 12px; font-size: 10.5px; font-weight: 700;
-        text-transform: uppercase; letter-spacing: .6px; text-align: left;
-        color: var(--text3); white-space: nowrap;
-    }
-    .lines-table th.num { text-align: right; }
-    .lines-table th.act { width: 56px; }
-    .lines-table th.col-num { width: 46px; text-align: center; padding-left: 16px; }
+/* ── Alertes ──────────────────────────────────────────────── */
+.fne-alert {
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.fne-alert--error  { background: rgba(239, 68, 68, .08); border: 1px solid rgba(239, 68, 68, .3); color: #b91c1c; }
+.fne-alert--locked { background: rgba(107, 114, 128, .1); border: 1px solid rgba(107, 114, 128, .3); color: #374151; }
+.fne-alert-title { font-weight: 700; margin-bottom: 6px; }
+.fne-alert-item  { font-size: 12.5px; }
 
-    .lines-table tbody tr { border-bottom: 1px solid var(--border); transition: background .12s; }
-    .lines-table tbody tr:last-child { border-bottom: none; }
-    .lines-table tbody tr:hover { background: rgba(232,160,32,.035); }
-    .lines-table tbody tr:hover .row-number { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .lines-table td { padding: 11px 10px; vertical-align: middle; }
-    .lines-table td.num { text-align: right; }
-    .lines-table td.act { text-align: center; width: 56px; }
-    .lines-table td.col-num { width: 46px; text-align: center; padding-left: 16px; }
+/* ── Cartes ───────────────────────────────────────────────── */
+.fne-card {
+    background: var(--fne-bg);
+    border: 1px solid var(--fne-border);
+    border-radius: 14px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .03);
+}
+.fne-card-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--fne-border);
+    background: var(--fne-bg2);
+}
+.fne-card-body { padding: 18px 20px; }
+.fne-card-foot {
+    padding: 14px 20px;
+    border-top: 1px solid var(--fne-border);
+    background: var(--fne-bg2);
+    display: flex;
+    justify-content: center;
+}
+.fne-chip {
+    width: 40px; height: 40px;
+    border-radius: 11px;
+    background: color-mix(in srgb, var(--c, var(--fne-accent)) 14%, transparent);
+    color: var(--c, var(--fne-accent));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+.fne-card-title { font-size: 15px; font-weight: 800; color: var(--fne-text); margin-bottom: 2px; }
+.fne-card-sub   { font-size: 12px; color: var(--fne-text3); line-height: 1.4; }
 
-    .lines-table .col-designation { min-width: 290px; }
-    .lines-table .col-commune     { min-width: 175px; }
-    .lines-table .col-m2   { width: 92px; }
-    .lines-table .col-pu   { width: 138px; }
-    .lines-table .col-qte  { width: 78px; }
-    .lines-table .col-mois { width: 88px; }
-    .lines-table .col-total {
-        width: 138px; font-weight: 800; color: var(--accent);
-        font-size: 13.5px; white-space: nowrap; font-variant-numeric: tabular-nums;
-    }
+/* ── Grids ────────────────────────────────────────────────── */
+.fne-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.fne-grid-2:last-child { margin-bottom: 0; }
+@media (max-width: 720px) { .fne-grid-2 { grid-template-columns: 1fr; } }
 
-    .row-number {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 26px; height: 26px; border-radius: 999px;
-        background: var(--surface); border: 1px solid var(--border);
-        color: var(--text3); font-size: 11px; font-weight: 800;
-        transition: background .12s, color .12s, border-color .12s;
-    }
+/* ── Champs (label + input/select/textarea) ───────────────── */
+.fne-field { display: flex; flex-direction: column; }
+.fne-field label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--fne-text2);
+    margin-bottom: 6px;
+}
+.fne-field .req { color: var(--fne-red); }
+.fne-field .opt { font-size: 10.5px; color: var(--fne-text3); font-weight: 500; text-transform: none; letter-spacing: 0; margin-left: 4px; }
 
-    .lines-table input[type="number"], .lines-table input[type="text"] {
-        height: 40px !important; width: 100% !important; padding: 0 11px !important;
-        border: 1px solid var(--border) !important; border-radius: 8px !important;
-        background: var(--surface) !important; font-size: 13px !important;
-        text-align: right !important; color: var(--text) !important;
-        font-variant-numeric: tabular-nums; transition: border-color .15s, box-shadow .15s;
-    }
-    .lines-table input:hover { border-color: var(--text3) !important; }
-    .lines-table input:focus { border-color: var(--accent) !important; outline: none !important; box-shadow: 0 0 0 3px rgba(232,160,32,.15) !important; }
-    .lines-table input[type="number"]::-webkit-outer-spin-button,
-    .lines-table input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .lines-table input[type="number"] { -moz-appearance: textfield; }
+.fne input[type="text"],
+.fne input[type="number"],
+.fne input[type="date"],
+.fne textarea,
+.fne select {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    background: var(--fne-bg);
+    border: 1px solid var(--fne-border);
+    border-radius: 9px;
+    font-size: 13px;
+    color: var(--fne-text);
+    font-family: inherit;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+}
+.fne textarea {
+    height: auto;
+    min-height: 60px;
+    padding: 10px 12px;
+    line-height: 1.5;
+    resize: vertical;
+}
+/* Selects natifs avec chevron custom (zéro Select2 ici) */
+.fne select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+    cursor: pointer;
+}
+.fne select:disabled,
+.fne input[readonly] { background: var(--fne-bg2); cursor: not-allowed; color: var(--fne-text2); }
+.fne input:hover,
+.fne select:hover,
+.fne textarea:hover { border-color: var(--fne-text3); }
+.fne input:focus,
+.fne select:focus,
+.fne textarea:focus {
+    border-color: var(--fne-accent);
+    box-shadow: 0 0 0 3px rgba(232, 160, 32, .15);
+}
+.fne input.has-error { border-color: rgba(239, 68, 68, .5); }
+.fne input::-webkit-outer-spin-button,
+.fne input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.fne input[type="number"] { -moz-appearance: textfield; }
 
-    .btn-add-line {
-        display: inline-flex; align-items: center; gap: 8px;
-        height: 40px; padding: 0 18px;
-        background: var(--accent); color: #fff; border: none; border-radius: 10px;
-        font-size: 13px; font-weight: 700; cursor: pointer;
-        box-shadow: 0 4px 12px -4px rgba(232,160,32,.5);
-        transition: transform .12s, box-shadow .15s, background .15s;
-    }
-    .btn-add-line:hover  { background: var(--accent-dark, #d18d12); transform: translateY(-1px); box-shadow: 0 6px 16px -4px rgba(232,160,32,.6); }
-    .btn-add-line:active { transform: translateY(0); }
+/* ── Boutons ──────────────────────────────────────────────── */
+.fne-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: all .15s;
+    font-family: inherit;
+}
+.fne-btn-primary {
+    background: var(--fne-accent);
+    color: #fff;
+    box-shadow: 0 4px 12px -4px rgba(232, 160, 32, .5);
+}
+.fne-btn-primary:hover { background: var(--fne-accent-dark); transform: translateY(-1px); }
+.fne-btn-ghost {
+    background: var(--fne-bg2);
+    color: var(--fne-text2);
+    border-color: var(--fne-border);
+}
+.fne-btn-ghost:hover { background: var(--fne-bg); border-color: var(--fne-text3); color: var(--fne-text); }
+.fne-btn-add {
+    background: var(--fne-accent);
+    color: #fff;
+    box-shadow: 0 4px 12px -4px rgba(232, 160, 32, .5);
+}
+.fne-btn-add:hover { background: var(--fne-accent-dark); transform: translateY(-1px); }
+.fne-btn-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px; height: 34px;
+    background: transparent;
+    border: 1px solid var(--fne-border);
+    border-radius: 8px;
+    color: var(--fne-text3);
+    cursor: pointer;
+    transition: all .15s;
+    align-self: flex-end;
+    margin-bottom: 0;
+    flex-shrink: 0;
+}
+.fne-btn-remove:hover {
+    background: rgba(239, 68, 68, .1);
+    border-color: rgba(239, 68, 68, .4);
+    color: var(--fne-red);
+}
 
-    .btn-line-remove {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 34px; height: 34px; border-radius: 8px;
-        background: transparent; border: 1px solid var(--border); color: var(--text3);
-        cursor: pointer; transition: background .15s, border-color .15s, color .15s, transform .1s;
-    }
-    .btn-line-remove:hover { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.4); color: #ef4444; }
-    .btn-line-remove:active { transform: scale(.92); }
-    .btn-line-remove svg { display: block; }
+/* ═══════════════════════════════════════════════════════════
+   LIGNES DE FACTURATION — grid layout (pas table) :
+   robuste, alignable, responsive sans bidouillage. Chaque
+   ligne est une row à 9 colonnes ; le header utilise le même
+   layout pour aligner parfaitement.
+═══════════════════════════════════════════════════════════ */
+.fne-lines {
+    overflow-x: auto;
+}
+.fne-lines-header,
+.fne-line {
+    display: grid;
+    grid-template-columns:
+        44px           /* # */
+        minmax(260px, 1.6fr)  /* Désignation */
+        minmax(160px, 1fr)    /* Commune */
+        90px           /* m² */
+        130px          /* PU */
+        80px           /* Qté */
+        85px           /* Mois */
+        130px          /* Total HT */
+        44px;          /* Action */
+    gap: 8px;
+    align-items: center;
+    min-width: 1020px;
+    padding: 10px 16px;
+}
+.fne-lines-header {
+    background: var(--fne-bg2);
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--fne-text3);
+    border-bottom: 1px solid var(--fne-border);
+}
+.fne-lines-header .lh-num-cell { text-align: right; }
+.fne-lines-header .lh-num { text-align: center; }
 
-    /* ════════════ RÉCAPITULATIF ════════════ */
-    .invoice-form .recap .ifc-body { background: var(--surface2); }
-    .recap-cols { display: grid; grid-template-columns: 1.05fr .95fr; gap: 22px; }
-    .recap-block--alt {
-        padding-left: 22px; border-left: 1px dashed var(--border);
-    }
-    .recap-cap {
-        font-size: 10.5px; font-weight: 800; text-transform: uppercase;
-        letter-spacing: .6px; color: var(--text3); margin-bottom: 8px;
-    }
-    .recap-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; font-size: 13px; }
-    .recap-line .lbl { color: var(--text3); }
-    .recap-line .val { color: var(--text2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .recap-line.sub  { font-size: 12px; padding: 5px 0; }
-    .recap-line.strong .lbl, .recap-line.strong .val { font-weight: 800; color: var(--text); font-size: 13.5px; }
-    .recap-line .val-minus { color: #b45309; }
-    .recap-sep { border-top: 1px solid var(--border); margin: 5px 0; }
+.fne-line {
+    border-bottom: 1px solid var(--fne-border);
+    transition: background .12s;
+}
+.fne-line:hover { background: rgba(232, 160, 32, .04); }
+.fne-line:hover .fne-line-num { background: var(--fne-accent); color: #fff; border-color: var(--fne-accent); }
+.fne-line:last-child { border-bottom: none; }
 
-    .recap-total {
-        margin-top: 18px; padding: 15px 18px; border-radius: 12px;
-        background: linear-gradient(135deg, var(--accent), var(--accent-dark, #c47f12));
-        color: #fff; display: flex; justify-content: space-between; align-items: center; gap: 12px;
-        box-shadow: 0 8px 22px -10px rgba(232,160,32,.55);
-    }
-    .recap-total-lbl { font-weight: 800; font-size: 13px; letter-spacing: .4px; text-transform: uppercase; }
-    .recap-total-val { font-weight: 800; font-size: 22px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.fne-line-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    background: var(--fne-bg);
+    border: 1px solid var(--fne-border);
+    color: var(--fne-text3);
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: 999px;
+    transition: all .15s;
+    justify-self: center;
+}
 
-    /* ════════════ ACTIONS ════════════ */
-    .ifc-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+.fne-line .line-num-input { text-align: right !important; font-variant-numeric: tabular-nums; }
+.fne-line-total {
+    text-align: right;
+    font-weight: 800;
+    color: var(--fne-accent);
+    font-variant-numeric: tabular-nums;
+    font-size: 13.5px;
+    white-space: nowrap;
+}
 
-    /* ════════════ RESPONSIVE ════════════ */
-    @media (max-width: 720px) {
-        .invoice-form .form-2col, .invoice-form .form-3col { grid-template-columns: 1fr; }
-        .recap-cols { grid-template-columns: 1fr; gap: 16px; }
-        .recap-block--alt { padding-left: 0; border-left: none; padding-top: 14px; border-top: 1px dashed var(--border); }
-        .recap-total-val { font-size: 19px; }
-        .ifc-actions { flex-direction: column-reverse; }
-        .ifc-actions .btn { width: 100%; text-align: center; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .invoice-form *, .invoice-form *::before, .invoice-form *::after { transition: none !important; }
-    }
+/* ── Select2 UNIQUEMENT pour la désignation (recherche AJAX) ── */
+.fne .select2-container { width: 100% !important; display: block; }
+.fne .select2-container--default .select2-selection--single {
+    height: 40px !important;
+    background: var(--fne-bg) !important;
+    border: 1px solid var(--fne-border) !important;
+    border-radius: 9px !important;
+    transition: border-color .15s, box-shadow .15s;
+}
+.fne .select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 38px !important;
+    color: var(--fne-text) !important;
+    font-size: 13px !important;
+    padding: 0 32px 0 12px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+.fne .select2-container--default .select2-selection__placeholder { color: var(--fne-text3) !important; }
+.fne .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 38px !important;
+    right: 8px !important;
+}
+.fne .select2-container--default.select2-container--focus .select2-selection--single,
+.fne .select2-container--default.select2-container--open  .select2-selection--single {
+    border-color: var(--fne-accent) !important;
+    box-shadow: 0 0 0 3px rgba(232, 160, 32, .15) !important;
+}
+/* Dropdown Select2 : fond opaque + z-index élevé + ombre marquée
+   pour ne PAS bleed sur la page comme dans le bug précédent. */
+.select2-container--open .select2-dropdown,
+.select2-dropdown {
+    background: var(--surface, #fff) !important;
+    border: 1px solid var(--border, #e5e7eb) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 16px 40px -10px rgba(0, 0, 0, .25), 0 2px 4px rgba(0, 0, 0, .08) !important;
+    z-index: 99999 !important;
+    overflow: hidden;
+}
+.select2-results,
+.select2-results__options { background: var(--surface, #fff) !important; max-height: 280px !important; }
+.select2-search--dropdown { padding: 8px !important; background: var(--surface, #fff) !important; border-bottom: 1px solid var(--border, #e5e7eb); }
+.select2-search--dropdown .select2-search__field {
+    border: 1px solid var(--border, #e5e7eb) !important;
+    border-radius: 8px !important;
+    padding: 8px 10px !important;
+    font-size: 13px !important;
+    outline: none !important;
+    background: var(--surface2, #f9fafb) !important;
+    color: var(--text, #111827) !important;
+}
+.select2-results__option {
+    padding: 9px 12px !important;
+    font-size: 12.5px !important;
+    background: var(--surface, #fff) !important;
+    color: var(--text, #111827) !important;
+    border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.select2-results__option:last-child { border-bottom: none; }
+.select2-results__option--highlighted,
+.select2-results__option--highlighted[aria-selected] {
+    background: rgba(232, 160, 32, .14) !important;
+    color: var(--text, #111827) !important;
+}
 
-    /* ════════════ SELECT2 — habillage unifié CIBLE ════════════ */
-    .invoice-form .select2-container { width: 100% !important; display: block; }
-    .invoice-form .select2-container--default .select2-selection--single,
-    .lines-table .select2-container--default .select2-selection--single {
-        height: 42px !important; border: 1px solid var(--border) !important;
-        border-radius: 9px !important; background: var(--surface) !important;
-        transition: border-color .15s, box-shadow .15s;
-    }
-    .lines-table .select2-container--default .select2-selection--single { height: 40px !important; border-radius: 8px !important; }
-    .invoice-form .select2-container--default .select2-selection--single .select2-selection__rendered,
-    .lines-table .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 40px !important; font-size: 13px !important; color: var(--text) !important;
-        padding-left: 13px !important; padding-right: 30px !important;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .lines-table .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 38px !important; }
-    .invoice-form .select2-container--default .select2-selection__placeholder { color: var(--text3) !important; }
-    .invoice-form .select2-container--default .select2-selection--single .select2-selection__arrow,
-    .lines-table .select2-container--default .select2-selection--single .select2-selection__arrow { height: 40px !important; right: 7px !important; }
-    .invoice-form .select2-container--default.select2-container--focus .select2-selection--single,
-    .invoice-form .select2-container--default.select2-container--open .select2-selection--single,
-    .lines-table .select2-container--default.select2-container--focus .select2-selection--single,
-    .lines-table .select2-container--default.select2-container--open .select2-selection--single {
-        border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(232,160,32,.15) !important;
-    }
+/* ── Services annexes ─────────────────────────────────────── */
+.fne-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--fne-text3);
+    background: var(--fne-bg2);
+    border-radius: 10px;
+    font-size: 13px;
+}
+.fne-svc-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--fne-border);
+}
+.fne-svc-row:last-child { border-bottom: none; padding-bottom: 0; }
+.fne-svc-row:first-child { padding-top: 0; }
+.svc-num { text-align: right; }
+.svc-ttc {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 12px;
+    background: var(--fne-bg2);
+    border: 1px solid var(--fne-border);
+    border-radius: 9px;
+    font-weight: 700;
+    color: var(--fne-accent);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+}
+.fne-svc-subtotal {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 0 0;
+    margin-top: 14px;
+    border-top: 2px solid var(--fne-border);
+    font-size: 13px;
+    color: var(--fne-text2);
+}
+.fne-svc-subtotal strong {
+    color: var(--fne-accent);
+    font-weight: 800;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+}
 
-    /* Dropdown : fond OPAQUE + au-dessus de tout + ombre cohérente */
-    .select2-dropdown {
-        background: var(--surface) !important;
-        border: 1px solid var(--border) !important; border-radius: 11px !important;
-        box-shadow: 0 18px 48px -12px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.08) !important;
-        overflow: hidden; z-index: 9999 !important;
-    }
-    .select2-results__options { background: var(--surface) !important; max-height: 280px !important; }
-    .select2-search--dropdown { padding: 8px !important; background: var(--surface) !important; border-bottom: 1px solid var(--border); }
-    .select2-search--dropdown .select2-search__field {
-        border: 1px solid var(--border) !important; border-radius: 8px !important;
-        padding: 8px 10px !important; font-size: 13px !important; outline: none !important;
-        background: var(--surface2) !important; color: var(--text) !important;
-    }
-    .select2-search--dropdown .select2-search__field:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(232,160,32,.15) !important; }
-    .select2-results__option {
-        padding: 9px 12px !important; font-size: 12.5px !important;
-        background: var(--surface) !important; color: var(--text) !important;
-        border-bottom: 1px solid var(--border);
-    }
-    .select2-results__option:last-child { border-bottom: none; }
-    .select2-results__option--highlighted,
-    .select2-results__option--highlighted[aria-selected] { background: rgba(232,160,32,.14) !important; color: var(--text) !important; }
-    .select2-results__option[aria-selected="true"]:not(.select2-results__option--highlighted) {
-        background: rgba(232,160,32,.06) !important; color: var(--accent-dark, var(--accent)) !important; font-weight: 600;
-    }
-    .select2-results__message { background: var(--surface) !important; color: var(--text3) !important; font-style: italic; }
+/* ── Récapitulatif ────────────────────────────────────────── */
+.fne-recap-body { padding: 0; }
+.fne-recap-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 0;
+}
+@media (max-width: 720px) { .fne-recap-grid { grid-template-columns: 1fr; } }
+.fne-recap-col {
+    padding: 18px 22px;
+    background: var(--fne-bg);
+}
+.fne-recap-col.alt {
+    background: var(--fne-bg2);
+    border-left: 1px solid var(--fne-border);
+}
+@media (max-width: 720px) {
+    .fne-recap-col.alt { border-left: none; border-top: 1px solid var(--fne-border); }
+}
+.rl-cap {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: .6px;
+    color: var(--fne-text3);
+    margin-bottom: 8px;
+}
+.rl {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--fne-text2);
+}
+.rl span:last-child { color: var(--fne-text); font-variant-numeric: tabular-nums; }
+.rl.strong { font-weight: 800; font-size: 14px; color: var(--fne-text); }
+.rl.strong span:last-child { color: var(--fne-text); }
+.rl.sub { font-size: 12.5px; color: var(--fne-text3); }
+.rl.sub span:last-child { color: var(--fne-text2); }
+.rl .neg { color: #b45309; }
+.rl-sep {
+    height: 1px;
+    background: var(--fne-border);
+    margin: 6px 0;
+}
+.fne-recap-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 22px;
+    background: linear-gradient(135deg, var(--fne-accent), var(--fne-accent-dark));
+    color: #fff;
+}
+.fne-recap-total .lbl { font-weight: 800; font-size: 14px; letter-spacing: .3px; }
+.fne-recap-total .val { font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
 
-    /* Templates d'options (panneau / campagne) */
-    .s2-pan-row { display: flex; gap: 10px; align-items: flex-start; padding: 2px 0; }
-    .s2-pan-info { flex: 1; min-width: 0; }
-    .s2-pan-ref { font-weight: 800; color: var(--accent-dark, var(--accent)); font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
-    .s2-pan-name { font-size: 12px; color: var(--text); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .s2-pan-meta { font-size: 10.5px; color: var(--text3); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
-    .s2-pan-pill { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 9.5px; font-weight: 700; }
-    .s2-pan-pill.ext { background: rgba(59,130,246,.12); color: #1d4ed8; }
-    .s2-pan-pill.int { background: rgba(232,160,32,.12); color: var(--accent-dark, var(--accent)); }
-    .s2-camp-row { padding: 2px 0; }
-    .s2-camp-name { font-weight: 700; color: var(--text); font-size: 12.5px; }
-    .s2-camp-meta { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+/* ── Footer actions ───────────────────────────────────────── */
+.fne-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+/* ── Template option panneau (Select2) ────────────────────── */
+.fne-pan { display: flex; flex-direction: column; gap: 2px; }
+.fne-pan-top { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--fne-accent-dark); font-size: 12.5px; }
+.fne-pan-meta { font-size: 11px; color: var(--fne-text3); display: flex; gap: 8px; flex-wrap: wrap; }
+.fne-pan-pill { font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 5px; }
+.fne-pan-pill.ext { background: rgba(59, 130, 246, .15); color: #1d4ed8; }
+.fne-pan-pill.int { background: rgba(232, 160, 32, .15); color: var(--fne-accent-dark); }
 </style>
 @endpush
 
@@ -645,194 +772,287 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 <script>
 (function () {
-    const TVA = {{ $tvaRate }};
-    const TSP = {{ $tspRate }};
+    const TVA        = {{ $tvaRate }};
+    const TSP        = {{ $tspRate }};
     const TM_DEFAULT = {{ $tmDefault }};
-    const LOOKUP_PANELS_URL = "{{ route('admin.invoices.lookup.panels') }}";
+    const LOOKUP_URL = "{{ route('admin.invoices.lookup.panels') }}";
 
-    const tbody      = document.getElementById('lines-tbody');
-    const addBtn     = document.getElementById('add-line');
-    const tpl        = document.getElementById('line-tpl');
-    const clientSel  = document.getElementById('inv-client');
-    const campaignSel= document.getElementById('inv-campaign');
-    const $client    = $(clientSel);
-    const $campaign  = $(campaignSel);
-    let nextIdx      = {{ count($lines) }};
+    const $client   = document.getElementById('fne-client');
+    const $campaign = document.getElementById('fne-campaign');
+    const $linesBody = document.getElementById('fne-lines-body');
+    const $linesTpl  = document.getElementById('fne-line-tpl');
+    const $addLine   = document.getElementById('fne-add-line');
+    const $linesSub  = document.getElementById('fne-lines-sub');
 
-    const fmt = (n) => Math.round(n || 0).toLocaleString('fr-FR') + ' FCFA';
+    let nextLineIdx = {{ count($lines) }};
+    let nextSvcIdx  = {{ count($services) }};
 
-    // ═══════════ CLIENT + CAMPAGNE (filtre en cascade) ═══════════
-    $client.select2({ placeholder: '— Choisir un client —', allowClear: true, minimumResultsForSearch: 0 });
+    function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA'; }
 
-    function campaignTemplate(item) {
-        if (!item.id) return $('<span style="color:var(--text3)">' + (item.text || '') + '</span>');
-        const parts = (item.text || '').split(' — ');
-        return $('<div class="s2-camp-row"><div class="s2-camp-name">' + parts[0] + '</div>' +
-            (parts.length > 1 ? '<div class="s2-camp-meta">👤 ' + parts.slice(1).join(' — ') + '</div>' : '') + '</div>');
-    }
-
-    function initCampaignSelect2() {
-        const cid = clientSel.value;
-        const visible = Array.from(campaignSel.options).filter(o => o.value && !o.hidden).length;
-        $campaign.select2({
-            placeholder: cid
-                ? (visible > 0 ? '— Choisir une campagne (optionnel) —' : '— Aucune campagne pour ce client —')
-                : '— Choisis d\'abord un client —',
-            allowClear: true, minimumResultsForSearch: 0,
-            templateResult: campaignTemplate,
-            templateSelection: (item) => item.text || '— Aucune —',
-        });
-    }
-    initCampaignSelect2();
-
+    // ── Cascading client ↔ campagne (vanilla, sans Select2) ──
     function refreshCampaignOptions() {
-        const cid = clientSel.value;
-        Array.from(campaignSel.options).forEach(opt => {
-            if (!opt.value) { opt.hidden = false; opt.disabled = false; return; }
+        const cid = $client.value;
+        let visible = 0;
+        Array.from($campaign.options).forEach(opt => {
+            if (!opt.value) return;
             const ok = !cid || opt.dataset.clientId === cid;
-            opt.hidden = !ok; opt.disabled = !ok;
+            opt.hidden = !ok;
+            opt.disabled = !ok;
+            if (ok) visible++;
         });
-        const cur = campaignSel.selectedOptions[0];
-        if (cur && cur.hidden) $campaign.val(null).trigger('change');
-        if ($campaign.data('select2')) $campaign.select2('destroy');
-        initCampaignSelect2();
+        // Reset campagne si l'option courante n'est plus valide
+        const cur = $campaign.selectedOptions[0];
+        if (cur && cur.hidden) {
+            $campaign.value = '';
+            // Reset toutes les désignations puisque les panneaux dépendent de la campagne
+            resetAllDesignations();
+        }
     }
 
-    $client.on('select2:select select2:clear', refreshCampaignOptions);
+    $client?.addEventListener('change', () => {
+        refreshCampaignOptions();
+        // Si on a changé de client, on remet à zéro les désignations (panneaux liés à la campagne)
+        resetAllDesignations();
+    });
 
-    $campaign.on('select2:select select2:clear', function () {
-        const opt = campaignSel.selectedOptions[0];
-        if (opt && opt.value) {
-            const camCid = opt.dataset.clientId;
-            if (camCid && clientSel.value !== camCid) {
-                $client.val(camCid).trigger('change');
-                refreshCampaignOptions();
-                $campaign.val(opt.value).trigger('change');
-            }
+    $campaign?.addEventListener('change', () => {
+        // Aligner le client sur celui de la campagne sélectionnée
+        const opt = $campaign.selectedOptions[0];
+        if (opt && opt.value && opt.dataset.clientId && $client.value !== opt.dataset.clientId) {
+            $client.value = opt.dataset.clientId;
+            refreshCampaignOptions();
         }
-        resetAllDesignations(); // les panneaux disponibles dépendent de la campagne
+        resetAllDesignations();
     });
 
     refreshCampaignOptions();
-    if (campaignSel.value) $campaign.trigger('change');
+
+    // ── Désignation (Select2 AJAX par ligne) ──────────────────
+    function panSelTemplate(item) {
+        if (!item.id && !item.text) return $('<span style="color:#9ca3af">Recherche d\'un panneau…</span>');
+        if (!item.id) return $('<span>📝 ' + (item.text || '') + '</span>');
+        return $(
+            '<div class="fne-pan">' +
+                '<div class="fne-pan-top">' +
+                    '<span class="fne-pan-pill ' + (item.source === 'ext' ? 'ext' : 'int') + '">' + (item.source === 'ext' ? 'EXTERNE' : 'INTERNE') + '</span>' +
+                    '<span>' + (item.reference || '') + '</span>' +
+                '</div>' +
+                '<div>' + (item.name || '') + '</div>' +
+                '<div class="fne-pan-meta">' +
+                    '<span>📍 ' + (item.commune_name || '—') + '</span>' +
+                    (item.dimension_m2 ? '<span>📐 ' + item.dimension_m2 + ' m²</span>' : '') +
+                    (item.pu_suggested ? '<span style="color:#c97d10;font-weight:700">' + Math.round(item.pu_suggested).toLocaleString('fr-FR') + ' F/mois</span>' : '') +
+                '</div>' +
+            '</div>'
+        );
+    }
+    function panSelSelection(item) {
+        if (!item.id && !item.text) return 'Choisir un panneau ou taper…';
+        return item.designation || item.text;
+    }
+
+    function initLineSelect2(line) {
+        const $design = $(line.querySelector('.line-designation'));
+        if ($design.data('s2-ready')) return;
+
+        // Pré-remplissage si edit
+        const initialDesign = line.querySelector('.line-designation-value').value;
+        if (initialDesign) {
+            const opt = new Option(initialDesign, 'manual:' + initialDesign, true, true);
+            $design[0].appendChild(opt);
+        }
+
+        $design.select2({
+            placeholder: $campaign?.value ? 'Choisir un panneau ou taper…' : 'Choisis d\'abord une campagne',
+            allowClear: true,
+            tags: true,
+            minimumInputLength: 0,
+            language: {
+                noResults: () => $campaign?.value ? 'Aucun panneau correspondant — tape pour saisie libre.' : 'Choisis d\'abord une campagne en haut.',
+                inputTooShort: () => 'Tape pour rechercher…',
+                searching: () => 'Recherche…',
+            },
+            ajax: {
+                url: LOOKUP_URL,
+                delay: 220,
+                dataType: 'json',
+                data: params => ({ q: params.term || '', page: params.page || 1, campaign_id: $campaign?.value || '' }),
+                processResults: (data, params) => {
+                    params.page = params.page || 1;
+                    return { results: data.results || [], pagination: data.pagination || { more: false } };
+                },
+            },
+            templateResult: panSelTemplate,
+            templateSelection: panSelSelection,
+        });
+        $design.data('s2-ready', true);
+
+        $design.on('select2:select', (e) => {
+            const d = e.params.data || {};
+            const hidden = line.querySelector('.line-designation-value');
+            const isManual = String(d.id || '').startsWith('manual:') || (!d.id && d.text);
+            if (isManual) {
+                hidden.value = d.text || '';
+            } else {
+                hidden.value = d.designation || d.text || '';
+                // Auto-fill commune + m² + PU
+                if (d.commune_id) {
+                    const sel = line.querySelector('.line-commune');
+                    if (sel) sel.value = d.commune_id;
+                }
+                if (d.dimension_m2) line.querySelector('.line-m2').value = d.dimension_m2;
+                if (d.pu_suggested) line.querySelector('.line-pu').value = Math.round(d.pu_suggested);
+                recompute();
+            }
+        });
+        $design.on('select2:clear', () => {
+            line.querySelector('.line-designation-value').value = '';
+        });
+    }
 
     function resetAllDesignations() {
-        tbody.querySelectorAll('.line-row').forEach(row => {
-            const $sel = $(row.querySelector('.line-designation'));
-            if ($sel.data('select2')) $sel.select2('destroy');
-            $sel.find('option').remove();
-            row.querySelector('.line-designation-value').value = '';
-            $sel.removeData('select2-init');
-            initLineSelect2(row);
+        document.querySelectorAll('#fne-lines-body .fne-line').forEach(line => {
+            const $d = $(line.querySelector('.line-designation'));
+            if ($d.data('s2-ready')) { $d.val(null).trigger('change'); }
+            const hid = line.querySelector('.line-designation-value');
+            if (hid) hid.value = '';
         });
+    }
+
+    // ── Lignes : add / remove / renumber ──────────────────────
+    function renumberLines() {
+        const lines = $linesBody.querySelectorAll('.fne-line');
+        lines.forEach((l, idx) => {
+            const num = l.querySelector('.fne-line-num');
+            if (num) num.textContent = idx + 1;
+        });
+        if ($linesSub) {
+            $linesSub.textContent = lines.length + ' ligne' + (lines.length > 1 ? 's' : '') + ' · panneaux à facturer';
+        }
+    }
+
+    function bindLine(line) {
+        line.querySelectorAll('input.line-m2, input.line-pu, input.line-qte, input.line-mois').forEach(el => {
+            el.addEventListener('input', recompute);
+        });
+        line.querySelector('.line-commune')?.addEventListener('change', recompute);
+        initLineSelect2(line);
+
+        const rm = line.querySelector('.fne-line-remove');
+        rm?.addEventListener('click', () => {
+            if ($linesBody.querySelectorAll('.fne-line').length <= 1) {
+                alert('Au moins une ligne est requise.');
+                return;
+            }
+            line.remove();
+            renumberLines();
+            recompute();
+        });
+    }
+
+    $addLine?.addEventListener('click', () => {
+        const i = nextLineIdx++;
+        const html = $linesTpl.innerHTML.replaceAll('__IDX__', i);
+        const wrap = document.createElement('div');
+        wrap.innerHTML = html.trim();
+        const newLine = wrap.firstElementChild;
+        $linesBody.appendChild(newLine);
+        bindLine(newLine);
+        renumberLines();
         recompute();
-    }
+    });
 
-    // ═══════════ SELECT2 PAR LIGNE — désignation (AJAX) + commune ═══════════
-    function s2Pan(item) {
-        if (!item.id) return $('<span style="color:var(--text3)">' + (item.text || '') + '</span>');
-        if (item.ref) {
-            const badge = item.is_external
-                ? '<span class="s2-pan-pill ext">🤝 Externe</span>'
-                : '<span class="s2-pan-pill int">🏢 CIBLE</span>';
-            return $('<div class="s2-pan-row"><div class="s2-pan-info">' +
-                '<div class="s2-pan-ref">' + item.ref + ' ' + badge + '</div>' +
-                '<div class="s2-pan-name">' + (item.name || '') + '</div>' +
-                '<div class="s2-pan-meta"><span>📍 ' + (item.commune_name || '—') + '</span>' +
-                (item.dimension_m2 ? '<span>📐 ' + item.dimension_m2 + ' m²</span>' : '') +
-                (item.pu_suggested ? '<span style="color:var(--accent-dark);font-weight:700">' + Math.round(item.pu_suggested).toLocaleString('fr-FR') + ' F/mois</span>' : '') +
-                '</div></div></div>');
+    // Bind existing lines
+    $linesBody.querySelectorAll('.fne-line').forEach(bindLine);
+
+    // ── Services annexes : add / remove ──────────────────────
+    window.fneAddService = function () {
+        const i = nextSvcIdx++;
+        const wrap = document.getElementById('fne-svc-rows');
+        const empty = document.getElementById('fne-svc-empty');
+        const subWrap = document.getElementById('fne-svc-subtotal-wrap');
+        const row = document.createElement('div');
+        row.className = 'fne-svc-row';
+        row.dataset.idx = i;
+        row.innerHTML = `
+            <div class="fne-field" style="flex:1;margin:0">
+                <label>Libellé</label>
+                <input type="text" name="services[${i}][label]" maxlength="200" placeholder="Ex: Frais d'impression" class="svc-label" required>
+            </div>
+            <div class="fne-field" style="width:140px;margin:0">
+                <label>Prix HT (FCFA)</label>
+                <input type="number" name="services[${i}][prix_ht]" value="0" min="0" step="1000" class="svc-prix svc-num" required>
+            </div>
+            <div class="fne-field" style="width:140px;margin:0">
+                <label>TTC</label>
+                <div class="svc-ttc">—</div>
+            </div>
+            <button type="button" class="fne-btn-remove" onclick="fneRemoveService(this)" title="Supprimer">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </button>
+        `;
+        wrap.appendChild(row);
+        wrap.style.display = 'block';
+        empty.style.display = 'none';
+        subWrap.style.display = 'flex';
+        row.querySelector('.svc-prix').addEventListener('input', recompute);
+        row.querySelector('.svc-label').focus();
+        recompute();
+    };
+
+    window.fneRemoveService = function (btn) {
+        const row = btn.closest('.fne-svc-row');
+        if (!row) return;
+        row.remove();
+        // Reindex
+        document.querySelectorAll('#fne-svc-rows .fne-svc-row').forEach((r, idx) => {
+            r.dataset.idx = idx;
+            r.querySelector('.svc-label').name = `services[${idx}][label]`;
+            r.querySelector('.svc-prix').name  = `services[${idx}][prix_ht]`;
+        });
+        const remaining = document.querySelectorAll('#fne-svc-rows .fne-svc-row').length;
+        const wrap = document.getElementById('fne-svc-rows');
+        const empty = document.getElementById('fne-svc-empty');
+        const subWrap = document.getElementById('fne-svc-subtotal-wrap');
+        if (remaining === 0) {
+            wrap.style.display = 'none';
+            empty.style.display = 'block';
+            subWrap.style.display = 'none';
         }
-        return $('<span>📝 ' + (item.text || '') + '</span>');
-    }
-    const s2PanSelection = (item) => (!item.id && !item.text) ? '— Choisir un panneau ou taper —' : (item.designation || item.text);
+        recompute();
+    };
 
-    function initLineSelect2(row) {
-        const $design  = $(row.querySelector('.line-designation'));
-        const $commune = $(row.querySelector('.line-commune'));
+    // Bind existing services
+    document.querySelectorAll('#fne-svc-rows .svc-prix').forEach(el => el.addEventListener('input', recompute));
 
-        if (!$design.data('select2-init')) {
-            const initial = row.querySelector('.line-designation-value').value;
-            if (initial) $design[0].appendChild(new Option(initial, 'manual:' + initial, true, true));
-            $design.select2({
-                placeholder: campaignSel?.value ? 'Choisir un panneau de la campagne…' : 'Choisir une campagne d\'abord…',
-                allowClear: true, tags: true, minimumInputLength: 0,
-                language: {
-                    noResults: () => campaignSel?.value ? 'Aucun panneau — tape pour une saisie libre.' : 'Choisis d\'abord une campagne en haut.',
-                    inputTooShort: () => 'Tape pour rechercher…',
-                    searching: () => 'Recherche…',
-                },
-                ajax: {
-                    url: LOOKUP_PANELS_URL, delay: 220, dataType: 'json',
-                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                    data: (params) => ({ q: params.term || '', page: params.page || 1, campaign_id: campaignSel?.value || '' }),
-                    processResults: (data, params) => {
-                        params.page = params.page || 1;
-                        return { results: data.results || [], pagination: { more: data.pagination?.more === true } };
-                    },
-                    cache: true,
-                },
-                createTag: (params) => {
-                    const term = (params.term || '').trim();
-                    return term === '' ? null : { id: 'manual:' + term, text: term, designation: term };
-                },
-                templateResult: s2Pan,
-                templateSelection: s2PanSelection,
-                escapeMarkup: (m) => m,
-            });
-            $design.data('select2-init', true);
-
-            $design.on('select2:select', function (e) {
-                const item   = e.params.data;
-                const dField = row.querySelector('.line-designation-value');
-                const m2     = row.querySelector('.line-m2');
-                const pu     = row.querySelector('.line-pu');
-                if (String(item.id).startsWith('manual:')) { dField.value = item.designation || item.text; recompute(); return; }
-                dField.value = item.designation || item.text;
-                if (item.dimension_m2 && m2) m2.value = item.dimension_m2;
-                if (item.pu_suggested && pu) pu.value = Math.round(item.pu_suggested);
-                if (item.commune_id) $commune.val(String(item.commune_id)).trigger('change');
-                recompute();
-            });
-            $design.on('select2:clear', function () { row.querySelector('.line-designation-value').value = ''; recompute(); });
-        }
-
-        if (!$commune.data('select2-init')) {
-            $commune.select2({ placeholder: 'Commune', minimumResultsForSearch: 0 });
-            $commune.data('select2-init', true);
-            $commune.on('change', recompute);
-        }
-    }
-
-    // ═══════════ CALCUL EN DIRECT (même algo que InvoiceCalculator) ═══════════
+    // ── Recompute ─────────────────────────────────────────────
     function recompute() {
         let htBrut = 0, totalTm = 0, totalOdp = 0;
-        tbody.querySelectorAll('.line-row').forEach(row => {
-            const pu   = parseFloat(row.querySelector('.line-pu')?.value)   || 0;
-            const qte  = parseInt(  row.querySelector('.line-qte')?.value)  || 0;
-            const mois = parseFloat(row.querySelector('.line-mois')?.value) || 0;
-            const m2   = parseFloat(row.querySelector('.line-m2')?.value)   || 0;
-            const opt  = row.querySelector('.line-commune')?.selectedOptions?.[0];
+
+        document.querySelectorAll('#fne-lines-body .fne-line').forEach(line => {
+            const pu   = parseFloat(line.querySelector('.line-pu')?.value)   || 0;
+            const qte  = parseInt(  line.querySelector('.line-qte')?.value)  || 0;
+            const mois = parseFloat(line.querySelector('.line-mois')?.value) || 0;
+            const m2   = parseFloat(line.querySelector('.line-m2')?.value)   || 0;
+            const sel  = line.querySelector('.line-commune');
+            const opt  = sel?.selectedOptions?.[0];
             const odp  = parseFloat(opt?.dataset.odp) || 0;
             const tm   = parseFloat(opt?.dataset.tm)  || TM_DEFAULT;
             const lineHt = pu * qte * mois;
             htBrut   += lineHt;
             totalOdp += odp * m2 * qte * mois;
             totalTm  += tm  * m2 * qte * mois;
-            const cell = row.querySelector('.line-total');
+            const cell = line.querySelector('.fne-line-total');
             if (cell) cell.textContent = fmt(lineHt);
         });
 
-        const remise = parseFloat(document.getElementById('remise_pct').value) || 0;
+        const remise = parseFloat(document.getElementById('fne-remise').value) || 0;
 
-        // ── Services annexes libres (N lignes, feature branche c1cc5c9) ──
-        // On boucle sur les .service-row pour cumuler les prix HT et
-        // afficher le TTC unitaire dans la dernière colonne.
         let svcHt = 0;
-        document.querySelectorAll('#services-tbody .service-row').forEach(row => {
-            const prix = parseFloat(row.querySelector('.svc-prix')?.value) || 0;
+        document.querySelectorAll('#fne-svc-rows .fne-svc-row').forEach(r => {
+            const prix = parseFloat(r.querySelector('.svc-prix')?.value) || 0;
             svcHt += prix;
-            const ttcCell = row.querySelector('.svc-ttc');
+            const ttcCell = r.querySelector('.svc-ttc');
             if (ttcCell) ttcCell.textContent = prix > 0 ? fmt(prix * (1 + TVA / 100)) : '—';
         });
 
@@ -842,9 +1062,6 @@
         const ttc    = netHt + tvaAmt;
         const svcTtc = svcHt * (1 + TVA / 100);
         const total  = ttc + tspAmt + totalTm + totalOdp + svcTtc;
-
-        const svcSub = document.getElementById('services-subtotal');
-        if (svcSub) svcSub.textContent = svcHt > 0 ? fmt(svcTtc) + ' FCFA' : '0 FCFA';
 
         document.getElementById('rec-brut').textContent   = fmt(htBrut);
         document.getElementById('rec-remise').textContent = '− ' + fmt(htBrut * remise / 100);
@@ -856,114 +1073,12 @@
         document.getElementById('rec-odp').textContent    = fmt(totalOdp);
         document.getElementById('rec-svc').textContent    = fmt(svcTtc);
         document.getElementById('rec-total').textContent  = fmt(total);
+
+        const svcSub = document.getElementById('fne-svc-subtotal');
+        if (svcSub) svcSub.textContent = fmt(svcTtc);
     }
 
-    // ═══════════ AJOUT / SUPPRESSION DE LIGNES ═══════════
-    function renumberLines() {
-        const rows = tbody.querySelectorAll('.line-row');
-        rows.forEach((r, idx) => { const b = r.querySelector('.row-number'); if (b) b.textContent = idx + 1; });
-        const label = document.getElementById('lines-count-label');
-        if (label) label.textContent = rows.length + ' ligne' + (rows.length > 1 ? 's' : '') + ' · ajoute les panneaux à facturer';
-    }
-
-    // ── Services annexes : ajout / suppression dynamiques ─────────
-    function nextServiceIdx() {
-        const rows = document.querySelectorAll('#services-tbody .service-row');
-        return rows.length;
-    }
-    window.addService = function() {
-        const tbody = document.getElementById('services-tbody');
-        const empty = document.getElementById('services-empty');
-        const table = document.getElementById('services-table');
-        const idx = nextServiceIdx();
-        const tr = document.createElement('tr');
-        tr.className = 'service-row';
-        tr.dataset.idx = idx;
-        tr.style.borderTop = '1px solid var(--border)';
-        tr.innerHTML = `
-            <td style="padding:6px 8px">
-                <input type="text" name="services[${idx}][label]" placeholder="Ex: Frais d'impression"
-                       maxlength="200" required class="svc-label" style="width:100%">
-            </td>
-            <td style="padding:6px 8px">
-                <input type="number" name="services[${idx}][prix_ht]" value="0"
-                       min="0" step="1000" required class="svc-prix" style="width:100%;text-align:right">
-            </td>
-            <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--accent)" class="svc-ttc">—</td>
-            <td style="padding:6px 4px;text-align:center">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="removeService(this)" title="Supprimer cette ligne" style="color:#ef4444;font-weight:700">✕</button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-        empty.style.display = 'none';
-        table.style.display = 'table';
-        tr.querySelector('.svc-label')?.focus();
-        tr.querySelector('.svc-prix')?.addEventListener('input', recompute);
-        reindexServices();
-        recompute();
-    };
-    window.removeService = function(btn) {
-        const row = btn.closest('.service-row');
-        if (!row) return;
-        row.remove();
-        reindexServices();
-        const remaining = document.querySelectorAll('#services-tbody .service-row').length;
-        if (remaining === 0) {
-            document.getElementById('services-empty').style.display = 'block';
-            document.getElementById('services-table').style.display = 'none';
-        }
-        recompute();
-    };
-    function reindexServices() {
-        document.querySelectorAll('#services-tbody .service-row').forEach((row, i) => {
-            row.dataset.idx = i;
-            row.querySelector('.svc-label').name = `services[${i}][label]`;
-            row.querySelector('.svc-prix').name  = `services[${i}][prix_ht]`;
-        });
-    }
-
-    function bindRow(row) {
-        row.querySelectorAll('input.line-m2, input.line-pu, input.line-qte, input.line-mois')
-           .forEach(el => el.addEventListener('input', recompute));
-        initLineSelect2(row);
-        row.querySelector('.line-remove')?.addEventListener('click', () => {
-            if (tbody.querySelectorAll('.line-row').length <= 1) {
-                alert('Une facture doit comporter au moins une ligne.');
-                return;
-            }
-            const $d = $(row.querySelector('.line-designation'));
-            const $c = $(row.querySelector('.line-commune'));
-            if ($d.data('select2')) $d.select2('destroy');
-            if ($c.data('select2')) $c.select2('destroy');
-            row.remove();
-            renumberLines();
-            recompute();
-        });
-    }
-
-    // Clone d'un <template> PROPRE (pas d'une ligne déjà initialisée par Select2)
-    function addLine() {
-        const i = nextIdx++;
-        const tr = tpl.content.firstElementChild.cloneNode(true);
-        tr.dataset.index = i;
-        tr.querySelectorAll('[name]').forEach(el => { el.name = el.name.replace(/__IDX__/g, i); });
-        tbody.appendChild(tr);
-        bindRow(tr);
-        renumberLines();
-        recompute();
-    }
-
-    addBtn?.addEventListener('click', addLine);
-    tbody.querySelectorAll('.line-row').forEach(bindRow);
-    // Champs globaux à brancher sur recompute() ; les .svc-prix des
-    // services annexes ont leur propre listener (bindé à l'ajout dynamique).
-    ['remise_pct'].forEach(id => {
-        document.getElementById(id)?.addEventListener('input', recompute);
-    });
-    // Services annexes existants : binding initial sur les .svc-prix
-    document.querySelectorAll('#services-tbody .svc-prix').forEach(el => {
-        el.addEventListener('input', recompute);
-    });
+    document.getElementById('fne-remise')?.addEventListener('input', recompute);
 
     recompute();
 })();
