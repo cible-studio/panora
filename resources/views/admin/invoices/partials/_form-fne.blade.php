@@ -212,33 +212,97 @@
         @endif
     </div>
 
-    {{-- ════ REMISE + SERVICES ════ --}}
+    {{-- ════ REMISE ════ --}}
     <div class="card" style="margin-bottom:16px">
-        <div class="card-header"><div class="card-title">⚙ Remise & Services additionnels</div></div>
+        <div class="card-header"><div class="card-title">⚙ Remise globale</div></div>
         <div class="card-body">
-            <div class="form-3col">
-                <div class="mfg">
-                    <label>Remise globale (%)</label>
-                    <input type="number" name="remise_pct" id="remise_pct" min="0" max="100" step="0.5"
-                           value="{{ old('remise_pct', $isEdit ? $invoice->remise_pct : 0) }}"
-                           {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
-                           style="text-align:right">
-                </div>
-                <div class="mfg">
-                    <label>Impression (HT)</label>
-                    <input type="number" name="services_impression" id="services_impression" min="0" step="1000"
-                           value="{{ old('services_impression', $isEdit ? $invoice->services_impression : 0) }}"
-                           {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
-                           style="text-align:right">
-                </div>
-                <div class="mfg">
-                    <label>Pose & dépose (HT)</label>
-                    <input type="number" name="services_pose_depose" id="services_pose_depose" min="0" step="1000"
-                           value="{{ old('services_pose_depose', $isEdit ? $invoice->services_pose_depose : 0) }}"
-                           {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
-                           style="text-align:right">
-                </div>
+            <div class="mfg" style="max-width:240px">
+                <label>Remise globale (%)</label>
+                <input type="number" name="remise_pct" id="remise_pct" min="0" max="100" step="0.5"
+                       value="{{ old('remise_pct', $isEdit ? $invoice->remise_pct : 0) }}"
+                       {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
+                       style="text-align:right">
+                <p style="font-size:11px;color:var(--text3);margin:6px 0 0">S'applique au TOTAL HT des lignes panneaux. Pas sur les services annexes.</p>
             </div>
+        </div>
+    </div>
+
+    {{-- ════ SERVICES ANNEXES (N lignes libres — prompt v2) ════
+         Chaque service : libellé libre + prix HT. Soumis à TVA 18 %.
+         Pré-rempli avec les services existants en édition + migration
+         transparente depuis les 2 anciens champs invoices.services_*
+    --}}
+    @php
+        $existingServices = $isEdit && $invoice->services
+            ? $invoice->services->map(fn($s) => ['label' => $s->label, 'prix_ht' => (float) $s->prix_ht])->all()
+            : [];
+        // Si edit + pas de services modernes + valeurs legacy > 0, on
+        // prépopule à partir des 2 champs legacy (sera saved en modernes
+        // dès la 1ère modif via syncServices).
+        if ($isEdit && empty($existingServices)) {
+            if ((float) $invoice->services_impression > 0) {
+                $existingServices[] = ['label' => "Frais d'impression", 'prix_ht' => (float) $invoice->services_impression];
+            }
+            if ((float) $invoice->services_pose_depose > 0) {
+                $existingServices[] = ['label' => 'Frais de pose et dépose', 'prix_ht' => (float) $invoice->services_pose_depose];
+            }
+        }
+        // Si old() après erreur, on prend ça en priorité
+        $oldServices = old('services');
+        $renderedServices = is_array($oldServices) && !empty($oldServices) ? $oldServices : $existingServices;
+        $locked = $isEdit && $invoice->isLocked();
+    @endphp
+    <div class="card" style="margin-bottom:16px">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <div class="card-title">🧾 Services annexes <span style="font-weight:400;color:var(--text3);font-size:12px">(impression, pose, créa, etc.)</span></div>
+            @unless($locked)
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addService()">+ Ajouter un service</button>
+            @endunless
+        </div>
+        <div class="card-body">
+            <div id="services-empty" style="padding:14px;text-align:center;color:var(--text3);font-size:12.5px;background:var(--surface2);border-radius:8px;display:{{ empty($renderedServices) ? 'block' : 'none' }}">
+                Aucun service annexe. Clique sur <strong>+ Ajouter un service</strong> pour facturer un libellé libre (TVA 18 %).
+            </div>
+            <table id="services-table" style="width:100%;border-collapse:collapse;font-size:13px;display:{{ empty($renderedServices) ? 'none' : 'table' }}">
+                <thead>
+                    <tr style="background:var(--surface2);color:var(--text3);text-align:left">
+                        <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Libellé</th>
+                        <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;text-align:right;width:160px">Prix HT (FCFA)</th>
+                        <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;text-align:right;width:160px">TTC (avec TVA 18 %)</th>
+                        <th style="width:50px"></th>
+                    </tr>
+                </thead>
+                <tbody id="services-tbody">
+                    @foreach($renderedServices as $i => $s)
+                    <tr class="service-row" data-idx="{{ $i }}" style="border-top:1px solid var(--border)">
+                        <td style="padding:6px 8px">
+                            <input type="text" name="services[{{ $i }}][label]" value="{{ $s['label'] ?? '' }}"
+                                   placeholder="Ex: Frais d'impression"
+                                   maxlength="200" required {{ $locked ? 'readonly' : '' }}
+                                   class="svc-label" style="width:100%">
+                        </td>
+                        <td style="padding:6px 8px">
+                            <input type="number" name="services[{{ $i }}][prix_ht]" value="{{ $s['prix_ht'] ?? 0 }}"
+                                   min="0" step="1000" required {{ $locked ? 'readonly' : '' }}
+                                   class="svc-prix" style="width:100%;text-align:right">
+                        </td>
+                        <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--accent)" class="svc-ttc">—</td>
+                        <td style="padding:6px 4px;text-align:center">
+                            @unless($locked)
+                                <button type="button" class="btn btn-ghost btn-sm" onclick="removeService(this)" title="Supprimer cette ligne" style="color:#ef4444;font-weight:700">✕</button>
+                            @endunless
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+                <tfoot>
+                    <tr style="border-top:2px solid var(--border)">
+                        <td colspan="2" style="padding:8px 10px;text-align:right;font-weight:700;color:var(--text2)">Sous-total services TTC</td>
+                        <td style="padding:8px 10px;text-align:right;font-weight:800;color:var(--accent)" id="services-subtotal">0 FCFA</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
         </div>
     </div>
 
@@ -946,16 +1010,25 @@
         });
 
         const remise   = parseFloat(document.getElementById('remise_pct').value) || 0;
-        const svcImp   = parseFloat(document.getElementById('services_impression').value)   || 0;
-        const svcPose  = parseFloat(document.getElementById('services_pose_depose').value) || 0;
+
+        // ── Services annexes libres (N lignes) ──
+        let svcHt = 0;
+        document.querySelectorAll('#services-tbody .service-row').forEach(row => {
+            const prix = parseFloat(row.querySelector('.svc-prix')?.value) || 0;
+            svcHt += prix;
+            const ttcCell = row.querySelector('.svc-ttc');
+            if (ttcCell) ttcCell.textContent = prix > 0 ? fmt(prix * (1 + TVA/100)) : '—';
+        });
 
         const netHt    = htBrut * (1 - remise/100);
         const tvaAmt   = netHt * TVA / 100;
         const tspAmt   = netHt * TSP / 100;
         const ttc      = netHt + tvaAmt;
-        const svcHt    = svcImp + svcPose;
         const svcTtc   = svcHt * (1 + TVA / 100);
         const total    = ttc + tspAmt + totalTm + totalOdp + svcTtc;
+
+        const svcSub = document.getElementById('services-subtotal');
+        if (svcSub) svcSub.textContent = svcHt > 0 ? fmt(svcTtc) + ' FCFA' : '0 FCFA';
 
         document.getElementById('rec-brut').textContent   = fmt(htBrut);
         document.getElementById('rec-remise').textContent = '− ' + fmt(htBrut * remise / 100);
@@ -982,6 +1055,62 @@
             label.textContent = rows.length + ' ligne' + (rows.length > 1 ? 's' : '')
                               + ' · ajoutez les panneaux à facturer';
         }
+    }
+
+    // ── Services annexes : ajout / suppression dynamiques ─────────
+    function nextServiceIdx() {
+        const rows = document.querySelectorAll('#services-tbody .service-row');
+        return rows.length;
+    }
+    window.addService = function() {
+        const tbody = document.getElementById('services-tbody');
+        const empty = document.getElementById('services-empty');
+        const table = document.getElementById('services-table');
+        const idx = nextServiceIdx();
+        const tr = document.createElement('tr');
+        tr.className = 'service-row';
+        tr.dataset.idx = idx;
+        tr.style.borderTop = '1px solid var(--border)';
+        tr.innerHTML = `
+            <td style="padding:6px 8px">
+                <input type="text" name="services[${idx}][label]" placeholder="Ex: Frais d'impression"
+                       maxlength="200" required class="svc-label" style="width:100%">
+            </td>
+            <td style="padding:6px 8px">
+                <input type="number" name="services[${idx}][prix_ht]" value="0"
+                       min="0" step="1000" required class="svc-prix" style="width:100%;text-align:right">
+            </td>
+            <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--accent)" class="svc-ttc">—</td>
+            <td style="padding:6px 4px;text-align:center">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="removeService(this)" title="Supprimer cette ligne" style="color:#ef4444;font-weight:700">✕</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        empty.style.display = 'none';
+        table.style.display = 'table';
+        tr.querySelector('.svc-label')?.focus();
+        tr.querySelector('.svc-prix')?.addEventListener('input', recompute);
+        reindexServices();
+        recompute();
+    };
+    window.removeService = function(btn) {
+        const row = btn.closest('.service-row');
+        if (!row) return;
+        row.remove();
+        reindexServices();
+        const remaining = document.querySelectorAll('#services-tbody .service-row').length;
+        if (remaining === 0) {
+            document.getElementById('services-empty').style.display = 'block';
+            document.getElementById('services-table').style.display = 'none';
+        }
+        recompute();
+    };
+    function reindexServices() {
+        document.querySelectorAll('#services-tbody .service-row').forEach((row, i) => {
+            row.dataset.idx = i;
+            row.querySelector('.svc-label').name = `services[${i}][label]`;
+            row.querySelector('.svc-prix').name  = `services[${i}][prix_ht]`;
+        });
     }
 
     function bindRow(row) {
@@ -1032,8 +1161,12 @@
     addBtn?.addEventListener('click', addLine);
     tbody.querySelectorAll('.line-row').forEach(bindRow);
 
-    ['remise_pct','services_impression','services_pose_depose'].forEach(id => {
+    ['remise_pct'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', recompute);
+    });
+    // Services annexes existants : binding initial sur les .svc-prix
+    document.querySelectorAll('#services-tbody .svc-prix').forEach(el => {
+        el.addEventListener('input', recompute);
     });
 
     recompute();

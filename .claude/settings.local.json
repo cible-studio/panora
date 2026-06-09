@@ -62,7 +62,26 @@
       "Bash(grep -n 'public function durationHuman\\\\|class Campaign\\\\|protected array $progressCache' app/Models/Campaign.php)",
       "Bash(php -l app/Services/ReservationService.php)",
       "Bash(php -l app/Http/Controllers/Admin/TaxController.php)",
-      "Bash(php -l app/Models/CommuneTaxPayment.php)"
+      "Bash(php -l app/Models/CommuneTaxPayment.php)",
+      "Bash(grep -q \"^$\")",
+      "Bash(grep -n 'AuthServiceProvider\\\\|protected $policies' app/Providers/AuthServiceProvider.php)",
+      "Bash(php -l app/Models/Invoice.php)",
+      "Bash(php -l app/Policies/InvoicePolicy.php)",
+      "Bash(php -l app/Policies/CampaignPolicy.php)",
+      "Bash(php -l app/Exports/InvoicesExport.php)",
+      "Bash(php -l app/Services/DashboardKpiService.php)",
+      "Bash(xargs grep -l 'commune_tax_rate\\\\|CommuneTaxRateHistory')",
+      "Bash(php -l database/migrations/2026_06_08_162020_create_invoice_lines_table.php)",
+      "Bash(php -l database/migrations/2026_06_08_162030_create_invoice_payments_table.php)",
+      "Bash(php -l database/migrations/2026_06_08_162040_add_fne_columns_to_invoices.php)",
+      "Bash(php -l database/migrations/2026_06_08_162050_add_ifu_ncc_to_clients.php)",
+      "Bash(php -l database/seeders/CommuneTariff2025Seeder.php)",
+      "Bash(vendor/bin/phpunit tests/Unit/InvoiceCalculatorTest.php --colors=never)",
+      "Bash(php -l app/Services/InvoiceFromCampaignBuilder.php)",
+      "Bash(php -l app/Http/Controllers/Settings/CommuneController.php)",
+      "Bash(php -l app/Models/InvoiceSchedule.php)",
+      "Bash(php -l database/migrations/2026_06_08_180000_create_invoice_schedules_table.php)",
+      "Bash(grep -nE 'style=\"[^\"]*$' resources/views/admin/invoices/show.blade.php)"
     ]
   }
 }
