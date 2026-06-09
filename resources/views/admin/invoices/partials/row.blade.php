@@ -13,7 +13,7 @@
 @endphp
 <tr data-invoice-row="{{ $invoice->id }}" data-status="{{ $invoice->status }}">
     <td>
-        <span style="font-family:monospace; color:var(--accent); font-weight:700;">{{ $invoice->reference }}</span>
+        <span style=" color:var(--accent); font-weight:700;">{{ $invoice->reference }}</span>
         <div style="font-size:10px;color:var(--text3);margin-top:2px">{{ $invoice->issued_at->format('d/m/Y') }}</div>
     </td>
     <td>
@@ -32,9 +32,9 @@
             </div>
         @endif
     </td>
-    <td style="text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:var(--accent)">{{ number_format($total, 0, ',', ' ') }}</td>
-    <td style="text-align:right;font-family:ui-monospace,monospace;color:#16a34a">{{ number_format($paid, 0, ',', ' ') }}</td>
-    <td style="text-align:right;font-family:ui-monospace,monospace;color:{{ $remaining > 0 ? '#b91c1c' : 'var(--text3)' }};font-weight:700">{{ number_format($remaining, 0, ',', ' ') }}</td>
+    <td style="text-align:right;font-weight:700;color:var(--accent)">{{ number_format($total, 0, ',', ' ') }}</td>
+    <td style="text-align:right;color:#16a34a">{{ number_format($paid, 0, ',', ' ') }}</td>
+    <td style="text-align:right;color:{{ $remaining > 0 ? '#b91c1c' : 'var(--text3)' }};font-weight:700">{{ number_format($remaining, 0, ',', ' ') }}</td>
     <td>
         <span style="display:inline-flex;align-items:center;gap:4px;background:{{ $payCfg['bg'] }};color:{{ $payCfg['color'] }};padding:3px 8px;border-radius:999px;font-size:10.5px;font-weight:800;white-space:nowrap">
             {{ $payCfg['icon'] }} {{ $payCfg['label'] }}

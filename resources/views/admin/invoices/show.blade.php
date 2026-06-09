@@ -171,11 +171,11 @@
                                                 <div style="font-size:10px;color:var(--text3);margin-top:1px">📍 {{ $l->snapshot_commune_name }}</div>
                                             @endif
                                         </td>
-                                        <td style="padding:8px 10px;text-align:right;font-family:ui-monospace,monospace">{{ $fmt($l->pu_ht_mensuel) }}</td>
+                                        <td style="padding:8px 10px;text-align:right;">{{ $fmt($l->pu_ht_mensuel) }}</td>
                                         <td style="padding:8px 10px;text-align:center">{{ $l->quantite }}</td>
                                         <td style="padding:8px 10px;text-align:center">{{ rtrim(rtrim(number_format($l->duree_mois, 2, ',', ''), '0'), ',') }}</td>
                                         <td style="padding:8px 10px;text-align:center">{{ rtrim(rtrim(number_format($l->dimension_m2, 2, ',', ''), '0'), ',') }}</td>
-                                        <td style="padding:8px 10px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:var(--accent)">{{ $fmt($l->montant_ht_ligne) }}</td>
+                                        <td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--accent)">{{ $fmt($l->montant_ht_ligne) }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -192,25 +192,25 @@
                     @if($invoice->remise_pct > 0)
                         <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px;color:var(--text3)">
                             <span>Total HT brut</span>
-                            <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->amount) }} FCFA</span>
+                            <span>{{ $fmt($invoice->amount) }} FCFA</span>
                         </div>
                         <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px;color:#b45309">
                             <span>Remise ({{ rtrim(rtrim(number_format($invoice->remise_pct, 2, ',', ''), '0'), ',') }}%)</span>
-                            <span style="font-family:ui-monospace,monospace">− {{ $fmt(($invoice->amount * $invoice->remise_pct / 100)) }} FCFA</span>
+                            <span>− {{ $fmt(($invoice->amount * $invoice->remise_pct / 100)) }} FCFA</span>
                         </div>
                     @endif
 
                     <div style="display:flex;justify-content:space-between;margin-bottom:8px">
                         <span style="color:var(--text2);font-weight:600">TOTAL HT</span>
-                        <span style="font-weight:700;font-family:ui-monospace,monospace">{{ $fmt($invoice->net_ht ?: $invoice->amount) }} FCFA</span>
+                        <span style="font-weight:700;">{{ $fmt($invoice->net_ht ?: $invoice->amount) }} FCFA</span>
                     </div>
                     <div style="display:flex;justify-content:space-between;margin-bottom:8px">
                         <span style="color:var(--text2);font-weight:600">TVA ({{ rtrim(rtrim(number_format($invoice->tva, 2, ',', ''), '0'), ',') }} %)</span>
-                        <span style="font-weight:700;font-family:ui-monospace,monospace">{{ $fmt($invoice->tva_amount ?: ($invoice->amount_ttc - $invoice->amount)) }} FCFA</span>
+                        <span style="font-weight:700;">{{ $fmt($invoice->tva_amount ?: ($invoice->amount_ttc - $invoice->amount)) }} FCFA</span>
                     </div>
                     <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid var(--border);margin-bottom:14px">
                         <span style="font-weight:800;font-size:13px">TOTAL TTC</span>
-                        <span style="font-weight:800;font-size:14px;font-family:ui-monospace,monospace">{{ $fmt($invoice->amount_ttc) }} FCFA</span>
+                        <span style="font-weight:800;font-size:14px;">{{ $fmt($invoice->amount_ttc) }} FCFA</span>
                     </div>
 
                     @php
@@ -225,24 +225,24 @@
                             @if($invoice->tsp_amount > 0)
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
                                     <span>TSP — Taxe de Soutien à la Production (3 %)</span>
-                                    <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->tsp_amount) }}</span>
+                                    <span>{{ $fmt($invoice->tsp_amount) }}</span>
                                 </div>
                             @endif
                             @if($invoice->tm_total > 0)
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
                                     <span>TM — Taxe Municipale</span>
-                                    <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->tm_total) }}</span>
+                                    <span>{{ $fmt($invoice->tm_total) }}</span>
                                 </div>
                             @endif
                             @if($invoice->odp_total > 0)
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
                                     <span>ODP — Occupation Domaine Public</span>
-                                    <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->odp_total) }}</span>
+                                    <span>{{ $fmt($invoice->odp_total) }}</span>
                                 </div>
                             @endif
                             <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;padding-top:6px;border-top:1px dashed var(--border);margin-top:6px">
                                 <span>Sous-total autres taxes</span>
-                                <span style="font-family:ui-monospace,monospace">{{ $fmt($autres) }} FCFA</span>
+                                <span>{{ $fmt($autres) }} FCFA</span>
                             </div>
                         </div>
                     @endif
@@ -253,18 +253,18 @@
                             @if($invoice->services_impression > 0)
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
                                     <span>Impression (HT)</span>
-                                    <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->services_impression) }}</span>
+                                    <span>{{ $fmt($invoice->services_impression) }}</span>
                                 </div>
                             @endif
                             @if($invoice->services_pose_depose > 0)
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
                                     <span>Pose & dépose (HT)</span>
-                                    <span style="font-family:ui-monospace,monospace">{{ $fmt($invoice->services_pose_depose) }}</span>
+                                    <span>{{ $fmt($invoice->services_pose_depose) }}</span>
                                 </div>
                             @endif
                             <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;padding-top:6px;border-top:1px dashed var(--border);margin-top:6px">
                                 <span>Sous-total services TTC (TVA 18%)</span>
-                                <span style="font-family:ui-monospace,monospace">{{ $fmt($servicesTtc) }} FCFA</span>
+                                <span>{{ $fmt($servicesTtc) }} FCFA</span>
                             </div>
                         </div>
                     @endif
@@ -275,7 +275,7 @@
                          devenait invisible dans certains thèmes. --}}
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:linear-gradient(135deg,#1f2937,#0f172a);color:#fbbf24;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.18);border:1px solid rgba(251,191,36,.25)">
                         <span style="font-weight:800;font-size:14px;letter-spacing:.4px;color:#fbbf24">💰 TOTAL À PAYER</span>
-                        <span style="font-weight:800;font-size:19px;font-family:ui-monospace,monospace;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</span>
+                        <span style="font-weight:800;font-size:19px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</span>
                     </div>
                 </div>
 
@@ -294,7 +294,7 @@
                 <div style="margin-top:16px;padding:12px 14px;background:{{ $payConfig['bg'] }};border:1px solid {{ $payConfig['border'] }};border-radius:10px;color:{{ $payConfig['color'] }}">
                     <div style="display:flex;justify-content:space-between;align-items:center">
                         <span style="font-weight:800;font-size:13px">{{ $payConfig['icon'] }} {{ $payConfig['label'] }}</span>
-                        <span style="font-size:13px;font-weight:700;font-family:ui-monospace,monospace">
+                        <span style="font-size:13px;font-weight:700;">
                             {{ $fmt($paid) }} / {{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA
                         </span>
                     </div>
@@ -441,7 +441,7 @@
                                                 <span style="background:rgba(34,197,94,.15);color:#15803d;padding:1px 7px;border-radius:6px;font-size:9.5px;font-weight:800;margin-left:6px">PAYÉE LE {{ $s->paid_at->format('d/m') }}</span>
                                             @endif
                                         </div>
-                                        <div style="font-size:11.5px;color:var(--text3);margin-top:2px;font-family:ui-monospace,monospace;font-weight:700">
+                                        <div style="font-size:11.5px;color:var(--text3);margin-top:2px;font-weight:700">
                                             {{ $fmt($s->amount) }} FCFA
                                             @if($s->reminder_count > 0)
                                                 · 🔔 {{ $s->reminder_count }} relance{{ $s->reminder_count > 1 ? 's' : '' }}
@@ -488,7 +488,7 @@
                         @csrf
                         <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
                             <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12.5px">
-                                Total à payer : <strong style="font-family:ui-monospace,monospace">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</strong>
+                                Total à payer : <strong>{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</strong>
                             </div>
                             <div class="mfg">
                                 <label>Choix de la formule</label>
@@ -531,15 +531,15 @@
                             <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px">
                                 <div style="display:flex;justify-content:space-between;margin-bottom:4px">
                                     <span style="color:var(--text3)">Total dû</span>
-                                    <span style="font-weight:700;font-family:ui-monospace,monospace">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</span>
+                                    <span style="font-weight:700;">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</span>
                                 </div>
                                 <div style="display:flex;justify-content:space-between;margin-bottom:4px">
                                     <span style="color:var(--text3)">Déjà payé</span>
-                                    <span style="font-weight:700;color:#16a34a;font-family:ui-monospace,monospace">{{ $fmt($paid) }} FCFA</span>
+                                    <span style="font-weight:700;color:#16a34a;">{{ $fmt($paid) }} FCFA</span>
                                 </div>
                                 <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px dashed var(--border)">
                                     <span style="color:var(--text2);font-weight:700">Reste à payer</span>
-                                    <span style="font-weight:800;color:var(--accent);font-family:ui-monospace,monospace">{{ $fmt($remaining) }} FCFA</span>
+                                    <span style="font-weight:800;color:var(--accent);">{{ $fmt($remaining) }} FCFA</span>
                                 </div>
                             </div>
 
@@ -547,7 +547,7 @@
                                 <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Montant (FCFA)</label>
                                 <input type="number" name="montant" step="1" min="1" required
                                        value="{{ $remaining > 0 ? round($remaining) : '' }}"
-                                       style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:14px;font-weight:700;font-family:ui-monospace,monospace">
+                                       style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:14px;font-weight:700;">
                             </div>
 
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -629,7 +629,7 @@
                             <div>
                                 <div style="font-size:11px;color:var(--text3);margin-bottom:4px">RÉSERVATION</div>
                                 <a href="{{ route('admin.reservations.show', $c->reservation->id) }}"
-                                   style="font-family:monospace;font-weight:700;color:var(--accent);text-decoration:none;font-size:13px"
+                                   style="font-weight:700;color:var(--accent);text-decoration:none;font-size:13px"
                                    title="Ouvrir la réservation source">
                                     {{ $c->reservation->reference }} ↗
                                 </a>
@@ -798,7 +798,7 @@
                            onmouseover="this.style.transform='translateX(2px)'"
                            onmouseout="this.style.transform=''">
                             <div style="min-width:0;flex:1">
-                                <div style="font-family:monospace;font-weight:700;font-size:12px;color:var(--accent)">
+                                <div style="font-weight:700;font-size:12px;color:var(--accent)">
                                     <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:{{ $colDot }};margin-right:5px"></span>
                                     {{ $oi->reference }}
                                 </div>

@@ -76,8 +76,8 @@
                                     <div style="font-size:10.5px;color:var(--text3);margin-top:1px">{{ $c->rate_history_count }} entrée(s) d'historique</div>
                                 @endif
                             </td>
-                            <td style="padding:10px 14px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:var(--accent)">{{ number_format($c->odp_rate, 0, ',', ' ') }}</td>
-                            <td style="padding:10px 14px;text-align:right;font-family:ui-monospace,monospace">{{ number_format($c->tm_rate, 0, ',', ' ') }}</td>
+                            <td style="padding:10px 14px;text-align:right;font-weight:700;color:var(--accent)">{{ number_format($c->odp_rate, 0, ',', ' ') }}</td>
+                            <td style="padding:10px 14px;text-align:right;">{{ number_format($c->tm_rate, 0, ',', ' ') }}</td>
                             <td style="padding:10px 14px;color:var(--text2)">
                                 @if($c->last_change_date)
                                     <div style="font-size:11.5px">{{ $c->last_change_date->format('d/m/Y') }}</div>
@@ -151,12 +151,12 @@
                     <div class="mfg">
                         <label>Nouveau tarif ODP (F/m²/mois) <span style="color:var(--red)">*</span></label>
                         <input type="number" name="odp_rate" id="sched-odp" min="0" step="100" required
-                               style="font-family:ui-monospace,monospace;text-align:right">
+                               style="text-align:right">
                     </div>
                     <div class="mfg">
                         <label>Nouveau tarif TM (F/m²/mois) <span style="color:var(--red)">*</span></label>
                         <input type="number" name="tm_rate" id="sched-tm" min="0" step="100" required
-                               style="font-family:ui-monospace,monospace;text-align:right">
+                               style="text-align:right">
                     </div>
                 </div>
                 <div class="mfg">
@@ -220,8 +220,8 @@ function renderHistory(history) {
                     <div style="margin-top:3px">${badge}</div>
                     ${h.notes ? '<div style="font-size:10.5px;color:var(--text3);margin-top:3px;font-style:italic">' + h.notes + '</div>' : ''}
                 </td>
-                <td style="padding:8px 12px;text-align:right;font-family:ui-monospace,monospace;color:var(--accent);font-weight:700">${fmt(h.odp_rate)}</td>
-                <td style="padding:8px 12px;text-align:right;font-family:ui-monospace,monospace">${fmt(h.tm_rate)}</td>
+                <td style="padding:8px 12px;text-align:right;color:var(--accent);font-weight:700">${fmt(h.odp_rate)}</td>
+                <td style="padding:8px 12px;text-align:right;">${fmt(h.tm_rate)}</td>
                 <td style="padding:8px 12px;text-align:right;font-size:10.5px;color:var(--text3)">
                     ${h.created_by || '—'}<br>${h.created_at || ''}
                 </td>
