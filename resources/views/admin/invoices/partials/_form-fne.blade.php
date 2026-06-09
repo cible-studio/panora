@@ -124,77 +124,92 @@
         </div>
     </div>
 
-    {{-- ════ LIGNES ÉDITABLES ════ --}}
-    <div class="card" style="margin-bottom:16px">
-        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-            <div class="card-title">📋 Lignes de facturation</div>
-            @if(!($isEdit && $invoice->isLocked()))
-            <button type="button" id="add-line" class="btn btn-ghost btn-sm">+ Ajouter une ligne</button>
-            @endif
-        </div>
-        <div class="card-body" style="padding:0">
-            <div style="overflow-x:auto">
-                <table id="lines-table" class="lines-table">
-                    <thead>
-                        <tr>
-                            <th>Désignation</th>
-                            <th>Commune</th>
-                            <th class="num">m²</th>
-                            <th class="num">PU HT/mois</th>
-                            <th class="num">Qté</th>
-                            <th class="num">Mois</th>
-                            <th class="num">Total HT</th>
-                            <th class="act"></th>
-                        </tr>
-                    </thead>
-                    <tbody id="lines-tbody">
-                        @foreach($lines as $i => $l)
-                            <tr class="line-row" data-index="{{ $i }}">
-                                <td class="col-designation">
-                                    {{-- Select2 AJAX panneau (filtré par la campagne sélectionnée
-                                         en haut). À la sélection, auto-remplit commune + m² + PU. --}}
-                                    <select name="lines[{{ $i }}][designation_picker]" class="line-designation" style="width:100%"></select>
-                                    <input type="hidden" name="lines[{{ $i }}][designation]" class="line-designation-value" value="{{ $l['designation'] ?? '' }}">
-                                </td>
-                                <td class="col-commune">
-                                    <select name="lines[{{ $i }}][commune_id]" class="line-commune" required style="width:100%">
-                                        <option value=""></option>
-                                        @foreach($communes as $c)
-                                            <option value="{{ $c->id }}"
-                                                    data-odp="{{ $c->ratesAt(($isEdit ? $invoice->issued_at?->format('Y-m-d') : date('Y-m-d')))['odp'] }}"
-                                                    data-tm="{{ $c->ratesAt(($isEdit ? $invoice->issued_at?->format('Y-m-d') : date('Y-m-d')))['tm'] }}"
-                                                    {{ (string) ($l['commune_id'] ?? '') === (string) $c->id ? 'selected' : '' }}>
-                                                {{ $c->name }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </td>
-                                <td class="num col-m2">
-                                    <input type="number" name="lines[{{ $i }}][dimension_m2]" class="line-m2" required
-                                           value="{{ $l['dimension_m2'] ?? 0 }}" min="0" step="0.01">
-                                </td>
-                                <td class="num col-pu">
-                                    <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required
-                                           value="{{ $l['pu_ht_mensuel'] ?? 0 }}" min="0" step="1000">
-                                </td>
-                                <td class="num col-qte">
-                                    <input type="number" name="lines[{{ $i }}][quantite]" class="line-qte" required
-                                           value="{{ $l['quantite'] ?? 1 }}" min="1" step="1">
-                                </td>
-                                <td class="num col-mois">
-                                    <input type="number" name="lines[{{ $i }}][duree_mois]" class="line-mois" required
-                                           value="{{ $l['duree_mois'] ?? 1 }}" min="0.5" step="0.5">
-                                </td>
-                                <td class="num col-total line-total">0 FCFA</td>
-                                <td class="act">
-                                    <button type="button" class="btn-line-remove line-remove" title="Supprimer la ligne">🗑</button>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+    {{-- ════ LIGNES ÉDITABLES (refonte design) ════ --}}
+    <div class="invoice-lines-card">
+        <div class="invoice-lines-header">
+            <div class="invoice-lines-title">
+                <span class="invoice-lines-icon">📋</span>
+                <div>
+                    <div class="invoice-lines-title-main">Lignes de facturation</div>
+                    <div class="invoice-lines-title-sub" id="lines-count-label">{{ count($lines) }} ligne{{ count($lines) > 1 ? 's' : '' }} · ajoutez les panneaux à facturer</div>
+                </div>
             </div>
         </div>
+
+        <div class="invoice-lines-body">
+            <table id="lines-table" class="lines-table">
+                <thead>
+                    <tr>
+                        <th class="col-num">#</th>
+                        <th>Désignation</th>
+                        <th>Commune</th>
+                        <th class="num">m²</th>
+                        <th class="num">PU HT/mois</th>
+                        <th class="num">Qté</th>
+                        <th class="num">Mois</th>
+                        <th class="num">Total HT</th>
+                        <th class="act"></th>
+                    </tr>
+                </thead>
+                <tbody id="lines-tbody">
+                    @foreach($lines as $i => $l)
+                        <tr class="line-row" data-index="{{ $i }}">
+                            <td class="col-num"><span class="row-number">{{ $i + 1 }}</span></td>
+                            <td class="col-designation">
+                                {{-- Select2 AJAX panneau (filtré par la campagne sélectionnée
+                                     en haut). À la sélection, auto-remplit commune + m² + PU. --}}
+                                <select name="lines[{{ $i }}][designation_picker]" class="line-designation" style="width:100%"></select>
+                                <input type="hidden" name="lines[{{ $i }}][designation]" class="line-designation-value" value="{{ $l['designation'] ?? '' }}">
+                            </td>
+                            <td class="col-commune">
+                                <select name="lines[{{ $i }}][commune_id]" class="line-commune" required style="width:100%">
+                                    <option value=""></option>
+                                    @foreach($communes as $c)
+                                        <option value="{{ $c->id }}"
+                                                data-odp="{{ $c->ratesAt(($isEdit ? $invoice->issued_at?->format('Y-m-d') : date('Y-m-d')))['odp'] }}"
+                                                data-tm="{{ $c->ratesAt(($isEdit ? $invoice->issued_at?->format('Y-m-d') : date('Y-m-d')))['tm'] }}"
+                                                {{ (string) ($l['commune_id'] ?? '') === (string) $c->id ? 'selected' : '' }}>
+                                            {{ $c->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </td>
+                            <td class="num col-m2">
+                                <input type="number" name="lines[{{ $i }}][dimension_m2]" class="line-m2" required
+                                       value="{{ $l['dimension_m2'] ?? 0 }}" min="0" step="0.01">
+                            </td>
+                            <td class="num col-pu">
+                                <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required
+                                       value="{{ $l['pu_ht_mensuel'] ?? 0 }}" min="0" step="1000">
+                            </td>
+                            <td class="num col-qte">
+                                <input type="number" name="lines[{{ $i }}][quantite]" class="line-qte" required
+                                       value="{{ $l['quantite'] ?? 1 }}" min="1" step="1">
+                            </td>
+                            <td class="num col-mois">
+                                <input type="number" name="lines[{{ $i }}][duree_mois]" class="line-mois" required
+                                       value="{{ $l['duree_mois'] ?? 1 }}" min="0.5" step="0.5">
+                            </td>
+                            <td class="num col-total line-total">0 FCFA</td>
+                            <td class="act">
+                                <button type="button" class="btn-line-remove line-remove" title="Supprimer la ligne" aria-label="Supprimer cette ligne">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+
+        @if(!($isEdit && $invoice->isLocked()))
+        <div class="invoice-lines-footer">
+            <button type="button" id="add-line" class="btn-add-line">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Ajouter une ligne
+            </button>
+        </div>
+        @endif
     </div>
 
     {{-- ════ REMISE + SERVICES ════ --}}
@@ -363,86 +378,185 @@
         font-style: italic;
     }
 
-    /* ── Tableau des lignes : layout centralisé (ex-inline styles) ── */
+    /* ══════ CARTE LIGNES DE FACTURATION — refonte design ══════ */
+    .invoice-lines-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        margin-bottom: 16px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px -2px rgba(0, 0, 0, .04);
+    }
+    .invoice-lines-header {
+        padding: 18px 22px;
+        background: linear-gradient(135deg, rgba(232, 160, 32, .06), rgba(58, 168, 53, .04));
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+    .invoice-lines-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .invoice-lines-icon {
+        width: 44px; height: 44px;
+        border-radius: 12px;
+        background: rgba(232, 160, 32, .12);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 22px;
+        flex-shrink: 0;
+    }
+    .invoice-lines-title-main { font-size: 15px; font-weight: 800; color: var(--text); margin-bottom: 2px; }
+    .invoice-lines-title-sub  { font-size: 12px; color: var(--text3); line-height: 1.4; }
+
+    .invoice-lines-body { overflow-x: auto; }
+
+    .invoice-lines-footer {
+        padding: 14px 18px;
+        border-top: 1px solid var(--border);
+        background: var(--surface2);
+        display: flex;
+        justify-content: center;
+    }
+    .btn-add-line {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 40px;
+        padding: 0 18px;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 4px 12px -4px rgba(232, 160, 32, .5);
+        transition: transform .12s, box-shadow .15s, background .15s;
+    }
+    .btn-add-line:hover { background: var(--accent-dark, #d18d12); transform: translateY(-1px); box-shadow: 0 6px 16px -4px rgba(232, 160, 32, .6); }
+    .btn-add-line:active { transform: translateY(0); }
+
+    /* ── Tableau lignes : padding généreux + inputs 40px + visuel modern ── */
     .lines-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 12px;
-        min-width: 920px;
+        font-size: 13px;
+        min-width: 960px;
     }
     .lines-table thead tr {
         background: var(--surface2);
-        color: var(--text3);
+        border-bottom: 1px solid var(--border);
     }
     .lines-table th {
-        padding: 10px 10px;
-        font-size: 10px;
+        padding: 12px 12px;
+        font-size: 10.5px;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: .4px;
+        letter-spacing: .6px;
         text-align: left;
+        color: var(--text3);
+        white-space: nowrap;
     }
     .lines-table th.num { text-align: right; }
-    .lines-table th.act { width: 44px; }
+    .lines-table th.act { width: 56px; }
+    .lines-table th.col-num { width: 44px; text-align: center; padding-left: 16px; }
+
+    .lines-table tbody tr {
+        border-bottom: 1px solid var(--border);
+        transition: background .12s;
+    }
+    .lines-table tbody tr:last-child { border-bottom: none; }
+    .lines-table tbody tr:hover { background: rgba(232, 160, 32, .04); }
+    .lines-table tbody tr:hover .row-number { background: var(--accent); color: #fff; border-color: var(--accent); }
+
     .lines-table td {
-        padding: 8px 10px;
-        border-top: 1px solid var(--border);
+        padding: 12px 10px;
         vertical-align: middle;
     }
     .lines-table td.num { text-align: right; }
-    .lines-table td.act { text-align: center; width: 44px; }
-    .lines-table .col-designation { min-width: 280px; }
-    .lines-table .col-commune     { min-width: 160px; }
-    .lines-table .col-m2          { width: 90px; }
-    .lines-table .col-pu          { width: 130px; }
-    .lines-table .col-qte         { width: 75px; }
-    .lines-table .col-mois        { width: 85px; }
-    .lines-table .col-total       { width: 120px; font-weight: 800; color: var(--accent); white-space: nowrap; }
-    .lines-table tbody tr:hover td { background: rgba(232, 160, 32, .03); }
+    .lines-table td.act { text-align: center; width: 56px; }
+    .lines-table td.col-num { width: 44px; text-align: center; padding-left: 16px; }
 
-    /* Inputs natifs dans le tableau — compacts 34px, focus accent */
+    /* Largeurs colonnes — généreuses */
+    .lines-table .col-designation { min-width: 300px; }
+    .lines-table .col-commune     { min-width: 180px; }
+    .lines-table .col-m2          { width: 95px; }
+    .lines-table .col-pu          { width: 140px; }
+    .lines-table .col-qte         { width: 80px; }
+    .lines-table .col-mois        { width: 90px; }
+    .lines-table .col-total {
+        width: 140px;
+        font-weight: 800;
+        color: var(--accent);
+        font-size: 13.5px;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* Numéro de ligne — pastille ronde */
+    .row-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px; height: 26px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text3);
+        font-size: 11px;
+        font-weight: 800;
+        border-radius: 999px;
+        transition: background .12s, color .12s, border-color .12s;
+    }
+
+    /* Inputs natifs dans le tableau — 40px (cohérent avec hors-tableau) */
     .lines-table input[type="number"],
     .lines-table input[type="text"] {
-        height: 34px !important;
+        height: 40px !important;
         width: 100% !important;
-        padding: 0 10px !important;
+        padding: 0 12px !important;
         border: 1px solid var(--border) !important;
-        border-radius: 6px !important;
+        border-radius: 8px !important;
         background: var(--surface) !important;
-        font-size: 12px !important;
+        font-size: 13px !important;
         text-align: right !important;
+        color: var(--text) !important;
+        font-variant-numeric: tabular-nums;
+        transition: border-color .15s, box-shadow .15s;
     }
+    .lines-table input[type="number"]:hover,
+    .lines-table input[type="text"]:hover { border-color: var(--text3) !important; }
     .lines-table input[type="number"]:focus,
     .lines-table input[type="text"]:focus {
         border-color: var(--accent) !important;
         outline: none !important;
-        box-shadow: 0 0 0 2px rgba(232, 160, 32, .15) !important;
+        box-shadow: 0 0 0 3px rgba(232, 160, 32, .15) !important;
     }
+    /* Retire les spin buttons sur number (plus propre) */
+    .lines-table input[type="number"]::-webkit-outer-spin-button,
+    .lines-table input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .lines-table input[type="number"] { -moz-appearance: textfield; }
 
-    /* Select2 dans le tableau — compact 34px + LARGEUR PLEINE.
-       Sans `width: 100% !important` sur .select2-container, Select2 4.x
-       fixe une largeur en pixels au moment de l'init qui collapse le
-       container à 60-80px (vu : un carré minuscule avec juste le chevron),
-       ignorant le `style="width:100%"` qu'on a mis sur le <select>. */
+    /* Select2 dans le tableau — 40px + largeur pleine. Sans `width: 100% !important`
+       sur .select2-container, Select2 4.x fixe une largeur en px à l'init qui
+       collapse le container (~80px), ignorant le `style="width:100%"` sur le <select>. */
     .lines-table .select2-container {
         width: 100% !important;
         display: block;
     }
     .lines-table .select2-container--default .select2-selection--single {
-        height: 34px !important;
-        border-radius: 6px !important;
+        height: 40px !important;
+        border-radius: 8px !important;
         border: 1px solid var(--border) !important;
         background: var(--surface) !important;
+        transition: border-color .15s, box-shadow .15s;
     }
     .lines-table .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 32px !important;
-        font-size: 12px !important;
-        padding-left: 10px !important;
-        padding-right: 28px !important;
+        line-height: 38px !important;
+        font-size: 13px !important;
+        padding-left: 12px !important;
+        padding-right: 32px !important;
         color: var(--text) !important;
-        /* Empêche le placeholder ("Choisir une campagne d'abord…") de
-           wrapper sur 2-3 lignes dans la cellule étroite — on tronque
-           avec ellipsis et on garde la hauteur 34px stable. */
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
@@ -451,32 +565,35 @@
         color: var(--text3) !important;
     }
     .lines-table .select2-container--default .select2-selection--single .select2-selection__arrow {
-        height: 32px !important;
-        right: 4px !important;
+        height: 38px !important;
+        right: 8px !important;
     }
     .lines-table .select2-container--default.select2-container--focus .select2-selection--single,
     .lines-table .select2-container--default.select2-container--open  .select2-selection--single {
         border-color: var(--accent) !important;
-        box-shadow: 0 0 0 2px rgba(232, 160, 32, .15) !important;
+        box-shadow: 0 0 0 3px rgba(232, 160, 32, .15) !important;
     }
 
-    /* Bouton supprimer ligne — discret par défaut, rouge au hover */
+    /* Bouton supprimer ligne — icône poubelle, rouge au hover */
     .btn-line-remove {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px; height: 34px;
         background: transparent;
-        border: 1px solid transparent;
+        border: 1px solid var(--border);
         color: var(--text3);
-        font-size: 14px;
-        line-height: 1;
         cursor: pointer;
-        padding: 6px 8px;
-        border-radius: 6px;
-        transition: background .15s, border-color .15s, color .15s;
+        border-radius: 8px;
+        transition: background .15s, border-color .15s, color .15s, transform .1s;
     }
     .btn-line-remove:hover {
         background: rgba(239, 68, 68, .1);
-        border-color: rgba(239, 68, 68, .25);
+        border-color: rgba(239, 68, 68, .4);
         color: #ef4444;
     }
+    .btn-line-remove:active { transform: scale(.92); }
+    .btn-line-remove svg { display: block; }
 
     /* ── Polish global des inputs natifs du formulaire facture ──
        (en dehors du tableau, qui a ses propres règles plus compactes) */
@@ -852,6 +969,21 @@
         document.getElementById('rec-total').textContent  = fmt(total);
     }
 
+    // Réindexe les pastilles "1, 2, 3…" et le label "X lignes" après
+    // ajout/suppression — sinon les numéros sont incohérents.
+    function renumberLines() {
+        const rows = tbody.querySelectorAll('.line-row');
+        rows.forEach((r, idx) => {
+            const badge = r.querySelector('.row-number');
+            if (badge) badge.textContent = idx + 1;
+        });
+        const label = document.getElementById('lines-count-label');
+        if (label) {
+            label.textContent = rows.length + ' ligne' + (rows.length > 1 ? 's' : '')
+                              + ' · ajoutez les panneaux à facturer';
+        }
+    }
+
     function bindRow(row) {
         // Inputs natifs (m², PU, qté, mois) → recompute live
         row.querySelectorAll('input.line-m2, input.line-pu, input.line-qte, input.line-mois').forEach(el => {
@@ -867,6 +999,7 @@
                 return;
             }
             row.remove();
+            renumberLines();
             recompute();
         });
     }
@@ -892,6 +1025,7 @@
         if (sel) sel.selectedIndex = 0;
         tbody.appendChild(tr);
         bindRow(tr);
+        renumberLines();
         recompute();
     }
 
