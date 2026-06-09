@@ -9,7 +9,13 @@
     <div class="card">
         <div class="card-header">
             <div class="card-title">🏙️ Communes ({{ $communes->total() }})</div>
-            <a href="{{ route('admin.settings.communes.create') }}" class="btn btn-primary btn-sm">＋ Ajouter</a>
+            <div style="display:flex;gap:6px;align-items:center">
+                <a href="{{ route('admin.settings.communes.tariffs') }}" class="btn btn-ghost btn-sm"
+                   title="Voir le référentiel ODP/TM, l'historique et programmer un tarif futur">
+                    💰 Tarifs ODP / TM
+                </a>
+                <a href="{{ route('admin.settings.communes.create') }}" class="btn btn-primary btn-sm">＋ Ajouter</a>
+            </div>
         </div>
         <div class="table-wrap">
             <table>
