@@ -419,18 +419,45 @@
         box-shadow: 0 0 0 2px rgba(232, 160, 32, .15) !important;
     }
 
-    /* Select2 dans le tableau — compact 34px */
+    /* Select2 dans le tableau — compact 34px + LARGEUR PLEINE.
+       Sans `width: 100% !important` sur .select2-container, Select2 4.x
+       fixe une largeur en pixels au moment de l'init qui collapse le
+       container à 60-80px (vu : un carré minuscule avec juste le chevron),
+       ignorant le `style="width:100%"` qu'on a mis sur le <select>. */
+    .lines-table .select2-container {
+        width: 100% !important;
+        display: block;
+    }
     .lines-table .select2-container--default .select2-selection--single {
         height: 34px !important;
         border-radius: 6px !important;
+        border: 1px solid var(--border) !important;
+        background: var(--surface) !important;
     }
     .lines-table .select2-container--default .select2-selection--single .select2-selection__rendered {
         line-height: 32px !important;
         font-size: 12px !important;
         padding-left: 10px !important;
+        padding-right: 28px !important;
+        color: var(--text) !important;
+        /* Empêche le placeholder ("Choisir une campagne d'abord…") de
+           wrapper sur 2-3 lignes dans la cellule étroite — on tronque
+           avec ellipsis et on garde la hauteur 34px stable. */
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    .lines-table .select2-container--default .select2-selection__placeholder {
+        color: var(--text3) !important;
     }
     .lines-table .select2-container--default .select2-selection--single .select2-selection__arrow {
         height: 32px !important;
+        right: 4px !important;
+    }
+    .lines-table .select2-container--default.select2-container--focus .select2-selection--single,
+    .lines-table .select2-container--default.select2-container--open  .select2-selection--single {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 2px rgba(232, 160, 32, .15) !important;
     }
 
     /* Bouton supprimer ligne — discret par défaut, rouge au hover */
