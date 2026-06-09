@@ -91,6 +91,18 @@ class Invoice extends Model
     }
 
     /**
+     * Services annexes libres (libellé + prix HT, TVA 18%).
+     * Source unique depuis prompt v2 — remplace les 2 anciens
+     * champs invoices.services_impression / services_pose_depose
+     * (qui restent en base pour les factures historiques mais ne
+     * sont plus lus par le calculator).
+     */
+    public function services()
+    {
+        return $this->hasMany(InvoiceService::class)->orderBy('order_index');
+    }
+
+    /**
      * Prochaine échéance non payée. Null si l'échéancier est vide ou
      * entièrement réglé. Sert au tableau de suivi (colonne "Prochaine
      * échéance" + badge "🔴 À relancer" si overdue).
@@ -157,20 +169,59 @@ class Invoice extends Model
     }
 
     /**
-     * Statut de paiement DÉRIVÉ — distinct du status (brouillon/envoyee/
-     * annulee). Toujours recalculé à la demande.
+     * Pourcentage payé — borné à [0, 100]. Utile pour les barres
+     * de progression et les KPI recouvrement.
+     */
+    public function paidPercentage(): float
+    {
+        $total = (float) ($this->total_a_payer ?: $this->amount_ttc ?: 0);
+        if ($total <= 0) return 0.0;
+        return round(min(100.0, ($this->paidAmount() / $total) * 100), 1);
+    }
+
+    /**
+     * Facture en retard : au moins une échéance prévisionnelle
+     * dépassée non payée ET la facture n'est ni soldée ni annulée.
      *
-     *   'non_payee' : aucun versement
-     *   'partielle' : versements < total
+     * Si pas d'échéancier configuré, on ne se base PAS sur issued_at
+     * (le délai de paiement standard est dans notes_client, pas une
+     * date stricte) — l'admin doit configurer un échéancier pour
+     * activer le suivi recouvrement.
+     */
+    public function isOverdue(): bool
+    {
+        if (in_array($this->status, ['annulee', 'brouillon'])) return false;
+        if ($this->remainingAmount() <= 0.01) return false;
+
+        $schedules = $this->relationLoaded('schedules')
+            ? $this->schedules
+            : $this->schedules()->get();
+
+        return $schedules
+            ->whereNull('paid_at')
+            ->contains(fn($s) =>
+                $s->due_date && $s->due_date->startOfDay()->lt(now()->startOfDay())
+            );
+    }
+
+    /**
+     * Statut de paiement DÉRIVÉ — distinct du status (brouillon/envoyee/
+     * annulee). Toujours recalculé à la demande. Conforme prompt v2 § 4.3.
+     *
+     *   'annulee'   : facture annulée (court-circuit)
      *   'soldee'    : versements ≥ total
+     *   'en_retard' : échéance dépassée + reste à payer (avant partielle/non_payee)
+     *   'partielle' : versements > 0 et < total
+     *   'non_payee' : aucun versement
      */
     public function paymentStatus(): string
     {
         if ($this->status === 'annulee') return 'annulee';
         $paid  = $this->paidAmount();
         $total = (float) ($this->total_a_payer ?: $this->amount_ttc ?: 0);
+        if ($total > 0 && $paid + 0.01 >= $total) return 'soldee';
+        if ($this->isOverdue()) return 'en_retard';
         if ($paid <= 0) return 'non_payee';
-        if ($paid + 0.01 >= $total) return 'soldee';
         return 'partielle';
     }
 

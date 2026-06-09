@@ -47,14 +47,13 @@ class InvoiceController extends Controller
 
         // Filtre statut PAIEMENT (dérivé) — on charge la page complète
         // puis on filtre côté collection. Acceptable car paginé.
+        // 'en_retard' est maintenant un paymentStatus() à part entière.
         $payStatusFilter = $request->input('pay_status');
+        // Alias 'overdue' (legacy) → 'en_retard'
+        if ($payStatusFilter === 'overdue') $payStatusFilter = 'en_retard';
         $invoices = $query->latest()->paginate(15)->withQueryString();
-        if (in_array($payStatusFilter, ['non_payee', 'partielle', 'soldee', 'overdue'], true)) {
+        if (in_array($payStatusFilter, ['non_payee', 'partielle', 'soldee', 'en_retard'], true)) {
             $invoices->setCollection($invoices->getCollection()->filter(function ($inv) use ($payStatusFilter) {
-                if ($payStatusFilter === 'overdue') {
-                    $next = $inv->nextDueSchedule();
-                    return $next && $next->isOverdue();
-                }
                 return $inv->paymentStatus() === $payStatusFilter;
             })->values());
         }
@@ -341,6 +340,12 @@ class InvoiceController extends Controller
             'issued_at'             => 'required|date',
             'notes_client'          => 'nullable|string|max:2000',
             'remise_pct'            => 'nullable|numeric|min:0|max:100',
+            // Services annexes libres (prompt v2). Champs LEGACY conservés
+            // pour rétrocompat (factures historiques) mais ignorés si on
+            // reçoit le tableau moderne 'services'.
+            'services'              => 'nullable|array|max:30',
+            'services.*.label'      => 'required_with:services|string|max:200',
+            'services.*.prix_ht'    => 'required_with:services|numeric|min:0',
             'services_impression'   => 'nullable|numeric|min:0',
             'services_pose_depose'  => 'nullable|numeric|min:0',
             'lines'                 => 'required|array|min:1',
@@ -353,6 +358,8 @@ class InvoiceController extends Controller
         ], [
             'lines.required'        => 'Au moins une ligne de facturation est requise.',
             'lines.*.commune_id.required' => 'Chaque ligne doit avoir une commune (pour résoudre ODP).',
+            'services.*.label.required_with'   => 'Chaque service annexe doit avoir un libellé.',
+            'services.*.prix_ht.required_with' => 'Chaque service annexe doit avoir un prix HT.',
         ]);
 
         // Cohérence campagne ↔ client : le client de la campagne fait foi.
@@ -376,19 +383,42 @@ class InvoiceController extends Controller
                 'status'               => 'brouillon',
                 'tva'                  => $calculator->tvaRate(),
                 'remise_pct'           => (float) ($data['remise_pct'] ?? 0),
-                'services_impression'  => (float) ($data['services_impression'] ?? 0),
-                'services_pose_depose' => (float) ($data['services_pose_depose'] ?? 0),
+                // Champs legacy : 0 si on a la forme moderne 'services',
+                // sinon copie pour rétrocompat.
+                'services_impression'  => !empty($data['services']) ? 0 : (float) ($data['services_impression'] ?? 0),
+                'services_pose_depose' => !empty($data['services']) ? 0 : (float) ($data['services_pose_depose'] ?? 0),
                 'notes_client'         => $data['notes_client'] ?? null,
                 'campaign_year'        => $issuedAt->year,
             ]);
 
             $this->syncLines($invoice, $data['lines'], $issuedAt, $calculator);
+            $this->syncServices($invoice, $data['services'] ?? []);
 
             $invoice = $calculator->recalculateAndPersist($invoice);
 
             return redirect()->route('admin.invoices.show', $invoice)
                 ->with('success', "Facture {$invoice->reference} créée — {$invoice->lines->count()} ligne(s), total " . number_format($invoice->total_a_payer, 0, ',', ' ') . ' FCFA.');
         });
+    }
+
+    /**
+     * Sync les services annexes libres (replace, pas merge).
+     * Filtre les lignes vides (label vide ou prix 0).
+     */
+    protected function syncServices(Invoice $invoice, array $servicesInput): void
+    {
+        $invoice->services()->delete();
+        $idx = 0;
+        foreach ($servicesInput as $s) {
+            $label = trim((string) ($s['label'] ?? ''));
+            $prix  = (float) ($s['prix_ht'] ?? 0);
+            if ($label === '' || $prix <= 0) continue;
+            $invoice->services()->create([
+                'label'       => $label,
+                'prix_ht'     => $prix,
+                'order_index' => $idx++,
+            ]);
+        }
     }
 
     /**
@@ -437,6 +467,7 @@ class InvoiceController extends Controller
             'lines.commune:id,name',
             'payments.creator:id,name',
             'schedules',
+            'services',
             'lockedBy:id,name',
             'creditNoteFor:id,reference',
             'creditNotes',
@@ -553,6 +584,11 @@ class InvoiceController extends Controller
             'issued_at'             => 'required|date',
             'notes_client'          => 'nullable|string|max:2000',
             'remise_pct'            => 'nullable|numeric|min:0|max:100',
+            // Services annexes libres (prompt v2)
+            'services'              => 'nullable|array|max:30',
+            'services.*.label'      => 'required_with:services|string|max:200',
+            'services.*.prix_ht'    => 'required_with:services|numeric|min:0',
+            // Legacy : conservés pour rétrocompat factures historiques
             'services_impression'   => 'nullable|numeric|min:0',
             'services_pose_depose'  => 'nullable|numeric|min:0',
             'lines'                 => 'required|array|min:1',
@@ -562,6 +598,9 @@ class InvoiceController extends Controller
             'lines.*.pu_ht_mensuel' => 'required|numeric|min:0',
             'lines.*.quantite'      => 'required|integer|min:1',
             'lines.*.duree_mois'    => 'required|numeric|min:0.5',
+        ], [
+            'services.*.label.required_with'   => 'Chaque service annexe doit avoir un libellé.',
+            'services.*.prix_ht.required_with' => 'Chaque service annexe doit avoir un prix HT.',
         ]);
 
         // Cohérence campagne ↔ client (cf. store).
@@ -582,17 +621,18 @@ class InvoiceController extends Controller
                 'campaign_id'          => $data['campaign_id'] ?? null,
                 'issued_at'            => $data['issued_at'],
                 'remise_pct'           => (float) ($data['remise_pct'] ?? 0),
-                'services_impression'  => (float) ($data['services_impression'] ?? 0),
-                'services_pose_depose' => (float) ($data['services_pose_depose'] ?? 0),
+                'services_impression'  => !empty($data['services']) ? 0 : (float) ($data['services_impression'] ?? 0),
+                'services_pose_depose' => !empty($data['services']) ? 0 : (float) ($data['services_pose_depose'] ?? 0),
                 'notes_client'         => $data['notes_client'] ?? null,
                 'campaign_year'        => $issuedAt->year,
             ]);
 
-            // Sync lignes : delete tout puis recrée. Plus simple que de
-            // matcher ligne par ligne, et la facture n'a pas encore été
-            // envoyée (lock empêche update sinon).
+            // Sync lignes + services : delete tout puis recrée. Plus simple
+            // que de matcher ligne par ligne, et la facture n'a pas encore
+            // été envoyée (lock empêche update sinon).
             $invoice->lines()->delete();
             $this->syncLines($invoice, $data['lines'], $issuedAt, $calculator);
+            $this->syncServices($invoice, $data['services'] ?? []);
 
             $invoice = $calculator->recalculateAndPersist($invoice);
 
@@ -755,14 +795,23 @@ class InvoiceController extends Controller
             'note'      => 'nullable|string|max:1000',
         ]);
 
-        // Garde anti-sur-paiement : on accepte légèrement au-dessus (arrondi)
-        // mais on bloque > 1.5 × total_a_payer (saisie manifestement erronée).
+        // Garde stricte (prompt v2 § 5) : total encaissé ≤ total facturé.
+        // On tolère un dépassement de 1 FCFA pour absorber les arrondis,
+        // au-delà → blocage avec message clair. Si l'admin a vraiment
+        // reçu un trop-perçu, il doit émettre un avoir (note de crédit).
         $remaining = $invoice->remainingAmount();
         $totalDue  = (float) ($invoice->total_a_payer ?: $invoice->amount_ttc ?: 0);
-        if ($data['montant'] > $totalDue * 1.5 && $totalDue > 0) {
+        $newPaidTotal = $invoice->paidAmount() + (float) $data['montant'];
+
+        if ($totalDue > 0 && $newPaidTotal > $totalDue + 1.0) {
+            $depassement = $newPaidTotal - $totalDue;
             return back()->withInput()->with('error',
-                "Montant suspect : {$data['montant']} > 150% du total dû ({$totalDue}). "
-                . 'Vérifie et réessaye, ou émets un avoir si c\'est un trop-perçu.'
+                '🚫 Sur-paiement bloqué : ce versement de '
+                . number_format($data['montant'], 0, ',', ' ') . ' FCFA porterait le total encaissé à '
+                . number_format($newPaidTotal, 0, ',', ' ') . ' FCFA, soit '
+                . number_format($depassement, 0, ',', ' ') . ' FCFA au-dessus du total facturé ('
+                . number_format($totalDue, 0, ',', ' ') . ' FCFA). '
+                . 'Si c\'est un trop-perçu réel, émets un avoir au lieu d\'ajouter ce versement.'
             );
         }
 

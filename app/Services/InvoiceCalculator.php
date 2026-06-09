@@ -105,32 +105,56 @@ class InvoiceCalculator
      * Calcule TOUS les agrégats facture à partir d'une collection de
      * lignes (déjà calculées par calculateLine OU bruts).
      *
+     * Services annexes (prompt v2) : N lignes libres avec libellé + prix HT.
+     * On accepte :
+     *   - opts.services = [['label' => '...', 'prix_ht' => 50000], ...]  (forme moderne)
+     *   - opts.services_impression / services_pose_depose : LEGACY, agrégés en
+     *     2 pseudo-services s'ils sont fournis (pour ne pas casser les tests
+     *     existants et les vieilles factures non-migrées).
+     *
      * @param array<int, array> $lines Lignes (avec ou sans pré-calcul)
      * @param array{
      *   remise_pct?: float,
+     *   services?: array<int, array{label?: string, prix_ht?: float}>,
      *   services_impression?: float,
      *   services_pose_depose?: float
      * } $opts
      *
-     * @return array Tableau d'agrégats prêts à persister sur Invoice :
-     *   amount (= total HT brut avant remise),
-     *   net_ht, tva, tva_amount, amount_ttc,
-     *   tsp_amount, tm_total, odp_total,
-     *   services_impression, services_pose_depose,
-     *   total_a_payer.
+     * @return array Tableau d'agrégats prêts à persister sur Invoice.
+     *   Inclut services_impression / services_pose_depose pour rétro-compat
+     *   (somme des services côté impression/pose si fournis en LEGACY,
+     *   sinon 0).
      */
     public function calculateInvoice(array $lines, array $opts = []): array
     {
         $remisePct = max(0.0, min(100.0, (float) ($opts['remise_pct'] ?? 0)));
-        $svcPrint  = max(0.0, (float) ($opts['services_impression'] ?? 0));
-        $svcPose   = max(0.0, (float) ($opts['services_pose_depose'] ?? 0));
+
+        // ── Résolution services annexes ──
+        // Priorité : opts.services (forme libre N lignes).
+        // Sinon : LEGACY opts.services_impression + services_pose_depose
+        //         convertis en 2 lignes service.
+        $svcLines = [];
+        if (!empty($opts['services']) && is_array($opts['services'])) {
+            foreach ($opts['services'] as $s) {
+                $prix = (float) ($s['prix_ht'] ?? 0);
+                if ($prix <= 0) continue;
+                $svcLines[] = [
+                    'label'   => (string) ($s['label'] ?? 'Service'),
+                    'prix_ht' => $prix,
+                ];
+            }
+        } else {
+            $legacyPrint = max(0.0, (float) ($opts['services_impression']  ?? 0));
+            $legacyPose  = max(0.0, (float) ($opts['services_pose_depose'] ?? 0));
+            if ($legacyPrint > 0) $svcLines[] = ['label' => "Frais d'impression",       'prix_ht' => $legacyPrint];
+            if ($legacyPose  > 0) $svcLines[] = ['label' => 'Frais de pose et dépose', 'prix_ht' => $legacyPose];
+        }
 
         $totalHtBrut = 0.0;
         $totalTm     = 0.0;
         $totalOdp    = 0.0;
 
         foreach ($lines as $l) {
-            // Auto-calcul si la ligne n'a pas encore ses montants
             if (!isset($l['montant_ht_ligne'])) {
                 $calc = $this->calculateLine($l);
                 $totalHtBrut += $calc['montant_ht_ligne'];
@@ -147,8 +171,22 @@ class InvoiceCalculator
         $tvaAmount  = $netHt * $this->tvaRate / 100;
         $tspAmount  = $netHt * $this->tspRate / 100;
         $amountTtc  = $netHt + $tvaAmount;
-        $servicesHt = $svcPrint + $svcPose;
+
+        $servicesHt  = array_sum(array_column($svcLines, 'prix_ht'));
         $servicesTtc = $servicesHt * (1 + $this->tvaRate / 100);
+
+        // Rétro-compat pour les champs invoices.services_impression /
+        // services_pose_depose : on les remplit avec les 2 premières
+        // lignes du forme libre matchant ces libellés, sinon 0. Permet
+        // de garder le rapport legacy fonctionnel pendant la transition.
+        $legacyPrint = 0.0;
+        $legacyPose  = 0.0;
+        foreach ($svcLines as $s) {
+            $label = mb_strtolower($s['label']);
+            if (str_contains($label, 'impression')) $legacyPrint += $s['prix_ht'];
+            if (str_contains($label, 'pose'))       $legacyPose  += $s['prix_ht'];
+        }
+
         $autresTaxes = $tspAmount + $totalTm + $totalOdp;
         $totalAPayer = $amountTtc + $autresTaxes + $servicesTtc;
 
@@ -161,8 +199,10 @@ class InvoiceCalculator
             'tsp_amount'           => round($tspAmount, 2),
             'tm_total'             => round($totalTm, 2),
             'odp_total'            => round($totalOdp, 2),
-            'services_impression'  => round($svcPrint, 2),
-            'services_pose_depose' => round($svcPose, 2),
+            'services_impression'  => round($legacyPrint, 2),
+            'services_pose_depose' => round($legacyPose, 2),
+            'services_ht_total'    => round($servicesHt, 2),
+            'services_ttc_total'   => round($servicesTtc, 2),
             'amount_ttc'           => round($amountTtc, 2),
             'total_a_payer'        => round($totalAPayer, 2),
         ];
@@ -187,13 +227,22 @@ class InvoiceCalculator
             );
         }
 
-        $invoice->loadMissing('lines');
+        $invoice->loadMissing(['lines', 'services']);
         $linesArr = $invoice->lines->map(fn(InvoiceLine $l) => $l->toArray())->all();
+        $svcArr   = $invoice->services->map(fn($s) => [
+            'label'   => $s->label,
+            'prix_ht' => (float) $s->prix_ht,
+        ])->all();
 
         $totals = $this->calculateInvoice($linesArr, [
-            'remise_pct'           => (float) $invoice->remise_pct,
-            'services_impression'  => (float) $invoice->services_impression,
-            'services_pose_depose' => (float) $invoice->services_pose_depose,
+            'remise_pct' => (float) $invoice->remise_pct,
+            // Forme moderne (N services libres). Si vide, le calculator
+            // fallback automatiquement sur les 2 champs legacy de la
+            // facture (rétro-compat pour les factures non-migrées).
+            'services'   => !empty($svcArr) ? $svcArr : null,
+            // Toujours passer le legacy en fallback si pas de services modernes
+            'services_impression'  => empty($svcArr) ? (float) $invoice->services_impression  : 0,
+            'services_pose_depose' => empty($svcArr) ? (float) $invoice->services_pose_depose : 0,
         ]);
 
         $invoice->forceFill($totals)->save();

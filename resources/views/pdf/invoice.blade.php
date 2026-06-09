@@ -293,7 +293,20 @@
 
             @php
                 $autres = (float) $invoice->tsp_amount + (float) $invoice->tm_total + (float) $invoice->odp_total;
-                $servicesHt = (float) $invoice->services_impression + (float) $invoice->services_pose_depose;
+                // Services annexes (prompt v2) : N lignes libres. Fallback
+                // sur les 2 champs legacy si pas de invoice_services.
+                $pdfServices = $invoice->services;
+                if ($pdfServices->isEmpty()) {
+                    $tmp = collect();
+                    if ((float) $invoice->services_impression > 0) {
+                        $tmp->push((object) ['label' => "Frais d'impression", 'prix_ht' => (float) $invoice->services_impression]);
+                    }
+                    if ((float) $invoice->services_pose_depose > 0) {
+                        $tmp->push((object) ['label' => 'Frais de pose et dépose', 'prix_ht' => (float) $invoice->services_pose_depose]);
+                    }
+                    $pdfServices = $tmp;
+                }
+                $servicesHt  = $pdfServices->sum('prix_ht');
                 $servicesTtc = $servicesHt * (1 + (float) $invoice->tva / 100);
             @endphp
 
@@ -315,14 +328,11 @@
 
             @if($servicesHt > 0)
                 <div class="autres-taxes">
-                    <div class="at-title">Services additionnels</div>
-                    @if($invoice->services_impression > 0)
-                        <div class="at-row"><span>Impression (HT)</span><span class="val">{{ $fmt($invoice->services_impression) }}</span></div>
-                    @endif
-                    @if($invoice->services_pose_depose > 0)
-                        <div class="at-row"><span>Pose & dépose (HT)</span><span class="val">{{ $fmt($invoice->services_pose_depose) }}</span></div>
-                    @endif
-                    <div class="at-total"><span>Sous-total TTC (TVA 18%)</span><span class="val">{{ $fmt($servicesTtc) }} FCFA</span></div>
+                    <div class="at-title">Services annexes ({{ $pdfServices->count() }})</div>
+                    @foreach($pdfServices as $svc)
+                        <div class="at-row"><span>{{ $svc->label }} (HT)</span><span class="val">{{ $fmt($svc->prix_ht) }}</span></div>
+                    @endforeach
+                    <div class="at-total"><span>Sous-total TTC (TVA 18 %)</span><span class="val">{{ $fmt($servicesTtc) }} FCFA</span></div>
                 </div>
             @endif
 

@@ -262,6 +262,75 @@ class InvoiceCalculatorTest extends TestCase
     }
 
     /**
+     * Services annexes libres (prompt v2) — N lignes avec libellé +
+     * prix HT, chaque ligne soumise à TVA 18 %. Le total services TTC
+     * doit être la somme des prix HT × 1,18.
+     *
+     * 1 ligne facturation simple + 3 services libres :
+     *   - Frais d'impression       50 000 HT → 59 000 TTC
+     *   - Photographe livraison    80 000 HT → 94 400 TTC
+     *   - Conception créa         120 000 HT → 141 600 TTC
+     * Total services HT  = 250 000
+     * Total services TTC = 295 000
+     *
+     * Ligne facturation : PU 100k × 1 × 1 × 5 m² / commune ODP 1000
+     *   HT    = 100 000
+     *   TVA   = 18 000
+     *   TTC   = 118 000
+     *   TSP   = 3 000
+     *   ODP   = 1 000 × 5 × 1 × 1 = 5 000
+     *   TM    = 1 000 × 5 × 1 × 1 = 5 000
+     *   Autres = 13 000
+     * TOTAL = 118 000 + 13 000 + 295 000 = 426 000
+     */
+    public function test_services_annexes_libres_n_lignes(): void
+    {
+        $calc = new InvoiceCalculator();
+        $totals = $calc->calculateInvoice([[
+            'pu_ht_mensuel'     => 100000,
+            'quantite'          => 1,
+            'duree_mois'        => 1,
+            'dimension_m2'      => 5,
+            'odp_rate_applique' => 1000,
+            'tm_rate_applique'  => 1000,
+        ]], [
+            'services' => [
+                ['label' => "Frais d'impression",      'prix_ht' => 50000],
+                ['label' => 'Photographe livraison',    'prix_ht' => 80000],
+                ['label' => 'Conception créa',          'prix_ht' => 120000],
+            ],
+        ]);
+
+        $this->assertEqualsWithDelta(250000, $totals['services_ht_total'],  0.01);
+        $this->assertEqualsWithDelta(295000, $totals['services_ttc_total'], 0.01);
+        $this->assertEqualsWithDelta(426000, $totals['total_a_payer'],      0.01);
+    }
+
+    /**
+     * Rétrocompat : si on passe les anciens champs services_impression
+     * et services_pose_depose (et PAS le tableau moderne 'services'),
+     * le calculator les agrège en 2 services et donne le même total.
+     * Assure que les factures historiques continuent de fonctionner.
+     */
+    public function test_services_legacy_retrocompatibles(): void
+    {
+        $calc = new InvoiceCalculator();
+        $modern = $calc->calculateInvoice([], [
+            'services' => [
+                ['label' => "Frais d'impression",      'prix_ht' => 50000],
+                ['label' => 'Frais de pose et dépose', 'prix_ht' => 30000],
+            ],
+        ]);
+        $legacy = $calc->calculateInvoice([], [
+            'services_impression'  => 50000,
+            'services_pose_depose' => 30000,
+        ]);
+        $this->assertEqualsWithDelta($modern['total_a_payer'], $legacy['total_a_payer'], 0.01);
+        $this->assertEqualsWithDelta(80000, $legacy['services_ht_total'],  0.01);
+        $this->assertEqualsWithDelta(94400, $legacy['services_ttc_total'], 0.01);
+    }
+
+    /**
      * Remise + services : la remise s'applique UNIQUEMENT sur le HT des
      * lignes. Les services ont leur propre TVA (18%) et ne sont pas
      * affectés par la remise (frais réels facturés au coût).

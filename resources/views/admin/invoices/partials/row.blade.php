@@ -3,12 +3,14 @@
     $total    = (float) ($invoice->total_a_payer ?: $invoice->amount_ttc);
     $remaining= $invoice->remainingAmount();
     $payStatus= $invoice->paymentStatus();
+    $pct      = $invoice->paidPercentage();
     $nextDue  = $invoice->nextDueSchedule();
     $payCfg = match($payStatus) {
-        'soldee'    => ['bg' => 'rgba(34,197,94,.12)',  'color' => '#15803d', 'label' => 'Soldée',      'icon' => '✅'],
-        'partielle' => ['bg' => 'rgba(245,158,11,.12)', 'color' => '#b45309', 'label' => 'Partielle',   'icon' => '⏳'],
-        'annulee'   => ['bg' => 'rgba(107,114,128,.12)','color' => '#4b5563', 'label' => 'Annulée',     'icon' => '🚫'],
-        default     => ['bg' => 'rgba(239,68,68,.08)',  'color' => '#b91c1c', 'label' => 'Non payée',   'icon' => '❌'],
+        'soldee'    => ['bg' => 'rgba(34,197,94,.12)',  'color' => '#15803d', 'bar' => '#16a34a', 'label' => 'Soldée',      'icon' => '✅'],
+        'partielle' => ['bg' => 'rgba(245,158,11,.12)', 'color' => '#b45309', 'bar' => '#f59e0b', 'label' => 'Partielle',   'icon' => '⏳'],
+        'en_retard' => ['bg' => 'rgba(239,68,68,.12)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'label' => 'En retard',   'icon' => '🔴'],
+        'annulee'   => ['bg' => 'rgba(107,114,128,.12)','color' => '#4b5563', 'bar' => '#9ca3af', 'label' => 'Annulée',     'icon' => '🚫'],
+        default     => ['bg' => 'rgba(239,68,68,.08)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'label' => 'Non payée',   'icon' => '❌'],
     };
 @endphp
 <tr data-invoice-row="{{ $invoice->id }}" data-status="{{ $invoice->status }}">
@@ -35,10 +37,15 @@
     <td style="text-align:right;font-weight:700;color:var(--accent)">{{ number_format($total, 0, ',', ' ') }}</td>
     <td style="text-align:right;color:#16a34a">{{ number_format($paid, 0, ',', ' ') }}</td>
     <td style="text-align:right;color:{{ $remaining > 0 ? '#b91c1c' : 'var(--text3)' }};font-weight:700">{{ number_format($remaining, 0, ',', ' ') }}</td>
-    <td>
+    <td style="min-width:130px">
         <span style="display:inline-flex;align-items:center;gap:4px;background:{{ $payCfg['bg'] }};color:{{ $payCfg['color'] }};padding:3px 8px;border-radius:999px;font-size:10.5px;font-weight:800;white-space:nowrap">
             {{ $payCfg['icon'] }} {{ $payCfg['label'] }}
         </span>
+        {{-- Barre de progression % payé (prompt v2 § 4.2) --}}
+        <div style="margin-top:4px;height:4px;background:rgba(0,0,0,.06);border-radius:999px;overflow:hidden">
+            <div style="height:100%;width:{{ max(0, min(100, $pct)) }}%;background:{{ $payCfg['bar'] }};border-radius:999px"></div>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px;font-weight:700">{{ rtrim(rtrim(number_format($pct, 1, ',', ''), '0'), ',') }} % payé</div>
         <div style="margin-top:3px">
             @switch($invoice->status)
                 @case('brouillon') <span style="font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">📝 Brouillon</span> @break
