@@ -10,7 +10,8 @@ class Invoice extends Model
     use HasFactory;
 
     protected $fillable = [
-        'reference', 'client_id', 'campaign_id', 'created_by',
+        'reference', 'client_id', 'campaign_id',
+        'commercial_user_id', 'created_by',
         'remise_pct',
         'amount', 'net_ht',
         'tva', 'tva_amount', 'tsp_amount',
@@ -23,23 +24,51 @@ class Invoice extends Model
         'notes_client',
     ];
 
+    /**
+     * Casts FNE — RÈGLE D'OR #4 : tous les MONTANTS en entiers FCFA
+     * (le franc CFA n'a pas de centimes). Seuls les pourcentages
+     * (remise_pct, tva) et les surfaces/durées (gérées sur InvoiceLine)
+     * restent décimaux.
+     */
     protected $casts = [
         'remise_pct'           => 'decimal:2',
-        'amount'               => 'decimal:2',
-        'net_ht'               => 'decimal:2',
+        'amount'               => 'integer',
+        'net_ht'               => 'integer',
         'tva'                  => 'decimal:2',
-        'tva_amount'           => 'decimal:2',
-        'tsp_amount'           => 'decimal:2',
-        'tm_total'             => 'decimal:2',
-        'odp_total'            => 'decimal:2',
-        'services_impression'  => 'decimal:2',
-        'services_pose_depose' => 'decimal:2',
-        'amount_ttc'           => 'decimal:2',
-        'total_a_payer'        => 'decimal:2',
+        'tva_amount'           => 'integer',
+        'tsp_amount'           => 'integer',
+        'tm_total'             => 'integer',
+        'odp_total'            => 'integer',
+        'services_impression'  => 'integer',
+        'services_pose_depose' => 'integer',
+        'amount_ttc'           => 'integer',
+        'total_a_payer'        => 'integer',
         'issued_at'            => 'date',
         'paid_at'              => 'date',
         'locked_at'            => 'datetime',
         'campaign_year'        => 'integer',
+    ];
+
+    /**
+     * Liste des statuts conformes au §3 du cahier des charges.
+     * Source unique : les transitions et l'observer s'y réfèrent.
+     */
+    public const STATUSES = [
+        'brouillon', 'generee', 'validee', 'envoyee',
+        'partiellement_payee', 'payee', 'en_retard', 'litige', 'annulee',
+    ];
+
+    /** Transitions manuelles autorisées (user action). */
+    public const MANUAL_TRANSITIONS = [
+        'brouillon'           => ['generee', 'annulee'],
+        'generee'             => ['brouillon', 'validee', 'annulee'],
+        'validee'             => ['envoyee', 'litige', 'annulee', 'brouillon'],
+        'envoyee'             => ['litige', 'annulee', 'brouillon'],
+        'partiellement_payee' => ['litige', 'brouillon'],
+        'payee'               => ['brouillon'], // rebascule possible si erreur
+        'en_retard'           => ['litige', 'brouillon'],
+        'litige'              => ['envoyee', 'partiellement_payee', 'payee', 'annulee'],
+        'annulee'             => ['brouillon'],
     ];
 
     public function client()
@@ -58,6 +87,23 @@ class Invoice extends Model
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Commercial responsable du compte client — récupéré automatiquement
+     * depuis la campagne au moment de la génération (§1 cahier). Distinct
+     * de created_by qui est l'utilisateur ayant cliqué "Créer la facture"
+     * (potentiellement un admin différent du commercial titulaire).
+     */
+    public function commercialUser()
+    {
+        return $this->belongsTo(User::class, 'commercial_user_id');
+    }
+
+    /** Historique des transitions de statut — §3 et §13 du cahier. */
+    public function statusHistory()
+    {
+        return $this->hasMany(InvoiceStatusHistory::class)->orderBy('created_at');
     }
 
     public function isPaid(): bool
@@ -232,6 +278,46 @@ class Invoice extends Model
     public function isLocked(): bool
     {
         return $this->locked_at !== null;
+    }
+
+    /**
+     * Transition de statut tracée — utilisé par les controllers (actions
+     * utilisateur) ET les services automatiques (PaymentService,
+     * Job::markOverdue). Refuse les transitions non autorisées par
+     * MANUAL_TRANSITIONS quand $auto=false.
+     *
+     * Lève DomainException si transition interdite côté manuel. Les
+     * transitions auto contournent (un paiement complet peut faire passer
+     * brouillon → payee même si pas dans la table manuelle).
+     */
+    public function transitionTo(string $newStatus, ?string $reason = null, bool $auto = true, ?int $userId = null): void
+    {
+        if (!in_array($newStatus, self::STATUSES, true)) {
+            throw new \DomainException("Statut inconnu : '$newStatus'.");
+        }
+
+        if ($this->status === $newStatus) return; // no-op
+
+        if (!$auto) {
+            $allowed = self::MANUAL_TRANSITIONS[$this->status] ?? [];
+            if (!in_array($newStatus, $allowed, true)) {
+                throw new \DomainException(
+                    "Transition interdite : '{$this->status}' → '$newStatus'. "
+                    . "Transitions autorisées depuis '{$this->status}' : "
+                    . (empty($allowed) ? '(aucune)' : implode(', ', $allowed))
+                );
+            }
+        }
+
+        // Métadonnées lues par l'observer
+        $this->_transitionMeta = [
+            'reason'  => $reason,
+            'auto'    => $auto,
+            'user_id' => $userId ?? auth()->id(),
+        ];
+
+        $this->status = $newStatus;
+        $this->save();
     }
 
     /** Verrouille la facture (passage à 'envoyee'). Idempotent. */

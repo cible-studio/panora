@@ -83,7 +83,16 @@
       "Bash(php -l database/migrations/2026_06_08_180000_create_invoice_schedules_table.php)",
       "Bash(grep -nE 'style=\"[^\"]*$' resources/views/admin/invoices/show.blade.php)",
       "Bash(git rebase *)",
-      "Bash(GIT_EDITOR=true git rebase --continue)"
+      "Bash(GIT_EDITOR=true git rebase --continue)",
+      "Bash(sed -n '79,90p' resources/css/app.css)",
+      "Bash(sed -n '343,365p' resources/css/app.css)",
+      "Bash(awk '{print $9}')",
+      "Bash(grep -v \"comment\\\\|//\")",
+      "Bash(php -l app/Models/InvoiceLine.php)",
+      "Bash(php -l app/Models/InvoicePayment.php)",
+      "Bash(php -l app/Models/InvoiceService.php)",
+      "Bash(php -l app/Models/InvoiceStatusHistory.php)",
+      "Bash(php -l app/Models/CommuneTaxRateHistory.php)"
     ]
   }
 }

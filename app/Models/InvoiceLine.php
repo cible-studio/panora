@@ -27,16 +27,21 @@ class InvoiceLine extends Model
         'order_index',
     ];
 
+    /**
+     * Casts FNE — RÈGLE D'OR #4 :
+     *   - Montants FCFA → integer (pas de centimes)
+     *   - Surface m² + durée mois → decimal (12.5 m², 0.5 mois possibles)
+     */
     protected $casts = [
         'dimension_m2'      => 'decimal:2',
-        'pu_ht_mensuel'     => 'decimal:2',
+        'pu_ht_mensuel'     => 'integer',
         'quantite'          => 'integer',
         'duree_mois'        => 'decimal:2',
-        'montant_ht_ligne'  => 'decimal:2',
-        'odp_rate_applique' => 'decimal:2',
-        'tm_rate_applique'  => 'decimal:2',
-        'odp_ligne'         => 'decimal:2',
-        'tm_ligne'          => 'decimal:2',
+        'montant_ht_ligne'  => 'integer',
+        'odp_rate_applique' => 'integer',
+        'tm_rate_applique'  => 'integer',
+        'odp_ligne'         => 'integer',
+        'tm_ligne'          => 'integer',
         'order_index'       => 'integer',
     ];
 
