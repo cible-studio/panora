@@ -23,7 +23,7 @@ class InvoicePayment extends Model
 
     protected $casts = [
         'paid_at' => 'date',
-        'montant' => 'decimal:2',
+        'montant' => 'integer',
     ];
 
     public function invoice(): BelongsTo

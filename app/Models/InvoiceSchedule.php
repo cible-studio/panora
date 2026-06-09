@@ -25,7 +25,7 @@ class InvoiceSchedule extends Model
 
     protected $casts = [
         'due_date'        => 'date',
-        'amount'          => 'decimal:2',
+        'amount'          => 'integer',
         'paid_at'         => 'date',
         'reminded_at'     => 'date',
         'order_index'     => 'integer',

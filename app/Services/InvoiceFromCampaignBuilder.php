@@ -116,17 +116,27 @@ class InvoiceFromCampaignBuilder
 
         return DB::transaction(function () use ($campaign, $opts, $issuedAt, $year, $dureeMois, $negotiated) {
             // ─── Création facture brouillon ──────────────────────
+            // commercial_user_id = COMMERCIAL responsable du compte client
+            //   (priorité campaign.commercial_user_id, fallback campaign.user_id)
+            // created_by         = utilisateur qui clique "Générer la facture"
+            //   (peut être un admin différent du commercial titulaire)
+            // → distinct dans le schéma pour permettre les rapports "par
+            //   commercial" (cf. § 1 et § 11 du cahier des charges).
+            $commercialUserId = $campaign->commercial_user_id ?? $campaign->user_id;
+            $createdBy        = auth()->id() ?? $commercialUserId;
+
             $invoice = Invoice::create([
                 'reference'           => $this->generateReference($year),
                 'client_id'           => $campaign->client_id,
                 'campaign_id'         => $campaign->id,
-                'created_by'          => auth()->id() ?? $campaign->commercial_user_id ?? $campaign->user_id,
+                'commercial_user_id'  => $commercialUserId,
+                'created_by'          => $createdBy,
                 'issued_at'           => $issuedAt->toDateString(),
                 'status'              => 'brouillon',
                 'tva'                 => $this->calculator->tvaRate(),
                 'remise_pct'          => (float) ($opts['remise_pct'] ?? 0),
-                'services_impression' => (float) ($opts['services_impression'] ?? 0),
-                'services_pose_depose'=> (float) ($opts['services_pose_depose'] ?? 0),
+                'services_impression' => (int) round((float) ($opts['services_impression'] ?? 0)),
+                'services_pose_depose'=> (int) round((float) ($opts['services_pose_depose'] ?? 0)),
                 'campaign_year'       => $year,
                 'notes_client'        => $opts['notes_client'] ?? config('billing.payment_terms_default'),
             ]);

@@ -19,7 +19,7 @@ class InvoiceService extends Model
     ];
 
     protected $casts = [
-        'prix_ht'     => 'decimal:2',
+        'prix_ht'     => 'integer',
         'order_index' => 'integer',
     ];
 
