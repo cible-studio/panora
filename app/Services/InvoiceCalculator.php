@@ -78,7 +78,17 @@ class InvoiceCalculator
         $duree    = (float) ($line['duree_mois'] ?? 1);
         $m2       = (float) ($line['dimension_m2'] ?? 0);
         $odpRate  = (float) ($line['odp_rate_applique'] ?? 0);
-        $tmRate   = (float) ($line['tm_rate_applique'] ?? $this->tmDefault);
+
+        // TM : base FIXE 1000 F/m²/mois sur tout le territoire (cf. prompt
+        // 2025). On lit tm_rate_applique pour permettre une dérogation
+        // commune (si le législateur introduit un tarif différencié plus
+        // tard), MAIS si la ligne arrive avec tm = 0 (commune mal seedée,
+        // oubli admin), on FALLBACK sur tm_default config = 1000.
+        // Sinon on facturait 0 de TM par erreur — pénalité fiscale CI.
+        $tmRaw    = $line['tm_rate_applique'] ?? null;
+        $tmRate   = ($tmRaw !== null && (float) $tmRaw > 0)
+            ? (float) $tmRaw
+            : $this->tmDefault;
 
         $montantHt = $pu * $qte * $duree;
         $odp       = $odpRate * $m2 * $qte * $duree;
