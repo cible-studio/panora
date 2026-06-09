@@ -597,8 +597,14 @@ class InvoiceController extends Controller
         $this->authorize('create', Invoice::class);
 
         if ($campaign->status?->value === 'annule') {
-            return back()->with('error', 'Campagne annulée — facturation bloquée.');
+            return back()->with('error', '🚫 Campagne annulée — facturation bloquée.');
         }
+
+        // Prévention sur-facturation : si la campagne a déjà des factures
+        // non-annulées, on prévient (mais on n'empêche pas — facturation
+        // partielle / complémentaire reste possible).
+        $existingCount = $campaign->invoices()
+            ->whereNotIn('status', ['annulee'])->count();
 
         $opts = $request->validate([
             'remise_pct'           => 'nullable|numeric|min:0|max:100',
@@ -610,24 +616,34 @@ class InvoiceController extends Controller
 
         try {
             $invoice = $builder->build($campaign, $opts);
+        } catch (\DomainException $e) {
+            // Erreur métier propre (pas de panneau, pas de client, etc.)
+            return back()->with('error', '⚠ ' . $e->getMessage());
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('invoice.from_campaign.failed', [
                 'campaign_id' => $campaign->id,
                 'error'       => $e->getMessage(),
             ]);
-            return back()->with('error', 'Impossible de générer la facture : ' . $e->getMessage());
+            return back()->with('error', 'Erreur technique lors de la génération : ' . $e->getMessage());
         }
 
         \Illuminate\Support\Facades\Log::info('invoice.from_campaign.success', [
-            'campaign_id' => $campaign->id,
-            'invoice_id'  => $invoice->id,
-            'reference'   => $invoice->reference,
-            'lines'       => $invoice->lines->count(),
-            'total'       => $invoice->total_a_payer,
+            'campaign_id'         => $campaign->id,
+            'invoice_id'          => $invoice->id,
+            'reference'           => $invoice->reference,
+            'lines'               => $invoice->lines->count(),
+            'total'               => $invoice->total_a_payer,
+            'is_complementary'    => $existingCount > 0,
         ]);
 
+        $msg = "Facture {$invoice->reference} générée — {$invoice->lines->count()} ligne(s), total "
+             . number_format($invoice->total_a_payer, 0, ',', ' ') . ' FCFA. Vérifie et envoie.';
+        if ($existingCount > 0) {
+            $msg .= " ⚠ Cette campagne a déjà {$existingCount} facture(s) — vérifie qu'il ne s'agit pas d'un doublon.";
+        }
+
         return redirect()->route('admin.invoices.show', $invoice)
-            ->with('success', "Facture {$invoice->reference} générée depuis la campagne — {$invoice->lines->count()} ligne(s), total " . number_format($invoice->total_a_payer, 0, ',', ' ') . ' FCFA. Vérifie et envoie.');
+            ->with('success', $msg);
     }
 
     public function markSent(Request $request, Invoice $invoice)
