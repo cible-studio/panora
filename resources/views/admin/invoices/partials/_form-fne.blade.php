@@ -134,29 +134,29 @@
         </div>
         <div class="card-body" style="padding:0">
             <div style="overflow-x:auto">
-                <table id="lines-table" class="lines-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:920px">
+                <table id="lines-table" class="lines-table">
                     <thead>
-                        <tr style="background:var(--surface2);color:var(--text3);text-align:left">
-                            <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;font-weight:700">Désignation</th>
-                            <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;font-weight:700">Commune</th>
-                            <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;font-weight:700;text-align:center">m²</th>
-                            <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;font-weight:700;text-align:right">PU HT/mois</th>
-                            <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;font-weight:700;text-align:center">Qté</th>
-                            <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;font-weight:700;text-align:center">Mois</th>
-                            <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;font-weight:700;text-align:right">Total HT</th>
-                            <th style="padding:8px 10px"></th>
+                        <tr>
+                            <th>Désignation</th>
+                            <th>Commune</th>
+                            <th class="num">m²</th>
+                            <th class="num">PU HT/mois</th>
+                            <th class="num">Qté</th>
+                            <th class="num">Mois</th>
+                            <th class="num">Total HT</th>
+                            <th class="act"></th>
                         </tr>
                     </thead>
                     <tbody id="lines-tbody">
                         @foreach($lines as $i => $l)
                             <tr class="line-row" data-index="{{ $i }}">
-                                <td style="padding:8px 10px;border-top:1px solid var(--border);min-width:280px">
+                                <td class="col-designation">
                                     {{-- Select2 AJAX panneau (filtré par la campagne sélectionnée
                                          en haut). À la sélection, auto-remplit commune + m² + PU. --}}
                                     <select name="lines[{{ $i }}][designation_picker]" class="line-designation" style="width:100%"></select>
                                     <input type="hidden" name="lines[{{ $i }}][designation]" class="line-designation-value" value="{{ $l['designation'] ?? '' }}">
                                 </td>
-                                <td style="padding:8px 10px;border-top:1px solid var(--border);min-width:160px">
+                                <td class="col-commune">
                                     <select name="lines[{{ $i }}][commune_id]" class="line-commune" required style="width:100%">
                                         <option value=""></option>
                                         @foreach($communes as $c)
@@ -169,29 +169,25 @@
                                         @endforeach
                                     </select>
                                 </td>
-                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:center;width:90px">
+                                <td class="num col-m2">
                                     <input type="number" name="lines[{{ $i }}][dimension_m2]" class="line-m2" required
-                                           value="{{ $l['dimension_m2'] ?? 0 }}" min="0" step="0.01"
-                                           style="width:100%;text-align:right;">
+                                           value="{{ $l['dimension_m2'] ?? 0 }}" min="0" step="0.01">
                                 </td>
-                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:right;width:130px">
+                                <td class="num col-pu">
                                     <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required
-                                           value="{{ $l['pu_ht_mensuel'] ?? 0 }}" min="0" step="1000"
-                                           style="width:100%;text-align:right;">
+                                           value="{{ $l['pu_ht_mensuel'] ?? 0 }}" min="0" step="1000">
                                 </td>
-                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:center;width:75px">
+                                <td class="num col-qte">
                                     <input type="number" name="lines[{{ $i }}][quantite]" class="line-qte" required
-                                           value="{{ $l['quantite'] ?? 1 }}" min="1" step="1"
-                                           style="width:100%;text-align:right">
+                                           value="{{ $l['quantite'] ?? 1 }}" min="1" step="1">
                                 </td>
-                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:center;width:85px">
+                                <td class="num col-mois">
                                     <input type="number" name="lines[{{ $i }}][duree_mois]" class="line-mois" required
-                                           value="{{ $l['duree_mois'] ?? 1 }}" min="0.5" step="0.5"
-                                           style="width:100%;text-align:right">
+                                           value="{{ $l['duree_mois'] ?? 1 }}" min="0.5" step="0.5">
                                 </td>
-                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:right;font-weight:800;color:var(--accent);width:120px;white-space:nowrap" class="line-total">0 FCFA</td>
-                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:center;width:40px">
-                                    <button type="button" class="btn btn-ghost btn-sm line-remove" style="color:var(--red);padding:4px 8px;font-size:14px" title="Supprimer la ligne">🗑</button>
+                                <td class="num col-total line-total">0 FCFA</td>
+                                <td class="act">
+                                    <button type="button" class="btn-line-remove line-remove" title="Supprimer la ligne">🗑</button>
                                 </td>
                             </tr>
                         @endforeach
@@ -328,7 +324,63 @@
         color: var(--text) !important;
     }
 
-    /* ── Row Select2 dans la table des lignes (plus compact 34px) ── */
+    /* ── Tableau des lignes : layout centralisé (ex-inline styles) ── */
+    .lines-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        min-width: 920px;
+    }
+    .lines-table thead tr {
+        background: var(--surface2);
+        color: var(--text3);
+    }
+    .lines-table th {
+        padding: 10px 10px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        text-align: left;
+    }
+    .lines-table th.num { text-align: right; }
+    .lines-table th.act { width: 44px; }
+    .lines-table td {
+        padding: 8px 10px;
+        border-top: 1px solid var(--border);
+        vertical-align: middle;
+    }
+    .lines-table td.num { text-align: right; }
+    .lines-table td.act { text-align: center; width: 44px; }
+    .lines-table .col-designation { min-width: 280px; }
+    .lines-table .col-commune     { min-width: 160px; }
+    .lines-table .col-m2          { width: 90px; }
+    .lines-table .col-pu          { width: 130px; }
+    .lines-table .col-qte         { width: 75px; }
+    .lines-table .col-mois        { width: 85px; }
+    .lines-table .col-total       { width: 120px; font-weight: 800; color: var(--accent); white-space: nowrap; }
+    .lines-table tbody tr:hover td { background: rgba(232, 160, 32, .03); }
+
+    /* Inputs natifs dans le tableau — compacts 34px, focus accent */
+    .lines-table input[type="number"],
+    .lines-table input[type="text"] {
+        height: 34px !important;
+        width: 100% !important;
+        padding: 0 10px !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 6px !important;
+        background: var(--surface) !important;
+        font-size: 12px !important;
+        text-align: right !important;
+    }
+    .lines-table input[type="number"]:focus,
+    .lines-table input[type="text"]:focus {
+        border-color: var(--accent) !important;
+        outline: none !important;
+        box-shadow: 0 0 0 2px rgba(232, 160, 32, .15) !important;
+    }
+
+    /* Select2 dans le tableau — compact 34px */
     .lines-table .select2-container--default .select2-selection--single {
         height: 34px !important;
         border-radius: 6px !important;
@@ -341,26 +393,80 @@
     .lines-table .select2-container--default .select2-selection--single .select2-selection__arrow {
         height: 32px !important;
     }
-    .lines-table input[type="number"],
-    .lines-table input[type="text"] {
-        height: 34px !important;
-        padding: 0 10px !important;
-        border: 1px solid var(--border) !important;
-        border-radius: 6px !important;
-        background: var(--surface) !important;
-        font-size: 12px !important;
+
+    /* Bouton supprimer ligne — discret par défaut, rouge au hover */
+    .btn-line-remove {
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--text3);
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 6px 8px;
+        border-radius: 6px;
+        transition: background .15s, border-color .15s, color .15s;
     }
-    .lines-table input[type="number"]:focus,
-    .lines-table input[type="text"]:focus {
-        border-color: var(--accent) !important;
-        outline: none !important;
-        box-shadow: 0 0 0 2px rgba(232,160,32,.15) !important;
+    .btn-line-remove:hover {
+        background: rgba(239, 68, 68, .1);
+        border-color: rgba(239, 68, 68, .25);
+        color: #ef4444;
     }
-    .lines-table th {
-        padding: 10px 10px !important;
+
+    /* ── Polish global des inputs natifs du formulaire facture ──
+       (en dehors du tableau, qui a ses propres règles plus compactes) */
+    .invoice-form .mfg input[type="text"],
+    .invoice-form .mfg input[type="number"],
+    .invoice-form .mfg input[type="date"],
+    .invoice-form .mfg textarea {
+        height: 40px;
+        width: 100%;
+        padding: 0 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 13px;
+        color: var(--text);
+        font-family: inherit;
+        outline: none;
+        transition: border-color .15s, box-shadow .15s;
     }
-    .lines-table td {
-        vertical-align: middle !important;
+    .invoice-form .mfg textarea {
+        height: auto;
+        min-height: 60px;
+        padding: 10px 12px;
+        line-height: 1.5;
+        resize: vertical;
+    }
+    .invoice-form .mfg input:hover,
+    .invoice-form .mfg textarea:hover { border-color: var(--text3); }
+    .invoice-form .mfg input:focus,
+    .invoice-form .mfg textarea:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(232, 160, 32, .15);
+    }
+    .invoice-form .mfg input.error,
+    .invoice-form .mfg input:invalid:not(:placeholder-shown) { border-color: rgba(239, 68, 68, .5); }
+    .invoice-form .mfg input[readonly] { background: var(--surface2); cursor: not-allowed; color: var(--text2); }
+    .invoice-form .mfg label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+        color: var(--text2);
+        margin-bottom: 6px;
+    }
+    .invoice-form .mfg { margin-bottom: 14px; }
+    .invoice-form .form-2col,
+    .invoice-form .form-3col {
+        display: grid;
+        gap: 14px;
+    }
+    .invoice-form .form-2col { grid-template-columns: 1fr 1fr; }
+    .invoice-form .form-3col { grid-template-columns: 1fr 1fr 1fr; }
+    @media (max-width: 720px) {
+        .invoice-form .form-2col,
+        .invoice-form .form-3col { grid-template-columns: 1fr; }
     }
 
     /* ── Template option PANNEAU (rich) ───────────────────────────── */
