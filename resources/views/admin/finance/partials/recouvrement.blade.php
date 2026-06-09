@@ -1,5 +1,4 @@
 {{-- Onglet RECOUVREMENT : clients à relancer + modale "+ Enregistrer une relance" --}}
-@php $relancesReady = $relancesReady ?? true; @endphp
 
 <div class="fin-card">
     <div class="fin-card-head">
@@ -13,11 +12,9 @@
                 <option value="ancien"             {{ request('sort') === 'ancien' ? 'selected' : '' }}>Trier par ancienneté</option>
                 <option value="prochaine_echeance" {{ request('sort') === 'prochaine_echeance' ? 'selected' : '' }}>Trier par prochaine échéance</option>
             </select>
-            @if($relancesReady)
             <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('modal-relance').style.display='flex'">
                 + Enregistrer une relance
             </button>
-            @endif
         </div>
     </div>
     <div class="fin-card-body fin-card-body--flush">
