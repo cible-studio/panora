@@ -613,6 +613,11 @@ Route::prefix('admin')
                 ->name('invoices.payments.add');
             Route::delete('invoices/{invoice}/payments/{payment}', [InvoiceController::class, 'removePayment'])
                 ->name('invoices.payments.remove');
+            // Phase 2 : téléchargement pièce justificative versement
+            // (cahier §4 : "moyen de paiement, pièce jointe, note")
+            Route::get('invoices/{invoice}/payments/{payment}/attachment',
+                [InvoiceController::class, 'downloadPaymentAttachment'])
+                ->name('invoices.payments.attachment');
 
             // Échéancier prévisionnel (acompte / solde / mensualités).
             // Le rapprochement avec les versements réels est manuel via

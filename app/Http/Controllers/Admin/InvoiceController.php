@@ -791,7 +791,7 @@ class InvoiceController extends Controller
     // manuellement. Si la somme >= total_a_payer, la facture passe
     // automatiquement à 'payee' + paid_at = dernier versement.
     // ══════════════════════════════════════════════════════════════
-    public function addPayment(Request $request, Invoice $invoice)
+    public function addPayment(Request $request, Invoice $invoice, \App\Services\PaymentService $payments)
     {
         $this->authorize('markPaid', $invoice);
 
@@ -800,61 +800,30 @@ class InvoiceController extends Controller
         }
 
         $data = $request->validate([
-            'paid_at'   => 'required|date|before_or_equal:today',
-            'montant'   => 'required|numeric|min:1',
-            'mode'      => 'required|in:especes,cheque,virement,mobile_money,compensation,autre',
-            'reference' => 'nullable|string|max:100',
+            'paid_at'    => 'required|date|before_or_equal:today',
+            'montant'    => 'required|numeric|min:1',
+            'mode'       => 'required|in:especes,cheque,virement,mobile_money,carte_bancaire,compensation,autre',
+            'reference'  => 'nullable|string|max:100',
+            'bank'       => 'nullable|string|max:100',
+            'is_acompte' => 'sometimes|boolean',
+            'attachment' => 'nullable|file|mimes:pdf,png,jpg,jpeg,webp|max:5120',
             'note'      => 'nullable|string|max:1000',
         ]);
 
-        // Garde stricte (prompt v2 § 5) : total encaissé ≤ total facturé.
-        // On tolère un dépassement de 1 FCFA pour absorber les arrondis,
-        // au-delà → blocage avec message clair. Si l'admin a vraiment
-        // reçu un trop-perçu, il doit émettre un avoir (note de crédit).
-        $remaining = $invoice->remainingAmount();
-        $totalDue  = (float) ($invoice->total_a_payer ?: $invoice->amount_ttc ?: 0);
-        $newPaidTotal = $invoice->paidAmount() + (float) $data['montant'];
-
-        if ($totalDue > 0 && $newPaidTotal > $totalDue + 1.0) {
-            $depassement = $newPaidTotal - $totalDue;
-            return back()->withInput()->with('error',
-                '🚫 Sur-paiement bloqué : ce versement de '
-                . number_format($data['montant'], 0, ',', ' ') . ' FCFA porterait le total encaissé à '
-                . number_format($newPaidTotal, 0, ',', ' ') . ' FCFA, soit '
-                . number_format($depassement, 0, ',', ' ') . ' FCFA au-dessus du total facturé ('
-                . number_format($totalDue, 0, ',', ' ') . ' FCFA). '
-                . 'Si c\'est un trop-perçu réel, émets un avoir au lieu d\'ajouter ce versement.'
+        // Délégation au PaymentService (Phase 2 cahier §4 + §5)
+        try {
+            $payment = $payments->register(
+                $invoice,
+                $data,
+                $request->file('attachment')
             );
+        } catch (\DomainException $e) {
+            return back()->withInput()->with('error', '🚫 ' . $e->getMessage());
         }
 
-        $payment = $invoice->payments()->create([
-            'paid_at'   => $data['paid_at'],
-            'montant'   => $data['montant'],
-            'mode'      => $data['mode'],
-            'reference' => $data['reference'] ?? null,
-            'note'      => $data['note'] ?? null,
-            'created_by'=> auth()->id(),
-        ]);
-
-        // Recalcul du statut dérivé : si la somme couvre le total,
-        // on bascule la facture en 'payee' avec paid_at = dernier paiement.
-        $invoice->refresh()->loadMissing('payments');
-        if ($invoice->paymentStatus() === 'soldee' && $invoice->status !== 'payee') {
-            $invoice->update([
-                'status'  => 'payee',
-                'paid_at' => $invoice->payments->max('paid_at'),
-            ]);
-        }
-
-        \Illuminate\Support\Facades\Log::info('invoice.payment.added', [
-            'invoice_id' => $invoice->id,
-            'payment_id' => $payment->id,
-            'montant'    => $payment->montant,
-            'by'         => auth()->id(),
-        ]);
-
+        $type = $payment->is_acompte ? 'Acompte' : 'Versement';
         return back()->with('success',
-            '✅ Versement de ' . number_format($data['montant'], 0, ',', ' ') . ' FCFA enregistré.'
+            '✅ ' . $type . ' de ' . number_format($payment->montant, 0, ',', ' ') . ' FCFA enregistré.'
         );
     }
 
@@ -971,7 +940,29 @@ class InvoiceController extends Controller
         return back()->with('success', 'Échéancier supprimé.');
     }
 
-    public function removePayment(Request $request, Invoice $invoice, \App\Models\InvoicePayment $payment)
+    /**
+     * Télécharge la pièce justificative d'un paiement (scan chèque,
+     * reçu, etc.). Auth basique + check d'appartenance.
+     */
+    public function downloadPaymentAttachment(Invoice $invoice, \App\Models\InvoicePayment $payment)
+    {
+        $this->authorize('view', $invoice);
+
+        if ($payment->invoice_id !== $invoice->id) abort(404);
+        if (!$payment->attachment_path) abort(404, 'Aucune pièce jointe pour ce versement.');
+
+        $disk = \App\Services\PaymentService::ATTACHMENT_DISK;
+        if (!\Illuminate\Support\Facades\Storage::disk($disk)->exists($payment->attachment_path)) {
+            abort(404, 'Fichier introuvable sur le serveur.');
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk($disk)->download(
+            $payment->attachment_path,
+            $payment->attachment_original_name ?: basename($payment->attachment_path)
+        );
+    }
+
+    public function removePayment(Request $request, Invoice $invoice, \App\Models\InvoicePayment $payment, \App\Services\PaymentService $payments)
     {
         $this->authorize('markPaid', $invoice);
 
@@ -980,17 +971,9 @@ class InvoiceController extends Controller
             abort(404);
         }
 
-        $payment->delete();
-
-        // Si la facture était 'payee' grâce à ce versement, on rebascule
-        // selon le nouveau statut dérivé (partielle ou non_payee).
-        $invoice->refresh()->loadMissing('payments');
-        if ($invoice->status === 'payee' && $invoice->paymentStatus() !== 'soldee') {
-            $invoice->update([
-                'status'  => 'envoyee', // retour à l'état avant solde
-                'paid_at' => null,
-            ]);
-        }
+        // Délégation au PaymentService (suppression + nettoyage pièce
+        // jointe + resync statut auto).
+        $payments->delete($payment);
 
         \Illuminate\Support\Facades\Log::warning('invoice.payment.deleted', [
             'invoice_id' => $invoice->id,

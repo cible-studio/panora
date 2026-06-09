@@ -51,6 +51,7 @@
       "Bash(grep -n 'slot\\\\|{{ $slot\\\\|stack' c:/wamp64/www/panora/resources/views/layouts/admin.blade.php)",
       "Bash(php -l c:/wamp64/www/panora/app/Services/WhatsAppService.php)",
       "Bash(php -l c:/wamp64/www/panora/app/Http/Controllers/Admin/PoseController.php)",
+<<<<<<< Updated upstream
       "Bash(cat /c/Users/slim3/AppData/Local/Temp/claude/c--wamp64-www-panora/109e46f2-c013-4f96-9325-6eb021f67b5e/tasks/bnq3ocasw.output 2>&1 | tail -10)",
       "Read(//c/Users/slim3/AppData/Local/Temp/claude/c--wamp64-www-panora/109e46f2-c013-4f96-9325-6eb021f67b5e/tasks/**)",
       "Bash(git -c stash.showUntracked=false stash push -m \"settings local\" -- .claude/settings.local.json)",
@@ -93,6 +94,18 @@
       "Bash(php -l app/Models/InvoiceService.php)",
       "Bash(php -l app/Models/InvoiceStatusHistory.php)",
       "Bash(php -l app/Models/CommuneTaxRateHistory.php)"
+=======
+      "Bash(php -l app/Exports/InvoicesExport.php)",
+      "Bash(grep -n '$invoice->client->name\\\\|$invoice->campaign->name\\\\|$invoice->creator->name' resources/views/admin/invoices/ -r)",
+      "Bash(php -l app/Models/Invoice.php)",
+      "Bash(git commit -m ' *)",
+      "Bash(php -l app/Http/Controllers/Admin/RapportController.php)",
+      "Bash(php -l app/Models/ClientContact.php)",
+      "Bash(php -l app/Models/Client.php)",
+      "Bash(php -l app/Http/Controllers/Admin/ClientContactController.php)",
+      "Bash(git -c stash.showUntracked=false stash push -m \"settings\" -- .claude/)",
+      "Bash(php -l app/Http/Controllers/PublicPigeController.php)"
+>>>>>>> Stashed changes
     ]
   }
 }

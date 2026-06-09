@@ -18,12 +18,15 @@ class InvoicePayment extends Model
 {
     protected $fillable = [
         'invoice_id', 'paid_at', 'montant',
-        'mode', 'reference', 'note', 'created_by',
+        'mode', 'reference', 'bank',
+        'is_acompte', 'attachment_path', 'attachment_original_name',
+        'note', 'created_by',
     ];
 
     protected $casts = [
-        'paid_at' => 'date',
-        'montant' => 'integer',
+        'paid_at'    => 'date',
+        'montant'    => 'integer',
+        'is_acompte' => 'boolean',
     ];
 
     public function invoice(): BelongsTo
@@ -43,12 +46,32 @@ class InvoicePayment extends Model
     public function getModeLabelAttribute(): string
     {
         return match ($this->mode) {
-            'especes'      => 'Espèces',
-            'cheque'       => 'Chèque',
-            'virement'     => 'Virement bancaire',
-            'mobile_money' => 'Mobile money',
-            'compensation' => 'Compensation (avoir)',
-            default        => 'Autre',
+            'especes'        => 'Espèces',
+            'cheque'         => 'Chèque',
+            'virement'       => 'Virement bancaire',
+            'mobile_money'   => 'Mobile money',
+            'carte_bancaire' => 'Carte bancaire',
+            'compensation'   => 'Compensation (avoir)',
+            default          => 'Autre',
         };
     }
+
+    public function getModeIconAttribute(): string
+    {
+        return match ($this->mode) {
+            'especes'        => '💵',
+            'cheque'         => '📝',
+            'virement'       => '🏦',
+            'mobile_money'   => '📱',
+            'carte_bancaire' => '💳',
+            'compensation'   => '🔄',
+            default          => '💰',
+        };
+    }
+
+    /** Liste des modes acceptés (matche l'enum migration + cahier §4). */
+    public const MODES = [
+        'especes', 'cheque', 'virement', 'mobile_money',
+        'carte_bancaire', 'compensation', 'autre',
+    ];
 }
