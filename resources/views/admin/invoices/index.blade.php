@@ -126,7 +126,7 @@
                 <option value="non_payee" {{ request('pay_status') === 'non_payee' ? 'selected' : '' }}>❌ Non payée</option>
                 <option value="partielle" {{ request('pay_status') === 'partielle' ? 'selected' : '' }}>⏳ Partielle</option>
                 <option value="soldee"    {{ request('pay_status') === 'soldee'    ? 'selected' : '' }}>✅ Soldée</option>
-                <option value="overdue"   {{ request('pay_status') === 'overdue'   ? 'selected' : '' }}>🔴 À relancer</option>
+                <option value="en_retard" {{ in_array(request('pay_status'), ['en_retard', 'overdue']) ? 'selected' : '' }}>🔴 En retard</option>
             </select>
         </div>
         

@@ -334,7 +334,21 @@
 
                     @php
                         $autres = (float) $invoice->tsp_amount + (float) $invoice->tm_total + (float) $invoice->odp_total;
-                        $servicesHt = (float) $invoice->services_impression + (float) $invoice->services_pose_depose;
+                        // Services annexes (prompt v2) : N lignes libres. Fallback
+                        // sur les 2 champs legacy si la facture n'a pas encore été
+                        // migrée vers invoice_services.
+                        $serviceLines = $invoice->services;
+                        if ($serviceLines->isEmpty()) {
+                            $tmp = collect();
+                            if ((float) $invoice->services_impression > 0) {
+                                $tmp->push((object) ['label' => "Frais d'impression", 'prix_ht' => (float) $invoice->services_impression]);
+                            }
+                            if ((float) $invoice->services_pose_depose > 0) {
+                                $tmp->push((object) ['label' => 'Frais de pose et dépose', 'prix_ht' => (float) $invoice->services_pose_depose]);
+                            }
+                            $serviceLines = $tmp;
+                        }
+                        $servicesHt  = $serviceLines->sum('prix_ht');
                         $servicesTtc = $servicesHt * (1 + (float) $invoice->tva / 100);
                     @endphp
 
@@ -368,21 +382,17 @@
 
                     @if($servicesHt > 0)
                         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">
-                            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Services additionnels</div>
-                            @if($invoice->services_impression > 0)
+                            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
+                                Services annexes ({{ $serviceLines->count() }})
+                            </div>
+                            @foreach($serviceLines as $svc)
                                 <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
-                                    <span>Impression (HT)</span>
-                                    <span>{{ $fmt($invoice->services_impression) }}</span>
+                                    <span>{{ $svc->label }} <span style="color:var(--text3);font-size:10.5px">(HT)</span></span>
+                                    <span>{{ $fmt($svc->prix_ht) }}</span>
                                 </div>
-                            @endif
-                            @if($invoice->services_pose_depose > 0)
-                                <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--text2);margin-bottom:4px">
-                                    <span>Pose & dépose (HT)</span>
-                                    <span>{{ $fmt($invoice->services_pose_depose) }}</span>
-                                </div>
-                            @endif
+                            @endforeach
                             <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;padding-top:6px;border-top:1px dashed var(--border);margin-top:6px">
-                                <span>Sous-total services TTC (TVA 18%)</span>
+                                <span>Sous-total services TTC (TVA 18 %)</span>
                                 <span>{{ $fmt($servicesTtc) }} FCFA</span>
                             </div>
                         </div>
@@ -398,16 +408,18 @@
                     </div>
                 </div>
 
-                {{-- ════ STATUT PAIEMENT (dérivé des versements) ════ --}}
+                {{-- ════ STATUT PAIEMENT (dérivé des versements + échéancier) ════ --}}
                 @php
-                    $paid = $invoice->paidAmount();
+                    $paid      = $invoice->paidAmount();
                     $remaining = $invoice->remainingAmount();
+                    $pct       = $invoice->paidPercentage();
                     $payStatus = $invoice->paymentStatus();
                     $payConfig = match($payStatus) {
-                        'soldee'    => ['bg' => 'rgba(34,197,94,.10)',  'border' => 'rgba(34,197,94,.35)',  'color' => '#16a34a', 'icon' => '✅', 'label' => 'Soldée'],
-                        'partielle' => ['bg' => 'rgba(245,158,11,.10)', 'border' => 'rgba(245,158,11,.35)', 'color' => '#b45309', 'icon' => '⏳', 'label' => 'Partiellement payée'],
-                        'annulee'   => ['bg' => 'rgba(107,114,128,.10)','border' => 'rgba(107,114,128,.35)','color' => '#4b5563', 'icon' => '🚫', 'label' => 'Annulée'],
-                        default     => ['bg' => 'rgba(239,68,68,.08)',  'border' => 'rgba(239,68,68,.30)',  'color' => '#b91c1c', 'icon' => '❌', 'label' => 'Non payée'],
+                        'soldee'    => ['bg' => 'rgba(34,197,94,.10)',  'border' => 'rgba(34,197,94,.35)',  'color' => '#16a34a', 'bar' => '#16a34a', 'icon' => '✅', 'label' => 'Soldée'],
+                        'partielle' => ['bg' => 'rgba(245,158,11,.10)', 'border' => 'rgba(245,158,11,.35)', 'color' => '#b45309', 'bar' => '#f59e0b', 'icon' => '⏳', 'label' => 'Partiellement payée'],
+                        'en_retard' => ['bg' => 'rgba(239,68,68,.10)',  'border' => 'rgba(239,68,68,.40)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'icon' => '🔴', 'label' => 'En retard'],
+                        'annulee'   => ['bg' => 'rgba(107,114,128,.10)','border' => 'rgba(107,114,128,.35)','color' => '#4b5563', 'bar' => '#9ca3af', 'icon' => '🚫', 'label' => 'Annulée'],
+                        default     => ['bg' => 'rgba(239,68,68,.08)',  'border' => 'rgba(239,68,68,.30)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'icon' => '❌', 'label' => 'Non payée'],
                     };
                 @endphp
                 <div style="margin-top:16px;padding:12px 14px;background:{{ $payConfig['bg'] }};border:1px solid {{ $payConfig['border'] }};border-radius:10px;color:{{ $payConfig['color'] }}">
@@ -415,11 +427,24 @@
                         <span style="font-weight:800;font-size:13px">{{ $payConfig['icon'] }} {{ $payConfig['label'] }}</span>
                         <span style="font-size:13px;font-weight:700;">
                             {{ $fmt($paid) }} / {{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA
+                            <span style="margin-left:8px;font-size:11px;opacity:.75">({{ rtrim(rtrim(number_format($pct, 1, ',', ''), '0'), ',') }} %)</span>
                         </span>
                     </div>
+
+                    {{-- Barre de progression — prompt v2 § 4.2 --}}
+                    <div style="margin-top:8px;height:6px;background:rgba(0,0,0,.06);border-radius:999px;overflow:hidden">
+                        <div style="height:100%;width:{{ max(0, min(100, $pct)) }}%;background:{{ $payConfig['bar'] }};border-radius:999px;transition:width .25s"></div>
+                    </div>
+
                     @if($remaining > 0)
-                        <div style="margin-top:4px;font-size:11.5px;opacity:.85">
+                        <div style="margin-top:6px;font-size:11.5px;opacity:.85">
                             Reste à payer : <strong>{{ $fmt($remaining) }} FCFA</strong>
+                            @if($payStatus === 'en_retard')
+                                @php $nextDue = $invoice->nextDueSchedule(); @endphp
+                                @if($nextDue)
+                                    · 🔴 Échéance « {{ $nextDue->label ?? 'Échéance' }} » dépassée depuis {{ abs($nextDue->daysUntilDue()) }} j
+                                @endif
+                            @endif
                         </div>
                     @endif
                 </div>
