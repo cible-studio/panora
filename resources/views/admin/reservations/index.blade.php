@@ -580,10 +580,12 @@
         </script>
         @endif
 
-       {{-- Pagination --}}
-        <!-- <div id="pagination-container" class="pagination-container">
+        {{-- Pagination — réactivée. Le container est aussi ciblé par le JS
+             des filtres AJAX (lignes ~2037 / ~2079) pour injecter les liens
+             de page rafraîchis sans reload. --}}
+        <div id="pagination-container" class="pagination-container">
             {{ $reservations->links() }}
-        </div> -->
+        </div>
     </div>
 
     {{-- ══ MODAL SUPPRESSION SINGLE — warning campagne conditionnel
