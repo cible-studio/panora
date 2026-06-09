@@ -497,27 +497,32 @@
                             @foreach($payments as $p)
                                 <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">
                                     <div style="font-size:20px">
-                                        @switch($p->mode)
-                                            @case('especes') 💵 @break
-                                            @case('cheque') 📝 @break
-                                            @case('virement') 🏦 @break
-                                            @case('mobile_money') 📱 @break
-                                            @case('compensation') 🔄 @break
-                                            @default 💳
-                                        @endswitch
+                                        {{ $p->mode_icon }}
                                     </div>
                                     <div style="flex:1;min-width:0">
-                                        <div style="font-size:13px;font-weight:700">
-                                            {{ $fmt($p->montant) }} FCFA
-                                            <span style="font-weight:400;color:var(--text3);margin-left:6px;font-size:11.5px">{{ $p->mode_label }}</span>
+                                        <div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                                            <span>{{ $fmt($p->montant) }} FCFA</span>
+                                            <span style="font-weight:400;color:var(--text3);font-size:11.5px">{{ $p->mode_label }}</span>
+                                            @if($p->is_acompte)
+                                                <span style="background:rgba(245,158,11,.12);color:#b45309;padding:1px 8px;border-radius:999px;font-size:9.5px;font-weight:800;letter-spacing:.3px">🅰 ACOMPTE</span>
+                                            @endif
                                         </div>
                                         <div style="font-size:11px;color:var(--text3);margin-top:1px">
                                             {{ $p->paid_at->format('d/m/Y') }}
                                             @if($p->reference) · Réf. <strong>{{ $p->reference }}</strong>@endif
+                                            @if($p->bank) · 🏦 {{ $p->bank }}@endif
                                             @if($p->creator) · {{ $p->creator->name }}@endif
                                         </div>
                                         @if($p->note)
                                             <div style="font-size:11px;color:var(--text2);margin-top:3px;font-style:italic">{{ $p->note }}</div>
+                                        @endif
+                                        @if($p->attachment_path)
+                                            <div style="margin-top:5px">
+                                                <a href="{{ route('admin.invoices.payments.attachment', [$invoice, $p]) }}"
+                                                   style="display:inline-flex;align-items:center;gap:5px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);color:#1d4ed8;padding:3px 9px;border-radius:6px;font-size:10.5px;font-weight:700;text-decoration:none">
+                                                    📎 {{ \Illuminate\Support\Str::limit($p->attachment_original_name ?: 'Pièce jointe', 32) }}
+                                                </a>
+                                            </div>
                                         @endif
                                     </div>
                                     @can('markPaid', $invoice)
@@ -669,7 +674,7 @@
                         <h3>💸 Enregistrer un versement</h3>
                         <button type="button" onclick="document.getElementById('modal-add-payment').classList.remove('show')" class="modal-close">×</button>
                     </div>
-                    <form method="POST" action="{{ route('admin.invoices.payments.add', $invoice) }}">
+                    <form method="POST" action="{{ route('admin.invoices.payments.add', $invoice) }}" enctype="multipart/form-data">
                         @csrf
                         <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
                             <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px">
@@ -706,17 +711,38 @@
                                         <option value="virement">🏦 Virement</option>
                                         <option value="cheque">📝 Chèque</option>
                                         <option value="mobile_money">📱 Mobile money</option>
+                                        <option value="carte_bancaire">💳 Carte bancaire</option>
                                         <option value="especes">💵 Espèces</option>
                                         <option value="compensation">🔄 Compensation (avoir)</option>
-                                        <option value="autre">💳 Autre</option>
+                                        <option value="autre">💰 Autre</option>
                                     </select>
                                 </div>
                             </div>
 
-                            <div>
-                                <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Référence <span style="color:var(--text3);font-weight:400">(facultatif)</span></label>
-                                <input type="text" name="reference" maxlength="100" placeholder="N° chèque, ID transaction, etc."
-                                       style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                                <div>
+                                    <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Référence <span style="color:var(--text3);font-weight:400">(facultatif)</span></label>
+                                    <input type="text" name="reference" maxlength="100" placeholder="N° chèque, ID transaction…"
+                                           style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px">
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Banque <span style="color:var(--text3);font-weight:400">(chèque/virement)</span></label>
+                                    <input type="text" name="bank" maxlength="100" placeholder="SGCI, BICICI, UBA…"
+                                           style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px">
+                                </div>
+                            </div>
+
+                            {{-- Acompte (§5 cahier) + Pièce jointe (§4 cahier) --}}
+                            <div style="display:flex;flex-direction:column;gap:10px;padding:10px 12px;background:var(--surface2);border:1px dashed var(--border);border-radius:9px">
+                                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--text2)">
+                                    <input type="checkbox" name="is_acompte" value="1" style="width:16px;height:16px;cursor:pointer">
+                                    <span><strong>Marquer comme acompte</strong> <span style="color:var(--text3);font-size:11px">— pour le suivi des paiements partiels avant solde</span></span>
+                                </label>
+                                <div>
+                                    <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Pièce justificative <span style="color:var(--text3);font-weight:400">(scan chèque, reçu — PDF/PNG/JPG, max 5 Mo)</span></label>
+                                    <input type="file" name="attachment" accept="application/pdf,image/png,image/jpeg,image/webp"
+                                           style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12px">
+                                </div>
                             </div>
 
                             <div>
