@@ -61,4 +61,22 @@ return [
     'reference_format' => env('BILLING_REF_FORMAT', 'FAC-%s-%03d'),
     'credit_note_format' => env('BILLING_CN_FORMAT', 'AV-%s-%03d'),
 
+    // ─── ALERTES AUTOMATIQUES — Phase 4 (§7 cahier) ──────────────
+    // Délais d'alerte autour de chaque échéance prévisionnelle.
+    //   J-15/-7/-3/-1 = AVANT échéance (relances préventives)
+    //   J+1/+7/+15/+30 = APRÈS (relances de retard)
+    // Modifiables ici sans déploiement de code (juste cache:clear).
+    'alerts' => [
+        'offsets' => [
+            'before' => [15, 7, 3, 1],
+            'after'  => [1, 7, 15, 30],
+        ],
+        // Canaux ACTIVÉS. Mettre false pour désactiver totalement un canal.
+        'channels' => [
+            'in_app'   => (bool) env('BILLING_ALERTS_INAPP', true),
+            'email'    => (bool) env('BILLING_ALERTS_EMAIL', true),
+            'whatsapp' => (bool) env('BILLING_ALERTS_WA',    false),
+        ],
+    ],
+
 ];

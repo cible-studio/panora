@@ -92,3 +92,13 @@ Schedule::command('recap:monthly')
 Schedule::call(function () {
     \App\Services\PublicLinkService::purgeOld(90);
 })->monthlyOn(1, '03:00');
+
+// 13. Phase 4 cahier Recouvrement §7 — alertes échéances factures.
+//     Matérialise les alertes J-15/-7/-3/-1/+1/+7/+15/+30 par canal
+//     activé (in_app + email par défaut, cf. config('billing.alerts'))
+//     et envoie celles dont la date de déclenchement est atteinte.
+//     Bascule aussi les factures dont une échéance est dépassée +
+//     reste à payer → status='en_retard'.
+Schedule::command('invoices:alerts')
+    ->dailyAt('07:00')
+    ->withoutOverlapping();
