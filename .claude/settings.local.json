@@ -81,7 +81,9 @@
       "Bash(php -l app/Http/Controllers/Settings/CommuneController.php)",
       "Bash(php -l app/Models/InvoiceSchedule.php)",
       "Bash(php -l database/migrations/2026_06_08_180000_create_invoice_schedules_table.php)",
-      "Bash(grep -nE 'style=\"[^\"]*$' resources/views/admin/invoices/show.blade.php)"
+      "Bash(grep -nE 'style=\"[^\"]*$' resources/views/admin/invoices/show.blade.php)",
+      "Bash(git rebase *)",
+      "Bash(GIT_EDITOR=true git rebase --continue)"
     ]
   }
 }
