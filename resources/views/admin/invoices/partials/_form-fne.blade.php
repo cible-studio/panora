@@ -172,12 +172,12 @@
                                 <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:center;width:90px">
                                     <input type="number" name="lines[{{ $i }}][dimension_m2]" class="line-m2" required
                                            value="{{ $l['dimension_m2'] ?? 0 }}" min="0" step="0.01"
-                                           style="width:100%;text-align:right;font-family:ui-monospace,monospace">
+                                           style="width:100%;text-align:right;">
                                 </td>
                                 <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:right;width:130px">
                                     <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required
                                            value="{{ $l['pu_ht_mensuel'] ?? 0 }}" min="0" step="1000"
-                                           style="width:100%;text-align:right;font-family:ui-monospace,monospace">
+                                           style="width:100%;text-align:right;">
                                 </td>
                                 <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:center;width:75px">
                                     <input type="number" name="lines[{{ $i }}][quantite]" class="line-qte" required
@@ -189,7 +189,7 @@
                                            value="{{ $l['duree_mois'] ?? 1 }}" min="0.5" step="0.5"
                                            style="width:100%;text-align:right">
                                 </td>
-                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:right;font-family:ui-monospace,monospace;font-weight:800;color:var(--accent);width:120px;white-space:nowrap" class="line-total">0 FCFA</td>
+                                <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:right;font-weight:800;color:var(--accent);width:120px;white-space:nowrap" class="line-total">0 FCFA</td>
                                 <td style="padding:8px 10px;border-top:1px solid var(--border);text-align:center;width:40px">
                                     <button type="button" class="btn btn-ghost btn-sm line-remove" style="color:var(--red);padding:4px 8px;font-size:14px" title="Supprimer la ligne">🗑</button>
                                 </td>
@@ -211,21 +211,21 @@
                     <input type="number" name="remise_pct" id="remise_pct" min="0" max="100" step="0.5"
                            value="{{ old('remise_pct', $isEdit ? $invoice->remise_pct : 0) }}"
                            {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
-                           style="font-family:ui-monospace,monospace;text-align:right">
+                           style="text-align:right">
                 </div>
                 <div class="mfg">
                     <label>Impression (HT)</label>
                     <input type="number" name="services_impression" id="services_impression" min="0" step="1000"
                            value="{{ old('services_impression', $isEdit ? $invoice->services_impression : 0) }}"
                            {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
-                           style="font-family:ui-monospace,monospace;text-align:right">
+                           style="text-align:right">
                 </div>
                 <div class="mfg">
                     <label>Pose & dépose (HT)</label>
                     <input type="number" name="services_pose_depose" id="services_pose_depose" min="0" step="1000"
                            value="{{ old('services_pose_depose', $isEdit ? $invoice->services_pose_depose : 0) }}"
                            {{ $isEdit && $invoice->isLocked() ? 'readonly' : '' }}
-                           style="font-family:ui-monospace,monospace;text-align:right">
+                           style="text-align:right">
                 </div>
             </div>
         </div>
@@ -236,19 +236,19 @@
         <div class="card-header"><div class="card-title">💰 Récapitulatif FNE (calculé en direct)</div></div>
         <div class="card-body" style="background:var(--surface2)">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12.5px">
-                <div style="color:var(--text3)">Total HT brut</div><div style="text-align:right;font-family:ui-monospace,monospace" id="rec-brut">0 FCFA</div>
-                <div style="color:var(--text3)">Remise</div><div style="text-align:right;font-family:ui-monospace,monospace;color:#b45309" id="rec-remise">0 FCFA</div>
-                <div style="color:var(--text2);font-weight:700;padding-top:6px;border-top:1px solid var(--border)">TOTAL HT</div><div style="text-align:right;font-family:ui-monospace,monospace;font-weight:700;padding-top:6px;border-top:1px solid var(--border)" id="rec-netht">0 FCFA</div>
-                <div style="color:var(--text3)">TVA ({{ rtrim(rtrim(number_format($tvaRate, 2, ',', ''), '0'), ',') }} %)</div><div style="text-align:right;font-family:ui-monospace,monospace" id="rec-tva">0 FCFA</div>
-                <div style="color:var(--text2);font-weight:800;padding-top:6px;border-top:1px solid var(--border)">TOTAL TTC</div><div style="text-align:right;font-family:ui-monospace,monospace;font-weight:800;padding-top:6px;border-top:1px solid var(--border)" id="rec-ttc">0 FCFA</div>
-                <div style="color:var(--text3);font-size:11.5px;margin-top:8px">TSP ({{ rtrim(rtrim(number_format($tspRate, 2, ',', ''), '0'), ',') }} %)</div><div style="text-align:right;font-family:ui-monospace,monospace;font-size:11.5px;margin-top:8px" id="rec-tsp">0 FCFA</div>
-                <div style="color:var(--text3);font-size:11.5px">TM total</div><div style="text-align:right;font-family:ui-monospace,monospace;font-size:11.5px" id="rec-tm">0 FCFA</div>
-                <div style="color:var(--text3);font-size:11.5px">ODP total</div><div style="text-align:right;font-family:ui-monospace,monospace;font-size:11.5px" id="rec-odp">0 FCFA</div>
-                <div style="color:var(--text3);font-size:11.5px">Services TTC</div><div style="text-align:right;font-family:ui-monospace,monospace;font-size:11.5px" id="rec-svc">0 FCFA</div>
+                <div style="color:var(--text3)">Total HT brut</div><div style="text-align:right;" id="rec-brut">0 FCFA</div>
+                <div style="color:var(--text3)">Remise</div><div style="text-align:right;color:#b45309" id="rec-remise">0 FCFA</div>
+                <div style="color:var(--text2);font-weight:700;padding-top:6px;border-top:1px solid var(--border)">TOTAL HT</div><div style="text-align:right;font-weight:700;padding-top:6px;border-top:1px solid var(--border)" id="rec-netht">0 FCFA</div>
+                <div style="color:var(--text3)">TVA ({{ rtrim(rtrim(number_format($tvaRate, 2, ',', ''), '0'), ',') }} %)</div><div style="text-align:right;" id="rec-tva">0 FCFA</div>
+                <div style="color:var(--text2);font-weight:800;padding-top:6px;border-top:1px solid var(--border)">TOTAL TTC</div><div style="text-align:right;font-weight:800;padding-top:6px;border-top:1px solid var(--border)" id="rec-ttc">0 FCFA</div>
+                <div style="color:var(--text3);font-size:11.5px;margin-top:8px">TSP ({{ rtrim(rtrim(number_format($tspRate, 2, ',', ''), '0'), ',') }} %)</div><div style="text-align:right;font-size:11.5px;margin-top:8px" id="rec-tsp">0 FCFA</div>
+                <div style="color:var(--text3);font-size:11.5px">TM total</div><div style="text-align:right;font-size:11.5px" id="rec-tm">0 FCFA</div>
+                <div style="color:var(--text3);font-size:11.5px">ODP total</div><div style="text-align:right;font-size:11.5px" id="rec-odp">0 FCFA</div>
+                <div style="color:var(--text3);font-size:11.5px">Services TTC</div><div style="text-align:right;font-size:11.5px" id="rec-svc">0 FCFA</div>
             </div>
             <div style="margin-top:14px;padding:12px 14px;background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
                 <span style="font-weight:800;font-size:14px;letter-spacing:.3px">💰 TOTAL À PAYER</span>
-                <span style="font-weight:800;font-size:18px;font-family:ui-monospace,monospace" id="rec-total">0 FCFA</span>
+                <span style="font-weight:800;font-size:18px;" id="rec-total">0 FCFA</span>
             </div>
         </div>
     </div>
@@ -366,7 +366,7 @@
     /* ── Template option PANNEAU (rich) ───────────────────────────── */
     .s2-pan-row { display: flex; gap: 10px; align-items: flex-start; padding: 2px 0; }
     .s2-pan-info { flex: 1; min-width: 0; }
-    .s2-pan-ref { font-family: ui-monospace, monospace; font-weight: 800; color: var(--accent-dark); font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+    .s2-pan-ref {  font-weight: 800; color: var(--accent-dark); font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
     .s2-pan-name { font-size: 12px; color: var(--text); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .s2-pan-meta { font-size: 10.5px; color: var(--text3); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
     .s2-pan-pill { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 9.5px; font-weight: 700; }
