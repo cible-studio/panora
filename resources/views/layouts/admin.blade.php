@@ -23,6 +23,13 @@
         .nav-icon { width: 18px; height: 18px; flex-shrink: 0; }
         [x-cloak] { display: none !important; }
     </style>
+
+    {{-- Stack pour les CSS poussés par les vues filles (@push('styles')).
+         Sans ça, toutes les règles dans @push('styles') ... @endpush sont
+         silencieusement ignorées — c'était le cas pour _form-fne.blade.php
+         (Select2 + refonte UI Create/Edit) qui rendait la page sans aucun
+         style appliqué. --}}
+    @stack('styles')
 </head>
 
 <body>
