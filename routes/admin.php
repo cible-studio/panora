@@ -457,6 +457,20 @@ Route::prefix('admin')
             // On garde uniquement create/store/update/destroy.
             Route::resource('zones',      ZoneController::class)->only(['create', 'store', 'update', 'destroy']);
             Route::resource('communes',   CommuneController::class)->only(['create', 'store', 'update', 'destroy']);
+
+            // Tarifs communaux (ODP/TM) — gestion dédiée admin :
+            //   - vue d'ensemble + historique + tarif programmé futur.
+            //   - L'observer CommuneObserver historise auto les changements
+            //     du tarif courant (édition commune). Cette page complète
+            //     en exposant l'historique et la programmation future.
+            Route::get('communes/tariffs',
+                [CommuneController::class, 'tariffs'])->name('communes.tariffs');
+            Route::get('communes/{commune}/tariffs/history',
+                [CommuneController::class, 'tariffHistory'])->name('communes.tariffs.history');
+            Route::post('communes/{commune}/tariffs/schedule',
+                [CommuneController::class, 'scheduleTariff'])->name('communes.tariffs.schedule');
+            Route::delete('communes/{commune}/tariffs/{entry}',
+                [CommuneController::class, 'deleteTariffEntry'])->name('communes.tariffs.delete');
             Route::resource('formats',    PanelFormatController::class)->only(['create', 'store', 'update', 'destroy']);
             Route::resource('categories', PanelCategoryController::class)->only(['create', 'store', 'update', 'destroy']);
         });
