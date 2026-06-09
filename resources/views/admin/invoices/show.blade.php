@@ -269,9 +269,13 @@
                         </div>
                     @endif
 
-                    <div style="display:flex;justify-content:space-between;padding:12px 14px;background:linear-gradient(135deg, var(--accent), var(--accent-dark));color:#fff;border-radius:8px">
-                        <span style="font-weight:800;font-size:14px;letter-spacing:.3px">💰 TOTAL À PAYER</span>
-                        <span style="font-weight:800;font-size:18px;font-family:ui-monospace,monospace">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</span>
+                    {{-- Bandeau TOTAL À PAYER : fond sombre solide + texte clair
+                         garanti lisible quel que soit le thème (clair / sombre).
+                         Avant : linear-gradient(var(--accent)…) → texte blanc
+                         devenait invisible dans certains thèmes. --}}
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:linear-gradient(135deg,#1f2937,#0f172a);color:#fbbf24;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.18);border:1px solid rgba(251,191,36,.25)">
+                        <span style="font-weight:800;font-size:14px;letter-spacing:.4px;color:#fbbf24">💰 TOTAL À PAYER</span>
+                        <span style="font-weight:800;font-size:19px;font-family:ui-monospace,monospace;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</span>
                     </div>
                 </div>
 
