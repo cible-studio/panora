@@ -137,21 +137,59 @@
                     @endforeach
                 </div>
 
-                {{-- Boutons d'action contextuels --}}
+                {{-- Boutons d'action contextuels (Phase 8A — cycle complet) --}}
                 <div style="display:flex;flex-wrap:wrap;gap:8px">
                     @if($status === 'brouillon')
+                        <form method="POST" action="{{ route('admin.invoices.generated', $invoice) }}" style="margin:0">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-ghost btn-sm" title="Bascule en GÉNÉRÉE (validation visuelle avant lock)">
+                                📋 Marquer générée
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ route('admin.invoices.validated', $invoice) }}" style="margin:0"
+                              onsubmit="return confirm('VALIDER cette facture ?\n\nLa facture sera VERROUILLÉE automatiquement et les taux ODP/TM des lignes seront figés. Pour modifier ensuite, il faudra déverrouiller (action tracée).');">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-blue btn-sm" title="Valide + VERROUILLE la facture + fige les taux">
+                                🔒 Valider (verrouille)
+                            </button>
+                        </form>
                         <form method="POST" action="{{ route('admin.invoices.send', $invoice) }}" style="margin:0">
                             @csrf @method('PATCH')
-                            <button type="submit" class="btn btn-blue btn-sm" title="Bascule en Envoyée + verrouille les modifs">
+                            <button type="submit" class="btn btn-success btn-sm" title="Bascule directement en Envoyée + verrouille">
                                 📤 Envoyer au client
                             </button>
                         </form>
                         <form method="POST" action="{{ route('admin.invoices.pay', $invoice) }}" style="margin:0"
-                              onsubmit="return confirm('Marquer cette facture comme payée maintenant ? (saute l\'étape Envoyée)');">
+                              onsubmit="return confirm('Marquer cette facture comme payée maintenant ? (saute Envoyée)');">
                             @csrf @method('PATCH')
-                            <button type="submit" class="btn btn-success btn-sm" title="Saute Envoyée — pour les paiements comptant">
+                            <button type="submit" class="btn btn-ghost btn-sm" title="Cas paiement comptant — saute Envoyée">
                                 ✅ Marquer payée
                             </button>
+                        </form>
+                    @endif
+
+                    @if($status === 'generee')
+                        <form method="POST" action="{{ route('admin.invoices.validated', $invoice) }}" style="margin:0"
+                              onsubmit="return confirm('VALIDER cette facture ?\n\nLa facture sera VERROUILLÉE automatiquement et les taux ODP/TM des lignes seront figés.');">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-blue btn-sm">🔒 Valider (verrouille)</button>
+                        </form>
+                        <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}" style="margin:0">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-ghost btn-sm">↩ Retour en brouillon</button>
+                        </form>
+                    @endif
+
+                    @if($status === 'validee')
+                        <form method="POST" action="{{ route('admin.invoices.send', $invoice) }}" style="margin:0">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-success btn-sm">📤 Envoyer au client</button>
+                        </form>
+                        <form method="POST" action="{{ route('admin.invoices.litige', $invoice) }}" style="margin:0"
+                              onsubmit="var r = prompt('Motif du litige (optionnel) :'); if (r === null) return false; this.querySelector('[name=reason]').value = r;">
+                            @csrf @method('PATCH')
+                            <input type="hidden" name="reason" value="">
+                            <button type="submit" class="btn btn-ghost btn-sm" style="color:#b45309">⚠ Litige</button>
                         </form>
                     @endif
 
@@ -161,19 +199,33 @@
                             @csrf @method('PATCH')
                             <button type="submit" class="btn btn-success btn-sm">✅ Marquer payée</button>
                         </form>
+                        <form method="POST" action="{{ route('admin.invoices.litige', $invoice) }}" style="margin:0"
+                              onsubmit="var r = prompt('Motif du litige (optionnel) :'); if (r === null) return false; this.querySelector('[name=reason]').value = r;">
+                            @csrf @method('PATCH')
+                            <input type="hidden" name="reason" value="">
+                            <button type="submit" class="btn btn-ghost btn-sm" style="color:#b45309">⚠ Litige</button>
+                        </form>
                     @endif
 
-                    @if(in_array($status, ['envoyee', 'payee']))
-                        <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}" style="margin:0"
-                              onsubmit="return confirm('Rebasculer en brouillon ? La date de paiement sera effacée et la facture redeviendra modifiable.');">
+                    @if($status === 'litige')
+                        <form method="POST" action="{{ route('admin.invoices.send', $invoice) }}" style="margin:0"
+                              onsubmit="return confirm('Sortir du litige et remettre en Envoyée ?');">
                             @csrf @method('PATCH')
-                            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--text2)">↩ Rebasculer en brouillon</button>
+                            <button type="submit" class="btn btn-blue btn-sm">↩ Sortir du litige</button>
+                        </form>
+                    @endif
+
+                    @if(in_array($status, ['envoyee', 'payee', 'validee', 'partiellement_payee', 'en_retard', 'generee', 'litige']))
+                        <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}" style="margin:0"
+                              onsubmit="return confirm('Rebasculer en brouillon ?\n\nLa facture sera déverrouillée et redeviendra modifiable. La date de paiement (si présente) sera effacée. Action tracée.');">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--text2)">↩ Retour brouillon</button>
                         </form>
                     @endif
 
                     @if(!in_array($status, ['annulee', 'payee']))
                         <form method="POST" action="{{ route('admin.invoices.cancel', $invoice) }}" style="margin:0;margin-left:auto"
-                              onsubmit="return confirm('Annuler cette facture ?\n\nLa facture restera dans l\'historique (traçable) mais ne pourra plus être réglée ni envoyée. Pour modifier, rebascule en brouillon.');">
+                              onsubmit="return confirm('Annuler cette facture ?\n\nLa facture restera dans l\'historique (traçable) mais ne pourra plus être réglée ni envoyée.');">
                             @csrf @method('PATCH')
                             <button type="submit" class="btn btn-ghost btn-sm" style="color:#ef4444">🚫 Annuler la facture</button>
                         </form>
@@ -508,7 +560,13 @@
                                             <span>{{ $fmt($p->montant) }} FCFA</span>
                                             <span style="font-weight:400;color:var(--text3);font-size:11.5px">{{ $p->mode_label }}</span>
                                             @if($p->is_acompte)
-                                                <span style="background:rgba(245,158,11,.12);color:#b45309;padding:1px 8px;border-radius:999px;font-size:9.5px;font-weight:800;letter-spacing:.3px">🅰 ACOMPTE</span>
+                                                @php
+                                                    // Phase 8D cahier §5 — "Identifier pour chaque acompte :
+                                                    // montant, date, pourcentage de la facture couvert."
+                                                    $totalDue = (float) ($invoice->total_a_payer ?: $invoice->amount_ttc ?: 0);
+                                                    $pctCovered = $totalDue > 0 ? round((float) $p->montant / $totalDue * 100, 1) : 0;
+                                                @endphp
+                                                <span style="background:rgba(245,158,11,.12);color:#b45309;padding:1px 8px;border-radius:999px;font-size:9.5px;font-weight:800;letter-spacing:.3px">🅰 ACOMPTE {{ rtrim(rtrim(number_format($pctCovered, 1, ',', ''), '0'), ',') }} %</span>
                                             @endif
                                         </div>
                                         <div style="font-size:11px;color:var(--text3);margin-top:1px">
@@ -552,6 +610,59 @@
                  relancer, quand). L'admin marque chaque échéance "payée" quand
                  le versement réel correspondant a été enregistré.
             ═══════════════════════════════════════════════════════════════════════ --}}
+            {{-- ════════════════════ CARD RELANCES DE CETTE FACTURE ════════════════════
+                 Phase 8B cahier §9 : "Historique des relances... consultable
+                 par facture ET par client." Le dashboard finance/recouvrement
+                 permet la vue par client ; ici on a la vue par facture.
+            ═══════════════════════════════════════════════════════════════════════ --}}
+            @if(!empty($invoiceRelances) && $invoiceRelances->isNotEmpty())
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📞 Relances de cette facture <span style="font-weight:400;color:var(--text3);font-size:12px;margin-left:6px">({{ $invoiceRelances->count() }})</span></div>
+                    <a href="{{ route('admin.clients.show', $invoice->client_id) }}" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:700">Toutes les relances client →</a>
+                </div>
+                <div class="card-body" style="display:flex;flex-direction:column;gap:6px">
+                    @foreach($invoiceRelances as $r)
+                        @php
+                            $outcomeIcon = match($r->outcome) {
+                                'promesse_paiement' => '📅',
+                                'paiement_recu'     => '✅',
+                                'a_relancer'        => '🔁',
+                                'sans_reponse'      => '📵',
+                                'desaccord'         => '⚠',
+                                default             => null,
+                            };
+                            $outcomeLbl = match($r->outcome) {
+                                'promesse_paiement' => 'Promesse de paiement',
+                                'paiement_recu'     => 'Paiement reçu',
+                                'a_relancer'        => 'À relancer',
+                                'sans_reponse'      => 'Sans réponse',
+                                'desaccord'         => 'Désaccord',
+                                'autre'             => 'Autre',
+                                default             => null,
+                            };
+                        @endphp
+                        <div style="padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+                                <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:200px">
+                                    <span style="font-weight:700;font-size:12.5px">{{ \App\Services\ReminderService::canalLabel($r->canal) }}</span>
+                                    <span style="font-size:11px;color:var(--text3)">{{ $r->relance_date->format('d/m/Y') }}</span>
+                                    @if($r->user) <span style="font-size:11px;color:var(--text3)">· {{ $r->user->name }}</span>@endif
+                                </div>
+                                @if($outcomeIcon)
+                                    <span style="background:rgba(99,102,241,.10);color:#4338ca;padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:700">{{ $outcomeIcon }} {{ $outcomeLbl }}</span>
+                                @endif
+                            </div>
+                            <div style="font-size:12px;color:var(--text2);margin-top:5px;line-height:1.5">{{ $r->note }}</div>
+                            @if($r->suite_donnee)
+                                <div style="font-size:11px;color:var(--text3);margin-top:3px;font-style:italic">↳ Suite : {{ $r->suite_donnee }}</div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
             @php $schedules = $invoice->schedules ?? collect(); @endphp
             <div class="card">
                 <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">

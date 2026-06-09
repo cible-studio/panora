@@ -7,16 +7,68 @@
             <div class="fin-card-sub">{{ $clientsToFollow->count() }} client(s) avec reste à payer · triable</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <select onchange="window.location.href = '?tab=recouvrement&sort=' + this.value" class="fin-sort">
-                <option value="total_du"           {{ request('sort') === 'total_du' || !request('sort') ? 'selected' : '' }}>Trier par montant dû</option>
-                <option value="ancien"             {{ request('sort') === 'ancien' ? 'selected' : '' }}>Trier par ancienneté</option>
-                <option value="prochaine_echeance" {{ request('sort') === 'prochaine_echeance' ? 'selected' : '' }}>Trier par prochaine échéance</option>
-            </select>
             <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('modal-relance').style.display='flex'">
                 + Enregistrer une relance
             </button>
         </div>
     </div>
+
+    {{-- ═══ Phase 8D cahier §8 — Filtres recouvrement complets ═══
+         Cahier : "Filtres par client, commercial, commune, statut."
+         Tri "par montant dû / ancienneté" déplacé dans la même barre.
+    ═══════════════════════════════════════════════════════════════ --}}
+    <form method="GET" action="{{ route('admin.finance.index') }}" style="padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12px">
+        <input type="hidden" name="tab" value="recouvrement">
+        <div style="display:flex;flex-direction:column;gap:2px">
+            <label style="font-size:9.5px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Client</label>
+            <select name="filter_client" class="fin-sort" style="min-width:160px">
+                <option value="">Tous</option>
+                @foreach($clientsList as $cl)
+                    <option value="{{ $cl->id }}" {{ (string) request('filter_client') === (string) $cl->id ? 'selected' : '' }}>{{ $cl->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        @if(!empty($commerciaux))
+        <div style="display:flex;flex-direction:column;gap:2px">
+            <label style="font-size:9.5px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Commercial</label>
+            <select name="filter_commercial" class="fin-sort" style="min-width:140px">
+                <option value="">Tous</option>
+                @foreach($commerciaux as $u)
+                    <option value="{{ $u->id }}" {{ (string) request('filter_commercial') === (string) $u->id ? 'selected' : '' }}>{{ $u->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        @endif
+        @if(!empty($communes))
+        <div style="display:flex;flex-direction:column;gap:2px">
+            <label style="font-size:9.5px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Commune</label>
+            <select name="filter_commune" class="fin-sort" style="min-width:130px">
+                <option value="">Toutes</option>
+                @foreach($communes as $c)
+                    <option value="{{ $c->id }}" {{ (string) request('filter_commune') === (string) $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        @endif
+        <div style="display:flex;flex-direction:column;gap:2px">
+            <label style="font-size:9.5px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Tri</label>
+            <select name="sort" class="fin-sort" style="min-width:170px">
+                <option value="total_du"           {{ request('sort') === 'total_du' || !request('sort') ? 'selected' : '' }}>Par montant dû ↓</option>
+                <option value="ancien"             {{ request('sort') === 'ancien' ? 'selected' : '' }}>Par ancienneté ↓</option>
+                <option value="prochaine_echeance" {{ request('sort') === 'prochaine_echeance' ? 'selected' : '' }}>Par prochaine échéance</option>
+            </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+            <label style="visibility:hidden;font-size:9.5px">.</label>
+            <button type="submit" class="btn btn-ghost btn-sm" style="height:34px;font-size:11.5px">🔍 Filtrer</button>
+        </div>
+        @if(request()->hasAny(['filter_client', 'filter_commercial', 'filter_commune', 'sort']))
+        <div style="display:flex;flex-direction:column;gap:2px">
+            <label style="visibility:hidden;font-size:9.5px">.</label>
+            <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement']) }}" class="btn btn-ghost btn-sm" style="height:34px;font-size:11px;color:var(--text3)">✕ Réinitialiser</a>
+        </div>
+        @endif
+    </form>
     <div class="fin-card-body fin-card-body--flush">
         @if($clientsToFollow->isEmpty())
             <div class="fin-empty" style="margin:18px">Aucun client à relancer. 🎉</div>

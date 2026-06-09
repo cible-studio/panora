@@ -37,7 +37,14 @@ class FinanceDashboardController extends Controller
         $byCommune         = $this->svc->encaissementsByCommune($from, $to, $commercialUid);
         $byCommercial      = $this->svc->encaissementsByCommercial($from, $to, $commercialUid);
         $aging             = $this->svc->agingBalance($commercialUid);
-        $clientsToFollow   = $this->svc->clientsToFollow($request->string('sort')->toString() ?: 'total_du', $commercialUid);
+        // Phase 8D cahier §8 — Filtres dynamiques recouvrement
+        $clientsToFollow   = $this->svc->clientsToFollow(
+            $request->string('sort')->toString() ?: 'total_du',
+            $commercialUid,
+            $request->filled('filter_commercial') ? (int) $request->input('filter_commercial') : null,
+            $request->filled('filter_commune')    ? (int) $request->input('filter_commune')    : null,
+            $request->filled('filter_client')     ? (int) $request->input('filter_client')     : null
+        );
         $creances          = $this->svc->creancesQuery($commercialUid)
                                   ->orderBy('issued_at')
                                   ->limit(200)

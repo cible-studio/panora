@@ -4,17 +4,22 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * Une trace de relance de recouvrement.
  * Affichée dans le tableau de bord financier (onglet Recouvrement) et
  * sur la fiche client (historique relances) et la fiche facture.
  */
-class Relance extends Model
+class Relance extends Model implements Auditable
 {
+    use AuditableTrait;
+    protected $auditExclude = ['updated_at'];
+
     protected $fillable = [
         'client_id', 'invoice_id', 'schedule_id',
-        'relance_date', 'canal', 'note', 'suite_donnee',
+        'relance_date', 'canal', 'note', 'outcome', 'suite_donnee',
         'user_id',
     ];
 

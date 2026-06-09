@@ -118,6 +118,54 @@
             </a>
         </div>
 
+        {{-- ════════════ TOP 10 CLIENTS + COMMUNES (Phase 8D cahier §12) ════════════ --}}
+        @if((!empty($topClients) && $topClients->isNotEmpty()) || (!empty($topCommunes) && $topCommunes->isNotEmpty()))
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+            {{-- TOP 10 CLIENTS --}}
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
+                <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(232,160,32,.04),rgba(232,160,32,0));display:flex;justify-content:space-between;align-items:center">
+                    <span style="font-weight:800;font-size:13.5px;color:var(--text)">🏆 Top 10 clients (CA année)</span>
+                    <span style="font-size:11px;color:var(--text3)">{{ ($topClients ?? collect())->count() }}</span>
+                </div>
+                <div style="padding:8px 12px">
+                    @forelse($topClients as $i => $row)
+                        <div style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px dashed var(--border)">
+                            <div style="width:22px;height:22px;border-radius:50%;background:{{ $i < 3 ? 'rgba(232,160,32,.14)' : 'var(--surface2)' }};color:{{ $i < 3 ? 'var(--accent-dark)' : 'var(--text3)' }};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10.5px;flex-shrink:0">{{ $i + 1 }}</div>
+                            <div style="flex:1;min-width:0">
+                                <a href="{{ route('admin.clients.show', $row->client_id) }}" style="color:var(--text);text-decoration:none;font-weight:700;font-size:12.5px">{{ $row->client?->name ?? '— client supprimé' }}</a>
+                                <div style="font-size:10.5px;color:var(--text3)">{{ $row->nb_factures }} facture(s)</div>
+                            </div>
+                            <div style="font-weight:800;font-size:12.5px;color:var(--accent);text-align:right">{{ $fmtKpi($row->ca_total) }} F</div>
+                        </div>
+                    @empty
+                        <div style="padding:14px;text-align:center;color:var(--text3);font-size:12px">Aucune facture cette année.</div>
+                    @endforelse
+                </div>
+            </div>
+
+            {{-- TOP 10 COMMUNES CONTRIBUTRICES --}}
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
+                <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(58,168,53,.05),rgba(58,168,53,0));display:flex;justify-content:space-between;align-items:center">
+                    <span style="font-weight:800;font-size:13.5px;color:var(--text)">📍 Top 10 communes contributrices</span>
+                    <span style="font-size:11px;color:var(--text3)">{{ ($topCommunes ?? collect())->count() }}</span>
+                </div>
+                <div style="padding:8px 12px">
+                    @forelse($topCommunes as $i => $row)
+                        <div style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px dashed var(--border)">
+                            <div style="width:22px;height:22px;border-radius:50%;background:{{ $i < 3 ? 'rgba(58,168,53,.12)' : 'var(--surface2)' }};color:{{ $i < 3 ? '#15803d' : 'var(--text3)' }};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10.5px;flex-shrink:0">{{ $i + 1 }}</div>
+                            <div style="flex:1;min-width:0">
+                                <span style="color:var(--text);font-weight:700;font-size:12.5px">{{ $row->commune?->name ?? $row->snapshot_commune_name ?? '— inconnue' }}</span>
+                            </div>
+                            <div style="font-weight:800;font-size:12.5px;color:#15803d;text-align:right">{{ $fmtKpi($row->ht_total) }} F</div>
+                        </div>
+                    @empty
+                        <div style="padding:14px;text-align:center;color:var(--text3);font-size:12px">Aucune ligne de facture cette année.</div>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+        @endif
+
         {{-- CAMPAGNES ACTIVES --}}
         <div class="card">
             <div class="card-header">

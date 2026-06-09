@@ -342,9 +342,30 @@ class FinancialDashboardService
      *
      * @param  string  $sort  total_du | ancien | prochaine_echeance
      */
-    public function clientsToFollow(string $sort = 'total_du', ?int $commercialUserId = null): Collection
+    public function clientsToFollow(
+        string $sort = 'total_du',
+        ?int $commercialUserId = null,
+        ?int $filterCommercialId = null,
+        ?int $filterCommuneId = null,
+        ?int $filterClientId = null
+    ): Collection
     {
-        $invoices = $this->openInvoicesQuery($commercialUserId)
+        // Phase 8D cahier §8 — Filtres dynamiques sur le tableau de recouvrement :
+        //   filterCommercialId : restreint aux factures du commercial (admin uniquement)
+        //   filterCommuneId    : restreint aux factures avec au moins une ligne dans cette commune
+        //   filterClientId     : restreint à un client précis
+        $query = $this->openInvoicesQuery($commercialUserId);
+        if ($filterCommercialId) {
+            $query->where('commercial_user_id', $filterCommercialId);
+        }
+        if ($filterClientId) {
+            $query->where('client_id', $filterClientId);
+        }
+        if ($filterCommuneId) {
+            $query->whereHas('lines', fn($q) => $q->where('commune_id', $filterCommuneId));
+        }
+
+        $invoices = $query
             ->with(['client:id,name,phone,email', 'schedules' => fn($q) => $q->orderBy('due_date')])
             ->get();
 

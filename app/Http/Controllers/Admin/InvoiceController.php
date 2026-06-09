@@ -502,6 +502,7 @@ class InvoiceController extends Controller
             'payments.creator:id,name',
             'schedules',
             'services',
+            'statusHistory.user:id,name',
             'lockedBy:id,name',
             'creditNoteFor:id,reference',
             'creditNotes',
@@ -582,8 +583,16 @@ class InvoiceController extends Controller
             }
         }
 
+        // Phase 8B cahier §9 — relances de cette facture (timeline)
+        $invoiceRelances = \App\Models\Relance::where('invoice_id', $invoice->id)
+            ->with('user:id,name')
+            ->orderByDesc('relance_date')
+            ->orderByDesc('id')
+            ->get();
+
         return view('admin.invoices.show', compact(
-            'invoice', 'otherInvoices', 'clientStats', 'campaignBilling', 'billingDrift'
+            'invoice', 'otherInvoices', 'clientStats',
+            'campaignBilling', 'billingDrift', 'invoiceRelances'
         ));
     }
 
@@ -745,6 +754,57 @@ class InvoiceController extends Controller
 
         return redirect()->route('admin.invoices.show', $invoice)
             ->with('success', $msg);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // Phase 8A cahier §3 — Actions manuelles cycle de vie complet
+    // ══════════════════════════════════════════════════════════════
+
+    /** Brouillon → Générée. Étape intermédiaire avant validation. */
+    public function markGenerated(Request $request, Invoice $invoice)
+    {
+        $this->authorize('markSent', $invoice);
+        try {
+            $invoice->transitionStatusTo('generee', reason: 'Marquée générée manuellement', auto: false);
+        } catch (\DomainException $e) {
+            return back()->with('error', '🚫 ' . $e->getMessage());
+        }
+        return back()->with('success', '✅ Facture marquée GÉNÉRÉE.');
+    }
+
+    /**
+     * Générée → Validée. Verrouille la facture (cf. transitionStatusTo)
+     * et fige les taux ODP/TM sur les lignes (déjà fait à syncLines via
+     * Commune::ratesAt(issued_at)). Le verrou interdit toute modif
+     * ultérieure des lignes/services jusqu'à un unlock explicite.
+     */
+    public function markValidated(Request $request, Invoice $invoice)
+    {
+        $this->authorize('markSent', $invoice);
+        try {
+            $invoice->transitionStatusTo('validee', reason: 'Validée manuellement (verrouille la facture)', auto: false);
+        } catch (\DomainException $e) {
+            return back()->with('error', '🚫 ' . $e->getMessage());
+        }
+        return back()->with('success', '🔒 Facture VALIDÉE et verrouillée.');
+    }
+
+    /** Bascule en litige (facture contestée par le client). */
+    public function markLitige(Request $request, Invoice $invoice)
+    {
+        $this->authorize('markSent', $invoice);
+
+        $data = $request->validate(['reason' => 'nullable|string|max:500']);
+        try {
+            $invoice->transitionStatusTo(
+                'litige',
+                reason: $data['reason'] ?? 'Bascule en litige (manuelle)',
+                auto: false
+            );
+        } catch (\DomainException $e) {
+            return back()->with('error', '🚫 ' . $e->getMessage());
+        }
+        return back()->with('success', '⚠ Facture marquée EN LITIGE.');
     }
 
     public function markSent(Request $request, Invoice $invoice)
