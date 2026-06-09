@@ -94,10 +94,11 @@ class InvoiceCalculator
         $odp       = $odpRate * $m2 * $qte * $duree;
         $tm        = $tmRate  * $m2 * $qte * $duree;
 
+        // RÈGLE D'OR #4 — entiers FCFA. Pas de centimes en franc CFA.
         return [
-            'montant_ht_ligne' => round($montantHt, 2),
-            'odp_ligne'        => round($odp, 2),
-            'tm_ligne'         => round($tm, 2),
+            'montant_ht_ligne' => (int) round($montantHt),
+            'odp_ligne'        => (int) round($odp),
+            'tm_ligne'         => (int) round($tm),
         ];
     }
 
@@ -190,21 +191,23 @@ class InvoiceCalculator
         $autresTaxes = $tspAmount + $totalTm + $totalOdp;
         $totalAPayer = $amountTtc + $autresTaxes + $servicesTtc;
 
+        // RÈGLE D'OR #4 — tous les montants en entiers FCFA.
+        // Seuls remise_pct et tva (qui sont des taux %) restent décimaux.
         return [
-            'amount'               => round($totalHtBrut, 2),
+            'amount'               => (int) round($totalHtBrut),
             'remise_pct'           => round($remisePct, 2),
-            'net_ht'               => round($netHt, 2),
+            'net_ht'               => (int) round($netHt),
             'tva'                  => round($this->tvaRate, 2),
-            'tva_amount'           => round($tvaAmount, 2),
-            'tsp_amount'           => round($tspAmount, 2),
-            'tm_total'             => round($totalTm, 2),
-            'odp_total'            => round($totalOdp, 2),
-            'services_impression'  => round($legacyPrint, 2),
-            'services_pose_depose' => round($legacyPose, 2),
-            'services_ht_total'    => round($servicesHt, 2),
-            'services_ttc_total'   => round($servicesTtc, 2),
-            'amount_ttc'           => round($amountTtc, 2),
-            'total_a_payer'        => round($totalAPayer, 2),
+            'tva_amount'           => (int) round($tvaAmount),
+            'tsp_amount'           => (int) round($tspAmount),
+            'tm_total'             => (int) round($totalTm),
+            'odp_total'            => (int) round($totalOdp),
+            'services_impression'  => (int) round($legacyPrint),
+            'services_pose_depose' => (int) round($legacyPose),
+            'services_ht_total'    => (int) round($servicesHt),
+            'services_ttc_total'   => (int) round($servicesTtc),
+            'amount_ttc'           => (int) round($amountTtc),
+            'total_a_payer'        => (int) round($totalAPayer),
         ];
     }
 

@@ -374,19 +374,31 @@ class InvoiceController extends Controller
         $issuedAt = \Carbon\Carbon::parse($data['issued_at']);
 
         return \Illuminate\Support\Facades\DB::transaction(function () use ($data, $request, $clientId, $issuedAt, $calculator) {
+            // commercial_user_id : on dérive depuis la campagne si liée,
+            // sinon depuis l'utilisateur courant (cas saisie manuelle d'une
+            // facture non rattachée à une campagne — rare mais possible).
+            $commercialUserId = auth()->id();
+            if (!empty($data['campaign_id'])) {
+                $camp = Campaign::find($data['campaign_id']);
+                $commercialUserId = $camp?->commercial_user_id
+                                  ?? $camp?->user_id
+                                  ?? auth()->id();
+            }
+
             $invoice = Invoice::create([
                 'reference'            => $data['reference'],
                 'client_id'            => $clientId,
                 'campaign_id'          => $data['campaign_id'] ?? null,
+                'commercial_user_id'   => $commercialUserId,
                 'created_by'           => auth()->id(),
                 'issued_at'            => $data['issued_at'],
                 'status'               => 'brouillon',
                 'tva'                  => $calculator->tvaRate(),
                 'remise_pct'           => (float) ($data['remise_pct'] ?? 0),
                 // Champs legacy : 0 si on a la forme moderne 'services',
-                // sinon copie pour rétrocompat.
-                'services_impression'  => !empty($data['services']) ? 0 : (float) ($data['services_impression'] ?? 0),
-                'services_pose_depose' => !empty($data['services']) ? 0 : (float) ($data['services_pose_depose'] ?? 0),
+                // sinon copie pour rétrocompat (entiers FCFA).
+                'services_impression'  => !empty($data['services']) ? 0 : (int) round((float) ($data['services_impression'] ?? 0)),
+                'services_pose_depose' => !empty($data['services']) ? 0 : (int) round((float) ($data['services_pose_depose'] ?? 0)),
                 'notes_client'         => $data['notes_client'] ?? null,
                 'campaign_year'        => $issuedAt->year,
             ]);

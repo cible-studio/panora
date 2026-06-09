@@ -115,6 +115,15 @@ class AppServiceProvider extends ServiceProvider
             Commune::observe(\App\Observers\CommuneObserver::class);
         }
 
+        // Phase 1 FNE Recouvrement (§ 3 + § 13) : chaque transition de
+        // statut d'une facture est historisée dans invoice_status_history.
+        // Distinct du futur package laravel-auditing (§ 13 Phase 7) qui
+        // logguera l'ensemble des modifications. Cette table est dédiée
+        // au timeline de statut, lecture rapide par facture.
+        if (class_exists(\App\Observers\InvoiceObserver::class)) {
+            \App\Models\Invoice::observe(\App\Observers\InvoiceObserver::class);
+        }
+
         // Unification workflow pose/pige : quand le technicien upload une
         // Pige via le lien unique, la PoseTask liée passe automatiquement
         // à COMPLETED et une alerte est envoyée au MP/admin pour validation.

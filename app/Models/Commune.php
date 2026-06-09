@@ -14,8 +14,8 @@ class Commune extends Model
     ];
 
     protected $casts = [
-        'odp_rate' => 'decimal:2',
-        'tm_rate'  => 'decimal:2',
+        'odp_rate' => 'integer',
+        'tm_rate'  => 'integer',
     ];
 
     public function zones()
