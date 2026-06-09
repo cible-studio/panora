@@ -193,10 +193,13 @@ class FinancialDashboardService
      */
     public function encaissementsByCommercial(CarbonInterface $from, CarbonInterface $to, ?int $commercialUserId = null): Collection
     {
+        // Eager-load les relations utilisées par resolveCommercialContact() —
+        // la relation est nommée `commercial` (pas `commercialUser`) sur
+        // Campaign ET Reservation. Cf. Campaign:67 / Reservation:300.
         $payments = $this->paymentsQueryForPeriod($from, $to, $commercialUserId)
             ->with([
-                'invoice.campaign.commercialUser:id,name',
-                'invoice.campaign.reservation.commercialUser:id,name',
+                'invoice.campaign.commercial:id,name',
+                'invoice.campaign.reservation.commercial:id,name',
                 'invoice.campaign.user:id,name',
                 'invoice.creator:id,name',
             ])
