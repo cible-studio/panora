@@ -85,6 +85,28 @@ class Invoice extends Model
         return $this->hasMany(InvoicePayment::class)->orderBy('paid_at');
     }
 
+    public function schedules()
+    {
+        return $this->hasMany(InvoiceSchedule::class)->orderBy('due_date');
+    }
+
+    /**
+     * Prochaine échéance non payée. Null si l'échéancier est vide ou
+     * entièrement réglé. Sert au tableau de suivi (colonne "Prochaine
+     * échéance" + badge "🔴 À relancer" si overdue).
+     */
+    public function nextDueSchedule(): ?InvoiceSchedule
+    {
+        $rel = $this->relationLoaded('schedules')
+            ? $this->schedules
+            : $this->schedules()->get();
+
+        return $rel
+            ->whereNull('paid_at')
+            ->sortBy('due_date')
+            ->first();
+    }
+
     public function lockedBy()
     {
         return $this->belongsTo(User::class, 'locked_by_id');

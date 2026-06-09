@@ -613,6 +613,19 @@ Route::prefix('admin')
                 ->name('invoices.payments.add');
             Route::delete('invoices/{invoice}/payments/{payment}', [InvoiceController::class, 'removePayment'])
                 ->name('invoices.payments.remove');
+
+            // Échéancier prévisionnel (acompte / solde / mensualités).
+            // Le rapprochement avec les versements réels est manuel via
+            // markScheduleEntryPaid pour rester simple. Le statut paiement
+            // dérivé reste basé sur invoice_payments (source unique).
+            Route::post('invoices/{invoice}/schedule', [InvoiceController::class, 'generateSchedule'])
+                ->name('invoices.schedule.generate');
+            Route::delete('invoices/{invoice}/schedule', [InvoiceController::class, 'deleteSchedule'])
+                ->name('invoices.schedule.delete');
+            Route::patch('invoices/{invoice}/schedule/{schedule}/paid', [InvoiceController::class, 'markScheduleEntryPaid'])
+                ->name('invoices.schedule.pay');
+            Route::patch('invoices/{invoice}/schedule/{schedule}/unpaid', [InvoiceController::class, 'unmarkScheduleEntryPaid'])
+                ->name('invoices.schedule.unpay');
         });
 
         // ════════════════════════════════════════════════

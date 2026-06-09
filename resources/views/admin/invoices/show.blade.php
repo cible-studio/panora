@@ -374,6 +374,130 @@
                 </div>
             </div>
 
+            {{-- ════════════════════ CARD ÉCHÉANCIER PRÉVISIONNEL ════════════════════
+                 Engagement de paiement planifié (acompte / solde / mensualités).
+                 Distinct des versements réels — sert au recouvrement (qui doit
+                 relancer, quand). L'admin marque chaque échéance "payée" quand
+                 le versement réel correspondant a été enregistré.
+            ═══════════════════════════════════════════════════════════════════════ --}}
+            @php $schedules = $invoice->schedules ?? collect(); @endphp
+            <div class="card">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+                    <div class="card-title">📅 Échéancier prévisionnel <span style="font-weight:400;color:var(--text3);font-size:12px;margin-left:6px">({{ $schedules->count() }})</span></div>
+                    @can('markPaid', $invoice)
+                        <button type="button" onclick="document.getElementById('modal-schedule').classList.add('show')"
+                                class="btn btn-ghost btn-sm">
+                            @if($schedules->isEmpty()) + Configurer @else 🔄 Reconfigurer @endif
+                        </button>
+                    @endcan
+                </div>
+                <div class="card-body">
+                    @if($schedules->isEmpty())
+                        <div style="padding:18px;text-align:center;color:var(--text3);font-size:13px;background:var(--surface2);border-radius:10px">
+                            Aucun échéancier configuré. Configure un acompte/solde ou des mensualités pour faciliter le recouvrement.
+                        </div>
+                    @else
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                            @foreach($schedules as $s)
+                                @php
+                                    $state = $s->state();
+                                    $stateConfig = match($state) {
+                                        'paid'     => ['bg' => 'rgba(34,197,94,.08)',  'border' => 'rgba(34,197,94,.30)', 'color' => '#15803d', 'icon' => '✓'],
+                                        'overdue'  => ['bg' => 'rgba(239,68,68,.10)',  'border' => 'rgba(239,68,68,.40)', 'color' => '#b91c1c', 'icon' => '🔴'],
+                                        'soon'     => ['bg' => 'rgba(245,158,11,.10)', 'border' => 'rgba(245,158,11,.35)','color' => '#b45309', 'icon' => '⏰'],
+                                        default    => ['bg' => 'var(--surface2)',      'border' => 'var(--border)',       'color' => 'var(--text2)','icon' => '📅'],
+                                    };
+                                @endphp
+                                <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:{{ $stateConfig['bg'] }};border:1px solid {{ $stateConfig['border'] }};border-radius:10px">
+                                    <div style="font-size:18px">{{ $stateConfig['icon'] }}</div>
+                                    <div style="flex:1;min-width:0">
+                                        <div style="font-size:13px;font-weight:700;color:{{ $stateConfig['color'] }}">
+                                            {{ $s->label ?? 'Échéance' }}
+                                            <span style="font-weight:400;color:var(--text3);margin-left:6px;font-size:11.5px">— {{ $s->due_date->format('d/m/Y') }}</span>
+                                            @if($state === 'overdue')
+                                                <span style="background:rgba(239,68,68,.18);color:#b91c1c;padding:1px 7px;border-radius:6px;font-size:9.5px;font-weight:800;margin-left:6px">RETARD {{ abs($s->daysUntilDue()) }}j</span>
+                                            @elseif($state === 'soon' && !$s->isPaid())
+                                                <span style="background:rgba(245,158,11,.15);color:#b45309;padding:1px 7px;border-radius:6px;font-size:9.5px;font-weight:800;margin-left:6px">DANS {{ $s->daysUntilDue() }}j</span>
+                                            @elseif($state === 'paid')
+                                                <span style="background:rgba(34,197,94,.15);color:#15803d;padding:1px 7px;border-radius:6px;font-size:9.5px;font-weight:800;margin-left:6px">PAYÉE LE {{ $s->paid_at->format('d/m') }}</span>
+                                            @endif
+                                        </div>
+                                        <div style="font-size:11.5px;color:var(--text3);margin-top:2px;font-family:ui-monospace,monospace;font-weight:700">
+                                            {{ $fmt($s->amount) }} FCFA
+                                            @if($s->reminder_count > 0)
+                                                · 🔔 {{ $s->reminder_count }} relance{{ $s->reminder_count > 1 ? 's' : '' }}
+                                            @endif
+                                        </div>
+                                    </div>
+                                    @can('markPaid', $invoice)
+                                        @if($s->isPaid())
+                                            <form method="POST" action="{{ route('admin.invoices.schedule.unpay', [$invoice, $s]) }}">
+                                                @csrf @method('PATCH')
+                                                <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px" title="Marquer comme non payée">↩ Annuler</button>
+                                            </form>
+                                        @else
+                                            <form method="POST" action="{{ route('admin.invoices.schedule.pay', [$invoice, $s]) }}">
+                                                @csrf @method('PATCH')
+                                                <button type="submit" class="btn btn-ghost btn-sm" style="color:#16a34a;font-size:11px" title="Marquer payée">✓ Payée</button>
+                                            </form>
+                                        @endif
+                                    @endcan
+                                </div>
+                            @endforeach
+                        </div>
+                        @can('markPaid', $invoice)
+                            <form method="POST" action="{{ route('admin.invoices.schedule.delete', $invoice) }}"
+                                  style="margin-top:10px;text-align:right"
+                                  onsubmit="return confirm('Supprimer tout l\'échéancier ?');">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--text3);font-size:11px">🗑 Supprimer l'échéancier</button>
+                            </form>
+                        @endcan
+                    @endif
+                </div>
+            </div>
+
+            {{-- Modal configuration échéancier --}}
+            @can('markPaid', $invoice)
+            <div class="modal-overlay" id="modal-schedule" role="dialog">
+                <div class="modal" style="max-width:540px">
+                    <div class="modal-header">
+                        <h3>📅 Configurer l'échéancier</h3>
+                        <button type="button" onclick="document.getElementById('modal-schedule').classList.remove('show')" class="modal-close">×</button>
+                    </div>
+                    <form method="POST" action="{{ route('admin.invoices.schedule.generate', $invoice) }}">
+                        @csrf
+                        <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+                            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12.5px">
+                                Total à payer : <strong style="font-family:ui-monospace,monospace">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</strong>
+                            </div>
+                            <div class="mfg">
+                                <label>Choix de la formule</label>
+                                <select name="preset" required>
+                                    <option value="30_70">🅰 Acompte 30% + Solde 70% à J+30</option>
+                                    <option value="50_50">🅱 Acompte 50% + Solde 50% à J+30</option>
+                                    <option value="monthly_3">🗓 3 mensualités (J0, J+30, J+60)</option>
+                                </select>
+                            </div>
+                            <div class="mfg">
+                                <label>Date du 1er versement <span style="color:var(--red)">*</span></label>
+                                <input type="date" name="start_date" required value="{{ date('Y-m-d') }}">
+                            </div>
+                            @if($schedules->isNotEmpty())
+                                <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:10px 12px;font-size:11.5px;color:#b45309">
+                                    ⚠ L'échéancier existant ({{ $schedules->count() }} échéances) sera REMPLACÉ.
+                                </div>
+                            @endif
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal-schedule').classList.remove('show')">Annuler</button>
+                            <button type="submit" class="btn btn-primary">✅ Générer l'échéancier</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            @endcan
+
             {{-- Modal ajout versement --}}
             @can('markPaid', $invoice)
             <div class="modal-overlay" id="modal-add-payment" role="dialog">
