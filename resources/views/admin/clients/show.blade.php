@@ -333,6 +333,114 @@
             </table>
         </div>
 
+        {{-- ═══════════ ONGLET FINANCIER (Phase 6 cahier §10) ═══════════
+             Synthèse : total facturé, total encaissé, solde dû, nb factures,
+             nb impayés, retard moyen, historique des paiements + relances.
+        ════════════════════════════════════════════════════════════════ --}}
+        @php
+            $clientInvoices = \App\Models\Invoice::where('client_id', $client->id)
+                ->whereNotIn('status', ['annulee'])
+                ->with(['payments', 'schedules'])
+                ->orderByDesc('issued_at')
+                ->get();
+
+            $totalFactured = (int) $clientInvoices->sum(fn($i) => (int) ($i->total_a_payer ?: $i->amount_ttc));
+            $totalPaid     = (int) $clientInvoices->sum(fn($i) => (int) $i->paidAmount());
+            $soldeDu       = max(0, $totalFactured - $totalPaid);
+            $countImpayes  = $clientInvoices->filter(fn($i) => $i->remainingAmount() > 0)->count();
+            $countEnRetard = $clientInvoices->filter(fn($i) => $i->isOverdue())->count();
+            $retardJours   = $clientInvoices
+                ->filter(fn($i) => $i->isOverdue())
+                ->map(function ($i) {
+                    $next = $i->nextDueSchedule();
+                    return $next ? abs($next->daysUntilDue()) : 0;
+                })
+                ->avg() ?: 0;
+            $pctPaye = $totalFactured > 0 ? round($totalPaid / $totalFactured * 100, 1) : 0;
+            $allPayments = $clientInvoices->flatMap->payments->sortByDesc('paid_at')->take(10);
+            $allRelances = \App\Models\Relance::where('client_id', $client->id)
+                ->orderByDesc('relance_date')->limit(10)->get();
+        @endphp
+
+        @if($clientInvoices->isNotEmpty())
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:18px">
+            <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:linear-gradient(180deg,rgba(232,160,32,.04),rgba(232,160,32,0))">
+                <span style="font-weight:800;font-size:14px">💰 Profil financier</span>
+                <a href="{{ route('admin.invoices.index', ['client_id' => $client->id]) }}"
+                   style="font-size:12px;color:var(--accent);text-decoration:none;font-weight:700">
+                    Voir toutes les factures →
+                </a>
+            </div>
+            <div style="padding:16px 18px">
+                {{-- KPIs financiers --}}
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+                    <div style="padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">
+                        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;font-weight:700">Total facturé</div>
+                        <div style="font-size:16px;font-weight:800;color:var(--text);margin-top:3px">{{ number_format($totalFactured, 0, ',', ' ') }}</div>
+                        <div style="font-size:10px;color:var(--text3)">{{ $clientInvoices->count() }} facture(s)</div>
+                    </div>
+                    <div style="padding:12px 14px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.20);border-radius:10px">
+                        <div style="font-size:10px;color:#15803d;text-transform:uppercase;letter-spacing:.4px;font-weight:700">Total encaissé</div>
+                        <div style="font-size:16px;font-weight:800;color:#16a34a;margin-top:3px">{{ number_format($totalPaid, 0, ',', ' ') }}</div>
+                        <div style="font-size:10px;color:#15803d">{{ $pctPaye }} % du facturé</div>
+                    </div>
+                    <div style="padding:12px 14px;background:{{ $soldeDu > 0 ? 'rgba(239,68,68,.06)' : 'rgba(34,197,94,.06)' }};border:1px solid {{ $soldeDu > 0 ? 'rgba(239,68,68,.25)' : 'rgba(34,197,94,.20)' }};border-radius:10px">
+                        <div style="font-size:10px;color:{{ $soldeDu > 0 ? '#b91c1c' : '#15803d' }};text-transform:uppercase;letter-spacing:.4px;font-weight:700">Solde dû</div>
+                        <div style="font-size:16px;font-weight:800;color:{{ $soldeDu > 0 ? '#b91c1c' : '#16a34a' }};margin-top:3px">{{ number_format($soldeDu, 0, ',', ' ') }}</div>
+                        <div style="font-size:10px;color:{{ $soldeDu > 0 ? '#b91c1c' : '#15803d' }}">{{ $countImpayes }} impayé(s)</div>
+                    </div>
+                    <div style="padding:12px 14px;background:{{ $countEnRetard > 0 ? 'rgba(239,68,68,.06)' : 'var(--surface2)' }};border:1px solid {{ $countEnRetard > 0 ? 'rgba(239,68,68,.25)' : 'var(--border)' }};border-radius:10px">
+                        <div style="font-size:10px;color:{{ $countEnRetard > 0 ? '#b91c1c' : 'var(--text3)' }};text-transform:uppercase;letter-spacing:.4px;font-weight:700">En retard</div>
+                        <div style="font-size:16px;font-weight:800;color:{{ $countEnRetard > 0 ? '#b91c1c' : 'var(--text)' }};margin-top:3px">{{ $countEnRetard }}</div>
+                        <div style="font-size:10px;color:var(--text3)">Retard moyen {{ round($retardJours) }}j</div>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+                    {{-- Derniers versements --}}
+                    <div>
+                        <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">📥 Derniers versements ({{ $allPayments->count() }})</div>
+                        @if($allPayments->isEmpty())
+                            <div style="font-size:12px;color:var(--text3);padding:10px;background:var(--surface2);border-radius:8px;text-align:center">Aucun versement enregistré.</div>
+                        @else
+                            <div style="display:flex;flex-direction:column;gap:5px;max-height:240px;overflow-y:auto">
+                                @foreach($allPayments as $p)
+                                    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--surface2);border-radius:7px;font-size:12px">
+                                        <div>
+                                            <div style="font-weight:700">{{ $p->mode_icon }} {{ number_format((float) $p->montant, 0, ',', ' ') }} F</div>
+                                            <div style="font-size:10.5px;color:var(--text3)">{{ $p->paid_at->format('d/m/Y') }} · {{ $p->mode_label }}@if($p->is_acompte) · 🅰@endif</div>
+                                        </div>
+                                        <a href="{{ route('admin.invoices.show', $p->invoice_id) }}" style="font-size:10.5px;color:var(--accent);text-decoration:none">→</a>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+
+                    {{-- Dernières relances --}}
+                    <div>
+                        <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">📞 Dernières relances ({{ $allRelances->count() }})</div>
+                        @if($allRelances->isEmpty())
+                            <div style="font-size:12px;color:var(--text3);padding:10px;background:var(--surface2);border-radius:8px;text-align:center">Aucune relance.</div>
+                        @else
+                            <div style="display:flex;flex-direction:column;gap:5px;max-height:240px;overflow-y:auto">
+                                @foreach($allRelances as $r)
+                                    <div style="padding:7px 10px;background:var(--surface2);border-radius:7px;font-size:12px">
+                                        <div style="display:flex;justify-content:space-between;align-items:center">
+                                            <span style="font-weight:700">{{ \App\Services\ReminderService::canalLabel($r->canal) }}</span>
+                                            <span style="font-size:10.5px;color:var(--text3)">{{ $r->relance_date->format('d/m/Y') }}</span>
+                                        </div>
+                                        <div style="font-size:11px;color:var(--text2);margin-top:2px">{{ \Illuminate\Support\Str::limit($r->note, 80) }}</div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+        @endif
+
         {{-- Réservations récentes --}}
         @if($client->reservations->count() > 0)
         <div style="background:var(--surface);border:1px solid var(--border);

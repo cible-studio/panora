@@ -76,6 +76,48 @@
             </a>
         </div>
 
+        {{-- ════════════ KPIs FINANCIERS (Phase 6 cahier §12) ════════════
+             Encaissements mois, en retard, à recouvrer, prévision 30j.
+        ═══════════════════════════════════════════════════════════════ --}}
+        @php $fmtKpi = fn($n) => number_format((float) $n, 0, ',', ' '); @endphp
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:20px">
+            <a href="{{ route('admin.finance.index') }}" class="kpi-card" style="--kpi-color:#16a34a;text-decoration:none">
+                <div class="kpi-card__top-bar" style="background:#16a34a"></div>
+                <div class="kpi-card__icon" style="color:#16a34a">💰</div>
+                <div class="kpi-card__value" style="color:#16a34a;font-size:22px">{{ $fmtKpi($encaissMonth ?? 0) }}</div>
+                <div class="kpi-card__label">Encaissements du mois (FCFA)</div>
+                <div class="kpi-card__sub">CA facturé année : {{ $fmtKpi($caYearFne ?? 0) }}</div>
+                <div class="kpi-card__arrow" style="color:#16a34a">→</div>
+            </a>
+
+            <a href="{{ route('admin.invoices.index', ['pay_status' => 'en_retard']) }}" class="kpi-card" style="--kpi-color:#b91c1c;text-decoration:none">
+                <div class="kpi-card__top-bar" style="background:#b91c1c"></div>
+                <div class="kpi-card__icon" style="color:#b91c1c">🔴</div>
+                <div class="kpi-card__value" style="color:#b91c1c">{{ $invoicesEnRetard ?? 0 }}</div>
+                <div class="kpi-card__label">Factures en retard</div>
+                <div class="kpi-card__sub">Cliquer pour filtrer</div>
+                <div class="kpi-card__arrow" style="color:#b91c1c">→</div>
+            </a>
+
+            <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement']) }}" class="kpi-card" style="--kpi-color:#b45309;text-decoration:none">
+                <div class="kpi-card__top-bar" style="background:#b45309"></div>
+                <div class="kpi-card__icon" style="color:#b45309">📋</div>
+                <div class="kpi-card__value" style="color:#b45309;font-size:22px">{{ $fmtKpi($totalRecouvrer ?? 0) }}</div>
+                <div class="kpi-card__label">À recouvrer (FCFA)</div>
+                <div class="kpi-card__sub">Reste à payer toutes factures</div>
+                <div class="kpi-card__arrow" style="color:#b45309">→</div>
+            </a>
+
+            <a href="{{ route('admin.finance.index', ['tab' => 'creances']) }}" class="kpi-card" style="--kpi-color:#1d4ed8;text-decoration:none">
+                <div class="kpi-card__top-bar" style="background:#1d4ed8"></div>
+                <div class="kpi-card__icon" style="color:#1d4ed8">📅</div>
+                <div class="kpi-card__value" style="color:#1d4ed8;font-size:22px">{{ $fmtKpi($previsionMontant30j ?? 0) }}</div>
+                <div class="kpi-card__label">Prévision 30 j (FCFA)</div>
+                <div class="kpi-card__sub">Échéances à venir 30 jours</div>
+                <div class="kpi-card__arrow" style="color:#1d4ed8">→</div>
+            </a>
+        </div>
+
         {{-- CAMPAGNES ACTIVES --}}
         <div class="card">
             <div class="card-header">
