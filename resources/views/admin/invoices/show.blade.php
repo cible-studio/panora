@@ -29,6 +29,10 @@
     <a href="{{ route('admin.invoices.pdf', $invoice) }}" class="btn btn-ghost btn-sm">
         📄 Export PDF
     </a>
+    {{-- Phase 7 cahier §13 — Consultation timeline d'audit --}}
+    <a href="{{ route('admin.invoices.audit', $invoice) }}" class="btn btn-ghost btn-sm" title="Historique complet des modifications">
+        📋 Audit
+    </a>
     @if($invoice->status === 'brouillon')
     <form method="POST" action="{{ route('admin.invoices.send', $invoice) }}">
         @csrf

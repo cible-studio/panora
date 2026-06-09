@@ -19,7 +19,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
  *       paymentStatus() = soldee  → invoice.status = 'payee'
  *       paymentStatus() = partielle → invoice.status = 'partiellement_payee'
  *       paymentStatus() = en_retard → invoice.status = 'en_retard'
- *   - Historisation des transitions via Invoice::transitionTo(auto=true)
+ *   - Historisation des transitions via Invoice::transitionStatusTo(auto=true)
  *
  * Évite la dispersion de la logique entre InvoiceController, observers
  * et vues : un seul appel `app(PaymentService::class)->register(...)`.
@@ -155,7 +155,7 @@ class PaymentService
         };
 
         if ($target && $target !== $invoice->status) {
-            $invoice->transitionTo(
+            $invoice->transitionStatusTo(
                 $target,
                 reason: "Auto (sync depuis paiements) : paymentStatus={$paymentStatus}",
                 auto:   true

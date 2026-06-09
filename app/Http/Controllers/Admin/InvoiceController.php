@@ -467,6 +467,28 @@ class InvoiceController extends Controller
         }
     }
 
+    /**
+     * Phase 7 cahier §13 — Consultation timeline d'audit d'une facture.
+     * Affiche :
+     *   - Historique status (invoice_status_history Phase 1)
+     *   - Historique des modifications (audits Phase 7)
+     *   - Historique des paiements et leur audits
+     */
+    public function auditTimeline(Invoice $invoice)
+    {
+        $this->authorize('view', $invoice);
+
+        $invoice->load([
+            'client:id,name',
+            'statusHistory.user:id,name',
+            'audits.user',
+            'payments.audits.user',
+            'schedules.audits.user',
+        ]);
+
+        return view('admin.invoices.audit', compact('invoice'));
+    }
+
     public function show(Invoice $invoice)
     {
         $this->authorize('view', $invoice);
