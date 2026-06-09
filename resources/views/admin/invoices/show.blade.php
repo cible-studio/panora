@@ -633,24 +633,53 @@
                         <h3>📅 Configurer l'échéancier</h3>
                         <button type="button" onclick="document.getElementById('modal-schedule').classList.remove('show')" class="modal-close">×</button>
                     </div>
-                    <form method="POST" action="{{ route('admin.invoices.schedule.generate', $invoice) }}">
+                    <form method="POST" action="{{ route('admin.invoices.schedule.generate', $invoice) }}" id="schedule-form">
                         @csrf
                         <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
                             <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12.5px">
-                                Total à payer : <strong>{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</strong>
+                                Total à payer : <strong id="sched-total" data-total="{{ (int) ($invoice->total_a_payer ?: $invoice->amount_ttc) }}">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</strong>
                             </div>
+
+                            {{-- ═══ Choix du mode (Phase 3 — cahier §6) ═══ --}}
                             <div class="mfg">
-                                <label>Choix de la formule</label>
-                                <select name="preset" required>
-                                    <option value="30_70">🅰 Acompte 30% + Solde 70% à J+30</option>
-                                    <option value="50_50">🅱 Acompte 50% + Solde 50% à J+30</option>
-                                    <option value="monthly_3">🗓 3 mensualités (J0, J+30, J+60)</option>
+                                <label>Mode d'échéancier <span style="color:var(--red)">*</span></label>
+                                <select name="mode" id="sched-mode" required onchange="window.schedSwitchMode(this.value)">
+                                    <optgroup label="Modes principaux (cahier §6)">
+                                        <option value="custom_milestones">🎯 Personnalisé par jalon (acompte signature, solde livraison…)</option>
+                                        <option value="quarterly">📅 Trimestriel calendaire (01/01, 01/04, 01/07, 01/10)</option>
+                                        <option value="monthly">🗓 Mensuel (N échéances libres)</option>
+                                    </optgroup>
+                                    <optgroup label="Presets rapides">
+                                        <option value="30_70">🅰 Acompte 30 % + Solde 70 % à J+30</option>
+                                        <option value="50_50">🅱 Acompte 50 % + Solde 50 % à J+30</option>
+                                        <option value="monthly_3">🅲 3 mensualités (J0, J+30, J+60)</option>
+                                    </optgroup>
                                 </select>
                             </div>
-                            <div class="mfg">
-                                <label>Date du 1er versement <span style="color:var(--red)">*</span></label>
-                                <input type="date" name="start_date" required value="{{ date('Y-m-d') }}">
+
+                            {{-- Bloc date de départ : visible sauf en custom_milestones --}}
+                            <div class="mfg" id="sched-block-startdate">
+                                <label>Date de départ <span style="color:var(--red)">*</span></label>
+                                <input type="date" name="start_date" value="{{ date('Y-m-d') }}">
                             </div>
+
+                            {{-- Bloc nombre de mensualités : visible uniquement en mode 'monthly' --}}
+                            <div class="mfg" id="sched-block-count" style="display:none">
+                                <label>Nombre de mensualités <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400;font-size:11px">(entre 2 et 24)</span></label>
+                                <input type="number" name="count" min="2" max="24" value="6">
+                            </div>
+
+                            {{-- Bloc jalons : visible uniquement en mode 'custom_milestones' --}}
+                            <div id="sched-block-milestones" style="display:none">
+                                <label style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block">Jalons libres (le total doit égaler le total à payer)</label>
+                                <div id="milestones-tbody" style="display:flex;flex-direction:column;gap:8px"></div>
+                                <button type="button" onclick="window.schedAddMilestone()" class="btn btn-ghost btn-sm" style="margin-top:8px;font-size:11px">+ Ajouter un jalon</button>
+                                <div id="milestones-sum-bar" style="margin-top:10px;padding:8px 12px;background:var(--surface2);border-radius:8px;font-size:11.5px;display:flex;justify-content:space-between">
+                                    <span style="color:var(--text3)">Total des jalons</span>
+                                    <span id="milestones-sum" style="font-weight:800">0 FCFA</span>
+                                </div>
+                            </div>
+
                             @if($schedules->isNotEmpty())
                                 <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:10px 12px;font-size:11.5px;color:#b45309">
                                     ⚠ L'échéancier existant ({{ $schedules->count() }} échéances) sera REMPLACÉ.
@@ -662,6 +691,69 @@
                             <button type="submit" class="btn btn-primary">✅ Générer l'échéancier</button>
                         </div>
                     </form>
+
+                    <script>
+                    (function() {
+                        const fmt = n => Number(n).toLocaleString('fr-FR') + ' FCFA';
+                        const tbody = document.getElementById('milestones-tbody');
+
+                        window.schedSwitchMode = function(mode) {
+                            const start = document.getElementById('sched-block-startdate');
+                            const count = document.getElementById('sched-block-count');
+                            const mile  = document.getElementById('sched-block-milestones');
+                            // par défaut : start visible, count caché, mile caché
+                            start.style.display = (mode === 'custom_milestones') ? 'none' : '';
+                            count.style.display = (mode === 'monthly') ? '' : 'none';
+                            mile.style.display  = (mode === 'custom_milestones') ? '' : 'none';
+
+                            if (mode === 'custom_milestones' && tbody.children.length === 0) {
+                                window.schedAddMilestone();
+                                window.schedAddMilestone();
+                            }
+                        };
+
+                        let nextMileIdx = 0;
+                        window.schedAddMilestone = function() {
+                            const i = nextMileIdx++;
+                            const row = document.createElement('div');
+                            row.className = 'milestone-row';
+                            row.style.cssText = 'display:grid;grid-template-columns:1fr 130px 140px 36px;gap:8px;align-items:center;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px';
+                            row.innerHTML = `
+                                <input type="text" name="milestones[${i}][label]" placeholder="Ex: Acompte signature" maxlength="100"
+                                       style="padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface2)">
+                                <input type="date" name="milestones[${i}][due_date]" required
+                                       style="padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface2)">
+                                <input type="number" name="milestones[${i}][amount]" placeholder="Montant" min="1" step="1000" required
+                                       class="milestone-amount"
+                                       style="padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface2);text-align:right">
+                                <button type="button" onclick="window.schedRemoveMilestone(this)" class="btn btn-ghost btn-sm" style="color:#ef4444;font-weight:700;padding:4px 8px">✕</button>
+                            `;
+                            tbody.appendChild(row);
+                            row.querySelector('.milestone-amount').addEventListener('input', window.schedRecomputeMilestoneSum);
+                            window.schedRecomputeMilestoneSum();
+                        };
+
+                        window.schedRemoveMilestone = function(btn) {
+                            btn.closest('.milestone-row')?.remove();
+                            window.schedRecomputeMilestoneSum();
+                        };
+
+                        window.schedRecomputeMilestoneSum = function() {
+                            const sum = Array.from(document.querySelectorAll('.milestone-amount'))
+                                .reduce((acc, el) => acc + (parseInt(el.value, 10) || 0), 0);
+                            const total = parseInt(document.getElementById('sched-total')?.dataset.total, 10) || 0;
+                            const bar = document.getElementById('milestones-sum');
+                            bar.textContent = fmt(sum);
+                            const diff = Math.abs(sum - total);
+                            bar.style.color = (sum === 0 || diff > 1) ? '#b91c1c' : '#16a34a';
+                        };
+
+                        // Init mode par défaut
+                        document.addEventListener('DOMContentLoaded', () => {
+                            window.schedSwitchMode(document.getElementById('sched-mode').value);
+                        });
+                    })();
+                    </script>
                 </div>
             </div>
             @endcan
