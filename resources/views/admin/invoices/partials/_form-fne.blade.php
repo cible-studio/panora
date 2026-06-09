@@ -464,12 +464,25 @@
     .fne-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
     .fne-aside {
         position: sticky;
-        top: 12px;
+        /* top doit dépasser la topbar fixe (--topbar-height = 52px),
+           sinon le récap passe DERRIÈRE quand on scrolle. +12px de
+           respiration pour ne pas coller au bord. */
+        top: calc(var(--topbar-height, 52px) + 12px);
         display: flex;
         flex-direction: column;
         gap: 12px;
-        max-height: calc(100vh - 24px);
+        /* Borne la hauteur au viewport restant pour éviter le débordement
+           en bas. overflow-y:auto activé pour que le récap scrolle de
+           manière interne sur petits écrans (préserve la visibilité du
+           bandeau TOTAL À PAYER + boutons d'action). */
+        max-height: calc(100vh - var(--topbar-height, 52px) - 24px);
+        overflow-y: auto;
+        /* Cosmétique : scrollbar discrète sur Webkit */
+        scrollbar-width: thin;
     }
+    .fne-aside::-webkit-scrollbar { width: 6px; }
+    .fne-aside::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+    .fne-aside::-webkit-scrollbar-thumb:hover { background: var(--text3); }
 
     /* ── SECTION CARDS HARMONISÉES ───────────────────────────── */
     .fne-section {
