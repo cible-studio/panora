@@ -182,6 +182,45 @@ class DashboardController extends Controller
         // Label de la carte CA — adapté au rôle pour clarté
         $caLabel = $isCommercial ? 'Mon CA Mensuel (FCFA)' : 'CA Mensuel (FCFA)';
 
+        // ═══ Phase 6 cahier §12 — KPIs financiers stratégiques ═══
+        // CA du mois, encaissements du mois, créances, factures en retard,
+        // total à recouvrer, prévision encaissement à 30 j.
+        $finScope = \App\Models\Invoice::query()
+            ->whereNotIn('status', ['annulee'])
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($userId));
+
+        $caMonthFne   = (clone $finScope)
+            ->whereYear('issued_at', $now->year)
+            ->whereMonth('issued_at', $now->month)
+            ->sum(\DB::raw('COALESCE(total_a_payer, amount_ttc)'));
+        $caYearFne    = (clone $finScope)
+            ->whereYear('issued_at', $now->year)
+            ->sum(\DB::raw('COALESCE(total_a_payer, amount_ttc)'));
+        $encaissMonth = (int) \App\Models\InvoicePayment::query()
+            ->whereYear('paid_at', $now->year)
+            ->whereMonth('paid_at', $now->month)
+            ->when($isCommercial, fn($q) => $q->whereHas('invoice', fn($i) => $i->forCommercialUser($userId)))
+            ->sum('montant');
+        $invoicesEnRetard = (clone $finScope)
+            ->where('status', 'en_retard')->count();
+
+        // Total à recouvrer = somme des remainingAmount des factures non soldées/annulées.
+        // On ne peut pas le faire en SQL pur (remainingAmount est dérivé). Cap à 200 factures.
+        $invoicesUnpaid = (clone $finScope)
+            ->whereNotIn('status', ['payee'])
+            ->with('payments')
+            ->limit(200)
+            ->get();
+        $totalRecouvrer = (int) $invoicesUnpaid->sum(fn($i) => $i->remainingAmount());
+
+        // Prévision encaissement à 30 j : somme des échéances actives
+        // dont due_date ∈ [today, today+30].
+        $previsionMontant30j = (int) \App\Models\InvoiceSchedule::query()
+            ->whereNull('paid_at')
+            ->whereBetween('due_date', [$now->toDateString(), $now->copy()->addDays(30)->toDateString()])
+            ->when($isCommercial, fn($q) => $q->whereHas('invoice', fn($i) => $i->forCommercialUser($userId)))
+            ->sum('amount');
+
         return view('dashboard', compact(
             'totalPanneaux', 'panneauxLibres', 'panneauxOccupes',
             'panneauxMaintenance', 'reservationsEnAttente',
@@ -191,7 +230,10 @@ class DashboardController extends Controller
             'dernieresReservations', 'dernieresMaintenances',
             'campagnesRecentes', 'dernieresAlertes',
             'tauxOccupation', 'tauxParCommune',
-            'caMensuel', 'variationCA', 'caLabel', 'isCommercial'
+            'caMensuel', 'variationCA', 'caLabel', 'isCommercial',
+            // Phase 6 cahier §12 — KPIs financiers
+            'caMonthFne', 'caYearFne', 'encaissMonth',
+            'invoicesEnRetard', 'totalRecouvrer', 'previsionMontant30j'
         ));
     }
 }
