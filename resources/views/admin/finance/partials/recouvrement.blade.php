@@ -37,11 +37,19 @@
                     </thead>
                     <tbody>
                         @foreach($clientsToFollow as $row)
+                            @php
+                                // Phase 5 cahier §8 — priorité 4 niveaux selon l'ancienneté
+                                $prio = \App\Services\ReminderService::priorityForOverdueDays((int) $row['plus_ancien_jours']);
+                            @endphp
                             <tr>
                                 <td>
                                     <a href="{{ route('admin.clients.show', $row['client_id']) }}" style="color:var(--accent);text-decoration:none;font-weight:600">{{ $row['client_name'] }}</a>
+                                    {{-- Badge priorité 4 niveaux (§8 cahier) --}}
+                                    <span style="display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:1px 8px;background:{{ $prio['bg'] }};color:{{ $prio['color'] }};border-radius:999px;font-size:9.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase">
+                                        {{ $prio['icon'] }} {{ $prio['label'] }}
+                                    </span>
                                     @if($row['en_retard'])
-                                        <span style="display:inline-block;margin-left:6px;padding:1px 6px;background:rgba(239,68,68,.15);color:#ef4444;border-radius:999px;font-size:10px;font-weight:700">🔴 EN RETARD</span>
+                                        <span style="display:inline-block;margin-left:4px;padding:1px 6px;background:rgba(239,68,68,.10);color:#b91c1c;border-radius:999px;font-size:9.5px;font-weight:700">EN RETARD</span>
                                     @endif
                                 </td>
                                 <td style="font-size:12px;color:var(--text3)">
@@ -50,7 +58,7 @@
                                 </td>
                                 <td class="num">{{ $row['factures_count'] }}</td>
                                 <td class="num strong">{{ $fmt($row['total_du']) }}</td>
-                                <td class="num" style="color:{{ $row['plus_ancien_jours'] >= 60 ? '#ef4444' : ($row['plus_ancien_jours'] >= 30 ? '#f97316' : 'var(--text2)') }}">
+                                <td class="num" style="color:{{ $prio['color'] }};font-weight:700">
                                     {{ $row['plus_ancien_jours'] }}j
                                 </td>
                                 <td style="color:{{ $row['prochaine_echeance'] && $row['prochaine_echeance']->isPast() ? '#ef4444' : 'var(--text2)' }}">
@@ -100,8 +108,8 @@
                 <div class="fne-field">
                     <label>Canal <span class="req">*</span></label>
                     <select name="canal" required>
-                        @foreach(\App\Models\Relance::CANAUX as $val => $lbl)
-                            <option value="{{ $val }}">{{ $lbl }}</option>
+                        @foreach(\App\Services\ReminderService::CANALS as $val)
+                            <option value="{{ $val }}">{{ \App\Services\ReminderService::canalLabel($val) }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -110,9 +118,23 @@
                 <label>Note de la relance <span class="req">*</span></label>
                 <textarea name="note" rows="3" required placeholder="Résumé de l'échange…"></textarea>
             </div>
-            <div class="fne-field">
-                <label>Suite donnée <span class="opt">— optionnel</span></label>
-                <textarea name="suite_donnee" rows="2" placeholder="Ex: rappeler le 15/06, dossier transmis au juridique…"></textarea>
+            <div class="fne-grid-2">
+                <div class="fne-field">
+                    <label>Résultat <span class="opt">— optionnel</span></label>
+                    <select name="outcome">
+                        <option value="">—</option>
+                        <option value="promesse_paiement">📅 Promesse de paiement</option>
+                        <option value="paiement_recu">✅ Paiement reçu</option>
+                        <option value="a_relancer">🔁 À relancer</option>
+                        <option value="sans_reponse">📵 Sans réponse</option>
+                        <option value="desaccord">⚠ Désaccord</option>
+                        <option value="autre">📝 Autre</option>
+                    </select>
+                </div>
+                <div class="fne-field">
+                    <label>Suite donnée <span class="opt">— optionnel</span></label>
+                    <input type="text" name="suite_donnee" placeholder="Ex: rappeler le 15/06…" maxlength="200">
+                </div>
             </div>
             <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
                 <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal-relance').style.display='none'">Annuler</button>

@@ -114,16 +114,17 @@ class FinanceDashboardController extends Controller
         ]);
     }
 
-    public function storeRelance(Request $request)
+    public function storeRelance(Request $request, \App\Services\ReminderService $reminders)
     {
         $data = $request->validate([
             'client_id'    => 'required|exists:clients,id',
             'invoice_id'   => 'nullable|exists:invoices,id',
             'schedule_id'  => 'nullable|exists:invoice_schedules,id',
             'relance_date' => 'required|date',
-            'canal'        => 'required|in:' . implode(',', array_keys(Relance::CANAUX)),
+            'canal'        => 'required|in:' . implode(',', \App\Services\ReminderService::CANALS),
             'note'         => 'required|string|max:2000',
-            'suite_donnee' => 'nullable|string|max:2000',
+            'outcome'      => 'nullable|in:' . implode(',', \App\Services\ReminderService::OUTCOMES),
+            'suite_donnee' => 'nullable|string|max:200',
         ]);
 
         // RBAC : un commercial ne peut enregistrer une relance que sur une
@@ -135,12 +136,13 @@ class FinanceDashboardController extends Controller
             }
         }
 
-        Relance::create([
-            ...$data,
-            'user_id' => auth()->id(),
-        ]);
+        try {
+            $reminders->register($data);
+        } catch (\DomainException $e) {
+            return back()->withInput()->with('error', '🚫 ' . $e->getMessage());
+        }
 
-        return redirect()->back()->with('success', 'Relance enregistrée.');
+        return redirect()->back()->with('success', '✅ Relance enregistrée.');
     }
 
     // ══════════════════════════════════════════════════════════════════
