@@ -432,10 +432,22 @@ class ReservationController extends Controller
     {
         $isOccupied = $occupiedIds->contains($panel->id);
         $isOption = $optionIds->contains($panel->id);
+        $hasPeriod = $startDate && $endDate && !$dateError;
         $displayStatus = match (true) {
+            // Maintenance : prime sur tout, le panneau est indisponible quelle
+            // que soit la période demandée (HS terrain).
             $panel->status->value === 'maintenance' => 'maintenance',
-            $isOccupied && $startDate && $endDate && !$dateError => 'occupe',
-            $isOption && $startDate && $endDate && !$dateError => 'option_periode',
+            // Chevauchement sur la période demandée → occupé / en option.
+            $hasPeriod && $isOccupied => 'occupe',
+            $hasPeriod && $isOption   => 'option_periode',
+            // Période valide ET aucun chevauchement → LIBRE SUR LA PÉRIODE,
+            // même si le statut DB actuel est 'confirme' ou 'occupe' (le
+            // booking en cours se termine AVANT le début de la période
+            // demandée). Sinon le panneau apparaîtrait à tort comme "Confirmé"
+            // / "En affichage" et serait non sélectionnable, alors qu'il est
+            // bien disponible sur la fenêtre demandée.
+            $hasPeriod => 'libre',
+            // Pas de période demandée → on garde le statut DB pour info.
             default => $panel->status->value,
         };
 
@@ -524,14 +536,23 @@ class ReservationController extends Controller
         $rawStatus = $panel->availability_status ?? 'disponible';
         $hasConfirmed = (bool) ($booking->has_confirmed ?? false);
         $hasOption    = (bool) ($booking->has_option ?? false);
+        $hasPeriod    = $startDate && $endDate;
 
+        // Ordre du match :
+        //   1. maintenance prime sur tout (terrain HS)
+        //   2. avec période demandée : on regarde UNIQUEMENT les chevauchements
+        //      sur cette période — si aucun chevauchement → LIBRE même si le
+        //      statut DB courant est 'occupe' ou 'confirme' (booking actuel
+        //      terminé avant le début de la fenêtre demandée).
+        //   3. sans période : fallback sur le statut DB courant.
         $displayStatus = match (true) {
             $rawStatus === 'maintenance' => 'maintenance',
-            $hasConfirmed && $startDate && $endDate => 'occupe',
-            $hasOption    && $startDate && $endDate => 'option_periode',
+            $hasPeriod && $hasConfirmed  => 'occupe',
+            $hasPeriod && $hasOption     => 'option_periode',
+            $hasPeriod                   => 'libre',
             in_array($rawStatus, ['occupe', 'confirme']) => 'occupe',
-            $rawStatus === 'option'                      => 'option_periode',
-            default => 'libre',
+            $rawStatus === 'option'      => 'option_periode',
+            default                      => 'libre',
         };
 
         $releaseInfo = null;
