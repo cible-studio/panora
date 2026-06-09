@@ -33,6 +33,11 @@ Schedule::command('propositions:send-rappels')->dailyAt('09:00');
 //    Tous les jours à 07h00
 Schedule::command('alerts:generate')->dailyAt('07:00');
 
+// 4-bis. Échéances de facturation (J-7, J-3, dépassée) — tourne avant
+//        alerts:generate pour que les retards soient visibles dans le
+//        même cycle quotidien.
+Schedule::command('finance:check-due-dates')->dailyAt('06:30');
+
 // 5. Synchronisation statut panneaux externes
 //    Tous les jours à 02h00
 Schedule::command('external-panels:sync-status')->dailyAt('02:00');

@@ -343,6 +343,27 @@ class AlertService
             'label' => 'Échéance taxe communale',
             'group' => 'Système',
         ],
+
+        // ── Recouvrement (échéancier facture) ─────────────────────
+        // Émis par le cron finance:check-due-dates (06h30). Cible :
+        // admin + commercial via broadcastTypesForRole(). Le palier J-7
+        // / J-3 / dépassée est différencié via dedup_extra pour ne pas
+        // se bumper l'un l'autre.
+        'echeance_proche_j7' => [
+            'icon' => '📅', 'niveau' => 'info', 'color' => '#3b82f6',
+            'label' => 'Échéance facture dans 7 jours',
+            'group' => 'Recouvrement',
+        ],
+        'echeance_proche_j3' => [
+            'icon' => '⚠️', 'niveau' => 'warning', 'color' => '#f97316',
+            'label' => 'Échéance facture dans 3 jours',
+            'group' => 'Recouvrement',
+        ],
+        'echeance_depassee' => [
+            'icon' => '🔴', 'niveau' => 'danger', 'color' => '#ef4444',
+            'label' => 'Échéance facture dépassée',
+            'group' => 'Recouvrement',
+        ],
         'nouveau_client' => [
             'icon' => '👤', 'niveau' => 'info',    'color' => '#3b82f6',
             'label' => 'Nouveau client',
@@ -698,6 +719,14 @@ class AlertService
                 // Espace client
                 'satisfaction_recue', 'client_message',
             ],
+
+            // Commercial : visibilité ECHEANCIER FACTURE (J-7 / J-3 / dépassée).
+            // Les alertes sont créées avec user_id == commercial_id par le cron,
+            // donc ce broadcast est en réalité couvert par l'autre branche du
+            // scope (where user_id = uid). On NE met PAS ces types dans la
+            // liste 'commercial' = on évite de leur envoyer les alertes des
+            // autres dossiers. Le scope reste strict pour le commercial.
+            // → cf. commentaire 'commercial' ci-dessous (default => []).
 
             // Technique : terrain → poses, maintenances, piges.
             'technique' => [

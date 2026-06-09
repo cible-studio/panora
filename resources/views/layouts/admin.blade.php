@@ -214,6 +214,16 @@
                         <span class="nav-text">SLA</span>
                     </a>
                     @endif
+
+                    {{-- Tableau de bord FINANCIER — Admin + Commercial.
+                         Cohérent avec la matrice facturation : MP/Technique
+                         ne touchent pas aux finances. --}}
+                    @if($isAdmin || ($isCommercial ?? auth()->user()?->role?->value === 'commercial'))
+                    <a href="{{ route('admin.finance.index') }}" data-tooltip="Tableau de bord financier" class="nav-item {{ request()->routeIs('admin.finance.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+                        <span class="nav-text">Finance</span>
+                    </a>
+                    @endif
                 </div>
 
                 {{-- Maintenance : visible pour MP + Admin (hors section
