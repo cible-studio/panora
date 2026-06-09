@@ -448,6 +448,18 @@
        Layout 2 colonnes (formulaire à gauche, récap sticky à droite),
        sections cards harmonisées, footer actions visible en permanence.
        ══════════════════════════════════════════════════════════════ */
+    /* ── PRIORITÉ STACKING : la topbar doit toujours rester devant ──
+       Sans ça, sur cette page le contenu (Select2 lignes + sidebar
+       récap) passait au-dessus de la topbar pendant le scroll
+       (l'admin voyait des champs "Choisir une campagne d'abord…"
+       flotter au-dessus du bouton Retour). Cause : --z-topbar = 40
+       par défaut, alors que certains stacking contexts internes au
+       formulaire (will-change sur .main-area, sticky aside, etc.)
+       remontaient au-dessus. On force la topbar à z-index 100 le
+       temps qu'on est sur cette page. */
+    body .topbar-fixed,
+    body .topbar { z-index: 100 !important; }
+
     .fne-grid {
         display: grid;
         grid-template-columns: minmax(0, 1fr) 300px;
