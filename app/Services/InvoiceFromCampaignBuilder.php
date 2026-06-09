@@ -52,6 +52,23 @@ class InvoiceFromCampaignBuilder
             'externalPanels.commune', 'externalPanels.format',
         ]);
 
+        // ── Garde 1 : la campagne doit avoir au moins 1 panneau ──
+        // Sinon on créerait une facture sans aucune ligne → total = 0,
+        // pas de sens métier. L'admin doit d'abord attacher des panneaux.
+        $totalPanneaux = $campaign->panels->count() + $campaign->externalPanels->count();
+        if ($totalPanneaux === 0) {
+            throw new \DomainException(
+                "Campagne « {$campaign->name} » sans panneau — ajoute au moins un panneau avant de facturer."
+            );
+        }
+
+        // ── Garde 2 : client requis sur la campagne ──
+        if (!$campaign->client_id) {
+            throw new \DomainException(
+                "Campagne « {$campaign->name} » sans client — impossible de facturer."
+            );
+        }
+
         $issuedAt = isset($opts['issued_at'])
             ? \Carbon\Carbon::parse($opts['issued_at'])
             : now();
@@ -59,6 +76,27 @@ class InvoiceFromCampaignBuilder
 
         // Durée facturable canonique CIBLE (cf. Campaign::billableMonths)
         $dureeMois = (float) $campaign->billableMonths();
+
+        // ── Garde 3 : signalement panneaux incomplets ──
+        // Si un panneau n'a pas de format (m²) ou pas de commune, sa
+        // ligne aura ODP=0 et/ou montant_ht=0. On crée la ligne quand
+        // même (l'admin pourra corriger), mais on log un warning pour
+        // qu'il sache.
+        $missing = [];
+        foreach ($campaign->panels as $p) {
+            if (!$p->format) $missing[] = "panneau {$p->reference} sans format (m²)";
+            if (!$p->commune) $missing[] = "panneau {$p->reference} sans commune (ODP)";
+        }
+        foreach ($campaign->externalPanels as $p) {
+            if (!$p->format) $missing[] = "panneau externe #{$p->id} sans format";
+            if (!$p->commune) $missing[] = "panneau externe #{$p->id} sans commune";
+        }
+        if (!empty($missing)) {
+            \Illuminate\Support\Facades\Log::warning('invoice.from_campaign.missing_data', [
+                'campaign_id' => $campaign->id,
+                'gaps'        => $missing,
+            ]);
+        }
 
         // Récupération unit_prices pivot (prix négociés) en une seule query
         $negotiated = [];
