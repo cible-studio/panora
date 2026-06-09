@@ -565,6 +565,10 @@ Route::prefix('admin')
             ->whereNumber('invoice')->name('invoices.show');
         Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])
             ->whereNumber('invoice')->name('invoices.pdf');
+        // Phase 7 cahier §13 — Consultation des audits (timeline +
+        // diff JSON avant/après) sur une facture.
+        Route::get('invoices/{invoice}/audit', [InvoiceController::class, 'auditTimeline'])
+            ->whereNumber('invoice')->name('invoices.audit');
 
         Route::middleware('role:admin')->group(function () {
             // ── Lookups JSON pour le formulaire facture ─────────────

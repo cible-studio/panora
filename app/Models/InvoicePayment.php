@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * Versement enregistré sur une facture (acompte, mensualité, solde…).
@@ -14,8 +16,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Modes acceptés (matche l'enum migration) :
  *   especes / cheque / virement / mobile_money / compensation / autre
  */
-class InvoicePayment extends Model
+class InvoicePayment extends Model implements Auditable
 {
+    use AuditableTrait;
+    protected $auditExclude = ['updated_at'];
+
     protected $fillable = [
         'invoice_id', 'paid_at', 'montant',
         'mode', 'reference', 'bank',

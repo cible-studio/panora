@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * Ligne d'échéancier prévisionnel — engagement de paiement d'une
@@ -15,8 +17,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *   'soon'    → due_date dans les 7 prochains jours
  *   'upcoming'→ due_date > today + 7
  */
-class InvoiceSchedule extends Model
+class InvoiceSchedule extends Model implements Auditable
 {
+    use AuditableTrait;
+    protected $auditExclude = ['updated_at'];
+
     protected $fillable = [
         'invoice_id', 'due_date', 'amount', 'label',
         'order_index', 'paid_at', 'paid_payment_id',

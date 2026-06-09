@@ -136,7 +136,7 @@ class InvoiceAlertsCommand extends Command
                 if ($dry) {
                     $this->line("[dry] facture #{$invoice->id} {$invoice->reference} → en_retard");
                 } else {
-                    $invoice->transitionTo(
+                    $invoice->transitionStatusTo(
                         'en_retard',
                         reason: 'Auto (Job alertes) : échéance dépassée + reste à payer',
                         auto:   true

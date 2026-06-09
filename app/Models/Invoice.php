@@ -4,10 +4,28 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Invoice extends Model
+class Invoice extends Model implements Auditable
 {
     use HasFactory;
+    /**
+     * Phase 7 cahier §13 — Traçabilité & audit.
+     * Tout changement sur invoices est tracé dans la table audits
+     * (avant/après JSON + user + timestamps).
+     */
+    use AuditableTrait;
+
+    /**
+     * Champs exclus de l'audit pour éviter le bruit :
+     * timestamps techniques et indicateurs dérivés re-écrits à chaque
+     * recalculateAndPersist (sinon chaque versement crée 15 lignes
+     * d'audit pour des deltas mécaniques).
+     */
+    protected $auditExclude = [
+        'updated_at',
+    ];
 
     protected $fillable = [
         'reference', 'client_id', 'campaign_id',
@@ -290,7 +308,7 @@ class Invoice extends Model
      * transitions auto contournent (un paiement complet peut faire passer
      * brouillon → payee même si pas dans la table manuelle).
      */
-    public function transitionTo(string $newStatus, ?string $reason = null, bool $auto = true, ?int $userId = null): void
+    public function transitionStatusTo(string $newStatus, ?string $reason = null, bool $auto = true, ?int $userId = null): void
     {
         if (!in_array($newStatus, self::STATUSES, true)) {
             throw new \DomainException("Statut inconnu : '$newStatus'.");
