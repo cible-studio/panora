@@ -841,65 +841,35 @@ class InvoiceController extends Controller
     //   - 3 mensualités : 33% × 3 (J0, J+30, J+60)
     //   - custom : saisie libre
     // ══════════════════════════════════════════════════════════════
-    public function generateSchedule(Request $request, Invoice $invoice)
+    public function generateSchedule(Request $request, Invoice $invoice, \App\Services\ScheduleGenerator $generator)
     {
         $this->authorize('markPaid', $invoice);
 
+        // Phase 3 cahier §6 : 3 modes principaux + 3 presets legacy
         $data = $request->validate([
-            'preset'    => 'required|in:30_70,50_50,monthly_3,custom',
-            'start_date'=> 'required|date',
-            // Pour le preset custom :
-            'lines'                 => 'nullable|array|min:1|max:24',
-            'lines.*.due_date'      => 'required_with:lines|date',
-            'lines.*.amount'        => 'required_with:lines|numeric|min:0',
-            'lines.*.label'         => 'nullable|string|max:100',
+            'mode'       => 'required|in:custom_milestones,quarterly,monthly,30_70,50_50,monthly_3',
+            'start_date' => 'nullable|date',
+            'count'      => 'nullable|integer|min:2|max:24',
+            // Pour custom_milestones :
+            'milestones'              => 'nullable|array|min:1|max:24',
+            'milestones.*.due_date'   => 'required_with:milestones|date',
+            'milestones.*.amount'     => 'required_with:milestones|numeric|min:1',
+            'milestones.*.label'      => 'nullable|string|max:100',
         ]);
 
-        $total = (float) ($invoice->total_a_payer ?: $invoice->amount_ttc);
-        if ($total <= 0) {
-            return back()->with('error', 'Cette facture a un total de 0 — pas d\'échéancier possible.');
+        try {
+            $generator->generate($invoice, [
+                'mode'       => $data['mode'],
+                'start_date' => $data['start_date'] ?? null,
+                'count'      => $data['count'] ?? null,
+                'milestones' => $data['milestones'] ?? null,
+            ]);
+        } catch (\DomainException $e) {
+            return back()->withInput()->with('error', '🚫 ' . $e->getMessage());
         }
 
-        $start = \Carbon\Carbon::parse($data['start_date']);
-
-        $schedules = match ($data['preset']) {
-            '30_70' => [
-                ['due' => $start, 'amount' => round($total * 0.30, 2), 'label' => 'Acompte 30%'],
-                ['due' => $start->copy()->addDays(30), 'amount' => round($total * 0.70, 2), 'label' => 'Solde 70%'],
-            ],
-            '50_50' => [
-                ['due' => $start, 'amount' => round($total * 0.50, 2), 'label' => 'Acompte 50%'],
-                ['due' => $start->copy()->addDays(30), 'amount' => round($total * 0.50, 2), 'label' => 'Solde 50%'],
-            ],
-            'monthly_3' => [
-                ['due' => $start, 'amount' => round($total / 3, 2), 'label' => 'Mensualité 1/3'],
-                ['due' => $start->copy()->addMonth(), 'amount' => round($total / 3, 2), 'label' => 'Mensualité 2/3'],
-                ['due' => $start->copy()->addMonths(2), 'amount' => round($total - 2 * round($total / 3, 2), 2), 'label' => 'Mensualité 3/3'],
-            ],
-            'custom' => collect($data['lines'] ?? [])->map(fn($l) => [
-                'due'    => \Carbon\Carbon::parse($l['due_date']),
-                'amount' => (float) $l['amount'],
-                'label'  => $l['label'] ?? '—',
-            ])->all(),
-        };
-
-        // Reset l'échéancier existant (replace, pas merge — l'admin
-        // refait toujours un échéancier complet).
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($invoice, $schedules) {
-            $invoice->schedules()->delete();
-
-            foreach ($schedules as $i => $s) {
-                $invoice->schedules()->create([
-                    'due_date'    => $s['due']->toDateString(),
-                    'amount'      => $s['amount'],
-                    'label'       => $s['label'],
-                    'order_index' => $i,
-                ]);
-            }
-
-            return back()->with('success',
-                "✅ Échéancier configuré (" . count($schedules) . " échéances).");
-        });
+        return back()->with('success', '✅ Échéancier généré ('
+            . $invoice->schedules()->count() . ' échéance(s)).');
     }
 
     public function markScheduleEntryPaid(Request $request, Invoice $invoice, \App\Models\InvoiceSchedule $schedule)
