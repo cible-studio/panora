@@ -287,50 +287,64 @@
             @endunless
         </div>
         <div class="fne-section-body">
-            <div id="services-empty" style="padding:20px 14px;text-align:center;color:var(--text3);font-size:12.5px;background:var(--surface2);border:1px dashed var(--border);border-radius:10px;display:{{ empty($renderedServices) ? 'block' : 'none' }}">
-                <div style="font-size:24px;margin-bottom:6px;opacity:.5">🧾</div>
-                Aucun service annexe. Clique sur <strong>+ Ajouter un service</strong> pour facturer un libellé libre (TVA 18 %).
+            {{-- ═══ ÉTAT VIDE — design soigné ═══ --}}
+            <div id="services-empty" style="padding:26px 18px;text-align:center;background:linear-gradient(180deg,var(--surface2) 0%,var(--surface) 100%);border:1.5px dashed var(--border2);border-radius:12px;display:{{ empty($renderedServices) ? 'block' : 'none' }}">
+                <div style="font-size:32px;margin-bottom:8px;opacity:.4">🧾</div>
+                <div style="font-size:13px;color:var(--text2);font-weight:700;margin-bottom:3px">Aucun service annexe</div>
+                <div style="font-size:11.5px;color:var(--text3);line-height:1.5">Clique <strong>+ Ajouter un service</strong> ci-dessus pour facturer<br>un libellé libre (avec TVA 18 % automatique).</div>
             </div>
-            <table id="services-table" style="width:100%;border-collapse:collapse;font-size:13px;display:{{ empty($renderedServices) ? 'none' : 'table' }}">
-                <thead>
-                    <tr style="background:var(--surface2);color:var(--text3);text-align:left">
-                        <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.4px">Libellé</th>
-                        <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;text-align:right;width:160px">Prix HT (FCFA)</th>
-                        <th style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;text-align:right;width:160px">TTC (avec TVA 18 %)</th>
-                        <th style="width:50px"></th>
-                    </tr>
-                </thead>
-                <tbody id="services-tbody">
+
+            {{-- ═══ LISTE DES SERVICES — design en cards flex ═══
+                 Chaque service = une card avec libellé à gauche, montant
+                 saisissable + TTC calculé live + bouton suppression à droite.
+                 Le hidden #services-table garde les classes attendues par le
+                 JS recompute (.service-row, .svc-label, .svc-prix, .svc-ttc).
+            ═══════════════════════════════════════════════════════════ --}}
+            <div id="services-table" style="display:{{ empty($renderedServices) ? 'none' : 'block' }}">
+                <div id="services-tbody" style="display:flex;flex-direction:column;gap:8px">
                     @foreach($renderedServices as $i => $s)
-                    <tr class="service-row" data-idx="{{ $i }}" style="border-top:1px solid var(--border)">
-                        <td style="padding:6px 8px">
-                            <input type="text" name="services[{{ $i }}][label]" value="{{ $s['label'] ?? '' }}"
-                                   placeholder="Ex: Frais d'impression"
-                                   maxlength="200" required {{ $locked ? 'readonly' : '' }}
-                                   class="svc-label" style="width:100%">
-                        </td>
-                        <td style="padding:6px 8px">
-                            <input type="number" name="services[{{ $i }}][prix_ht]" value="{{ $s['prix_ht'] ?? 0 }}"
-                                   min="0" step="1000" required {{ $locked ? 'readonly' : '' }}
-                                   class="svc-prix" style="width:100%;text-align:right">
-                        </td>
-                        <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--accent)" class="svc-ttc">—</td>
-                        <td style="padding:6px 4px;text-align:center">
-                            @unless($locked)
-                                <button type="button" class="btn btn-ghost btn-sm" onclick="removeService(this)" title="Supprimer cette ligne" style="color:#ef4444;font-weight:700">✕</button>
-                            @endunless
-                        </td>
-                    </tr>
+                    <div class="service-row svc-card" data-idx="{{ $i }}">
+                        <div class="svc-card-num">{{ $i + 1 }}</div>
+                        <div class="svc-card-fields">
+                            <div class="svc-card-field svc-card-field-label">
+                                <label>Libellé du service</label>
+                                <input type="text" name="services[{{ $i }}][label]" value="{{ $s['label'] ?? '' }}"
+                                       placeholder="Ex: Frais d'impression, Reportage photo…"
+                                       maxlength="200" required {{ $locked ? 'readonly' : '' }}
+                                       class="svc-label">
+                            </div>
+                            <div class="svc-card-field svc-card-field-prix">
+                                <label>Prix HT (FCFA)</label>
+                                <div class="svc-prix-wrap">
+                                    <input type="number" name="services[{{ $i }}][prix_ht]" value="{{ $s['prix_ht'] ?? 0 }}"
+                                           min="0" step="1000" required {{ $locked ? 'readonly' : '' }}
+                                           class="svc-prix">
+                                    <span class="svc-prix-suffix">F</span>
+                                </div>
+                            </div>
+                            <div class="svc-card-field svc-card-field-ttc">
+                                <label>TTC (TVA 18 %)</label>
+                                <div class="svc-ttc-display"><span class="svc-ttc">—</span></div>
+                            </div>
+                        </div>
+                        @unless($locked)
+                        <button type="button" class="svc-card-remove" onclick="removeService(this)" title="Supprimer ce service" aria-label="Supprimer ce service">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                        @endunless
+                    </div>
                     @endforeach
-                </tbody>
-                <tfoot>
-                    <tr style="border-top:2px solid var(--border)">
-                        <td colspan="2" style="padding:8px 10px;text-align:right;font-weight:700;color:var(--text2)">Sous-total services TTC</td>
-                        <td style="padding:8px 10px;text-align:right;font-weight:800;color:var(--accent)" id="services-subtotal">0 FCFA</td>
-                        <td></td>
-                    </tr>
-                </tfoot>
-            </table>
+                </div>
+
+                {{-- Sous-total footer --}}
+                <div class="svc-subtotal-bar">
+                    <span class="svc-subtotal-label">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h12"/></svg>
+                        Sous-total services TTC
+                    </span>
+                    <span class="svc-subtotal-val" id="services-subtotal">0 FCFA</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -436,14 +450,17 @@
        ══════════════════════════════════════════════════════════════ */
     .fne-grid {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 340px;
-        gap: 18px;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: 16px;
         align-items: flex-start;
     }
     @media (max-width: 1100px) {
         .fne-grid { grid-template-columns: 1fr; }
         .fne-aside { position: static !important; max-height: none !important; }
     }
+    /* Empêche la table lignes de déborder hors de sa carte si l'écran est étroit.
+       overflow-x sur le wrapper interne (.invoice-lines-body), pas sur la table. */
+    .fne-main .invoice-lines-body { overflow-x: auto; }
     .fne-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
     .fne-aside {
         position: sticky;
@@ -626,6 +643,152 @@
         display: flex;
         gap: 14px;
         align-items: flex-start;
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       SERVICES ANNEXES — cards flex (refonte design propre)
+       Chaque service est une card horizontale avec :
+         - pastille numérique à gauche
+         - 3 champs côte à côte (libellé / prix HT / TTC calculé)
+         - bouton suppression à droite (icône X minimaliste)
+       Sous-total dans une barre bandeau en dessous.
+       ══════════════════════════════════════════════════════════════ */
+    .svc-card {
+        display: flex;
+        align-items: stretch;
+        gap: 12px;
+        padding: 12px 14px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 11px;
+        transition: border-color .15s, box-shadow .15s, transform .12s;
+    }
+    .svc-card:hover { border-color: var(--border2); box-shadow: 0 4px 12px -6px rgba(0,0,0,.08); }
+    .svc-card:focus-within {
+        border-color: rgba(232,160,32,.45);
+        box-shadow: 0 0 0 3px rgba(232,160,32,.10);
+    }
+    .svc-card-num {
+        width: 26px; height: 26px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, rgba(232,160,32,.14), rgba(180,83,9,.10));
+        color: var(--accent-dark);
+        font-weight: 800;
+        font-size: 11.5px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+        align-self: center;
+    }
+    .svc-card-fields {
+        flex: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+        min-width: 0;
+    }
+    @media (max-width: 720px) {
+        .svc-card-fields { grid-template-columns: 1fr; }
+    }
+    .svc-card-field { display: flex; flex-direction: column; min-width: 0; }
+    .svc-card-field label {
+        font-size: 9.5px;
+        font-weight: 800;
+        color: var(--text3);
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        margin-bottom: 3px;
+        display: block;
+    }
+    .svc-card-field input {
+        width: 100%;
+        height: 36px;
+        padding: 0 12px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 13px;
+        color: var(--text);
+        outline: none;
+        transition: border-color .15s, box-shadow .15s;
+        box-sizing: border-box;
+    }
+    .svc-card-field input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(232,160,32,.14);
+        background: var(--surface);
+    }
+    .svc-card-field-prix .svc-prix-wrap { position: relative; }
+    .svc-card-field-prix .svc-prix {
+        text-align: right;
+        padding-right: 24px;
+        font-variant-numeric: tabular-nums;
+    }
+    .svc-card-field-prix .svc-prix-suffix {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text3);
+        font-weight: 700;
+        font-size: 12px;
+        pointer-events: none;
+    }
+    .svc-card-field-ttc .svc-ttc-display {
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 0 12px;
+        background: linear-gradient(180deg, rgba(232,160,32,.06), rgba(232,160,32,.02));
+        border: 1px dashed rgba(232,160,32,.30);
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--accent-dark);
+        font-variant-numeric: tabular-nums;
+    }
+    .svc-card-remove {
+        align-self: center;
+        width: 32px; height: 32px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: #ef4444;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+        transition: background .15s, border-color .15s, transform .12s;
+    }
+    .svc-card-remove:hover {
+        background: rgba(239,68,68,.08);
+        border-color: rgba(239,68,68,.30);
+        transform: scale(1.04);
+    }
+
+    /* Sous-total services en bandeau --------------------------------- */
+    .svc-subtotal-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 11px 16px;
+        margin-top: 10px;
+        background: linear-gradient(135deg, rgba(232,160,32,.08), rgba(180,83,9,.05));
+        border: 1px solid rgba(232,160,32,.20);
+        border-radius: 11px;
+    }
+    .svc-subtotal-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--text2);
+    }
+    .svc-subtotal-val {
+        font-size: 14px;
+        font-weight: 800;
+        color: var(--accent-dark);
+        font-variant-numeric: tabular-nums;
     }
 
     /* ══════════════════════════════════════════════════════════════ */
@@ -1353,29 +1516,39 @@
         const empty = document.getElementById('services-empty');
         const table = document.getElementById('services-table');
         const idx = nextServiceIdx();
-        const tr = document.createElement('tr');
-        tr.className = 'service-row';
-        tr.dataset.idx = idx;
-        tr.style.borderTop = '1px solid var(--border)';
-        tr.innerHTML = `
-            <td style="padding:6px 8px">
-                <input type="text" name="services[${idx}][label]" placeholder="Ex: Frais d'impression"
-                       maxlength="200" required class="svc-label" style="width:100%">
-            </td>
-            <td style="padding:6px 8px">
-                <input type="number" name="services[${idx}][prix_ht]" value="0"
-                       min="0" step="1000" required class="svc-prix" style="width:100%;text-align:right">
-            </td>
-            <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--accent)" class="svc-ttc">—</td>
-            <td style="padding:6px 4px;text-align:center">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="removeService(this)" title="Supprimer cette ligne" style="color:#ef4444;font-weight:700">✕</button>
-            </td>
+        const card = document.createElement('div');
+        card.className = 'service-row svc-card';
+        card.dataset.idx = idx;
+        card.innerHTML = `
+            <div class="svc-card-num">${idx + 1}</div>
+            <div class="svc-card-fields">
+                <div class="svc-card-field svc-card-field-label">
+                    <label>Libellé du service</label>
+                    <input type="text" name="services[${idx}][label]" placeholder="Ex: Frais d'impression, Reportage photo…"
+                           maxlength="200" required class="svc-label">
+                </div>
+                <div class="svc-card-field svc-card-field-prix">
+                    <label>Prix HT (FCFA)</label>
+                    <div class="svc-prix-wrap">
+                        <input type="number" name="services[${idx}][prix_ht]" value="0"
+                               min="0" step="1000" required class="svc-prix">
+                        <span class="svc-prix-suffix">F</span>
+                    </div>
+                </div>
+                <div class="svc-card-field svc-card-field-ttc">
+                    <label>TTC (TVA 18 %)</label>
+                    <div class="svc-ttc-display"><span class="svc-ttc">—</span></div>
+                </div>
+            </div>
+            <button type="button" class="svc-card-remove" onclick="removeService(this)" title="Supprimer ce service" aria-label="Supprimer ce service">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
         `;
-        tbody.appendChild(tr);
+        tbody.appendChild(card);
         empty.style.display = 'none';
-        table.style.display = 'table';
-        tr.querySelector('.svc-label')?.focus();
-        tr.querySelector('.svc-prix')?.addEventListener('input', recompute);
+        table.style.display = 'block';
+        card.querySelector('.svc-label')?.focus();
+        card.querySelector('.svc-prix')?.addEventListener('input', recompute);
         reindexServices();
         recompute();
     };
@@ -1396,6 +1569,9 @@
             row.dataset.idx = i;
             row.querySelector('.svc-label').name = `services[${i}][label]`;
             row.querySelector('.svc-prix').name  = `services[${i}][prix_ht]`;
+            // Re-numérote la pastille (1, 2, 3…)
+            const num = row.querySelector('.svc-card-num');
+            if (num) num.textContent = i + 1;
         });
     }
 
@@ -1421,23 +1597,51 @@
 
     function addLine() {
         const i = nextIdx++;
-        const tr = document.createElement('tr');
-        tr.className = 'line-row';
-        tr.dataset.index = i;
-        // Clone d'une ligne vide depuis la première (template)
+        // ─── Clone propre du template (1re ligne) ───
+        // Bug avant : on utilisait firstRow.innerHTML, qui capturait ALSO les
+        // wrappers .select2-container que Select2 avait injectés à côté des
+        // <select> natifs. Résultat : nouvelle ligne avec 2 selects visibles
+        // (l'ancien rendu Select2 figé + le nouveau init). Maintenant on
+        // cloneNode puis on nettoie tout artefact Select2 avant init.
         const firstRow = tbody.querySelector('.line-row');
         if (!firstRow) return;
-        tr.innerHTML = firstRow.innerHTML.replace(/lines\[\d+\]/g, `lines[${i}]`);
-        // Reset valeurs
+
+        const tr = firstRow.cloneNode(true);
+        tr.dataset.index = i;
+        if (!tr.classList.contains('line-row')) tr.classList.add('line-row');
+
+        // 1) Retire les wrappers Select2 (présents si la 1re ligne a déjà été init)
+        tr.querySelectorAll('.select2-container').forEach(el => el.remove());
+        // 2) Réaffiche les <select> natifs (Select2 les cachait via class+style)
+        tr.querySelectorAll('select').forEach(sel => {
+            sel.classList.remove('select2-hidden-accessible');
+            sel.removeAttribute('aria-hidden');
+            sel.removeAttribute('tabindex');
+            sel.style.display = '';
+            // jQuery.data n'est pas copié par cloneNode, donc le marqueur
+            // 'select2-init' n'existe pas sur le clone — pas besoin de reset.
+        });
+
+        // 3) Renomme name="lines[X][...]" → lines[i][...]
+        tr.querySelectorAll('[name]').forEach(el => {
+            if (el.name) el.name = el.name.replace(/lines\[\d+\]/, `lines[${i}]`);
+        });
+
+        // 4) Reset valeurs (qté=1, mois=1, m²/PU=0, autres vides)
         tr.querySelectorAll('input').forEach(inp => {
             if (inp.classList.contains('line-qte') || inp.classList.contains('line-mois')) {
-                inp.value = inp.classList.contains('line-mois') ? '1' : '1';
+                inp.value = '1';
             } else if (inp.classList.contains('line-m2') || inp.classList.contains('line-pu')) {
                 inp.value = '0';
-            } else { inp.value = ''; }
+            } else {
+                inp.value = '';
+            }
         });
         const sel = tr.querySelector('.line-commune');
         if (sel) sel.selectedIndex = 0;
+        const totalCell = tr.querySelector('.line-total');
+        if (totalCell) totalCell.textContent = '0 FCFA';
+
         tbody.appendChild(tr);
         bindRow(tr);
         renumberLines();
