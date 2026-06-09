@@ -16,6 +16,29 @@
     <a href="{{ route('admin.invoices.create') }}" class="btn btn-primary btn-sm">＋ Nouvelle facture</a>
 </x-slot>
 
+{{-- Bandeau contexte campagne (deeplinking depuis la fiche campagne :
+     /admin/invoices?campaign_id=42) --}}
+@if(!empty($contextCampaign))
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 16px;background:linear-gradient(135deg,rgba(58,168,53,.08),rgba(232,160,32,.08));border:1px solid var(--border);border-radius:10px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:12px;min-width:0">
+            <div style="font-size:22px;flex-shrink:0">📢</div>
+            <div style="min-width:0">
+                <div style="font-size:12.5px;color:var(--text3)">Factures de la campagne</div>
+                <div style="font-size:15px;font-weight:800;color:var(--text)">
+                    {{ $contextCampaign->name }}
+                    @if($contextCampaign->client)
+                        <span style="font-weight:400;color:var(--text3);font-size:12.5px">— {{ $contextCampaign->client->name }}</span>
+                    @endif
+                </div>
+            </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+            <a href="{{ route('admin.campaigns.show', $contextCampaign) }}" class="btn btn-ghost btn-sm" style="font-size:11px">← Retour campagne</a>
+            <a href="{{ route('admin.invoices.index') }}" class="btn btn-ghost btn-sm" style="font-size:11px">✕ Retirer le filtre</a>
+        </div>
+    </div>
+@endif
+
 {{-- STATS CLIQUABLES (filtres AJAX) --}}
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
     <a href="#" data-status="brouillon"

@@ -29,6 +29,12 @@ class InvoiceController extends Controller
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);
         }
+        // Filtre par campagne (déeplinking depuis la fiche campagne
+        // pour voir TOUTES les factures d'une campagne donnée — utile
+        // quand acompte + solde + complémentaire sur la même campagne).
+        if ($request->filled('campaign_id')) {
+            $query->where('campaign_id', $request->campaign_id);
+        }
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
@@ -84,8 +90,14 @@ class InvoiceController extends Controller
             ]);
         }
 
+        // Bandeau "facturation campagne X" si on est arrivé via
+        // /admin/invoices?campaign_id=X depuis la fiche campagne.
+        $contextCampaign = $request->filled('campaign_id')
+            ? Campaign::with('client')->find($request->campaign_id)
+            : null;
+
         return view('admin.invoices.index', compact(
-            'invoices', 'clients',
+            'invoices', 'clients', 'contextCampaign',
             'totalBrouillons', 'totalEnvoyees',
             'totalPayees', 'montantTotal'
         ));
