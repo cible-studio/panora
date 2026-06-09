@@ -17,10 +17,16 @@
 </x-slot>
 
 {{-- Bandeau contexte campagne (deeplinking depuis la fiche campagne :
-     /admin/invoices?campaign_id=42) --}}
+     /admin/invoices?campaign_id=42).
+     Layout : actions à gauche (sortir du contexte rapidement),
+     puis l'icône + le titre. --}}
 @if(!empty($contextCampaign))
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 16px;background:linear-gradient(135deg,rgba(58,168,53,.08),rgba(232,160,32,.08));border:1px solid var(--border);border-radius:10px;margin-bottom:14px">
-        <div style="display:flex;align-items:center;gap:12px;min-width:0">
+    <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:linear-gradient(135deg,rgba(58,168,53,.08),rgba(232,160,32,.08));border:1px solid var(--border);border-radius:10px;margin-bottom:14px">
+        <div style="display:flex;gap:6px;flex-shrink:0">
+            <a href="{{ route('admin.campaigns.show', $contextCampaign) }}" class="btn btn-ghost btn-sm" style="font-size:11px">← Retour campagne</a>
+            <a href="{{ route('admin.invoices.index') }}" class="btn btn-ghost btn-sm" style="font-size:11px">✕ Retirer le filtre</a>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1">
             <div style="font-size:22px;flex-shrink:0">📢</div>
             <div style="min-width:0">
                 <div style="font-size:12.5px;color:var(--text3)">Factures de la campagne</div>
@@ -31,10 +37,6 @@
                     @endif
                 </div>
             </div>
-        </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-            <a href="{{ route('admin.campaigns.show', $contextCampaign) }}" class="btn btn-ghost btn-sm" style="font-size:11px">← Retour campagne</a>
-            <a href="{{ route('admin.invoices.index') }}" class="btn btn-ghost btn-sm" style="font-size:11px">✕ Retirer le filtre</a>
         </div>
     </div>
 @endif
