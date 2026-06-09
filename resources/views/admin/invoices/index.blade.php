@@ -85,13 +85,23 @@
             </select>
         </div>
         <div class="filter-group">
-            <label class="filter-label">Statut</label>
+            <label class="filter-label">Statut facture</label>
             <select id="filter-status" class="filter-select" style="width:130px;">
                 <option value="">Tous</option>
                 <option value="brouillon" {{ request('status') === 'brouillon' ? 'selected' : '' }}>Brouillon</option>
                 <option value="envoyee"   {{ request('status') === 'envoyee'   ? 'selected' : '' }}>Envoyée</option>
-                <option value="payee"     {{ request('status') === 'payee'     ? 'selected' : '' }}>Payée</option>
+                <option value="payee"     {{ request('status') === 'payee'     ? 'selected' : '' }}>Marquée payée</option>
                 <option value="annulee"   {{ request('status') === 'annulee'   ? 'selected' : '' }}>Annulée</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">Statut paiement</label>
+            <select id="filter-pay-status" class="filter-select" style="width:150px;" onchange="window.location.href = '?pay_status=' + this.value">
+                <option value="">Tous</option>
+                <option value="non_payee" {{ request('pay_status') === 'non_payee' ? 'selected' : '' }}>❌ Non payée</option>
+                <option value="partielle" {{ request('pay_status') === 'partielle' ? 'selected' : '' }}>⏳ Partielle</option>
+                <option value="soldee"    {{ request('pay_status') === 'soldee'    ? 'selected' : '' }}>✅ Soldée</option>
+                <option value="overdue"   {{ request('pay_status') === 'overdue'   ? 'selected' : '' }}>🔴 À relancer</option>
             </select>
         </div>
         
@@ -121,13 +131,12 @@
             <thead>
                 <tr>
                     <th>Référence</th>
-                    <th>Client</th>
-                    <th>Campagne</th>
-                    <th>Montant HT</th>
-                    <th>TVA</th>
-                    <th>Montant TTC</th>
-                    <th>Date</th>
-                    <th>Statut</th>
+                    <th>Client / Campagne</th>
+                    <th style="text-align:right">Total à payer</th>
+                    <th style="text-align:right">Payé</th>
+                    <th style="text-align:right">Reste à payer</th>
+                    <th>Statut paiement</th>
+                    <th>Prochaine échéance</th>
                     <th>Actions</th>
                 </tr>
             </thead>

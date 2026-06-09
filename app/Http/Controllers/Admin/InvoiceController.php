@@ -21,7 +21,9 @@ class InvoiceController extends Controller
         // RBAC : un commercial ne voit que les factures de SES campagnes.
         // Délégué au scope canonique Invoice::scopeForCommercialUser
         // (source unique, déjà alignée sur les autres controllers).
-        $query = Invoice::with('client', 'campaign', 'creator')
+        // Eager-load payments + schedules pour le tableau de suivi
+        // (payé / reste / prochaine échéance / statut paiement).
+        $query = Invoice::with(['client', 'campaign', 'creator', 'payments', 'schedules'])
             ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
 
         if ($request->filled('client_id')) {
@@ -37,7 +39,19 @@ class InvoiceController extends Controller
             $query->where('issued_at', '<=', $request->date_to);
         }
 
+        // Filtre statut PAIEMENT (dérivé) — on charge la page complète
+        // puis on filtre côté collection. Acceptable car paginé.
+        $payStatusFilter = $request->input('pay_status');
         $invoices = $query->latest()->paginate(15)->withQueryString();
+        if (in_array($payStatusFilter, ['non_payee', 'partielle', 'soldee', 'overdue'], true)) {
+            $invoices->setCollection($invoices->getCollection()->filter(function ($inv) use ($payStatusFilter) {
+                if ($payStatusFilter === 'overdue') {
+                    $next = $inv->nextDueSchedule();
+                    return $next && $next->isOverdue();
+                }
+                return $inv->paymentStatus() === $payStatusFilter;
+            })->values());
+        }
 
         // Liste des clients : si commercial, on ne propose dans le filtre
         // que les clients pour lesquels il a au moins une facture (sinon
@@ -410,6 +424,7 @@ class InvoiceController extends Controller
             'creator',
             'lines.commune:id,name',
             'payments.creator:id,name',
+            'schedules',
             'lockedBy:id,name',
             'creditNoteFor:id,reference',
             'creditNotes',
@@ -768,6 +783,119 @@ class InvoiceController extends Controller
         return back()->with('success',
             '✅ Versement de ' . number_format($data['montant'], 0, ',', ' ') . ' FCFA enregistré.'
         );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // ÉCHÉANCIER PRÉVISIONNEL
+    //
+    // L'admin configure des échéances de paiement (acompte / solde /
+    // mensualités). Le rapprochement avec les versements réels est
+    // manuel pour rester simple : l'admin coche "payée" sur une
+    // échéance quand le versement correspondant est enregistré.
+    //
+    // Presets rapides :
+    //   - 30 / 70 : 30% à commande + 70% à J+30
+    //   - 50 / 50 : 50% à commande + 50% à J+30
+    //   - 3 mensualités : 33% × 3 (J0, J+30, J+60)
+    //   - custom : saisie libre
+    // ══════════════════════════════════════════════════════════════
+    public function generateSchedule(Request $request, Invoice $invoice)
+    {
+        $this->authorize('markPaid', $invoice);
+
+        $data = $request->validate([
+            'preset'    => 'required|in:30_70,50_50,monthly_3,custom',
+            'start_date'=> 'required|date',
+            // Pour le preset custom :
+            'lines'                 => 'nullable|array|min:1|max:24',
+            'lines.*.due_date'      => 'required_with:lines|date',
+            'lines.*.amount'        => 'required_with:lines|numeric|min:0',
+            'lines.*.label'         => 'nullable|string|max:100',
+        ]);
+
+        $total = (float) ($invoice->total_a_payer ?: $invoice->amount_ttc);
+        if ($total <= 0) {
+            return back()->with('error', 'Cette facture a un total de 0 — pas d\'échéancier possible.');
+        }
+
+        $start = \Carbon\Carbon::parse($data['start_date']);
+
+        $schedules = match ($data['preset']) {
+            '30_70' => [
+                ['due' => $start, 'amount' => round($total * 0.30, 2), 'label' => 'Acompte 30%'],
+                ['due' => $start->copy()->addDays(30), 'amount' => round($total * 0.70, 2), 'label' => 'Solde 70%'],
+            ],
+            '50_50' => [
+                ['due' => $start, 'amount' => round($total * 0.50, 2), 'label' => 'Acompte 50%'],
+                ['due' => $start->copy()->addDays(30), 'amount' => round($total * 0.50, 2), 'label' => 'Solde 50%'],
+            ],
+            'monthly_3' => [
+                ['due' => $start, 'amount' => round($total / 3, 2), 'label' => 'Mensualité 1/3'],
+                ['due' => $start->copy()->addMonth(), 'amount' => round($total / 3, 2), 'label' => 'Mensualité 2/3'],
+                ['due' => $start->copy()->addMonths(2), 'amount' => round($total - 2 * round($total / 3, 2), 2), 'label' => 'Mensualité 3/3'],
+            ],
+            'custom' => collect($data['lines'] ?? [])->map(fn($l) => [
+                'due'    => \Carbon\Carbon::parse($l['due_date']),
+                'amount' => (float) $l['amount'],
+                'label'  => $l['label'] ?? '—',
+            ])->all(),
+        };
+
+        // Reset l'échéancier existant (replace, pas merge — l'admin
+        // refait toujours un échéancier complet).
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($invoice, $schedules) {
+            $invoice->schedules()->delete();
+
+            foreach ($schedules as $i => $s) {
+                $invoice->schedules()->create([
+                    'due_date'    => $s['due']->toDateString(),
+                    'amount'      => $s['amount'],
+                    'label'       => $s['label'],
+                    'order_index' => $i,
+                ]);
+            }
+
+            return back()->with('success',
+                "✅ Échéancier configuré (" . count($schedules) . " échéances).");
+        });
+    }
+
+    public function markScheduleEntryPaid(Request $request, Invoice $invoice, \App\Models\InvoiceSchedule $schedule)
+    {
+        $this->authorize('markPaid', $invoice);
+        if ($schedule->invoice_id !== $invoice->id) abort(404);
+
+        if ($schedule->isPaid()) {
+            return back()->with('info', 'Échéance déjà marquée payée.');
+        }
+
+        $data = $request->validate([
+            'payment_id' => 'nullable|exists:invoice_payments,id',
+            'paid_at'    => 'nullable|date|before_or_equal:today',
+        ]);
+
+        $schedule->update([
+            'paid_at'          => $data['paid_at'] ?? now()->toDateString(),
+            'paid_payment_id'  => $data['payment_id'] ?? null,
+        ]);
+
+        return back()->with('success', '✓ Échéance marquée payée.');
+    }
+
+    public function unmarkScheduleEntryPaid(Invoice $invoice, \App\Models\InvoiceSchedule $schedule)
+    {
+        $this->authorize('markPaid', $invoice);
+        if ($schedule->invoice_id !== $invoice->id) abort(404);
+
+        $schedule->update(['paid_at' => null, 'paid_payment_id' => null]);
+        return back()->with('success', 'Échéance redevenue à payer.');
+    }
+
+    public function deleteSchedule(Invoice $invoice)
+    {
+        $this->authorize('markPaid', $invoice);
+        $invoice->schedules()->delete();
+        return back()->with('success', 'Échéancier supprimé.');
     }
 
     public function removePayment(Request $request, Invoice $invoice, \App\Models\InvoicePayment $payment)
