@@ -221,6 +221,36 @@ class DashboardController extends Controller
             ->when($isCommercial, fn($q) => $q->whereHas('invoice', fn($i) => $i->forCommercialUser($userId)))
             ->sum('amount');
 
+        // ═══ Phase 8D cahier §12 — Top 10 clients + Top 10 communes ═══
+        // Top 10 clients par CA facturé (année en cours).
+        $topClients = \App\Models\Invoice::query()
+            ->selectRaw('client_id, SUM(COALESCE(total_a_payer, amount_ttc)) AS ca_total, COUNT(*) AS nb_factures')
+            ->whereNotIn('status', ['annulee'])
+            ->whereYear('issued_at', $now->year)
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($userId))
+            ->groupBy('client_id')
+            ->orderByDesc('ca_total')
+            ->with('client:id,name')
+            ->limit(10)
+            ->get();
+
+        // Top 10 communes contributrices : somme des montant_ht_ligne
+        // sur les InvoiceLines des factures de l'année. Plus simple qu'une
+        // ventilation au prorata pour le KPI accueil ; le détail
+        // ventilé reste dispo dans le dashboard finance (Phase 8D-2).
+        $topCommunes = \App\Models\InvoiceLine::query()
+            ->selectRaw('commune_id, snapshot_commune_name, SUM(montant_ht_ligne) AS ht_total')
+            ->whereHas('invoice', function ($q) use ($isCommercial, $userId, $now) {
+                $q->whereNotIn('status', ['annulee'])
+                  ->whereYear('issued_at', $now->year)
+                  ->when($isCommercial, fn($qq) => $qq->forCommercialUser($userId));
+            })
+            ->groupBy('commune_id', 'snapshot_commune_name')
+            ->orderByDesc('ht_total')
+            ->with('commune:id,name')
+            ->limit(10)
+            ->get();
+
         return view('dashboard', compact(
             'totalPanneaux', 'panneauxLibres', 'panneauxOccupes',
             'panneauxMaintenance', 'reservationsEnAttente',
@@ -233,7 +263,9 @@ class DashboardController extends Controller
             'caMensuel', 'variationCA', 'caLabel', 'isCommercial',
             // Phase 6 cahier §12 — KPIs financiers
             'caMonthFne', 'caYearFne', 'encaissMonth',
-            'invoicesEnRetard', 'totalRecouvrer', 'previsionMontant30j'
+            'invoicesEnRetard', 'totalRecouvrer', 'previsionMontant30j',
+            // Phase 8D — Top 10 clients + Top 10 communes (§12)
+            'topClients', 'topCommunes'
         ));
     }
 }

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * Ligne de facture FNE.
@@ -15,8 +17,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Quand la facture passe à l'état "envoyée" la ligne est verrouillée
  * via invoice.locked_at (cf. trait/policy à venir).
  */
-class InvoiceLine extends Model
+class InvoiceLine extends Model implements Auditable
 {
+    use AuditableTrait;
+    protected $auditExclude = ['updated_at'];
+
     protected $fillable = [
         'invoice_id', 'panel_id', 'commune_id',
         'designation', 'snapshot_commune_name', 'dimension_m2',

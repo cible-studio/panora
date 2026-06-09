@@ -336,6 +336,23 @@ class Invoice extends Model implements Auditable
 
         $this->status = $newStatus;
         $this->save();
+
+        // ═══ Phase 8A cahier §3 — Verrouillage AUTO à la validation ═══
+        // « validée (verrouille la facture : locked_at/lockedBy, fige les
+        //   taux sur les lignes) »
+        // Le snapshot des taux est déjà fait au moment de syncLines() via
+        // Commune::ratesAt(issued_at). Ici on pose le verrou pour interdire
+        // toute modification ultérieure des lignes/services.
+        if ($newStatus === 'validee' && !$this->isLocked()) {
+            $this->lock($userId ?? auth()->id());
+        }
+
+        // Symétrie : si on rebascule de validee/envoyee/payee/en_retard
+        // /partiellement_payee vers brouillon (correction admin),
+        // on retire automatiquement le verrou pour permettre la modif.
+        if ($newStatus === 'brouillon' && $this->isLocked()) {
+            $this->unlock();
+        }
     }
 
     /** Verrouille la facture (passage à 'envoyee'). Idempotent. */

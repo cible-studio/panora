@@ -605,6 +605,11 @@ Route::prefix('admin')
             Route::patch('invoices/{invoice}/pay',          [InvoiceController::class, 'markPaid'])->name('invoices.pay');
             Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'markCancelled'])->name('invoices.cancel');
             Route::patch('invoices/{invoice}/revert-draft', [InvoiceController::class, 'revertDraft'])->name('invoices.revert-draft');
+            // Phase 8A cahier §3 — actions manuelles complètes du cycle
+            // de vie (brouillon → générée → validée → envoyée, + litige).
+            Route::patch('invoices/{invoice}/mark-generated', [InvoiceController::class, 'markGenerated'])->name('invoices.generated');
+            Route::patch('invoices/{invoice}/mark-validated', [InvoiceController::class, 'markValidated'])->name('invoices.validated');
+            Route::patch('invoices/{invoice}/mark-litige',    [InvoiceController::class, 'markLitige'])->name('invoices.litige');
 
             // Verrouillage facture — auto à l'envoi, déverrouillage explicite
             // par admin si correction nécessaire (action tracée en logs).
