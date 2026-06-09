@@ -923,6 +923,22 @@ Route::prefix('admin')
             ->middleware('role:admin,mediaplanner')
             ->name('propositions.update-status');
 
+        // ── Tableau de bord FINANCIER ────────────────────────────────
+        // Encaissements / créances / recouvrement. Admin + commercial
+        // uniquement (MP/Technique ne touchent pas la facturation).
+        // Le scope commercial est appliqué dans le controller via
+        // FinancialDashboardService → Invoice::forCommercialUser.
+        Route::middleware('role:admin,commercial')->group(function () {
+            Route::get('finance', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'index'])
+                ->name('finance.index');
+            Route::get('finance/series', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'series'])
+                ->name('finance.series');
+            Route::get('finance/relances', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'relances'])
+                ->name('finance.relances');
+            Route::post('finance/relances', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'storeRelance'])
+                ->name('finance.relances.store');
+        });
+
         // ── Campagnes ─────────────────────────────────────────────────
         // Exports + Lecture (index + show + progress + available-panels)
         // ouverts à tous les staff. Le filtrage par owner se fait dans
