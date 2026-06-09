@@ -388,10 +388,23 @@
                      (l'ancien bloc 4 mini-stats Panneaux/Poses/Piges/Contact
                      est désormais en Quick Actions, sous Informations + Actions). ── --}}
                 <div class="mt-6 pt-6 border-t" style="border-color:var(--border)">
-                    <div class="text-xs uppercase font-semibold mb-3 flex items-center gap-2" style="color:var(--text3)">
-                        💰 Facturation
+                    <div class="text-xs uppercase font-semibold mb-3 flex items-center justify-between gap-2" style="color:var(--text3)">
+                        <div class="flex items-center gap-2">
+                            💰 Facturation
+                            @if($campaign->invoices->isNotEmpty())
+                                <span class="text-[10px] px-2 py-0.5 rounded-full" style="background:var(--surface3);color:var(--text3)">{{ $campaign->invoices->count() }} facture{{ $campaign->invoices->count() > 1 ? 's' : '' }}</span>
+                            @endif
+                        </div>
                         @if($campaign->invoices->isNotEmpty())
-                            <span class="text-[10px] px-2 py-0.5 rounded-full" style="background:var(--surface3);color:var(--text3)">{{ $campaign->invoices->count() }} facture{{ $campaign->invoices->count() > 1 ? 's' : '' }}</span>
+                            {{-- Lien vers la liste de suivi paiements filtrée sur cette
+                                 campagne — utile pour voir Total/Payé/Reste/échéances
+                                 de toutes les factures d'un coup. --}}
+                            <a href="{{ route('admin.invoices.index', ['campaign_id' => $campaign->id]) }}"
+                               class="text-[10px] font-semibold"
+                               style="color:var(--accent);text-decoration:none"
+                               title="Voir le suivi paiements filtré sur cette campagne">
+                                Suivi paiements →
+                            </a>
                         @endif
                     </div>
                     @php
