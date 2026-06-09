@@ -1621,13 +1621,21 @@
             // jQuery.data n'est pas copié par cloneNode, donc le marqueur
             // 'select2-init' n'existe pas sur le clone — pas besoin de reset.
         });
+        // 3) CRITIQUE — retire TOUS les data-select2-id du clone.
+        //    cloneNode copie cet attribut, ce qui crée un conflit d'ID quand
+        //    Select2 init la nouvelle ligne. Symptôme observé : Select2 voit
+        //    deux éléments avec le même data-select2-id et CASSE le wrapper
+        //    de la PREMIÈRE ligne (qui devient un <select> natif visible
+        //    avec carret natif — visible sur le screenshot user "ligne 1
+        //    perd son design après ajout de la ligne 2").
+        tr.querySelectorAll('[data-select2-id]').forEach(el => el.removeAttribute('data-select2-id'));
 
-        // 3) Renomme name="lines[X][...]" → lines[i][...]
+        // 4) Renomme name="lines[X][...]" → lines[i][...]
         tr.querySelectorAll('[name]').forEach(el => {
             if (el.name) el.name = el.name.replace(/lines\[\d+\]/, `lines[${i}]`);
         });
 
-        // 4) Reset valeurs (qté=1, mois=1, m²/PU=0, autres vides)
+        // 5) Reset valeurs (qté=1, mois=1, m²/PU=0, autres vides)
         tr.querySelectorAll('input').forEach(inp => {
             if (inp.classList.contains('line-qte') || inp.classList.contains('line-mois')) {
                 inp.value = '1';
