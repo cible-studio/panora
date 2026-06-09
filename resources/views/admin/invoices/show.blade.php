@@ -1,6 +1,21 @@
 <x-admin-layout>
 <x-slot name="title">{{ $invoice->reference }}</x-slot>
 
+{{-- ─────────────────────────────────────────────────────────────
+    Fix critique : le CSS global .modal-overlay a `display:flex`
+    permanent (cf. resources/css/app.css:660). Sans cette règle
+    locale, nos modaux (.show toggle pattern) restent ouverts en
+    permanence et leurs boutons Annuler / × ne semblent rien faire.
+    L'inline `display:flex` ajouté par le JS au moment de l'ouverture
+    surclasse ce :not(.show), donc l'ouverture fonctionne aussi.
+─────────────────────────────────────────────────────────────── --}}
+<style>
+    #modal-add-payment:not(.show),
+    #modal-schedule:not(.show) {
+        display: none !important;
+    }
+</style>
+
 <x-slot name="topbarLeft">
     {{-- Bouton retour : back() si referer, sinon liste des factures (fallback fiable) --}}
     <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('admin.invoices.index') }}"

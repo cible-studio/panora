@@ -1,5 +1,14 @@
 <x-admin-layout title="Tarifs communaux">
 
+{{-- Fix : .modal-overlay a `display:flex` permanent dans app.css.
+     Sans :not(.show), nos modaux restent ouverts au chargement. --}}
+<style>
+    #modal-history:not(.show),
+    #modal-schedule:not(.show) {
+        display: none !important;
+    }
+</style>
+
 <x-slot:topbarLeft>
     <a href="{{ route('admin.settings.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
