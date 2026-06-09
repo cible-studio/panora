@@ -297,31 +297,70 @@
         color: var(--text3) !important;
     }
 
-    /* ── Dropdown : ombre douce + radius cohérent ─────────────────── */
+    /* ── Dropdown : background OPAQUE (sinon options bleed sur la
+         page derrière) + z-index au-dessus de tout le formulaire +
+         ombre / radius cohérents avec le design system. ─────────── */
+    .select2-container--open .select2-dropdown,
     .select2-dropdown {
-        border: 1px solid var(--border) !important;
+        background: var(--surface) !important;
+        border: 1px solid var(--border2, var(--border)) !important;
         border-radius: 10px !important;
-        box-shadow: 0 24px 60px -16px rgba(0,0,0,.20) !important;
+        box-shadow: 0 18px 48px -12px rgba(0, 0, 0, .28), 0 2px 6px rgba(0, 0, 0, .08) !important;
         overflow: hidden;
+        z-index: 9999 !important;
     }
-    .select2-search--dropdown { padding: 8px !important; }
+    /* Container des résultats + zone scrollable */
+    .select2-results,
+    .select2-results__options {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+        max-height: 280px !important;
+    }
+    .select2-search--dropdown {
+        padding: 8px !important;
+        background: var(--surface) !important;
+        border-bottom: 1px solid var(--border);
+    }
     .select2-search--dropdown .select2-search__field {
         border: 1px solid var(--border) !important;
         border-radius: 8px !important;
         padding: 8px 10px !important;
         font-size: 13px !important;
         outline: none !important;
+        background: var(--surface2) !important;
+        color: var(--text) !important;
     }
     .select2-search--dropdown .select2-search__field:focus {
         border-color: var(--accent) !important;
+        box-shadow: 0 0 0 2px rgba(232, 160, 32, .15) !important;
     }
+    /* Chaque option : background plein + séparateur fin */
     .select2-results__option {
-        padding: 8px 12px !important;
+        padding: 9px 12px !important;
         font-size: 12.5px !important;
-    }
-    .select2-results__option--highlighted[aria-selected] {
-        background: rgba(232,160,32,.14) !important;
+        background: var(--surface) !important;
         color: var(--text) !important;
+        border-bottom: 1px solid var(--border);
+    }
+    .select2-results__option:last-child { border-bottom: none; }
+    /* Hover / sélection clavier (highlighted) */
+    .select2-results__option--highlighted,
+    .select2-results__option--highlighted[aria-selected] {
+        background: rgba(232, 160, 32, .14) !important;
+        color: var(--text) !important;
+    }
+    /* Option déjà sélectionnée */
+    .select2-results__option[aria-selected="true"]:not(.select2-results__option--highlighted) {
+        background: rgba(232, 160, 32, .06) !important;
+        color: var(--accent-dark, var(--accent)) !important;
+        font-weight: 600;
+    }
+    /* Messages "Aucun résultat" / "Recherche…" */
+    .select2-results__message,
+    .select2-results__option.loading-results {
+        background: var(--surface) !important;
+        color: var(--text3) !important;
+        font-style: italic;
     }
 
     /* ── Tableau des lignes : layout centralisé (ex-inline styles) ── */
