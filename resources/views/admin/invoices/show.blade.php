@@ -81,6 +81,125 @@
             </div>
         @endif
 
+        {{-- ════════════════════ CARD STATUT & ACTIONS ════════════════════
+             Section dédiée au cycle de vie de la facture : pipeline visuel
+             Brouillon → Envoyée → Payée + boutons de transition contextuels.
+             Avant cette section, seul un bouton "Envoyer au client" dans
+             la topbar permettait de changer de statut — peu découvrable.
+        ════════════════════════════════════════════════════════════════ --}}
+        @php
+            $status = $invoice->status;
+            // Étapes du workflow + état (done / current / upcoming / off)
+            $steps = [
+                ['key' => 'brouillon', 'label' => 'Brouillon', 'icon' => '📝'],
+                ['key' => 'envoyee',   'label' => 'Envoyée',   'icon' => '📤'],
+                ['key' => 'payee',     'label' => 'Payée',     'icon' => '✅'],
+            ];
+            $cancelled = $status === 'annulee';
+            $currentIdx = array_search($status, array_column($steps, 'key'));
+        @endphp
+        @can('markPaid', $invoice)
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">🔄 Statut &amp; actions</div>
+                @if($cancelled)
+                    <span class="badge badge-red" style="font-size:13px;padding:5px 14px">🚫 Annulée</span>
+                @endif
+            </div>
+            <div class="card-body">
+
+                {{-- Pipeline visuel : Brouillon → Envoyée → Payée --}}
+                <div style="display:flex;align-items:center;gap:0;margin-bottom:18px;{{ $cancelled ? 'opacity:.45;filter:grayscale(.6)' : '' }}">
+                    @foreach($steps as $i => $step)
+                        @php
+                            $isDone     = !$cancelled && $currentIdx !== false && $i < $currentIdx;
+                            $isCurrent  = !$cancelled && $i === $currentIdx;
+                            $bg     = $isCurrent ? 'var(--accent)' : ($isDone ? '#16a34a' : 'var(--surface2)');
+                            $color  = ($isCurrent || $isDone) ? '#fff' : 'var(--text3)';
+                            $border = $isCurrent ? '3px solid rgba(232,160,32,.30)' : 'none';
+                        @endphp
+                        <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;min-width:78px">
+                            <div style="width:44px;height:44px;border-radius:50%;background:{{ $bg }};color:{{ $color }};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;box-shadow:{{ $border ? '0 0 0 3px rgba(232,160,32,.30)' : 'none' }}">
+                                {{ $isDone ? '✓' : $step['icon'] }}
+                            </div>
+                            <div style="font-size:11px;font-weight:800;color:{{ $isCurrent ? 'var(--accent-dark)' : ($isDone ? '#15803d' : 'var(--text3)') }};margin-top:6px;text-transform:uppercase;letter-spacing:.4px">{{ $step['label'] }}</div>
+                        </div>
+                        @if($i < count($steps) - 1)
+                            @php
+                                $segDone = !$cancelled && $currentIdx !== false && $i < $currentIdx;
+                            @endphp
+                            <div style="flex:1;height:3px;background:{{ $segDone ? '#16a34a' : 'var(--surface2)' }};border-radius:2px;margin:0 -6px;transform:translateY(-12px)"></div>
+                        @endif
+                    @endforeach
+                </div>
+
+                {{-- Boutons d'action contextuels --}}
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                    @if($status === 'brouillon')
+                        <form method="POST" action="{{ route('admin.invoices.send', $invoice) }}" style="margin:0">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-blue btn-sm" title="Bascule en Envoyée + verrouille les modifs">
+                                📤 Envoyer au client
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ route('admin.invoices.pay', $invoice) }}" style="margin:0"
+                              onsubmit="return confirm('Marquer cette facture comme payée maintenant ? (saute l\'étape Envoyée)');">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-success btn-sm" title="Saute Envoyée — pour les paiements comptant">
+                                ✅ Marquer payée
+                            </button>
+                        </form>
+                    @endif
+
+                    @if($status === 'envoyee')
+                        <form method="POST" action="{{ route('admin.invoices.pay', $invoice) }}" style="margin:0"
+                              onsubmit="return confirm('Marquer cette facture comme payée ?');">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-success btn-sm">✅ Marquer payée</button>
+                        </form>
+                    @endif
+
+                    @if(in_array($status, ['envoyee', 'payee']))
+                        <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}" style="margin:0"
+                              onsubmit="return confirm('Rebasculer en brouillon ? La date de paiement sera effacée et la facture redeviendra modifiable.');">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--text2)">↩ Rebasculer en brouillon</button>
+                        </form>
+                    @endif
+
+                    @if(!in_array($status, ['annulee', 'payee']))
+                        <form method="POST" action="{{ route('admin.invoices.cancel', $invoice) }}" style="margin:0;margin-left:auto"
+                              onsubmit="return confirm('Annuler cette facture ?\n\nLa facture restera dans l\'historique (traçable) mais ne pourra plus être réglée ni envoyée. Pour modifier, rebascule en brouillon.');">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-ghost btn-sm" style="color:#ef4444">🚫 Annuler la facture</button>
+                        </form>
+                    @endif
+
+                    @if($status === 'annulee')
+                        <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}" style="margin:0"
+                              onsubmit="return confirm('Réactiver cette facture en brouillon ?');">
+                            @csrf @method('PATCH')
+                            <button type="submit" class="btn btn-ghost btn-sm">♻ Réactiver en brouillon</button>
+                        </form>
+                    @endif
+                </div>
+
+                {{-- Tip contextuel sous les boutons --}}
+                <div style="margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:11.5px;color:var(--text3);line-height:1.5">
+                    @if($status === 'brouillon')
+                        💡 Tant que la facture est en brouillon, elle est modifiable. <strong>L'envoi au client la verrouille</strong> et ouvre le suivi paiements.
+                    @elseif($status === 'envoyee')
+                        💡 Facture verrouillée car envoyée au client. Rebascule en brouillon pour modifier, ou enregistre un versement pour solder.
+                    @elseif($status === 'payee')
+                        💡 Facture soldée. Tu peux toujours rebasculer en brouillon si besoin de correction, ou émettre un avoir.
+                    @else
+                        💡 Facture annulée — figée dans l'historique. Réactive-la en brouillon si l'annulation était une erreur.
+                    @endif
+                </div>
+            </div>
+        </div>
+        @endcan
+
         {{-- CARD PRINCIPALE : référence + statut + montants --}}
         <div class="card">
             <div class="card-header">
