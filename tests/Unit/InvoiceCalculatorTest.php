@@ -103,4 +103,206 @@ class InvoiceCalculatorTest extends TestCase
         $this->assertEqualsWithDelta(0, $totals['amount'],        0.01);
         $this->assertEqualsWithDelta(0, $totals['net_ht'],        0.01);
     }
+
+    /**
+     * Cas réel : 2 lignes dans 2 communes différentes — chaque ligne
+     * doit utiliser SON tarif ODP. Plateau (15 000) + Cocody (5 000).
+     *
+     * Ligne 1 (Plateau) : PU 200 000 × 1 × 3 mois × 12 m²
+     *   HT       = 200 000 × 1 × 3      = 600 000
+     *   ODP      = 15 000 × 12 × 1 × 3   = 540 000
+     *   TM       =  1 000 × 12 × 1 × 3   =  36 000
+     *
+     * Ligne 2 (Cocody) : PU 150 000 × 2 × 3 mois × 8 m²
+     *   HT       = 150 000 × 2 × 3      = 900 000
+     *   ODP      = 5 000 × 8 × 2 × 3     = 240 000
+     *   TM       = 1 000 × 8 × 2 × 3     =  48 000
+     *
+     * Totaux facture :
+     *   HT brut       = 1 500 000
+     *   Net HT        = 1 500 000 (pas de remise)
+     *   TVA           = 270 000
+     *   TTC           = 1 770 000
+     *   TSP           = 45 000
+     *   Total TM      = 84 000
+     *   Total ODP     = 780 000
+     *   Autres taxes  = 909 000
+     *   TOTAL À PAYER = 2 679 000
+     */
+    public function test_multi_lignes_multi_communes(): void
+    {
+        $calc = new InvoiceCalculator();
+        $totals = $calc->calculateInvoice([
+            [
+                'pu_ht_mensuel'     => 200000,
+                'quantite'          => 1,
+                'duree_mois'        => 3,
+                'dimension_m2'      => 12,
+                'odp_rate_applique' => 15000,
+                'tm_rate_applique'  => 1000,
+            ],
+            [
+                'pu_ht_mensuel'     => 150000,
+                'quantite'          => 2,
+                'duree_mois'        => 3,
+                'dimension_m2'      => 8,
+                'odp_rate_applique' => 5000,
+                'tm_rate_applique'  => 1000,
+            ],
+        ]);
+
+        $this->assertEqualsWithDelta(1500000, $totals['amount'],        0.01, 'Total HT brut');
+        $this->assertEqualsWithDelta(1500000, $totals['net_ht'],        0.01, 'Net HT (sans remise)');
+        $this->assertEqualsWithDelta(270000,  $totals['tva_amount'],    0.01, 'TVA 18%');
+        $this->assertEqualsWithDelta(1770000, $totals['amount_ttc'],    0.01, 'TTC');
+        $this->assertEqualsWithDelta(45000,   $totals['tsp_amount'],    0.01, 'TSP 3%');
+        $this->assertEqualsWithDelta(780000,  $totals['odp_total'],     0.01, 'ODP cumul 540k + 240k');
+        $this->assertEqualsWithDelta(84000,   $totals['tm_total'],      0.01, 'TM cumul 36k + 48k');
+        $this->assertEqualsWithDelta(2679000, $totals['total_a_payer'], 0.01, 'TOTAL À PAYER');
+    }
+
+    /**
+     * Durée fractionnaire (0.5 mois = règle CIBLE pour les courts spots).
+     * PU 100 000 × 1 panneau × 0.5 mois × 10 m² / Yopougon (ODP 1000)
+     *   HT  = 50 000
+     *   TVA = 9 000
+     *   TTC = 59 000
+     *   TSP = 1 500
+     *   ODP = 1 000 × 10 × 1 × 0.5 = 5 000
+     *   TM  = 1 000 × 10 × 1 × 0.5 = 5 000
+     *   Autres taxes = 11 500
+     *   TOTAL = 70 500
+     */
+    public function test_duree_fractionnaire_demi_mois(): void
+    {
+        $calc = new InvoiceCalculator();
+        $totals = $calc->calculateInvoice([[
+            'pu_ht_mensuel'     => 100000,
+            'quantite'          => 1,
+            'duree_mois'        => 0.5,
+            'dimension_m2'      => 10,
+            'odp_rate_applique' => 1000,
+            'tm_rate_applique'  => 1000,
+        ]]);
+
+        $this->assertEqualsWithDelta(50000, $totals['amount'],        0.01);
+        $this->assertEqualsWithDelta(9000,  $totals['tva_amount'],    0.01);
+        $this->assertEqualsWithDelta(59000, $totals['amount_ttc'],    0.01);
+        $this->assertEqualsWithDelta(1500,  $totals['tsp_amount'],    0.01);
+        $this->assertEqualsWithDelta(5000,  $totals['odp_total'],     0.01);
+        $this->assertEqualsWithDelta(5000,  $totals['tm_total'],      0.01);
+        $this->assertEqualsWithDelta(70500, $totals['total_a_payer'], 0.01);
+    }
+
+    /**
+     * Cas limite : remise 100% (gratuité) — Net HT et TVA/TSP tombent à 0,
+     * MAIS ODP et TM restent dues (taxes propres, indépendantes du HT).
+     * 1 panneau Plateau 12m² pendant 2 mois, PU 500 000, remise 100%.
+     *   HT brut       = 1 000 000
+     *   Net HT        = 0
+     *   TVA / TSP     = 0
+     *   ODP           = 15 000 × 12 × 1 × 2 = 360 000
+     *   TM            =  1 000 × 12 × 1 × 2 =  24 000
+     *   TOTAL         = 384 000 (uniquement les taxes communales)
+     */
+    public function test_remise_100pct_garde_taxes_communales(): void
+    {
+        $calc = new InvoiceCalculator();
+        $totals = $calc->calculateInvoice([[
+            'pu_ht_mensuel'     => 500000,
+            'quantite'          => 1,
+            'duree_mois'        => 2,
+            'dimension_m2'      => 12,
+            'odp_rate_applique' => 15000,
+            'tm_rate_applique'  => 1000,
+        ]], ['remise_pct' => 100]);
+
+        $this->assertEqualsWithDelta(1000000, $totals['amount'],        0.01);
+        $this->assertEqualsWithDelta(0,       $totals['net_ht'],        0.01);
+        $this->assertEqualsWithDelta(0,       $totals['tva_amount'],    0.01);
+        $this->assertEqualsWithDelta(0,       $totals['tsp_amount'],    0.01);
+        $this->assertEqualsWithDelta(360000,  $totals['odp_total'],     0.01, 'ODP reste due malgré remise 100%');
+        $this->assertEqualsWithDelta(24000,   $totals['tm_total'],      0.01, 'TM reste due malgré remise 100%');
+        $this->assertEqualsWithDelta(384000,  $totals['total_a_payer'], 0.01);
+    }
+
+    /**
+     * Garde-fou TM : si tm_rate_applique=0 (commune mal seedée), le
+     * fallback doit bien appliquer 1000 (base nationale 2025) — sinon
+     * pénalité fiscale CI. Vérifie aussi qu'un tm_rate explicite > 0
+     * est respecté (dérogation possible).
+     */
+    public function test_fallback_tm_si_taux_zero(): void
+    {
+        $calc = new InvoiceCalculator();
+
+        // Cas 1 : commune mal seedée → tm = 0 → fallback 1000
+        $line0 = $calc->calculateLine([
+            'pu_ht_mensuel'     => 100000,
+            'quantite'          => 1,
+            'duree_mois'        => 1,
+            'dimension_m2'      => 5,
+            'odp_rate_applique' => 1000,
+            'tm_rate_applique'  => 0,
+        ]);
+        $this->assertEqualsWithDelta(5000, $line0['tm_ligne'], 0.01,
+            'TM = 1000 × 5 = 5000 (fallback car tm_rate=0)');
+
+        // Cas 2 : tm_rate explicite > 0 → on respecte
+        $line2k = $calc->calculateLine([
+            'pu_ht_mensuel'     => 100000,
+            'quantite'          => 1,
+            'duree_mois'        => 1,
+            'dimension_m2'      => 5,
+            'odp_rate_applique' => 1000,
+            'tm_rate_applique'  => 2000,
+        ]);
+        $this->assertEqualsWithDelta(10000, $line2k['tm_ligne'], 0.01,
+            'TM = 2000 × 5 = 10000 (dérogation respectée)');
+    }
+
+    /**
+     * Remise + services : la remise s'applique UNIQUEMENT sur le HT des
+     * lignes. Les services ont leur propre TVA (18%) et ne sont pas
+     * affectés par la remise (frais réels facturés au coût).
+     *
+     * 1 ligne PU 200k / 1 / 1 mois / 5 m² / Marcory (ODP 1000)
+     *   HT brut = 200 000, Remise 10% → Net HT 180 000
+     *   TVA     = 32 400
+     *   TTC     = 212 400
+     *   TSP     = 5 400
+     *   ODP     = 1 000 × 5 × 1 × 1 = 5 000
+     *   TM      = 1 000 × 5 × 1 × 1 = 5 000
+     *   Autres taxes = 15 400
+     * Services :
+     *   Impression 50 000 + Pose 30 000 = 80 000 HT → 94 400 TTC
+     * TOTAL = 212 400 + 15 400 + 94 400 = 322 200
+     */
+    public function test_remise_et_services_combines(): void
+    {
+        $calc = new InvoiceCalculator();
+        $totals = $calc->calculateInvoice([[
+            'pu_ht_mensuel'     => 200000,
+            'quantite'          => 1,
+            'duree_mois'        => 1,
+            'dimension_m2'      => 5,
+            'odp_rate_applique' => 1000,
+            'tm_rate_applique'  => 1000,
+        ]], [
+            'remise_pct'           => 10,
+            'services_impression'  => 50000,
+            'services_pose_depose' => 30000,
+        ]);
+
+        $this->assertEqualsWithDelta(200000, $totals['amount'],               0.01, 'HT brut intact');
+        $this->assertEqualsWithDelta(180000, $totals['net_ht'],               0.01, 'Net HT après remise 10%');
+        $this->assertEqualsWithDelta(32400,  $totals['tva_amount'],           0.01, 'TVA sur Net HT (pas sur HT brut)');
+        $this->assertEqualsWithDelta(212400, $totals['amount_ttc'],           0.01);
+        $this->assertEqualsWithDelta(5400,   $totals['tsp_amount'],           0.01);
+        $this->assertEqualsWithDelta(5000,   $totals['odp_total'],            0.01);
+        $this->assertEqualsWithDelta(5000,   $totals['tm_total'],             0.01);
+        $this->assertEqualsWithDelta(50000,  $totals['services_impression'],  0.01);
+        $this->assertEqualsWithDelta(30000,  $totals['services_pose_depose'], 0.01);
+        $this->assertEqualsWithDelta(322200, $totals['total_a_payer'],        0.01);
+    }
 }
