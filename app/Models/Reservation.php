@@ -81,7 +81,7 @@ class Reservation extends Model
         'end_date'               => 'date',
         'confirmed_at'           => 'datetime',
         'cancelled_at'           => 'datetime',
-        'total_amount'           => 'decimal:2',
+        'total_amount'           => 'integer', // RÈGLE 4 — entier FCFA (audit Phase 8E)
         'status'                 => ReservationStatus::class,
         'is_technical'           => 'boolean',
         'proposition_sent_at'         => 'datetime',

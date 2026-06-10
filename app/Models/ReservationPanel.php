@@ -18,9 +18,11 @@ class ReservationPanel extends Model
         'total_price',
     ];
 
+    // RÈGLE 4 — entier FCFA (audit Phase 8E : ce pivot alimente
+    // InvoiceLine.pu_ht_mensuel qui est BIGINT depuis Phase 1).
     protected $casts = [
-        'unit_price'  => 'decimal:2',
-        'total_price' => 'decimal:2',
+        'unit_price'  => 'integer',
+        'total_price' => 'integer',
     ];
 
     // ── Relations ──────────────────────────────
