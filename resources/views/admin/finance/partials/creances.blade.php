@@ -90,7 +90,9 @@
     <div class="fin-card-head">
         <div>
             <div class="fin-card-title">📄 Factures avec reste à payer</div>
-            <div class="fin-card-sub">{{ $creances->count() }} facture(s) — 200 max affichées</div>
+            <div class="fin-card-sub">
+                {{ $creances->count() }} créance(s) ouverte(s){{ $creances->count() >= 200 ? ' — 200 max affichées' : '' }}
+            </div>
         </div>
     </div>
     <div class="fin-card-body fin-card-body--flush">

@@ -47,10 +47,19 @@ class FinanceDashboardController extends Controller
             $request->filled('filter_commune')    ? (int) $request->input('filter_commune')    : null,
             $request->filled('filter_client')     ? (int) $request->input('filter_client')     : null
         );
+        // "Factures avec reste à payer" : on EXCLUT les factures soldées
+        // (remainingAmount ≤ 0) — directive métier : l'onglet Créances
+        // n'affiche QUE les vraies créances ouvertes, pas les factures
+        // déjà entièrement payées. Le filtre se fait en PHP parce que
+        // remainingAmount() est une méthode (somme - versements), pas une
+        // colonne SQL. Le limit(200) s'applique APRÈS le filtre pour
+        // garantir 200 vraies créances et pas 200 lignes pré-filtrage.
         $creances          = $this->svc->creancesQuery($commercialUid)
                                   ->orderBy('issued_at')
-                                  ->limit(200)
-                                  ->get();
+                                  ->get()
+                                  ->filter(fn($inv) => $inv->remainingAmount() > 0.01)
+                                  ->take(200)
+                                  ->values();
 
         $clientsList = Client::orderBy('name')->get(['id', 'name']);
         $communes    = Commune::orderBy('name')->get(['id', 'name']);
