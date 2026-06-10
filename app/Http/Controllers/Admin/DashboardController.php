@@ -193,7 +193,7 @@ class DashboardController extends Controller
 
         $finScope = \App\Models\Invoice::query()
             ->whereNotIn('status', ['annulee'])
-            ->when($isCommercial, fn($q) => $q->forCommercialUser($userId));
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
 
         $caMonthFne   = (clone $finScope)
             ->whereYear('issued_at', $now->year)
@@ -205,7 +205,7 @@ class DashboardController extends Controller
         $encaissMonth = (int) \App\Models\InvoicePayment::query()
             ->whereYear('paid_at', $now->year)
             ->whereMonth('paid_at', $now->month)
-            ->when($isCommercial, fn($q) => $q->whereHas('invoice', fn($i) => $i->forCommercialUser($userId)))
+            ->when($isCommercial, fn($q) => $q->whereHas('invoice', fn($i) => $i->forCommercialUser($uid)))
             ->sum('montant');
         $invoicesEnRetard = (clone $finScope)
             ->where('status', 'en_retard')->count();
@@ -224,7 +224,7 @@ class DashboardController extends Controller
         $previsionMontant30j = (int) \App\Models\InvoiceSchedule::query()
             ->whereNull('paid_at')
             ->whereBetween('due_date', [$now->toDateString(), $now->copy()->addDays(30)->toDateString()])
-            ->when($isCommercial, fn($q) => $q->whereHas('invoice', fn($i) => $i->forCommercialUser($userId)))
+            ->when($isCommercial, fn($q) => $q->whereHas('invoice', fn($i) => $i->forCommercialUser($uid)))
             ->sum('amount');
 
         // ═══ Phase 8D cahier §12 — Top 10 clients + Top 10 communes ═══
@@ -233,7 +233,7 @@ class DashboardController extends Controller
             ->selectRaw('client_id, SUM(COALESCE(total_a_payer, amount_ttc)) AS ca_total, COUNT(*) AS nb_factures')
             ->whereNotIn('status', ['annulee'])
             ->whereYear('issued_at', $now->year)
-            ->when($isCommercial, fn($q) => $q->forCommercialUser($userId))
+            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid))
             ->groupBy('client_id')
             ->orderByDesc('ca_total')
             ->with('client:id,name')
@@ -246,10 +246,10 @@ class DashboardController extends Controller
         // ventilé reste dispo dans le dashboard finance (Phase 8D-2).
         $topCommunes = \App\Models\InvoiceLine::query()
             ->selectRaw('commune_id, snapshot_commune_name, SUM(montant_ht_ligne) AS ht_total')
-            ->whereHas('invoice', function ($q) use ($isCommercial, $userId, $now) {
+            ->whereHas('invoice', function ($q) use ($isCommercial, $uid, $now) {
                 $q->whereNotIn('status', ['annulee'])
                   ->whereYear('issued_at', $now->year)
-                  ->when($isCommercial, fn($qq) => $qq->forCommercialUser($userId));
+                  ->when($isCommercial, fn($qq) => $qq->forCommercialUser($uid));
             })
             ->groupBy('commune_id', 'snapshot_commune_name')
             ->orderByDesc('ht_total')
