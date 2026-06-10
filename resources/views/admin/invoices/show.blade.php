@@ -663,6 +663,33 @@
             </div>
             @endif
 
+            {{-- ════════════════════ VENTILATION PAIEMENT PAR COMMUNE ════════════════════
+                 Phase 8 finalisation cahier §11 : « répartir chaque encaissement au
+                 prorata du HT des lignes ». Affichage sur la fiche facture (visible
+                 uniquement si paiements > 0 ET ≥ 2 communes — sinon pas d'intérêt).
+            ═══════════════════════════════════════════════════════════════════════ --}}
+            @if(!empty($paymentAllocation) && $paymentAllocation->isNotEmpty())
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🗺 Ventilation paiement par commune <span style="font-weight:400;color:var(--text3);font-size:12px;margin-left:6px">(prorata HT)</span></div>
+                </div>
+                <div class="card-body">
+                    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px;line-height:1.5">
+                        Total encaissé {{ $fmt($invoice->paidAmount()) }} FCFA réparti au prorata du HT des lignes (règle cahier §11) — utile au comptable pour la déclaration TM/ODP par commune.
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                        @foreach($paymentAllocation as $row)
+                            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:8px">
+                                <div style="flex:1;font-size:13px;font-weight:700">📍 {{ $row['commune_name'] }}</div>
+                                <div style="font-size:11px;color:var(--text3);min-width:60px;text-align:right">{{ rtrim(rtrim(number_format($row['share_pct'], 2, ',', ''), '0'), ',') }} %</div>
+                                <div style="font-size:13px;font-weight:800;color:var(--accent);min-width:120px;text-align:right">{{ $fmt($row['amount']) }} FCFA</div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+            @endif
+
             @php $schedules = $invoice->schedules ?? collect(); @endphp
             <div class="card">
                 <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">

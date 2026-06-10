@@ -590,9 +590,24 @@ class InvoiceController extends Controller
             ->orderByDesc('id')
             ->get();
 
+        // ═══ Phase 8 finalisation cahier §11 — ventilation par commune ═══
+        // BillingAllocationService répartit le total encaissé au PRORATA du
+        // HT des lignes (règle explicite §11). Affiché sur la fiche pour
+        // que le comptable sache "ce paiement de 10M revient à X F pour
+        // Plateau, Y F pour Cocody…". Centralise la logique avant qu'elle
+        // ne soit dupliquée dans les rapports.
+        $paymentAllocation = collect();
+        $totalPaid = (int) $invoice->paidAmount();
+        if ($totalPaid > 0 && $invoice->lines->count() > 1) {
+            $alloc = app(\App\Services\BillingAllocationService::class)
+                ->allocateForInvoice($invoice, $totalPaid);
+            $paymentAllocation = collect($alloc);
+        }
+
         return view('admin.invoices.show', compact(
             'invoice', 'otherInvoices', 'clientStats',
-            'campaignBilling', 'billingDrift', 'invoiceRelances'
+            'campaignBilling', 'billingDrift',
+            'invoiceRelances', 'paymentAllocation'
         ));
     }
 
