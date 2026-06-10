@@ -2,7 +2,14 @@
 
 <x-slot:topbarActions>
     @php
-        $pendingCount = \App\Models\Pige::where('status', 'en_attente')->count();
+        // Compteur des piges réellement à valider : status=en_attente ET
+        // pas archivées. Sans le whereNull('archived_at'), des piges
+        // archivées avec un status legacy 'en_attente' apparaissaient au
+        // compteur mais crashaient la page validation (relations panel/
+        // campaign potentiellement supprimées).
+        $pendingCount = \App\Models\Pige::where('status', 'en_attente')
+            ->whereNull('archived_at')
+            ->count();
     @endphp
     @if($pendingCount > 0)
     <a href="{{ route('admin.piges.validation') }}" class="btn btn-ghost btn-sm"

@@ -463,6 +463,11 @@ class PigeController extends Controller
             'poseTask:id,scheduled_at,done_at,status',
         ])
         ->where('status', 'en_attente')
+        // Exclut les piges archivées (cycle de vie pige) — sinon une pige
+        // avec status legacy en_attente + archived_at NOT NULL apparaît
+        // dans la file de validation et peut crasher la vue si ses
+        // relations ont été nettoyées entre temps.
+        ->whereNull('archived_at')
         ->when($request->filled('campaign_id'),
             fn($q) => $q->where('campaign_id', $request->campaign_id))
         ->when($request->filled('technicien_id'),
@@ -483,8 +488,10 @@ class PigeController extends Controller
         $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
 
         // Compteur des piges douteuses (hors-zone + à vérifier) en attente,
-        // pour le bandeau de pré-tri côté vue.
+        // pour le bandeau de pré-tri côté vue. Filtré aussi sur les
+        // non-archivées (cohérence avec la requête principale).
         $suspectCount = Pige::where('status', 'en_attente')
+            ->whereNull('archived_at')
             ->whereIn('geo_check', ['out', 'warn'])
             ->count();
 
