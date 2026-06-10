@@ -5,151 +5,194 @@
     <title>{{ $invoice->isCreditNote() ? 'Avoir' : 'Facture' }} {{ $invoice->reference }}</title>
     <style>
         /* ════════════════════════════════════════════════════════════════
-           PDF Facture FNE — DomPDF compatible
-           Conventions clés :
-             - PAS de display:flex (non supporté par DomPDF)
-             - PAS de linear-gradient (idem)
-             - Tous les "label / valeur" en <table> 2 colonnes
-             - Couleurs solides (#b45309 doré CIBLE pour les bandeaux)
+           PDF Facture FNE — Refonte PRO Phase 8F
+           Compatible DomPDF (pas de flex, pas de gradient).
+           Objectifs : aération, lisibilité, sauts de page propres.
         ════════════════════════════════════════════════════════════════ */
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        @page { margin: 0; size: A4 portrait; }
+
+        @page {
+            margin: 18mm 16mm 22mm;
+            size: A4 portrait;
+        }
+
         body {
             font-family: 'DejaVu Sans', Helvetica, sans-serif;
-            font-size: 10px;
+            font-size: 11px;
             color: #1f2937;
             background: #fff;
-            line-height: 1.45;
+            line-height: 1.55;
         }
-        .wrap { padding: 16mm 14mm 22mm; }
 
-        /* ── HEADER ─────────────────────────────────── */
-        .head { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        /* ── PAGE BREAK CONTROL ───────────────────────────────
+           Empêche de couper au milieu des cards Émetteur/Client,
+           Versements, Échéancier, Bandeau total. */
+        .no-break { page-break-inside: avoid; }
+        .break-before { page-break-before: always; }
+
+        /* ── HEADER ───────────────────────────────────── */
+        .head {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 18px;
+        }
         .head td { vertical-align: top; padding: 0; }
-        .head .logo-cell { width: 50%; }
-        .head .logo-cell img { height: 40px; }
-        .head .ref-cell { width: 50%; text-align: right; }
+        .head .logo-cell { width: 55%; }
+        .head .logo-cell img { height: 52px; }
+        .head .ref-cell {
+            width: 45%;
+            text-align: right;
+        }
         .head .doc-type {
-            font-size: 9px; font-weight: 700; color: #b45309;
-            text-transform: uppercase; letter-spacing: 3px;
-            margin-bottom: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            color: #b45309;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin-bottom: 6px;
         }
         .head .doc-num {
-            font-family: monospace; font-size: 18px; font-weight: 800; color: #0f172a;
+            font-family: monospace;
+            font-size: 22px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 4px;
         }
-        .head .doc-date { font-size: 9.5px; color: #6b7280; margin-top: 4px; }
+        .head .doc-date {
+            font-size: 10.5px;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
         .head .doc-date strong { color: #374151; }
         .head .badge-status {
             display: inline-block;
-            margin-top: 4px;
-            padding: 2px 9px;
+            padding: 4px 13px;
             border-radius: 99px;
-            font-size: 9px;
+            font-size: 10px;
             font-weight: 700;
-            letter-spacing: .5px;
+            letter-spacing: .6px;
             text-transform: uppercase;
         }
 
-        .accent { height: 3px; background: #e8a020; margin: 4px 0 14px; }
+        .accent {
+            height: 4px;
+            background: #e8a020;
+            margin: 0 0 22px;
+        }
 
-        /* ── PARTIES (Émetteur / Client) ─────────────── */
-        .parties { width: 100%; border-collapse: separate; border-spacing: 8px 0; margin-bottom: 12px; }
-        .parties td { vertical-align: top; width: 50%; padding: 0; }
+        /* ── ÉMETTEUR / CLIENT ───────────────────────── */
+        .parties {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 12px 0;
+            margin-bottom: 18px;
+        }
+        .parties td {
+            vertical-align: top;
+            width: 50%;
+            padding: 0;
+        }
         .party {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 10px 12px;
+            border-radius: 8px;
+            padding: 14px 16px;
         }
         .party .lbl {
-            font-size: 7.5px; font-weight: 700; color: #94a3b8;
-            text-transform: uppercase; letter-spacing: 1.4px;
-            margin-bottom: 5px;
+            font-size: 9px;
+            font-weight: 800;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1.6px;
+            margin-bottom: 8px;
         }
         .party .name {
-            font-size: 12px; font-weight: 800; color: #0f172a;
-            margin-bottom: 4px;
+            font-size: 14px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 6px;
         }
-        .party .info { font-size: 9px; color: #475569; line-height: 1.7; }
+        .party .info {
+            font-size: 10.5px;
+            color: #475569;
+            line-height: 1.75;
+        }
         .party .info strong { color: #1e293b; }
 
-        /* ── CAMPAGNE STRIP ─────────────────────────── */
+        /* ── CAMPAGNE / AVOIR BANNERS ─────────────── */
         .campaign-strip {
             background: #fff7ed;
             border: 1px solid #fed7aa;
-            border-left: 3px solid #ea580c;
-            border-radius: 4px;
-            padding: 7px 11px;
-            font-size: 9.5px;
+            border-left: 4px solid #ea580c;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 10.5px;
             color: #9a3412;
-            margin-bottom: 12px;
+            margin-bottom: 16px;
+            line-height: 1.65;
         }
         .campaign-strip strong { color: #7c2d12; }
 
-        /* ── AVOIR BANNER ──────────────────────────── */
         .cn-banner {
             background: #fef2f2;
             border: 1.5px solid #fca5a5;
+            border-left: 4px solid #ef4444;
             border-radius: 6px;
-            padding: 8px 11px;
-            font-size: 9.5px;
+            padding: 10px 14px;
+            font-size: 10.5px;
             color: #991b1b;
-            margin-bottom: 12px;
+            margin-bottom: 16px;
+            line-height: 1.65;
         }
 
-        /* ── DRIFT BANNER ─────────────────────────── */
-        .drift-banner {
-            background: #fff7ed;
-            border: 1.5px solid #fdba74;
-            border-radius: 6px;
-            padding: 8px 11px;
-            font-size: 9px;
-            color: #9a3412;
-            margin-bottom: 10px;
-        }
-
-        /* ── TABLE LIGNES ──────────────────────────── */
+        /* ── TABLE LIGNES ───────────────────────────── */
         .lines {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 4px;
+            margin-bottom: 0;
         }
         .lines thead th {
             background: #0f172a;
             color: #fff;
-            font-size: 8.5px;
+            font-size: 9.5px;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: .6px;
-            padding: 8px 8px;
+            letter-spacing: .7px;
+            padding: 10px 10px;
             text-align: left;
         }
         .lines thead th.right { text-align: right; }
         .lines thead th.center { text-align: center; }
         .lines tbody td {
-            font-size: 9.5px;
-            padding: 7px 8px;
-            border-bottom: 1px solid #f1f5f9;
+            font-size: 10.5px;
+            padding: 11px 10px;
+            border-bottom: 1px solid #e5e7eb;
             vertical-align: top;
         }
         .lines tbody td.right { text-align: right; font-family: monospace; }
         .lines tbody td.center { text-align: center; }
         .lines tbody tr:nth-child(even) td { background: #fafafa; }
-        .line-meta { font-size: 8px; color: #94a3b8; margin-top: 1px; }
+        .lines tbody tr:last-child td { border-bottom: 2px solid #0f172a; }
+        .line-meta {
+            font-size: 9px;
+            color: #94a3b8;
+            margin-top: 3px;
+        }
 
-        /* ── BLOC TOTAUX (compatible DomPDF : tables uniquement) ── */
+        /* ── VENTILATION FNE ───────────────────────── */
         .totals-block {
-            width: 60%;
-            margin-left: 40%;
-            margin-top: 14px;
+            width: 65%;
+            margin-left: 35%;
+            margin-top: 18px;
+            page-break-inside: avoid;
         }
         table.tt {
             width: 100%;
             border-collapse: collapse;
         }
         table.tt td {
-            padding: 5px 12px;
-            font-size: 10px;
+            padding: 7px 14px;
+            font-size: 11px;
             color: #374151;
         }
         table.tt td.lbl { text-align: left; }
@@ -161,205 +204,240 @@
             white-space: nowrap;
         }
         table.tt tr.sep td {
-            border-top: 1px solid #e2e8f0;
-            padding-top: 8px;
-            margin-top: 4px;
+            border-top: 1px solid #d1d5db;
+            padding-top: 10px;
         }
-        table.tt tr.strong td { font-weight: 800; }
+        table.tt tr.strong td { font-weight: 800; font-size: 11.5px; }
         table.tt tr.neg td { color: #b45309; }
-
-        /* Bandeau TOTAL TTC clair */
         table.tt tr.ttc td {
             background: #f1f5f9;
             font-weight: 800;
-            font-size: 11px;
-            padding: 9px 12px;
+            font-size: 13px;
+            padding: 11px 14px;
         }
 
-        /* ── Encart Autres taxes / Services ─────────── */
+        /* Encarts AUTRES TAXES / SERVICES ANNEXES */
         .box {
             width: 100%;
             border-collapse: collapse;
             background: #fafafa;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            margin: 8px 0;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            margin: 12px 0;
+            page-break-inside: avoid;
         }
         .box td {
-            padding: 4px 10px;
-            font-size: 9.5px;
+            padding: 6px 12px;
+            font-size: 10.5px;
             color: #4b5563;
             vertical-align: top;
         }
         .box td.lbl { text-align: left; }
-        .box td.val { text-align: right; font-family: monospace; font-weight: 700; white-space: nowrap; }
-        .box .title td {
-            font-size: 8.5px;
+        .box td.val {
+            text-align: right;
+            font-family: monospace;
             font-weight: 700;
-            color: #6b7280;
+            white-space: nowrap;
+        }
+        .box .title td {
+            font-size: 9.5px;
+            font-weight: 800;
+            color: #4b5563;
             text-transform: uppercase;
-            letter-spacing: .5px;
-            padding-top: 7px;
-            padding-bottom: 4px;
+            letter-spacing: .6px;
+            padding-top: 10px;
+            padding-bottom: 7px;
+            background: #f1f5f9;
         }
         .box .subtotal td {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 800;
             color: #1f2937;
             border-top: 1px dashed #cbd5e1;
-            padding-top: 6px;
-            padding-bottom: 7px;
+            padding-top: 9px;
+            padding-bottom: 10px;
         }
         .box .subtotal td.val { color: #b45309; }
 
-        /* ── TOTAL À PAYER bandeau accent (couleur solide) ── */
+        /* ── TOTAL À PAYER BANDEAU ─────────────────── */
         .total-final {
             width: 100%;
             border-collapse: collapse;
-            background: #b45309; /* doré CIBLE — solide (DomPDF n'aime pas le gradient) */
-            border-radius: 4px;
-            margin-top: 8px;
+            background: #b45309;
+            border-radius: 6px;
+            margin-top: 14px;
+            page-break-inside: avoid;
         }
         .total-final td {
-            padding: 12px 14px;
+            padding: 16px 18px;
             color: #fff;
             vertical-align: middle;
         }
         .total-final td.lbl {
-            font-size: 11px;
+            font-size: 13px;
             font-weight: 800;
-            letter-spacing: .5px;
+            letter-spacing: .8px;
             text-align: left;
+            text-transform: uppercase;
         }
         .total-final td.val {
-            font-size: 18px;
+            font-size: 22px;
             font-weight: 800;
             font-family: monospace;
             text-align: right;
             white-space: nowrap;
         }
 
-        /* ── PAIEMENTS ────────────────────────────── */
-        .payments-wrap { clear: both; margin-top: 22px; }
+        /* ── VERSEMENTS (card verte) ───────────────── */
+        .section-spacer { height: 24px; clear: both; }
         .payments-card {
             background: #f0fdf4;
             border: 1px solid #bbf7d0;
-            border-left: 3px solid #16a34a;
-            border-radius: 5px;
-            padding: 10px 12px;
+            border-left: 4px solid #16a34a;
+            border-radius: 6px;
+            padding: 14px 16px;
+            page-break-inside: avoid;
         }
         .payments-card .pt {
-            font-size: 9px;
-            font-weight: 700;
+            font-size: 11px;
+            font-weight: 800;
             color: #166534;
             text-transform: uppercase;
-            letter-spacing: .5px;
-            margin-bottom: 6px;
+            letter-spacing: .8px;
+            margin-bottom: 10px;
         }
         .payments-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 9px;
+            font-size: 10.5px;
         }
         .payments-table th {
             text-align: left;
             color: #166534;
-            font-weight: 700;
-            padding: 4px 6px;
-            border-bottom: 1px solid #bbf7d0;
+            font-weight: 800;
+            padding: 7px 8px;
+            border-bottom: 1.5px solid #86efac;
+            font-size: 9.5px;
+            text-transform: uppercase;
+            letter-spacing: .4px;
         }
         .payments-table th.right { text-align: right; }
         .payments-table td {
-            padding: 4px 6px;
+            padding: 8px 8px;
             color: #14532d;
-            border-bottom: 1px solid #dcfce7;
+            border-bottom: 1px solid #d1fae5;
         }
         .payments-table td.right { text-align: right; font-family: monospace; font-weight: 700; }
+
         .balance-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 7px;
-            padding-top: 6px;
-            border-top: 1px dashed #86efac;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1.5px dashed #86efac;
         }
         .balance-table td {
-            padding: 3px 6px;
-            font-size: 10.5px;
+            padding: 5px 8px;
+            font-size: 11.5px;
             font-weight: 800;
         }
         .balance-table td.lbl { text-align: left; color: #15803d; }
-        .balance-table td.val { text-align: right; font-family: monospace; color: #15803d; white-space: nowrap; }
+        .balance-table td.val {
+            text-align: right;
+            font-family: monospace;
+            color: #15803d;
+            white-space: nowrap;
+        }
         .balance-table tr.due td { color: #b91c1c; }
+        .balance-table tr.soldee td { color: #16a34a; }
 
-        /* ── ÉCHÉANCIER ────────────────────────────── */
+        /* ── ÉCHÉANCIER (card bleue) ───────────────── */
         .schedule-card {
             background: #eff6ff;
             border: 1px solid #bfdbfe;
-            border-left: 3px solid #2563eb;
-            border-radius: 5px;
-            padding: 9px 12px;
-            margin-top: 10px;
+            border-left: 4px solid #2563eb;
+            border-radius: 6px;
+            padding: 14px 16px;
+            page-break-inside: avoid;
         }
         .schedule-card .st {
-            font-size: 9px;
-            font-weight: 700;
+            font-size: 11px;
+            font-weight: 800;
             color: #1e3a8a;
             text-transform: uppercase;
-            letter-spacing: .5px;
-            margin-bottom: 6px;
+            letter-spacing: .8px;
+            margin-bottom: 10px;
         }
         .schedule-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 9px;
+            font-size: 10.5px;
         }
         .schedule-table th {
             text-align: left;
             color: #1e3a8a;
-            font-weight: 700;
-            padding: 3px 6px;
-            border-bottom: 1px solid #bfdbfe;
+            font-weight: 800;
+            padding: 7px 8px;
+            border-bottom: 1.5px solid #93c5fd;
+            font-size: 9.5px;
+            text-transform: uppercase;
+            letter-spacing: .4px;
         }
         .schedule-table th.right { text-align: right; }
         .schedule-table td {
-            padding: 3px 6px;
+            padding: 8px 8px;
             color: #1e40af;
+            border-bottom: 1px solid #dbeafe;
         }
-        .schedule-table td.right { text-align: right; font-family: monospace; }
+        .schedule-table td.right { text-align: right; font-family: monospace; font-weight: 700; }
 
-        /* ── BAS DE PAGE ──────────────────────────── */
-        .footer-wrap { clear: both; margin-top: 22px; }
+        /* ── BAS DE PAGE ────────────────────────────── */
+        .footer-wrap {
+            clear: both;
+            margin-top: 28px;
+            page-break-inside: avoid;
+        }
         .footer-info {
-            padding-top: 11px;
-            border-top: 1px solid #e2e8f0;
-            font-size: 8.5px;
+            padding-top: 14px;
+            border-top: 2px solid #e2e8f0;
+            font-size: 10px;
             color: #6b7280;
-            line-height: 1.65;
+            line-height: 1.7;
         }
         .footer-info strong { color: #374151; }
+        .conditions {
+            font-size: 10.5px;
+            margin-bottom: 10px;
+        }
         .bank-card {
             background: #fafafa;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            padding: 6px 10px;
-            margin-top: 7px;
-            font-size: 8.5px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-top: 10px;
+            margin-bottom: 12px;
+            font-size: 10px;
             color: #475569;
+            line-height: 1.7;
+            page-break-inside: avoid;
         }
         .bank-card strong { color: #1e293b; }
         .footer-legal {
-            margin-top: 10px;
-            font-size: 7.5px;
+            margin-top: 14px;
+            font-size: 8.5px;
             color: #94a3b8;
             font-style: italic;
             line-height: 1.6;
         }
         .footer-rgpd {
-            margin-top: 6px;
+            margin-top: 12px;
+            padding: 8px 12px;
             text-align: center;
-            font-size: 7.5px;
-            color: #9ca3af;
-            letter-spacing: .3px;
+            font-size: 8.5px;
+            color: #6b7280;
+            letter-spacing: .4px;
+            background: #f8fafc;
+            border-radius: 4px;
         }
 
         /* Status badges */
@@ -372,10 +450,18 @@
         .st-retard        { background: #fee2e2; color: #b91c1c; }
         .st-litige        { background: #ffedd5; color: #9a3412; }
         .st-annulee       { background: #fee2e2; color: #991b1b; }
+
+        /* Page number footer (rendered by DomPDF script) */
+        .page-num {
+            position: fixed;
+            bottom: 10mm;
+            right: 16mm;
+            font-size: 8.5px;
+            color: #94a3b8;
+        }
     </style>
 </head>
 <body>
-<div class="wrap">
 
     {{-- ════════════════════ HEADER ════════════════════ --}}
     @php
@@ -391,8 +477,9 @@
             'annulee'             => ['cls' => 'st-annulee',   'lbl' => 'Annulée'],
         ];
         $st = $statusLabels[$invoice->status] ?? null;
+        $fmt = fn($v) => number_format((float) $v, 0, ',', ' ');
     @endphp
-    <table class="head">
+    <table class="head no-break">
         <tr>
             <td class="logo-cell">
                 <img src="{{ public_path(config('billing.company.logo_path', 'images/panora.png')) }}" alt="{{ config('billing.company.name') }}">
@@ -413,7 +500,7 @@
 
     {{-- ════════════════════ AVOIR BANNER ════════════════════ --}}
     @if($invoice->isCreditNote() && $invoice->creditNoteFor)
-        <div class="cn-banner">
+        <div class="cn-banner no-break">
             <strong>📋 Avoir / Note de crédit</strong> émis(e) sur la facture
             <strong>{{ $invoice->creditNoteFor->reference }}</strong>
             du {{ $invoice->creditNoteFor->issued_at->format('d/m/Y') }}.
@@ -421,7 +508,7 @@
     @endif
 
     {{-- ════════════════════ ÉMETTEUR + CLIENT ════════════════════ --}}
-    <table class="parties">
+    <table class="parties no-break">
         <tr>
             <td>
                 <div class="party">
@@ -457,31 +544,26 @@
 
     {{-- ════════════════════ CAMPAGNE LIÉE ════════════════════ --}}
     @if($invoice->campaign)
-        <div class="campaign-strip">
+        <div class="campaign-strip no-break">
             <strong>📢 Campagne :</strong> {{ $invoice->campaign->name }}
             @if($invoice->campaign->start_date && $invoice->campaign->end_date)
-                · Période : {{ $invoice->campaign->start_date->format('d/m/Y') }}
-                → {{ $invoice->campaign->end_date->format('d/m/Y') }}
+                <br><strong>Période :</strong> du {{ $invoice->campaign->start_date->format('d/m/Y') }}
+                au {{ $invoice->campaign->end_date->format('d/m/Y') }}
             @endif
         </div>
     @endif
 
     {{-- ════════════════════ LIGNES ════════════════════ --}}
-    @php
-        $fmt     = fn($v) => number_format((float) $v, 0, ',', ' ');
-        $hasLines = $invoice->lines && $invoice->lines->isNotEmpty();
-    @endphp
-
-    @if($hasLines)
+    @if($invoice->lines && $invoice->lines->isNotEmpty())
         <table class="lines">
             <thead>
                 <tr>
-                    <th style="width:42%">Désignation</th>
-                    <th class="right" style="width:13%">PU HT</th>
-                    <th class="center" style="width:7%">Qté</th>
-                    <th class="center" style="width:9%">Mois</th>
-                    <th class="center" style="width:7%">m²</th>
-                    <th class="right" style="width:18%">Montant HT</th>
+                    <th style="width:38%">Désignation</th>
+                    <th class="right" style="width:14%">PU HT</th>
+                    <th class="center" style="width:8%">Qté</th>
+                    <th class="center" style="width:10%">Mois</th>
+                    <th class="center" style="width:8%">m²</th>
+                    <th class="right" style="width:22%">Montant HT</th>
                 </tr>
             </thead>
             <tbody>
@@ -507,7 +589,6 @@
     {{-- ════════════════════ VENTILATION FNE ════════════════════ --}}
     <div class="totals-block">
 
-        {{-- Total HT brut + remise --}}
         <table class="tt">
             @if($invoice->remise_pct > 0)
                 <tr>
@@ -535,7 +616,6 @@
 
         @php
             $autres = (int) $invoice->tsp_amount + (int) $invoice->tm_total + (int) $invoice->odp_total;
-            // Services annexes (Phase 5) : N lignes libres, fallback legacy.
             $pdfServices = $invoice->services;
             if ($pdfServices->isEmpty()) {
                 $tmp = collect();
@@ -551,7 +631,6 @@
             $servicesTtc = (int) round($servicesHt * (1 + (float) $invoice->tva / 100));
         @endphp
 
-        {{-- Autres taxes (TSP + TM + ODP) --}}
         @if($autres > 0)
             <table class="box">
                 <tr class="title"><td colspan="2">AUTRES TAXES</td></tr>
@@ -580,7 +659,6 @@
             </table>
         @endif
 
-        {{-- Services annexes --}}
         @if($servicesHt > 0)
             <table class="box">
                 <tr class="title"><td colspan="2">SERVICES ANNEXES ({{ $pdfServices->count() }})</td></tr>
@@ -597,7 +675,6 @@
             </table>
         @endif
 
-        {{-- TOTAL À PAYER (bandeau doré CIBLE) --}}
         <table class="total-final">
             <tr>
                 <td class="lbl">TOTAL À PAYER</td>
@@ -614,77 +691,77 @@
         $remaining = max(0, $totalDue - $paid);
     @endphp
     @if($payments->isNotEmpty())
-        <div class="payments-wrap">
-            <div class="payments-card">
-                <div class="pt">💸 Versements enregistrés ({{ $payments->count() }})</div>
-                <table class="payments-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Mode</th>
-                            <th>Référence</th>
-                            <th>Banque</th>
-                            <th class="right">Montant</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($payments->sortBy('paid_at') as $p)
-                            <tr>
-                                <td>{{ $p->paid_at->format('d/m/Y') }}</td>
-                                <td>
-                                    {{ $p->mode_label }}
-                                    @if($p->is_acompte)
-                                        <span style="background:#fef3c7;color:#b45309;padding:1px 5px;border-radius:3px;font-size:7.5px;font-weight:700;margin-left:3px">ACOMPTE</span>
-                                    @endif
-                                </td>
-                                <td>{{ $p->reference ?: '—' }}</td>
-                                <td>{{ $p->bank ?: '—' }}</td>
-                                <td class="right">{{ $fmt($p->montant) }} FCFA</td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-
-                <table class="balance-table">
+        <div class="section-spacer"></div>
+        <div class="payments-card">
+            <div class="pt">💸 Versements enregistrés ({{ $payments->count() }})</div>
+            <table class="payments-table">
+                <thead>
                     <tr>
-                        <td class="lbl">Total encaissé</td>
-                        <td class="val">{{ $fmt($paid) }} FCFA</td>
+                        <th style="width:15%">Date</th>
+                        <th style="width:25%">Mode</th>
+                        <th style="width:22%">Référence</th>
+                        <th style="width:18%">Banque</th>
+                        <th class="right" style="width:20%">Montant</th>
                     </tr>
-                    @if($remaining > 0)
-                        <tr class="due">
-                            <td class="lbl">Reste à payer</td>
-                            <td class="val">{{ $fmt($remaining) }} FCFA</td>
-                        </tr>
-                    @else
+                </thead>
+                <tbody>
+                    @foreach($payments->sortBy('paid_at') as $p)
                         <tr>
-                            <td class="lbl">✅ Facture intégralement soldée</td>
-                            <td class="val">{{ $fmt(0) }} FCFA</td>
+                            <td>{{ $p->paid_at->format('d/m/Y') }}</td>
+                            <td>
+                                {{ $p->mode_label }}
+                                @if($p->is_acompte)
+                                    <span style="background:#fef3c7;color:#b45309;padding:2px 7px;border-radius:4px;font-size:8.5px;font-weight:700;margin-left:4px;letter-spacing:.3px">ACOMPTE</span>
+                                @endif
+                            </td>
+                            <td>{{ $p->reference ?: '—' }}</td>
+                            <td>{{ $p->bank ?: '—' }}</td>
+                            <td class="right">{{ $fmt($p->montant) }} FCFA</td>
                         </tr>
-                    @endif
-                </table>
-            </div>
+                    @endforeach
+                </tbody>
+            </table>
+
+            <table class="balance-table">
+                <tr>
+                    <td class="lbl">Total encaissé</td>
+                    <td class="val">{{ $fmt($paid) }} FCFA</td>
+                </tr>
+                @if($remaining > 0)
+                    <tr class="due">
+                        <td class="lbl">Reste à payer</td>
+                        <td class="val">{{ $fmt($remaining) }} FCFA</td>
+                    </tr>
+                @else
+                    <tr class="soldee">
+                        <td class="lbl">✅ Facture intégralement soldée</td>
+                        <td class="val">{{ $fmt(0) }} FCFA</td>
+                    </tr>
+                @endif
+            </table>
         </div>
     @endif
 
     {{-- ════════════════════ ÉCHÉANCIER PRÉVISIONNEL ════════════════════ --}}
     @php $schedules = $invoice->schedules ?? collect(); @endphp
     @if($schedules->isNotEmpty())
+        <div class="section-spacer"></div>
         <div class="schedule-card">
             <div class="st">📅 Échéancier prévisionnel ({{ $schedules->count() }})</div>
             <table class="schedule-table">
                 <thead>
                     <tr>
-                        <th style="width:12%">N°</th>
-                        <th>Libellé</th>
+                        <th style="width:8%">N°</th>
+                        <th style="width:40%">Libellé</th>
                         <th style="width:20%">Date d'échéance</th>
-                        <th class="right" style="width:22%">Montant</th>
-                        <th style="width:15%">État</th>
+                        <th class="right" style="width:20%">Montant</th>
+                        <th style="width:12%">État</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach($schedules as $i => $s)
                         <tr>
-                            <td>{{ $i + 1 }}</td>
+                            <td><strong>{{ $i + 1 }}</strong></td>
                             <td>{{ $s->label ?? 'Échéance' }}</td>
                             <td>{{ $s->due_date->format('d/m/Y') }}</td>
                             <td class="right">{{ $fmt($s->amount) }} FCFA</td>
@@ -707,26 +784,40 @@
     {{-- ════════════════════ BAS DE PAGE ════════════════════ --}}
     <div class="footer-wrap">
         <div class="footer-info">
-            <strong>Conditions de règlement :</strong>
-            {{ $invoice->notes_client ?: config('billing.payment_terms_default') }}
+            <div class="conditions">
+                <strong>💼 Conditions de règlement :</strong>
+                {{ $invoice->notes_client ?: config('billing.payment_terms_default') }}
+            </div>
 
             @php $bank = config('billing.bank'); @endphp
             @if(!empty($bank['name']) || !empty($bank['iban']) || !empty($bank['rib']))
                 <div class="bank-card">
-                    <strong>🏦 Coordonnées bancaires :</strong>
-                    @if(!empty($bank['name'])) {{ $bank['name'] }}@endif
-                    @if(!empty($bank['rib']))  · <strong>RIB :</strong> {{ $bank['rib'] }}@endif
-                    @if(!empty($bank['iban'])) · <strong>IBAN :</strong> {{ $bank['iban'] }}@endif
-                    @if(!empty($bank['swift'])) · <strong>SWIFT :</strong> {{ $bank['swift'] }}@endif
+                    <strong>🏦 Coordonnées bancaires</strong><br>
+                    @if(!empty($bank['name'])) <strong>Banque :</strong> {{ $bank['name'] }}<br>@endif
+                    @if(!empty($bank['rib']))  <strong>RIB :</strong> {{ $bank['rib'] }}<br>@endif
+                    @if(!empty($bank['iban'])) <strong>IBAN :</strong> {{ $bank['iban'] }}<br>@endif
+                    @if(!empty($bank['swift'])) <strong>SWIFT/BIC :</strong> {{ $bank['swift'] }}@endif
                 </div>
             @endif
 
             <div class="footer-legal">{{ config('billing.legal_mentions') }}</div>
 
-            <div class="footer-rgpd">🔒 Données hébergées et sécurisées — Conformité RGPD · Panora © {{ now()->year }} {{ config('billing.company.name') }}</div>
+            <div class="footer-rgpd">
+                🔒 Données hébergées et sécurisées — Conformité RGPD · Panora © {{ now()->year }} {{ config('billing.company.name') }}
+            </div>
         </div>
     </div>
 
-</div>
+    {{-- Pagination automatique DomPDF --}}
+    <script type="text/php">
+        if (isset($pdf)) {
+            $text = "Page {PAGE_NUM}/{PAGE_COUNT}";
+            $size = 8.5;
+            $font = $fontMetrics->getFont("DejaVu Sans");
+            $width = $fontMetrics->get_text_width($text, $font, $size) / 2;
+            $pdf->page_text($pdf->get_width() - 60, $pdf->get_height() - 30, $text, $font, $size, array(0.58, 0.64, 0.72));
+        }
+    </script>
+
 </body>
 </html>
