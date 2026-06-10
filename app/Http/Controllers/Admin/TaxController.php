@@ -436,9 +436,24 @@ class TaxController extends Controller
             ->get()
             ->groupBy('commune_id');
 
-        $rows = $communes->map(function ($commune) use ($nbMois, $allPayments, $queryMonths, $periodType, $periodYear, $periodValue) {
-            $tmRate  = (float) ($commune->tm_rate ?: 1000);
-            $odpRate = (float) $commune->odp_rate;
+        // Date de référence pour le snapshot tarifaire : on prend le
+        // 1er jour du mois de la période demandée. Garantit que les
+        // rapports historiques utilisent les tarifs en vigueur À CETTE
+        // DATE (cohérent avec Invoice::syncLines qui fige les taux à
+        // issued_at via Commune::ratesAt — règle d'or §3).
+        $rateDate = \Carbon\Carbon::create(
+            $periodYear,
+            $queryMonths[0] ?? 1,
+            1
+        )->toDateString();
+
+        $rows = $communes->map(function ($commune) use ($nbMois, $allPayments, $queryMonths, $periodType, $periodYear, $periodValue, $rateDate) {
+            // Phase audit 8E — tarifs HISTORISÉS, pas courants.
+            // Avant : $commune->odp_rate (valeur actuelle) → divergeait
+            // avec la facturation qui utilise ratesAt(issued_at).
+            $rates   = $commune->ratesAt($rateDate);
+            $odpRate = (float) ($rates['odp'] ?? 0);
+            $tmRate  = (float) ($rates['tm']  ?: config('billing.tm_default', 1000));
 
             // Lignes détaillées par format (pour affichage tableau)
             $lignes = $commune->panels

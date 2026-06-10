@@ -47,11 +47,20 @@
         </div>
         <div style="font-size:9px;color:var(--text3);margin-top:2px;font-weight:700">{{ rtrim(rtrim(number_format($pct, 1, ',', ''), '0'), ',') }} % payé</div>
         <div style="margin-top:3px">
+            {{-- Phase audit 8E — 9 statuts cahier §3 entièrement couverts.
+                 Avant : seulement 4 statuts gérés, les 5 nouveaux (generee/
+                 validee/partiellement_payee/en_retard/litige) n'avaient
+                 AUCUN badge → ligne vide trompeuse. --}}
             @switch($invoice->status)
-                @case('brouillon') <span style="font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">📝 Brouillon</span> @break
-                @case('envoyee')   <span style="font-size:9.5px;color:#1d4ed8;text-transform:uppercase;letter-spacing:.3px">📤 Envoyée</span> @break
-                @case('payee')     <span style="font-size:9.5px;color:#15803d;text-transform:uppercase;letter-spacing:.3px">✅ Marquée payée</span> @break
-                @case('annulee')   <span style="font-size:9.5px;color:#b91c1c;text-transform:uppercase;letter-spacing:.3px">🚫 Annulée</span> @break
+                @case('brouillon')           <span style="font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">📝 Brouillon</span> @break
+                @case('generee')             <span style="font-size:9.5px;color:#7c3aed;text-transform:uppercase;letter-spacing:.3px">📋 Générée</span> @break
+                @case('validee')             <span style="font-size:9.5px;color:#0e7490;text-transform:uppercase;letter-spacing:.3px">🔒 Validée</span> @break
+                @case('envoyee')             <span style="font-size:9.5px;color:#1d4ed8;text-transform:uppercase;letter-spacing:.3px">📤 Envoyée</span> @break
+                @case('partiellement_payee') <span style="font-size:9.5px;color:#b45309;text-transform:uppercase;letter-spacing:.3px">⏳ Partielle</span> @break
+                @case('payee')               <span style="font-size:9.5px;color:#15803d;text-transform:uppercase;letter-spacing:.3px">✅ Payée</span> @break
+                @case('en_retard')           <span style="font-size:9.5px;color:#b91c1c;text-transform:uppercase;letter-spacing:.3px">🔴 En retard</span> @break
+                @case('litige')              <span style="font-size:9.5px;color:#9a3412;text-transform:uppercase;letter-spacing:.3px">⚠ Litige</span> @break
+                @case('annulee')             <span style="font-size:9.5px;color:#b91c1c;text-transform:uppercase;letter-spacing:.3px">🚫 Annulée</span> @break
             @endswitch
         </div>
     </td>

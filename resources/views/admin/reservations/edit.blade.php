@@ -952,9 +952,21 @@
             },
 
             getMonths() {
-                if (!this.startDate || !this.endDate) return 1;
-                const days = (new Date(this.endDate) - new Date(this.startDate)) / (1000 * 60 * 60 * 24);
-                return Math.max(Math.ceil(days / 30), 1);
+                // RÈGLE UNIQUE CIBLE CI — IDENTIQUE à Reservation::billableMonths
+                // côté serveur. Avant : Math.ceil(days/30) qui SURESTIMAIT
+                // (32 jours = 2 mois affichés vs 1.5 mois réellement facturés
+                // par le serveur). Divergence créait des litiges client.
+                if (!this.startDate || !this.endDate) return 0.5;
+                const s = new Date(this.startDate);
+                const e = new Date(this.endDate);
+                const days = Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
+                if (days <= 0) return 0.5;
+                const full = Math.floor(days / 30);
+                const remain = days % 30;
+                let fraction = 0;
+                if (remain >= 1 && remain <= 15) fraction = 0.5;
+                else if (remain > 15) fraction = 1;
+                return Math.max(full + fraction, 0.5);
             },
 
             formatPrice(price) {

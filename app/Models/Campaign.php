@@ -24,7 +24,7 @@ class Campaign extends Model
     protected $casts = [
         'start_date'   => 'date',
         'end_date'     => 'date',
-        'total_amount' => 'decimal:2',
+        'total_amount' => 'integer', // RÈGLE 4 — entier FCFA (audit Phase 8E)
         'total_panels' => 'integer',
         'status'       => CampaignStatus::class,
         'pige_token_created_at' => 'datetime',
