@@ -839,14 +839,29 @@
                         const fmt = n => Number(n).toLocaleString('fr-FR') + ' FCFA';
                         const tbody = document.getElementById('milestones-tbody');
 
+                        // Helper : désactive tous les <input>/<select> d'un
+                        // bloc caché pour qu'ils ne soient PAS envoyés au form
+                        // ET ne déclenchent PAS la validation HTML5 native.
+                        // Bug avant : un milestone créé puis caché restait
+                        // 'required' → le navigateur refusait la soumission
+                        // sur un input invisible, en silence côté UI.
+                        function setBlockEnabled(block, enabled) {
+                            block.style.display = enabled ? '' : 'none';
+                            block.querySelectorAll('input, select, textarea').forEach(el => {
+                                el.disabled = !enabled;
+                            });
+                        }
+
                         window.schedSwitchMode = function(mode) {
                             const start = document.getElementById('sched-block-startdate');
                             const count = document.getElementById('sched-block-count');
                             const mile  = document.getElementById('sched-block-milestones');
-                            // par défaut : start visible, count caché, mile caché
-                            start.style.display = (mode === 'custom_milestones') ? 'none' : '';
-                            count.style.display = (mode === 'monthly') ? '' : 'none';
-                            mile.style.display  = (mode === 'custom_milestones') ? '' : 'none';
+                            // start visible pour tous SAUF custom_milestones
+                            setBlockEnabled(start, mode !== 'custom_milestones');
+                            // count visible UNIQUEMENT pour monthly
+                            setBlockEnabled(count, mode === 'monthly');
+                            // milestones visible UNIQUEMENT pour custom_milestones
+                            setBlockEnabled(mile,  mode === 'custom_milestones');
 
                             if (mode === 'custom_milestones' && tbody.children.length === 0) {
                                 window.schedAddMilestone();
@@ -891,9 +906,18 @@
                         };
 
                         // Init mode par défaut
-                        document.addEventListener('DOMContentLoaded', () => {
-                            window.schedSwitchMode(document.getElementById('sched-mode').value);
-                        });
+                        // Init synchrone : si DOMContentLoaded est déjà passé
+                        // (cas où le script est dans le <body>), on init
+                        // immédiatement le mode par défaut. Sinon, on attend.
+                        const initSchedMode = () => {
+                            const sel = document.getElementById('sched-mode');
+                            if (sel) window.schedSwitchMode(sel.value);
+                        };
+                        if (document.readyState === 'loading') {
+                            document.addEventListener('DOMContentLoaded', initSchedMode);
+                        } else {
+                            initSchedMode();
+                        }
                     })();
                     </script>
                 </div>
