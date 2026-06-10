@@ -44,46 +44,47 @@
                aria-label="Sélectionner {{ $campaign->name }}">
     </td>
     @endif
+    {{-- ═══ COLONNE FUSIONNÉE : Campagne / Client ═══ --}}
     <td class="col-campaign">
         <a href="{{ route('admin.campaigns.show', $campaign) }}" class="campaign-name" title="{{ $campaign->name }}">
             {{ $campaign->name }}
         </a>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">
+            @if($campaign->client?->trashed())
+                <span class="client-deleted" title="{{ $campaign->client->name }}">{{ \Illuminate\Support\Str::limit($campaign->client->name, 24) }}</span>
+                <span class="deleted-badge">Supprimé</span>
+            @else
+                <a href="{{ route('admin.clients.show', $campaign->client) }}" style="color:var(--text3);text-decoration:none" title="{{ $campaign->client?->name }}">
+                    🏢 {{ \Illuminate\Support\Str::limit($campaign->client?->name ?? '—', 24) }}
+                </a>
+            @endif
+        </div>
         @if($endingSoon)
-        <div class="days-left" style="color:var(--accent);">⚠️ Dans {{ $daysLeft }} jour(s)</div>
+            <div class="days-left" style="color:var(--accent);font-size:10.5px;margin-top:2px">⚠️ Dans {{ $daysLeft }} jour(s)</div>
         @endif
         @if($isCancelled && $cancelTip)
-        <div title="{{ $cancelTip }}" style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:#ef4444;cursor:help;">
-            🚫 {{ $cancelLabels[$campaign->cancellation_reason] ?? 'Annulée' }}
-        </div>
+            <div title="{{ $cancelTip }}" style="margin-top:2px;font-size:10.5px;color:#ef4444;cursor:help">
+                🚫 {{ \Illuminate\Support\Str::limit($cancelLabels[$campaign->cancellation_reason] ?? 'Annulée', 22) }}
+            </div>
         @endif
     </td>
-    <td class="col-client">
-        @if($campaign->client?->trashed())
-        <span class="client-deleted" title="{{ $campaign->client->name }}">{{ $campaign->client->name ?? '—' }}</span>
-        <span class="deleted-badge">Supprimé</span>
-        @else
-        <a href="{{ route('admin.clients.show', $campaign->client) }}" class="client-link" title="{{ $campaign->client?->name }}">
-            {{ $campaign->client?->name ?? '—' }}
-        </a>
-        @endif
-    </td>
-    {{-- Période sur 1 seule ligne avec année 2 chiffres (gagne ~30% de
-         largeur sur l'ancien format dd/mm/YYYY → dd/mm/YYYY). --}}
+
+    {{-- ═══ COLONNE FUSIONNÉE : Période + Durée ═══ --}}
     <td class="date-range">
-        {{ $campaign->start_date->format('d/m/y') }}
-        <span>→</span>
-        {{ $campaign->end_date->format('d/m/y') }}
+        <div>{{ $campaign->start_date->format('d/m/y') }} <span>→</span> {{ $campaign->end_date->format('d/m/y') }}</div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:1px">⏱ {{ $campaign->durationHuman() }}</div>
     </td>
-    <td class="duration">{{ $campaign->durationHuman() }}</td>
+
+    {{-- ═══ COLONNE FUSIONNÉE : Panneaux + Montant ═══ --}}
     <td class="text-center">
         <span class="badge-panels">{{ ($campaign->panels_count ?? 0) + ($campaign->external_panels_count ?? 0) }} 🪧</span>
-    </td>
-    <td class="amount">
-        @if($campaign->total_amount !== null && (float) $campaign->total_amount > 0)
-            {{ number_format($campaign->total_amount, 0, ',', ' ') }} <span>FCFA HT</span>
-        @else
-            <span class="badge-muted">—</span>
-        @endif
+        <div class="amount" style="margin-top:3px;font-size:11.5px">
+            @if($campaign->total_amount !== null && (float) $campaign->total_amount > 0)
+                {{ number_format($campaign->total_amount, 0, ',', ' ') }} <span style="font-size:9.5px;color:var(--text3);font-weight:400">F HT</span>
+            @else
+                <span class="badge-muted">—</span>
+            @endif
+        </div>
     </td>
     <td>
         <span class="status-badge" style="background:{{ $statusCfg['bg'] }};color:{{ $statusCfg['color'] }};border-color:{{ $statusCfg['border'] }}">
