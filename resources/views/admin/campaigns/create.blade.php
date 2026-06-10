@@ -171,9 +171,14 @@
         border-radius: 14px;
         margin-top: 14px;
     }
+    /* Bouton CTA "Créer la campagne" — couleurs hardcodées pour
+       garantir le contraste quel que soit le thème (clair/sombre).
+       Avant : linear-gradient(var(--accent)…) rendait un doré pâle
+       sur thème clair, le texte blanc devenait invisible (cf. bug
+       similaire du bandeau TOTAL À PAYER). */
     .cc-btn-create {
-        background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-        color: #fff;
+        background: linear-gradient(135deg, #d97706, #b45309);
+        color: #ffffff;
         border: 0;
         padding: 11px 22px;
         border-radius: 10px;
@@ -182,14 +187,19 @@
         cursor: pointer;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
-        box-shadow: 0 6px 16px rgba(232,160,32,.25);
-        transition: transform .15s, box-shadow .15s;
+        box-shadow: 0 6px 16px rgba(217,119,6,.30);
+        text-shadow: 0 1px 1px rgba(0,0,0,.25);
+        transition: transform .15s, box-shadow .15s, filter .15s;
+        min-width: 200px;
     }
     .cc-btn-create:hover {
         transform: translateY(-1px);
-        box-shadow: 0 10px 22px rgba(232,160,32,.32);
+        box-shadow: 0 10px 22px rgba(217,119,6,.42);
+        filter: brightness(1.06);
     }
+    .cc-btn-create:active { transform: translateY(0); }
     .cc-btn-cancel {
         background: var(--surface2);
         border: 1px solid var(--border2);
