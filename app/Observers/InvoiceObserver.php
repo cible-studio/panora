@@ -71,7 +71,9 @@ class InvoiceObserver
         ]);
 
         // Nettoyage du marqueur temporaire pour éviter la fuite sur le
-        // prochain save() de la même instance.
-        unset($invoice->_transitionMeta);
+        // prochain save() de la même instance. Réassignation à null
+        // (et non unset) car _transitionMeta est une propriété typée
+        // déclarée sur la classe Invoice (cf. Invoice::$_transitionMeta).
+        $invoice->_transitionMeta = null;
     }
 }
