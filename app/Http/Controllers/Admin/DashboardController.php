@@ -185,6 +185,12 @@ class DashboardController extends Controller
         // ═══ Phase 6 cahier §12 — KPIs financiers stratégiques ═══
         // CA du mois, encaissements du mois, créances, factures en retard,
         // total à recouvrer, prévision encaissement à 30 j.
+        // Note : $now utilisé localement par cette section + la suivante
+        // (Top 10 Phase 8D). Carbon::now() est sûr peu importe le timezone
+        // car les colonnes invoices.issued_at et paid_at sont des DATE
+        // (sans heure).
+        $now = now();
+
         $finScope = \App\Models\Invoice::query()
             ->whereNotIn('status', ['annulee'])
             ->when($isCommercial, fn($q) => $q->forCommercialUser($userId));
