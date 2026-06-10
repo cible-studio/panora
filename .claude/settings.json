@@ -9,6 +9,7 @@
       "Bash(php -l app/Http/Controllers/Client/ClientDashboardController.php)",
       "Bash(git commit -m ' *)",
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
       "Bash(grep -n '$badge\\\\[' resources/views/client/campagne-detail.blade.php)",
       "Bash(grep -n '{{ $badge\\\\['\\\\''label'\\\\''\\\\] }}\\\\|{{ $badge\\\\['\\\\''' resources/views/client/campagne-detail.blade.php)",
       "Bash(php -l app/Models/ClientContact.php)",
@@ -230,6 +231,8 @@
       "Bash(Find \"c:\\\\wamp64\\\\www\\\\panora\\\\database\\\\migrations\" -name \"*piges*\" -type f)",
       "Bash(echo \"develop ahead/behind origin: $\\(git rev-list --left-right --count develop...origin/develop\\)\")"
 =======
+=======
+>>>>>>> Stashed changes
       "Bash(git stash *)",
       "Bash(git reset *)",
       "Bash(git checkout *)",
@@ -237,6 +240,9 @@
       "Bash(php -l app/Http/Controllers/Admin/TaxController.php)",
       "Bash(php -l app/Services/TaxAutoService.php)",
       "Bash(php -l app/Services/AlertService.php)"
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
     ]
   }

@@ -30,11 +30,13 @@ class CommuneTaxPayment extends Model
         'recorded_by',
     ];
 
+    // RÈGLE 4 — entiers FCFA (audit Phase 8E : cohérence avec
+    // invoice_lines.odp_ligne/tm_ligne et commune.odp_rate/tm_rate).
     protected $casts = [
-        'odp_theorique'     => 'decimal:2',
-        'tm_theorique'      => 'decimal:2',
-        'odp_paye'          => 'decimal:2',
-        'tm_paye'           => 'decimal:2',
+        'odp_theorique'     => 'integer',
+        'tm_theorique'      => 'integer',
+        'odp_paye'          => 'integer',
+        'tm_paye'           => 'integer',
         'paid_at'           => 'date',
         'attestation_recue' => 'boolean',
         'attestation_date'  => 'date',
