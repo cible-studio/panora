@@ -36,6 +36,8 @@ class FinanceDashboardController extends Controller
         $topClients        = $this->svc->encaissementsByClient($from, $to, 10, $commercialUid);
         $byCommune         = $this->svc->encaissementsByCommune($from, $to, $commercialUid);
         $byCommercial      = $this->svc->encaissementsByCommercial($from, $to, $commercialUid);
+        // Liste détaillée des versements (dates + montants) — cahier §4 / §11
+        $recentPayments    = $this->svc->recentPayments($from, $to, 200, $commercialUid);
         $aging             = $this->svc->agingBalance($commercialUid);
         // Phase 8D cahier §8 — Filtres dynamiques recouvrement
         $clientsToFollow   = $this->svc->clientsToFollow(
@@ -60,6 +62,7 @@ class FinanceDashboardController extends Controller
             'topClients'       => $topClients,
             'byCommune'        => $byCommune,
             'byCommercial'     => $byCommercial,
+            'recentPayments'   => $recentPayments,
             'aging'            => $aging,
             'clientsToFollow'  => $clientsToFollow,
             'creances'         => $creances,

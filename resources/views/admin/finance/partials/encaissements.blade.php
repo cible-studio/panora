@@ -102,6 +102,78 @@
     </div>
 </div>
 
+{{-- ════════ DÉTAIL DES VERSEMENTS — date + montant + mode + référence ════════
+     Demandé : "et les dates et montants de differents versements c'est où ?"
+     On affiche chaque ligne de versement sur la période, du plus récent au
+     plus ancien. Capé à 200 entrées (cf. recentPayments(…, 200, …) dans le
+     service). Cliquer sur la référence ouvre la facture. --}}
+<div class="fin-card" style="margin-top:14px">
+    <div class="fin-card-head">
+        <div>
+            <div class="fin-card-title">💵 Détail des versements</div>
+            <div class="fin-card-sub">{{ $recentPayments->count() }} versement(s) sur la période — du plus récent au plus ancien</div>
+        </div>
+    </div>
+    <div class="fin-card-body fin-card-body--flush">
+        @if($recentPayments->isEmpty())
+            <div class="fin-empty" style="margin:18px">Aucun versement enregistré sur la période.</div>
+        @else
+            <div style="overflow-x:auto">
+                <table class="fin-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Facture</th>
+                            <th>Client</th>
+                            <th>Mode</th>
+                            <th>Référence</th>
+                            <th class="num">Montant</th>
+                            <th>Enregistré par</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($recentPayments as $p)
+                            <tr>
+                                <td style="white-space:nowrap;color:var(--text2)">{{ $p['paid_at']?->format('d/m/Y') ?? '—' }}</td>
+                                <td>
+                                    <a href="{{ route('admin.invoices.show', $p['invoice_id']) }}"
+                                       style="font-family:monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $p['invoice_ref'] }}</a>
+                                    @if($p['is_acompte'])
+                                        <span style="display:inline-block;margin-left:4px;padding:1px 6px;background:rgba(59,130,246,.15);color:#3b82f6;border-radius:999px;font-size:9.5px;font-weight:700">ACOMPTE</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if($p['client_id'])
+                                        <a href="{{ route('admin.clients.show', $p['client_id']) }}" style="color:var(--text);text-decoration:none">{{ $p['client_name'] }}</a>
+                                    @else
+                                        <span style="color:var(--text3)">{{ $p['client_name'] }}</span>
+                                    @endif
+                                </td>
+                                <td style="font-size:12px">{{ $p['mode_label'] ?? $p['mode'] }}</td>
+                                <td style="font-size:12px;color:var(--text2)">
+                                    {{ $p['reference'] ?: '—' }}
+                                    @if($p['bank'])
+                                        <div style="font-size:10.5px;color:var(--text3)">{{ $p['bank'] }}</div>
+                                    @endif
+                                </td>
+                                <td class="num strong">{{ $fmt($p['montant']) }} <span style="font-size:10px;color:var(--text3);font-weight:500">FCFA</span></td>
+                                <td style="color:var(--text2);font-size:12px;white-space:nowrap">{{ $p['creator_name'] }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                    <tfoot>
+                        <tr style="border-top:2px solid var(--border);background:var(--surface2)">
+                            <td colspan="5" style="text-align:right;padding:12px 14px;font-weight:700;color:var(--text2)">Total des versements affichés</td>
+                            <td class="num" style="padding:12px 14px;font-weight:800;color:var(--accent);font-size:14px">{{ $fmt($recentPayments->sum('montant')) }} FCFA</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        @endif
+    </div>
+</div>
+
 <style>
 .fin-encaissements-grid {
     display: grid;
