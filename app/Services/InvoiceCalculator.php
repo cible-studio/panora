@@ -248,6 +248,13 @@ class InvoiceCalculator
             'services_pose_depose' => empty($svcArr) ? (float) $invoice->services_pose_depose : 0,
         ]);
 
+        // calculateInvoice retourne des AGRÉGATS INTERNES
+        // (services_ht_total, services_ttc_total) qui ne sont PAS des
+        // colonnes de la table invoices — ils sont utilisés par les vues
+        // et la JS recompute. On les retire avant le forceFill pour
+        // éviter "Column not found: services_ht_total" en prod.
+        unset($totals['services_ht_total'], $totals['services_ttc_total']);
+
         $invoice->forceFill($totals)->save();
         return $invoice->fresh(['lines']);
     }
