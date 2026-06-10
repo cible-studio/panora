@@ -539,11 +539,26 @@ function campaignCreate() {
             return Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
         },
         get durationMonths() {
-            // Mois facturables : règle CIBLE ~30 jours/mois, arrondi à
-            // 1 décimale (cohérence avec Campaign::billableMonths côté serveur)
+            // RÈGLE UNIQUE de la régie CIBLE CI — IDENTIQUE à
+            // Campaign::billableMonths() côté serveur :
+            //   - floor(jours/30) mois pleins
+            //   - + 0 si résidu = 0
+            //   - + 0.5 si résidu ∈ [1, 15]
+            //   - + 1   si résidu > 15
+            //   - minimum 0.5
+            //
+            // L'ancien calcul Math.round(d/30, 1) donnait des résultats
+            // FAUX (ex: 32 jours → 1.1 affiché vs 1.5 facturé), ce qui
+            // sous-estimait la facture pour le commercial à la saisie
+            // et créait des litiges au moment de l'émission.
             const d = this.durationDays;
-            if (d <= 0) return 0;
-            return Math.max(1, Math.round(d / 30 * 10) / 10);
+            if (d <= 0) return 0.5;
+            const full = Math.floor(d / 30);
+            const remain = d % 30;
+            let fraction = 0;
+            if (remain >= 1 && remain <= 15) fraction = 0.5;
+            else if (remain > 15) fraction = 1;
+            return Math.max(full + fraction, 0.5);
         },
 
         formatDate(iso) {
