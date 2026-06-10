@@ -213,18 +213,20 @@
                             <input type="checkbox" data-bulk-select-all aria-label="Tout sélectionner">
                         </th>
                         @endif
-                        <th>Campagne</th>
-                        <th>Client</th>
+                        {{-- Phase audit 8E refonte UI — passage de 10 à 7 colonnes
+                             pour supprimer le scroll horizontal. Campagne + Client
+                             + Commercial fusionnés dans une colonne 'Campagne /
+                             Client'. Période + Durée fusionnés. Panneaux + Montant
+                             fusionnés. Facturation cachée pour MP (déjà fait). --}}
+                        <th>Campagne / Client</th>
                         <th>Période</th>
-                        <th>Durée</th>
-                        <th>Panneaux</th>
-                        <th>Montant</th>
+                        <th class="text-center">Panneaux / Montant</th>
                         <th>Statut</th>
                         @if($canSeeBilling)
-                        <th>Facturation</th>
+                        <th class="text-center" style="width:120px">Facturation</th>
                         @endif
-                        <th>Commercial</th>
-                        <th style="width:80px">Actions</th>
+                        <th style="width:120px">Commercial</th>
+                        <th style="width:100px">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -680,43 +682,53 @@
         .total-count { font-size: 12px; color: var(--text2); }
         .new-badge { font-size: 11px; font-weight: 600; color: var(--warning); background: rgba(232,160,32,0.1); padding: 3px 10px; border-radius: 20px; }
 
-        .table-responsive { overflow-x: auto; }
-        .data-table { width: 100%; border-collapse: collapse; }
+        /* Phase audit 8E refonte : pas de scroll horizontal.
+           overflow-x: hidden + table-layout fixed + widths calés
+           pour que la table tienne dans 1280px sans déborder. */
+        .table-responsive { overflow-x: hidden; }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: auto;
+        }
         .data-table th {
             text-align: left;
             padding: 9px 8px;
             background: var(--surface2);
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 10.5px;
+            font-weight: 700;
             text-transform: uppercase;
+            letter-spacing: .3px;
             color: var(--text-muted);
             border-bottom: 1px solid var(--border);
         }
         .data-table td {
-            padding: 10px 8px;
-            font-size: 13px;
+            padding: 9px 8px;
+            font-size: 12.5px;
             border-bottom: 1px solid var(--border);
             transition: background 0.12s;
+            vertical-align: top;
         }
         .data-table tr:hover td { background: var(--surface2); }
 
-        /* Colonnes texte longues : on coupe à largeur fixe + ellipsis. Le
-           contenu complet reste accessible via title= (tooltip natif). Sans
-           ça, un nom de campagne ou un email de commercial faisait gonfler
-           la table au-delà du viewport → scroll horizontal forcé. */
-        .col-campaign   { max-width: 240px; }
-        .col-client     { max-width: 180px; }
-        .col-commercial { max-width: 160px; }
-        .col-campaign .campaign-name,
-        .col-client .client-link,
-        .col-client .client-deleted,
-        .col-commercial > div {
+        /* Colonne fusionnée Campagne / Client : largeur souple max,
+           ellipsis sur le nom de campagne uniquement. Le client est en
+           sous-titre déjà tronqué via Str::limit côté Blade. */
+        .col-campaign { max-width: 280px; }
+        .col-campaign .campaign-name {
             display: block;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        .date-range { font-size: 12px; line-height: 1.35; white-space: nowrap; }
+        .col-commercial {
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .date-range { font-size: 11.5px; line-height: 1.35; white-space: nowrap; }
+        .text-center { text-align: center; }
 
         .campaign-name { font-weight: 700; color: var(--text); text-decoration: none; }
         .client-link { color: var(--text); text-decoration: none; font-weight: 500; }
