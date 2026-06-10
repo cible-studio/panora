@@ -19,10 +19,15 @@
   --border:  #1e2330;
   --border2: #2a303f;
 
-  /* Accent (or) — changer ici pour la charte */
-  --accent:     #fab80b;
-  --accent2:    #fab80b;
-  --accent-dim: rgba(232,160,32,0.12);
+  /* Accent (or) — changer ici pour la charte.
+     --accent-dark : version plus foncée pour les gradients et hover —
+     utilisée par 14+ fichiers (formulaire FNE, boutons primaires, etc.).
+     Sans cette variable, les gradients linear-gradient(--accent, --accent-dark)
+     rendaient le 2e arrêt transparent → bouton blanc invisible en light mode. */
+  --accent:      #fab80b;
+  --accent2:     #fab80b;
+  --accent-dark: #c97d10;
+  --accent-dim:  rgba(232,160,32,0.12);
 
 
   /* Textes */
@@ -56,9 +61,10 @@
   --border:  #e2e6ed;
   --border2: #d0d5de;
 
-  --accent:     #e8a020;
-  --accent2:    #c07010;
-  --accent-dim: rgba(232,160,32,0.10);
+  --accent:      #e8a020;
+  --accent2:     #c07010;
+  --accent-dark: #b86200;
+  --accent-dim:  rgba(232,160,32,0.10);
 
   --text:  #111827;
   --text2: #4b5563;
