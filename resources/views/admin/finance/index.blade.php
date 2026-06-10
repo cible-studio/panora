@@ -100,6 +100,24 @@
     @endforeach
 </div>
 
+{{-- Chart.js et window.financeBootstrap DOIVENT être poussés AVANT
+     l'@include du partial encaissements (qui pousse à son tour le script
+     d'init du chart). L'ordre de @push détermine l'ordre dans le HTML
+     final : si Chart.js arrive APRÈS le script d'init, on a un
+     "Chart is not defined" silencieux et le canvas reste vide. --}}
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+window.financeBootstrap = {
+    series: @json($series),
+    seriesUrl: "{{ route('admin.finance.series') }}",
+    period: "{{ request('period', '') }}",
+    from: "{{ $from->format('Y-m-d') }}",
+    to: "{{ $to->format('Y-m-d') }}",
+};
+</script>
+@endpush
+
 <div class="fin-tab-content">
     @switch($tab)
         @case('creances')
@@ -228,18 +246,5 @@
     border-radius: 10px;
 }
 </style>
-
-@push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-window.financeBootstrap = {
-    series: @json($series),
-    seriesUrl: "{{ route('admin.finance.series') }}",
-    period: "{{ request('period', '') }}",
-    from: "{{ $from->format('Y-m-d') }}",
-    to: "{{ $to->format('Y-m-d') }}",
-};
-</script>
-@endpush
 
 </x-admin-layout>
