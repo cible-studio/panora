@@ -1199,7 +1199,21 @@ class InvoiceController extends Controller
     {
         $this->authorize('exportPdf', $invoice);
 
-        $invoice->load('client', 'campaign', 'creator');
+        // Eager loading complet : la refonte PDF Phase 8E affiche les
+        // services annexes (N lignes), les versements (timeline +
+        // solde restant), l'échéancier prévisionnel (statut par échéance)
+        // et l'éventuel avoir source. Sans ces relations chargées, on
+        // déclenche des N+1 ou des relations vides à l'impression.
+        $invoice->load([
+            'client',
+            'campaign:id,name,start_date,end_date',
+            'creator:id,name',
+            'lines',
+            'services',
+            'payments' => fn($q) => $q->orderBy('paid_at'),
+            'schedules',
+            'creditNoteFor:id,reference,issued_at',
+        ]);
 
         $pdf = Pdf::loadView('pdf.invoice', compact('invoice'));
         $pdf->setPaper('A4', 'portrait');
