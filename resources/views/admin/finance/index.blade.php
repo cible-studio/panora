@@ -127,7 +127,7 @@ window.financeBootstrap = {
             @include('admin.finance.partials.recouvrement', compact('clientsToFollow', 'clientsList', 'fmt'))
             @break
         @default
-            @include('admin.finance.partials.encaissements', compact('series', 'topClients', 'byCommune', 'byCommercial', 'fmt'))
+            @include('admin.finance.partials.encaissements', compact('series', 'topClients', 'byCommune', 'byCommercial', 'recentPayments', 'fmt'))
     @endswitch
 </div>
 

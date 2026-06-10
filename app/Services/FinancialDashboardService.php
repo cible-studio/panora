@@ -126,6 +126,43 @@ class FinancialDashboardService
     }
 
     /**
+     * Liste détaillée des versements de la période — date, montant, client,
+     * facture, mode, référence, banque, note. Triés du plus récent au plus
+     * ancien. Capé à 200 par défaut.
+     *
+     * @return Collection<array>
+     */
+    public function recentPayments(CarbonInterface $from, CarbonInterface $to, int $limit = 200, ?int $commercialUserId = null): Collection
+    {
+        return $this->paymentsQueryForPeriod($from, $to, $commercialUserId)
+            ->with([
+                'invoice:id,reference,client_id',
+                'invoice.client:id,name',
+                'creator:id,name',
+            ])
+            ->orderByDesc('invoice_payments.paid_at')
+            ->orderByDesc('invoice_payments.id')
+            ->limit($limit)
+            ->get()
+            ->map(fn($p) => [
+                'id'           => $p->id,
+                'paid_at'      => $p->paid_at,
+                'montant'      => (float) $p->montant,
+                'mode'         => $p->mode,
+                'mode_label'   => $p->mode_label,
+                'reference'    => $p->reference,
+                'bank'         => $p->bank,
+                'is_acompte'   => (bool) $p->is_acompte,
+                'note'         => $p->note,
+                'invoice_id'   => $p->invoice_id,
+                'invoice_ref'  => $p->invoice?->reference ?? '—',
+                'client_id'    => $p->invoice?->client_id,
+                'client_name'  => $p->invoice?->client?->name ?? '—',
+                'creator_name' => $p->creator?->name ?? '—',
+            ]);
+    }
+
+    /**
      * Top clients par montant encaissé sur la période.
      */
     public function encaissementsByClient(CarbonInterface $from, CarbonInterface $to, int $limit = 10, ?int $commercialUserId = null): Collection
