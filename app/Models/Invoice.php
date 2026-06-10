@@ -27,6 +27,18 @@ class Invoice extends Model implements Auditable
         'updated_at',
     ];
 
+    /**
+     * Métadonnées de transition de statut posées par transitionStatusTo()
+     * et lues par InvoiceObserver pour alimenter invoice_status_history.
+     *
+     * DOIT être déclaré comme PROPRIÉTÉ PHP TYPÉE (pas un attribut
+     * dynamique), sinon Eloquent essaie de la persister en BDD →
+     * "Unknown column '_transitionMeta'". Ce bug s'est manifesté en
+     * prod lors du premier versement qui déclenche la transition auto
+     * envoyee → partiellement_payee.
+     */
+    public ?array $_transitionMeta = null;
+
     protected $fillable = [
         'reference', 'client_id', 'campaign_id',
         'commercial_user_id', 'created_by',
