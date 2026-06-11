@@ -19,8 +19,12 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        /* Marges A4 généreuses — feedback user : "pas de marge" sur le
+           rendu précédent. On passe à 28mm haut/bas et 25mm gauche/droite,
+           ce qui donne un format livre/facture pro classique avec environ
+           1 pouce de blanc sur chaque côté. */
         @page {
-            margin: 22mm 22mm 26mm;
+            margin: 28mm 25mm 32mm 25mm;
             size: A4 portrait;
         }
 
