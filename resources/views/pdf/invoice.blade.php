@@ -39,11 +39,16 @@
 
         /* ════════════════════════════════════════
            HEADER : BANDE COULEUR + IDENTITÉ
+           Note : on évite la marge négative full-bleed (mal rendue par
+           DomPDF qui sort le contenu hors zone de tracé). Le "ruban"
+           est ici un simple border-top épais sur le body via .ribbon
+           collé en haut de la zone de contenu standard.
         ════════════════════════════════════════ */
         .ribbon {
-            height: 5px;
+            height: 4px;
             background: #b45309;
-            margin: -22mm -22mm 18px;
+            margin-bottom: 18px;
+            border-radius: 2px;
         }
 
         .head {
@@ -55,8 +60,10 @@
 
         .head .logo-cell { width: 52%; }
         .head .logo-cell img {
-            height: 50px;
+            height: 44px;
+            max-width: 200px; /* borne pour les logos très larges */
             margin-bottom: 6px;
+            display: block;
         }
         .head .logo-cell .tagline {
             font-size: 8.5px;
@@ -571,7 +578,13 @@
                 <div class="doc-type">{{ $invoice->isCreditNote() ? 'Avoir / Note de crédit' : 'Facture FNE' }}</div>
                 <div class="doc-num">{{ $invoice->reference }}</div>
                 <div class="doc-date">
-                    Émise le <strong>{{ $invoice->issued_at->format('d F Y') }}</strong>
+                    @php
+                        // translatedFormat() respecte la locale Carbon (fr).
+                        // format('d F Y') seul donnait "10 June 2026" en
+                        // anglais sur le PDF prod.
+                        $issuedFr = $invoice->issued_at->locale('fr')->translatedFormat('d F Y');
+                    @endphp
+                    Émise le <strong>{{ $issuedFr }}</strong>
                 </div>
                 @if($st)
                     <span class="badge-status {{ $st['cls'] }}">{{ $st['lbl'] }}</span>
