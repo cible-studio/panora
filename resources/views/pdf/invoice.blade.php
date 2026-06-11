@@ -522,7 +522,7 @@
             color: #94a3b8;
             font-style: italic;
             line-height: 1.65;
-            text-align: justify;
+            text-align: left; /* justify cassait des mots en fin de ligne sur DomPDF ("pour" → "pou") */
         }
 
         .footer-meta {
@@ -579,10 +579,18 @@
                 <div class="doc-num">{{ $invoice->reference }}</div>
                 <div class="doc-date">
                     @php
-                        // translatedFormat() respecte la locale Carbon (fr).
-                        // format('d F Y') seul donnait "10 June 2026" en
-                        // anglais sur le PDF prod.
-                        $issuedFr = $invoice->issued_at->locale('fr')->translatedFormat('d F Y');
+                        // Traduction MANUELLE des mois — locale Carbon non
+                        // fiable sur la prod (translatedFormat() retournait
+                        // "10 June 2026" malgré locale('fr')). Mapping
+                        // direct, zéro dépendance.
+                        $moisFr = [
+                            1=>'janvier', 2=>'février', 3=>'mars', 4=>'avril',
+                            5=>'mai', 6=>'juin', 7=>'juillet', 8=>'août',
+                            9=>'septembre', 10=>'octobre', 11=>'novembre', 12=>'décembre',
+                        ];
+                        $issuedFr = $invoice->issued_at->format('d')
+                            . ' ' . $moisFr[(int) $invoice->issued_at->format('n')]
+                            . ' ' . $invoice->issued_at->format('Y');
                     @endphp
                     Émise le <strong>{{ $issuedFr }}</strong>
                 </div>
