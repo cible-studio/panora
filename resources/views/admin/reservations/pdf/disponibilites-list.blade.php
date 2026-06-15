@@ -162,114 +162,57 @@
         }
 
         /* ────────────────────────────────────────────────────────────
-           PAGE DE GARDE PAR COMMUNE
-           Avant chaque sous-liste (Cocody, Plateau…), on insère une
-           page d'annonce. La page de garde tient sur une page A4 et
-           force un page-break-after pour démarrer le tableau sur la
-           page suivante. La 2e/3e commune force un page-break-before
-           pour ne pas se coller au tableau précédent.
+           PAGE DE GARDE PAR COMMUNE — minimaliste
+           Page nue avec un grand cadre centré contenant juste le nom
+           de la commune. Page-break-before sur toutes les couvertures
+           pour partir sur une nouvelle page (la 1re après le banner
+           contexte du haut, les suivantes après le tableau précédent).
            ──────────────────────────────────────────────────────── */
         .commune-cover {
+            page-break-before: always;
             page-break-after: always;
         }
-        .commune-cover.not-first {
-            page-break-before: always;
+        table.cover-center {
+            width: 100%;
+            height: 260mm;
+            border-collapse: collapse;
         }
-        .cover-body {
-            padding: 60px 50px 30px;
+        table.cover-center > tbody > tr > td {
+            vertical-align: middle;
             text-align: center;
         }
-        .cover-eyebrow {
-            font-size: 10.5px;
+        .commune-frame-outer {
+            display: inline-block;
+            padding: 14px;
+            border: 3px solid #e8a020;
+            background: #ffffff;
+        }
+        .commune-frame-inner {
+            border: 1px solid #0d1117;
+            padding: 70px 110px 60px;
+            background: #ffffff;
+        }
+        .commune-kicker {
+            font-size: 9px;
             font-weight: 700;
-            color: #9ca3af;
-            letter-spacing: 3px;
+            color: #e8a020;
+            letter-spacing: 6px;
             text-transform: uppercase;
             margin-bottom: 26px;
         }
-        .cover-commune {
-            font-size: 42px;
+        .commune-name {
+            font-size: 52px;
             font-weight: 900;
             color: #0d1117;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            line-height: 1.1;
-            margin-bottom: 8px;
-        }
-        .cover-count {
-            font-size: 14px;
-            color: #c2570d;
-            font-weight: 600;
-            margin-bottom: 28px;
-        }
-        .cover-divider {
-            width: 80px;
-            height: 4px;
-            background: #e8a020;
-            margin: 0 auto 30px;
-        }
-        table.cover-stats {
-            width: 88%;
-            margin: 0 auto 32px;
-            border-collapse: separate;
-            border-spacing: 10px 0;
-        }
-        table.cover-stats td {
-            width: 33.33%;
-            text-align: center;
-            padding: 16px 8px;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            background: #fafafa;
-            vertical-align: middle;
-        }
-        .stat-num {
-            font-size: 28px;
-            font-weight: 800;
-            color: #0d1117;
+            letter-spacing: 8px;
             line-height: 1;
-            margin-bottom: 5px;
         }
-        .stat-lbl {
-            font-size: 8.5px;
-            font-weight: 700;
-            color: #6b7280;
-            letter-spacing: 1.4px;
-            text-transform: uppercase;
-        }
-        .cover-note {
-            font-size: 10.5px;
-            color: #4b5563;
-            line-height: 1.6;
-            margin: 0 auto;
-            padding: 13px 16px;
-            background: #fff7ed;
-            border-radius: 6px;
-            border-left: 3px solid #e8a020;
-            max-width: 92%;
-            text-align: left;
-        }
-        .cover-zones {
-            margin-top: 20px;
-            padding: 11px 14px;
-            background: #f9fafb;
-            border-radius: 6px;
-            font-size: 9.5px;
-            color: #4b5563;
-            line-height: 1.55;
-            text-align: left;
-            max-width: 92%;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .cover-zones strong {
-            display: block;
-            font-size: 8.5px;
-            font-weight: 700;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 1.4px;
-            margin-bottom: 4px;
+        .commune-ornament {
+            margin-top: 26px;
+            font-size: 13px;
+            color: #e8a020;
+            letter-spacing: 8px;
         }
 
         /* Section title au-dessus de chaque sous-tableau */
@@ -382,67 +325,24 @@
 
     @foreach($grouped as $communeName => $groupPanels)
         @php
-            $groupIndex = $loop->iteration;
-            $groupSize  = count($groupPanels);
-            $isFirst    = $loop->first;
-
-            $nbLit = collect($groupPanels)->filter(fn ($p) => !empty(is_object($p) ? $p->is_lit : $p['is_lit'] ?? false))->count();
-            $zones = collect($groupPanels)
-                ->map(fn ($p) => $resolveZone($p))
-                ->filter(fn ($z) => $z !== '' && $z !== '—')
-                ->unique()
-                ->values();
-            $formats = collect($groupPanels)
-                ->map(function ($p) {
-                    $f = is_object($p) ? ($p->format ?? null) : ($p['format'] ?? null);
-                    return is_object($f) ? ($f->name ?? '') : (string) $f;
-                })
-                ->filter(fn ($f) => $f !== '' && $f !== '—')
-                ->unique()
-                ->values();
+            $groupSize = count($groupPanels);
         @endphp
 
-        {{-- ═══════════════════ PAGE DE GARDE COMMUNE ═══════════════════ --}}
-        <div class="commune-cover {{ $isFirst ? '' : 'not-first' }}">
-            <div class="cover-body">
-                <div class="cover-eyebrow">Commune {{ $groupIndex }} sur {{ $totalGroups }}</div>
-                <div class="cover-commune">{{ $communeName }}</div>
-                <div class="cover-count">
-                    {{ $groupSize }} {{ $groupSize > 1 ? 'emplacements disponibles' : 'emplacement disponible' }}
-                </div>
-                <div class="cover-divider"></div>
-
-                <table class="cover-stats">
-                    <tr>
-                        <td>
-                            <div class="stat-num">{{ $groupSize }}</div>
-                            <div class="stat-lbl">{{ $groupSize > 1 ? 'Panneaux' : 'Panneau' }}</div>
-                        </td>
-                        <td>
-                            <div class="stat-num">{{ $nbLit }}</div>
-                            <div class="stat-lbl">{{ $nbLit > 1 ? 'Éclairés LED' : 'Éclairé LED' }}</div>
-                        </td>
-                        <td>
-                            <div class="stat-num">{{ $formats->count() }}</div>
-                            <div class="stat-lbl">{{ $formats->count() > 1 ? 'Formats' : 'Format' }}</div>
-                        </td>
-                    </tr>
-                </table>
-
-                <div class="cover-note">
-                    Le tableau suivant détaille les <strong>{{ $groupSize }}</strong>
-                    emplacement{{ $groupSize > 1 ? 's' : '' }} disponible{{ $groupSize > 1 ? 's' : '' }}
-                    à <strong>{{ $communeName }}</strong> : référence, caractéristiques techniques
-                    et trafic estimatif.
-                </div>
-
-                @if($zones->isNotEmpty())
-                    <div class="cover-zones">
-                        <strong>Zones couvertes dans cette commune</strong>
-                        {{ $zones->take(20)->implode(' · ') }}@if($zones->count() > 20) · …@endif
-                    </div>
-                @endif
-            </div>
+        {{-- ═══════════════════ PAGE DE GARDE COMMUNE (minimaliste) ═══════════════════ --}}
+        <div class="commune-cover">
+            <table class="cover-center">
+                <tr>
+                    <td>
+                        <div class="commune-frame-outer">
+                            <div class="commune-frame-inner">
+                                <div class="commune-kicker">Commune</div>
+                                <div class="commune-name">{{ $communeName }}</div>
+                                <div class="commune-ornament">◆ ◆ ◆</div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
         </div>
 
         {{-- ═══════════════════ SOUS-TABLEAU DE LA COMMUNE ═══════════════════ --}}
