@@ -192,58 +192,46 @@
     }
 
     /* ────────────────────────────────────────────────────────────────
-       PAGE DE GARDE PAR COMMUNE — version minimaliste
-       Plus de header, plus de eyebrow, plus de stats : juste un grand
-       cadre centré sur la page avec le nom de la commune. Centrage
-       vertical via table 100% de la page (DomPDF gère mal flex).
+       PAGE DE GARDE PAR COMMUNE — design simple & moderne
+       Aucun cadre, aucune décoration lourde : juste de la respiration
+       et de la typographie. Le bloc est centré verticalement via un
+       padding-top calculé (DomPDF gère mal vertical-align sur table
+       100% de page).  A4 portrait = 297mm ; centre visuel ≈ 130mm.
+       Le bloc fait ~40mm de hauteur → padding-top 110mm le pose
+       presque pile au milieu optique.
        ──────────────────────────────────────────────────────────── */
-    .page.cover-page {
-        background: #fafaf7;
-    }
-    table.cover-center {
-        width: 100%;
-        height: 277mm;
-        border-collapse: collapse;
-    }
-    table.cover-center > tbody > tr > td {
-        vertical-align: middle;
+    .cover-page {
+        page-break-after: always;
+        padding-top: 110mm;
         text-align: center;
-    }
-    /* Cadre extérieur doré épais + intérieur noir fin (style certificat).
-       Deux divs imbriquées car DomPDF ne supporte pas correctement
-       box-shadow multi-niveau. */
-    .commune-frame-outer {
-        display: inline-block;
-        padding: 14px;
-        border: 3px solid #e8a020;
         background: #ffffff;
     }
-    .commune-frame-inner {
-        border: 1px solid #0d1117;
-        padding: 70px 110px 60px;
-        background: #ffffff;
+    .cover-rule {
+        width: 60mm;
+        height: 1px;
+        background: #d4af37;
+        margin: 0 auto 28px;
+        font-size: 0;
+        line-height: 0;
     }
-    .commune-kicker {
-        font-size: 9px;
+    .cover-rule.bottom {
+        margin: 32px auto 0;
+    }
+    .cover-kicker {
+        font-size: 10px;
         font-weight: 700;
-        color: #e8a020;
-        letter-spacing: 6px;
+        color: #d4af37;
+        letter-spacing: 7px;
         text-transform: uppercase;
-        margin-bottom: 28px;
+        margin-bottom: 22px;
     }
-    .commune-name {
-        font-size: 54px;
+    .cover-name {
+        font-size: 60px;
         font-weight: 900;
         color: #0d1117;
         text-transform: uppercase;
-        letter-spacing: 8px;
+        letter-spacing: 7px;
         line-height: 1;
-    }
-    .commune-ornament {
-        margin-top: 28px;
-        font-size: 14px;
-        color: #e8a020;
-        letter-spacing: 8px;
     }
 </style>
 </head>
@@ -305,21 +293,12 @@
         $groupSize = count($groupPanels);
     @endphp
 
-    {{-- ═══════════════════ PAGE DE GARDE COMMUNE (minimaliste) ═══════════════════ --}}
-    <div class="page cover-page">
-        <table class="cover-center">
-            <tr>
-                <td>
-                    <div class="commune-frame-outer">
-                        <div class="commune-frame-inner">
-                            <div class="commune-kicker">Commune</div>
-                            <div class="commune-name">{{ $communeName }}</div>
-                            <div class="commune-ornament">◆ ◆ ◆</div>
-                        </div>
-                    </div>
-                </td>
-            </tr>
-        </table>
+    {{-- ═══════════════════ PAGE DE GARDE COMMUNE (épuré) ═══════════════════ --}}
+    <div class="cover-page">
+        <div class="cover-rule"></div>
+        <div class="cover-kicker">Commune</div>
+        <div class="cover-name">{{ $communeName }}</div>
+        <div class="cover-rule bottom"></div>
     </div>
 
     {{-- ═══════════════════ FICHES PANNEAUX DE LA COMMUNE ═══════════════════ --}}
