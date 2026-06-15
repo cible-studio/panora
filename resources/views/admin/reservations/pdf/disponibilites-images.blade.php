@@ -190,6 +190,109 @@
         text-align: center;
         color: #9ca3af;
     }
+
+    /* ────────────────────────────────────────────────────────────────
+       PAGE DE GARDE PAR COMMUNE
+       Une page d'intro avant chaque groupe de panneaux d'une même
+       commune (Cocody, Plateau, …). DomPDF ne supporte ni flex ni
+       gap → on s'appuie sur table-layout + padding pour le rythme.
+       ──────────────────────────────────────────────────────────── */
+    .cover-body {
+        padding: 70px 50px 40px;
+        text-align: center;
+    }
+    .cover-eyebrow {
+        font-size: 10.5px;
+        font-weight: 700;
+        color: #9ca3af;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        margin-bottom: 28px;
+    }
+    .cover-commune {
+        font-size: 44px;
+        font-weight: 900;
+        color: #0d1117;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        line-height: 1.1;
+        margin-bottom: 10px;
+    }
+    .cover-count {
+        font-size: 15px;
+        color: #c2570d;
+        font-weight: 600;
+        margin-bottom: 32px;
+    }
+    .cover-divider {
+        width: 80px;
+        height: 4px;
+        background: #e8a020;
+        margin: 0 auto 36px;
+    }
+    table.cover-stats {
+        width: 88%;
+        margin: 0 auto 40px;
+        border-collapse: separate;
+        border-spacing: 10px 0;
+    }
+    table.cover-stats td {
+        width: 33.33%;
+        text-align: center;
+        padding: 18px 8px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: #fafafa;
+        vertical-align: middle;
+    }
+    .stat-num {
+        font-size: 30px;
+        font-weight: 800;
+        color: #0d1117;
+        line-height: 1;
+        margin-bottom: 6px;
+    }
+    .stat-lbl {
+        font-size: 8.5px;
+        font-weight: 700;
+        color: #6b7280;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+    }
+    .cover-note {
+        font-size: 10.5px;
+        color: #4b5563;
+        line-height: 1.6;
+        margin: 0 auto;
+        padding: 14px 16px;
+        background: #fff7ed;
+        border-radius: 6px;
+        border-left: 3px solid #e8a020;
+        max-width: 92%;
+        text-align: left;
+    }
+    .cover-zones {
+        margin-top: 24px;
+        padding: 12px 14px;
+        background: #f9fafb;
+        border-radius: 6px;
+        font-size: 10px;
+        color: #4b5563;
+        line-height: 1.55;
+        text-align: left;
+        max-width: 92%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .cover-zones strong {
+        display: block;
+        font-size: 9px;
+        font-weight: 700;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 1.4px;
+        margin-bottom: 4px;
+    }
 </style>
 </head>
 <body>
@@ -229,11 +332,109 @@
 
     // Règle : par défaut, pas de prix ni de statut
     $showPricing = $showPricing ?? !($hideStatus ?? true);
+
+    // ── GROUPEMENT PAR COMMUNE ────────────────────────────────────
+    // Le client doit recevoir une page d'intro avant chaque bloc de
+    // panneaux concernant une même commune (Cocody, Plateau, …).
+    // On résout la commune en string (les panneaux internes/externes
+    // ont déjà une string via enrichPanel ; on garde un fallback).
+    $resolveCommune = fn (array $p) => trim((string) ($p['commune'] ?? '')) ?: '—';
+
+    $grouped     = collect($panels)
+        ->sortBy(fn ($p) => $resolveCommune($p), SORT_NATURAL | SORT_FLAG_CASE)
+        ->groupBy(fn ($p) => $resolveCommune($p));
+
+    $totalGroups = $grouped->count();
 @endphp
 
-@foreach ($panels as $index => $p)
+@php $globalIndex = 0; @endphp
+@foreach ($grouped as $communeName => $groupPanels)
     @php
-        $pageNum  = $index + 1;
+        $groupIndex = $loop->iteration;
+        $groupSize  = count($groupPanels);
+
+        // Stats agrégées pour la page de garde
+        $nbLit       = collect($groupPanels)->filter(fn ($p) => !empty($p['is_lit']))->count();
+        $formats     = collect($groupPanels)
+            ->map(fn ($p) => trim((string) ($p['format'] ?? '')))
+            ->filter(fn ($f) => $f !== '' && $f !== '—')
+            ->unique()
+            ->values();
+        $zones       = collect($groupPanels)
+            ->map(fn ($p) => trim((string) ($p['zone'] ?? '')))
+            ->filter(fn ($z) => $z !== '' && $z !== '—')
+            ->unique()
+            ->values();
+    @endphp
+
+    {{-- ═══════════════════ PAGE DE GARDE COMMUNE ═══════════════════ --}}
+    <div class="page">
+        <div class="pdf-header">
+            <div class="logo-cell">
+                <img src="{{ $logoSrc }}" alt="CIBLE CI">
+            </div>
+            <div class="title-cell">
+                <h1>Sélection <span class="accent">par commune</span></h1>
+            </div>
+            <div class="meta-cell">
+                Généré le {{ $generated ?? now()->format('d/m/Y à H:i') }}<br>
+                Section {{ $groupIndex }} / {{ $totalGroups }}
+            </div>
+        </div>
+
+        <div class="cover-body">
+            <div class="cover-eyebrow">Commune {{ $groupIndex }} sur {{ $totalGroups }}</div>
+            <div class="cover-commune">{{ $communeName }}</div>
+            <div class="cover-count">
+                {{ $groupSize }} {{ $groupSize > 1 ? 'emplacements disponibles' : 'emplacement disponible' }}
+            </div>
+            <div class="cover-divider"></div>
+
+            <table class="cover-stats">
+                <tr>
+                    <td>
+                        <div class="stat-num">{{ $groupSize }}</div>
+                        <div class="stat-lbl">{{ $groupSize > 1 ? 'Panneaux' : 'Panneau' }}</div>
+                    </td>
+                    <td>
+                        <div class="stat-num">{{ $nbLit }}</div>
+                        <div class="stat-lbl">{{ $nbLit > 1 ? 'Éclairés LED' : 'Éclairé LED' }}</div>
+                    </td>
+                    <td>
+                        <div class="stat-num">{{ $formats->count() }}</div>
+                        <div class="stat-lbl">{{ $formats->count() > 1 ? 'Formats' : 'Format' }}</div>
+                    </td>
+                </tr>
+            </table>
+
+            <div class="cover-note">
+                Les <strong>{{ $groupSize }}</strong> page{{ $groupSize > 1 ? 's' : '' }} suivante{{ $groupSize > 1 ? 's' : '' }}
+                présente{{ $groupSize > 1 ? 'nt' : '' }} en détail
+                chaque emplacement disponible à <strong>{{ $communeName }}</strong> :
+                référence, caractéristiques techniques, photo et localisation.
+            </div>
+
+            @if($zones->isNotEmpty())
+                <div class="cover-zones">
+                    <strong>Zones couvertes dans cette commune</strong>
+                    {{ $zones->take(20)->implode(' · ') }}@if($zones->count() > 20) · …@endif
+                </div>
+            @endif
+        </div>
+
+        <div class="pdf-footer">
+            CIBLE CI · Régie Publicitaire · Abidjan, Côte d'Ivoire · Document confidentiel
+            @isset($reservation_ref) · Réf. {{ $reservation_ref }}@endisset
+            @isset($client_name) · Client : {{ $client_name }}@endisset
+        </div>
+    </div>
+
+    {{-- ═══════════════════ FICHES PANNEAUX DE LA COMMUNE ═══════════════════ --}}
+    @foreach ($groupPanels as $intraIndex => $p)
+    @php
+        $globalIndex++;
+        $pageNum  = $globalIndex;
+        $intraNum = $intraIndex + 1;
         $status   = $statusFor($p);
         $traffic  = (int) ($p['daily_traffic'] ?? 0);
         $zoneDesc = $p['zone_description'] ?? '';
@@ -272,7 +473,7 @@
                 <img src="{{ $logoSrc }}" alt="CIBLE CI">
             </div>
             <div class="title-cell">
-                <h1>Fiche <span class="accent">Panneau</span></h1>
+                <h1>{{ $communeName }} <span class="accent">· Panneau {{ $intraNum }}/{{ $groupSize }}</span></h1>
             </div>
             <div class="meta-cell">
                 Généré le {{ $generated ?? now()->format('d/m/Y à H:i') }}<br>
@@ -419,7 +620,8 @@
             @isset($client_name) · Client : {{ $client_name }}@endisset
         </div>
     </div>
-@endforeach
+    @endforeach {{-- fin boucle panneaux du groupe --}}
+@endforeach {{-- fin boucle communes --}}
 
 </body>
 </html>
