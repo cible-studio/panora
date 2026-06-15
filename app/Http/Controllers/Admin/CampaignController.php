@@ -1324,7 +1324,7 @@ class CampaignController extends Controller
         // des IDs externes au format "ext_<n>" (string) — l'utilisateur peut
         // donc cocher dans la même modale des panneaux des deux origines.
         $data = $request->validate([
-            'panel_ids'      => 'required|array|min:1|max:50',
+            'panel_ids'      => 'required|array|min:1',
             'panel_ids.*'    => 'required',
             // Prix négocié optionnel par panneau (clé = panel_id ou "ext_<n>")
             'unit_prices'    => 'nullable|array',
