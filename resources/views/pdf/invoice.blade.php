@@ -373,6 +373,11 @@
             border-radius: 8px;
             padding: 16px 18px;
             page-break-inside: avoid;
+            /* min-height force DomPDF à considérer la card comme un
+               bloc substantiel : si pas la place dans la page courante,
+               il bascule l'intégralité en page suivante au lieu de couper
+               juste après le titre (bug observé). */
+            min-height: 180px;
         }
         .section-card .sct-title {
             font-size: 10.5px;
