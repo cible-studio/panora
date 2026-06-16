@@ -29,13 +29,17 @@ class CampaignPolicy
         return in_array($user->role, [
             UserRole::COMMERCIAL,
             UserRole::MEDIAPLANNER,
+            UserRole::COMPTABLE,
         ], true);
     }
 
     public function view(User $user, Campaign $campaign): bool
     {
         // MP voit tout — il pilote la production de toutes les campagnes.
-        if ($user->role === UserRole::MEDIAPLANNER) return true;
+        // Comptable voit tout — il consolide la vision financière de la régie.
+        if (in_array($user->role, [UserRole::MEDIAPLANNER, UserRole::COMPTABLE], true)) {
+            return true;
+        }
 
         // Commercial : ownership obligatoire. Sans ça, c'était une IDOR
         // (l'index filtrait mais une URL directe /admin/campaigns/{id}

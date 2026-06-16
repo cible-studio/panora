@@ -79,6 +79,28 @@ class CampaignController extends Controller
             })
             ->when($request->search,      fn($q, $s)  => $q->where('name', 'like', "%{$s}%"))
             ->when($request->client_id,   fn($q, $id) => $q->where('client_id', $id))
+            // Filtre commercial assigné — admin/MP/comptable peuvent vouloir
+            // voir les campagnes d'un commercial précis (suivi portefeuille).
+            // Réutilise la même logique d'appartenance que le scope commercial
+            // ci-dessus pour rester cohérent : assigné direct, via résa, ou
+            // créateur de la campagne/résa sans commercial explicite.
+            ->when($request->commercial_user_id, function ($q, $uid) {
+                $uid = (int) $uid;
+                $q->where(function ($qq) use ($uid) {
+                    $qq->where('commercial_user_id', $uid)
+                       ->orWhereHas('reservation', fn($r) =>
+                            $r->where('commercial_user_id', $uid)
+                              ->orWhere(function ($rr) use ($uid) {
+                                  $rr->whereNull('commercial_user_id')
+                                     ->where('user_id', $uid);
+                              })
+                       )
+                       ->orWhere(function ($qqq) use ($uid) {
+                           $qqq->whereDoesntHave('reservation')
+                               ->where('user_id', $uid);
+                       });
+                });
+            })
             // Filtres date originaux : date_from (start) / date_to (end)
             ->when($request->date_from,   fn($q, $d)  => $q->where('start_date', '>=', $d))
             ->when($request->date_to,     fn($q, $d)  => $q->where('end_date', '<=', $d))
@@ -151,9 +173,18 @@ class CampaignController extends Controller
         $communes = Commune::orderBy('name')->get(['id', 'name']);
         $zones    = Zone::orderBy('name')->get(['id', 'name']);
 
+        // Liste des commerciaux assignables pour le filtre. On inclut
+        // admin (qui peut être titulaire) + commercial. Le filtre n'est
+        // utile que pour les rôles non-commerciaux (le commercial ne
+        // voit déjà que ses propres campagnes via le scope plus haut).
+        $commerciaux = \App\Models\User::query()
+            ->whereIn('role', ['admin', 'commercial'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'role']);
+
         return view('admin.campaigns.index', compact(
             'campaigns', 'counts', 'nonFactureesCount', 'endingSoonCount',
-            'clients', 'communes', 'zones'
+            'clients', 'communes', 'zones', 'commerciaux'
         ));
     }
 

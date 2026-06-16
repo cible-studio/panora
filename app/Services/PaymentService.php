@@ -90,6 +90,16 @@ class PaymentService
                 $this->storeAttachment($payment, $attachment);
             }
 
+            // ── Recalcul global de l'imputation des versements ──────────
+            // Mission BUG_ECHEANCIER (juin 2026) : on ne calcule plus
+            // l'imputation au coup par coup (le seul versement courant
+            // était considéré, jamais le cumul). Désormais c'est le
+            // service centralisé qui recalcule TOUS les schedules de
+            // la facture en partant de zéro et en ré-imputant tous les
+            // versements en ordre chrono. Source unique de vérité.
+            app(\App\Services\ScheduleAllocationService::class)
+                ->recomputeFromPayments($invoice->fresh(['payments', 'schedules']));
+
             // Recalcul auto du statut facture
             $this->syncInvoiceStatus($invoice->fresh(['payments', 'schedules']));
 
@@ -106,6 +116,32 @@ class PaymentService
         });
     }
 
+    /**
+     * @deprecated Remplacé par ScheduleAllocationService::recomputeFromPayments
+     * (mission BUG_ECHEANCIER juin 2026). L'ancien algo ne tenait compte
+     * que du versement courant, jamais du cumul global → désynchronisation
+     * avec la réalité encaissée (cas FAC-2026-010). Conservé en attente
+     * d'audit pour vérifier qu'aucun code externe ne l'appelait.
+     */
+    public function allocatePaymentToSchedules(Invoice $invoice, InvoicePayment $payment): void
+    {
+        // No-op : la nouvelle logique est dans ScheduleAllocationService
+        // appelée directement depuis register() et delete().
+        // Si un appel externe arrive ici, on délègue au service.
+        app(\App\Services\ScheduleAllocationService::class)
+            ->recomputeFromPayments($invoice->fresh(['payments', 'schedules']));
+    }
+
+    /**
+     * @deprecated Remplacé par recomputeFromPayments() qui reset toujours
+     * les schedules avant de ré-imputer. Conservé pour compatibilité.
+     */
+    public function releaseSchedulesForPayment(InvoicePayment $payment): void
+    {
+        // No-op : la suppression d'un paiement déclenche recomputeFromPayments
+        // dans delete() ci-dessous, qui fait le reset complet from-scratch.
+    }
+
     public function delete(InvoicePayment $payment): void
     {
         $invoice = $payment->invoice;
@@ -115,6 +151,13 @@ class PaymentService
                 Storage::disk(self::ATTACHMENT_DISK)->delete($payment->attachment_path);
             }
             $payment->delete();
+
+            // Recalcul global from-scratch après suppression — réimpute tous
+            // les versements restants dans l'ordre chrono, libère ce qui
+            // n'est plus couvert (mission BUG_ECHEANCIER).
+            app(\App\Services\ScheduleAllocationService::class)
+                ->recomputeFromPayments($invoice->fresh(['payments', 'schedules']));
+
             $this->syncInvoiceStatus($invoice->fresh(['payments', 'schedules']));
         });
 

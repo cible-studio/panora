@@ -118,7 +118,7 @@
                             @php
                                 $status = $inv->paymentStatus();
                                 $statusCfg = match($status) {
-                                    'non_payee' => ['bg' => 'rgba(107,114,128,.15)', 'c' => '#6b7280', 'l' => 'Non payée'],
+                                    'non_payee' => ['bg' => 'rgba(107,114,128,.15)', 'c' => '#6b7280', 'l' => 'Non soldée'],
                                     'partielle' => ['bg' => 'rgba(245,158,11,.15)',  'c' => '#f59e0b', 'l' => 'Partielle'],
                                     'en_retard' => ['bg' => 'rgba(239,68,68,.15)',   'c' => '#ef4444', 'l' => 'En retard'],
                                     default     => ['bg' => 'var(--surface2)', 'c' => 'var(--text3)', 'l' => $status],
@@ -127,7 +127,15 @@
                             @endphp
                             <tr>
                                 <td><a href="{{ route('admin.invoices.show', $inv) }}" style="color:var(--accent);text-decoration:none;font-family:monospace;font-weight:700">{{ $inv->reference }}</a></td>
-                                <td>{{ $inv->client?->name ?? '—' }}</td>
+                                <td>
+                                    @if($inv->client)
+                                        <a href="{{ route('admin.clients.show', $inv->client) }}"
+                                           style="color:var(--text);text-decoration:none;border-bottom:1px dashed var(--border2,var(--border))"
+                                           title="Voir la fiche client">{{ $inv->client->name }}</a>
+                                    @else
+                                        <span style="color:var(--text3)">—</span>
+                                    @endif
+                                </td>
                                 <td style="color:var(--text2)">{{ $inv->issued_at?->format('d/m/Y') }}</td>
                                 <td style="color:{{ $next && $next->due_date->isPast() ? '#ef4444' : 'var(--text2)' }}">
                                     {{ $next ? $next->due_date->format('d/m/Y') : '—' }}

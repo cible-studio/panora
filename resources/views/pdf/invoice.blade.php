@@ -464,6 +464,7 @@
         }
         .pill-acompte { background: #fef3c7; color: #b45309; }
         .pill-paid    { background: #dcfce7; color: #15803d; }
+        .pill-partial { background: #fef3c7; color: #b45309; }
         .pill-late    { background: #fee2e2; color: #b91c1c; }
         .pill-pending { background: #f1f5f9; color: #475569; }
 
@@ -566,8 +567,8 @@
             'generee'             => ['cls' => 'st-generee',   'lbl' => 'Générée'],
             'validee'             => ['cls' => 'st-validee',   'lbl' => 'Validée'],
             'envoyee'             => ['cls' => 'st-envoyee',   'lbl' => 'Envoyée'],
-            'partiellement_payee' => ['cls' => 'st-partielle', 'lbl' => 'Partiellement payée'],
-            'payee'               => ['cls' => 'st-payee',     'lbl' => 'Payée'],
+            'partiellement_payee' => ['cls' => 'st-partielle', 'lbl' => 'Partiellement soldée'],
+            'payee'               => ['cls' => 'st-payee',     'lbl' => 'Soldée'],
             'en_retard'           => ['cls' => 'st-retard',    'lbl' => 'En retard'],
             'litige'              => ['cls' => 'st-litige',    'lbl' => 'Litige'],
             'annulee'             => ['cls' => 'st-annulee',   'lbl' => 'Annulée'],
@@ -882,7 +883,9 @@
                             <td class="right">{{ $fmt($s->amount) }} FCFA</td>
                             <td>
                                 @if($s->isPaid())
-                                    <span class="pill pill-paid">Payée</span>
+                                    <span class="pill pill-paid">Soldée</span>
+                                @elseif($s->isPartial())
+                                    <span class="pill pill-partial">Partielle {{ rtrim(rtrim(number_format($s->paymentPercentage(), 1, ',', ''), '0'), ',') }} %</span>
                                 @elseif($s->isOverdue())
                                     <span class="pill pill-late">Retard</span>
                                 @else

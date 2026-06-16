@@ -202,9 +202,17 @@
        ──────────────────────────────────────────────────────────── */
     .cover-page {
         page-break-after: always;
-        padding-top: 110mm;
+        padding-top: 90mm;
         text-align: center;
         background: #ffffff;
+    }
+    .cover-doc-type {
+        font-size: 11px;
+        font-weight: 800;
+        color: #c2570d;
+        letter-spacing: 10px;
+        text-transform: uppercase;
+        margin-bottom: 22px;
     }
     .cover-rule {
         width: 60mm;
@@ -232,6 +240,38 @@
         text-transform: uppercase;
         letter-spacing: 7px;
         line-height: 1;
+    }
+    /* Période d'affichage — sous le nom de la commune, dans un encart
+       sobre fond ivoire / accent doré. Reste optionnel : si pas de
+       dates fournies par le contrôleur, l'encart n'est pas affiché. */
+    .cover-period {
+        margin-top: 34px;
+        display: inline-block;
+        padding: 9px 22px;
+        background: #fff7ed;
+        border: 1px solid #fde6c9;
+        border-radius: 6px;
+        font-size: 12px;
+        color: #4b5563;
+        letter-spacing: .5px;
+    }
+    .cover-period-label {
+        font-size: 9px;
+        font-weight: 800;
+        color: #c2570d;
+        letter-spacing: 2.5px;
+        text-transform: uppercase;
+        margin-right: 8px;
+    }
+    .cover-period strong {
+        color: #0d1117;
+        font-weight: 700;
+        letter-spacing: .3px;
+    }
+    .cover-period-arrow {
+        color: #d4af37;
+        margin: 0 8px;
+        font-weight: 700;
     }
 </style>
 </head>
@@ -273,6 +313,24 @@
     // Règle : par défaut, pas de prix ni de statut
     $showPricing = $showPricing ?? !($hideStatus ?? true);
 
+    // ── PÉRIODE EN FRANÇAIS ───────────────────────────────────────
+    // Formatage manuel : Carbon::translatedFormat() dépend du locale
+    // qui n'est pas toujours chargé côté DomPDF en prod.
+    $moisFr = [1=>'janvier', 2=>'février', 3=>'mars', 4=>'avril', 5=>'mai',
+               6=>'juin', 7=>'juillet', 8=>'août', 9=>'septembre',
+               10=>'octobre', 11=>'novembre', 12=>'décembre'];
+    $fmtPeriod = function ($d) use ($moisFr) {
+        if (!$d) return null;
+        try {
+            $c = \Carbon\Carbon::parse($d);
+            return $c->format('d') . ' ' . $moisFr[(int) $c->format('n')] . ' ' . $c->format('Y');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    };
+    $startFr = $fmtPeriod($startDate ?? null);
+    $endFr   = $fmtPeriod($endDate   ?? null);
+
     // ── GROUPEMENT PAR COMMUNE ────────────────────────────────────
     // Le client doit recevoir une page d'intro avant chaque bloc de
     // panneaux concernant une même commune (Cocody, Plateau, …).
@@ -295,10 +353,19 @@
 
     {{-- ═══════════════════ PAGE DE GARDE COMMUNE (épuré) ═══════════════════ --}}
     <div class="cover-page">
+        <div class="cover-doc-type">Disponibilités</div>
         <div class="cover-rule"></div>
         <div class="cover-kicker">Commune</div>
         <div class="cover-name">{{ $communeName }}</div>
         <div class="cover-rule bottom"></div>
+        @if($startFr && $endFr)
+            <div class="cover-period">
+                <span class="cover-period-label">Période</span>
+                <strong>{{ $startFr }}</strong>
+                <span class="cover-period-arrow">→</span>
+                <strong>{{ $endFr }}</strong>
+            </div>
+        @endif
     </div>
 
     {{-- ═══════════════════ FICHES PANNEAUX DE LA COMMUNE ═══════════════════ --}}

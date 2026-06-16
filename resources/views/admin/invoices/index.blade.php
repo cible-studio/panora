@@ -41,12 +41,16 @@
     </div>
 @endif
 
-{{-- STATS CLIQUABLES (filtres AJAX) --}}
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
-    <a href="#" data-status="brouillon"
+{{-- STATS CLIQUABLES (filtres AJAX)
+     Mission D — chaque KPI card filtre la liste par statut/contexte et
+     affiche son compteur live. Les 4 cartes de base couvrent le flux
+     courant (Brouillon / Envoyée / Soldée / CA), et 4 cartes secondaires
+     compactes couvrent les états spéciaux (Partielle / En retard /
+     Litige / Annulée). Les compteurs s'actualisent à chaque chargement. --}}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">
+    <a href="?status=brouillon" data-status="brouillon"
        class="kpi-card filter-stat {{ request('status') === 'brouillon' ? 'is-active' : '' }}"
        style="--kpi-color:#6b7280"
-       onclick="event.preventDefault()"
        onmouseenter="this.style.borderColor='#6b7280';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
        onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:#6b7280"></div>
@@ -56,10 +60,9 @@
         <div class="kpi-card__sub">à finaliser</div>
         <div class="kpi-card__arrow" style="color:#6b7280">→</div>
     </a>
-    <a href="#" data-status="envoyee"
+    <a href="?status=envoyee" data-status="envoyee"
        class="kpi-card filter-stat {{ request('status') === 'envoyee' ? 'is-active' : '' }}"
        style="--kpi-color:#3b82f6"
-       onclick="event.preventDefault()"
        onmouseenter="this.style.borderColor='#3b82f6';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
        onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:#3b82f6"></div>
@@ -69,31 +72,90 @@
         <div class="kpi-card__sub">en attente paiement</div>
         <div class="kpi-card__arrow" style="color:#3b82f6">→</div>
     </a>
-    <a href="#" data-status="payee"
+    <a href="?status=payee" data-status="payee"
        class="kpi-card filter-stat {{ request('status') === 'payee' ? 'is-active' : '' }}"
        style="--kpi-color:#22c55e"
-       onclick="event.preventDefault()"
        onmouseenter="this.style.borderColor='#22c55e';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
        onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:#22c55e"></div>
         <div class="kpi-card__icon" style="color:#22c55e"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
         <div class="kpi-card__value" data-kpi="payee" data-kpi-value="payee" style="color:#22c55e">{{ $totalPayees }}</div>
-        <div class="kpi-card__label">Payées</div>
+        <div class="kpi-card__label">Soldées</div>
         <div class="kpi-card__sub">factures encaissées</div>
         <div class="kpi-card__arrow" style="color:#22c55e">→</div>
     </a>
-    <a href="#" data-status=""
-       class="kpi-card filter-stat"
+    <a href="?" data-status=""
+       class="kpi-card filter-stat {{ !request('status') ? '' : '' }}"
        style="--kpi-color:var(--accent)"
-       onclick="event.preventDefault()"
        onmouseenter="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
        onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
         <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         <div class="kpi-card__value" data-kpi="ca" data-kpi-value="ca" style="color:var(--accent);font-size:18px">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
         <div class="kpi-card__label">CA Encaissé</div>
-        <div class="kpi-card__sub">FCFA total</div>
+        <div class="kpi-card__sub">FCFA · Restant : {{ number_format($montantRestantDu, 0, ',', ' ') }}</div>
         <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
+    </a>
+</div>
+
+{{-- Bandeau états spéciaux (compact) — Partielle / En retard / Litige / Annulée.
+     Affichage en grille 4 colonnes, chaque pastille est un raccourci de filtre. --}}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+    <a href="?status=partiellement_payee"
+       class="kpi-card filter-stat {{ request('status') === 'partiellement_payee' ? 'is-active' : '' }}"
+       style="--kpi-color:#f59e0b;padding:14px 16px"
+       onmouseenter="this.style.borderColor='#f59e0b';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#f59e0b"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+                <div style="font-size:11px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.4px">⏳ Partielles</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">acomptes en cours</div>
+            </div>
+            <div style="font-size:24px;font-weight:800;color:#b45309">{{ $totalPartielles }}</div>
+        </div>
+    </a>
+    <a href="?status=en_retard"
+       class="kpi-card filter-stat {{ request('status') === 'en_retard' ? 'is-active' : '' }}"
+       style="--kpi-color:#ef4444;padding:14px 16px"
+       onmouseenter="this.style.borderColor='#ef4444';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#ef4444"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+                <div style="font-size:11px;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:.4px">🔴 En retard</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">échéance dépassée</div>
+            </div>
+            <div style="font-size:24px;font-weight:800;color:#b91c1c">{{ $totalEnRetard }}</div>
+        </div>
+    </a>
+    <a href="?status=litige"
+       class="kpi-card filter-stat {{ request('status') === 'litige' ? 'is-active' : '' }}"
+       style="--kpi-color:#dc2626;padding:14px 16px"
+       onmouseenter="this.style.borderColor='#dc2626';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#dc2626"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+                <div style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.4px">⚖️ Litige</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">contentieux ouvert</div>
+            </div>
+            <div style="font-size:24px;font-weight:800;color:#991b1b">{{ $totalLitige }}</div>
+        </div>
+    </a>
+    <a href="?status=annulee"
+       class="kpi-card filter-stat {{ request('status') === 'annulee' ? 'is-active' : '' }}"
+       style="--kpi-color:#6b7280;padding:14px 16px"
+       onmouseenter="this.style.borderColor='#6b7280';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#6b7280"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+                <div style="font-size:11px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.4px">🚫 Annulées</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">historique figé</div>
+            </div>
+            <div style="font-size:24px;font-weight:800;color:#4b5563">{{ $totalAnnulees }}</div>
+        </div>
     </a>
 </div>
 
@@ -111,19 +173,26 @@
         </div>
         <div class="filter-group">
             <label class="filter-label">Statut facture</label>
-            <select id="filter-status" class="filter-select" style="width:130px;">
-                <option value="">Tous</option>
-                <option value="brouillon" {{ request('status') === 'brouillon' ? 'selected' : '' }}>Brouillon</option>
-                <option value="envoyee"   {{ request('status') === 'envoyee'   ? 'selected' : '' }}>Envoyée</option>
-                <option value="payee"     {{ request('status') === 'payee'     ? 'selected' : '' }}>Marquée payée</option>
-                <option value="annulee"   {{ request('status') === 'annulee'   ? 'selected' : '' }}>Annulée</option>
+            {{-- Mission D — dropdown enrichi : 9 statuts du cahier + compteur
+                 live entre parenthèses. Avant : seulement 4 statuts visibles. --}}
+            <select id="filter-status" class="filter-select" style="width:200px;">
+                <option value="">Tous les statuts</option>
+                <option value="brouillon"           {{ request('status') === 'brouillon' ? 'selected' : '' }}>📝 Brouillon ({{ $totalBrouillons }})</option>
+                <option value="generee"             {{ request('status') === 'generee'   ? 'selected' : '' }}>📋 Générée ({{ $totalGenerees }})</option>
+                <option value="validee"             {{ request('status') === 'validee'   ? 'selected' : '' }}>🔒 Validée ({{ $totalValidees }})</option>
+                <option value="envoyee"             {{ request('status') === 'envoyee'   ? 'selected' : '' }}>📤 Envoyée ({{ $totalEnvoyees }})</option>
+                <option value="partiellement_payee" {{ request('status') === 'partiellement_payee' ? 'selected' : '' }}>⏳ Partiellement soldée ({{ $totalPartielles }})</option>
+                <option value="payee"               {{ request('status') === 'payee'     ? 'selected' : '' }}>✅ Soldée ({{ $totalPayees }})</option>
+                <option value="en_retard"           {{ request('status') === 'en_retard' ? 'selected' : '' }}>🔴 En retard ({{ $totalEnRetard }})</option>
+                <option value="litige"              {{ request('status') === 'litige'    ? 'selected' : '' }}>⚖️ Litige ({{ $totalLitige }})</option>
+                <option value="annulee"             {{ request('status') === 'annulee'   ? 'selected' : '' }}>🚫 Annulée ({{ $totalAnnulees }})</option>
             </select>
         </div>
         <div class="filter-group">
             <label class="filter-label">Statut paiement</label>
             <select id="filter-pay-status" class="filter-select" style="width:150px;" onchange="window.location.href = '?pay_status=' + this.value">
                 <option value="">Tous</option>
-                <option value="non_payee" {{ request('pay_status') === 'non_payee' ? 'selected' : '' }}>❌ Non payée</option>
+                <option value="non_payee" {{ request('pay_status') === 'non_payee' ? 'selected' : '' }}>❌ Non soldée</option>
                 <option value="partielle" {{ request('pay_status') === 'partielle' ? 'selected' : '' }}>⏳ Partielle</option>
                 <option value="soldee"    {{ request('pay_status') === 'soldee'    ? 'selected' : '' }}>✅ Soldée</option>
                 <option value="en_retard" {{ in_array(request('pay_status'), ['en_retard', 'overdue']) ? 'selected' : '' }}>🔴 En retard</option>
@@ -229,6 +298,46 @@ cursor: pointer;
 </style>
 
 @push('scripts')
+{{-- Select2 — recherche live sur le filtre client. CDN partagé avec
+     les autres vues qui en ont besoin (campaigns/create, piges/create,
+     invoices/partials/_form-fne). --}}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+
+<style>
+/* Harmonise la pillule Select2 avec les autres filter-select natifs
+   (hauteur 40px, padding/radius identiques) — sinon le client picker
+   tranche visuellement avec les dropdowns à côté. */
+.select2-container--default .select2-selection--single {
+    height: 40px !important;
+    padding: 0 4px !important;
+    background: var(--surface2) !important;
+    border: 1px solid var(--border2, var(--border)) !important;
+    border-radius: 10px !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 40px !important;
+    color: var(--text) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 38px !important;
+}
+.select2-dropdown { border-radius: 10px !important; border-color: var(--border2, var(--border)) !important; }
+.select2-search--dropdown .select2-search__field {
+    border-radius: 8px !important;
+    border-color: var(--border2, var(--border)) !important;
+    padding: 8px 10px !important;
+    font-size: 13px !important;
+}
+.select2-results__option--highlighted {
+    background: var(--accent) !important;
+    color: #fff !important;
+}
+</style>
+
 <script>
 // ════════════════════════════════════════════════════════════
 // FILTRAGE AJAX DYNAMIQUE
@@ -312,11 +421,30 @@ cursor: pointer;
 
     // Écouteurs d'événements
     if (elements.client) {
-        elements.client.addEventListener('change', () => {
+        // Init Select2 + câblage du change via jQuery .on() — Select2 4.x
+        // dispatche ses 'change' via le système d'événements jQuery qui
+        // n'est pas systématiquement capté par addEventListener natif.
+        // Fallback addEventListener si jQuery/Select2 indisponible.
+        const onClientChange = () => {
             currentFilters.client_id = elements.client.value;
             updateResetButton();
             applyFilters();
-        });
+        };
+
+        const hasSelect2 = window.jQuery && window.jQuery.fn && window.jQuery.fn.select2;
+        if (hasSelect2) {
+            window.jQuery(elements.client).select2({
+                placeholder: '🔍 Rechercher un client…',
+                allowClear: true,
+                width: '220px',
+                language: {
+                    noResults: () => 'Aucun client trouvé',
+                    searching: () => 'Recherche…',
+                },
+            }).on('change', onClientChange);
+        } else {
+            elements.client.addEventListener('change', onClientChange);
+        }
     }
 
     if (elements.status) {

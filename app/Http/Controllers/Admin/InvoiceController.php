@@ -71,12 +71,32 @@ class InvoiceController extends Controller
         // ⚠ Compteurs KPI : AVANT ils étaient calculés sur Invoice::query()
         // sans scope → un commercial voyait le nb total entreprise + le CA
         // payé GLOBAL (leak métier majeur). Maintenant scopés au commercial.
+        //
+        // Mission D — on calcule les 9 statuts pour que les KPI cards ET les
+        // options du dropdown filtre puissent afficher leur compteur en direct.
         $kpiQuery = fn() => Invoice::query()
             ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
-        $totalBrouillons = (clone $kpiQuery())->where('status', 'brouillon')->count();
-        $totalEnvoyees   = (clone $kpiQuery())->where('status', 'envoyee')->count();
-        $totalPayees     = (clone $kpiQuery())->where('status', 'payee')->count();
-        $montantTotal    = (clone $kpiQuery())->where('status', 'payee')->sum('amount_ttc');
+        $statusCounts = (clone $kpiQuery())
+            ->selectRaw('status, COUNT(*) as c')
+            ->groupBy('status')
+            ->pluck('c', 'status')
+            ->toArray();
+        $totalBrouillons     = (int) ($statusCounts['brouillon'] ?? 0);
+        $totalGenerees       = (int) ($statusCounts['generee'] ?? 0);
+        $totalValidees       = (int) ($statusCounts['validee'] ?? 0);
+        $totalEnvoyees       = (int) ($statusCounts['envoyee'] ?? 0);
+        $totalPartielles     = (int) ($statusCounts['partiellement_payee'] ?? 0);
+        $totalPayees         = (int) ($statusCounts['payee'] ?? 0);
+        $totalEnRetard       = (int) ($statusCounts['en_retard'] ?? 0);
+        $totalLitige         = (int) ($statusCounts['litige'] ?? 0);
+        $totalAnnulees       = (int) ($statusCounts['annulee'] ?? 0);
+        $montantTotal        = (clone $kpiQuery())->where('status', 'payee')->sum('amount_ttc');
+
+        // Restant dû global (Envoyée + Partielle + En retard) — utile pour le
+        // KPI "à encaisser" et la page Finance.
+        $montantRestantDu = (clone $kpiQuery())
+            ->whereIn('status', ['envoyee', 'partiellement_payee', 'en_retard'])
+            ->sum('total_a_payer');
         
         // ✅ AJAX response
         if ($request->ajax() || $request->input('ajax')) {
@@ -97,8 +117,10 @@ class InvoiceController extends Controller
 
         return view('admin.invoices.index', compact(
             'invoices', 'clients', 'contextCampaign',
-            'totalBrouillons', 'totalEnvoyees',
-            'totalPayees', 'montantTotal'
+            'totalBrouillons', 'totalGenerees', 'totalValidees',
+            'totalEnvoyees', 'totalPartielles', 'totalPayees',
+            'totalEnRetard', 'totalLitige', 'totalAnnulees',
+            'montantTotal', 'montantRestantDu'
         ));
     }
 
@@ -804,22 +826,47 @@ class InvoiceController extends Controller
         return back()->with('success', '🔒 Facture VALIDÉE et verrouillée.');
     }
 
-    /** Bascule en litige (facture contestée par le client). */
+    /**
+     * Bascule en litige avec motif prédéfini + note optionnelle.
+     *
+     * Mission C : avant, le motif était saisi via prompt() JS (texte
+     * libre, non filtrable). Désormais l'admin choisit l'un des 13
+     * motifs Invoice::LITIGE_MOTIFS via une modale + ajoute une note.
+     * Les 3 colonnes (litige_motif, litige_note, litige_opened_at)
+     * persistent le contexte pour les dashboards finance.
+     */
     public function markLitige(Request $request, Invoice $invoice)
     {
         $this->authorize('markSent', $invoice);
 
-        $data = $request->validate(['reason' => 'nullable|string|max:500']);
+        $data = $request->validate([
+            'litige_motif' => 'required|string|in:' . implode(',', array_keys(Invoice::LITIGE_MOTIFS)),
+            'litige_note'  => 'nullable|string|max:1000',
+        ], [
+            'litige_motif.required' => 'Sélectionne un motif de litige.',
+            'litige_motif.in'       => 'Motif de litige invalide.',
+        ]);
+
+        $motifLabel = Invoice::litigeMotifLabel($data['litige_motif']);
+        $note = trim((string) ($data['litige_note'] ?? ''));
+
         try {
-            $invoice->transitionStatusTo(
-                'litige',
-                reason: $data['reason'] ?? 'Bascule en litige (manuelle)',
-                auto: false
-            );
+            // Persiste le contexte AVANT la transition pour que l'audit
+            // capte l'état correct ; transition pose ensuite le statut.
+            $invoice->update([
+                'litige_motif'     => $data['litige_motif'],
+                'litige_note'      => $note !== '' ? $note : null,
+                'litige_opened_at' => now(),
+            ]);
+
+            $reason = '⚠ Litige — ' . $motifLabel
+                . ($note !== '' ? ' · ' . \Illuminate\Support\Str::limit($note, 200) : '');
+
+            $invoice->transitionStatusTo('litige', reason: $reason, auto: false);
         } catch (\DomainException $e) {
             return back()->with('error', '🚫 ' . $e->getMessage());
         }
-        return back()->with('success', '⚠ Facture marquée EN LITIGE.');
+        return back()->with('success', '⚠ Facture marquée EN LITIGE — motif : ' . $motifLabel);
     }
 
     public function markSent(Request $request, Invoice $invoice)
@@ -855,6 +902,93 @@ class InvoiceController extends Controller
         $this->notifyClientInvoiceIssued($invoice);
 
         return $this->statusResponse($request, $invoice, true, 'Facture envoyée au client par email. 🔒 Verrouillée.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // SOLDER MANUELLEMENT — sans saisie des versements individuels
+    //
+    // Cas d'usage : migration de données / facture historique réglée
+    // hors plateforme (chèque scanné, virement papier, espèces…).
+    // Crée un InvoicePayment "manuel" de montant = solde restant et
+    // bascule la facture en 'payee'. La traçabilité est assurée par :
+    //   - la note obligatoire (raison saisie par l'admin)
+    //   - l'audit InvoicePayment via owen-it/laravel-auditing
+    //   - la transition de statut historisée (InvoiceStatusHistory)
+    // ══════════════════════════════════════════════════════════════
+    public function markPaidManual(Request $request, Invoice $invoice, \App\Services\PaymentService $payments)
+    {
+        $this->authorize('markPaid', $invoice);
+
+        if ($invoice->status === 'annulee') {
+            return back()->with('error', '🚫 Impossible de solder une facture annulée.');
+        }
+        if ($invoice->status === 'payee') {
+            return back()->with('info', 'Cette facture est déjà soldée.');
+        }
+
+        $remaining = (int) round($invoice->remainingAmount());
+        if ($remaining <= 0) {
+            return back()->with('info', 'Aucun solde restant à régler.');
+        }
+
+        $data = $request->validate([
+            'reason'  => 'required|string|min:5|max:500',
+            'paid_at' => 'nullable|date|before_or_equal:today',
+        ], [
+            'reason.required' => 'Une raison/justification est obligatoire pour solder manuellement (traçabilité).',
+            'reason.min'      => 'La justification doit faire au moins 5 caractères.',
+        ]);
+
+        // Garde : si la campagne est annulée, on bloque (cohérent avec markPaid).
+        $invoice->loadMissing('campaign:id,status');
+        if ($invoice->campaign?->status?->value === 'annule') {
+            return back()->with('error',
+                '🚫 Campagne liée annulée — solde manuel bloqué. Annule la facture ou clarifie la situation.');
+        }
+
+        try {
+            // Enregistre un versement "manuel" de montant = solde restant.
+            // mode = 'autre' (enum existant — pas de migration).
+            // note = raison saisie. paid_at = aujourd'hui ou date fournie.
+            $payments->register($invoice, [
+                'paid_at'    => $data['paid_at'] ?? now()->toDateString(),
+                'montant'    => $remaining,
+                'mode'       => 'autre',
+                'reference'  => 'SOLDE_MANUEL_' . now()->format('YmdHis'),
+                'is_acompte' => false,
+                'note'       => 'Solde manuel (sans versement individuel) : ' . trim($data['reason']),
+            ]);
+        } catch (\DomainException $e) {
+            return back()->withInput()->with('error', '🚫 ' . $e->getMessage());
+        }
+
+        // PaymentService::syncInvoiceStatus a déjà basculé la facture
+        // en 'payee' si le solde atteint 0. Si le statut était 'brouillon'
+        // ou 'generee'/'validee' (cas migration), la sync n'agit pas — on
+        // force la transition explicitement.
+        if ($invoice->fresh()->status !== 'payee') {
+            try {
+                $invoice->transitionStatusTo(
+                    'payee',
+                    reason: 'Solde manuel (sans versement) : ' . trim($data['reason']),
+                    auto:   false
+                );
+                $invoice->paid_at = $data['paid_at'] ?? now()->toDateString();
+                $invoice->saveQuietly();
+            } catch (\DomainException $e) {
+                // Transition refusée (ex: passage interdit depuis ce statut)
+                // — on log mais le versement est déjà créé.
+                \Illuminate\Support\Facades\Log::warning('invoice.markPaidManual.transition_failed', [
+                    'invoice_id' => $invoice->id,
+                    'status'     => $invoice->status,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return back()->with('success',
+            '✅ Facture soldée manuellement. Un versement de '
+            . number_format($remaining, 0, ',', ' ') . ' FCFA a été enregistré pour traçabilité.');
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -969,26 +1103,30 @@ class InvoiceController extends Controller
             . $invoice->schedules()->count() . ' échéance(s)).');
     }
 
+    /**
+     * Mission BUG_ECHEANCIER (juin 2026) : le statut des échéances est
+     * désormais STRICTEMENT DÉRIVÉ du cumul des versements (cf.
+     * ScheduleAllocationService::recomputeFromPayments). Le marquage
+     * manuel est désactivé pour éviter les désynchros (cas FAC-2026-010
+     * où des échéances étaient marquées "payées" sans contrepartie
+     * financière réelle).
+     *
+     * Pour solder une échéance, il faut enregistrer un VERSEMENT réel
+     * (bouton "+ Ajouter un versement"). L'allocation FIFO marquera
+     * automatiquement l'échéance soldée si le cumul couvre.
+     *
+     * La route est conservée pour rétrocompat (anciens liens), mais
+     * répond avec un message explicatif.
+     */
     public function markScheduleEntryPaid(Request $request, Invoice $invoice, \App\Models\InvoiceSchedule $schedule)
     {
         $this->authorize('markPaid', $invoice);
         if ($schedule->invoice_id !== $invoice->id) abort(404);
 
-        if ($schedule->isPaid()) {
-            return back()->with('info', 'Échéance déjà marquée payée.');
-        }
-
-        $data = $request->validate([
-            'payment_id' => 'nullable|exists:invoice_payments,id',
-            'paid_at'    => 'nullable|date|before_or_equal:today',
-        ]);
-
-        $schedule->update([
-            'paid_at'          => $data['paid_at'] ?? now()->toDateString(),
-            'paid_payment_id'  => $data['payment_id'] ?? null,
-        ]);
-
-        return back()->with('success', '✓ Échéance marquée payée.');
+        return back()->with('error',
+            '🔒 Le statut des échéances dérive automatiquement des versements enregistrés. '
+            . 'Pour solder cette échéance, enregistre un versement réel via "+ Ajouter un versement". '
+            . 'L\'imputation FIFO mettra à jour le statut automatiquement.');
     }
 
     public function unmarkScheduleEntryPaid(Invoice $invoice, \App\Models\InvoiceSchedule $schedule)
@@ -996,8 +1134,9 @@ class InvoiceController extends Controller
         $this->authorize('markPaid', $invoice);
         if ($schedule->invoice_id !== $invoice->id) abort(404);
 
-        $schedule->update(['paid_at' => null, 'paid_payment_id' => null]);
-        return back()->with('success', 'Échéance redevenue à payer.');
+        return back()->with('error',
+            '🔒 Le statut des échéances dérive automatiquement des versements. '
+            . 'Pour annuler le solde, supprime le versement correspondant.');
     }
 
     public function deleteSchedule(Invoice $invoice)
@@ -1110,14 +1249,14 @@ class InvoiceController extends Controller
         $campStatus = $invoice->campaign?->status?->value;
         if ($campStatus === 'annule') {
             return $this->statusResponse($request, $invoice, false,
-                "🚫 Campagne liée annulée — paiement bloqué. Annule la facture (🚫) ou clarifie la situation avant de marquer payée.");
+                "🚫 Campagne liée annulée — paiement bloqué. Annule la facture (🚫) ou clarifie la situation avant de marquer soldée.");
         }
 
         $invoice->update([
             'status'  => 'payee',
             'paid_at' => now(),
         ]);
-        return $this->statusResponse($request, $invoice, true, 'Facture marquée comme payée. ✅');
+        return $this->statusResponse($request, $invoice, true, 'Facture marquée comme soldée. ✅');
     }
 
     /**

@@ -88,12 +88,8 @@ class InvoicesExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 
     public function map($invoice): array
     {
-        $statusLabels = [
-            'brouillon' => 'Brouillon',
-            'envoyee'   => 'Envoyée',
-            'payee'     => 'Payée',
-            'annulee'   => 'Annulée',
-        ];
+        // Libellés alignés sur Invoice::STATUS_LABELS — M1 cosmétique.
+        $statusLabels = \App\Models\Invoice::STATUS_LABELS;
 
         return [
             $invoice->reference,
