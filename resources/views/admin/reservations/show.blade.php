@@ -441,8 +441,14 @@
                     </div>
                 @endif
                 <div style="padding:10px 12px;">
-                    <div style="font-family:monospace;font-size:11px;font-weight:700;color:var(--accent);margin-bottom:4px;">
-                        {{ $panel->reference }}
+                    <div style="font-family:monospace;font-size:11px;font-weight:700;margin-bottom:4px;">
+                        @if($panel->source !== 'externe')
+                            <a href="{{ route('admin.panels.show', $panel->id) }}"
+                               style="color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--border)"
+                               title="Voir la fiche panneau">{{ $panel->reference }}</a>
+                        @else
+                            <span style="color:var(--accent)">{{ $panel->reference }}</span>
+                        @endif
                     </div>
                     <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                         {{ $panel->name }}
@@ -573,9 +579,16 @@
                 @endphp
                 <tr class="border-b border-[#1e1e2e]" id="panel-row-{{ $panel->id }}">
                     <td class="p-3">
-                        <span class="font-mono text-xs font-bold px-2 py-1 rounded-lg bg-[#e8a020]/10 text-[#e8a020]">
-                            {{ $panel->reference }}
-                        </span>
+                        @if($panel->source !== 'externe')
+                            <a href="{{ route('admin.panels.show', $panel->id) }}"
+                               class="font-mono text-xs font-bold px-2 py-1 rounded-lg bg-[#e8a020]/10 text-[#e8a020]"
+                               style="text-decoration:none"
+                               title="Voir la fiche panneau">{{ $panel->reference }}</a>
+                        @else
+                            <span class="font-mono text-xs font-bold px-2 py-1 rounded-lg bg-[#e8a020]/10 text-[#e8a020]">
+                                {{ $panel->reference }}
+                            </span>
+                        @endif
                     </td>
                     <td class="p-3">
                         <div class="text-sm font-medium text-gray-500">{{ $panel->name }}</div>
