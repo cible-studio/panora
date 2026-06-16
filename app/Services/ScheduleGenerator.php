@@ -57,10 +57,24 @@ class ScheduleGenerator
      */
     public function generate(Invoice $invoice, array $opts): array
     {
-        $total = (int) ($invoice->total_a_payer ?: $invoice->amount_ttc ?: 0);
+        // L'échéancier planifie le SOLDE RESTANT DÛ, pas le total brut.
+        // Si des acomptes ont déjà été encaissés, on ne les replanifie pas —
+        // la modale UI et le backend doivent rester strictement alignés
+        // pour éviter "somme des jalons ≠ total" alors que l'utilisateur
+        // a saisi le bon solde.
+        $total = (int) round($invoice->remainingAmount());
+
+        // Si rien n'a encore été encaissé, remainingAmount = total_a_payer
+        // (le cas normal au moment de la création initiale de l'échéancier).
         if ($total <= 0) {
+            $brut = (int) ($invoice->total_a_payer ?: $invoice->amount_ttc ?: 0);
+            if ($brut <= 0) {
+                throw new \DomainException(
+                    'Cette facture a un total de 0 — pas d\'échéancier possible.'
+                );
+            }
             throw new \DomainException(
-                'Cette facture a un total de 0 — pas d\'échéancier possible.'
+                'Cette facture est déjà entièrement payée — plus rien à planifier.'
             );
         }
 

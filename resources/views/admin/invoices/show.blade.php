@@ -778,8 +778,23 @@
                     <form method="POST" action="{{ route('admin.invoices.schedule.generate', $invoice) }}" id="schedule-form">
                         @csrf
                         <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+                            @php
+                                // L'échéancier ne planifie QUE le solde restant dû — pas le total
+                                // brut. Si la facture a déjà reçu des acomptes, on ne re-planifie pas
+                                // ce qui est déjà encaissé. Cohérent avec ScheduleGenerator côté
+                                // backend (cf. utilisation de remainingAmount()).
+                                $schedTotalBrut = (int) ($invoice->total_a_payer ?: $invoice->amount_ttc);
+                                $schedPaid      = (int) round($invoice->paidAmount());
+                                $schedRemaining = (int) round($invoice->remainingAmount());
+                            @endphp
                             <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12.5px">
-                                Total à payer : <strong id="sched-total" data-total="{{ (int) ($invoice->total_a_payer ?: $invoice->amount_ttc) }}">{{ $fmt($invoice->total_a_payer ?: $invoice->amount_ttc) }} FCFA</strong>
+                                @if($schedPaid > 0)
+                                    Total facture : <strong>{{ $fmt($schedTotalBrut) }} FCFA</strong><br>
+                                    <span style="color:var(--text3)">Déjà encaissé : {{ $fmt($schedPaid) }} FCFA</span><br>
+                                    Solde à planifier : <strong id="sched-total" data-total="{{ $schedRemaining }}" style="color:var(--accent)">{{ $fmt($schedRemaining) }} FCFA</strong>
+                                @else
+                                    Total à payer : <strong id="sched-total" data-total="{{ $schedRemaining }}">{{ $fmt($schedRemaining) }} FCFA</strong>
+                                @endif
                             </div>
 
                             {{-- ═══ Choix du mode (Phase 3 — cahier §6) ═══ --}}
@@ -880,7 +895,7 @@
                                        style="padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface2)">
                                 <input type="date" name="milestones[${i}][due_date]" required
                                        style="padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface2)">
-                                <input type="number" name="milestones[${i}][amount]" placeholder="Montant" min="1" step="1000" required
+                                <input type="number" name="milestones[${i}][amount]" placeholder="Montant" min="1" step="1" required
                                        class="milestone-amount"
                                        style="padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface2);text-align:right">
                                 <button type="button" onclick="window.schedRemoveMilestone(this)" class="btn btn-ghost btn-sm" style="color:#ef4444;font-weight:700;padding:4px 8px">✕</button>
