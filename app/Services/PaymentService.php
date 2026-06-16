@@ -90,6 +90,16 @@ class PaymentService
                 $this->storeAttachment($payment, $attachment);
             }
 
+            // ── Auto-allocation FIFO aux échéances non payées ──────────
+            // Avant : l'admin devait cocher chaque échéance manuellement
+            // après avoir saisi le versement → la liste des échéances
+            // restait désynchronisée avec les paiements (bug user).
+            // Désormais : on impute le versement aux échéances dans
+            // l'ordre chronologique tant qu'il reste du montant à
+            // affecter. Une échéance n'est marquée payée QUE si elle
+            // est entièrement couverte (cohérence audit).
+            $this->allocatePaymentToSchedules($invoice->fresh('schedules'), $payment);
+
             // Recalcul auto du statut facture
             $this->syncInvoiceStatus($invoice->fresh(['payments', 'schedules']));
 
@@ -106,10 +116,78 @@ class PaymentService
         });
     }
 
+    /**
+     * Affecte FIFO un nouveau versement aux échéances non payées.
+     *
+     * Algorithme :
+     *   1. Récupérer les échéances dans l'ordre chronologique
+     *      (due_date ASC, order_index ASC).
+     *   2. Pour chaque échéance non payée :
+     *      - Si le montant du versement >= amount de l'échéance →
+     *        marquer payée (paid_at + paid_payment_id), consommer
+     *        amount du budget, passer à la suivante.
+     *      - Sinon (versement insuffisant pour cette échéance) →
+     *        on ne marque PAS (paiement partiel d'une échéance =
+     *        cas comptable ambigu, on laisse l'admin trancher).
+     *   3. S'arrête dès que le budget est épuisé ou < amount suivant.
+     *
+     * Note : si la facture n'a pas d'échéancier configuré, rien à faire.
+     */
+    public function allocatePaymentToSchedules(Invoice $invoice, InvoicePayment $payment): void
+    {
+        $schedules = $invoice->schedules()
+            ->whereNull('paid_at')
+            ->orderBy('due_date')
+            ->orderBy('order_index')
+            ->get();
+
+        if ($schedules->isEmpty()) {
+            return;
+        }
+
+        $budget = (int) $payment->montant;
+        $paidAt = $payment->paid_at instanceof \DateTimeInterface
+            ? $payment->paid_at->toDateString()
+            : (string) $payment->paid_at;
+
+        foreach ($schedules as $sch) {
+            $amount = (int) $sch->amount;
+            if ($amount <= 0) continue;
+            if ($budget < $amount) break; // pas assez pour couvrir cette échéance
+
+            $sch->update([
+                'paid_at'         => $paidAt,
+                'paid_payment_id' => $payment->id,
+            ]);
+            $budget -= $amount;
+
+            if ($budget <= 0) break;
+        }
+    }
+
+    /**
+     * Inverse l'auto-allocation : libère les échéances marquées payées
+     * par ce versement. Appelé avant la suppression du paiement.
+     */
+    public function releaseSchedulesForPayment(InvoicePayment $payment): void
+    {
+        \App\Models\InvoiceSchedule::where('paid_payment_id', $payment->id)
+            ->update([
+                'paid_at'         => null,
+                'paid_payment_id' => null,
+            ]);
+    }
+
     public function delete(InvoicePayment $payment): void
     {
         $invoice = $payment->invoice;
         DB::transaction(function () use ($payment, $invoice) {
+            // Libérer les échéances qui pointaient sur ce versement
+            // (symétrique à allocatePaymentToSchedules). Sans ça, après
+            // suppression, les échéances resteraient marquées payées
+            // mais leur paid_payment_id pointerait vers un ID supprimé.
+            $this->releaseSchedulesForPayment($payment);
+
             // Supprime la pièce jointe si elle existe
             if ($payment->attachment_path && Storage::disk(self::ATTACHMENT_DISK)->exists($payment->attachment_path)) {
                 Storage::disk(self::ATTACHMENT_DISK)->delete($payment->attachment_path);

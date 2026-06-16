@@ -71,12 +71,32 @@ class InvoiceController extends Controller
         // ⚠ Compteurs KPI : AVANT ils étaient calculés sur Invoice::query()
         // sans scope → un commercial voyait le nb total entreprise + le CA
         // payé GLOBAL (leak métier majeur). Maintenant scopés au commercial.
+        //
+        // Mission D — on calcule les 9 statuts pour que les KPI cards ET les
+        // options du dropdown filtre puissent afficher leur compteur en direct.
         $kpiQuery = fn() => Invoice::query()
             ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
-        $totalBrouillons = (clone $kpiQuery())->where('status', 'brouillon')->count();
-        $totalEnvoyees   = (clone $kpiQuery())->where('status', 'envoyee')->count();
-        $totalPayees     = (clone $kpiQuery())->where('status', 'payee')->count();
-        $montantTotal    = (clone $kpiQuery())->where('status', 'payee')->sum('amount_ttc');
+        $statusCounts = (clone $kpiQuery())
+            ->selectRaw('status, COUNT(*) as c')
+            ->groupBy('status')
+            ->pluck('c', 'status')
+            ->toArray();
+        $totalBrouillons     = (int) ($statusCounts['brouillon'] ?? 0);
+        $totalGenerees       = (int) ($statusCounts['generee'] ?? 0);
+        $totalValidees       = (int) ($statusCounts['validee'] ?? 0);
+        $totalEnvoyees       = (int) ($statusCounts['envoyee'] ?? 0);
+        $totalPartielles     = (int) ($statusCounts['partiellement_payee'] ?? 0);
+        $totalPayees         = (int) ($statusCounts['payee'] ?? 0);
+        $totalEnRetard       = (int) ($statusCounts['en_retard'] ?? 0);
+        $totalLitige         = (int) ($statusCounts['litige'] ?? 0);
+        $totalAnnulees       = (int) ($statusCounts['annulee'] ?? 0);
+        $montantTotal        = (clone $kpiQuery())->where('status', 'payee')->sum('amount_ttc');
+
+        // Restant dû global (Envoyée + Partielle + En retard) — utile pour le
+        // KPI "à encaisser" et la page Finance.
+        $montantRestantDu = (clone $kpiQuery())
+            ->whereIn('status', ['envoyee', 'partiellement_payee', 'en_retard'])
+            ->sum('total_a_payer');
         
         // ✅ AJAX response
         if ($request->ajax() || $request->input('ajax')) {
@@ -97,8 +117,10 @@ class InvoiceController extends Controller
 
         return view('admin.invoices.index', compact(
             'invoices', 'clients', 'contextCampaign',
-            'totalBrouillons', 'totalEnvoyees',
-            'totalPayees', 'montantTotal'
+            'totalBrouillons', 'totalGenerees', 'totalValidees',
+            'totalEnvoyees', 'totalPartielles', 'totalPayees',
+            'totalEnRetard', 'totalLitige', 'totalAnnulees',
+            'montantTotal', 'montantRestantDu'
         ));
     }
 
@@ -804,22 +826,47 @@ class InvoiceController extends Controller
         return back()->with('success', '🔒 Facture VALIDÉE et verrouillée.');
     }
 
-    /** Bascule en litige (facture contestée par le client). */
+    /**
+     * Bascule en litige avec motif prédéfini + note optionnelle.
+     *
+     * Mission C : avant, le motif était saisi via prompt() JS (texte
+     * libre, non filtrable). Désormais l'admin choisit l'un des 13
+     * motifs Invoice::LITIGE_MOTIFS via une modale + ajoute une note.
+     * Les 3 colonnes (litige_motif, litige_note, litige_opened_at)
+     * persistent le contexte pour les dashboards finance.
+     */
     public function markLitige(Request $request, Invoice $invoice)
     {
         $this->authorize('markSent', $invoice);
 
-        $data = $request->validate(['reason' => 'nullable|string|max:500']);
+        $data = $request->validate([
+            'litige_motif' => 'required|string|in:' . implode(',', array_keys(Invoice::LITIGE_MOTIFS)),
+            'litige_note'  => 'nullable|string|max:1000',
+        ], [
+            'litige_motif.required' => 'Sélectionne un motif de litige.',
+            'litige_motif.in'       => 'Motif de litige invalide.',
+        ]);
+
+        $motifLabel = Invoice::litigeMotifLabel($data['litige_motif']);
+        $note = trim((string) ($data['litige_note'] ?? ''));
+
         try {
-            $invoice->transitionStatusTo(
-                'litige',
-                reason: $data['reason'] ?? 'Bascule en litige (manuelle)',
-                auto: false
-            );
+            // Persiste le contexte AVANT la transition pour que l'audit
+            // capte l'état correct ; transition pose ensuite le statut.
+            $invoice->update([
+                'litige_motif'     => $data['litige_motif'],
+                'litige_note'      => $note !== '' ? $note : null,
+                'litige_opened_at' => now(),
+            ]);
+
+            $reason = '⚠ Litige — ' . $motifLabel
+                . ($note !== '' ? ' · ' . \Illuminate\Support\Str::limit($note, 200) : '');
+
+            $invoice->transitionStatusTo('litige', reason: $reason, auto: false);
         } catch (\DomainException $e) {
             return back()->with('error', '🚫 ' . $e->getMessage());
         }
-        return back()->with('success', '⚠ Facture marquée EN LITIGE.');
+        return back()->with('success', '⚠ Facture marquée EN LITIGE — motif : ' . $motifLabel);
     }
 
     public function markSent(Request $request, Invoice $invoice)

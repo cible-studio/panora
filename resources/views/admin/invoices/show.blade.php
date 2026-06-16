@@ -85,6 +85,38 @@
             </div>
         @endif
 
+        {{-- ════════════════════ BANDEAU LITIGE (visibilité forte) ════════════════════
+             Mission C : quand la facture est en litige, on affiche un bandeau
+             rouge proéminent en haut de la fiche avec motif + date d'ouverture
+             + note. Permet à n'importe quel collaborateur qui ouvre la fiche
+             de voir instantanément la situation et le contexte.
+        ═══════════════════════════════════════════════════════════════════════════ --}}
+        @if($invoice->status === 'litige')
+            <div style="background:linear-gradient(135deg,rgba(239,68,68,.10),rgba(244,63,94,.08));border:2px solid rgba(239,68,68,.40);border-radius:14px;padding:18px 22px;margin-bottom:14px;display:flex;gap:16px;align-items:flex-start">
+                <div style="width:52px;height:52px;border-radius:14px;background:rgba(239,68,68,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:26px">⚠️</div>
+                <div style="flex:1">
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                        <div style="font-size:16px;font-weight:800;color:#991b1b">Facture en litige</div>
+                        @if($invoice->litige_motif)
+                            <span style="background:rgba(239,68,68,.18);color:#991b1b;padding:3px 12px;border-radius:999px;font-size:11.5px;font-weight:800;letter-spacing:.3px">
+                                {{ \App\Models\Invoice::litigeMotifLabel($invoice->litige_motif) }}
+                            </span>
+                        @endif
+                    </div>
+                    <div style="font-size:12.5px;color:#7f1d1d;margin-top:4px;line-height:1.5">
+                        @if($invoice->litige_opened_at)
+                            Ouvert le <strong>{{ $invoice->litige_opened_at->format('d/m/Y à H:i') }}</strong>
+                        @endif
+                        @if($invoice->litige_note)
+                            <div style="margin-top:8px;padding:10px 12px;background:rgba(255,255,255,.6);border-left:3px solid #b91c1c;border-radius:6px;color:#7f1d1d;line-height:1.6">
+                                💬 {{ $invoice->litige_note }}
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        @endif
+
         {{-- ════════════════════ CARD STATUT & ACTIONS ════════════════════
              Section dédiée au cycle de vie de la facture : pipeline visuel
              Brouillon → Envoyée → Soldée + boutons de transition contextuels.
@@ -186,12 +218,11 @@
                             @csrf @method('PATCH')
                             <button type="submit" class="btn btn-success btn-sm">📤 Envoyer au client</button>
                         </form>
-                        <form method="POST" action="{{ route('admin.invoices.litige', $invoice) }}" style="margin:0"
-                              onsubmit="var r = prompt('Motif du litige (optionnel) :'); if (r === null) return false; this.querySelector('[name=reason]').value = r;">
-                            @csrf @method('PATCH')
-                            <input type="hidden" name="reason" value="">
-                            <button type="submit" class="btn btn-ghost btn-sm" style="color:#b45309">⚠ Litige</button>
-                        </form>
+                        <button type="button" onclick="document.getElementById('modal-litige').classList.add('show')"
+                                class="btn btn-ghost btn-sm" style="color:#b45309;font-weight:700"
+                                title="Mettre cette facture en litige (avec motif et note)">
+                            ⚠️ Mettre en litige
+                        </button>
                     @endif
 
                     @if($status === 'envoyee')
@@ -200,12 +231,11 @@
                             @csrf @method('PATCH')
                             <button type="submit" class="btn btn-success btn-sm">✅ Marquer soldée</button>
                         </form>
-                        <form method="POST" action="{{ route('admin.invoices.litige', $invoice) }}" style="margin:0"
-                              onsubmit="var r = prompt('Motif du litige (optionnel) :'); if (r === null) return false; this.querySelector('[name=reason]').value = r;">
-                            @csrf @method('PATCH')
-                            <input type="hidden" name="reason" value="">
-                            <button type="submit" class="btn btn-ghost btn-sm" style="color:#b45309">⚠ Litige</button>
-                        </form>
+                        <button type="button" onclick="document.getElementById('modal-litige').classList.add('show')"
+                                class="btn btn-ghost btn-sm" style="color:#b45309;font-weight:700"
+                                title="Mettre cette facture en litige (avec motif et note)">
+                            ⚠️ Mettre en litige
+                        </button>
                     @endif
 
                     @if($status === 'litige')
@@ -1015,6 +1045,54 @@
                         <div class="modal-footer">
                             <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal-mark-paid-manual').classList.remove('show')">Annuler</button>
                             <button type="submit" class="btn btn-success">💼 Solder maintenant</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            @endcan
+
+            {{-- ════════════════════ MODALE LITIGE ════════════════════
+                 Choix d'un motif parmi les 13 prédéfinis (Invoice::LITIGE_MOTIFS)
+                 + note libre optionnelle. Mission C — visibilité forte du litige.
+            ═══════════════════════════════════════════════════════════════════════ --}}
+            @can('markSent', $invoice)
+            <div class="modal-overlay" id="modal-litige" role="dialog">
+                <div class="modal" style="max-width:560px">
+                    <div class="modal-header">
+                        <h3>⚠️ Mettre la facture en litige</h3>
+                        <button type="button" onclick="document.getElementById('modal-litige').classList.remove('show')" class="modal-close">×</button>
+                    </div>
+                    <form method="POST" action="{{ route('admin.invoices.litige', $invoice) }}">
+                        @csrf @method('PATCH')
+                        <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+                            <div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.20);border-radius:8px;padding:10px 12px;font-size:12px;color:#991b1b;line-height:1.5">
+                                ⚠ La facture sera mise en statut <strong>Litige</strong>. Les relances
+                                automatiques sont suspendues tant qu'elle est dans cet état. Action tracée.
+                            </div>
+
+                            <div class="mfg">
+                                <label>Motif du litige <span style="color:var(--red)">*</span></label>
+                                <select name="litige_motif" required>
+                                    <option value="">— Sélectionner un motif —</option>
+                                    @foreach(\App\Models\Invoice::LITIGE_MOTIFS as $code => $label)
+                                        <option value="{{ $code }}" {{ $invoice->litige_motif === $code ? 'selected' : '' }}>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="mfg">
+                                <label>Note <span style="color:var(--text3);font-weight:400;font-size:11px">(contexte, contact client, prochaine étape…)</span></label>
+                                <textarea name="litige_note" maxlength="1000" rows="4"
+                                          placeholder="Ex : Client conteste le poste pose — RDV pris le 22/06 pour reconciliation. Contact : M. Diallo 07XX XX XX XX."
+                                          style="resize:vertical">{{ $invoice->litige_note }}</textarea>
+                                <div style="font-size:10.5px;color:var(--text3);margin-top:4px">
+                                    💡 Cette note s'affiche en grand sur la fiche facture pour que toute l'équipe voie le contexte.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal-litige').classList.remove('show')">Annuler</button>
+                            <button type="submit" class="btn btn-warning" style="background:#dc2626;color:#fff;font-weight:700">⚠️ Mettre en litige</button>
                         </div>
                     </form>
                 </div>

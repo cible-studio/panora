@@ -58,7 +58,7 @@ class CheckDueDates extends Command
             ])
             ->get();
 
-        $counts = ['j7' => 0, 'j3' => 0, 'depassee' => 0];
+        $counts = ['j7' => 0, 'mail_j7' => 0, 'j3' => 0, 'depassee' => 0];
 
         foreach ($schedules as $sch) {
             /** @var Invoice $invoice */
@@ -137,15 +137,78 @@ class CheckDueDates extends Command
                     ]
                 );
                 if ($alert) { $counts['j7']++; $this->touchReminder($sch); }
+
+                // Email client J-7 : envoi automatique au client final pour
+                // qu'il anticipe le règlement. Idempotence : on n'envoie
+                // qu'UNE fois par couple (schedule, palier J-7) en posant
+                // un PublicLink dédié dont la metadata sert de marqueur.
+                if ($this->sendClientReminderMail($invoice, $sch, 7)) {
+                    $counts['mail_j7']++;
+                }
             }
         }
 
         $this->line("  📅 Alertes J-7   : {$counts['j7']}");
+        $this->line("  📨 Emails client J-7 : {$counts['mail_j7']}");
         $this->line("  ⚠️  Alertes J-3   : {$counts['j3']}");
         $this->line("  🔴 Alertes dépassée : {$counts['depassee']}");
-        $this->info('Total : ' . array_sum($counts) . ' alerte(s) émise(s).');
+        $this->info('Total : ' . array_sum($counts) . ' notification(s) émise(s).');
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Envoie un rappel par email au client pour une échéance proche.
+     *
+     * Idempotent : si un PublicLink "reminder J-7" existe déjà pour ce
+     * couple (invoice, schedule), on ne renvoie pas. L'admin peut purger
+     * manuellement via /admin/alerts si besoin de relancer.
+     *
+     * @return bool true si email envoyé, false si skip (déjà envoyé,
+     *              pas d'email client, ou erreur silencieuse).
+     */
+    protected function sendClientReminderMail(Invoice $invoice, InvoiceSchedule $sch, int $palierJours): bool
+    {
+        $client = $invoice->client;
+        if (!$client?->email) return false;
+
+        // Marqueur d'idempotence dans PublicLink::metadata.
+        $alreadySent = \App\Models\PublicLink::where('type', 'invoice')
+            ->where('target_type', Invoice::class)
+            ->where('target_id', $invoice->id)
+            ->where('metadata->schedule_reminder_j' . $palierJours, $sch->id)
+            ->exists();
+
+        if ($alreadySent) return false;
+
+        try {
+            // Lien public sécurisé (palierJours + buffer 7j)
+            $link = \App\Services\PublicLinkService::create(
+                target:    $invoice,
+                type:      'invoice',
+                expiresAt: now()->addDays($palierJours + 7),
+                clientId:  $invoice->client_id,
+                metadata:  ['schedule_reminder_j' . $palierJours => $sch->id],
+            );
+
+            \Illuminate\Support\Facades\Mail::to($client->email)
+                ->send(new \App\Mail\InvoiceScheduleReminderMail(
+                    invoice:       $invoice,
+                    schedule:      $sch,
+                    link:          $link,
+                    daysUntilDue:  $palierJours,
+                ));
+
+            return true;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('schedule_reminder.mail_failed', [
+                'invoice_id'  => $invoice->id,
+                'schedule_id' => $sch->id,
+                'palier'      => $palierJours,
+                'error'       => $e->getMessage(),
+            ]);
+            return false;
+        }
     }
 
     /**

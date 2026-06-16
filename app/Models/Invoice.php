@@ -52,6 +52,8 @@ class Invoice extends Model implements Auditable
         'locked_at', 'locked_by_id',
         'credit_note_for_id', 'campaign_year',
         'notes_client',
+        // Mission C — litige
+        'litige_motif', 'litige_note', 'litige_opened_at',
     ];
 
     /**
@@ -77,6 +79,7 @@ class Invoice extends Model implements Auditable
         'paid_at'              => 'date',
         'locked_at'            => 'datetime',
         'campaign_year'        => 'integer',
+        'litige_opened_at'     => 'datetime',
     ];
 
     /**
@@ -121,6 +124,37 @@ class Invoice extends Model implements Auditable
     public function getStatusLabelAttribute(): string
     {
         return self::statusLabel($this->status);
+    }
+
+    /**
+     * Motifs prédéfinis de mise en litige (mission C — capture user).
+     *
+     * Clé = code stocké en base (compact, snake_case).
+     * Valeur = libellé affiché à l'utilisateur (Soldée, motif…).
+     *
+     * Quand un admin met une facture en litige, il choisit l'un de ces
+     * motifs + saisit une note libre. Le motif sert ensuite de pivot
+     * pour le filtre dashboard contentieux / recouvrement.
+     */
+    public const LITIGE_MOTIFS = [
+        'echeancier_non_respecte'    => 'Échéancier non respecté',
+        'retard_paiement'            => 'Retard de paiement',
+        'recouvrement_amiable'       => 'Recouvrement amiable ouvert',
+        'creance_echue_non_regul'    => 'Créance échue non régularisée',
+        'procedures_juridiques'      => 'Procédures juridiques engagées',
+        'anomalie_reglement'         => 'Anomalie de règlement',
+        'risque_impaye'              => 'Risque d\'impayé identifié',
+        'creance_douteuse'           => 'Créance douteuse',
+        'negociation_echeancier'     => 'Négociation d\'un échéancier',
+        'suivi_impaye'               => 'Suivi impayé',
+        'creance_litigieuse'         => 'Créance litigieuse',
+        'contentieux_client'         => 'Contentieux client',
+        'relance_paiement'           => 'Relance paiement',
+    ];
+
+    public static function litigeMotifLabel(?string $motif): string
+    {
+        return self::LITIGE_MOTIFS[$motif] ?? '—';
     }
 
     /** Transitions manuelles autorisées (user action). */
@@ -381,7 +415,18 @@ class Invoice extends Model implements Auditable
             'user_id' => $userId ?? auth()->id(),
         ];
 
-        $this->status = $newStatus;
+        $previousStatus = $this->status;
+        $this->status   = $newStatus;
+
+        // Mission C — nettoyage du contexte litige quand la facture
+        // sort du statut litige (résolution / annulation / retour
+        // brouillon…). On garde l'historique dans InvoiceStatusHistory.
+        if ($previousStatus === 'litige' && $newStatus !== 'litige') {
+            $this->litige_motif     = null;
+            $this->litige_note      = null;
+            $this->litige_opened_at = null;
+        }
+
         $this->save();
 
         // ═══ Phase 8A cahier §3 — Verrouillage AUTO à la validation ═══

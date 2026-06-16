@@ -41,12 +41,16 @@
     </div>
 @endif
 
-{{-- STATS CLIQUABLES (filtres AJAX) --}}
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
-    <a href="#" data-status="brouillon"
+{{-- STATS CLIQUABLES (filtres AJAX)
+     Mission D — chaque KPI card filtre la liste par statut/contexte et
+     affiche son compteur live. Les 4 cartes de base couvrent le flux
+     courant (Brouillon / Envoyée / Soldée / CA), et 4 cartes secondaires
+     compactes couvrent les états spéciaux (Partielle / En retard /
+     Litige / Annulée). Les compteurs s'actualisent à chaque chargement. --}}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">
+    <a href="?status=brouillon" data-status="brouillon"
        class="kpi-card filter-stat {{ request('status') === 'brouillon' ? 'is-active' : '' }}"
        style="--kpi-color:#6b7280"
-       onclick="event.preventDefault()"
        onmouseenter="this.style.borderColor='#6b7280';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
        onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:#6b7280"></div>
@@ -56,10 +60,9 @@
         <div class="kpi-card__sub">à finaliser</div>
         <div class="kpi-card__arrow" style="color:#6b7280">→</div>
     </a>
-    <a href="#" data-status="envoyee"
+    <a href="?status=envoyee" data-status="envoyee"
        class="kpi-card filter-stat {{ request('status') === 'envoyee' ? 'is-active' : '' }}"
        style="--kpi-color:#3b82f6"
-       onclick="event.preventDefault()"
        onmouseenter="this.style.borderColor='#3b82f6';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
        onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:#3b82f6"></div>
@@ -69,10 +72,9 @@
         <div class="kpi-card__sub">en attente paiement</div>
         <div class="kpi-card__arrow" style="color:#3b82f6">→</div>
     </a>
-    <a href="#" data-status="payee"
+    <a href="?status=payee" data-status="payee"
        class="kpi-card filter-stat {{ request('status') === 'payee' ? 'is-active' : '' }}"
        style="--kpi-color:#22c55e"
-       onclick="event.preventDefault()"
        onmouseenter="this.style.borderColor='#22c55e';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
        onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:#22c55e"></div>
@@ -82,18 +84,78 @@
         <div class="kpi-card__sub">factures encaissées</div>
         <div class="kpi-card__arrow" style="color:#22c55e">→</div>
     </a>
-    <a href="#" data-status=""
-       class="kpi-card filter-stat"
+    <a href="?" data-status=""
+       class="kpi-card filter-stat {{ !request('status') ? '' : '' }}"
        style="--kpi-color:var(--accent)"
-       onclick="event.preventDefault()"
        onmouseenter="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
        onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
         <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         <div class="kpi-card__value" data-kpi="ca" data-kpi-value="ca" style="color:var(--accent);font-size:18px">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
         <div class="kpi-card__label">CA Encaissé</div>
-        <div class="kpi-card__sub">FCFA total</div>
+        <div class="kpi-card__sub">FCFA · Restant : {{ number_format($montantRestantDu, 0, ',', ' ') }}</div>
         <div class="kpi-card__arrow" style="color:var(--accent)">→</div>
+    </a>
+</div>
+
+{{-- Bandeau états spéciaux (compact) — Partielle / En retard / Litige / Annulée.
+     Affichage en grille 4 colonnes, chaque pastille est un raccourci de filtre. --}}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+    <a href="?status=partiellement_payee"
+       class="kpi-card filter-stat {{ request('status') === 'partiellement_payee' ? 'is-active' : '' }}"
+       style="--kpi-color:#f59e0b;padding:14px 16px"
+       onmouseenter="this.style.borderColor='#f59e0b';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#f59e0b"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+                <div style="font-size:11px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.4px">⏳ Partielles</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">acomptes en cours</div>
+            </div>
+            <div style="font-size:24px;font-weight:800;color:#b45309">{{ $totalPartielles }}</div>
+        </div>
+    </a>
+    <a href="?status=en_retard"
+       class="kpi-card filter-stat {{ request('status') === 'en_retard' ? 'is-active' : '' }}"
+       style="--kpi-color:#ef4444;padding:14px 16px"
+       onmouseenter="this.style.borderColor='#ef4444';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#ef4444"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+                <div style="font-size:11px;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:.4px">🔴 En retard</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">échéance dépassée</div>
+            </div>
+            <div style="font-size:24px;font-weight:800;color:#b91c1c">{{ $totalEnRetard }}</div>
+        </div>
+    </a>
+    <a href="?status=litige"
+       class="kpi-card filter-stat {{ request('status') === 'litige' ? 'is-active' : '' }}"
+       style="--kpi-color:#dc2626;padding:14px 16px"
+       onmouseenter="this.style.borderColor='#dc2626';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#dc2626"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+                <div style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.4px">⚖️ Litige</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">contentieux ouvert</div>
+            </div>
+            <div style="font-size:24px;font-weight:800;color:#991b1b">{{ $totalLitige }}</div>
+        </div>
+    </a>
+    <a href="?status=annulee"
+       class="kpi-card filter-stat {{ request('status') === 'annulee' ? 'is-active' : '' }}"
+       style="--kpi-color:#6b7280;padding:14px 16px"
+       onmouseenter="this.style.borderColor='#6b7280';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+        <div class="kpi-card__top-bar" style="background:#6b7280"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+                <div style="font-size:11px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.4px">🚫 Annulées</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">historique figé</div>
+            </div>
+            <div style="font-size:24px;font-weight:800;color:#4b5563">{{ $totalAnnulees }}</div>
+        </div>
     </a>
 </div>
 
@@ -111,12 +173,19 @@
         </div>
         <div class="filter-group">
             <label class="filter-label">Statut facture</label>
-            <select id="filter-status" class="filter-select" style="width:130px;">
-                <option value="">Tous</option>
-                <option value="brouillon" {{ request('status') === 'brouillon' ? 'selected' : '' }}>Brouillon</option>
-                <option value="envoyee"   {{ request('status') === 'envoyee'   ? 'selected' : '' }}>Envoyée</option>
-                <option value="payee"     {{ request('status') === 'payee'     ? 'selected' : '' }}>Soldée</option>
-                <option value="annulee"   {{ request('status') === 'annulee'   ? 'selected' : '' }}>Annulée</option>
+            {{-- Mission D — dropdown enrichi : 9 statuts du cahier + compteur
+                 live entre parenthèses. Avant : seulement 4 statuts visibles. --}}
+            <select id="filter-status" class="filter-select" style="width:200px;">
+                <option value="">Tous les statuts</option>
+                <option value="brouillon"           {{ request('status') === 'brouillon' ? 'selected' : '' }}>📝 Brouillon ({{ $totalBrouillons }})</option>
+                <option value="generee"             {{ request('status') === 'generee'   ? 'selected' : '' }}>📋 Générée ({{ $totalGenerees }})</option>
+                <option value="validee"             {{ request('status') === 'validee'   ? 'selected' : '' }}>🔒 Validée ({{ $totalValidees }})</option>
+                <option value="envoyee"             {{ request('status') === 'envoyee'   ? 'selected' : '' }}>📤 Envoyée ({{ $totalEnvoyees }})</option>
+                <option value="partiellement_payee" {{ request('status') === 'partiellement_payee' ? 'selected' : '' }}>⏳ Partiellement soldée ({{ $totalPartielles }})</option>
+                <option value="payee"               {{ request('status') === 'payee'     ? 'selected' : '' }}>✅ Soldée ({{ $totalPayees }})</option>
+                <option value="en_retard"           {{ request('status') === 'en_retard' ? 'selected' : '' }}>🔴 En retard ({{ $totalEnRetard }})</option>
+                <option value="litige"              {{ request('status') === 'litige'    ? 'selected' : '' }}>⚖️ Litige ({{ $totalLitige }})</option>
+                <option value="annulee"             {{ request('status') === 'annulee'   ? 'selected' : '' }}>🚫 Annulée ({{ $totalAnnulees }})</option>
             </select>
         </div>
         <div class="filter-group">
