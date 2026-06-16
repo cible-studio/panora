@@ -704,6 +704,85 @@ class PanelController extends Controller
         return view('admin.panels.availability', compact('panel', 'reservations'));
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // GPS — Saisie manuelle des coordonnées manquantes (mission user)
+    //
+    // Page bulk edit qui liste tous les panneaux SANS lat/lng et permet
+    // de saisir lat/lng à la volée. Tri par commune pour faire à la
+    // chaîne. Le gps_source est posé à 'manual' à l'enregistrement.
+    // ══════════════════════════════════════════════════════════════
+    public function gpsMissing(Request $request)
+    {
+        $communes = Commune::orderBy('name')->get(['id', 'name']);
+
+        $query = Panel::with('commune:id,name', 'format:id,name')
+            ->where(function ($q) {
+                $q->whereNull('latitude')->orWhereNull('longitude');
+            })
+            ->whereNull('deleted_at');
+
+        if ($request->filled('commune_id')) {
+            $query->where('commune_id', (int) $request->commune_id);
+        }
+        if ($search = $request->string('search')->toString()) {
+            $query->where(function ($q) use ($search) {
+                $q->where('reference', 'like', "%{$search}%")
+                  ->orWhere('name',    'like', "%{$search}%");
+            });
+        }
+
+        $panels = $query->orderBy('commune_id')->orderBy('reference')->paginate(50)->withQueryString();
+
+        $stats = [
+            'total'    => Panel::count(),
+            'with_gps' => Panel::whereNotNull('latitude')->whereNotNull('longitude')->count(),
+        ];
+        $stats['missing'] = $stats['total'] - $stats['with_gps'];
+
+        return view('admin.panels.gps-missing', compact('panels', 'communes', 'stats'));
+    }
+
+    public function gpsBulkUpdate(Request $request)
+    {
+        $data = $request->validate([
+            'gps'           => 'required|array|min:1',
+            'gps.*.id'      => 'required|integer|exists:panels,id',
+            // Côte d'Ivoire : ~4°-11° N, -8°-(-2)° W. On valide largement
+            // pour permettre les communes périphériques sans bloquer.
+            'gps.*.lat'     => 'nullable|numeric|between:3.5,11.5',
+            'gps.*.lng'     => 'nullable|numeric|between:-9,-1.5',
+        ], [
+            'gps.*.lat.between' => 'Latitude hors zone Côte d\'Ivoire (3,5 → 11,5°N attendus).',
+            'gps.*.lng.between' => 'Longitude hors zone Côte d\'Ivoire (-9 → -1,5°W attendus).',
+        ]);
+
+        $updated = 0;
+        $skipped = 0;
+
+        foreach ($data['gps'] as $row) {
+            $lat = $row['lat'] ?? null;
+            $lng = $row['lng'] ?? null;
+            // Les 2 doivent être fournis pour valider
+            if ($lat === null || $lng === null || $lat === '' || $lng === '') {
+                $skipped++;
+                continue;
+            }
+
+            Panel::where('id', (int) $row['id'])->update([
+                'latitude'         => (float) $lat,
+                'longitude'        => (float) $lng,
+                'gps_source'       => 'manual',
+                'gps_computed_at'  => now(),
+            ]);
+            $updated++;
+        }
+
+        $msg = "✅ {$updated} panneau(x) géolocalisé(s).";
+        if ($skipped > 0) $msg .= " ({$skipped} ligne(s) ignorée(s) — lat/lng incomplètes)";
+
+        return back()->with('success', $msg);
+    }
+
     // ── CARTE GPS ──
     public function map()
     {

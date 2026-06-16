@@ -109,27 +109,89 @@ class FinanceDashboardController extends Controller
     public function relances(Request $request)
     {
         $commercialUid = $this->resolveCommercialScope();
+
+        // Base query scopée + filtres optionnels
+        $applyFilters = function ($q) use ($request, $commercialUid) {
+            if ($commercialUid !== null) {
+                $q->forCommercialUser($commercialUid);
+            }
+            if ($cid = $request->integer('client_id')) {
+                $q->where('client_id', $cid);
+            }
+            if ($iid = $request->integer('invoice_id')) {
+                $q->where('invoice_id', $iid);
+            }
+            if ($canal = $request->string('canal')->toString()) {
+                $q->where('canal', $canal);
+            }
+            if ($outcome = $request->string('outcome')->toString()) {
+                if ($outcome === '__empty') {
+                    $q->whereNull('outcome');
+                } else {
+                    $q->where('outcome', $outcome);
+                }
+            }
+            if ($from = $request->date('from')) {
+                $q->where('relance_date', '>=', $from);
+            }
+            if ($to = $request->date('to')) {
+                $q->where('relance_date', '<=', $to->endOfDay());
+            }
+        };
+
         $query = Relance::query()->with(['client:id,name', 'invoice:id,reference', 'user:id,name']);
+        $applyFilters($query);
+        $relances = $query->orderByDesc('relance_date')->orderByDesc('id')->paginate(30)->withQueryString();
 
-        if ($commercialUid !== null) {
-            $query->forCommercialUser($commercialUid);
-        }
-        if ($cid = $request->integer('client_id')) {
-            $query->where('client_id', $cid);
-        }
-        if ($iid = $request->integer('invoice_id')) {
-            $query->where('invoice_id', $iid);
-        }
-        if ($canal = $request->string('canal')->toString()) {
-            $query->where('canal', $canal);
-        }
+        // ── KPI cards : total, ce mois, à relancer (outcome=a_relancer)
+        $kpiBase = fn() => Relance::query()->tap($applyFilters);
+        $kpis = [
+            'total'          => (clone $kpiBase())->count(),
+            'ce_mois'        => (clone $kpiBase())->whereYear('relance_date', now()->year)
+                                                  ->whereMonth('relance_date', now()->month)->count(),
+            'a_relancer'     => (clone $kpiBase())->where('outcome', 'a_relancer')->count(),
+            'promesses'      => (clone $kpiBase())->where('outcome', 'promesse_paiement')->count(),
+        ];
 
-        $relances = $query->orderByDesc('relance_date')->orderByDesc('id')->paginate(30);
+        // ── Stats par canal + par résultat (outcome) sur le périmètre filtré
+        $byCanal = (clone $kpiBase())
+            ->selectRaw('canal, COUNT(*) as c')
+            ->groupBy('canal')
+            ->pluck('c', 'canal')
+            ->toArray();
+
+        $byOutcome = (clone $kpiBase())
+            ->selectRaw('outcome, COUNT(*) as c')
+            ->groupBy('outcome')
+            ->pluck('c', 'outcome')
+            ->toArray();
+
+        // ── "Relances à venir" : on liste les clients dont la dernière
+        // relance a outcome='a_relancer' OU 'promesse_paiement', triés par
+        // date de la dernière relance ASC (les plus anciennes en premier).
+        $aVenir = collect();
+        if (!$request->hasAny(['client_id', 'invoice_id'])) {
+            $lastByClient = Relance::query()
+                ->when($commercialUid !== null, fn($q) => $q->forCommercialUser($commercialUid))
+                ->orderByDesc('relance_date')
+                ->orderByDesc('id')
+                ->get()
+                ->groupBy('client_id')
+                ->map(fn($g) => $g->first());
+            $aVenir = $lastByClient
+                ->filter(fn($r) => in_array($r->outcome, ['a_relancer', 'promesse_paiement'], true))
+                ->take(50);
+            $aVenir->load(['client:id,name', 'user:id,name']);
+        }
 
         return view('admin.finance.relances', [
             'relances'    => $relances,
             'clientsList' => Client::orderBy('name')->get(['id', 'name']),
             'canaux'      => Relance::CANAUX,
+            'kpis'        => $kpis,
+            'byCanal'     => $byCanal,
+            'byOutcome'   => $byOutcome,
+            'aVenir'      => $aVenir,
         ]);
     }
 

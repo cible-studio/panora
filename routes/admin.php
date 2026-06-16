@@ -346,6 +346,12 @@ Route::prefix('admin')
 
         // Création / modif / suppression / photos = admin + MP
         Route::middleware('role:admin,mediaplanner')->group(function () {
+            // Saisie rapide des coordonnées GPS manquantes — page de bulk
+            // edit avec grille (lat + lng par panneau). Permet de renseigner
+            // les 360+ panneaux qui n'ont pas encore leurs coordonnées.
+            Route::get('panels/gps/missing',  [PanelController::class, 'gpsMissing'])->name('panels.gps.missing');
+            Route::post('panels/gps/missing', [PanelController::class, 'gpsBulkUpdate'])->name('panels.gps.update');
+
             Route::get('panels/create', [PanelController::class, 'create'])->name('panels.create');
             Route::post('panels', [PanelController::class, 'store'])->name('panels.store');
             Route::get('panels/{panel}/edit', [PanelController::class, 'edit'])
