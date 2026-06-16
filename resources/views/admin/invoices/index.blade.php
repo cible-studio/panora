@@ -298,6 +298,46 @@ cursor: pointer;
 </style>
 
 @push('scripts')
+{{-- Select2 — recherche live sur le filtre client. CDN partagé avec
+     les autres vues qui en ont besoin (campaigns/create, piges/create,
+     invoices/partials/_form-fne). --}}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+
+<style>
+/* Harmonise la pillule Select2 avec les autres filter-select natifs
+   (hauteur 40px, padding/radius identiques) — sinon le client picker
+   tranche visuellement avec les dropdowns à côté. */
+.select2-container--default .select2-selection--single {
+    height: 40px !important;
+    padding: 0 4px !important;
+    background: var(--surface2) !important;
+    border: 1px solid var(--border2, var(--border)) !important;
+    border-radius: 10px !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 40px !important;
+    color: var(--text) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 38px !important;
+}
+.select2-dropdown { border-radius: 10px !important; border-color: var(--border2, var(--border)) !important; }
+.select2-search--dropdown .select2-search__field {
+    border-radius: 8px !important;
+    border-color: var(--border2, var(--border)) !important;
+    padding: 8px 10px !important;
+    font-size: 13px !important;
+}
+.select2-results__option--highlighted {
+    background: var(--accent) !important;
+    color: #fff !important;
+}
+</style>
+
 <script>
 // ════════════════════════════════════════════════════════════
 // FILTRAGE AJAX DYNAMIQUE
@@ -381,6 +421,21 @@ cursor: pointer;
 
     // Écouteurs d'événements
     if (elements.client) {
+        // Init Select2 sur le filtre client (recherche live indispensable
+        // dès qu'on a >20 clients). Select2 émet l'événement 'change' natif
+        // → le listener AJAX existant fonctionne sans modification.
+        if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+            window.jQuery(elements.client).select2({
+                placeholder: '🔍 Rechercher un client…',
+                allowClear: true,
+                width: '220px',
+                language: {
+                    noResults: () => 'Aucun client trouvé',
+                    searching: () => 'Recherche…',
+                },
+            });
+        }
+
         elements.client.addEventListener('change', () => {
             currentFilters.client_id = elements.client.value;
             updateResetButton();

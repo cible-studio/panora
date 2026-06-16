@@ -8,10 +8,15 @@
     permanence et leurs boutons Annuler / × ne semblent rien faire.
     L'inline `display:flex` ajouté par le JS au moment de l'ouverture
     surclasse ce :not(.show), donc l'ouverture fonctionne aussi.
+
+    Bug user (capture) : modal-litige + modal-mark-paid-manual
+    s'affichaient dès l'ouverture de /show et masquaient le contenu
+    — ils n'étaient pas couverts par la règle ci-dessous. Désormais
+    on cible toutes les .modal-overlay non actives, plus de fix à
+    ajouter pour les futures modales.
 ─────────────────────────────────────────────────────────────── --}}
 <style>
-    #modal-add-payment:not(.show),
-    #modal-schedule:not(.show) {
+    .modal-overlay:not(.show) {
         display: none !important;
     }
 </style>
