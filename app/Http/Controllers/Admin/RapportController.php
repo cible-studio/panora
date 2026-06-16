@@ -213,7 +213,8 @@ class RapportController extends Controller
                     ->where('end_date', '>=', $start)
             )->withCount('panels')->get()->sum('panels_count');
             $taux = $totalParcFiltered > 0 ? min(round(($occ / $totalParcFiltered) * 100), 100) : 0;
-            $evolMensuelle->push(['label' => $date->format('M'), 'taux' => $taux, 'mois' => $date->month, 'annee' => $date->year]);
+            $moisFrCourt = [1=>'janv.', 2=>'févr.', 3=>'mars', 4=>'avr.', 5=>'mai', 6=>'juin', 7=>'juil.', 8=>'août', 9=>'sept.', 10=>'oct.', 11=>'nov.', 12=>'déc.'];
+            $evolMensuelle->push(['label' => $moisFrCourt[$date->month] ?? $date->format('M'), 'taux' => $taux, 'mois' => $date->month, 'annee' => $date->year]);
         }
 
         // ── CA mensuel (filtres appliqués) ──────────────────────
@@ -222,7 +223,8 @@ class RapportController extends Controller
             $ca = $applyCampaignFilters(
                 Campaign::whereYear('start_date', $annee)->whereMonth('start_date', $m)
             )->sum('total_amount');
-            $caMensuel->push(['label' => Carbon::create($annee, $m, 1)->format('M'), 'ca' => (float) $ca]);
+            $moisFrCourtCa = [1=>'janv.', 2=>'févr.', 3=>'mars', 4=>'avr.', 5=>'mai', 6=>'juin', 7=>'juil.', 8=>'août', 9=>'sept.', 10=>'oct.', 11=>'nov.', 12=>'déc.'];
+            $caMensuel->push(['label' => $moisFrCourtCa[$m] ?? '?', 'ca' => (float) $ca]);
         }
 
         // ── Tableau mensuel (filtres appliqués) ─────────────────
@@ -238,8 +240,9 @@ class RapportController extends Controller
             )->sum('total_amount');
             $panneaux = $camps->sum(fn($c) => $c->panels()->count());
             $taux = $totalPanneaux > 0 ? min(round(($panneaux / $totalPanneaux) * 100), 100) : 0;
+            $moisFrLong = [1=>'janvier', 2=>'février', 3=>'mars', 4=>'avril', 5=>'mai', 6=>'juin', 7=>'juillet', 8=>'août', 9=>'septembre', 10=>'octobre', 11=>'novembre', 12=>'décembre'];
             $tableauMensuel->push([
-                'mois' => Carbon::create($annee, $m, 1)->format('F Y'),
+                'mois' => ($moisFrLong[$m] ?? '?') . ' ' . $annee,
                 'nb_campagnes' => $camps->count(),
                 'panneaux_mobilises' => $panneaux,
                 'ca' => (float) $ca,
@@ -1230,14 +1233,46 @@ class RapportController extends Controller
         $annee = (int) ($request->annee ?? date('Y'));
         $anneesDisponibles = range(date('Y'), max(2020, date('Y') - 5));
 
-        $cancelledAll = $this->scopeUserCampaigns(
-                Campaign::where('status', 'annule')
-                    ->whereYear('updated_at', $annee)
-            )
-            ->with(['client:id,name', 'user:id,name'])
-            ->orderByDesc('updated_at')
-            ->get();
+        // Filtres période (mission user) : preset + intervalle perso
+        $periode    = $request->string('periode')->toString() ?: 'annee';
+        $filterMois = $request->integer('mois');
+        $filterTrim = $request->integer('trimestre');
+        $dateFrom   = $request->date('from');
+        $dateTo     = $request->date('to');
+        $filterMotif = $request->string('motif')->toString() ?: '';
 
+        $query = $this->scopeUserCampaigns(
+                Campaign::where('status', 'annule')
+            )
+            ->with(['client:id,name', 'user:id,name']);
+
+        // Application des filtres de période
+        if ($dateFrom && $dateTo) {
+            $query->whereBetween('updated_at', [$dateFrom, $dateTo->endOfDay()]);
+        } elseif ($filterMois && $filterMois >= 1 && $filterMois <= 12) {
+            $query->whereYear('updated_at', $annee)
+                  ->whereMonth('updated_at', $filterMois);
+        } elseif ($filterTrim && $filterTrim >= 1 && $filterTrim <= 4) {
+            $startMonth = ($filterTrim - 1) * 3 + 1;
+            $query->whereYear('updated_at', $annee)
+                  ->whereMonth('updated_at', '>=', $startMonth)
+                  ->whereMonth('updated_at', '<=', $startMonth + 2);
+        } else {
+            $query->whereYear('updated_at', $annee);
+        }
+
+        if ($filterMotif !== '') {
+            // motif '' = "Non renseigné" → on cherche NULL ou string vide
+            if ($filterMotif === '__empty') {
+                $query->where(function ($q) {
+                    $q->whereNull('cancellation_reason')->orWhere('cancellation_reason', '');
+                });
+            } else {
+                $query->where('cancellation_reason', $filterMotif);
+            }
+        }
+
+        $cancelledAll = $query->orderByDesc('updated_at')->get();
         $total = $cancelledAll->count();
 
         $reasonLabels = [
@@ -1272,7 +1307,8 @@ class RapportController extends Controller
 
         return view('admin.rapports.annulations', compact(
             'annee', 'anneesDisponibles',
-            'cancelledAll', 'total', 'byReason', 'reasonLabels', 'reasonColors'
+            'cancelledAll', 'total', 'byReason', 'reasonLabels', 'reasonColors',
+            'periode', 'filterMois', 'filterTrim', 'dateFrom', 'dateTo', 'filterMotif'
         ));
     }
 

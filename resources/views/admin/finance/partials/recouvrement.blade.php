@@ -140,13 +140,16 @@
                                 </td>
                                 <td style="color:var(--text2);font-size:12px">
                                     @if($row['derniere_relance'])
-                                        {{-- Lien vers l'historique filtré sur ce client — utile aussi
-                                             pour vérifier qu'une relance vient bien d'être enregistrée. --}}
                                         <a href="{{ route('admin.finance.relances', ['client_id' => $row['client_id']]) }}"
                                            style="color:var(--text2);text-decoration:none;border-bottom:1px dashed var(--border)"
                                            title="Voir toutes les relances de ce client">
                                             {{ \Carbon\Carbon::parse($row['derniere_relance'])->format('d/m/Y') }}
                                         </a>
+                                        @if(!empty($row['derniere_relance_user']))
+                                            <div style="font-size:10.5px;color:var(--text3);margin-top:2px">
+                                                par {{ $row['derniere_relance_user'] }}
+                                            </div>
+                                        @endif
                                     @else
                                         <span style="color:var(--text3)">— Jamais</span>
                                     @endif

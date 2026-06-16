@@ -90,7 +90,24 @@ class InvoiceController extends Controller
         $totalEnRetard       = (int) ($statusCounts['en_retard'] ?? 0);
         $totalLitige         = (int) ($statusCounts['litige'] ?? 0);
         $totalAnnulees       = (int) ($statusCounts['annulee'] ?? 0);
-        $montantTotal        = (clone $kpiQuery())->where('status', 'payee')->sum('amount_ttc');
+        // CA encaissé = somme de TOUS les versements (invoice_payments)
+        // sur les factures du périmètre, pas seulement les factures
+        // intégralement soldées. Avant, on excluait les acomptes des
+        // partielles → un client qui avait versé 53 000 sur 398 700
+        // n'apparaissait nulle part dans le CA encaissé. Aligné sur
+        // FAC-2026-010 et la mission BUG_ECHEANCIER.
+        $montantTotal = (int) \DB::table('invoice_payments')
+            ->join('invoices', 'invoices.id', '=', 'invoice_payments.invoice_id')
+            ->whereNotIn('invoices.status', ['annulee'])
+            ->when($isCommercial, fn($q) => $q->whereExists(function ($sub) use ($uid) {
+                $sub->select(\DB::raw(1))
+                    ->from('invoices as i2')
+                    ->whereColumn('i2.id', 'invoice_payments.invoice_id')
+                    ->where(function ($w) use ($uid) {
+                        $w->where('i2.commercial_user_id', $uid);
+                    });
+            }))
+            ->sum('invoice_payments.montant');
 
         // Restant dû global (Envoyée + Partielle + En retard) — utile pour le
         // KPI "à encaisser" et la page Finance.
