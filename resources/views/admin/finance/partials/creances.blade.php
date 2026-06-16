@@ -127,7 +127,15 @@
                             @endphp
                             <tr>
                                 <td><a href="{{ route('admin.invoices.show', $inv) }}" style="color:var(--accent);text-decoration:none;font-family:monospace;font-weight:700">{{ $inv->reference }}</a></td>
-                                <td>{{ $inv->client?->name ?? '—' }}</td>
+                                <td>
+                                    @if($inv->client)
+                                        <a href="{{ route('admin.clients.show', $inv->client) }}"
+                                           style="color:var(--text);text-decoration:none;border-bottom:1px dashed var(--border2,var(--border))"
+                                           title="Voir la fiche client">{{ $inv->client->name }}</a>
+                                    @else
+                                        <span style="color:var(--text3)">—</span>
+                                    @endif
+                                </td>
                                 <td style="color:var(--text2)">{{ $inv->issued_at?->format('d/m/Y') }}</td>
                                 <td style="color:{{ $next && $next->due_date->isPast() ? '#ef4444' : 'var(--text2)' }}">
                                     {{ $next ? $next->due_date->format('d/m/Y') : '—' }}

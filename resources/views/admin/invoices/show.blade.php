@@ -286,6 +286,26 @@
                     @endif
                 </div>
 
+                {{-- Légende des actions du workflow (Q2 user — clarifier la
+                     différence entre les 6 boutons). Compact, repliable. --}}
+                @if(in_array($status, ['brouillon', 'generee', 'validee', 'envoyee']))
+                    <details style="margin-top:12px;font-size:11.5px">
+                        <summary style="cursor:pointer;color:var(--text3);font-weight:700;user-select:none;padding:4px 0">
+                            ❓ Différence entre ces boutons ?
+                        </summary>
+                        <div style="margin-top:10px;padding:12px 14px;background:var(--surface2);border-radius:8px;color:var(--text2);line-height:1.7">
+                            <div style="display:grid;grid-template-columns:1fr;gap:8px">
+                                <div><strong style="color:var(--text)">📋 Finaliser la facture</strong> — Marque la facture comme « prête » (statut <em>Générée</em>). Étape intermédiaire optionnelle avant validation. Elle reste modifiable.</div>
+                                <div><strong style="color:var(--text)">🔒 Valider et figer</strong> — Verrouille la facture (statut <em>Validée</em>) et fige les taux ODP/TM. Plus de modification possible sans déverrouillage explicite (action tracée).</div>
+                                <div><strong style="color:var(--text)">📤 Envoyer au client</strong> — Envoie la facture par email au client + verrouille automatiquement (statut <em>Envoyée</em>). Démarre le suivi paiements et les relances.</div>
+                                <div><strong style="color:var(--text)">✅ Marquer soldée</strong> — Bascule directement en <em>Soldée</em> (saute Envoyée). Utilise-le pour les paiements comptants où l'envoi par email n'est pas nécessaire.</div>
+                                <div><strong style="color:var(--text)">💼 Solder manuellement</strong> — Solde la facture <strong>sans saisir chaque versement</strong>. Cas migration (facture historique) ou paiement encaissé hors plateforme. Justification obligatoire, action tracée dans l'audit.</div>
+                                <div><strong style="color:var(--text)">🚫 Annuler la facture</strong> — Marque la facture comme <em>Annulée</em>. Reste dans l'historique mais ne sera plus réglée ni envoyée.</div>
+                            </div>
+                        </div>
+                    </details>
+                @endif
+
                 {{-- Tip contextuel sous les boutons --}}
                 <div style="margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:11.5px;color:var(--text3);line-height:1.5">
                     @if($status === 'brouillon')

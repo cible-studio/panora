@@ -158,6 +158,7 @@ class FinancialDashboardService
                 'invoice_ref'  => $p->invoice?->reference ?? '—',
                 'client_id'    => $p->invoice?->client_id,
                 'client_name'  => $p->invoice?->client?->name ?? '—',
+                'creator_id'   => $p->creator?->id,
                 'creator_name' => $p->creator?->name ?? '—',
             ]);
     }
@@ -451,16 +452,26 @@ class FinancialDashboardService
             }
         }
 
-        // Dernière relance par client
-        $lastByClient = Relance::query()
+        // Dernière relance par client + suite donnée (= prochaine action prévue
+        // par le commercial après l'échange). La "suite donnée" est un texte
+        // libre saisi dans la modale relance ("rappeler le 15/06", "RDV 22/06",
+        // etc.) — c'est ce que le user attend comme "prochaine action client".
+        // On récupère la suite_donnee de la relance LA PLUS RÉCENTE par client.
+        $lastRelances = Relance::query()
             ->whereIn('client_id', array_keys($byClient))
-            ->select('client_id', DB::raw('MAX(relance_date) as last_date'))
+            ->select('client_id', 'relance_date', 'suite_donnee', 'outcome')
+            ->orderByDesc('relance_date')
+            ->orderByDesc('id')
+            ->get()
             ->groupBy('client_id')
-            ->pluck('last_date', 'client_id');
+            ->map(fn($g) => $g->first()); // garde la plus récente par client
 
         foreach ($byClient as $cid => &$row) {
-            $row['derniere_relance'] = $lastByClient[$cid] ?? null;
-            $row['total_du']         = round($row['total_du'], 2);
+            $last = $lastRelances->get($cid);
+            $row['derniere_relance']       = $last?->relance_date;
+            $row['derniere_relance_suite'] = $last?->suite_donnee;
+            $row['derniere_relance_outcome'] = $last?->outcome;
+            $row['total_du']               = round($row['total_du'], 2);
         }
 
         $coll = collect($byClient)->values();

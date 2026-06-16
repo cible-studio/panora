@@ -62,7 +62,19 @@
                         @foreach($byCommune as $c)
                             @php $pct = $totalCom > 0 ? round(($c['total'] / $totalCom) * 100, 1) : 0; @endphp
                             <tr>
-                                <td>{{ $c['commune_name'] ?? '—' }}</td>
+                                <td>
+                                    @if($c['commune_id'])
+                                        {{-- Lien vers la liste des panneaux de cette commune (vue
+                                             la plus utile pour comprendre ce qui a généré l'encaissement). --}}
+                                        <a href="{{ route('admin.panels.index', ['commune_id' => $c['commune_id']]) }}"
+                                           style="color:var(--accent);text-decoration:none;font-weight:600"
+                                           title="Voir les panneaux de cette commune">
+                                            {{ $c['commune_name'] ?? '—' }}
+                                        </a>
+                                    @else
+                                        <span style="color:var(--text3)">{{ $c['commune_name'] ?? '—' }}</span>
+                                    @endif
+                                </td>
                                 <td class="num strong">{{ $fmt($c['total']) }} FCFA</td>
                                 <td class="num" style="color:var(--text3)">{{ $pct }}%</td>
                             </tr>
@@ -90,8 +102,28 @@
                     <tbody>
                         @foreach($byCommercial as $c)
                             <tr>
-                                <td>{{ $c['user_name'] }}</td>
-                                <td class="num">{{ $c['factures_count'] }}</td>
+                                <td>
+                                    @if($c['user_id'])
+                                        {{-- Lien vers la liste des campagnes assignées à ce commercial
+                                             (utilise le filtre commercial_user_id ajouté récemment). --}}
+                                        <a href="{{ route('admin.campaigns.index', ['commercial_user_id' => $c['user_id']]) }}"
+                                           style="color:var(--accent);text-decoration:none;font-weight:600"
+                                           title="Voir les campagnes de {{ $c['user_name'] }}">
+                                            {{ $c['user_name'] }}
+                                        </a>
+                                    @else
+                                        <span style="color:var(--text3)">{{ $c['user_name'] }}</span>
+                                    @endif
+                                </td>
+                                <td class="num">
+                                    @if($c['user_id'])
+                                        <a href="{{ route('admin.invoices.index', ['commercial_user_id' => $c['user_id']]) }}"
+                                           style="color:var(--accent);text-decoration:none"
+                                           title="Voir les factures liées à ce commercial">{{ $c['factures_count'] }}</a>
+                                    @else
+                                        {{ $c['factures_count'] }}
+                                    @endif
+                                </td>
                                 <td class="num strong">{{ $fmt($c['total']) }} FCFA</td>
                             </tr>
                         @endforeach
@@ -107,7 +139,7 @@
      On affiche chaque ligne de versement sur la période, du plus récent au
      plus ancien. Capé à 200 entrées (cf. recentPayments(…, 200, …) dans le
      service). Cliquer sur la référence ouvre la facture. --}}
-<div class="fin-card" style="margin-top:14px">
+<div id="detail-versements" class="fin-card" style="margin-top:14px;scroll-margin-top:14px">
     <div class="fin-card-head">
         <div>
             <div class="fin-card-title">💵 Détail des versements</div>
@@ -157,7 +189,15 @@
                                     @endif
                                 </td>
                                 <td class="num strong">{{ $fmt($p['montant']) }} <span style="font-size:10px;color:var(--text3);font-weight:500">FCFA</span></td>
-                                <td style="color:var(--text2);font-size:12px;white-space:nowrap">{{ $p['creator_name'] }}</td>
+                                <td style="color:var(--text2);font-size:12px;white-space:nowrap">
+                                    @if(!empty($p['creator_id']))
+                                        <a href="{{ route('admin.users.show', $p['creator_id']) }}"
+                                           style="color:var(--text2);text-decoration:none;border-bottom:1px dashed var(--border)"
+                                           title="Fiche utilisateur">{{ $p['creator_name'] }}</a>
+                                    @else
+                                        {{ $p['creator_name'] }}
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
