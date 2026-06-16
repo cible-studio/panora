@@ -67,16 +67,23 @@
     <td>
         @if($nextDue)
             @php $st = $nextDue->state(); @endphp
-            <div style="font-size:11.5px;font-weight:700;color:{{ $st === 'overdue' ? '#b91c1c' : ($st === 'soon' ? '#b45309' : 'var(--text2)') }}">
+            <div style="font-size:11.5px;font-weight:700;color:{{ $st === 'overdue' ? '#b91c1c' : ($st === 'soon' ? '#b45309' : ($st === 'partial' ? '#b45309' : 'var(--text2)')) }}">
                 {{ $nextDue->due_date->format('d/m/Y') }}
             </div>
             <div style="font-size:10px;color:var(--text3);margin-top:1px">
-                {{ $nextDue->label ?? 'Échéance' }} · {{ number_format((float) $nextDue->amount, 0, ',', ' ') }} F
+                {{ $nextDue->label ?? 'Échéance' }} ·
+                @if($st === 'partial')
+                    {{ number_format((float) $nextDue->paid_amount, 0, ',', ' ') }} / {{ number_format((float) $nextDue->amount, 0, ',', ' ') }} F
+                @else
+                    {{ number_format((float) $nextDue->amount, 0, ',', ' ') }} F
+                @endif
             </div>
             @if($st === 'overdue')
                 <span style="display:inline-block;margin-top:2px;background:rgba(239,68,68,.15);color:#b91c1c;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800">🔴 RELANCER ({{ abs($nextDue->daysUntilDue()) }}j)</span>
             @elseif($st === 'soon')
                 <span style="display:inline-block;margin-top:2px;background:rgba(245,158,11,.12);color:#b45309;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800">⏰ DANS {{ $nextDue->daysUntilDue() }}j</span>
+            @elseif($st === 'partial')
+                <span style="display:inline-block;margin-top:2px;background:rgba(245,158,11,.12);color:#b45309;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800">⏳ PARTIELLE {{ rtrim(rtrim(number_format($nextDue->paymentPercentage(), 1, ',', ''), '0'), ',') }} %</span>
             @endif
         @else
             <span style="color:var(--text3);font-size:11px">—</span>

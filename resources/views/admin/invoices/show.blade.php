@@ -800,13 +800,18 @@
                         <div style="display:flex;flex-direction:column;gap:8px">
                             @foreach($schedules as $s)
                                 @php
+                                    // État dérivé du cumul des versements (mission BUG_ECHEANCIER).
+                                    // 'partial' s'intercale entre 'upcoming' et 'paid' quand
+                                    // paid_amount > 0 mais < amount.
                                     $state = $s->state();
                                     $stateConfig = match($state) {
                                         'paid'     => ['bg' => 'rgba(34,197,94,.08)',  'border' => 'rgba(34,197,94,.30)', 'color' => '#15803d', 'icon' => '✓'],
+                                        'partial'  => ['bg' => 'rgba(245,158,11,.08)', 'border' => 'rgba(245,158,11,.35)','color' => '#b45309', 'icon' => '⏳'],
                                         'overdue'  => ['bg' => 'rgba(239,68,68,.10)',  'border' => 'rgba(239,68,68,.40)', 'color' => '#b91c1c', 'icon' => '🔴'],
                                         'soon'     => ['bg' => 'rgba(245,158,11,.10)', 'border' => 'rgba(245,158,11,.35)','color' => '#b45309', 'icon' => '⏰'],
                                         default    => ['bg' => 'var(--surface2)',      'border' => 'var(--border)',       'color' => 'var(--text2)','icon' => '📅'],
                                     };
+                                    $pct = $s->paymentPercentage();
                                 @endphp
                                 <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:{{ $stateConfig['bg'] }};border:1px solid {{ $stateConfig['border'] }};border-radius:10px">
                                     <div style="font-size:18px">{{ $stateConfig['icon'] }}</div>
@@ -814,36 +819,40 @@
                                         <div style="font-size:13px;font-weight:700;color:{{ $stateConfig['color'] }}">
                                             {{ $s->label ?? 'Échéance' }}
                                             <span style="font-weight:400;color:var(--text3);margin-left:6px;font-size:11.5px">— {{ $s->due_date->format('d/m/Y') }}</span>
-                                            @if($state === 'overdue')
+                                            @if($state === 'paid')
+                                                <span style="background:rgba(34,197,94,.15);color:#15803d;padding:1px 7px;border-radius:6px;font-size:9.5px;font-weight:800;margin-left:6px">SOLDÉE LE {{ $s->paid_at->format('d/m') }}</span>
+                                            @elseif($state === 'partial')
+                                                <span style="background:rgba(245,158,11,.18);color:#b45309;padding:1px 7px;border-radius:6px;font-size:9.5px;font-weight:800;margin-left:6px">PARTIELLE {{ rtrim(rtrim(number_format($pct, 1, ',', ''), '0'), ',') }} %</span>
+                                            @elseif($state === 'overdue')
                                                 <span style="background:rgba(239,68,68,.18);color:#b91c1c;padding:1px 7px;border-radius:6px;font-size:9.5px;font-weight:800;margin-left:6px">RETARD {{ abs($s->daysUntilDue()) }}j</span>
-                                            @elseif($state === 'soon' && !$s->isPaid())
+                                            @elseif($state === 'soon')
                                                 <span style="background:rgba(245,158,11,.15);color:#b45309;padding:1px 7px;border-radius:6px;font-size:9.5px;font-weight:800;margin-left:6px">DANS {{ $s->daysUntilDue() }}j</span>
-                                            @elseif($state === 'paid')
-                                                <span style="background:rgba(34,197,94,.15);color:#15803d;padding:1px 7px;border-radius:6px;font-size:9.5px;font-weight:800;margin-left:6px">PAYÉE LE {{ $s->paid_at->format('d/m') }}</span>
                                             @endif
                                         </div>
                                         <div style="font-size:11.5px;color:var(--text3);margin-top:2px;font-weight:700">
-                                            {{ $fmt($s->amount) }} FCFA
+                                            @if($state === 'partial')
+                                                {{ $fmt($s->paid_amount) }} / {{ $fmt($s->amount) }} FCFA
+                                                <span style="color:#b45309;margin-left:6px">· reste {{ $fmt($s->remainingAmount()) }}</span>
+                                            @else
+                                                {{ $fmt($s->amount) }} FCFA
+                                            @endif
                                             @if($s->reminder_count > 0)
                                                 · 🔔 {{ $s->reminder_count }} relance{{ $s->reminder_count > 1 ? 's' : '' }}
                                             @endif
                                         </div>
-                                    </div>
-                                    @can('markPaid', $invoice)
-                                        @if($s->isPaid())
-                                            <form method="POST" action="{{ route('admin.invoices.schedule.unpay', [$invoice, $s]) }}">
-                                                @csrf @method('PATCH')
-                                                <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px" title="Marquer comme non soldée">↩ Annuler</button>
-                                            </form>
-                                        @else
-                                            <form method="POST" action="{{ route('admin.invoices.schedule.pay', [$invoice, $s]) }}">
-                                                @csrf @method('PATCH')
-                                                <button type="submit" class="btn btn-ghost btn-sm" style="color:#16a34a;font-size:11px" title="Marquer soldée">✓ Soldée</button>
-                                            </form>
+                                        {{-- Barre de progression visible en partielle --}}
+                                        @if($state === 'partial')
+                                            <div style="margin-top:6px;height:3px;background:rgba(0,0,0,.06);border-radius:999px;overflow:hidden">
+                                                <div style="height:100%;width:{{ max(0, min(100, $pct)) }}%;background:#f59e0b;border-radius:999px"></div>
+                                            </div>
                                         @endif
-                                    @endcan
+                                    </div>
                                 </div>
                             @endforeach
+                        </div>
+                        <div style="margin-top:10px;padding:8px 10px;background:rgba(59,130,246,.06);border-radius:6px;font-size:11px;color:var(--text3);line-height:1.5">
+                            🔒 Le statut des échéances dérive automatiquement des versements enregistrés (FIFO).
+                            Pour solder une échéance, enregistre un versement via le bouton "+ Ajouter un versement".
                         </div>
                         @can('markPaid', $invoice)
                             <form method="POST" action="{{ route('admin.invoices.schedule.delete', $invoice) }}"

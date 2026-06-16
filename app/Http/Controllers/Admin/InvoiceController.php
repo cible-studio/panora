@@ -1103,26 +1103,30 @@ class InvoiceController extends Controller
             . $invoice->schedules()->count() . ' échéance(s)).');
     }
 
+    /**
+     * Mission BUG_ECHEANCIER (juin 2026) : le statut des échéances est
+     * désormais STRICTEMENT DÉRIVÉ du cumul des versements (cf.
+     * ScheduleAllocationService::recomputeFromPayments). Le marquage
+     * manuel est désactivé pour éviter les désynchros (cas FAC-2026-010
+     * où des échéances étaient marquées "payées" sans contrepartie
+     * financière réelle).
+     *
+     * Pour solder une échéance, il faut enregistrer un VERSEMENT réel
+     * (bouton "+ Ajouter un versement"). L'allocation FIFO marquera
+     * automatiquement l'échéance soldée si le cumul couvre.
+     *
+     * La route est conservée pour rétrocompat (anciens liens), mais
+     * répond avec un message explicatif.
+     */
     public function markScheduleEntryPaid(Request $request, Invoice $invoice, \App\Models\InvoiceSchedule $schedule)
     {
         $this->authorize('markPaid', $invoice);
         if ($schedule->invoice_id !== $invoice->id) abort(404);
 
-        if ($schedule->isPaid()) {
-            return back()->with('info', 'Échéance déjà marquée soldée.');
-        }
-
-        $data = $request->validate([
-            'payment_id' => 'nullable|exists:invoice_payments,id',
-            'paid_at'    => 'nullable|date|before_or_equal:today',
-        ]);
-
-        $schedule->update([
-            'paid_at'          => $data['paid_at'] ?? now()->toDateString(),
-            'paid_payment_id'  => $data['payment_id'] ?? null,
-        ]);
-
-        return back()->with('success', '✓ Échéance marquée soldée.');
+        return back()->with('error',
+            '🔒 Le statut des échéances dérive automatiquement des versements enregistrés. '
+            . 'Pour solder cette échéance, enregistre un versement réel via "+ Ajouter un versement". '
+            . 'L\'imputation FIFO mettra à jour le statut automatiquement.');
     }
 
     public function unmarkScheduleEntryPaid(Invoice $invoice, \App\Models\InvoiceSchedule $schedule)
@@ -1130,8 +1134,9 @@ class InvoiceController extends Controller
         $this->authorize('markPaid', $invoice);
         if ($schedule->invoice_id !== $invoice->id) abort(404);
 
-        $schedule->update(['paid_at' => null, 'paid_payment_id' => null]);
-        return back()->with('success', 'Échéance redevenue à payer.');
+        return back()->with('error',
+            '🔒 Le statut des échéances dérive automatiquement des versements. '
+            . 'Pour annuler le solde, supprime le versement correspondant.');
     }
 
     public function deleteSchedule(Invoice $invoice)

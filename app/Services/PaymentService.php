@@ -90,15 +90,15 @@ class PaymentService
                 $this->storeAttachment($payment, $attachment);
             }
 
-            // ── Auto-allocation FIFO aux échéances non payées ──────────
-            // Avant : l'admin devait cocher chaque échéance manuellement
-            // après avoir saisi le versement → la liste des échéances
-            // restait désynchronisée avec les paiements (bug user).
-            // Désormais : on impute le versement aux échéances dans
-            // l'ordre chronologique tant qu'il reste du montant à
-            // affecter. Une échéance n'est marquée payée QUE si elle
-            // est entièrement couverte (cohérence audit).
-            $this->allocatePaymentToSchedules($invoice->fresh('schedules'), $payment);
+            // ── Recalcul global de l'imputation des versements ──────────
+            // Mission BUG_ECHEANCIER (juin 2026) : on ne calcule plus
+            // l'imputation au coup par coup (le seul versement courant
+            // était considéré, jamais le cumul). Désormais c'est le
+            // service centralisé qui recalcule TOUS les schedules de
+            // la facture en partant de zéro et en ré-imputant tous les
+            // versements en ordre chrono. Source unique de vérité.
+            app(\App\Services\ScheduleAllocationService::class)
+                ->recomputeFromPayments($invoice->fresh(['payments', 'schedules']));
 
             // Recalcul auto du statut facture
             $this->syncInvoiceStatus($invoice->fresh(['payments', 'schedules']));
@@ -117,82 +117,47 @@ class PaymentService
     }
 
     /**
-     * Affecte FIFO un nouveau versement aux échéances non payées.
-     *
-     * Algorithme :
-     *   1. Récupérer les échéances dans l'ordre chronologique
-     *      (due_date ASC, order_index ASC).
-     *   2. Pour chaque échéance non payée :
-     *      - Si le montant du versement >= amount de l'échéance →
-     *        marquer payée (paid_at + paid_payment_id), consommer
-     *        amount du budget, passer à la suivante.
-     *      - Sinon (versement insuffisant pour cette échéance) →
-     *        on ne marque PAS (paiement partiel d'une échéance =
-     *        cas comptable ambigu, on laisse l'admin trancher).
-     *   3. S'arrête dès que le budget est épuisé ou < amount suivant.
-     *
-     * Note : si la facture n'a pas d'échéancier configuré, rien à faire.
+     * @deprecated Remplacé par ScheduleAllocationService::recomputeFromPayments
+     * (mission BUG_ECHEANCIER juin 2026). L'ancien algo ne tenait compte
+     * que du versement courant, jamais du cumul global → désynchronisation
+     * avec la réalité encaissée (cas FAC-2026-010). Conservé en attente
+     * d'audit pour vérifier qu'aucun code externe ne l'appelait.
      */
     public function allocatePaymentToSchedules(Invoice $invoice, InvoicePayment $payment): void
     {
-        $schedules = $invoice->schedules()
-            ->whereNull('paid_at')
-            ->orderBy('due_date')
-            ->orderBy('order_index')
-            ->get();
-
-        if ($schedules->isEmpty()) {
-            return;
-        }
-
-        $budget = (int) $payment->montant;
-        $paidAt = $payment->paid_at instanceof \DateTimeInterface
-            ? $payment->paid_at->toDateString()
-            : (string) $payment->paid_at;
-
-        foreach ($schedules as $sch) {
-            $amount = (int) $sch->amount;
-            if ($amount <= 0) continue;
-            if ($budget < $amount) break; // pas assez pour couvrir cette échéance
-
-            $sch->update([
-                'paid_at'         => $paidAt,
-                'paid_payment_id' => $payment->id,
-            ]);
-            $budget -= $amount;
-
-            if ($budget <= 0) break;
-        }
+        // No-op : la nouvelle logique est dans ScheduleAllocationService
+        // appelée directement depuis register() et delete().
+        // Si un appel externe arrive ici, on délègue au service.
+        app(\App\Services\ScheduleAllocationService::class)
+            ->recomputeFromPayments($invoice->fresh(['payments', 'schedules']));
     }
 
     /**
-     * Inverse l'auto-allocation : libère les échéances marquées payées
-     * par ce versement. Appelé avant la suppression du paiement.
+     * @deprecated Remplacé par recomputeFromPayments() qui reset toujours
+     * les schedules avant de ré-imputer. Conservé pour compatibilité.
      */
     public function releaseSchedulesForPayment(InvoicePayment $payment): void
     {
-        \App\Models\InvoiceSchedule::where('paid_payment_id', $payment->id)
-            ->update([
-                'paid_at'         => null,
-                'paid_payment_id' => null,
-            ]);
+        // No-op : la suppression d'un paiement déclenche recomputeFromPayments
+        // dans delete() ci-dessous, qui fait le reset complet from-scratch.
     }
 
     public function delete(InvoicePayment $payment): void
     {
         $invoice = $payment->invoice;
         DB::transaction(function () use ($payment, $invoice) {
-            // Libérer les échéances qui pointaient sur ce versement
-            // (symétrique à allocatePaymentToSchedules). Sans ça, après
-            // suppression, les échéances resteraient marquées payées
-            // mais leur paid_payment_id pointerait vers un ID supprimé.
-            $this->releaseSchedulesForPayment($payment);
-
             // Supprime la pièce jointe si elle existe
             if ($payment->attachment_path && Storage::disk(self::ATTACHMENT_DISK)->exists($payment->attachment_path)) {
                 Storage::disk(self::ATTACHMENT_DISK)->delete($payment->attachment_path);
             }
             $payment->delete();
+
+            // Recalcul global from-scratch après suppression — réimpute tous
+            // les versements restants dans l'ordre chrono, libère ce qui
+            // n'est plus couvert (mission BUG_ECHEANCIER).
+            app(\App\Services\ScheduleAllocationService::class)
+                ->recomputeFromPayments($invoice->fresh(['payments', 'schedules']));
+
             $this->syncInvoiceStatus($invoice->fresh(['payments', 'schedules']));
         });
 

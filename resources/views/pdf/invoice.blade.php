@@ -464,6 +464,7 @@
         }
         .pill-acompte { background: #fef3c7; color: #b45309; }
         .pill-paid    { background: #dcfce7; color: #15803d; }
+        .pill-partial { background: #fef3c7; color: #b45309; }
         .pill-late    { background: #fee2e2; color: #b91c1c; }
         .pill-pending { background: #f1f5f9; color: #475569; }
 
@@ -883,6 +884,8 @@
                             <td>
                                 @if($s->isPaid())
                                     <span class="pill pill-paid">Soldée</span>
+                                @elseif($s->isPartial())
+                                    <span class="pill pill-partial">Partielle {{ rtrim(rtrim(number_format($s->paymentPercentage(), 1, ',', ''), '0'), ',') }} %</span>
                                 @elseif($s->isOverdue())
                                     <span class="pill pill-late">Retard</span>
                                 @else
