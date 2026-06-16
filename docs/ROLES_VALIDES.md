@@ -14,7 +14,7 @@ Implémentation : Policies Laravel + directives Blade `@can()`.
 
 ---
 
-## LES 5 RÔLES
+## LES 6 RÔLES
 
 ### 🔴 ADMIN
 Super-utilisateur — accès total lecture + écriture sur toutes les ressources.
@@ -73,6 +73,34 @@ Planification production · Du devis à la pige.
 - ❌ Modifier les informations d'un client
 - ❌ Émettre une facture
 - ❌ Gérer les utilisateurs ou les paramètres système
+
+---
+
+### 📊 COMPTABLE
+Vision financière consolidée · Saisie encaissements · Recouvrement.
+
+**Peut :**
+- Voir **toutes** les factures de la régie (pas de filtre par commercial)
+- Saisir les versements / acomptes / soldes manuels (cf. solde manuel
+  Mission C — traçable avec justification obligatoire)
+- Marquer une facture comme soldée, en litige (13 motifs prédéfinis)
+- Générer / modifier l'échéancier de paiement
+- Consulter et télécharger les PDF factures + exports Excel/CSV
+- Accéder au tableau de bord financier (encaissements, créances,
+  balance âgée, recouvrement)
+- Saisir les paiements de taxes communales (TM / ODP)
+- Voir les rapports comptables et déclarations fiscales
+- Voir tous les clients, campagnes et panneaux en lecture
+- Créer un client (cas saisie encaissement d'un client manquant)
+- Recevoir les alertes finance (échéances J-7/J-3/dépassée, litiges)
+
+**Ne peut PAS :**
+- ❌ Créer / modifier / supprimer / annuler une facture (admin only —
+  garde-fou comptabilité)
+- ❌ Déverrouiller une facture (admin only)
+- ❌ Gérer les campagnes / réservations / panneaux
+- ❌ Gérer les utilisateurs ou les paramètres système
+- ❌ Accéder au suivi terrain (poses, piges, maintenances)
 
 ---
 

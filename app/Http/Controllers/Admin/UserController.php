@@ -34,7 +34,7 @@ class UserController extends Controller
             'name'            => 'required|string|max:100',
             'email'           => 'required|email|unique:users,email',
             'password'        => ['required', 'confirmed', \Illuminate\Validation\Rules\Password::min(8)->mixedCase()->numbers()],
-            'role'            => 'required|in:admin,commercial,mediaplanner,technique',
+            'role'            => 'required|in:admin,commercial,mediaplanner,comptable,technique',
             'agent_code'      => 'nullable|string|unique:users,agent_code',
             'whatsapp_number' => 'nullable|string|max:20|regex:/^[\+\d\s\-\(\)\.]{6,20}$/',
         ], [
@@ -114,7 +114,7 @@ class UserController extends Controller
         $request->validate([
             'name'            => 'required|string|max:100',
             'email'           => 'required|email|unique:users,email,'.$user->id,
-            'role'            => 'required|in:admin,commercial,mediaplanner,technique',
+            'role'            => 'required|in:admin,commercial,mediaplanner,comptable,technique',
             'agent_code'      => 'nullable|string|unique:users,agent_code,'.$user->id,
             'password'        => ['nullable', 'confirmed', \Illuminate\Validation\Rules\Password::min(8)->mixedCase()->numbers()],
             'whatsapp_number' => 'nullable|string|max:20|regex:/^[\+\d\s\-\(\)\.]{6,20}$/',
