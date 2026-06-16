@@ -86,7 +86,9 @@
         <span style="color:#d97706">⏳ {{ $geoCoverage['provisional'] }} provisoires</span>
         <span style="color:#6b7280">📍 {{ $geoCoverage['manual'] }} manuels</span>
         @if($geoCoverage['missing'] > 0)
-        <span style="color:#ef4444">❔ {{ $geoCoverage['missing'] }} sans coordonnées</span>
+        <a href="{{ route('admin.panels.gps.missing') }}"
+           style="color:#ef4444;text-decoration:none;border-bottom:1px dashed rgba(239,68,68,.5)"
+           title="Saisir manuellement les coordonnées des panneaux non géolocalisés">❔ {{ $geoCoverage['missing'] }} sans coordonnées → saisir</a>
         @endif
         @if($geoCoverage['dispersion'] > 0)
         <span style="color:#ef4444">⚠ {{ $geoCoverage['dispersion'] }} divergents</span>
