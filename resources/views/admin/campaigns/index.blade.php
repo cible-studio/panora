@@ -142,11 +142,13 @@
                 </select>
             </div>
 
-            {{-- Filtre commercial assigné — utile pour admin/MP/comptable
-                 qui veulent voir le portefeuille d'un commercial précis.
-                 Réutilise la même logique d'appartenance (assigné direct,
-                 via résa, ou créateur) que le scope commercial natif. --}}
-            @if(!auth()->user() || auth()->user()->role?->value !== 'commercial')
+            {{-- Filtre commercial assigné — RÉSERVÉ admin + Media Planner
+                 (suivi du portefeuille des commerciaux). Le commercial lui-même
+                 ne voit que ses campagnes via le scope auth (redondant), et le
+                 comptable n'a pas l'info de pilotage portefeuille.
+                 Réutilise la même logique d'appartenance (assigné direct, via
+                 résa, ou créateur) que le scope commercial natif. --}}
+            @if(in_array(auth()->user()?->role?->value, ['admin', 'mediaplanner'], true))
             <div class="filter-group">
                 <label class="filter-label">💼 Commercial</label>
                 <select id="filter-commercial" class="filter-select" data-filter="commercial_user_id">
@@ -1105,10 +1107,14 @@ document.addEventListener('keydown', e => {
         const commercialSelect = document.getElementById('filter-commercial');
         if (commercialSelect) commercialSelect.value = currentFilters.commercial_user_id;
 
-        // Init Select2 sur les filtres qui peuvent avoir beaucoup d'options
-        // (client + commercial). Select2 émet l'event 'change' natif après
-        // sélection → les listeners existants fonctionnent sans modif.
-        if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+        // Init Select2 sur les filtres avec beaucoup d'options (client +
+        // commercial). IMPORTANT — Select2 4.x dispatch ses 'change' via
+        // le système d'événements jQuery qui n'est PAS systématiquement
+        // capté par addEventListener natif. On câble donc directement via
+        // jQuery .on('change', applyFilters) sur ces 2 selects pour
+        // garantir le déclenchement de la requête AJAX à chaque sélection.
+        const hasSelect2 = window.jQuery && window.jQuery.fn && window.jQuery.fn.select2;
+        if (hasSelect2) {
             window.jQuery('#filter-client').select2({
                 placeholder: '🔍 Rechercher un client…',
                 allowClear: true,
@@ -1117,7 +1123,8 @@ document.addEventListener('keydown', e => {
                     noResults: () => 'Aucun client trouvé',
                     searching: () => 'Recherche…',
                 },
-            });
+            }).on('change', applyFilters);
+
             if (commercialSelect) {
                 window.jQuery('#filter-commercial').select2({
                     placeholder: '🔍 Rechercher un commercial…',
@@ -1127,22 +1134,24 @@ document.addEventListener('keydown', e => {
                         noResults: () => 'Aucun commercial',
                         searching: () => 'Recherche…',
                     },
-                });
+                }).on('change', applyFilters);
             }
         }
 
         updateActiveStat();
         updateResetButton();
 
-        // Événements
+        // Événements (selects non Select2 + inputs). Pour client et
+        // commercial le change est déjà câblé via jQuery .on() ci-dessus
+        // si Select2 est dispo ; on garde addEventListener en fallback.
         document.getElementById('filter-search').addEventListener('input', debounce(applyFilters, 400));
-        document.getElementById('filter-client').addEventListener('change', applyFilters);
+        if (!hasSelect2) {
+            document.getElementById('filter-client').addEventListener('change', applyFilters);
+            if (commercialSelect) commercialSelect.addEventListener('change', applyFilters);
+        }
         document.getElementById('filter-status').addEventListener('change', applyFilters);
         document.getElementById('filter-date-from').addEventListener('change', applyFilters);
         document.getElementById('filter-date-to').addEventListener('change', applyFilters);
-        if (commercialSelect) {
-            commercialSelect.addEventListener('change', applyFilters);
-        }
 
         const factureFilter = document.getElementById('filter-facture');
         if (factureFilter) factureFilter.addEventListener('change', applyFilters);

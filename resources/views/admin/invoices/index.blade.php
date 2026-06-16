@@ -421,10 +421,18 @@ cursor: pointer;
 
     // Écouteurs d'événements
     if (elements.client) {
-        // Init Select2 sur le filtre client (recherche live indispensable
-        // dès qu'on a >20 clients). Select2 émet l'événement 'change' natif
-        // → le listener AJAX existant fonctionne sans modification.
-        if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+        // Init Select2 + câblage du change via jQuery .on() — Select2 4.x
+        // dispatche ses 'change' via le système d'événements jQuery qui
+        // n'est pas systématiquement capté par addEventListener natif.
+        // Fallback addEventListener si jQuery/Select2 indisponible.
+        const onClientChange = () => {
+            currentFilters.client_id = elements.client.value;
+            updateResetButton();
+            applyFilters();
+        };
+
+        const hasSelect2 = window.jQuery && window.jQuery.fn && window.jQuery.fn.select2;
+        if (hasSelect2) {
             window.jQuery(elements.client).select2({
                 placeholder: '🔍 Rechercher un client…',
                 allowClear: true,
@@ -433,14 +441,10 @@ cursor: pointer;
                     noResults: () => 'Aucun client trouvé',
                     searching: () => 'Recherche…',
                 },
-            });
+            }).on('change', onClientChange);
+        } else {
+            elements.client.addEventListener('change', onClientChange);
         }
-
-        elements.client.addEventListener('change', () => {
-            currentFilters.client_id = elements.client.value;
-            updateResetButton();
-            applyFilters();
-        });
     }
 
     if (elements.status) {
