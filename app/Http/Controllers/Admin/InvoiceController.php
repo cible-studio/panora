@@ -858,6 +858,93 @@ class InvoiceController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // SOLDER MANUELLEMENT — sans saisie des versements individuels
+    //
+    // Cas d'usage : migration de données / facture historique réglée
+    // hors plateforme (chèque scanné, virement papier, espèces…).
+    // Crée un InvoicePayment "manuel" de montant = solde restant et
+    // bascule la facture en 'payee'. La traçabilité est assurée par :
+    //   - la note obligatoire (raison saisie par l'admin)
+    //   - l'audit InvoicePayment via owen-it/laravel-auditing
+    //   - la transition de statut historisée (InvoiceStatusHistory)
+    // ══════════════════════════════════════════════════════════════
+    public function markPaidManual(Request $request, Invoice $invoice, \App\Services\PaymentService $payments)
+    {
+        $this->authorize('markPaid', $invoice);
+
+        if ($invoice->status === 'annulee') {
+            return back()->with('error', '🚫 Impossible de solder une facture annulée.');
+        }
+        if ($invoice->status === 'payee') {
+            return back()->with('info', 'Cette facture est déjà soldée.');
+        }
+
+        $remaining = (int) round($invoice->remainingAmount());
+        if ($remaining <= 0) {
+            return back()->with('info', 'Aucun solde restant à régler.');
+        }
+
+        $data = $request->validate([
+            'reason'  => 'required|string|min:5|max:500',
+            'paid_at' => 'nullable|date|before_or_equal:today',
+        ], [
+            'reason.required' => 'Une raison/justification est obligatoire pour solder manuellement (traçabilité).',
+            'reason.min'      => 'La justification doit faire au moins 5 caractères.',
+        ]);
+
+        // Garde : si la campagne est annulée, on bloque (cohérent avec markPaid).
+        $invoice->loadMissing('campaign:id,status');
+        if ($invoice->campaign?->status?->value === 'annule') {
+            return back()->with('error',
+                '🚫 Campagne liée annulée — solde manuel bloqué. Annule la facture ou clarifie la situation.');
+        }
+
+        try {
+            // Enregistre un versement "manuel" de montant = solde restant.
+            // mode = 'autre' (enum existant — pas de migration).
+            // note = raison saisie. paid_at = aujourd'hui ou date fournie.
+            $payments->register($invoice, [
+                'paid_at'    => $data['paid_at'] ?? now()->toDateString(),
+                'montant'    => $remaining,
+                'mode'       => 'autre',
+                'reference'  => 'SOLDE_MANUEL_' . now()->format('YmdHis'),
+                'is_acompte' => false,
+                'note'       => 'Solde manuel (sans versement individuel) : ' . trim($data['reason']),
+            ]);
+        } catch (\DomainException $e) {
+            return back()->withInput()->with('error', '🚫 ' . $e->getMessage());
+        }
+
+        // PaymentService::syncInvoiceStatus a déjà basculé la facture
+        // en 'payee' si le solde atteint 0. Si le statut était 'brouillon'
+        // ou 'generee'/'validee' (cas migration), la sync n'agit pas — on
+        // force la transition explicitement.
+        if ($invoice->fresh()->status !== 'payee') {
+            try {
+                $invoice->transitionStatusTo(
+                    'payee',
+                    reason: 'Solde manuel (sans versement) : ' . trim($data['reason']),
+                    auto:   false
+                );
+                $invoice->paid_at = $data['paid_at'] ?? now()->toDateString();
+                $invoice->saveQuietly();
+            } catch (\DomainException $e) {
+                // Transition refusée (ex: passage interdit depuis ce statut)
+                // — on log mais le versement est déjà créé.
+                \Illuminate\Support\Facades\Log::warning('invoice.markPaidManual.transition_failed', [
+                    'invoice_id' => $invoice->id,
+                    'status'     => $invoice->status,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return back()->with('success',
+            '✅ Facture soldée manuellement. Un versement de '
+            . number_format($remaining, 0, ',', ' ') . ' FCFA a été enregistré pour traçabilité.');
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // VERROUILLAGE / DÉVERROUILLAGE (admin only via policy)
     // ══════════════════════════════════════════════════════════════
     public function lock(Request $request, Invoice $invoice)
@@ -975,7 +1062,7 @@ class InvoiceController extends Controller
         if ($schedule->invoice_id !== $invoice->id) abort(404);
 
         if ($schedule->isPaid()) {
-            return back()->with('info', 'Échéance déjà marquée payée.');
+            return back()->with('info', 'Échéance déjà marquée soldée.');
         }
 
         $data = $request->validate([
@@ -988,7 +1075,7 @@ class InvoiceController extends Controller
             'paid_payment_id'  => $data['payment_id'] ?? null,
         ]);
 
-        return back()->with('success', '✓ Échéance marquée payée.');
+        return back()->with('success', '✓ Échéance marquée soldée.');
     }
 
     public function unmarkScheduleEntryPaid(Invoice $invoice, \App\Models\InvoiceSchedule $schedule)
@@ -1110,14 +1197,14 @@ class InvoiceController extends Controller
         $campStatus = $invoice->campaign?->status?->value;
         if ($campStatus === 'annule') {
             return $this->statusResponse($request, $invoice, false,
-                "🚫 Campagne liée annulée — paiement bloqué. Annule la facture (🚫) ou clarifie la situation avant de marquer payée.");
+                "🚫 Campagne liée annulée — paiement bloqué. Annule la facture (🚫) ou clarifie la situation avant de marquer soldée.");
         }
 
         $invoice->update([
             'status'  => 'payee',
             'paid_at' => now(),
         ]);
-        return $this->statusResponse($request, $invoice, true, 'Facture marquée comme payée. ✅');
+        return $this->statusResponse($request, $invoice, true, 'Facture marquée comme soldée. ✅');
     }
 
     /**

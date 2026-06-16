@@ -103,10 +103,8 @@
 <div class="accent-bar"></div>
 
 @php
-    $statusLabels = [
-        'brouillon' => 'Brouillon', 'envoyee' => 'Envoyée',
-        'payee' => 'Payée', 'annulee' => 'Annulée',
-    ];
+    // Libellés alignés sur Invoice::STATUS_LABELS (M1 — "Soldée" remplace "Payée").
+    $statusLabels = \App\Models\Invoice::STATUS_LABELS;
     $hasFilter = !empty($filters['client_id']) || !empty($filters['status'])
         || !empty($filters['date_from']) || !empty($filters['date_to']);
 @endphp
@@ -143,7 +141,7 @@
         <div class="val">{{ number_format((float) $invoices->sum('amount_ttc'), 0, ',', ' ') }} FCFA</div>
     </div>
     <div class="cell">
-        <div class="lbl">Encaissé (payées)</div>
+        <div class="lbl">Encaissé (soldées)</div>
         <div class="val">{{ number_format((float) $invoices->where('status','payee')->sum('amount_ttc'), 0, ',', ' ') }} FCFA</div>
     </div>
 </div>
@@ -155,7 +153,7 @@
             <th style="width:18%;">Client</th>
             <th style="width:18%;">Campagne</th>
             <th style="width:8%;">Émise le</th>
-            <th style="width:8%;">Payée le</th>
+            <th style="width:8%;">Soldée le</th>
             <th style="width:9%;">Statut</th>
             <th class="r" style="width:9%;">HT</th>
             <th class="r" style="width:5%;">TVA</th>
@@ -173,10 +171,10 @@
             <td>{{ $inv->paid_at?->format('d/m/Y') ?? '—' }}</td>
             <td>
                 @switch($inv->status)
-                    @case('payee')   <span class="pill pill-paid">✓ Payée</span> @break
+                    @case('payee')   <span class="pill pill-paid">✓ Soldée</span> @break
                     @case('envoyee') <span class="pill pill-sent">↗ Envoyée</span> @break
                     @case('annulee') <span class="pill pill-cancel">✕ Annulée</span> @break
-                    @default         <span class="pill pill-draft">Brouillon</span>
+                    @default         <span class="pill pill-draft">{{ \App\Models\Invoice::statusLabel($inv->status) }}</span>
                 @endswitch
             </td>
             <td class="r">{{ number_format((float) $inv->amount, 0, ',', ' ') }}</td>

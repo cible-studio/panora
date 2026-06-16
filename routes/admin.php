@@ -603,6 +603,10 @@ Route::prefix('admin')
                 ->whereNumber('invoice')->name('invoices.destroy');
             Route::patch('invoices/{invoice}/send',         [InvoiceController::class, 'markSent'])->name('invoices.send');
             Route::patch('invoices/{invoice}/pay',          [InvoiceController::class, 'markPaid'])->name('invoices.pay');
+            // Solde manuel sans saisie des versements (migration / facture
+            // historique réglée hors plateforme). Raison obligatoire,
+            // traçabilité assurée par audit InvoicePayment + statusHistory.
+            Route::post ('invoices/{invoice}/mark-paid-manual', [InvoiceController::class, 'markPaidManual'])->name('invoices.mark-paid-manual');
             Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'markCancelled'])->name('invoices.cancel');
             Route::patch('invoices/{invoice}/revert-draft', [InvoiceController::class, 'revertDraft'])->name('invoices.revert-draft');
             // Phase 8A cahier §3 — actions manuelles complètes du cycle

@@ -44,7 +44,7 @@
     <form method="POST" action="{{ route('admin.invoices.pay', $invoice) }}">
         @csrf
         @method('PATCH')
-        <button type="submit" class="btn btn-success btn-sm">✅ Marquer payée</button>
+        <button type="submit" class="btn btn-success btn-sm">✅ Marquer soldée</button>
     </form>
     @endif
     @if(in_array($invoice->status, ['envoyee', 'payee']))
@@ -87,17 +87,18 @@
 
         {{-- ════════════════════ CARD STATUT & ACTIONS ════════════════════
              Section dédiée au cycle de vie de la facture : pipeline visuel
-             Brouillon → Envoyée → Payée + boutons de transition contextuels.
+             Brouillon → Envoyée → Soldée + boutons de transition contextuels.
              Avant cette section, seul un bouton "Envoyer au client" dans
              la topbar permettait de changer de statut — peu découvrable.
         ════════════════════════════════════════════════════════════════ --}}
         @php
             $status = $invoice->status;
-            // Étapes du workflow + état (done / current / upcoming / off)
+            // Étapes du workflow + état (done / current / upcoming / off).
+            // Libellés centralisés via Invoice::statusLabel (M1 cosmétique).
             $steps = [
-                ['key' => 'brouillon', 'label' => 'Brouillon', 'icon' => '📝'],
-                ['key' => 'envoyee',   'label' => 'Envoyée',   'icon' => '📤'],
-                ['key' => 'payee',     'label' => 'Payée',     'icon' => '✅'],
+                ['key' => 'brouillon', 'label' => \App\Models\Invoice::statusLabel('brouillon'), 'icon' => '📝'],
+                ['key' => 'envoyee',   'label' => \App\Models\Invoice::statusLabel('envoyee'),   'icon' => '📤'],
+                ['key' => 'payee',     'label' => \App\Models\Invoice::statusLabel('payee'),     'icon' => '✅'],
             ];
             $cancelled = $status === 'annulee';
             $currentIdx = array_search($status, array_column($steps, 'key'));
@@ -107,12 +108,12 @@
             <div class="card-header">
                 <div class="card-title">🔄 Statut &amp; actions</div>
                 @if($cancelled)
-                    <span class="badge badge-red" style="font-size:13px;padding:5px 14px">🚫 Annulée</span>
+                    <span class="badge badge-red" style="font-size:13px;padding:5px 14px">🚫 {{ \App\Models\Invoice::statusLabel('annulee') }}</span>
                 @endif
             </div>
             <div class="card-body">
 
-                {{-- Pipeline visuel : Brouillon → Envoyée → Payée --}}
+                {{-- Pipeline visuel : Brouillon → Envoyée → Soldée --}}
                 <div style="display:flex;align-items:center;gap:0;margin-bottom:18px;{{ $cancelled ? 'opacity:.45;filter:grayscale(.6)' : '' }}">
                     @foreach($steps as $i => $step)
                         @php
@@ -142,37 +143,37 @@
                     @if($status === 'brouillon')
                         <form method="POST" action="{{ route('admin.invoices.generated', $invoice) }}" style="margin:0">
                             @csrf @method('PATCH')
-                            <button type="submit" class="btn btn-ghost btn-sm" title="Bascule en GÉNÉRÉE (validation visuelle avant lock)">
-                                📋 Marquer générée
+                            <button type="submit" class="btn btn-ghost btn-sm" title="Marque la facture comme finalisée (étape avant validation/verrouillage)">
+                                📋 Finaliser la facture
                             </button>
                         </form>
                         <form method="POST" action="{{ route('admin.invoices.validated', $invoice) }}" style="margin:0"
-                              onsubmit="return confirm('VALIDER cette facture ?\n\nLa facture sera VERROUILLÉE automatiquement et les taux ODP/TM des lignes seront figés. Pour modifier ensuite, il faudra déverrouiller (action tracée).');">
+                              onsubmit="return confirm('VALIDER cette facture ?\n\nLa facture sera FIGÉE (verrouillée) et les taux ODP/TM des lignes seront définitivement gelés. Pour la modifier ensuite, déverrouillage requis (action tracée).');">
                             @csrf @method('PATCH')
-                            <button type="submit" class="btn btn-blue btn-sm" title="Valide + VERROUILLE la facture + fige les taux">
-                                🔒 Valider (verrouille)
+                            <button type="submit" class="btn btn-blue btn-sm" title="Valide la facture et la fige (verrouille + gèle les taux)">
+                                🔒 Valider et figer
                             </button>
                         </form>
                         <form method="POST" action="{{ route('admin.invoices.send', $invoice) }}" style="margin:0">
                             @csrf @method('PATCH')
-                            <button type="submit" class="btn btn-success btn-sm" title="Bascule directement en Envoyée + verrouille">
+                            <button type="submit" class="btn btn-success btn-sm" title="Envoie la facture au client (verrouillage automatique)">
                                 📤 Envoyer au client
                             </button>
                         </form>
                         <form method="POST" action="{{ route('admin.invoices.pay', $invoice) }}" style="margin:0"
-                              onsubmit="return confirm('Marquer cette facture comme payée maintenant ? (saute Envoyée)');">
+                              onsubmit="return confirm('Marquer cette facture comme soldée maintenant ? (saute l\'étape Envoyée — utile pour paiement comptant)');">
                             @csrf @method('PATCH')
-                            <button type="submit" class="btn btn-ghost btn-sm" title="Cas paiement comptant — saute Envoyée">
-                                ✅ Marquer payée
+                            <button type="submit" class="btn btn-ghost btn-sm" title="Cas paiement comptant — saute l'étape Envoyée">
+                                ✅ Marquer soldée
                             </button>
                         </form>
                     @endif
 
                     @if($status === 'generee')
                         <form method="POST" action="{{ route('admin.invoices.validated', $invoice) }}" style="margin:0"
-                              onsubmit="return confirm('VALIDER cette facture ?\n\nLa facture sera VERROUILLÉE automatiquement et les taux ODP/TM des lignes seront figés.');">
+                              onsubmit="return confirm('VALIDER cette facture ?\n\nLa facture sera FIGÉE (verrouillée) et les taux ODP/TM seront définitivement gelés.');">
                             @csrf @method('PATCH')
-                            <button type="submit" class="btn btn-blue btn-sm">🔒 Valider (verrouille)</button>
+                            <button type="submit" class="btn btn-blue btn-sm">🔒 Valider et figer</button>
                         </form>
                         <form method="POST" action="{{ route('admin.invoices.revert-draft', $invoice) }}" style="margin:0">
                             @csrf @method('PATCH')
@@ -195,9 +196,9 @@
 
                     @if($status === 'envoyee')
                         <form method="POST" action="{{ route('admin.invoices.pay', $invoice) }}" style="margin:0"
-                              onsubmit="return confirm('Marquer cette facture comme payée ?');">
+                              onsubmit="return confirm('Marquer cette facture comme soldée ?');">
                             @csrf @method('PATCH')
-                            <button type="submit" class="btn btn-success btn-sm">✅ Marquer payée</button>
+                            <button type="submit" class="btn btn-success btn-sm">✅ Marquer soldée</button>
                         </form>
                         <form method="POST" action="{{ route('admin.invoices.litige', $invoice) }}" style="margin:0"
                               onsubmit="var r = prompt('Motif du litige (optionnel) :'); if (r === null) return false; this.querySelector('[name=reason]').value = r;">
@@ -213,6 +214,16 @@
                             @csrf @method('PATCH')
                             <button type="submit" class="btn btn-blue btn-sm">↩ Sortir du litige</button>
                         </form>
+                    @endif
+
+                    @if(in_array($status, ['envoyee', 'partiellement_payee', 'en_retard', 'litige', 'validee', 'generee', 'brouillon']))
+                        {{-- Solder manuellement sans saisir les versements
+                             individuels (migration / facture historique réglée
+                             hors plateforme). Une justification est obligatoire. --}}
+                        <button type="button" onclick="document.getElementById('modal-mark-paid-manual').classList.add('show')"
+                                class="btn btn-ghost btn-sm" style="color:#15803d" title="Solder cette facture sans saisir chaque versement (cas migration / paiement hors plateforme)">
+                            💼 Solder manuellement
+                        </button>
                     @endif
 
                     @if(in_array($status, ['envoyee', 'payee', 'validee', 'partiellement_payee', 'en_retard', 'generee', 'litige']))
@@ -244,10 +255,20 @@
                 <div style="margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:11.5px;color:var(--text3);line-height:1.5">
                     @if($status === 'brouillon')
                         💡 Tant que la facture est en brouillon, elle est modifiable. <strong>L'envoi au client la verrouille</strong> et ouvre le suivi paiements.
+                    @elseif($status === 'generee')
+                        💡 Facture finalisée. Valide-la pour la figer (verrouillage + gel des taux), envoie-la au client, ou repasse en brouillon.
+                    @elseif($status === 'validee')
+                        💡 Facture validée et verrouillée. Prête à être envoyée au client. Aucune modification possible sans déverrouillage.
                     @elseif($status === 'envoyee')
                         💡 Facture verrouillée car envoyée au client. Rebascule en brouillon pour modifier, ou enregistre un versement pour solder.
+                    @elseif($status === 'partiellement_payee')
+                        💡 Facture partiellement soldée. Continue à enregistrer les versements jusqu'au solde complet, ou solde manuellement si paiement hors plateforme.
                     @elseif($status === 'payee')
                         💡 Facture soldée. Tu peux toujours rebasculer en brouillon si besoin de correction, ou émettre un avoir.
+                    @elseif($status === 'en_retard')
+                        💡 Facture en retard — au moins une échéance prévisionnelle est dépassée. Lance une relance ou enregistre un versement.
+                    @elseif($status === 'litige')
+                        💡 Facture en litige. Suspends temporairement les relances. Sors du litige pour reprendre le suivi.
                     @else
                         💡 Facture annulée — figée dans l'historique. Réactive-la en brouillon si l'annulation était une erreur.
                     @endif
@@ -266,15 +287,26 @@
                         par <strong style="color:var(--text2)">{{ $invoice->creator?->name ?? '—' }}</strong>
                     </div>
                 </div>
-                @if($invoice->status === 'brouillon')
-                    <span class="badge badge-gray" style="font-size:13px; padding:5px 14px;">📝 Brouillon</span>
-                @elseif($invoice->status === 'envoyee')
-                    <span class="badge badge-blue" style="font-size:13px; padding:5px 14px;">📤 Envoyée</span>
-                @elseif($invoice->status === 'payee')
-                    <span class="badge badge-green" style="font-size:13px; padding:5px 14px;">✅ Payée</span>
-                @else
-                    <span class="badge badge-red" style="font-size:13px; padding:5px 14px;">🚫 Annulée</span>
-                @endif
+                @php
+                    // Badge statut — couvre les 9 statuts (cahier §3) via mapping
+                    // centralisé pour éviter le piège "else implicite = Annulée"
+                    // qui affichait des libellés faux pour generee/validee/etc.
+                    $badgePalette = [
+                        'brouillon'           => ['cls' => 'badge-gray',  'icon' => '📝'],
+                        'generee'             => ['cls' => 'badge-amber', 'icon' => '📋'],
+                        'validee'             => ['cls' => 'badge-blue',  'icon' => '🔒'],
+                        'envoyee'             => ['cls' => 'badge-blue',  'icon' => '📤'],
+                        'partiellement_payee' => ['cls' => 'badge-amber', 'icon' => '⏳'],
+                        'payee'               => ['cls' => 'badge-green', 'icon' => '✅'],
+                        'en_retard'           => ['cls' => 'badge-red',   'icon' => '⚠️'],
+                        'litige'              => ['cls' => 'badge-red',   'icon' => '⚖️'],
+                        'annulee'             => ['cls' => 'badge-gray',  'icon' => '🚫'],
+                    ];
+                    $bcfg = $badgePalette[$invoice->status] ?? ['cls' => 'badge-gray', 'icon' => '📝'];
+                @endphp
+                <span class="badge {{ $bcfg['cls'] }}" style="font-size:13px; padding:5px 14px;">
+                    {{ $bcfg['icon'] }} {{ \App\Models\Invoice::statusLabel($invoice->status) }}
+                </span>
             </div>
             <div class="card-body">
                 {{-- Triplet CLIENT / CAMPAGNE / DATE — chaque cellule cliquable si possible --}}
@@ -472,10 +504,10 @@
                     $payStatus = $invoice->paymentStatus();
                     $payConfig = match($payStatus) {
                         'soldee'    => ['bg' => 'rgba(34,197,94,.10)',  'border' => 'rgba(34,197,94,.35)',  'color' => '#16a34a', 'bar' => '#16a34a', 'icon' => '✅', 'label' => 'Soldée'],
-                        'partielle' => ['bg' => 'rgba(245,158,11,.10)', 'border' => 'rgba(245,158,11,.35)', 'color' => '#b45309', 'bar' => '#f59e0b', 'icon' => '⏳', 'label' => 'Partiellement payée'],
+                        'partielle' => ['bg' => 'rgba(245,158,11,.10)', 'border' => 'rgba(245,158,11,.35)', 'color' => '#b45309', 'bar' => '#f59e0b', 'icon' => '⏳', 'label' => 'Partiellement soldée'],
                         'en_retard' => ['bg' => 'rgba(239,68,68,.10)',  'border' => 'rgba(239,68,68,.40)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'icon' => '🔴', 'label' => 'En retard'],
                         'annulee'   => ['bg' => 'rgba(107,114,128,.10)','border' => 'rgba(107,114,128,.35)','color' => '#4b5563', 'bar' => '#9ca3af', 'icon' => '🚫', 'label' => 'Annulée'],
-                        default     => ['bg' => 'rgba(239,68,68,.08)',  'border' => 'rgba(239,68,68,.30)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'icon' => '❌', 'label' => 'Non payée'],
+                        default     => ['bg' => 'rgba(239,68,68,.08)',  'border' => 'rgba(239,68,68,.30)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'icon' => '❌', 'label' => 'Non soldée'],
                     };
                 @endphp
                 <div style="margin-top:16px;padding:12px 14px;background:{{ $payConfig['bg'] }};border:1px solid {{ $payConfig['border'] }};border-radius:10px;color:{{ $payConfig['color'] }}">
@@ -526,10 +558,13 @@
 
         {{-- ════════════════════ CARD VERSEMENTS ════════════════════
              Timeline des paiements + bouton "Ajouter un versement".
-             Visible uniquement si la facture n'est PAS un brouillon
-             (pas de paiement possible avant envoi).
+             Visible pour tous les statuts SAUF annulée. Les statuts
+             brouillon/generee/validee sont autorisés pour le cas
+             migration (anciennes factures + paiements historiques).
+             Le statut facture reste figé tant qu'on est en brouillon/
+             generee/validee — voir PaymentService::syncInvoiceStatus.
         ═════════════════════════════════════════════════════════════ --}}
-        @if(!in_array($invoice->status, ['brouillon', 'annulee']))
+        @if($invoice->status !== 'annulee')
             @php $payments = $invoice->payments ?? collect(); @endphp
             <div class="card">
                 <div class="card-header">
@@ -743,12 +778,12 @@
                                         @if($s->isPaid())
                                             <form method="POST" action="{{ route('admin.invoices.schedule.unpay', [$invoice, $s]) }}">
                                                 @csrf @method('PATCH')
-                                                <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px" title="Marquer comme non payée">↩ Annuler</button>
+                                                <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px" title="Marquer comme non soldée">↩ Annuler</button>
                                             </form>
                                         @else
                                             <form method="POST" action="{{ route('admin.invoices.schedule.pay', [$invoice, $s]) }}">
                                                 @csrf @method('PATCH')
-                                                <button type="submit" class="btn btn-ghost btn-sm" style="color:#16a34a;font-size:11px" title="Marquer payée">✓ Payée</button>
+                                                <button type="submit" class="btn btn-ghost btn-sm" style="color:#16a34a;font-size:11px" title="Marquer soldée">✓ Soldée</button>
                                             </form>
                                         @endif
                                     @endcan
@@ -935,6 +970,53 @@
                         }
                     })();
                     </script>
+                </div>
+            </div>
+            @endcan
+
+            {{-- ════════════════════ MODALE SOLDER MANUELLEMENT ════════════════════
+                 Permet de marquer une facture comme soldée SANS saisir chaque
+                 versement individuel. Cas d'usage : migration (anciennes
+                 données) ou paiement encaissé hors plateforme. Une raison
+                 obligatoire est saisie pour traçabilité (voir audit).
+            ═════════════════════════════════════════════════════════════════════ --}}
+            @can('markPaid', $invoice)
+            <div class="modal-overlay" id="modal-mark-paid-manual" role="dialog">
+                <div class="modal" style="max-width:520px">
+                    <div class="modal-header">
+                        <h3>💼 Solder manuellement (sans versement)</h3>
+                        <button type="button" onclick="document.getElementById('modal-mark-paid-manual').classList.remove('show')" class="modal-close">×</button>
+                    </div>
+                    <form method="POST" action="{{ route('admin.invoices.mark-paid-manual', $invoice) }}">
+                        @csrf
+                        <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+                            <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e;line-height:1.5">
+                                ⚠ Cette action enregistre <strong>un versement automatique</strong> de
+                                <strong>{{ number_format((int) round($invoice->remainingAmount()), 0, ',', ' ') }} FCFA</strong>
+                                (solde restant) et bascule la facture en <strong>Soldée</strong>.
+                                Action tracée dans l'audit avec la justification ci-dessous.
+                            </div>
+
+                            <div class="mfg">
+                                <label>Date du règlement <span style="color:var(--text3);font-weight:400;font-size:11px">(facultatif — par défaut : aujourd'hui)</span></label>
+                                <input type="date" name="paid_at" max="{{ date('Y-m-d') }}" value="{{ date('Y-m-d') }}">
+                            </div>
+
+                            <div class="mfg">
+                                <label>Justification <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400;font-size:11px">(min. 5 caractères)</span></label>
+                                <textarea name="reason" required minlength="5" maxlength="500" rows="3"
+                                          placeholder="Ex : Facture historique migrée — réglée par chèque CIB-12345 le 02/05/2025"
+                                          style="resize:vertical"></textarea>
+                                <div style="font-size:10.5px;color:var(--text3);margin-top:4px">
+                                    💡 Cette justification sera visible dans l'audit complet de la facture.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal-mark-paid-manual').classList.remove('show')">Annuler</button>
+                            <button type="submit" class="btn btn-success">💼 Solder maintenant</button>
+                        </div>
+                    </form>
                 </div>
             </div>
             @endcan
@@ -1189,11 +1271,11 @@
                                 <div style="font-weight:800;font-size:14px;color:var(--text)">{{ $clientStats['count_total'] }}</div>
                             </div>
                             <div>
-                                <div style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Payées</div>
+                                <div style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Soldées</div>
                                 <div style="font-weight:800;font-size:14px;color:#22c55e">{{ $clientStats['count_paid'] }}</div>
                             </div>
                             <div>
-                                <div style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.5px">CA payé TTC</div>
+                                <div style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.5px">CA soldé TTC</div>
                                 <div style="font-weight:800;font-size:13px;color:var(--accent)">{{ number_format($clientStats['sum_paid_ttc'], 0, ',', ' ') }}</div>
                             </div>
                             <div>

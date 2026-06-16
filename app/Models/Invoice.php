@@ -88,6 +88,41 @@ class Invoice extends Model implements Auditable
         'partiellement_payee', 'payee', 'en_retard', 'litige', 'annulee',
     ];
 
+    /**
+     * Libellés FR pour l'affichage utilisateur.
+     *
+     * Le terme "payée" est volontairement remplacé par "Soldée" côté UI
+     * (alignement vocabulaire métier CIBLE CI). La valeur DB reste 'payee'
+     * pour ne pas casser l'historique et tous les jobs/observers — c'est
+     * un mapping COSMÉTIQUE uniquement.
+     *
+     * Source unique de vérité pour tout affichage de statut : badges,
+     * pipelines, exports, emails, PDF.
+     */
+    public const STATUS_LABELS = [
+        'brouillon'           => 'Brouillon',
+        'generee'             => 'Générée',
+        'validee'             => 'Validée',
+        'envoyee'             => 'Envoyée',
+        'partiellement_payee' => 'Partiellement soldée',
+        'payee'               => 'Soldée',
+        'en_retard'           => 'En retard',
+        'litige'              => 'Litige',
+        'annulee'             => 'Annulée',
+    ];
+
+    /** Helper statique — utilisable dans toutes les vues / services. */
+    public static function statusLabel(?string $status): string
+    {
+        return self::STATUS_LABELS[$status] ?? ucfirst((string) $status);
+    }
+
+    /** Accessor : {{ $invoice->status_label }} dans les Blades. */
+    public function getStatusLabelAttribute(): string
+    {
+        return self::statusLabel($this->status);
+    }
+
     /** Transitions manuelles autorisées (user action). */
     public const MANUAL_TRANSITIONS = [
         'brouillon'           => ['generee', 'annulee'],

@@ -78,7 +78,7 @@
         <div class="kpi-card__top-bar" style="background:#22c55e"></div>
         <div class="kpi-card__icon" style="color:#22c55e"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
         <div class="kpi-card__value" data-kpi="payee" data-kpi-value="payee" style="color:#22c55e">{{ $totalPayees }}</div>
-        <div class="kpi-card__label">Payées</div>
+        <div class="kpi-card__label">Soldées</div>
         <div class="kpi-card__sub">factures encaissées</div>
         <div class="kpi-card__arrow" style="color:#22c55e">→</div>
     </a>
@@ -115,7 +115,7 @@
                 <option value="">Tous</option>
                 <option value="brouillon" {{ request('status') === 'brouillon' ? 'selected' : '' }}>Brouillon</option>
                 <option value="envoyee"   {{ request('status') === 'envoyee'   ? 'selected' : '' }}>Envoyée</option>
-                <option value="payee"     {{ request('status') === 'payee'     ? 'selected' : '' }}>Marquée payée</option>
+                <option value="payee"     {{ request('status') === 'payee'     ? 'selected' : '' }}>Soldée</option>
                 <option value="annulee"   {{ request('status') === 'annulee'   ? 'selected' : '' }}>Annulée</option>
             </select>
         </div>
@@ -123,7 +123,7 @@
             <label class="filter-label">Statut paiement</label>
             <select id="filter-pay-status" class="filter-select" style="width:150px;" onchange="window.location.href = '?pay_status=' + this.value">
                 <option value="">Tous</option>
-                <option value="non_payee" {{ request('pay_status') === 'non_payee' ? 'selected' : '' }}>❌ Non payée</option>
+                <option value="non_payee" {{ request('pay_status') === 'non_payee' ? 'selected' : '' }}>❌ Non soldée</option>
                 <option value="partielle" {{ request('pay_status') === 'partielle' ? 'selected' : '' }}>⏳ Partielle</option>
                 <option value="soldee"    {{ request('pay_status') === 'soldee'    ? 'selected' : '' }}>✅ Soldée</option>
                 <option value="en_retard" {{ in_array(request('pay_status'), ['en_retard', 'overdue']) ? 'selected' : '' }}>🔴 En retard</option>

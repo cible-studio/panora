@@ -118,7 +118,7 @@
                             @php
                                 $status = $inv->paymentStatus();
                                 $statusCfg = match($status) {
-                                    'non_payee' => ['bg' => 'rgba(107,114,128,.15)', 'c' => '#6b7280', 'l' => 'Non payée'],
+                                    'non_payee' => ['bg' => 'rgba(107,114,128,.15)', 'c' => '#6b7280', 'l' => 'Non soldée'],
                                     'partielle' => ['bg' => 'rgba(245,158,11,.15)',  'c' => '#f59e0b', 'l' => 'Partielle'],
                                     'en_retard' => ['bg' => 'rgba(239,68,68,.15)',   'c' => '#ef4444', 'l' => 'En retard'],
                                     default     => ['bg' => 'var(--surface2)', 'c' => 'var(--text3)', 'l' => $status],

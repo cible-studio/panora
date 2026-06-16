@@ -10,7 +10,7 @@
         'partielle' => ['bg' => 'rgba(245,158,11,.12)', 'color' => '#b45309', 'bar' => '#f59e0b', 'label' => 'Partielle',   'icon' => '⏳'],
         'en_retard' => ['bg' => 'rgba(239,68,68,.12)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'label' => 'En retard',   'icon' => '🔴'],
         'annulee'   => ['bg' => 'rgba(107,114,128,.12)','color' => '#4b5563', 'bar' => '#9ca3af', 'label' => 'Annulée',     'icon' => '🚫'],
-        default     => ['bg' => 'rgba(239,68,68,.08)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'label' => 'Non payée',   'icon' => '❌'],
+        default     => ['bg' => 'rgba(239,68,68,.08)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'label' => 'Non soldée',  'icon' => '❌'],
     };
 @endphp
 <tr data-invoice-row="{{ $invoice->id }}" data-status="{{ $invoice->status }}">
@@ -57,7 +57,7 @@
                 @case('validee')             <span style="font-size:9.5px;color:#0e7490;text-transform:uppercase;letter-spacing:.3px">🔒 Validée</span> @break
                 @case('envoyee')             <span style="font-size:9.5px;color:#1d4ed8;text-transform:uppercase;letter-spacing:.3px">📤 Envoyée</span> @break
                 @case('partiellement_payee') <span style="font-size:9.5px;color:#b45309;text-transform:uppercase;letter-spacing:.3px">⏳ Partielle</span> @break
-                @case('payee')               <span style="font-size:9.5px;color:#15803d;text-transform:uppercase;letter-spacing:.3px">✅ Payée</span> @break
+                @case('payee')               <span style="font-size:9.5px;color:#15803d;text-transform:uppercase;letter-spacing:.3px">✅ Soldée</span> @break
                 @case('en_retard')           <span style="font-size:9.5px;color:#b91c1c;text-transform:uppercase;letter-spacing:.3px">🔴 En retard</span> @break
                 @case('litige')              <span style="font-size:9.5px;color:#9a3412;text-transform:uppercase;letter-spacing:.3px">⚠ Litige</span> @break
                 @case('annulee')             <span style="font-size:9.5px;color:#b91c1c;text-transform:uppercase;letter-spacing:.3px">🚫 Annulée</span> @break
