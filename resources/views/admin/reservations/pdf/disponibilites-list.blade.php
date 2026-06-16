@@ -170,9 +170,17 @@
         .commune-cover {
             page-break-before: always;
             page-break-after: always;
-            padding-top: 105mm;
+            padding-top: 85mm;
             text-align: center;
             background: #ffffff;
+        }
+        .cover-doc-type {
+            font-size: 11px;
+            font-weight: 800;
+            color: #c2570d;
+            letter-spacing: 10px;
+            text-transform: uppercase;
+            margin-bottom: 22px;
         }
         .cover-rule {
             width: 60mm;
@@ -200,6 +208,35 @@
             text-transform: uppercase;
             letter-spacing: 7px;
             line-height: 1;
+        }
+        .cover-period {
+            margin-top: 34px;
+            display: inline-block;
+            padding: 9px 22px;
+            background: #fff7ed;
+            border: 1px solid #fde6c9;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #4b5563;
+            letter-spacing: .5px;
+        }
+        .cover-period-label {
+            font-size: 9px;
+            font-weight: 800;
+            color: #c2570d;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            margin-right: 8px;
+        }
+        .cover-period strong {
+            color: #0d1117;
+            font-weight: 700;
+            letter-spacing: .3px;
+        }
+        .cover-period-arrow {
+            color: #d4af37;
+            margin: 0 8px;
+            font-weight: 700;
         }
 
         /* Section title au-dessus de chaque sous-tableau */
@@ -244,6 +281,24 @@
     // Pour afficher : envoyer show_pricing=1 (ou hide_status=0).
     $showPricing = $showPricing ?? !($hideStatus ?? true);
     $count       = count($panels);
+
+    // ── PÉRIODE EN FRANÇAIS ───────────────────────────────────────
+    // Formatage manuel : Carbon::translatedFormat() dépend du locale
+    // qui n'est pas toujours chargé côté DomPDF en prod.
+    $moisFr = [1=>'janvier', 2=>'février', 3=>'mars', 4=>'avril', 5=>'mai',
+               6=>'juin', 7=>'juillet', 8=>'août', 9=>'septembre',
+               10=>'octobre', 11=>'novembre', 12=>'décembre'];
+    $fmtPeriod = function ($d) use ($moisFr) {
+        if (!$d) return null;
+        try {
+            $c = \Carbon\Carbon::parse($d);
+            return $c->format('d') . ' ' . $moisFr[(int) $c->format('n')] . ' ' . $c->format('Y');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    };
+    $startFr = $fmtPeriod($startDate ?? null);
+    $endFr   = $fmtPeriod($endDate   ?? null);
 
     // ── GROUPEMENT PAR COMMUNE ────────────────────────────────────
     // Le client doit recevoir une page d'intro avant chaque
@@ -317,10 +372,19 @@
 
         {{-- ═══════════════════ PAGE DE GARDE COMMUNE (épuré) ═══════════════════ --}}
         <div class="commune-cover">
+            <div class="cover-doc-type">Disponibilités</div>
             <div class="cover-rule"></div>
             <div class="cover-kicker">Commune</div>
             <div class="cover-name">{{ $communeName }}</div>
             <div class="cover-rule bottom"></div>
+            @if($startFr && $endFr)
+                <div class="cover-period">
+                    <span class="cover-period-label">Période</span>
+                    <strong>{{ $startFr }}</strong>
+                    <span class="cover-period-arrow">→</span>
+                    <strong>{{ $endFr }}</strong>
+                </div>
+            @endif
         </div>
 
         {{-- ═══════════════════ SOUS-TABLEAU DE LA COMMUNE ═══════════════════ --}}
