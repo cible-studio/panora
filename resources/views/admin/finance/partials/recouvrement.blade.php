@@ -127,11 +127,29 @@
                                 <td class="num" style="color:{{ $prio['color'] }};font-weight:700">
                                     {{ $row['plus_ancien_jours'] }}j
                                 </td>
-                                <td style="color:{{ $row['prochaine_echeance'] && $row['prochaine_echeance']->isPast() ? '#ef4444' : 'var(--text2)' }}">
-                                    {{ $row['prochaine_echeance']?->format('d/m/Y') ?? '—' }}
+                                <td style="color:{{ $row['prochaine_echeance'] && $row['prochaine_echeance']->isPast() ? '#ef4444' : 'var(--text2)' }}"
+                                    title="Date de la prochaine échéance non payée d'une facture du client (depuis l'échéancier). « — » = aucune facture n'a d'échéancier configuré.">
+                                    @if($row['prochaine_echeance'])
+                                        {{ $row['prochaine_echeance']->format('d/m/Y') }}
+                                    @else
+                                        <span style="color:var(--text3);font-size:11px;font-style:italic"
+                                              title="Aucune des factures impayées de ce client n'a d'échéancier configuré. Génère un échéancier depuis la fiche facture pour activer le suivi.">
+                                            Pas d'échéancier
+                                        </span>
+                                    @endif
                                 </td>
                                 <td style="color:var(--text2);font-size:12px">
-                                    {{ $row['derniere_relance'] ? \Carbon\Carbon::parse($row['derniere_relance'])->format('d/m/Y') : '— Jamais' }}
+                                    @if($row['derniere_relance'])
+                                        {{-- Lien vers l'historique filtré sur ce client — utile aussi
+                                             pour vérifier qu'une relance vient bien d'être enregistrée. --}}
+                                        <a href="{{ route('admin.finance.relances', ['client_id' => $row['client_id']]) }}"
+                                           style="color:var(--text2);text-decoration:none;border-bottom:1px dashed var(--border)"
+                                           title="Voir toutes les relances de ce client">
+                                            {{ \Carbon\Carbon::parse($row['derniere_relance'])->format('d/m/Y') }}
+                                        </a>
+                                    @else
+                                        <span style="color:var(--text3)">— Jamais</span>
+                                    @endif
                                 </td>
                                 <td style="font-size:12px;color:var(--text2);max-width:220px">
                                     @if(!empty($row['derniere_relance_suite']))

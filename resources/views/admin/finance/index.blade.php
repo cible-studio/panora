@@ -14,6 +14,21 @@
     $fmt = fn($v) => number_format($v, 0, ',', ' ');
 @endphp
 
+{{-- Erreurs de validation (modale d'enregistrement relance, autres formulaires de la page).
+     Avant : la modale relance avait `required` HTML5, mais si l'utilisateur passait
+     outre (script désactivé, navigateur permissif), la validation backend refusait
+     silencieusement. Le user pensait que l'enregistrement avait marché. --}}
+@if($errors->any())
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.30);border-radius:10px;padding:12px 16px;margin-bottom:14px;color:#b91c1c">
+        <div style="font-weight:800;font-size:13px;margin-bottom:6px">⚠ Le formulaire n'a pas pu être enregistré :</div>
+        <ul style="margin:0;padding-left:20px;font-size:12.5px;line-height:1.6">
+            @foreach($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
 {{-- ════ BARRE DE PÉRIODE / FILTRES ════ --}}
 <form method="GET" class="fin-filter-card">
     <input type="hidden" name="tab" value="{{ $tab }}">

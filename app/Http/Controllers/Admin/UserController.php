@@ -23,6 +23,20 @@ class UserController extends Controller
         return view('admin.users.index', compact('users'));
     }
 
+    /**
+     * Vue détail user — pour l'instant on redirige vers la fiche d'édition
+     * (qui affiche déjà toutes les infos en lecture/édition). Cible
+     * principale : liens "Enregistré par" depuis le dashboard finance,
+     * "Commercial assigné" depuis la facture, etc.
+     *
+     * Avant : BadMethodCallException 500 sur /admin/users/{id} car la
+     * route resource créait l'URL show mais la méthode n'existait pas.
+     */
+    public function show(User $user)
+    {
+        return redirect()->route('admin.users.edit', $user);
+    }
+
     public function create()
     {
         return view('admin.users.create');

@@ -190,7 +190,10 @@
                                 </td>
                                 <td class="num strong">{{ $fmt($p['montant']) }} <span style="font-size:10px;color:var(--text3);font-weight:500">FCFA</span></td>
                                 <td style="color:var(--text2);font-size:12px;white-space:nowrap">
-                                    @if(!empty($p['creator_id']))
+                                    @if(!empty($p['creator_id']) && auth()->user()?->role?->value === 'admin')
+                                        {{-- Fiche user accessible uniquement aux admins (route gardée
+                                             par middleware role:admin) — pour les autres rôles, on
+                                             affiche le nom en texte simple. --}}
                                         <a href="{{ route('admin.users.show', $p['creator_id']) }}"
                                            style="color:var(--text2);text-decoration:none;border-bottom:1px dashed var(--border)"
                                            title="Fiche utilisateur">{{ $p['creator_name'] }}</a>
