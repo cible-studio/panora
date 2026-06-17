@@ -26,6 +26,58 @@
         'preset'       => $preset ?? 'year',
     ])
 
+    {{-- 6 KPI cards globaux équipe — équivalent design Performance Commerciale --}}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:18px">
+        <div class="perf-kpi" style="border-left-color:#16a34a">
+            <div class="perf-kpi-label">Poses réalisées</div>
+            <div class="perf-kpi-val" style="color:#15803d">{{ number_format($globalKpis['nb_poses_realisees']) }}</div>
+            <div class="perf-kpi-sub">sur la période</div>
+        </div>
+        <div class="perf-kpi" style="border-left-color:#0ea5e9">
+            <div class="perf-kpi-label">Réactivité moyenne</div>
+            <div class="perf-kpi-val" style="color:#0369a1">{{ $globalKpis['reactivite_avg_min'] !== null ? $globalKpis['reactivite_avg_min'].' min' : '—' }}</div>
+            <div class="perf-kpi-sub">attribution → début</div>
+        </div>
+        <div class="perf-kpi" style="border-left-color:#a855f7">
+            <div class="perf-kpi-label">Durée moyenne pose</div>
+            <div class="perf-kpi-val" style="color:#7c3aed">{{ $globalKpis['duree_pose_avg_min'] !== null ? $globalKpis['duree_pose_avg_min'].' min' : '—' }}</div>
+            <div class="perf-kpi-sub">début → fin</div>
+        </div>
+        <div class="perf-kpi" style="border-left-color:{{ $globalKpis['taux_poses_en_retard'] <= 5 ? '#16a34a' : ($globalKpis['taux_poses_en_retard'] <= 15 ? '#f59e0b' : '#ef4444') }}">
+            <div class="perf-kpi-label">% Poses en retard</div>
+            <div class="perf-kpi-val" style="color:{{ $globalKpis['taux_poses_en_retard'] <= 5 ? '#15803d' : ($globalKpis['taux_poses_en_retard'] <= 15 ? '#b45309' : '#b91c1c') }}">{{ $globalKpis['taux_poses_en_retard'] }} %</div>
+            <div class="perf-kpi-sub">scheduled &lt; now</div>
+        </div>
+        <div class="perf-kpi" style="border-left-color:{{ $globalKpis['taux_piges_rejetees'] <= 5 ? '#16a34a' : ($globalKpis['taux_piges_rejetees'] <= 15 ? '#f59e0b' : '#ef4444') }}">
+            <div class="perf-kpi-label">% Piges rejetées</div>
+            <div class="perf-kpi-val" style="color:{{ $globalKpis['taux_piges_rejetees'] <= 5 ? '#15803d' : ($globalKpis['taux_piges_rejetees'] <= 15 ? '#b45309' : '#b91c1c') }}">{{ $globalKpis['taux_piges_rejetees'] }} %</div>
+            <div class="perf-kpi-sub">qualité reporting</div>
+        </div>
+        <div class="perf-kpi" style="border-left-color:#6366f1">
+            <div class="perf-kpi-label">Techniciens actifs</div>
+            <div class="perf-kpi-val" style="color:#4338ca">{{ $globalKpis['nb_techs_actifs'] }}</div>
+            <div class="perf-kpi-sub">role=technique · is_active</div>
+        </div>
+    </div>
+
+    {{-- Courbe 12 mois — équivalent commercial mais sur nb poses --}}
+    <div class="perf-card" style="margin-bottom:18px">
+        <div class="perf-card-head">
+            <div>
+                <div class="perf-card-title">📈 Évolution mensuelle — 12 derniers mois</div>
+                <div class="perf-card-sub">Nb poses réalisées par mois (toutes équipes confondues)</div>
+            </div>
+            @php $trendTotal = $monthlyTrend->sum('count'); @endphp
+            <div style="font-size:11.5px;color:var(--text3);text-align:right;line-height:1.5">
+                <div>Total 12 mois : <strong style="color:#6366f1;font-size:14px">{{ number_format($trendTotal) }}</strong></div>
+                <div style="font-size:10px;color:var(--text3)">poses réalisées</div>
+            </div>
+        </div>
+        <div style="padding:18px 20px">
+            <div style="position:relative;height:240px"><canvas id="perfTechTrendChart"></canvas></div>
+        </div>
+    </div>
+
     {{-- Tableau --}}
     <div class="perf-card">
         <div class="perf-card-head">
@@ -90,6 +142,74 @@
             </table>
         </div>
     </div>
+
+    {{-- 2 sections "Top tech par X" — Bloc 2 Famille A (2026-06-17) --}}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px">
+        {{-- Top tech par commune --}}
+        <div class="perf-card">
+            <div class="perf-card-head">
+                <div>
+                    <div class="perf-card-title">🗺 Top technicien par commune</div>
+                    <div class="perf-card-sub">Qui pose le plus dans chaque commune — zones d'expertise</div>
+                </div>
+            </div>
+            <div class="perf-card-body--flush">
+                @if($topByCommune->isEmpty())
+                    <div style="padding:30px;text-align:center;color:var(--text3);font-style:italic;font-size:13px">Aucune pose sur la période.</div>
+                @else
+                    <table class="perf-table">
+                        <thead>
+                            <tr><th>#</th><th>Technicien</th><th>Commune</th><th style="text-align:right">Poses</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach($topByCommune as $idx => $row)
+                                <tr>
+                                    <td style="font-weight:800">{{ ['🥇','🥈','🥉'][$idx] ?? ($idx + 1) }}</td>
+                                    <td style="font-weight:700">{{ $row['user_name'] }}</td>
+                                    <td style="color:var(--text2)">{{ $row['commune'] }}</td>
+                                    <td style="text-align:right;font-weight:800;color:#16a34a">{{ $row['count'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @endif
+            </div>
+        </div>
+
+        {{-- Top tech par campagne --}}
+        <div class="perf-card">
+            <div class="perf-card-head">
+                <div>
+                    <div class="perf-card-title">🎯 Top technicien par campagne</div>
+                    <div class="perf-card-sub">Qui porte le business sur les campagnes de la période</div>
+                </div>
+            </div>
+            <div class="perf-card-body--flush">
+                @if($topByCampaign->isEmpty())
+                    <div style="padding:30px;text-align:center;color:var(--text3);font-style:italic;font-size:13px">Aucune pose sur la période.</div>
+                @else
+                    <table class="perf-table">
+                        <thead>
+                            <tr><th>#</th><th>Technicien</th><th>Campagne</th><th style="text-align:right">Poses</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach($topByCampaign as $idx => $row)
+                                <tr>
+                                    <td style="font-weight:800">{{ ['🥇','🥈','🥉'][$idx] ?? ($idx + 1) }}</td>
+                                    <td style="font-weight:700">{{ $row['user_name'] }}</td>
+                                    <td style="color:var(--text2)">
+                                        {{ \Illuminate\Support\Str::limit($row['campaign'], 30) }}
+                                        <span style="display:block;font-size:10.5px;color:var(--text3)">{{ $row['client'] }}</span>
+                                    </td>
+                                    <td style="text-align:right;font-weight:800;color:#16a34a">{{ $row['count'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @endif
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -108,6 +228,48 @@
 .perf-table th { text-align:left; padding:10px 14px; background:var(--surface2); font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text3); border-bottom:1px solid var(--border); }
 .perf-table td { padding:10px 14px; border-bottom:1px solid var(--border); color:var(--text); }
 .perf-table tr:hover td { background:rgba(232,160,32,.04); }
+/* KPI cards — alignement Performance Commerciale (Bloc 2 — Famille A) */
+.perf-kpi { background:var(--surface); border:1px solid var(--border); border-left:4px solid; border-radius:14px; padding:14px 18px; }
+.perf-kpi-label { font-size:10.5px; font-weight:800; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; }
+.perf-kpi-val { font-size:24px; font-weight:800; color:var(--text); margin-top:2px; }
+.perf-kpi-sub { font-size:11px; color:var(--text3); margin-top:2px; }
 </style>
+
+@push('scripts')
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+(function () {
+    if (typeof Chart === 'undefined') return;
+    const data = @json($monthlyTrend->values());
+    const canvas = document.getElementById('perfTechTrendChart');
+    if (!canvas || !data?.length) return;
+    const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+    const gridC = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
+    const tickC = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
+    new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: data.map(d => d.label),
+            datasets: [{
+                label: 'Poses réalisées',
+                data:  data.map(d => d.count),
+                borderColor: '#6366f1',
+                backgroundColor: 'rgba(99,102,241,.18)',
+                borderWidth: 2.5, tension: .35, fill: true,
+                pointBackgroundColor: '#6366f1', pointRadius: 4, pointHoverRadius: 6,
+            }],
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + ctx.parsed.y + ' pose(s)' } } },
+            scales: {
+                x: { ticks: { color: tickC, font: { size: 11 } }, grid: { display: false } },
+                y: { beginAtZero: true, ticks: { color: tickC, font: { size: 11 }, precision: 0 }, grid: { color: gridC } },
+            }
+        }
+    });
+})();
+</script>
+@endpush
 
 </x-admin-layout>

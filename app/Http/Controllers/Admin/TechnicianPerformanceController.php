@@ -31,14 +31,16 @@ class TechnicianPerformanceController extends Controller
         }
 
         [$from, $to] = $this->resolvePeriod($request);
-        $leaderboard = $this->perf->leaderboardTechs($from, $to);
+        $leaderboard   = $this->perf->leaderboardTechs($from, $to);
+        $globalKpis    = $this->perf->globalKpis($from, $to);
+        $monthlyTrend  = $this->perf->monthlyTrendAllTechs(12);
+        $topByCommune  = $this->perf->topByCommune($from, $to, 5);
+        $topByCampaign = $this->perf->topByCampaign($from, $to, 5);
 
-        return view('admin.performance.techniciens.index', [
-            'leaderboard' => $leaderboard,
-            'from'        => $from,
-            'to'          => $to,
-            'preset'      => $request->input('preset'),
-        ]);
+        return view('admin.performance.techniciens.index', compact(
+            'leaderboard', 'globalKpis', 'monthlyTrend',
+            'topByCommune', 'topByCampaign', 'from', 'to'
+        ) + ['preset' => $request->input('preset')]);
     }
 
     public function me(Request $request)
