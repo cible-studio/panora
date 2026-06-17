@@ -887,6 +887,43 @@ Route::prefix('admin')
             )->whereNumber('campaign')->name('migration.commercial-attribution.assign');
         });
 
+        // ── M2 Performance Technicien : gestion des équipes (admin/MP) ──
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::resource('teams', \App\Http\Controllers\Admin\PoseTeamController::class)
+                ->parameters(['teams' => 'team'])
+                ->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
+            Route::post('teams/{team}/members',
+                [\App\Http\Controllers\Admin\PoseTeamController::class, 'addMembers']
+            )->whereNumber('team')->name('teams.members.add');
+            Route::delete('teams/{team}/members/{user}',
+                [\App\Http\Controllers\Admin\PoseTeamController::class, 'removeMember']
+            )->whereNumber('team')->whereNumber('user')->name('teams.members.remove');
+        });
+
+        // ── M2 Performance Technicien — pages perf (admin/MP/technique) ──
+        // Le service force le scope au self pour technique.
+        Route::middleware('role:admin,mediaplanner,technique')->group(function () {
+            Route::get('performance/techniciens',
+                [\App\Http\Controllers\Admin\TechnicianPerformanceController::class, 'index']
+            )->name('performance.tech.index');
+            Route::get('performance/techniciens/me',
+                [\App\Http\Controllers\Admin\TechnicianPerformanceController::class, 'me']
+            )->name('performance.tech.me');
+            Route::get('performance/techniciens/{user}',
+                [\App\Http\Controllers\Admin\TechnicianPerformanceController::class, 'show']
+            )->whereNumber('user')->name('performance.tech.show');
+        });
+
+        // ── M2 Performance Équipe — admin/MP only ──
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('performance/equipes',
+                [\App\Http\Controllers\Admin\TeamPerformanceController::class, 'index']
+            )->name('performance.team.index');
+            Route::get('performance/equipes/{team}',
+                [\App\Http\Controllers\Admin\TeamPerformanceController::class, 'show']
+            )->whereNumber('team')->name('performance.team.show');
+        });
+
         // ── Disponibilités ─────────────────── (admin + MP + commercial) ──
         // Le commercial peut maintenant créer des réservations depuis l'espace
         // disponibilités (matrice DISPONIBILITÉS étendue). La policy

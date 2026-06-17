@@ -20,6 +20,7 @@ class User extends Authenticatable
         'two_fa_enabled', 'last_login_at',
         'reservations_last_seen_at',
         'whatsapp_number', 'tech_public_token',
+        'pose_team_id', // M2 — équipe de pose (techniciens)
     ];
 
     protected $hidden = [
@@ -144,6 +145,27 @@ class User extends Authenticatable
     public function commercialInvoices(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(\App\Models\Invoice::class, 'commercial_user_id');
+    }
+
+    // ── M2 Performance Technicien / Équipe (mission 2026-06-17) ──
+    /** Scope : tous les users avec role='technique' actifs. */
+    public function scopeTechniciens($query)
+    {
+        return $query->where('role', UserRole::TECHNIQUE->value)
+                     ->where('is_active', true)
+                     ->orderBy('name');
+    }
+
+    /** Équipe de pose à laquelle le tech est rattaché (nullable). */
+    public function poseTeam(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\PoseTeam::class, 'pose_team_id');
+    }
+
+    /** Équipe dont ce user est leader (HasOne — uniq côté BDD). */
+    public function teamLeading(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(\App\Models\PoseTeam::class, 'leader_user_id');
     }
 
     // ══════════════════════════════════════════════════════════════

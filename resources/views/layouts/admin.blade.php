@@ -100,6 +100,11 @@
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
                         <span class="nav-text">Piges Photos</span>
                     </a>
+                    {{-- M2 Performance Tech : gestion des équipes (mission 2026-06-17) --}}
+                    <a href="{{ route('admin.teams.index') }}" data-tooltip="Équipes de pose" class="nav-item {{ request()->routeIs('admin.teams.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                        <span class="nav-text">Équipes de pose</span>
+                    </a>
                     @endif
                     @if($isAdmin || $isMP)
                     <a href="{{ route('admin.taxes.index') }}" data-tooltip="Taxes Communes" class="nav-item {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
@@ -227,6 +232,25 @@
                        data-tooltip="Performance commerciale" class="nav-item {{ request()->routeIs('admin.performance.commercial.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
                         <span class="nav-text">{{ ($isCommercial ?? auth()->user()?->role?->value === 'commercial') ? 'Ma performance' : 'Performance commerciale' }}</span>
+                    </a>
+                    @endif
+
+                    {{-- M2 Performance Technicien (mission 2026-06-17) — admin + MP + technique.
+                         Le tech voit son propre drill, idem M1. --}}
+                    @php $isTech = auth()->user()?->role?->value === 'technique'; @endphp
+                    @if($isAdmin || $isMP || $isTech)
+                    <a href="{{ $isTech ? route('admin.performance.tech.me') : route('admin.performance.tech.index') }}"
+                       data-tooltip="Performance techniciens" class="nav-item {{ request()->routeIs('admin.performance.tech.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+                        <span class="nav-text">{{ $isTech ? 'Ma performance' : 'Performance techniciens' }}</span>
+                    </a>
+                    @endif
+
+                    {{-- M2 Performance Équipe — admin/MP only --}}
+                    @if($isAdmin || $isMP)
+                    <a href="{{ route('admin.performance.team.index') }}" data-tooltip="Performance équipes" class="nav-item {{ request()->routeIs('admin.performance.team.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><circle cx="9" cy="7" r="4"/><circle cx="17" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg></span>
+                        <span class="nav-text">Performance équipes</span>
                     </a>
                     @endif
 
