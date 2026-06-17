@@ -186,6 +186,8 @@ class RapportController extends Controller
         $communeQuery = Commune::query();
         if ($filterCommune) $communeQuery->where('id', $filterCommune);
         if ($filterCity)    $communeQuery->where('city', $filterCity);
+        if ($filterZone === 'abidjan')   $communeQuery->where('city', 'Abidjan');
+        if ($filterZone === 'interieur') $communeQuery->where('city', '!=', 'Abidjan');
         $communes = $communeQuery->get();
 
         $occParCommune = $communes->map(function ($commune) use ($dateFrom, $dateTo, $filterCategory, $filterClient, $applyCampaignFilters) {
@@ -286,6 +288,8 @@ class RapportController extends Controller
         $communesForStats = Commune::query()
             ->when($filterCommune, fn($q) => $q->where('id', $filterCommune))
             ->when($filterCity,    fn($q) => $q->where('city', $filterCity))
+            ->when($filterZone === 'abidjan',   fn($q) => $q->where('city', 'Abidjan'))
+            ->when($filterZone === 'interieur', fn($q) => $q->where('city', '!=', 'Abidjan'))
             ->get();
 
         $statsCommunes = $communesForStats->map(function ($commune) use ($dateFrom, $dateTo, $filterCategory, $applyCampaignFilters) {
