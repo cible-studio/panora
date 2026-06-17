@@ -135,6 +135,71 @@
             </table>
         </div>
     </div>
+
+    {{-- ════════ TOP COMMERCIAL PAR SECTEUR D'ACTIVITÉ ════════
+         Vue "qui domine quoi" — pour chaque secteur client présent
+         dans la période, le commercial avec le plus de CA. Trié par
+         CA total du secteur (les plus porteurs en haut). --}}
+    <div class="perf-card" style="margin-top:18px">
+        <div class="perf-card-header">
+            <div>
+                <div class="perf-card-title">🏆 Top commercial par secteur d'activité</div>
+                <div class="perf-card-sub">{{ $topBySector->count() }} secteur(s) actif(s) sur la période — qui domine quoi</div>
+            </div>
+        </div>
+        @if($topBySector->isEmpty())
+            <div style="padding:40px;text-align:center;color:var(--text3);font-style:italic">
+                Aucune campagne attribuée à un commercial sur la période.
+            </div>
+        @else
+            <div style="overflow-x:auto">
+                <table class="perf-table">
+                    <thead>
+                        <tr>
+                            <th>Secteur d'activité</th>
+                            <th>Top commercial</th>
+                            <th class="num">CA du top</th>
+                            <th class="num">Campagnes</th>
+                            <th class="num">Part du secteur</th>
+                            <th class="num">CA total secteur</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($topBySector as $row)
+                            @php
+                                $sharePct = $row['share_pct'];
+                                $shareColor = $sharePct >= 80 ? '#ef4444' : ($sharePct >= 50 ? '#f97316' : '#22c55e');
+                                $shareLabel = $sharePct >= 80 ? 'Monopole' : ($sharePct >= 50 ? 'Majoritaire' : 'Partagé');
+                            @endphp
+                            <tr>
+                                <td style="font-weight:700;color:var(--text)">{{ $row['sector'] }}</td>
+                                <td>
+                                    <a href="{{ route('admin.performance.commercial.show', $row['commercial_id']) }}"
+                                       style="color:var(--accent);text-decoration:none;font-weight:600">
+                                        {{ $row['commercial_name'] }}
+                                    </a>
+                                </td>
+                                <td class="num" style="font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums">
+                                    {{ number_format($row['ca'], 0, ',', ' ') }}
+                                    <span style="font-size:10px;color:var(--text3);font-weight:500">FCFA</span>
+                                </td>
+                                <td class="num">{{ $row['count'] }}</td>
+                                <td class="num">
+                                    <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:{{ $shareColor }}1f;color:{{ $shareColor }}"
+                                          title="{{ $shareLabel }} sur ce secteur">
+                                        {{ rtrim(rtrim(number_format($sharePct, 1, ',', ''), '0'), ',') }}%
+                                    </span>
+                                </td>
+                                <td class="num" style="color:var(--text2);font-variant-numeric:tabular-nums">
+                                    {{ number_format($row['sector_total_ca'], 0, ',', ' ') }}
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
 </div>
 
 <style>
