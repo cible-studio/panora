@@ -4,12 +4,16 @@
 <meta charset="UTF-8">
 <title>Occupation des panneaux — CIBLE CI</title>
 <style>
-    @page { size: A4 landscape; margin: 12mm 10mm; }
+    /* margin-bottom 20mm = espace réservé pour le footer fixed
+       (sans ça, le tableau se mélange avec le footer en bas de page 2+). */
+    @page { size: A4 landscape; margin: 12mm 10mm 20mm 10mm; }
     body { font-family: 'DejaVu Sans', sans-serif; font-size: 9px; color: #1f2937; line-height: 1.4; }
     h1 { font-size: 16px; color: #e8a020; margin: 0 0 4px; }
     .header { display: table; width: 100%; margin-bottom: 12px; }
-    .header .left { display: table-cell; vertical-align: top; }
-    .header .right { display: table-cell; vertical-align: top; text-align: right; font-size: 8.5px; color: #6b7280; }
+    .header .left  { display: table-cell; vertical-align: middle; }
+    .header .mid   { display: table-cell; vertical-align: middle; }
+    .header .right { display: table-cell; vertical-align: middle; text-align: right; font-size: 8.5px; color: #6b7280; }
+    .header .logo { height: 38px; margin-right: 14px; }
     .period { font-size: 10px; color: #6b7280; margin-top: 2px; }
     .meta { font-size: 9px; color: #374151; margin-top: 8px; padding: 6px 10px; background: #fafafa; border-left: 3px solid #e8a020; border-radius: 3px; }
     .meta strong { color: #111827; }
@@ -27,7 +31,9 @@
     .badge-zone { display: inline-block; padding: 1px 6px; font-size: 8px; border-radius: 999px; }
     .badge-abj { background: rgba(59,130,246,.15); color: #1d4ed8; }
     .badge-int { background: rgba(16,185,129,.15); color: #047857; }
-    .footer { position: fixed; bottom: 4mm; left: 10mm; right: 10mm; font-size: 8px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 4px; }
+    /* footer dans l'espace réservé par margin-bottom 20mm de @page */
+    .footer { position: fixed; bottom: 6mm; left: 10mm; right: 10mm; font-size: 8px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 4px; background: #fff; }
+    .footer .pagenum:before { content: counter(page) " / " counter(pages); }
     .totals { background: #fef3c7; }
     .totals td { font-weight: bold; color: #92400e; border-top: 2px solid #f59e0b; }
 </style>
@@ -35,9 +41,14 @@
 <body>
 
 <div class="header">
+    @if(!empty($logoCibleLight))
+        <div class="mid">
+            <img src="{{ $logoCibleLight }}" alt="CIBLE CI" class="logo">
+        </div>
+    @endif
     <div class="left">
         <h1>OCCUPATION DES PANNEAUX</h1>
-        <div class="period">Rapport détaillé par panneau · CIBLE CI</div>
+        <div class="period">Rapport détaillé par panneau · {{ $operatorName ?? 'CIBLE CI' }}</div>
         <div class="period">Période : {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }} ({{ (int)$from->diffInDays($to) + 1 }} jours)</div>
     </div>
     <div class="right">
@@ -103,7 +114,7 @@
 </table>
 
 <div class="footer">
-    CIBLE SARL — Régie OOH Côte d'Ivoire · Document généré automatiquement par Panora.
+    CIBLE SARL — Régie OOH Côte d'Ivoire · Document généré automatiquement par Panora · Page <span class="pagenum"></span>
 </div>
 
 </body>
