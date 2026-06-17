@@ -887,6 +887,19 @@ Route::prefix('admin')
             )->whereNumber('campaign')->name('migration.commercial-attribution.assign');
         });
 
+        // ── M2 Performance Technicien : gestion des équipes (admin/MP) ──
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::resource('teams', \App\Http\Controllers\Admin\PoseTeamController::class)
+                ->parameters(['teams' => 'team'])
+                ->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
+            Route::post('teams/{team}/members',
+                [\App\Http\Controllers\Admin\PoseTeamController::class, 'addMembers']
+            )->whereNumber('team')->name('teams.members.add');
+            Route::delete('teams/{team}/members/{user}',
+                [\App\Http\Controllers\Admin\PoseTeamController::class, 'removeMember']
+            )->whereNumber('team')->whereNumber('user')->name('teams.members.remove');
+        });
+
         // ── Disponibilités ─────────────────── (admin + MP + commercial) ──
         // Le commercial peut maintenant créer des réservations depuis l'espace
         // disponibilités (matrice DISPONIBILITÉS étendue). La policy

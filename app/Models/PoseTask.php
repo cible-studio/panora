@@ -86,6 +86,32 @@ class PoseTask extends Model
         return true;
     }
 
+    /**
+     * M2 Performance Technicien — auto-sync pose_tasks.team_name VARCHAR
+     * depuis la nouvelle relation users.pose_team_id.
+     *
+     * Observer câblé au saving : si assigned_user_id pointe sur un user
+     * qui a une équipe (pose_team_id), on met à jour team_name avec le
+     * nom de l'équipe AU MOMENT de l'assignation. Cohérent avec la
+     * volonté de préserver l'historique : si le tech change d'équipe
+     * plus tard, ses ANCIENNES poses gardent leur ancien team_name.
+     *
+     * Garde-fou A : le sous-titre explicatif sur les vues prévient
+     * l'utilisateur de ce comportement.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (PoseTask $task) {
+            if (!$task->isDirty('assigned_user_id') || empty($task->assigned_user_id)) {
+                return;
+            }
+            $user = User::with('poseTeam:id,name')->find($task->assigned_user_id);
+            if ($user?->poseTeam) {
+                $task->team_name = $user->poseTeam->name;
+            }
+        });
+    }
+
     // ── RELATIONS ──
 
     // Une tâche concerne un panneau
