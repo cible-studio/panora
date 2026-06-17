@@ -23,8 +23,13 @@ class InvoiceController extends Controller
         // (source unique, déjà alignée sur les autres controllers).
         // Eager-load payments + schedules pour le tableau de suivi
         // (payé / reste / prochaine échéance / statut paiement).
-        $query = Invoice::with(['client', 'campaign', 'creator', 'payments', 'schedules'])
-            ->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
+        // + relances : pour afficher l'historique des relances et
+        //   observations dans la colonne RELANCES du listing (demande
+        //   patronne — éviter d'avoir à cliquer sur chaque facture).
+        $query = Invoice::with([
+            'client', 'campaign', 'creator', 'payments', 'schedules',
+            'relances' => fn($r) => $r->with('user:id,name'),
+        ])->when($isCommercial, fn($q) => $q->forCommercialUser($uid));
 
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);

@@ -162,6 +162,7 @@
                     <th style="text-align:right">Reste à payer</th>
                     <th>Statut paiement</th>
                     <th>Prochaine échéance</th>
+                    <th>Relances & observations</th>
                     <th>Actions</th>
                 </tr>
             </thead>

@@ -82,6 +82,62 @@
             <span style="color:var(--text3);font-size:11px">—</span>
         @endif
     </td>
+    {{-- ════ COLONNE RELANCES & OBSERVATIONS ════
+         Demande patronne : voir directement dans le listing combien de
+         relances ont été faites + la dernière observation + suite donnée
+         sans avoir à ouvrir la fiche détail. On affiche la dernière
+         relance complète + un compteur cliquable pour dérouler la liste. --}}
+    <td style="min-width:240px;max-width:300px">
+        @php
+            $relances = $invoice->relances ?? collect();
+            $lastRelance = $relances->first();
+        @endphp
+        @if($lastRelance)
+            <div style="font-size:11px;color:var(--text3);margin-bottom:3px;font-weight:700">
+                {{ $relances->count() }} relance{{ $relances->count() > 1 ? 's' : '' }} ·
+                <span style="color:var(--text2)">dernière le {{ $lastRelance->relance_date->format('d/m/Y') }}</span>
+            </div>
+            <div style="font-size:11px;color:var(--text2);background:rgba(232,160,32,.06);border-left:2px solid var(--accent);padding:5px 8px;border-radius:0 6px 6px 0;margin-bottom:3px">
+                <div style="font-weight:700;color:var(--text);font-size:10.5px;margin-bottom:2px">
+                    {{ \App\Models\Relance::CANAUX[$lastRelance->canal] ?? $lastRelance->canal }}
+                    @if($lastRelance->user)
+                        <span style="color:var(--text3);font-weight:500;font-size:10px">— {{ $lastRelance->user->name }}</span>
+                    @endif
+                </div>
+                <div title="{{ $lastRelance->note }}">{{ \Illuminate\Support\Str::limit($lastRelance->note, 80) }}</div>
+                @if($lastRelance->suite_donnee)
+                    <div style="margin-top:3px;font-size:10.5px;color:var(--text3);font-style:italic" title="{{ $lastRelance->suite_donnee }}">
+                        ▸ {{ \Illuminate\Support\Str::limit($lastRelance->suite_donnee, 60) }}
+                    </div>
+                @endif
+            </div>
+            @if($relances->count() > 1)
+                <button type="button"
+                        onclick="(function(b){var el=document.getElementById('relances-history-{{ $invoice->id }}');var hidden=el.style.display==='none';el.style.display=hidden?'block':'none';b.innerHTML=(hidden?'▴ Masquer':'▾ Voir')+' les {{ $relances->count() - 1 }} relance{{ $relances->count() - 1 > 1 ? 's' : '' }} précédente{{ $relances->count() - 1 > 1 ? 's' : '' }}';})(this)"
+                        style="background:none;border:none;color:var(--accent);font-size:10.5px;font-weight:700;cursor:pointer;padding:2px 0">
+                    ▾ Voir les {{ $relances->count() - 1 }} relance{{ $relances->count() - 1 > 1 ? 's' : '' }} précédente{{ $relances->count() - 1 > 1 ? 's' : '' }}
+                </button>
+                <div id="relances-history-{{ $invoice->id }}" class="relances-history" style="display:none;margin-top:4px">
+                    @foreach($relances->slice(1) as $r)
+                        <div style="font-size:10.5px;color:var(--text2);padding:5px 8px;background:var(--surface2);border-radius:6px;margin-top:3px">
+                            <div style="font-weight:700;color:var(--text);font-size:10px;margin-bottom:1px">
+                                {{ $r->relance_date->format('d/m/Y') }} · {{ \App\Models\Relance::CANAUX[$r->canal] ?? $r->canal }}
+                                @if($r->user)<span style="color:var(--text3);font-weight:500">— {{ $r->user->name }}</span>@endif
+                            </div>
+                            <div title="{{ $r->note }}">{{ \Illuminate\Support\Str::limit($r->note, 70) }}</div>
+                            @if($r->suite_donnee)
+                                <div style="margin-top:2px;font-size:10px;color:var(--text3);font-style:italic" title="{{ $r->suite_donnee }}">
+                                    ▸ {{ \Illuminate\Support\Str::limit($r->suite_donnee, 50) }}
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        @else
+            <span style="color:var(--text3);font-size:11px;font-style:italic">— Aucune relance</span>
+        @endif
+    </td>
     <td>
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <a href="{{ route('admin.invoices.show', $invoice) }}" class="btn btn-ghost btn-sm" title="Voir">👁️</a>

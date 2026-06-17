@@ -179,6 +179,16 @@ class Invoice extends Model implements Auditable
     }
 
     /**
+     * Historique des relances effectuées sur cette facture. Ordonnées de
+     * la plus RÉCENTE à la plus ancienne pour que la première ligne soit
+     * directement utilisable dans le listing facturation (colonne RELANCES).
+     */
+    public function relances()
+    {
+        return $this->hasMany(Relance::class)->orderByDesc('relance_date')->orderByDesc('id');
+    }
+
+    /**
      * Prochaine échéance non payée. Null si l'échéancier est vide ou
      * entièrement réglé. Sert au tableau de suivi (colonne "Prochaine
      * échéance" + badge "🔴 À relancer" si overdue).
