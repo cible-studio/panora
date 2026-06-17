@@ -930,11 +930,11 @@
     <div class="modal-card">
         <h3>⚠️ Signaler un problème</h3>
         <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Choisis ce qui ne va pas. Le superviseur sera alerté.</p>
+        {{-- 9 motifs centralisés dans App\Enums\DelayReason — Module 3 SLA enrichi --}}
         <div class="report-opts">
-            <button type="button" class="report-opt" data-type="panneau_casse">🪧 Panneau cassé / abîmé</button>
-            <button type="button" class="report-opt" data-type="acces_bloque">🚧 Accès bloqué / impossible</button>
-            <button type="button" class="report-opt" data-type="mauvaise_adresse">📍 Mauvaise adresse / introuvable</button>
-            <button type="button" class="report-opt" data-type="autre">📝 Autre problème</button>
+            @foreach(\App\Enums\DelayReason::cases() as $motif)
+                <button type="button" class="report-opt" data-type="{{ $motif->value }}">{{ $motif->icon() }} {{ $motif->label() }}</button>
+            @endforeach
         </div>
         <textarea id="report-note" placeholder="Précisions (facultatif)…" style="width:100%;margin-top:10px;min-height:64px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
         <div class="modal-actions" style="margin-top:12px">

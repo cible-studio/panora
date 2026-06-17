@@ -289,43 +289,42 @@ class PoseTaskPublicController extends Controller
     {
         $task = $this->resolveTask($token);
 
+        // 9 motifs centralisés dans l'enum App\Enums\DelayReason (Module 3 SLA).
+        $allowedMotifs = collect(\App\Enums\DelayReason::cases())->pluck('value')->implode(',');
         $data = $request->validate([
-            'type'      => 'required|string|in:panneau_casse,acces_bloque,mauvaise_adresse,autre',
+            'type'      => 'required|string|in:' . $allowedMotifs,
             'note'      => 'nullable|string|max:500',
             'tech_name' => 'nullable|string|max:100',
         ]);
 
         $task->captureSelfTechName($data['tech_name'] ?? null, $request->ip());
 
-        $labels = [
-            'panneau_casse'    => 'Panneau cassé / abîmé',
-            'acces_bloque'     => 'Accès bloqué / impossible',
-            'mauvaise_adresse' => 'Mauvaise adresse / introuvable',
-            'autre'            => 'Autre problème',
-        ];
-        $label = $labels[$data['type']] ?? 'Problème signalé';
+        $motif = \App\Enums\DelayReason::from($data['type']);
+        $label = $motif->label();
 
         // Anti-spam : UN seul signalement actif par pose, peu importe le type.
+        // isResolved() étendu (Précision B) → resolved_at OR maintenance_id.
         $existing = \App\Models\PoseTaskAction::where('pose_task_id', $task->id)
-            ->where('action', 'problem_reported')
+            ->where('action', \App\Models\PoseTaskAction::ACTION_PROBLEM_REPORTED)
             ->whereNull('resolved_at')
+            ->whereNull('maintenance_id')
             ->first();
         if ($existing) {
-            $existingLabel = $labels[$existing->payload['type'] ?? 'autre'] ?? 'Problème signalé';
+            $existingMotif = \App\Enums\DelayReason::tryFrom((string)($existing->payload['type'] ?? '')) ?? \App\Enums\DelayReason::AUTRE;
             return response()->json([
                 'ok'    => false,
-                'error' => "Un signalement actif existe déjà sur ce panneau : « {$existingLabel} » (il y a {$existing->created_at->diffForHumans(null, true)}). Attends qu'il soit traité.",
+                'error' => "Un signalement actif existe déjà sur ce panneau : « {$existingMotif->label()} » (il y a {$existing->created_at->diffForHumans(null, true)}). Attends qu'il soit traité.",
             ], 409);
         }
 
-        PoseTaskAction::log($task->id, 'problem_reported', [
-            'type' => $data['type'],
+        PoseTaskAction::log($task->id, \App\Models\PoseTaskAction::ACTION_PROBLEM_REPORTED, [
+            'type' => $motif->value,
             'note' => $data['note'] ?? null,
         ], $task->technicien?->name ?? $task->tech_name_self ?? ($data['tech_name'] ?? null), $request->ip());
 
         Log::warning('pose_task.public.problem_reported', [
             'task_id' => $task->id,
-            'type'    => $data['type'],
+            'type'    => $motif->value,
             'ip'      => $request->ip(),
         ]);
 

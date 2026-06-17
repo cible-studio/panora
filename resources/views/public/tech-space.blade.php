@@ -1294,15 +1294,9 @@
                     @endphp
                     @php
                         // Dernier signalement de problème terrain (s'il y en a un)
-                        $lastProblem = $task->lastProblemReport;
-                        $problemLabels = [
-                            'panneau_casse'    => 'Panneau cassé',
-                            'acces_bloque'     => 'Accès bloqué',
-                            'mauvaise_adresse' => 'Mauvaise adresse',
-                            'autre'            => 'Autre problème',
-                        ];
-                        $problemType  = $lastProblem?->payload['type'] ?? null;
-                        $problemLabel = $problemLabels[$problemType] ?? null;
+                        $lastProblem  = $task->lastProblemReport;
+                        $problemMotif = $lastProblem?->effectiveMotif();
+                        $problemLabel = $problemMotif?->label();
                         $problemAgo   = $lastProblem?->created_at?->diffForHumans(null, true);
                     @endphp
                     @php $rejPige = $task->latestRejectedPige; @endphp
@@ -1419,11 +1413,11 @@
     <div class="ts-report-card">
         <h3>⚠️ Tu as un souci ?</h3>
         <p class="ts-report-sub" id="ts-report-ref">Touche le souci. Le bureau sera prévenu tout de suite.</p>
+        {{-- 9 motifs centralisés dans App\Enums\DelayReason — Module 3 SLA enrichi --}}
         <div class="ts-report-opts">
-            <button type="button" class="ts-report-opt" data-type="panneau_casse">🪧 Le panneau est cassé</button>
-            <button type="button" class="ts-report-opt" data-type="acces_bloque">🚧 Je ne peux pas y aller</button>
-            <button type="button" class="ts-report-opt" data-type="mauvaise_adresse">📍 Je ne trouve pas l'adresse</button>
-            <button type="button" class="ts-report-opt" data-type="autre">📝 Autre souci</button>
+            @foreach(\App\Enums\DelayReason::cases() as $motif)
+                <button type="button" class="ts-report-opt" data-type="{{ $motif->value }}">{{ $motif->icon() }} {{ $motif->label() }}</button>
+            @endforeach
         </div>
         <textarea id="ts-report-note" placeholder="Tu peux écrire des détails (pas obligé)…"></textarea>
         <label class="ts-report-photo-btn" id="ts-report-photo-label">
@@ -2262,11 +2256,11 @@
                     // Inscrit le rappel "déjà signalé" sur la ligne de la
                     // pose : le tech ne re-signalera plus le même problème
                     // sans s'en rendre compte (cas plusieurs panneaux).
+                    // 9 motifs — source unique App\Enums\DelayReason (M3 SLA enrichi).
                     const TYPE_LABELS = {
-                        panneau_casse:    'Panneau cassé',
-                        acces_bloque:     'Accès bloqué',
-                        mauvaise_adresse: 'Mauvaise adresse',
-                        autre:            'Autre problème',
+                        @foreach(\App\Enums\DelayReason::cases() as $motif)
+                        '{{ $motif->value }}': @json($motif->label()),
+                        @endforeach
                     };
                     const pose = document.querySelector(`.pose-line[data-task-id="${currentTaskId}"]`);
                     if (pose) {

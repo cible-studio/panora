@@ -1308,8 +1308,10 @@ class TechSpaceController extends Controller
             ->first();
         if (!$task) return response()->json(['ok' => false, 'error' => 'Pose introuvable.'], 404);
 
+        // 9 motifs centralisés dans l'enum App\Enums\DelayReason (Module 3 SLA).
+        $allowedMotifs = collect(\App\Enums\DelayReason::cases())->pluck('value')->implode(',');
         $data = $request->validate([
-            'type'  => 'required|string|in:panneau_casse,acces_bloque,mauvaise_adresse,autre',
+            'type'  => 'required|string|in:' . $allowedMotifs,
             'note'  => 'nullable|string|max:500',
             // Photo optionnelle (preuve panneau cassé / accès). Compressée
             // côté client donc on plafonne large (35 MB = limite Dockerfile).
@@ -1317,27 +1319,18 @@ class TechSpaceController extends Controller
         ]);
 
         // Anti-spam : UN SEUL signalement actif par pose (peu importe le type).
-        // Si le tech veut signaler une autre chose, il doit attendre que le
-        // précédent soit traité côté admin — sinon on accumule des doublons
-        // (vu en prod : 1 même panneau avec 2 signalements de types différents
-        // créés par un test, ouvre la porte à des dizaines).
+        // isResolved() étendu (Précision B) → resolved_at OR maintenance_id.
         $existing = \App\Models\PoseTaskAction::where('pose_task_id', $task->id)
-            ->where('action', 'problem_reported')
+            ->where('action', \App\Models\PoseTaskAction::ACTION_PROBLEM_REPORTED)
             ->whereNull('resolved_at')
+            ->whereNull('maintenance_id')
             ->first();
 
         if ($existing) {
-            $existingType = $existing->payload['type'] ?? 'autre';
-            $existingLabel = [
-                'panneau_casse'    => 'Panneau cassé / abîmé',
-                'acces_bloque'     => 'Accès bloqué / impossible',
-                'mauvaise_adresse' => 'Mauvaise adresse / introuvable',
-                'autre'            => 'Autre problème',
-            ][$existingType] ?? 'Problème signalé';
-
+            $existingMotif = \App\Enums\DelayReason::tryFrom((string)($existing->payload['type'] ?? '')) ?? \App\Enums\DelayReason::AUTRE;
             return response()->json([
                 'ok'          => false,
-                'error'       => "Tu as déjà un signalement actif sur ce panneau : « {$existingLabel} » (il y a {$existing->created_at->diffForHumans(null, true)}). Le superviseur le traite — attends qu'il soit clôturé avant d'en envoyer un autre.",
+                'error'       => "Tu as déjà un signalement actif sur ce panneau : « {$existingMotif->label()} » (il y a {$existing->created_at->diffForHumans(null, true)}). Le superviseur le traite — attends qu'il soit clôturé avant d'en envoyer un autre.",
                 'already'     => true,
                 'reported_at' => $existing->created_at->toIso8601String(),
             ], 409);
@@ -1358,16 +1351,11 @@ class TechSpaceController extends Controller
             }
         }
 
-        $labels = [
-            'panneau_casse'    => 'Panneau cassé / abîmé',
-            'acces_bloque'     => 'Accès bloqué / impossible',
-            'mauvaise_adresse' => 'Mauvaise adresse / introuvable',
-            'autre'            => 'Autre problème',
-        ];
-        $label = $labels[$data['type']] ?? 'Problème signalé';
+        $motif = \App\Enums\DelayReason::from($data['type']);
+        $label = $motif->label();
 
-        \App\Models\PoseTaskAction::log($task->id, 'problem_reported', [
-            'type'       => $data['type'],
+        \App\Models\PoseTaskAction::log($task->id, \App\Models\PoseTaskAction::ACTION_PROBLEM_REPORTED, [
+            'type'       => $motif->value,
             'note'       => $data['note'] ?? null,
             'photo_path' => $photoPath,
         ], $tech->name, $request->ip());
