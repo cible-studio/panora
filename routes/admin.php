@@ -860,6 +860,22 @@ Route::prefix('admin')
             ->whereNumber('action')
             ->name('sla.retards.motif.update');
 
+        // ── M1 Performance Commerciale (mission 2026-06-17) ──
+        // Routes ouvertes admin + mediaplanner + commercial. Le service force
+        // commercialId = auth()->id() pour le rôle commercial (pas de fuite
+        // cross-comm via URL forgé /performance/commerciaux/{autre-id}).
+        Route::middleware('role:admin,mediaplanner,commercial')->group(function () {
+            Route::get('performance/commerciaux',
+                [\App\Http\Controllers\Admin\CommercialPerformanceController::class, 'index']
+            )->name('performance.commercial.index');
+            Route::get('performance/commerciaux/me',
+                [\App\Http\Controllers\Admin\CommercialPerformanceController::class, 'me']
+            )->name('performance.commercial.me');
+            Route::get('performance/commerciaux/{user}',
+                [\App\Http\Controllers\Admin\CommercialPerformanceController::class, 'show']
+            )->whereNumber('user')->name('performance.commercial.show');
+        });
+
         // ── Disponibilités ─────────────────── (admin + MP + commercial) ──
         // Le commercial peut maintenant créer des réservations depuis l'espace
         // disponibilités (matrice DISPONIBILITÉS étendue). La policy
