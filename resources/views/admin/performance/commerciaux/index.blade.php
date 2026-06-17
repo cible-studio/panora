@@ -145,7 +145,7 @@
                         <th style="text-align:right">Reste dû</th>
                         <th style="text-align:right">Taux</th>
                         <th style="text-align:right">Panier moyen</th>
-                        <th style="text-align:right">Camps</th>
+                        <th style="text-align:right">Campagnes</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -172,7 +172,7 @@
                             <td style="text-align:right;font-weight:700">{{ $row['nb_campagnes'] }}</td>
                             <td style="text-align:right;white-space:nowrap">
                                 <a href="{{ route('admin.performance.commercial.show', $row['user']) }}"
-                                   class="btn btn-ghost btn-sm" style="font-size:11px">Drill →</a>
+                                   class="btn btn-ghost btn-sm" style="font-size:11px" title="Voir le détail de ce commercial">Détail →</a>
                             </td>
                         </tr>
                     @empty
