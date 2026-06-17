@@ -64,6 +64,13 @@ class TechnicienController extends Controller
             $data['whatsapp_number'] = $this->normalizeWhatsApp($data['whatsapp_number']);
         }
 
+        // Code agent — auto-généré au format TT-001, TT-002… si vide.
+        // Cohérent avec UserController et la convention historique du parc
+        // (User::generateAgentCode est la source unique de vérité).
+        $agentCode = !empty($data['agent_code'])
+            ? $data['agent_code']
+            : User::generateAgentCode('technique');
+
         // Génère un mot de passe random (jamais utilisé : le technicien ne
         // se connecte pas via /login) — mais Laravel exige un password hash
         // non-null dans la colonne. On stocke aussi un email auto si vide
@@ -73,7 +80,7 @@ class TechnicienController extends Controller
             'email'            => $data['email'] ?: 'tech_' . Str::random(8) . '@cible-ci.com',
             'password'         => Hash::make(Str::random(40)),
             'role'             => UserRole::TECHNIQUE,
-            'agent_code'       => $data['agent_code'] ?? null,
+            'agent_code'       => $agentCode,
             'whatsapp_number'  => $data['whatsapp_number'] ?? null,
             'is_active'        => true,
         ]);
