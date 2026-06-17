@@ -9,6 +9,11 @@ use App\Models\User;
  * RBAC factures :
  *
  *   Admin       → tout (view + manage + status + delete + export PDF)
+ *   Comptable   → voir TOUTES, saisir paiements, marquer payé/litige,
+ *                 générer/modifier échéancier, exporter PDF/rapports.
+ *                 N'a PAS la création/édition/suppression de facture ni
+ *                 markCancelled (réservés à l'admin pour éviter de fausser
+ *                 la comptabilité par erreur).
  *   MP          → lecture seule (index/show/PDF/exports liste)
  *   Commercial  → lecture seule, RESTREINTE à SES factures (factures liées
  *                 à des campagnes qui lui sont assignées — cf.
@@ -33,16 +38,20 @@ class InvoicePolicy
         return in_array($user->role, [
             UserRole::COMMERCIAL,
             UserRole::MEDIAPLANNER,
+            UserRole::COMPTABLE,
         ], true);
     }
 
     /**
      * Voir une facture précise. Le commercial doit en être propriétaire
-     * (via la campagne liée). MP voit tout (consolidation média).
+     * (via la campagne liée). MP + Comptable voient tout (consolidation
+     * média / vision comptable globale).
      */
     public function view(User $user, Invoice $invoice): bool
     {
-        if ($user->role === UserRole::MEDIAPLANNER) return true;
+        if (in_array($user->role, [UserRole::MEDIAPLANNER, UserRole::COMPTABLE], true)) {
+            return true;
+        }
         if ($user->role === UserRole::COMMERCIAL) {
             return $invoice->belongsToCommercialUser((int) $user->id);
         }
@@ -59,14 +68,25 @@ class InvoicePolicy
         return $this->view($user, $invoice);
     }
 
-    /** Création / modification / suppression / statut : Admin uniquement.
-     * (Le before() admin capte déjà — ces méthodes retournent false pour
-     *  tous les autres rôles, MP inclus, par cohérence métier.) */
-    public function create(User $user): bool         { return false; }
-    public function update(User $user, Invoice $invoice): bool      { return false; }
-    public function delete(User $user, Invoice $invoice): bool      { return false; }
-    public function markSent(User $user, Invoice $invoice): bool    { return false; }
-    public function markPaid(User $user, Invoice $invoice): bool    { return false; }
+    /** Création / édition / suppression / annulation : Admin uniquement. */
+    public function create(User $user): bool                          { return false; }
+    public function update(User $user, Invoice $invoice): bool        { return false; }
+    public function delete(User $user, Invoice $invoice): bool        { return false; }
     public function markCancelled(User $user, Invoice $invoice): bool { return false; }
     public function revertDraft(User $user, Invoice $invoice): bool   { return false; }
+
+    /**
+     * Transitions de statut (envoyer, marquer payé/litige) : Admin et
+     * Comptable. Le comptable a besoin de pouvoir solder une facture
+     * et l'enregistrer en litige (cf. cas migration + recouvrement).
+     */
+    public function markSent(User $user, Invoice $invoice): bool
+    {
+        return $user->role === UserRole::COMPTABLE;
+    }
+
+    public function markPaid(User $user, Invoice $invoice): bool
+    {
+        return $user->role === UserRole::COMPTABLE;
+    }
 }

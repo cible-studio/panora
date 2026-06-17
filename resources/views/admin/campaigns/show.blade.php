@@ -310,7 +310,15 @@
                     {{-- Créée par --}}
                     <div class="rounded-xl p-4 border" style="background:var(--surface2);border-color:var(--border)">
                         <div class="text-xs uppercase font-semibold mb-2" style="color:var(--text3)">👨‍💻 Créée par</div>
-                        <div style="color:var(--text)">{{ $campaign->user?->name ?? '—' }}</div>
+                        <div style="color:var(--text)">
+                            @if($campaign->user)
+                                <a href="{{ route('admin.campaigns.index', ['commercial_user_id' => $campaign->user->id]) }}"
+                                   style="color:var(--text);text-decoration:none;border-bottom:1px dashed var(--border)"
+                                   title="Voir les campagnes de {{ $campaign->user->name }}">{{ $campaign->user->name }}</a>
+                            @else
+                                —
+                            @endif
+                        </div>
                         <div class="text-xs mt-1" style="color:var(--text3)">{{ $campaign->created_at->format('d/m/Y H:i') }}</div>
                     </div>
 
@@ -329,9 +337,17 @@
                                    title="Réassigner">✏️</a>
                             @endif
                         </div>
-                        <div style="color:var(--text)">{{ $com->name }}</div>
+                        <div style="color:var(--text)">
+                            <a href="{{ route('admin.campaigns.index', ['commercial_user_id' => $com->id]) }}"
+                               style="color:var(--text);text-decoration:none;border-bottom:1px dashed var(--border)"
+                               title="Voir toutes les campagnes de {{ $com->name }}">{{ $com->name }}</a>
+                        </div>
                         @if($com->email)
-                            <div class="text-xs mt-1" style="color:var(--text3)">{{ $com->email }}</div>
+                            <div class="text-xs mt-1">
+                                <a href="mailto:{{ $com->email }}"
+                                   style="color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--border)"
+                                   title="Envoyer un email">{{ $com->email }}</a>
+                            </div>
                         @endif
                         @if($campaign->commercial_user_id === null)
                             <div class="text-[10px] mt-1" style="color:var(--text3);font-style:italic">Hérité du créateur</div>
@@ -1136,9 +1152,17 @@
                         onmouseover="this.style.background='var(--surface2)'"
                         onmouseout="this.style.background='transparent'">
                         <td class="px-5 py-4">
-                            <span class="font-mono text-sm font-bold" style="color:var(--accent)">{{ $panel->reference }}</span>
+                            <a href="{{ route('admin.panels.show', $panel) }}"
+                               class="font-mono text-sm font-bold"
+                               style="color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--border)"
+                               title="Voir la fiche panneau">{{ $panel->reference }}</a>
                         </td>
-                        <td class="px-5 py-4 font-medium" style="color:var(--text)">{{ $panel->name }}</td>
+                        <td class="px-5 py-4 font-medium" style="color:var(--text)">
+                            <a href="{{ route('admin.panels.show', $panel) }}"
+                               style="color:var(--text);text-decoration:none;border-bottom:1px dashed transparent"
+                               onmouseover="this.style.borderColor='var(--border)'"
+                               onmouseout="this.style.borderColor='transparent'">{{ $panel->name }}</a>
+                        </td>
                         <td class="px-5 py-4" style="color:var(--text2)">{{ $panel->commune?->name ?? '—' }}</td>
                         <td class="px-5 py-4" style="color:var(--text2)">{{ $panel->format?->name ?? '—' }}</td>
                         <td class="px-5 py-4">

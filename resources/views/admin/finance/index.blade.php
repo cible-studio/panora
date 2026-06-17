@@ -14,6 +14,21 @@
     $fmt = fn($v) => number_format($v, 0, ',', ' ');
 @endphp
 
+{{-- Erreurs de validation (modale d'enregistrement relance, autres formulaires de la page).
+     Avant : la modale relance avait `required` HTML5, mais si l'utilisateur passait
+     outre (script désactivé, navigateur permissif), la validation backend refusait
+     silencieusement. Le user pensait que l'enregistrement avait marché. --}}
+@if($errors->any())
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.30);border-radius:10px;padding:12px 16px;margin-bottom:14px;color:#b91c1c">
+        <div style="font-weight:800;font-size:13px;margin-bottom:6px">⚠ Le formulaire n'a pas pu être enregistré :</div>
+        <ul style="margin:0;padding-left:20px;font-size:12.5px;line-height:1.6">
+            @foreach($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
 {{-- ════ BARRE DE PÉRIODE / FILTRES ════ --}}
 <form method="GET" class="fin-filter-card">
     <input type="hidden" name="tab" value="{{ $tab }}">
@@ -53,37 +68,72 @@
     </div>
 </form>
 
-{{-- ════ KPI CARDS ════ --}}
+{{-- ════ KPI CARDS — cliquables, pointent vers le détail correspondant ════ --}}
+@php
+    // Les 4 KPI deviennent des liens contextuels :
+    //   • Encaissé           → onglet Encaissements + ancre sur le détail versements
+    //   • Total dû           → onglet Créances (balance âgée + factures impayées)
+    //   • En retard          → liste factures filtrée sur statut 'en_retard'
+    //   • Taux recouvrement  → onglet Recouvrement (clients à relancer)
+    $periodQuery = array_filter([
+        'period' => request('period'),
+        'from'   => request('from'),
+        'to'     => request('to'),
+    ], fn($v) => $v !== null && $v !== '');
+@endphp
 <div class="fin-kpi-grid">
-    <div class="kpi-card" style="--kpi-color:#22c55e">
+    <a href="{{ route('admin.finance.index', array_merge($periodQuery, ['tab' => 'encaissements'])) }}#detail-versements"
+       class="kpi-card kpi-card--link" style="--kpi-color:#22c55e"
+       title="Voir le détail des versements de la période">
         <div class="kpi-card__top-bar" style="background:#22c55e"></div>
         <div class="kpi-card__icon" style="color:#22c55e">💵</div>
         <div class="kpi-card__value" style="color:#22c55e;font-size:20px">{{ $fmt($kpis['encaisse']) }}</div>
         <div class="kpi-card__label">Encaissé</div>
-        <div class="kpi-card__sub">sur la période · FCFA</div>
-    </div>
-    <div class="kpi-card" style="--kpi-color:#f97316">
+        <div class="kpi-card__sub">sur la période · FCFA · <span style="color:#22c55e;font-weight:700">voir détail →</span></div>
+    </a>
+    <a href="{{ route('admin.finance.index', array_merge($periodQuery, ['tab' => 'creances'])) }}"
+       class="kpi-card kpi-card--link" style="--kpi-color:#f97316"
+       title="Voir la balance âgée et les factures impayées">
         <div class="kpi-card__top-bar" style="background:#f97316"></div>
         <div class="kpi-card__icon" style="color:#f97316">⏳</div>
         <div class="kpi-card__value" style="color:#f97316;font-size:20px">{{ $fmt($kpis['du']) }}</div>
         <div class="kpi-card__label">Total dû</div>
-        <div class="kpi-card__sub">toutes factures actives · FCFA</div>
-    </div>
-    <div class="kpi-card" style="--kpi-color:#ef4444">
+        <div class="kpi-card__sub">toutes factures actives · FCFA · <span style="color:#f97316;font-weight:700">voir créances →</span></div>
+    </a>
+    <a href="{{ route('admin.invoices.index', ['status' => 'en_retard']) }}"
+       class="kpi-card kpi-card--link" style="--kpi-color:#ef4444"
+       title="Liste des factures dont une échéance est dépassée">
         <div class="kpi-card__top-bar" style="background:#ef4444"></div>
         <div class="kpi-card__icon" style="color:#ef4444">🔴</div>
         <div class="kpi-card__value" style="color:#ef4444;font-size:20px">{{ $fmt($kpis['en_retard']) }}</div>
         <div class="kpi-card__label">En retard</div>
-        <div class="kpi-card__sub">échéance dépassée · FCFA</div>
-    </div>
-    <div class="kpi-card" style="--kpi-color:#3b82f6">
+        <div class="kpi-card__sub">échéance dépassée · FCFA · <span style="color:#ef4444;font-weight:700">voir factures →</span></div>
+    </a>
+    <a href="{{ route('admin.finance.index', array_merge($periodQuery, ['tab' => 'recouvrement'])) }}"
+       class="kpi-card kpi-card--link" style="--kpi-color:#3b82f6"
+       title="Ouvrir le recouvrement et les clients à relancer">
         <div class="kpi-card__top-bar" style="background:#3b82f6"></div>
         <div class="kpi-card__icon" style="color:#3b82f6">📊</div>
         <div class="kpi-card__value" style="color:#3b82f6;font-size:20px">{{ $kpis['taux_recouvrement'] }}%</div>
         <div class="kpi-card__label">Taux de recouvrement</div>
-        <div class="kpi-card__sub">encaissé ÷ facturé période</div>
-    </div>
+        <div class="kpi-card__sub">encaissé ÷ facturé période · <span style="color:#3b82f6;font-weight:700">recouvrement →</span></div>
+    </a>
 </div>
+
+<style>
+/* KPI cliquables — feedback hover + reset des styles <a> par défaut */
+.kpi-card--link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: transform .15s, box-shadow .15s, border-color .15s;
+}
+.kpi-card--link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0,0,0,.10);
+    border-color: var(--kpi-color);
+}
+</style>
 
 {{-- ════ ONGLETS ════ --}}
 <div class="fin-tabs">

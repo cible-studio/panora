@@ -10,7 +10,7 @@
         'partielle' => ['bg' => 'rgba(245,158,11,.12)', 'color' => '#b45309', 'bar' => '#f59e0b', 'label' => 'Partielle',   'icon' => '⏳'],
         'en_retard' => ['bg' => 'rgba(239,68,68,.12)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'label' => 'En retard',   'icon' => '🔴'],
         'annulee'   => ['bg' => 'rgba(107,114,128,.12)','color' => '#4b5563', 'bar' => '#9ca3af', 'label' => 'Annulée',     'icon' => '🚫'],
-        default     => ['bg' => 'rgba(239,68,68,.08)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'label' => 'Non payée',   'icon' => '❌'],
+        default     => ['bg' => 'rgba(239,68,68,.08)',  'color' => '#b91c1c', 'bar' => '#ef4444', 'label' => 'Non soldée',  'icon' => '❌'],
     };
 @endphp
 <tr data-invoice-row="{{ $invoice->id }}" data-status="{{ $invoice->status }}">
@@ -57,7 +57,7 @@
                 @case('validee')             <span style="font-size:9.5px;color:#0e7490;text-transform:uppercase;letter-spacing:.3px">🔒 Validée</span> @break
                 @case('envoyee')             <span style="font-size:9.5px;color:#1d4ed8;text-transform:uppercase;letter-spacing:.3px">📤 Envoyée</span> @break
                 @case('partiellement_payee') <span style="font-size:9.5px;color:#b45309;text-transform:uppercase;letter-spacing:.3px">⏳ Partielle</span> @break
-                @case('payee')               <span style="font-size:9.5px;color:#15803d;text-transform:uppercase;letter-spacing:.3px">✅ Payée</span> @break
+                @case('payee')               <span style="font-size:9.5px;color:#15803d;text-transform:uppercase;letter-spacing:.3px">✅ Soldée</span> @break
                 @case('en_retard')           <span style="font-size:9.5px;color:#b91c1c;text-transform:uppercase;letter-spacing:.3px">🔴 En retard</span> @break
                 @case('litige')              <span style="font-size:9.5px;color:#9a3412;text-transform:uppercase;letter-spacing:.3px">⚠ Litige</span> @break
                 @case('annulee')             <span style="font-size:9.5px;color:#b91c1c;text-transform:uppercase;letter-spacing:.3px">🚫 Annulée</span> @break
@@ -67,16 +67,23 @@
     <td>
         @if($nextDue)
             @php $st = $nextDue->state(); @endphp
-            <div style="font-size:11.5px;font-weight:700;color:{{ $st === 'overdue' ? '#b91c1c' : ($st === 'soon' ? '#b45309' : 'var(--text2)') }}">
+            <div style="font-size:11.5px;font-weight:700;color:{{ $st === 'overdue' ? '#b91c1c' : ($st === 'soon' ? '#b45309' : ($st === 'partial' ? '#b45309' : 'var(--text2)')) }}">
                 {{ $nextDue->due_date->format('d/m/Y') }}
             </div>
             <div style="font-size:10px;color:var(--text3);margin-top:1px">
-                {{ $nextDue->label ?? 'Échéance' }} · {{ number_format((float) $nextDue->amount, 0, ',', ' ') }} F
+                {{ $nextDue->label ?? 'Échéance' }} ·
+                @if($st === 'partial')
+                    {{ number_format((float) $nextDue->paid_amount, 0, ',', ' ') }} / {{ number_format((float) $nextDue->amount, 0, ',', ' ') }} F
+                @else
+                    {{ number_format((float) $nextDue->amount, 0, ',', ' ') }} F
+                @endif
             </div>
             @if($st === 'overdue')
                 <span style="display:inline-block;margin-top:2px;background:rgba(239,68,68,.15);color:#b91c1c;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800">🔴 RELANCER ({{ abs($nextDue->daysUntilDue()) }}j)</span>
             @elseif($st === 'soon')
                 <span style="display:inline-block;margin-top:2px;background:rgba(245,158,11,.12);color:#b45309;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800">⏰ DANS {{ $nextDue->daysUntilDue() }}j</span>
+            @elseif($st === 'partial')
+                <span style="display:inline-block;margin-top:2px;background:rgba(245,158,11,.12);color:#b45309;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800">⏳ PARTIELLE {{ rtrim(rtrim(number_format($nextDue->paymentPercentage(), 1, ',', ''), '0'), ',') }} %</span>
             @endif
         @else
             <span style="color:var(--text3);font-size:11px">—</span>

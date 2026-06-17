@@ -27,6 +27,7 @@ class PanelPolicy
         return in_array($user->role, [
             UserRole::COMMERCIAL,
             UserRole::MEDIAPLANNER,
+            UserRole::COMPTABLE,
             UserRole::TECHNIQUE,
         ], true);
     }

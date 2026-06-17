@@ -106,6 +106,7 @@
                     <select name="role" required>
                         <option value="commercial"   {{ old('role') === 'commercial'   ? 'selected' : '' }}>💼 Commercial</option>
                         <option value="mediaplanner" {{ old('role') === 'mediaplanner' ? 'selected' : '' }}>🗓️ Media Planner</option>
+                        <option value="comptable"    {{ old('role') === 'comptable'    ? 'selected' : '' }}>📊 Comptable</option>
                         <option value="technique"    {{ old('role') === 'technique'    ? 'selected' : '' }}>🔧 Technicien</option>
                         <option value="admin"        {{ old('role') === 'admin'        ? 'selected' : '' }}>🛡️ Administrateur</option>
                     </select>

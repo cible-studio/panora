@@ -5,7 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @include('partials.cache-fallback')
-    <title>CIBLE CI — {{ $title ?? 'Connexion' }}</title>
+    <title>Panora — {{ $title ?? 'Connexion' }}</title>
+
+    {{-- Favicon Panora — même rendu que /admin pour la cohérence
+         visuelle de l'onglet (sinon le globe 🌐 par défaut s'affichait
+         sur les pages d'auth alors que /admin avait bien le logo). --}}
+    <link rel="icon" href="{{ asset('images/faviconl.png') }}" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="{{ asset('images/favicond.png') }}" media="(prefers-color-scheme: dark)">
+    <link rel="apple-touch-icon" href="{{ asset('images/faviconl.png') }}">
 
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 

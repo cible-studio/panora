@@ -737,6 +737,21 @@ class AlertService
                 'avancement_pose',
             ],
 
+            // Comptable : vision financière consolidée — toutes les alertes
+            // facturation/recouvrement/taxes (broadcasts cron user_id NULL),
+            // pas les alertes opérationnelles (pose/pige/maintenance).
+            'comptable' => [
+                // Échéancier facture (CheckDueDates)
+                'echeance_proche_j7', 'echeance_proche_j3', 'echeance_depassee',
+                // Recouvrement / relances
+                'relance_envoyee', 'facture_en_retard', 'facture_litige',
+                // Taxes communales
+                'taxe_due_soon', 'taxe_en_retard', 'taxe_payee',
+                // Cycle de vie facture
+                'facture_emise', 'facture_payee', 'facture_partiellement_payee',
+                'facture_annulee', 'facture_litige',
+            ],
+
             // Commercial : reste strict — uniquement ses alertes ciblées.
             // Ses alertes pertinentes (reservation_nouvelle sur sa résa, etc.)
             // doivent être créées avec opts['user_id' => $commercialId] côté

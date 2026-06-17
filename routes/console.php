@@ -78,14 +78,22 @@ Schedule::command('taxes:notify-due-soon', ['--days' => 15])
     ->withoutOverlapping();
 
 // 11. Récaps périodiques (équipe + direction + comptable).
+//     Décision métier : pas de récap email le samedi/dimanche (aucune
+//     activité opérationnelle ces jours-là → contenu vide et bruit dans
+//     les boîtes mail). Le recap weekly tombe déjà sur le lundi, donc
+//     non concerné. Pour le monthly : si le 1er tombe un weekend, on
+//     skip — le récap mensuel est non-critique et sera couvert par le
+//     mensuel du mois suivant.
 Schedule::command('recap:daily')
     ->dailyAt('18:00')
+    ->weekdays()
     ->withoutOverlapping();
 Schedule::command('recap:weekly-direction')
     ->mondays()->at('08:00')
     ->withoutOverlapping();
 Schedule::command('recap:monthly')
     ->monthlyOn(1, '06:00')
+    ->weekdays()
     ->withoutOverlapping();
 
 // 12. Purge mensuelle des PublicLinks expirés/révoqués (> 90j).

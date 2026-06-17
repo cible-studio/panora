@@ -142,6 +142,26 @@
                 </select>
             </div>
 
+            {{-- Filtre commercial assigné — RÉSERVÉ admin + Media Planner
+                 (suivi du portefeuille des commerciaux). Le commercial lui-même
+                 ne voit que ses campagnes via le scope auth (redondant), et le
+                 comptable n'a pas l'info de pilotage portefeuille.
+                 Réutilise la même logique d'appartenance (assigné direct, via
+                 résa, ou créateur) que le scope commercial natif. --}}
+            @if(in_array(auth()->user()?->role?->value, ['admin', 'mediaplanner'], true))
+            <div class="filter-group">
+                <label class="filter-label">💼 Commercial</label>
+                <select id="filter-commercial" class="filter-select" data-filter="commercial_user_id">
+                    <option value="">Tous</option>
+                    @foreach($commerciaux ?? [] as $com)
+                    <option value="{{ $com->id }}" {{ request('commercial_user_id') == $com->id ? 'selected' : '' }}>
+                        {{ $com->name }}
+                    </option>
+                    @endforeach
+                </select>
+            </div>
+            @endif
+
             <div class="filter-group">
                 <label class="filter-label">📅 Du</label>
                 <input type="date" id="filter-date-from" class="filter-input" 
@@ -862,6 +882,39 @@
     </style>
 
     @push('scripts')
+{{-- Select2 — recherche live sur les filtres Client + Commercial.
+     CDN partagé avec les autres vues qui en ont besoin
+     (invoices/index, campaigns/create, etc.). --}}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+
+<style>
+/* Harmonise la pillule Select2 avec les autres filter-select natifs. */
+.select2-container--default .select2-selection--single {
+    height: 40px !important;
+    padding: 0 4px !important;
+    background: var(--surface2) !important;
+    border: 1px solid var(--border2, var(--border)) !important;
+    border-radius: 10px !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 40px !important;
+    color: var(--text) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow { height: 38px !important; }
+.select2-dropdown { border-radius: 10px !important; border-color: var(--border2, var(--border)) !important; }
+.select2-search--dropdown .select2-search__field {
+    border-radius: 8px !important;
+    border-color: var(--border2, var(--border)) !important;
+    padding: 8px 10px !important;
+    font-size: 13px !important;
+}
+.select2-results__option--highlighted { background: var(--accent) !important; color: #fff !important; }
+</style>
+
 <script>
 // ══ MODAL FACTURATION RAPIDE ══
 let _billCampaignId = null;
@@ -1020,6 +1073,7 @@ document.addEventListener('keydown', e => {
         non_facturee: '',
         commune_id: '',
         zone_id: '',
+        commercial_user_id: '',
         page: 1
     };
     let isLoading = false;
@@ -1036,6 +1090,7 @@ document.addEventListener('keydown', e => {
         currentFilters.non_facturee = urlParams.get('non_facturee') || '';
         currentFilters.commune_id = urlParams.get('commune_id') || '';
         currentFilters.zone_id = urlParams.get('zone_id') || '';
+        currentFilters.commercial_user_id = urlParams.get('commercial_user_id') || '';
 
         // Remplir les champs
         document.getElementById('filter-search').value = currentFilters.search;
@@ -1043,26 +1098,64 @@ document.addEventListener('keydown', e => {
         document.getElementById('filter-status').value = currentFilters.status;
         document.getElementById('filter-date-from').value = currentFilters.date_from;
         document.getElementById('filter-date-to').value = currentFilters.date_to;
-        
+
         const factureSelect = document.getElementById('filter-facture');
         if (factureSelect) factureSelect.value = currentFilters.non_facturee;
-        
+
         document.getElementById('filter-commune').value = currentFilters.commune_id;
         document.getElementById('filter-zone').value = currentFilters.zone_id;
+        const commercialSelect = document.getElementById('filter-commercial');
+        if (commercialSelect) commercialSelect.value = currentFilters.commercial_user_id;
+
+        // Init Select2 sur les filtres avec beaucoup d'options (client +
+        // commercial). IMPORTANT — Select2 4.x dispatch ses 'change' via
+        // le système d'événements jQuery qui n'est PAS systématiquement
+        // capté par addEventListener natif. On câble donc directement via
+        // jQuery .on('change', applyFilters) sur ces 2 selects pour
+        // garantir le déclenchement de la requête AJAX à chaque sélection.
+        const hasSelect2 = window.jQuery && window.jQuery.fn && window.jQuery.fn.select2;
+        if (hasSelect2) {
+            window.jQuery('#filter-client').select2({
+                placeholder: '🔍 Rechercher un client…',
+                allowClear: true,
+                width: '200px',
+                language: {
+                    noResults: () => 'Aucun client trouvé',
+                    searching: () => 'Recherche…',
+                },
+            }).on('change', applyFilters);
+
+            if (commercialSelect) {
+                window.jQuery('#filter-commercial').select2({
+                    placeholder: '🔍 Rechercher un commercial…',
+                    allowClear: true,
+                    width: '180px',
+                    language: {
+                        noResults: () => 'Aucun commercial',
+                        searching: () => 'Recherche…',
+                    },
+                }).on('change', applyFilters);
+            }
+        }
 
         updateActiveStat();
         updateResetButton();
 
-        // Événements
+        // Événements (selects non Select2 + inputs). Pour client et
+        // commercial le change est déjà câblé via jQuery .on() ci-dessus
+        // si Select2 est dispo ; on garde addEventListener en fallback.
         document.getElementById('filter-search').addEventListener('input', debounce(applyFilters, 400));
-        document.getElementById('filter-client').addEventListener('change', applyFilters);
+        if (!hasSelect2) {
+            document.getElementById('filter-client').addEventListener('change', applyFilters);
+            if (commercialSelect) commercialSelect.addEventListener('change', applyFilters);
+        }
         document.getElementById('filter-status').addEventListener('change', applyFilters);
         document.getElementById('filter-date-from').addEventListener('change', applyFilters);
         document.getElementById('filter-date-to').addEventListener('change', applyFilters);
-        
+
         const factureFilter = document.getElementById('filter-facture');
         if (factureFilter) factureFilter.addEventListener('change', applyFilters);
-        
+
         document.getElementById('filter-commune').addEventListener('change', applyFilters);
         document.getElementById('filter-zone').addEventListener('change', applyFilters);
         
@@ -1112,12 +1205,14 @@ document.addEventListener('keydown', e => {
         currentFilters.status = document.getElementById('filter-status').value;
         currentFilters.date_from = document.getElementById('filter-date-from').value;
         currentFilters.date_to = document.getElementById('filter-date-to').value;
-        
+
         const factureSelect = document.getElementById('filter-facture');
         currentFilters.non_facturee = factureSelect ? factureSelect.value : '';
-        
+
         currentFilters.commune_id = document.getElementById('filter-commune').value;
         currentFilters.zone_id = document.getElementById('filter-zone').value;
+        const commercialSelect = document.getElementById('filter-commercial');
+        currentFilters.commercial_user_id = commercialSelect ? commercialSelect.value : '';
         currentFilters.page = 1;
 
         updateResetButton();
@@ -1127,22 +1222,34 @@ document.addEventListener('keydown', e => {
 
     function resetFilters() {
         currentFilters = {
-            search: '', client_id: '', status: '', 
+            search: '', client_id: '', status: '',
             date_from: '', date_to: '', non_facturee: '',
-            commune_id: '', zone_id: '', page: 1
+            commune_id: '', zone_id: '',
+            commercial_user_id: '',
+            page: 1
         };
-        
+
         document.getElementById('filter-search').value = '';
-        document.getElementById('filter-client').value = '';
+        // Pour les <select> initialisés en Select2, on doit déclencher
+        // .trigger('change') sinon le widget garde l'ancien affichage.
+        if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+            window.jQuery('#filter-client').val('').trigger('change');
+            const $com = window.jQuery('#filter-commercial');
+            if ($com.length) $com.val('').trigger('change');
+        } else {
+            document.getElementById('filter-client').value = '';
+        }
         document.getElementById('filter-status').value = '';
         document.getElementById('filter-date-from').value = '';
         document.getElementById('filter-date-to').value = '';
-        
+
         const factureSelect = document.getElementById('filter-facture');
         if (factureSelect) factureSelect.value = '';
-        
+
         document.getElementById('filter-commune').value = '';
         document.getElementById('filter-zone').value = '';
+        const commercialSelect = document.getElementById('filter-commercial');
+        if (commercialSelect) commercialSelect.value = '';
 
         updateResetButton();
         updateActiveStat();
@@ -1164,10 +1271,11 @@ document.addEventListener('keydown', e => {
     }
 
     function updateResetButton() {
-        const hasFilters = currentFilters.search || currentFilters.client_id || 
-                           currentFilters.status || currentFilters.date_from || 
+        const hasFilters = currentFilters.search || currentFilters.client_id ||
+                           currentFilters.status || currentFilters.date_from ||
                            currentFilters.date_to || currentFilters.non_facturee ||
-                           currentFilters.commune_id || currentFilters.zone_id;
+                           currentFilters.commune_id || currentFilters.zone_id ||
+                           currentFilters.commercial_user_id;
         const resetWrapper = document.getElementById('reset-wrapper');
         if (resetWrapper) {
             resetWrapper.style.display = hasFilters ? 'flex' : 'none';
@@ -1192,6 +1300,7 @@ document.addEventListener('keydown', e => {
         if (currentFilters.non_facturee) params.set('non_facturee', currentFilters.non_facturee);
         if (currentFilters.commune_id) params.set('commune_id', currentFilters.commune_id);
         if (currentFilters.zone_id) params.set('zone_id', currentFilters.zone_id);
+        if (currentFilters.commercial_user_id) params.set('commercial_user_id', currentFilters.commercial_user_id);
         params.set('ajax', '1');
         params.set('page', currentFilters.page);
 
@@ -1264,9 +1373,10 @@ document.addEventListener('keydown', e => {
         if (currentFilters.date_to) params.set('date_to', currentFilters.date_to);
         if (currentFilters.commune_id) params.set('commune_id', currentFilters.commune_id);
         if (currentFilters.zone_id) params.set('zone_id', currentFilters.zone_id);
+        if (currentFilters.commercial_user_id) params.set('commercial_user_id', currentFilters.commercial_user_id);
         if (currentFilters.non_facturee) params.set('non_facturee', currentFilters.non_facturee);
         if (currentFilters.page > 1) params.set('page', currentFilters.page);
-        
+
         const query = params.toString();
         return query ? `${currentUrl}?${query}` : currentUrl;
     }

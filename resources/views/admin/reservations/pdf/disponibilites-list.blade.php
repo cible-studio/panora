@@ -160,6 +160,104 @@
             color: #9ca3af;
             text-align: center;
         }
+
+        /* ────────────────────────────────────────────────────────────
+           PAGE DE GARDE PAR COMMUNE — design simple & moderne
+           Aucun cadre, juste typographie + 2 fines lignes dorées
+           encadrant un kicker "COMMUNE" et le nom en grand.
+           Centrage vertical via padding-top calculé (DomPDF-safe).
+           ──────────────────────────────────────────────────────── */
+        .commune-cover {
+            page-break-before: always;
+            page-break-after: always;
+            padding-top: 85mm;
+            text-align: center;
+            background: #ffffff;
+        }
+        .cover-doc-type {
+            font-size: 11px;
+            font-weight: 800;
+            color: #c2570d;
+            letter-spacing: 10px;
+            text-transform: uppercase;
+            margin-bottom: 22px;
+        }
+        .cover-rule {
+            width: 60mm;
+            height: 1px;
+            background: #d4af37;
+            margin: 0 auto 28px;
+            font-size: 0;
+            line-height: 0;
+        }
+        .cover-rule.bottom {
+            margin: 32px auto 0;
+        }
+        .cover-kicker {
+            font-size: 10px;
+            font-weight: 700;
+            color: #d4af37;
+            letter-spacing: 7px;
+            text-transform: uppercase;
+            margin-bottom: 22px;
+        }
+        .cover-name {
+            font-size: 56px;
+            font-weight: 900;
+            color: #0d1117;
+            text-transform: uppercase;
+            letter-spacing: 7px;
+            line-height: 1;
+        }
+        .cover-period {
+            margin-top: 34px;
+            display: inline-block;
+            padding: 9px 22px;
+            background: #fff7ed;
+            border: 1px solid #fde6c9;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #4b5563;
+            letter-spacing: .5px;
+        }
+        .cover-period-label {
+            font-size: 9px;
+            font-weight: 800;
+            color: #c2570d;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            margin-right: 8px;
+        }
+        .cover-period strong {
+            color: #0d1117;
+            font-weight: 700;
+            letter-spacing: .3px;
+        }
+        .cover-period-arrow {
+            color: #d4af37;
+            margin: 0 8px;
+            font-weight: 700;
+        }
+
+        /* Section title au-dessus de chaque sous-tableau */
+        .section-commune-title {
+            margin: 6px 0 10px;
+            padding: 9px 14px;
+            background: #0d1117;
+            color: #fff;
+            border-left: 4px solid #e8a020;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .section-commune-title .accent { color: #e8a020; font-weight: 600; }
+        .section-commune-title .count {
+            font-size: 10px;
+            font-weight: 500;
+            color: #9ca3af;
+            margin-left: 6px;
+        }
     </style>
 </head>
 <body>
@@ -183,6 +281,50 @@
     // Pour afficher : envoyer show_pricing=1 (ou hide_status=0).
     $showPricing = $showPricing ?? !($hideStatus ?? true);
     $count       = count($panels);
+
+    // ── PÉRIODE EN FRANÇAIS ───────────────────────────────────────
+    // Formatage manuel : Carbon::translatedFormat() dépend du locale
+    // qui n'est pas toujours chargé côté DomPDF en prod.
+    $moisFr = [1=>'janvier', 2=>'février', 3=>'mars', 4=>'avril', 5=>'mai',
+               6=>'juin', 7=>'juillet', 8=>'août', 9=>'septembre',
+               10=>'octobre', 11=>'novembre', 12=>'décembre'];
+    $fmtPeriod = function ($d) use ($moisFr) {
+        if (!$d) return null;
+        try {
+            $c = \Carbon\Carbon::parse($d);
+            return $c->format('d') . ' ' . $moisFr[(int) $c->format('n')] . ' ' . $c->format('Y');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    };
+    $startFr = $fmtPeriod($startDate ?? null);
+    $endFr   = $fmtPeriod($endDate   ?? null);
+
+    // ── GROUPEMENT PAR COMMUNE ────────────────────────────────────
+    // Le client doit recevoir une page d'intro avant chaque
+    // sous-liste de panneaux concernant une même commune.
+    // $p->commune peut être un objet (Commune) ou une string → on
+    // résout vers une string pour pouvoir grouper proprement.
+    $resolveCommune = function ($p) {
+        $c = is_object($p) ? ($p->commune ?? null) : ($p['commune'] ?? null);
+        if (is_object($c)) {
+            return trim((string) ($c->name ?? '')) ?: '—';
+        }
+        return trim((string) $c) ?: '—';
+    };
+    $resolveZone = function ($p) {
+        $z = is_object($p) ? ($p->zone ?? null) : ($p['zone'] ?? null);
+        if (is_object($z)) {
+            return trim((string) ($z->name ?? ''));
+        }
+        return trim((string) $z);
+    };
+
+    $grouped = collect($panels)
+        ->sortBy(fn ($p) => $resolveCommune($p), SORT_NATURAL | SORT_FLAG_CASE)
+        ->groupBy(fn ($p) => $resolveCommune($p));
+
+    $totalGroups = $grouped->count();
 @endphp
 
 {{-- ── HEADER UNIFORME ── --}}
@@ -220,112 +362,134 @@
         </div>
     @endif
 
-    {{-- ── TABLEAU ── --}}
-    <table class="list">
-        <thead>
-            <tr>
-                <th style="width:9%">Réf.</th>
-                <th style="width:20%">Emplacement</th>
-                <th style="width:10%">Commune</th>
-                <th style="width:8%">Zone</th>
-                <th style="width:10%">Format</th>
-                <th style="width:8%">Dimensions</th>
-                <th style="width:10%">Catégorie</th>
-                <th style="width:5%">Éclair.</th>
-                <th class="num" style="width:7%">Trafic/j (estimatif)</th>
-                {{-- Statut affiché sauf si hide_status=1 — permet de générer
-                     un PDF "propre" sans information d'occupation interne. --}}
-                @if(!$hideStatus)
-                    <th style="width:8%">Statut</th>
-                @endif
-                @if($showPricing)
-                    <th class="num" style="width:9%">Prix HT/mois</th>
-                @endif
-            </tr>
-        </thead>
-        <tbody>
-            @php $hasOptionInList = false; @endphp
-            @foreach($panels as $p)
-                @php
-                    // Le contrôleur passe display_status (libre/option_periode/occupe/...)
-                    // + release_date (dernière fin de résa bloquante). Règle métier
-                    // PDF proposition : on n'affiche le badge QUE si le panneau est
-                    // réellement occupé (confirme/occupe). Tout le reste reste vide
-                    // pour ne pas polluer le doc commercial transmis au client.
-                    $statusValue = $p->display_status
-                        ?? (is_object($p->status ?? null) ? ($p->status->value ?? null) : ($p->status ?? null))
-                        ?? 'libre';
+    {{-- ── TABLEAUX PAR COMMUNE (avec page de garde) ── --}}
+    @php $hasOptionInList = false; @endphp
 
-                    $isOccupied = in_array($statusValue, ['occupe', 'occupé', 'confirme'], true);
-                    $releaseDate = $p->release_date ?? null;
-                    $releaseLabel = $releaseDate ? \Carbon\Carbon::parse($releaseDate)->format('d/m/Y') : null;
+    @foreach($grouped as $communeName => $groupPanels)
+        @php
+            $groupSize = count($groupPanels);
+        @endphp
 
-                    $statusMeta = $isOccupied
-                        ? [
-                            'label' => $releaseLabel ? 'Occupé jusqu\'au ' . $releaseLabel : 'Occupé',
-                            'class' => 'badge-occupe',
-                        ]
-                        : null;
+        {{-- ═══════════════════ PAGE DE GARDE COMMUNE (épuré) ═══════════════════ --}}
+        <div class="commune-cover">
+            <div class="cover-doc-type">Disponibilités</div>
+            <div class="cover-rule"></div>
+            <div class="cover-kicker">Commune</div>
+            <div class="cover-name">{{ $communeName }}</div>
+            <div class="cover-rule bottom"></div>
+            @if($startFr && $endFr)
+                <div class="cover-period">
+                    <span class="cover-period-label">Période</span>
+                    <strong>{{ $startFr }}</strong>
+                    <span class="cover-period-arrow">→</span>
+                    <strong>{{ $endFr }}</strong>
+                </div>
+            @endif
+        </div>
 
-                    if (in_array($statusValue, ['option', 'option_periode'], true)) {
-                        $hasOptionInList = true;
-                    }
-                    $traffic   = (int) ($p->daily_traffic ?? 0);
-                    $isLit     = (bool) ($p->is_lit ?? false);
-                    $reference = $p->reference ?? '—';
-                    $name      = $p->name      ?? '—';
-                    $communeVal = $p->commune ?? null;
-                    $commune    = is_object($communeVal) ? ($communeVal->name ?? '—') : ($communeVal ?? '—');
-                    $zoneVal    = $p->zone ?? null;
-                    $zone       = is_object($zoneVal) ? ($zoneVal->name ?? '—') : ($zoneVal ?? '—');
-                    $formatVal  = $p->format ?? null;
-                    $format     = is_object($formatVal) ? ($formatVal->name ?? '—') : ($formatVal ?? '—');
-                    $categoryVal = $p->category ?? null;
-                    $category    = is_object($categoryVal) ? ($categoryVal->name ?? '—') : ($categoryVal ?? '—');
-                    $rate      = (float) ($p->monthly_rate ?? 0);
+        {{-- ═══════════════════ SOUS-TABLEAU DE LA COMMUNE ═══════════════════ --}}
+        <div class="section-commune-title">
+            {{ $communeName }} <span class="accent">·</span> Liste détaillée
+            <span class="count">— {{ $groupSize }} {{ $groupSize > 1 ? 'emplacements' : 'emplacement' }}</span>
+        </div>
 
-                    $dims = null;
-                    if (is_object($formatVal) && isset($formatVal->width) && isset($formatVal->height) && $formatVal->width && $formatVal->height) {
-                        $w = rtrim(rtrim(number_format($formatVal->width, 2, '.', ''), '0'), '.');
-                        $h = rtrim(rtrim(number_format($formatVal->height, 2, '.', ''), '0'), '.');
-                        $dims = "{$w} × {$h} m";
-                    } elseif (isset($p->dimensions) && $p->dimensions) {
-                        $dims = $p->dimensions;
-                    }
-                @endphp
+        <table class="list">
+            <thead>
                 <tr>
-                    <td><span class="ref">{{ $reference }}</span></td>
-                    <td style="font-weight:500">{{ $name }}</td>
-                    <td>{{ $commune }}</td>
-                    <td>{{ $zone }}</td>
-                    <td>{{ $format }}</td>
-                    <td>{{ $dims ?? '—' }}</td>
-                    <td>{{ $category }}</td>
-                    <td>
-                        @if($isLit)
-                            <span class="lit-badge">💡 LED</span>
-                        @else
-                            <span class="non-lit-badge">—</span>
-                        @endif
-                    </td>
-                    <td class="num">{{ $traffic > 0 ? number_format($traffic, 0, ',', ' ') : '—' }}</td>
-                    {{-- Cellule Statut — masquée si hide_status=1 --}}
+                    <th style="width:10%">Réf.</th>
+                    <th style="width:24%">Emplacement</th>
+                    <th style="width:10%">Zone</th>
+                    <th style="width:12%">Format</th>
+                    <th style="width:10%">Dimensions</th>
+                    <th style="width:12%">Catégorie</th>
+                    <th style="width:6%">Éclair.</th>
+                    <th class="num" style="width:8%">Trafic/j (estimatif)</th>
                     @if(!$hideStatus)
-                        <td>
-                            @if($statusMeta)
-                                <span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span>
-                            @endif
-                        </td>
+                        <th style="width:9%">Statut</th>
                     @endif
                     @if($showPricing)
-                        <td class="num" style="font-weight:600;color:#c2570d">
-                            {{ $rate > 0 ? number_format($rate, 0, ',', ' ') : '—' }}
-                        </td>
+                        <th class="num" style="width:10%">Prix HT/mois</th>
                     @endif
                 </tr>
-            @endforeach
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach($groupPanels as $p)
+                    @php
+                        $statusValue = (is_object($p) ? ($p->display_status ?? null) : ($p['display_status'] ?? null))
+                            ?? (is_object($p) && is_object($p->status ?? null) ? ($p->status->value ?? null) : (is_object($p) ? ($p->status ?? null) : ($p['status'] ?? null)))
+                            ?? 'libre';
+
+                        $isOccupied   = in_array($statusValue, ['occupe', 'occupé', 'confirme'], true);
+                        $releaseDate  = is_object($p) ? ($p->release_date ?? null) : ($p['release_date'] ?? null);
+                        $releaseLabel = $releaseDate ? \Carbon\Carbon::parse($releaseDate)->format('d/m/Y') : null;
+
+                        $statusMeta = $isOccupied
+                            ? [
+                                'label' => $releaseLabel ? 'Occupé jusqu\'au ' . $releaseLabel : 'Occupé',
+                                'class' => 'badge-occupe',
+                            ]
+                            : null;
+
+                        if (in_array($statusValue, ['option', 'option_periode'], true)) {
+                            $hasOptionInList = true;
+                        }
+
+                        $traffic   = (int) (is_object($p) ? ($p->daily_traffic ?? 0) : ($p['daily_traffic'] ?? 0));
+                        $isLit     = (bool) (is_object($p) ? ($p->is_lit ?? false) : ($p['is_lit'] ?? false));
+                        $reference = (is_object($p) ? ($p->reference ?? '—') : ($p['reference'] ?? '—'));
+                        $name      = (is_object($p) ? ($p->name      ?? '—') : ($p['name']      ?? '—'));
+                        $zone      = $resolveZone($p) ?: '—';
+
+                        $formatVal = is_object($p) ? ($p->format ?? null) : ($p['format'] ?? null);
+                        $format    = is_object($formatVal) ? ($formatVal->name ?? '—') : ($formatVal ?? '—');
+
+                        $categoryVal = is_object($p) ? ($p->category ?? null) : ($p['category'] ?? null);
+                        $category    = is_object($categoryVal) ? ($categoryVal->name ?? '—') : ($categoryVal ?? '—');
+
+                        $rate = (float) (is_object($p) ? ($p->monthly_rate ?? 0) : ($p['monthly_rate'] ?? 0));
+
+                        $dims = null;
+                        if (is_object($formatVal) && isset($formatVal->width) && isset($formatVal->height) && $formatVal->width && $formatVal->height) {
+                            $w = rtrim(rtrim(number_format($formatVal->width, 2, '.', ''), '0'), '.');
+                            $h = rtrim(rtrim(number_format($formatVal->height, 2, '.', ''), '0'), '.');
+                            $dims = "{$w} × {$h} m";
+                        } else {
+                            $rawDims = is_object($p) ? ($p->dimensions ?? null) : ($p['dimensions'] ?? null);
+                            if ($rawDims) $dims = $rawDims;
+                        }
+                    @endphp
+                    <tr>
+                        <td><span class="ref">{{ $reference }}</span></td>
+                        <td style="font-weight:500">{{ $name }}</td>
+                        <td>{{ $zone }}</td>
+                        <td>{{ $format }}</td>
+                        <td>{{ $dims ?? '—' }}</td>
+                        <td>{{ $category }}</td>
+                        <td>
+                            @if($isLit)
+                                <span class="lit-badge">💡 LED</span>
+                            @else
+                                <span class="non-lit-badge">—</span>
+                            @endif
+                        </td>
+                        <td class="num">{{ $traffic > 0 ? number_format($traffic, 0, ',', ' ') : '—' }}</td>
+                        @if(!$hideStatus)
+                            <td>
+                                @if($statusMeta)
+                                    <span class="badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span>
+                                @endif
+                            </td>
+                        @endif
+                        @if($showPricing)
+                            <td class="num" style="font-weight:600;color:#c2570d">
+                                {{ $rate > 0 ? number_format($rate, 0, ',', ' ') : '—' }}
+                            </td>
+                        @endif
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endforeach
 
     {{-- ── NOTE LÉGALE OPTIONS — affichée seulement si la liste contient
          au moins un panneau "En option". L'admin sait que ces lignes ne

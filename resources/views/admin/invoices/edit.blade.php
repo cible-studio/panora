@@ -31,12 +31,23 @@
          statut). Si verrouillée → bandeau d'avertissement explicite.
     ════════════════════════════════════════════════════════════════ --}}
     @php
-        $statusCfg = match($invoice->status) {
-            'brouillon' => ['bg' => 'rgba(107,114,128,.10)', 'color' => '#4b5563', 'label' => '📝 Brouillon'],
-            'envoyee'   => ['bg' => 'rgba(59,130,246,.10)',  'color' => '#1d4ed8', 'label' => '📤 Envoyée'],
-            'payee'     => ['bg' => 'rgba(34,197,94,.10)',   'color' => '#15803d', 'label' => '✅ Payée'],
-            'annulee'   => ['bg' => 'rgba(239,68,68,.10)',   'color' => '#b91c1c', 'label' => '🚫 Annulée'],
-        };
+        // Couvre les 9 statuts du cycle de vie (cahier §3). Avant : 4 sur 9
+        // → UnhandledMatchError 500 dès que la facture passait en
+        // generee/validee/partiellement_payee/en_retard/litige et qu'on
+        // ouvrait /edit. Label centralisé via Invoice::statusLabel().
+        $statusPalette = [
+            'brouillon'           => ['bg' => 'rgba(107,114,128,.10)', 'color' => '#4b5563', 'icon' => '📝'],
+            'generee'             => ['bg' => 'rgba(232,160,32,.10)',  'color' => '#a16207', 'icon' => '📋'],
+            'validee'             => ['bg' => 'rgba(99,102,241,.10)',  'color' => '#4338ca', 'icon' => '🔒'],
+            'envoyee'             => ['bg' => 'rgba(59,130,246,.10)',  'color' => '#1d4ed8', 'icon' => '📤'],
+            'partiellement_payee' => ['bg' => 'rgba(245,158,11,.10)',  'color' => '#b45309', 'icon' => '⏳'],
+            'payee'               => ['bg' => 'rgba(34,197,94,.10)',   'color' => '#15803d', 'icon' => '✅'],
+            'en_retard'           => ['bg' => 'rgba(239,68,68,.10)',   'color' => '#b91c1c', 'icon' => '⚠️'],
+            'litige'              => ['bg' => 'rgba(244,63,94,.10)',   'color' => '#9f1239', 'icon' => '⚖️'],
+            'annulee'             => ['bg' => 'rgba(107,114,128,.10)', 'color' => '#374151', 'icon' => '🚫'],
+        ];
+        $statusCfg = $statusPalette[$invoice->status] ?? ['bg' => 'rgba(107,114,128,.10)', 'color' => '#4b5563', 'icon' => '📝'];
+        $statusCfg['label'] = $statusCfg['icon'] . ' ' . \App\Models\Invoice::statusLabel($invoice->status);
     @endphp
     <div style="background:linear-gradient(135deg,rgba(232,160,32,.06) 0%,rgba(180,83,9,.04) 100%);border:1px solid var(--border);border-radius:16px;padding:20px 26px;margin-bottom:14px;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
         <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent-dark));display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 6px 16px rgba(232,160,32,.25);font-size:22px">

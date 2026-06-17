@@ -158,6 +158,7 @@ class FinancialDashboardService
                 'invoice_ref'  => $p->invoice?->reference ?? '—',
                 'client_id'    => $p->invoice?->client_id,
                 'client_name'  => $p->invoice?->client?->name ?? '—',
+                'creator_id'   => $p->creator?->id,
                 'creator_name' => $p->creator?->name ?? '—',
             ]);
     }
@@ -451,16 +452,26 @@ class FinancialDashboardService
             }
         }
 
-        // Dernière relance par client
-        $lastByClient = Relance::query()
+        // Dernière relance par client + suite donnée + auteur. Permet
+        // d'afficher "le 16/06 par TANELLA — Suite : RDV le 22/06" dans
+        // le tableau Clients à relancer.
+        $lastRelances = Relance::query()
             ->whereIn('client_id', array_keys($byClient))
-            ->select('client_id', DB::raw('MAX(relance_date) as last_date'))
+            ->with('user:id,name')
+            ->orderByDesc('relance_date')
+            ->orderByDesc('id')
+            ->get()
             ->groupBy('client_id')
-            ->pluck('last_date', 'client_id');
+            ->map(fn($g) => $g->first()); // garde la plus récente par client
 
         foreach ($byClient as $cid => &$row) {
-            $row['derniere_relance'] = $lastByClient[$cid] ?? null;
-            $row['total_du']         = round($row['total_du'], 2);
+            $last = $lastRelances->get($cid);
+            $row['derniere_relance']         = $last?->relance_date;
+            $row['derniere_relance_suite']   = $last?->suite_donnee;
+            $row['derniere_relance_outcome'] = $last?->outcome;
+            $row['derniere_relance_user']    = $last?->user?->name;
+            $row['derniere_relance_user_id'] = $last?->user_id;
+            $row['total_du']                 = round($row['total_du'], 2);
         }
 
         $coll = collect($byClient)->values();

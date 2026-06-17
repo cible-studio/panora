@@ -532,7 +532,7 @@ foreach ($pigesVerif as $panelId => $panelPigeGroup) {
             </div>
             @if(!empty($inv->paid_at))
             <span style="font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;background:rgba(34,197,94,.1);color:#22c55e;border:1px solid rgba(34,197,94,.2);">
-                ✓ Payée le {{ \Carbon\Carbon::parse($inv->paid_at)->format('d/m/Y') }}
+                ✓ Soldée le {{ \Carbon\Carbon::parse($inv->paid_at)->format('d/m/Y') }}
             </span>
             @else
             <span style="font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;background:rgba(250,184,11,.1);color:#fab80b;border:1px solid rgba(250,184,11,.2);">

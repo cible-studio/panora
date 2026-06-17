@@ -6,6 +6,7 @@ enum UserRole: string
     case ADMIN        = 'admin';
     case COMMERCIAL   = 'commercial';
     case MEDIAPLANNER = 'mediaplanner';
+    case COMPTABLE    = 'comptable';
     case TECHNIQUE    = 'technique';
 
     /** Libellé humain (FR) — source unique de vérité */
@@ -15,6 +16,7 @@ enum UserRole: string
             self::ADMIN        => 'Administrateur',
             self::COMMERCIAL   => 'Commercial',
             self::MEDIAPLANNER => 'Media Planner',
+            self::COMPTABLE    => 'Comptable',
             self::TECHNIQUE    => 'Technicien',
         };
     }

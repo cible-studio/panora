@@ -82,8 +82,9 @@
                             <th class="num">Factures</th>
                             <th class="num">Total dû</th>
                             <th class="num">Ancien.</th>
-                            <th>Prochaine échéance</th>
-                            <th>Dernière relance</th>
+                            <th title="Date d'échéance la plus proche d'une facture non payée (vient de l'échéancier)">Prochaine échéance facture</th>
+                            <th title="Date de la dernière relance enregistrée">Dernière relance</th>
+                            <th title="Suite donnée par le commercial après la dernière relance (rappeler le X, RDV le Y…)">Suite à donner</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -105,19 +106,75 @@
                                     @endif
                                 </td>
                                 <td style="font-size:12px;color:var(--text3)">
-                                    @if($row['client_phone'])📞 {{ $row['client_phone'] }}<br>@endif
-                                    @if($row['client_email']){{ $row['client_email'] }}@endif
+                                    @if($row['client_phone'])
+                                        📞 <a href="tel:{{ preg_replace('/[^\d+]/', '', $row['client_phone']) }}"
+                                              style="color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--border)"
+                                              title="Appeler le client">{{ $row['client_phone'] }}</a><br>
+                                    @endif
+                                    @if($row['client_email'])
+                                        <a href="mailto:{{ $row['client_email'] }}"
+                                           style="color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--border)"
+                                           title="Envoyer un email au client">{{ $row['client_email'] }}</a>
+                                    @endif
                                 </td>
-                                <td class="num">{{ $row['factures_count'] }}</td>
+                                <td class="num">
+                                    {{-- Lien vers la liste des factures impayées de ce client. --}}
+                                    <a href="{{ route('admin.invoices.index', ['client_id' => $row['client_id'], 'pay_status' => 'non_payee']) }}"
+                                       style="color:var(--accent);text-decoration:none;font-weight:600"
+                                       title="Voir les factures impayées du client">{{ $row['factures_count'] }}</a>
+                                </td>
                                 <td class="num strong">{{ $fmt($row['total_du']) }}</td>
                                 <td class="num" style="color:{{ $prio['color'] }};font-weight:700">
                                     {{ $row['plus_ancien_jours'] }}j
                                 </td>
-                                <td style="color:{{ $row['prochaine_echeance'] && $row['prochaine_echeance']->isPast() ? '#ef4444' : 'var(--text2)' }}">
-                                    {{ $row['prochaine_echeance']?->format('d/m/Y') ?? '—' }}
+                                <td style="color:{{ $row['prochaine_echeance'] && $row['prochaine_echeance']->isPast() ? '#ef4444' : 'var(--text2)' }}"
+                                    title="Date de la prochaine échéance non payée d'une facture du client (depuis l'échéancier). « — » = aucune facture n'a d'échéancier configuré.">
+                                    @if($row['prochaine_echeance'])
+                                        {{ $row['prochaine_echeance']->format('d/m/Y') }}
+                                    @else
+                                        <span style="color:var(--text3);font-size:11px;font-style:italic"
+                                              title="Aucune des factures impayées de ce client n'a d'échéancier configuré. Génère un échéancier depuis la fiche facture pour activer le suivi.">
+                                            Pas d'échéancier
+                                        </span>
+                                    @endif
                                 </td>
                                 <td style="color:var(--text2);font-size:12px">
-                                    {{ $row['derniere_relance'] ? \Carbon\Carbon::parse($row['derniere_relance'])->format('d/m/Y') : '— Jamais' }}
+                                    @if($row['derniere_relance'])
+                                        <a href="{{ route('admin.finance.relances', ['client_id' => $row['client_id']]) }}"
+                                           style="color:var(--text2);text-decoration:none;border-bottom:1px dashed var(--border)"
+                                           title="Voir toutes les relances de ce client">
+                                            {{ \Carbon\Carbon::parse($row['derniere_relance'])->format('d/m/Y') }}
+                                        </a>
+                                        @if(!empty($row['derniere_relance_user']))
+                                            <div style="font-size:10.5px;color:var(--text3);margin-top:2px">
+                                                par {{ $row['derniere_relance_user'] }}
+                                            </div>
+                                        @endif
+                                    @else
+                                        <span style="color:var(--text3)">— Jamais</span>
+                                    @endif
+                                </td>
+                                <td style="font-size:12px;color:var(--text2);max-width:220px">
+                                    @if(!empty($row['derniere_relance_suite']))
+                                        <span title="Suite donnée par le commercial après la dernière relance">
+                                            💬 {{ \Illuminate\Support\Str::limit($row['derniere_relance_suite'], 60) }}
+                                        </span>
+                                    @elseif(!empty($row['derniere_relance_outcome']))
+                                        @php
+                                            $outcomeLabel = match($row['derniere_relance_outcome']) {
+                                                'promesse_paiement' => '📅 Promesse de paiement',
+                                                'paiement_recu'     => '✅ Paiement reçu',
+                                                'a_relancer'        => '🔁 À relancer',
+                                                'sans_reponse'      => '📵 Sans réponse',
+                                                'desaccord'         => '⚠ Désaccord',
+                                                'autre'             => '📝 Autre',
+                                                default             => $row['derniere_relance_outcome'],
+                                            };
+                                        @endphp
+                                        <span style="color:var(--text3)">{{ $outcomeLabel }}</span>
+                                    @else
+                                        <span style="color:var(--text3)">—</span>
+                                    @endif
                                 </td>
                                 <td style="text-align:right">
                                     <button type="button" class="btn btn-ghost btn-sm"

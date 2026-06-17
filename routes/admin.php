@@ -305,7 +305,7 @@ Route::prefix('client')->name('client.')->middleware(\App\Http\Middleware\SetFre
 // ══════════════════════════════════════════════════════════════════════
 Route::prefix('admin')
     ->name('admin.')
-    ->middleware(['auth', 'role:admin,commercial,mediaplanner'])
+    ->middleware(['auth', 'role:admin,commercial,mediaplanner,comptable'])
     ->group(function () {
 
         // ════════════════════════════════════════════════
@@ -346,6 +346,12 @@ Route::prefix('admin')
 
         // Création / modif / suppression / photos = admin + MP
         Route::middleware('role:admin,mediaplanner')->group(function () {
+            // Saisie rapide des coordonnées GPS manquantes — page de bulk
+            // edit avec grille (lat + lng par panneau). Permet de renseigner
+            // les 360+ panneaux qui n'ont pas encore leurs coordonnées.
+            Route::get('panels/gps/missing',  [PanelController::class, 'gpsMissing'])->name('panels.gps.missing');
+            Route::post('panels/gps/missing', [PanelController::class, 'gpsBulkUpdate'])->name('panels.gps.update');
+
             Route::get('panels/create', [PanelController::class, 'create'])->name('panels.create');
             Route::post('panels', [PanelController::class, 'store'])->name('panels.store');
             Route::get('panels/{panel}/edit', [PanelController::class, 'edit'])
@@ -537,10 +543,12 @@ Route::prefix('admin')
             Route::delete('/{pige}',  [PigeController::class, 'destroy'])->name('destroy');
         });
 
-        // ── Taxes Communes ─────────────────────── (admin + MP only) ──
-        // Voir / exporter les rapports = admin + MP. Modifier les tarifs
-        // communaux reste réservé à l'admin (matrice TAXES).
-        Route::middleware('role:admin,mediaplanner')->group(function () {
+        // ── Taxes Communes ───────────── (admin + MP + comptable) ──
+        // Voir / exporter les rapports / enregistrer les paiements taxes
+        // = admin + MP + comptable. Modifier les tarifs communaux reste
+        // réservé à l'admin (matrice TAXES). Le comptable saisit les
+        // règlements TM/ODP comme les autres encaissements.
+        Route::middleware('role:admin,mediaplanner,comptable')->group(function () {
             Route::get('taxes/auto/preview',  [TaxController::class, 'previewAuto'])->name('taxes.auto.preview');
             Route::post('taxes/auto/generate', [TaxController::class, 'generateAuto'])->name('taxes.auto.generate');
             Route::get ('taxes/calcul',        [TaxController::class, 'calcul'])       ->name('taxes.calcul');
@@ -570,7 +578,11 @@ Route::prefix('admin')
         Route::get('invoices/{invoice}/audit', [InvoiceController::class, 'auditTimeline'])
             ->whereNumber('invoice')->name('invoices.audit');
 
-        Route::middleware('role:admin')->group(function () {
+        // ⚠ Bloc admin+comptable : actions facturation accessibles au comptable
+        // (saisie versements, transitions de statut, échéancier, lookups).
+        // Les actions hard (create/update/destroy/cancel/lock/unlock) sont
+        // gardées par InvoicePolicy qui retourne false sauf pour admin.
+        Route::middleware('role:admin,comptable')->group(function () {
             // ── Lookups JSON pour le formulaire facture ─────────────
             // Servent au formulaire create/edit pour auto-remplir le client
             // quand on choisit une campagne (et inversement filtrer les
@@ -603,6 +615,10 @@ Route::prefix('admin')
                 ->whereNumber('invoice')->name('invoices.destroy');
             Route::patch('invoices/{invoice}/send',         [InvoiceController::class, 'markSent'])->name('invoices.send');
             Route::patch('invoices/{invoice}/pay',          [InvoiceController::class, 'markPaid'])->name('invoices.pay');
+            // Solde manuel sans saisie des versements (migration / facture
+            // historique réglée hors plateforme). Raison obligatoire,
+            // traçabilité assurée par audit InvoicePayment + statusHistory.
+            Route::post ('invoices/{invoice}/mark-paid-manual', [InvoiceController::class, 'markPaidManual'])->name('invoices.mark-paid-manual');
             Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'markCancelled'])->name('invoices.cancel');
             Route::patch('invoices/{invoice}/revert-draft', [InvoiceController::class, 'revertDraft'])->name('invoices.revert-draft');
             // Phase 8A cahier §3 — actions manuelles complètes du cycle
@@ -654,7 +670,7 @@ Route::prefix('admin')
         // Création de compte client (espace /client) = admin + commercial
         //   uniquement (action sensible : génération MDP + envoi email).
         Route::post('clients/quick-store', [ClientController::class, 'storeQuick'])
-            ->middleware('role:admin,commercial,mediaplanner')
+            ->middleware('role:admin,commercial,mediaplanner,comptable')
             ->name('clients.quick-store');
         // Suppression groupée (sélection multiple) — admin uniquement
         Route::post('clients/bulk-destroy', [ClientController::class, 'bulkDestroy'])
@@ -691,13 +707,13 @@ Route::prefix('admin')
         // Lecture clients : tous les staff
         Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
         Route::get('clients/create', [ClientController::class, 'create'])
-            ->middleware('role:admin,commercial,mediaplanner')->name('clients.create');
+            ->middleware('role:admin,commercial,mediaplanner,comptable')->name('clients.create');
         Route::get('clients/{client}/edit', [ClientController::class, 'edit'])
-            ->middleware('role:admin,commercial,mediaplanner')->name('clients.edit');
+            ->middleware('role:admin,commercial,mediaplanner,comptable')->name('clients.edit');
         Route::post('clients', [ClientController::class, 'store'])
-            ->middleware('role:admin,commercial,mediaplanner')->name('clients.store');
+            ->middleware('role:admin,commercial,mediaplanner,comptable')->name('clients.store');
         Route::put('clients/{client}', [ClientController::class, 'update'])
-            ->middleware('role:admin,commercial,mediaplanner')->name('clients.update');
+            ->middleware('role:admin,commercial,mediaplanner,comptable')->name('clients.update');
         Route::delete('clients/{client}', [ClientController::class, 'destroy'])
             ->middleware('role:admin')->name('clients.destroy');
         Route::get('clients/{client}', [ClientController::class, 'show'])->name('clients.show');
@@ -938,11 +954,12 @@ Route::prefix('admin')
             ->name('propositions.update-status');
 
         // ── Tableau de bord FINANCIER ────────────────────────────────
-        // Encaissements / créances / recouvrement. Admin + commercial
-        // uniquement (MP/Technique ne touchent pas la facturation).
-        // Le scope commercial est appliqué dans le controller via
-        // FinancialDashboardService → Invoice::forCommercialUser.
-        Route::middleware('role:admin,commercial')->group(function () {
+        // Encaissements / créances / recouvrement / relances. Admin +
+        // commercial + comptable (MP/Technique ne touchent pas la
+        // facturation). Le scope commercial est appliqué dans le
+        // controller via FinancialDashboardService → Invoice::forCommercialUser.
+        // Comptable : vision globale non scopée (consolidation cabinet).
+        Route::middleware('role:admin,commercial,comptable')->group(function () {
             Route::get('finance', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'index'])
                 ->name('finance.index');
             Route::get('finance/series', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'series'])

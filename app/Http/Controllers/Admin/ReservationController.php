@@ -714,7 +714,7 @@ class ReservationController extends Controller
     public function pdfImages(Request $request)
     {
         $request->validate([
-            'panel_ids'    => 'required|array|min:1|max:200',
+            'panel_ids'    => 'required|array|min:1',
             'start_date'   => 'nullable|date',
             'end_date'     => 'nullable|date',
             'show_pricing' => 'nullable|boolean',
@@ -1253,12 +1253,10 @@ class ReservationController extends Controller
             'amount' => 'nullable|numeric|min:0|max:9999999999',
         ]);
 
-        // 4) Cap volume (50 internes + 50 externes max — symétrique)
-        if (count($internalIds) > 50 || count($externalIds) > 50) {
-            return back()->withErrors([
-                'panel_ids' => 'Trop de panneaux sélectionnés (max 50 internes + 50 externes).',
-            ])->withInput();
-        }
+        // Limite de 50 internes + 50 externes RETIRÉE (feedback user :
+        // grosse campagne de 200+ panneaux bloquée à la création).
+        // Aucun cap volume — le serveur encaisse la transaction Eloquent
+        // sans souci sur des centaines de panneaux par réservation.
 
         // 5) Existence base de données — interne et externe (en deux requêtes count)
         if ($internalIds && Panel::whereIn('id', $internalIds)->count() !== count($internalIds)) {
