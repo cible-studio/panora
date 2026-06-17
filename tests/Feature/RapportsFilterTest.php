@@ -264,4 +264,63 @@ class RapportsFilterTest extends TestCase
         // Le summary contient "2 panneaux" (créés en setUp)
         $this->assertStringContainsString('2 panneaux', $r->json('summary'));
     }
+
+    /**
+     * Charts AJAX — la réponse doit contenir chartData avec une entrée
+     * pour CHAQUE chart (les 10 partials + les 2 customs).
+     */
+    public function test_ajax_returns_chart_configs_for_all_charts(): void
+    {
+        $r = $this->actingAs($this->admin)->getJson('/admin/rapports/ajax');
+        $r->assertStatus(200);
+
+        // Doit contenir chartData avec les 21 clés attendues
+        $r->assertJsonStructure([
+            'chartData' => [
+                'occParCommune', 'evolMensuelle', 'caMensuel', 'tableauMensuel',
+                'topClients', 'statsCommunes', 'annee', 'moisDu', 'moisAu',
+                'occupationTrend', 'topPanels', 'cancelReasons', 'cancellationTrend',
+                'revenueByMonth', 'inactivityBucket', 'parcByCommune',
+                'occVsRevenue', 'revenueByCity', 'revenueByCommune',
+                'clientRevenueDist', 'campaignStats',
+            ],
+        ]);
+
+        // Sanity check : chacune des séries de longueur fixe a la bonne taille
+        $cd = $r->json('chartData');
+        $this->assertCount(12, $cd['occupationTrend']);     // 12 mois glissants
+        $this->assertCount(12, $cd['cancellationTrend']);   // idem
+        $this->assertCount(12, $cd['caMensuel']);           // 12 mois de l'année
+        $this->assertCount(12, $cd['tableauMensuel']);      // idem
+        $this->assertCount(12, $cd['evolMensuelle']);       // idem
+        $this->assertCount(12, $cd['revenueByMonth']);      // idem
+    }
+
+    /**
+     * Charts AJAX — quand filter_zone=abidjan, les données chart doivent
+     * refléter UNIQUEMENT Abidjan (occParCommune, statsCommunes, etc.).
+     */
+    public function test_ajax_chart_data_reflects_active_filters(): void
+    {
+        $r = $this->actingAs($this->admin)
+            ->getJson('/admin/rapports/ajax?filter_zone=abidjan');
+        $r->assertStatus(200);
+
+        $cd = $r->json('chartData');
+
+        // statsCommunes doit ne contenir que la commune Abidjan
+        $communeNames = collect($cd['statsCommunes'])->pluck('commune')->all();
+        $this->assertContains('COCODY', $communeNames);
+        $this->assertNotContains('BOUAKE', $communeNames);
+
+        // Inversement avec zone=interieur
+        DashboardKpiService::invalidateAll();
+        $r = $this->actingAs($this->admin)
+            ->getJson('/admin/rapports/ajax?filter_zone=interieur');
+        $cd = $r->json('chartData');
+
+        $communeNames = collect($cd['statsCommunes'])->pluck('commune')->all();
+        $this->assertContains('BOUAKE', $communeNames);
+        $this->assertNotContains('COCODY', $communeNames);
+    }
 }

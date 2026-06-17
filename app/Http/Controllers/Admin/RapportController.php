@@ -585,6 +585,34 @@ class RapportController extends Controller
 
         $render = fn(string $partial) => view("admin.rapports.partials.$partial", $data)->render();
 
+        // chartData = source unique pour ré-instancier TOUS les charts
+        // Chart.js côté client. Reproduit la structure de window.__RPT__
+        // servie par index.blade.php au 1er load. Couvre les 10 charts +
+        // les 2 rendus customs (renderEvol, renderCa).
+        $chartData = [
+            'occParCommune'     => $data['occParCommune']->values(),
+            'evolMensuelle'     => $data['evolMensuelle']->values(),
+            'caMensuel'         => $data['caMensuel']->values(),
+            'tableauMensuel'    => $data['tableauMensuel']->values(),
+            'topClients'        => $data['topClients']->values(),
+            'statsCommunes'     => $data['statsCommunes']->values(),
+            'annee'             => $data['annee'],
+            'moisDu'            => $data['moisDu'],
+            'moisAu'            => $data['moisAu'],
+            'occupationTrend'   => $data['occupationTrend']->values(),
+            'topPanels'         => $data['topPanels']->values(),
+            'cancelReasons'     => $data['cancelReasons']->values(),
+            'cancellationTrend' => $data['cancellationTrend']->values(),
+            'revenueByMonth'    => $data['revenueByMonth']->values(),
+            'inactivityBucket'  => $data['inactivityBucket'],
+            'parcByCommune'     => $data['parcByCommune']->values(),
+            'occVsRevenue'      => $data['occVsRevenue']->values(),
+            'revenueByCity'     => $data['revenueByCity']->values(),
+            'revenueByCommune'  => $data['revenueByCommune']->values(),
+            'clientRevenueDist' => $data['clientRevenueDist'],
+            'campaignStats'     => $data['campaignStats'],
+        ];
+
         $response = response()->json([
             'summary'     => $render('_summary'),
             'topcards'    => $render('_topcards'),
@@ -600,6 +628,7 @@ class RapportController extends Controller
                 'decappages'  => $render('_tab_decappages'),
                 'insights'    => $render('_tab_insights'),
             ],
+            'chartData'   => $chartData,
             'exports_qs'  => http_build_query($exportFilters),
             'fingerprint' => md5(json_encode($exportFilters)),
         ]);

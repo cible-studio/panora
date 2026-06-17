@@ -185,3 +185,7 @@ Cette liste est un MINIMUM. Chercher au-delà.
   l'envoi prod sans upgrade explicite.
 - **Code-review** : avant de marquer une mission "terminée", relire le diff
   comme un reviewer externe.
+- **Dette technique connue** : `docs/TECHNICAL_DEBT.md` centralise les
+  dettes ouvertes (migrations non sqlite-portable, sous-rapports à
+  auditer, etc.). À lire avant toute mission qui touche ces zones, à
+  mettre à jour à chaque mission qui en crée ou clôt une.
