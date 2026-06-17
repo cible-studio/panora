@@ -914,6 +914,16 @@ Route::prefix('admin')
             )->whereNumber('user')->name('performance.tech.show');
         });
 
+        // ── M2 Performance Équipe — admin/MP only ──
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('performance/equipes',
+                [\App\Http\Controllers\Admin\TeamPerformanceController::class, 'index']
+            )->name('performance.team.index');
+            Route::get('performance/equipes/{team}',
+                [\App\Http\Controllers\Admin\TeamPerformanceController::class, 'show']
+            )->whereNumber('team')->name('performance.team.show');
+        });
+
         // ── Disponibilités ─────────────────── (admin + MP + commercial) ──
         // Le commercial peut maintenant créer des réservations depuis l'espace
         // disponibilités (matrice DISPONIBILITÉS étendue). La policy

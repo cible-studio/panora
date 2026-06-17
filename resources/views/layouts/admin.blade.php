@@ -246,6 +246,14 @@
                     </a>
                     @endif
 
+                    {{-- M2 Performance Équipe — admin/MP only --}}
+                    @if($isAdmin || $isMP)
+                    <a href="{{ route('admin.performance.team.index') }}" data-tooltip="Performance équipes" class="nav-item {{ request()->routeIs('admin.performance.team.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><circle cx="9" cy="7" r="4"/><circle cx="17" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg></span>
+                        <span class="nav-text">Performance équipes</span>
+                    </a>
+                    @endif
+
                     {{-- Tableau de bord FINANCIER — Admin + Commercial.
                          Cohérent avec la matrice facturation : MP/Technique
                          ne touchent pas aux finances. --}}
