@@ -89,46 +89,8 @@
         </div>
     </div>
 
-    {{-- Panneaux à décaper --}}
-    @if($aDecaper->isNotEmpty())
-    <div style="background:var(--surface);border:1px solid rgba(239,68,68,.3);border-radius:14px;overflow:hidden">
-        <div style="padding:14px 20px;border-bottom:1px solid rgba(239,68,68,.2);background:rgba(239,68,68,.04);display:flex;justify-content:space-between;align-items:center">
-            <div style="display:flex;align-items:center;gap:8px">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                <div style="display:flex;flex-direction:column">
-                    <span style="font-size:13px;font-weight:700;color:#ef4444">Panneaux à décaper — 30 prochains jours</span>
-                    <span style="font-size:10.5px;color:var(--text3);font-style:italic">ℹ️ Fenêtre opérationnelle absolue · indépendant du filtre période · suit les filtres dimensionnels (zone, commune, client)</span>
-                </div>
-            </div>
-            <span style="font-size:11px;background:rgba(239,68,68,.12);color:#ef4444;padding:2px 10px;border-radius:20px;font-weight:700">{{ $aDecaper->count() }}</span>
-        </div>
-        <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse">
-                <thead>
-                    <tr style="border-bottom:1px solid var(--border)">
-                        @foreach(['Panneau','Commune','Client','Fin campagne','Jours restants'] as $h)
-                        <th style="padding:10px 16px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">{{ $h }}</th>
-                        @endforeach
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($aDecaper as $p)
-                    @php $urgent = $p->jours_restants <= 7; @endphp
-                    <tr style="border-bottom:1px solid var(--border);transition:background .1s" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
-                        <td style="padding:10px 16px;font-family:monospace;font-size:12px;font-weight:700;color:var(--accent)">{{ $p->reference }}</td>
-                        <td style="padding:10px 16px;font-size:12px;color:var(--text)">{{ $p->commune ?? '—' }}</td>
-                        <td style="padding:10px 16px;font-size:12px;color:var(--text)">{{ $p->client_name }}</td>
-                        <td style="padding:10px 16px;font-size:12px;color:var(--text)">{{ \Carbon\Carbon::parse($p->end_date)->format('d/m/Y') }}</td>
-                        <td style="padding:10px 16px">
-                            <span style="padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:{{ $urgent ? 'rgba(239,68,68,.15)' : 'rgba(249,115,22,.12)' }};color:{{ $urgent ? '#ef4444' : '#f97316' }}">
-                                {{ $p->jours_restants }}j
-                            </span>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    </div>
-    @endif
+    {{-- Bloc 'Panneaux à décaper — 30 prochains jours' retiré du tab Zones
+         le 2026-06-17 (user : doit rester dans l'onglet Décappages uniquement
+         pour éviter la duplication). KPI card 'À décaper (30j)' en haut +
+         tab Décappages ($decapList, $upcomingEndings) couvrent le besoin. --}}
 </div>

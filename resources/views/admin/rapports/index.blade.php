@@ -209,27 +209,28 @@ window.__RPT__ = {
         ['id'=>'occupation','icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>','label'=>"Occupation"],
         ['id'=>'panneaux',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>','label'=>'Performance panneaux'],
         ['id'=>'periodes',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>','label'=>'Périodes'],
-        ['id'=>'campagnes', 'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>','label'=>'Campagnes'],
+        // 'Campagnes' retiré (2026-06-17) — doublon avec la carte 'Rapport campagnes'
+        // en haut de la page qui redirige vers /admin/rapports/campagnes.
         ['id'=>'ca',        'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>','label'=>'CA & Revenus'],
         ['id'=>'zones',     'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>','label'=>'Zones & Communes'],
         ['id'=>'clients',   'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>','label'=>'Clients'],
         ['id'=>'decap',     'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>','label'=>'Décappages'],
         ['id'=>'insights',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11h.01M15 11h.01M18 21l-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3l-3 3z"/></svg>','label'=>'Insights & Alertes'],
-        // M3 SLA enrichi (admin/MP only — pas commercial, pas technique)
-        ['id'=>'sla',       'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>','label'=>'⚠ SLA & Retards'],
+        // 'SLA & Retards' retiré (2026-06-17) — page dédiée /admin/sla/retards
+        // accessible via sidebar 'SLA & Retards'.
     ];
 
     // Mapping rôle → onglets autorisés (null = tous = admin).
     $tabsByRole = [
-        'admin'        => null, // tous les 10
-        'mediaplanner' => [     // 8 : production / opérationnel + SLA
-            'occupation', 'panneaux', 'periodes', 'campagnes',
-            'zones', 'clients', 'decap', 'sla',
+        'admin'        => null, // tous (après retraits SLA + Campagnes)
+        'mediaplanner' => [     // production / opérationnel
+            'occupation', 'panneaux', 'periodes',
+            'zones', 'clients', 'decap',
             // EXCLUS pour MP : 'ca' (CA stratégique entreprise),
             //                  'insights' (synthèse exécutive direction).
         ],
-        'commercial'   => [     // 4 : strictement personnel filtré (pas de SLA)
-            'periodes', 'campagnes', 'ca', 'decap',
+        'commercial'   => [     // strictement personnel filtré
+            'periodes', 'ca', 'decap',
         ],
     ];
     $allowedTabs = $tabsByRole[$tabRole] ?? null;
@@ -449,12 +450,9 @@ window.__RPT__ = {
 @include('admin.rapports.partials._tab_insights')
 @endif {{-- panel-insights --}}
 
-{{-- ══════════════════════════════════════════════════════════════
-     ONGLET — SLA & RETARDS (admin/MP only — M3 SLA enrichi)
-══════════════════════════════════════════════════════════════ --}}
-@if(in_array('sla', $allowedTabIds, true))
-@include('admin.rapports.partials._tab_sla')
-@endif
+{{-- ONGLET SLA & RETARDS retiré (2026-06-17) — accessible via la page
+     dédiée /admin/sla/retards (sidebar 'SLA & Retards'). Le partial
+     _tab_sla.blade.php est conservé sur disque mais plus inclus. --}}
 
 {{-- ════ STYLES ════ --}}
 <style>
