@@ -855,29 +855,95 @@ class PanelController extends Controller
         $notfound = [];
         $bad      = [];
 
+        // ── DÉTECTION AUTOMATIQUE DES COLONNES depuis l'en-tête ────────
+        // Le fichier terrain CIBLE a plein de colonnes (Catégorie, Face,
+        // Emplacement, Latitude, Longitude, Commune, Zone, Code, Montant)
+        // et la référence panneau est dans "Code", pas en première colonne.
+        // On scanne la première ligne et on mappe par mot-clé.
+        $colRef = null; $colLat = null; $colLng = null;
+        if (!empty($rows)) {
+            $header = array_values(reset($rows));
+            foreach ($header as $idx => $cell) {
+                $h = mb_strtolower(trim((string) $cell));
+                $h = str_replace([',', ';'], '', $h); // "Latitude," → "latitude"
+                if ($colRef === null && (str_contains($h, 'code') || str_contains($h, 'référ') || str_contains($h, 'refer') || str_contains($h, 'panneau'))) {
+                    $colRef = $idx;
+                } elseif ($colLat === null && str_contains($h, 'latitude')) {
+                    $colLat = $idx;
+                } elseif ($colLng === null && (str_contains($h, 'longitude') || str_contains($h, 'long'))) {
+                    $colLng = $idx;
+                }
+            }
+        }
+        // Fallback si pas d'en-tête détecté : on prend les 3 premières colonnes
+        // (ancien comportement, compat fichier simple ref/lat/lng).
+        $headerDetected = $colRef !== null && $colLat !== null && $colLng !== null;
+        if (!$headerDetected) {
+            $colRef = 0; $colLat = 1; $colLng = 2;
+        }
+
+        // ── PARSERS DE COORDONNÉES ────────────────────────────────────
+        // Format 1 (décimal) : "5.3957457" ou "5,3957457"
+        // Format 2 (DMS terrain) : "N 06° 44.655'" / "W 003° 30.160'"
+        //   → conversion : deg + min/60, signe selon N/S/E/W
+        $parseCoord = function ($v): ?float {
+            if ($v === null || $v === '') return null;
+            $s = trim((string) $v);
+
+            // Tentative format DMS : détecté par la présence de N/S/E/W ou de °
+            if (preg_match('/^\s*([NSEWnsew])?\s*(\d+(?:[.,]\d+)?)\s*°?\s*(\d+(?:[.,]\d+)?)?\s*[\'′]?\s*(\d+(?:[.,]\d+)?)?\s*["″]?\s*([NSEWnsew])?\s*$/u', $s, $m)) {
+                // PHP n'alloue pas les clés des groupes optionnels NON
+                // matchés — d'où le ?? '' partout pour éviter "Undefined
+                // array key N" quand l'hémisphère ou les sec/min sont absents.
+                $hemiPrefix = $m[1] ?? '';
+                $hemiSuffix = $m[5] ?? '';
+                $hemisphere = strtoupper($hemiSuffix !== '' ? $hemiSuffix : $hemiPrefix);
+                $deg = (float) str_replace(',', '.', $m[2] ?? '0');
+                $min = (($m[3] ?? '') !== '') ? (float) str_replace(',', '.', $m[3]) : 0;
+                $sec = (($m[4] ?? '') !== '') ? (float) str_replace(',', '.', $m[4]) : 0;
+                // Si on a un hémisphère explicite OU le symbole degré, c'est du DMS.
+                if ($hemisphere !== '' || str_contains($s, '°')) {
+                    $val = $deg + $min / 60 + $sec / 3600;
+                    if (in_array($hemisphere, ['S', 'W'])) $val = -$val;
+                    return round($val, 7);
+                }
+            }
+            // Sinon format décimal pur (avec gestion virgule + espaces)
+            $s = str_replace([' ', "'", "\xc2\xa0"], '', $s);
+            $s = str_replace(',', '.', $s);
+            return is_numeric($s) ? (float) $s : null;
+        };
+
         $rowIndex = 0;
         foreach ($rows as $row) {
             $rowIndex++;
             $values = array_values($row);
-            // Ignore lignes vides + en-tête éventuel (1ère ligne avec mots type "reference")
+            // Ignore lignes vides
             if (empty(array_filter($values, fn($v) => $v !== null && $v !== ''))) continue;
-            $firstCell = strtolower((string) ($values[0] ?? ''));
-            if ($rowIndex === 1 && (str_contains($firstCell, 'ref') || str_contains($firstCell, 'pan'))) {
-                continue;
-            }
+            // Skip la ligne d'en-tête détectée
+            if ($headerDetected && $rowIndex === 1) continue;
 
-            $ref = trim((string) ($values[0] ?? ''));
-            $lat = is_numeric($values[1] ?? null) ? (float) $values[1] : null;
-            $lng = is_numeric($values[2] ?? null) ? (float) $values[2] : null;
+            $ref = trim((string) ($values[$colRef] ?? ''));
+            $lat = $parseCoord($values[$colLat] ?? null);
+            $lng = $parseCoord($values[$colLng] ?? null);
+
+            // Skip silencieux si la ligne n'a aucune coord (cas fréquent dans
+            // le fichier CIBLE : beaucoup de panneaux sans GPS connu)
+            if ($lat === null && $lng === null) continue;
 
             if (!$ref || $lat === null || $lng === null) {
-                $bad[] = "L{$rowIndex} : " . ($ref ?: '(ref vide)') . " — lat/lng invalides";
+                $bad[] = "L{$rowIndex} : " . ($ref ?: '(ref vide)')
+                       . " — lat/lng invalides (lus : '"
+                       . ($values[$colLat] ?? '') . "' / '" . ($values[$colLng] ?? '') . "')";
                 continue;
             }
             // Sécurité géographique : la Côte d'Ivoire est à ~4-11°N, -2 à -9°W.
-            // Coords hors de ces bornes = probable erreur de saisie.
+            // Tolérance : si les colonnes sont inversées, on les permute auto.
+            if (($lat < 3 || $lat > 12) && ($lng >= 3 && $lng <= 12)) {
+                [$lat, $lng] = [$lng, $lat];
+            }
             if ($lat < 3 || $lat > 12 || $lng < -9 || $lng > -2) {
-                $bad[] = "L{$rowIndex} : {$ref} — coords hors CI ({$lat}, {$lng})";
+                $bad[] = "L{$rowIndex} : {$ref} — coords hors CI (lat={$lat}, lng={$lng})";
                 continue;
             }
 
@@ -917,7 +983,7 @@ class PanelController extends Controller
              . (count($notfound) ? " · ❌ " . count($notfound) . " non trouvé(s)" : '')
              . (count($bad) ? " · ⚠ " . count($bad) . " ligne(s) invalide(s)" : '');
 
-        return redirect()->route('admin.panels.map')
+        return redirect()->route('admin.map')
             ->with('success', $msg)
             ->with('gps_import_report', [
                 'updated'  => $updated,

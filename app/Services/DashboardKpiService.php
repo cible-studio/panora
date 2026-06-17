@@ -80,8 +80,10 @@ class DashboardKpiService
 
     public function setFilters(array $filters): self
     {
-        // Garde seulement les filtres connus pour stabiliser la clé cache
-        $allowed = ['commune_id', 'city', 'client_id', 'category_id'];
+        // Garde seulement les filtres connus pour stabiliser la clé cache.
+        // 'zone' (abidjan|interieur) est un raccourci UX sur 'city' qui regroupe
+        // toutes les villes hors Abidjan sous "Intérieur".
+        $allowed = ['commune_id', 'city', 'client_id', 'category_id', 'zone'];
         $this->filters = array_filter(array_intersect_key($filters, array_flip($allowed)));
         return $this;
     }
@@ -126,6 +128,13 @@ class DashboardKpiService
                 $sub->select('id')->from('communes')->where('city', $this->filters['city']);
             });
         }
+        if (!empty($this->filters['zone']) && in_array('panel', $options['targets'] ?? ['panel'], true)) {
+            $zone = $this->filters['zone'];
+            $q->whereIn("{$panelAlias}.commune_id", function ($sub) use ($zone) {
+                $sub->select('id')->from('communes');
+                $zone === 'abidjan' ? $sub->where('city', 'Abidjan') : $sub->where('city', '!=', 'Abidjan');
+            });
+        }
         if (!empty($this->filters['client_id']) && in_array('campaign', $options['targets'] ?? ['campaign'], true)) {
             $q->where("{$campaignAlias}.client_id", $this->filters['client_id']);
         }
@@ -144,6 +153,12 @@ class DashboardKpiService
         if (!empty($this->filters['city'])) {
             $query->whereHas('commune', fn($c) => $c->where('city', $this->filters['city']));
         }
+        if (!empty($this->filters['zone'])) {
+            $zone = $this->filters['zone'];
+            $query->whereHas('commune', fn($c) => $zone === 'abidjan'
+                ? $c->where('city', 'Abidjan')
+                : $c->where('city', '!=', 'Abidjan'));
+        }
         return $query;
     }
 
@@ -153,7 +168,7 @@ class DashboardKpiService
         if (!empty($this->filters['client_id'])) {
             $query->where('client_id', $this->filters['client_id']);
         }
-        if (!empty($this->filters['commune_id']) || !empty($this->filters['city']) || !empty($this->filters['category_id'])) {
+        if (!empty($this->filters['commune_id']) || !empty($this->filters['city']) || !empty($this->filters['category_id']) || !empty($this->filters['zone'])) {
             $query->whereHas('panels', function ($p) {
                 $this->applyPanelEloquentFilters($p);
             });
@@ -385,6 +400,62 @@ class DashboardKpiService
                 ->orderBy('panels.reference')
                 ->limit($limit)
                 ->get();
+        });
+    }
+
+    /**
+     * Liste COMPLÈTE des panneaux internes avec leur taux d'occupation
+     * sur la période. Pas de pagination — destinée aux exports (Excel/PDF).
+     * Trié par taux d'occupation décroissant.
+     *
+     * Colonnes : reference, name, commune_name, city, monthly_rate,
+     *            campaigns_count, days_occupied, occupation_rate, estimated_revenue
+     */
+    public function panelsOccupationFull(): Collection
+    {
+        return $this->cached('panels_occupation_full', function () {
+            $from = $this->from->toDateString();
+            $to   = $this->to->toDateString();
+            $periodDays = max(1, (int) $this->from->diffInDays($this->to) + 1);
+
+            $q = DB::table('panels')
+                ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
+                ->leftJoin('campaign_panels', function ($j) {
+                    $j->on('campaign_panels.panel_id', '=', 'panels.id')
+                      ->where('campaign_panels.type', '=', 'interne');
+                })
+                ->leftJoin('campaigns', function ($j) use ($from, $to) {
+                    $j->on('campaigns.id', '=', 'campaign_panels.campaign_id')
+                      ->whereIn('campaigns.status', ['actif', 'planifie', 'pause', 'termine'])
+                      ->where('campaigns.start_date', '<=', $to)
+                      ->where('campaigns.end_date',   '>=', $from)
+                      ->whereNull('campaigns.deleted_at');
+                })
+                ->whereNull('panels.deleted_at');
+
+            $this->applyFilters($q, ['targets' => ['panel', 'campaign']]);
+
+            return $q->select(
+                    'panels.id',
+                    'panels.reference',
+                    'panels.name',
+                    'panels.status',
+                    'panels.monthly_rate',
+                    'communes.name as commune_name',
+                    'communes.city as city',
+                    DB::raw('COUNT(DISTINCT campaigns.id) as campaigns_count'),
+                    DB::raw('COALESCE(SUM(DATEDIFF(LEAST(campaigns.end_date, "' . $to . '"), GREATEST(campaigns.start_date, "' . $from . '")) + 1), 0) as days_occupied'),
+                    DB::raw('COALESCE(SUM(campaigns.total_amount / GREATEST(DATEDIFF(campaigns.end_date, campaigns.start_date) + 1, 1) * (DATEDIFF(LEAST(campaigns.end_date, "' . $to . '"), GREATEST(campaigns.start_date, "' . $from . '")) + 1)), 0) as estimated_revenue'),
+                )
+                ->groupBy('panels.id', 'panels.reference', 'panels.name', 'panels.status', 'panels.monthly_rate', 'communes.name', 'communes.city')
+                ->orderByDesc('days_occupied')
+                ->orderBy('panels.reference')
+                ->get()
+                ->map(function ($row) use ($periodDays) {
+                    $row->occupation_rate = round(min(100, ((int) $row->days_occupied / $periodDays) * 100), 1);
+                    $row->zone = ($row->city === 'Abidjan') ? 'Abidjan' : 'Intérieur';
+                    return $row;
+                });
         });
     }
 

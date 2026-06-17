@@ -1143,6 +1143,11 @@ Route::prefix('admin')
                 ->name('rapports.export.excel');
             Route::get('/rapports/export/pdf', [RapportController::class, 'exportPdf'])
                 ->name('rapports.export.pdf');
+            // Export dédié : liste panneaux + taux d'occupation (Excel + PDF)
+            Route::get('/rapports/export/panneaux-occupation-excel', [RapportController::class, 'exportPanelsOccupationExcel'])
+                ->name('rapports.export.panels-occupation-excel');
+            Route::get('/rapports/export/panneaux-occupation-pdf', [RapportController::class, 'exportPanelsOccupationPdf'])
+                ->name('rapports.export.panels-occupation-pdf');
         });
 
     });
