@@ -17,28 +17,14 @@
         </div>
     </div>
 
-    {{-- Filtres période --}}
-    <form method="GET" class="perf-filter-card" style="margin-bottom:16px">
-        <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
-            <div class="fne-field" style="min-width:140px">
-                <label>Période</label>
-                <select name="preset" onchange="this.form.submit()">
-                    <option value="year"    {{ ($preset ?? '') === 'year'    ? 'selected' : '' }}>Cette année</option>
-                    <option value="quarter" {{ ($preset ?? '') === 'quarter' ? 'selected' : '' }}>Ce trimestre</option>
-                    <option value="month"   {{ ($preset ?? '') === 'month'   ? 'selected' : '' }}>Ce mois</option>
-                    <option value="all"     {{ ($preset ?? '') === 'all'     ? 'selected' : '' }}>Tout</option>
-                </select>
-            </div>
-            <div class="fne-field" style="min-width:140px">
-                <label>Du</label>
-                <input type="date" name="from" value="{{ $from->format('Y-m-d') }}" onchange="this.form.submit()">
-            </div>
-            <div class="fne-field" style="min-width:140px">
-                <label>Au</label>
-                <input type="date" name="to" value="{{ $to->format('Y-m-d') }}" onchange="this.form.submit()">
-            </div>
-        </div>
-    </form>
+    {{-- Filtres période — partial partagé (Bloc 2 — Famille A). --}}
+    @include('admin.performance.partials._period_filters', [
+        'action_route' => route('admin.performance.tech.index'),
+        'reset_route'  => route('admin.performance.tech.index'),
+        'from'         => $from,
+        'to'           => $to,
+        'preset'       => $preset ?? 'year',
+    ])
 
     {{-- Tableau --}}
     <div class="perf-card">

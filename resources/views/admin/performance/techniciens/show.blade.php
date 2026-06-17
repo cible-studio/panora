@@ -38,17 +38,17 @@
                 · {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}
             </div>
         </div>
-        <form method="GET" style="display:flex;gap:8px;align-items:flex-end">
-            <div class="fne-field" style="min-width:130px">
-                <label>Du</label>
-                <input type="date" name="from" value="{{ $from->format('Y-m-d') }}" onchange="this.form.submit()">
-            </div>
-            <div class="fne-field" style="min-width:130px">
-                <label>Au</label>
-                <input type="date" name="to" value="{{ $to->format('Y-m-d') }}" onchange="this.form.submit()">
-            </div>
-        </form>
     </div>
+
+    {{-- Filtres période — partial partagé (compact pour /show) Bloc 2 Famille A. --}}
+    @include('admin.performance.partials._period_filters', [
+        'action_route' => route('admin.performance.tech.show', $user),
+        'reset_route'  => route('admin.performance.tech.show', $user),
+        'from'         => $from,
+        'to'           => $to,
+        'preset'       => request('preset'),
+        'compact'      => true,
+    ])
 
     {{-- 6 KPI cards --}}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:16px">
