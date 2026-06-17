@@ -401,8 +401,8 @@ Route::prefix('admin')
             // Carte GPS des poses (markers colorés par statut)
             Route::get('map',              [PoseController::class, 'map'])            ->name('map');
             Route::get('map-data',         [PoseController::class, 'mapData'])        ->name('map.data');
-            // Dashboard SLA : KPI métier pose/pige + top techs/communes
-            Route::get('sla',              [PoseController::class, 'sla'])            ->name('sla');
+            // Route 'sla' (admin.pose-tasks.sla) retirée le 2026-06-17 —
+            // contenu redondant avec Performance commerciale + Décappages + SLA & Retards.
             // Calendrier hebdomadaire par technicien (planning visuel)
             Route::get('calendar',         [PoseController::class, 'calendar'])       ->name('calendar');
             // Suggestion intelligente d'un tech (zone + charge + perf)
