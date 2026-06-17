@@ -463,6 +463,10 @@ window.__RPT__ = {
 {{-- ════ JAVASCRIPT ════ --}}
 @push('scripts')
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+{{-- Progressive enhancement : si Vite ou ce fichier ne charge pas,
+     le form garde son submit GET classique (action="rapports.index"),
+     la page se recharge entièrement comme avant. Aucun blocage. --}}
+@vite('resources/js/rapports-live.js')
 <script>
 (function(){
 'use strict';
