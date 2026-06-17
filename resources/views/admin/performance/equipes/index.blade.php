@@ -80,7 +80,7 @@
                             <td style="text-align:right;font-weight:700;color:{{ $k['taux_poses_en_retard'] <= 5 ? '#15803d' : ($k['taux_poses_en_retard'] <= 15 ? '#b45309' : '#b91c1c') }}">{{ $k['taux_poses_en_retard'] }} %</td>
                             <td style="text-align:right;font-weight:700;color:{{ $k['taux_piges_rejetees'] <= 5 ? '#15803d' : ($k['taux_piges_rejetees'] <= 15 ? '#b45309' : '#b91c1c') }}">{{ $k['taux_piges_rejetees'] }} %</td>
                             <td style="text-align:right;color:var(--text2)">{{ $k['nb_signalements'] }}</td>
-                            <td style="text-align:right"><a href="{{ route('admin.performance.team.show', $team) }}" class="btn btn-ghost btn-sm" style="font-size:11px">Drill →</a></td>
+                            <td style="text-align:right"><a href="{{ route('admin.performance.team.show', $team) }}" class="btn btn-ghost btn-sm" style="font-size:11px">Détail →</a></td>
                         </tr>
                     @empty
                         <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text3);font-style:italic">Aucune équipe active.</td></tr>

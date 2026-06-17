@@ -105,7 +105,7 @@
                             <td style="text-align:right;color:var(--text2)">{{ $k2['reactivite_avg_min'] !== null ? $k2['reactivite_avg_min'].' min' : '—' }}</td>
                             <td style="text-align:right;color:var(--text2)">{{ $k2['taux_poses_en_retard'] }} %</td>
                             <td style="text-align:right;color:var(--text2)">{{ $k2['taux_piges_rejetees'] }} %</td>
-                            <td style="text-align:right"><a href="{{ route('admin.performance.tech.show', $u) }}" class="btn btn-ghost btn-sm" style="font-size:11px">Drill →</a></td>
+                            <td style="text-align:right"><a href="{{ route('admin.performance.tech.show', $u) }}" class="btn btn-ghost btn-sm" style="font-size:11px">Détail →</a></td>
                         </tr>
                     @empty
                         <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text3);font-style:italic">Aucun membre dans cette équipe.</td></tr>

@@ -37,7 +37,7 @@
                     <div style="font-size:15px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:8px">
                         {{ $team->name }}
                         @if(!$team->is_active)
-                            <span style="font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--surface2);color:var(--text3)">Inactive</span>
+                            <span style="font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--surface2);color:var(--text3)">Désactivée</span>
                         @endif
                     </div>
                     <div style="font-size:11.5px;color:var(--text3);margin-top:3px">

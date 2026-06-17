@@ -172,7 +172,11 @@
                             <td style="text-align:right;font-weight:700">{{ $row['nb_campagnes'] }}</td>
                             <td style="text-align:right;white-space:nowrap">
                                 <a href="{{ route('admin.performance.commercial.show', $row['user']) }}"
+<<<<<<< HEAD
                                    class="btn btn-ghost btn-sm" style="font-size:11px" title="Voir le détail de ce commercial">Détail →</a>
+=======
+                                   class="btn btn-ghost btn-sm" style="font-size:11px">Détail →</a>
+>>>>>>> develop
                             </td>
                         </tr>
                     @empty
