@@ -125,6 +125,27 @@ class User extends Authenticatable
         return $this->role === UserRole::TECHNIQUE;
     }
 
+    // ── M1 Performance Commerciale (mission 2026-06-17) ──
+    /** Scope : tous les users avec role='commercial' actifs. */
+    public function scopeCommerciaux($query)
+    {
+        return $query->where('role', UserRole::COMMERCIAL->value)
+                     ->where('is_active', true)
+                     ->orderBy('name');
+    }
+
+    /** Campagnes dont ce user est le commercial responsable. */
+    public function commercialCampaigns(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\Campaign::class, 'commercial_user_id');
+    }
+
+    /** Factures dont ce user est le commercial responsable. */
+    public function commercialInvoices(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\Invoice::class, 'commercial_user_id');
+    }
+
     // ══════════════════════════════════════════════════════════════
     // ESPACE TECHNICIEN — token public permanent
     // ══════════════════════════════════════════════════════════════

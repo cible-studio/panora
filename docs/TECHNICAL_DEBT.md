@@ -130,9 +130,58 @@ serait la BDD.
 
 ---
 
+## 🟢 [Priorité basse] Décision C révisée — pas de table `sectors`
+
+**Contexte** : la mission Sous-mission 0 avait validé la création d'une
+table `sectors` avec UI admin. **Cette décision a été révisée** lors
+de la mise en œuvre M1 (2026-06-17) : la const `Client::SECTORS` existe
+déjà avec 21 valeurs FR et est utilisée partout (validation + forms +
+sélecteurs filtres). Créer la table aurait dupliqué la source de vérité.
+
+**État actuel** : la liste des secteurs vit dans `app/Models/Client.php:68`.
+Pour ajouter/renommer un secteur → modifier la const + déploiement.
+
+**Action si besoin émerge** : mission séparée pour migrer vers table
+éditable, avec UI admin /admin/sectors. Pattern identique à la dette
+« Table delay_reasons éditable » de M3.
+
+---
+
+## 🟡 [Priorité moyenne] Indice Herfindahl — validation métier requise
+
+**Contexte** : M1 affiche un « score de diversification » calculé par
+indice Herfindahl-Hirschman inversé (= `1 - Σ((ca_client_i / ca_total)²)`).
+1.0 = portefeuille parfaitement équilibré, 0.0 = mono-client.
+
+**Risque** : le terme « Herfindahl » est peu connu hors finance. Un
+commercial qui voit son score 0.42 sans contexte peut ne pas
+comprendre. Le drill-down M1 affiche en parallèle « % du CA chez le
+top-1 client » qui est plus immédiat.
+
+**Action prévue** : valider métier avec direction CIBLE le 2026-06-XX.
+Si jugé non parlant → retirer l'indice Herfindahl, ne garder que la
+part top-1 client (déjà calculée). Affichage côte-à-côte aujourd'hui
+volontaire pour comparer.
+
+---
+
+## 🟢 [Priorité basse] Lien Rapports → Performance commerciale
+
+**Contexte** : sur la page `/admin/rapports`, l'onglet « Clients »
+affiche un classement par CA. Cliquer un client devrait pouvoir dériver
+vers le drill du commercial qui possède ce client (utile UX pour
+naviguer rapidement entre stats globales et perf individuelle).
+
+**Action prévue (mission séparée)** : enrichir le drilldown client
+modal pour montrer le commercial assigné, avec un bouton « → Voir la
+fiche performance du commercial ».
+
+---
+
 ## Historique
 
 | Date       | Mission                                      | Dette ajoutée |
 |------------|----------------------------------------------|---------------|
 | 2026-06-17 | Rapports pilotés par filtres en AJAX         | Migrations non sqlite-portable + audit sous-rapports |
 | 2026-06-17 | M3 SLA enrichi (Module 3)                    | Rôle comptable + secteur externes + delay_reasons table |
+| 2026-06-17 | M1 Performance Commerciale (Module 1)        | Décision C révisée (pas de table sectors) + Herfindahl à valider + lien Rapports↔Perf |

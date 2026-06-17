@@ -218,6 +218,19 @@
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
                         <span class="nav-text">SLA & Retards</span>
                     </a>
+<<<<<<< HEAD
+=======
+                    @endif
+
+                    {{-- M1 Performance Commerciale (mission 2026-06-17) — admin + MP + commercial.
+                         Le commercial voit son propre drill (le service force le scope au self). --}}
+                    @if($isAdmin || $isMP || ($isCommercial ?? auth()->user()?->role?->value === 'commercial'))
+                    <a href="{{ ($isCommercial ?? auth()->user()?->role?->value === 'commercial') ? route('admin.performance.commercial.me') : route('admin.performance.commercial.index') }}"
+                       data-tooltip="Performance commerciale" class="nav-item {{ request()->routeIs('admin.performance.commercial.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+                        <span class="nav-text">{{ ($isCommercial ?? auth()->user()?->role?->value === 'commercial') ? 'Ma performance' : 'Performance commerciale' }}</span>
+                    </a>
+>>>>>>> 4727bf529a7d87c69a7a3affd2dd922940e53ffb
                     @endif
 
                     {{-- Tableau de bord FINANCIER — Admin + Commercial.
