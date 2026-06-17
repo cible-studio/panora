@@ -73,9 +73,11 @@ class CommercialPerformanceController extends Controller
             // silencieusement vers sa propre fiche.
             return redirect()->route('admin.performance.commercial.show', $request->user());
         }
-        // Cible doit être un commercial actif
-        if ($user->role?->value !== 'commercial') {
-            abort(404, 'Cet utilisateur n\'est pas un commercial.');
+        // MAJ 2026-06-17 : un admin/MP peut aussi être « commercial responsable »
+        // d'une campagne (cf. SLA + leaderboard COALESCE qui inclut les admins
+        // amenant des clients). On autorise donc le drill sur admin/MP/commercial.
+        if (!in_array($user->role?->value, ['admin', 'mediaplanner', 'commercial'], true)) {
+            abort(404, 'Ce rôle n\'a pas accès au drill commercial.');
         }
 
         [$from, $to] = $this->resolvePeriod($request);

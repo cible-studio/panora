@@ -35,7 +35,18 @@ class CommercialAttributionController extends Controller
             ->orderByDesc('created_at')
             ->paginate(25);
 
-        $commerciaux = User::commerciaux()->get(['id', 'name', 'agent_code']);
+        // MAJ 2026-06-17 : on autorise l'attribution à un admin/MP/commercial
+        // (un admin peut amener des clients et gérer la campagne lui-même).
+        // Le dropdown affiche le rôle entre parenthèses pour clarté.
+        $commerciaux = User::query()
+            ->whereIn('role', [
+                \App\Enums\UserRole::ADMIN->value,
+                \App\Enums\UserRole::MEDIAPLANNER->value,
+                \App\Enums\UserRole::COMMERCIAL->value,
+            ])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'agent_code', 'role']);
 
         $unattributedCount = Campaign::whereNull('commercial_user_id')->whereNull('deleted_at')->count();
         $totalCount        = Campaign::whereNull('deleted_at')->count();
@@ -61,15 +72,15 @@ class CommercialAttributionController extends Controller
         // (Campaign.user_id), uniquement si ce créateur est lui-même commercial.
         if ($request->boolean('use_creator')) {
             $creator = $campaign->user; // = créateur via campaigns.user_id
-            if (!$creator || $creator->role?->value !== 'commercial') {
-                return back()->with('error', '🚫 Le créateur de cette campagne n\'est pas un commercial.');
+            if (!$creator || !in_array($creator->role?->value, ['admin','mediaplanner','commercial'], true)) {
+                return back()->with('error', '🚫 Le créateur de cette campagne n\'a pas un rôle compatible (admin/MP/commercial requis).');
             }
             $data['commercial_user_id'] = $creator->id;
         }
 
         $target = User::find($data['commercial_user_id']);
-        if (!$target || $target->role?->value !== 'commercial') {
-            return back()->with('error', '🚫 Cet utilisateur n\'est pas un commercial actif.');
+        if (!$target || !in_array($target->role?->value, ['admin','mediaplanner','commercial'], true)) {
+            return back()->with('error', '🚫 Cet utilisateur n\'a pas un rôle compatible (admin/MP/commercial requis).');
         }
 
         $campaign->forceFill(['commercial_user_id' => $target->id])->save();
