@@ -576,7 +576,7 @@ class RapportController extends Controller
             'kpis'        => $render('_kpis'),
             'tabs' => [
                 'occupation'  => $render('_tab_occupation'),
-                'performance' => $render('_tab_performance'),
+                'performance' => $render('_tab_panneaux'),
                 'periodes'    => $render('_tab_periodes'),
                 'campagnes'   => $render('_tab_campagnes'),
                 'ca'          => $render('_tab_ca'),
