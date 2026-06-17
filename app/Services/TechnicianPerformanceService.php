@@ -312,6 +312,162 @@ class TechnicianPerformanceService
             ->values();
     }
 
+    /**
+     * KPIs globaux équipe (tous techniciens actifs) pour le hero leaderboard.
+     * Bloc 2 — Famille A (2026-06-17) — homogénéisation avec page Commerciale.
+     *
+     * @return array{
+     *   nb_techs_actifs:int, nb_poses_realisees:int, reactivite_avg_min:?int,
+     *   duree_pose_avg_min:?int, taux_poses_en_retard:float, taux_piges_rejetees:float
+     * }
+     */
+    public function globalKpis(CarbonInterface $from, CarbonInterface $to): array
+    {
+        $techIds = User::techniciens()->pluck('id');
+        if ($techIds->isEmpty()) {
+            return [
+                'nb_techs_actifs'      => 0,
+                'nb_poses_realisees'   => 0,
+                'reactivite_avg_min'   => null,
+                'duree_pose_avg_min'   => null,
+                'taux_poses_en_retard' => 0.0,
+                'taux_piges_rejetees'  => 0.0,
+            ];
+        }
+
+        $aggregate = DB::table('pose_tasks')
+            ->whereIn('assigned_user_id', $techIds)
+            ->where(function ($q) use ($from, $to) {
+                $q->whereBetween('created_at', [$from, $to])
+                  ->orWhereBetween('scheduled_at', [$from, $to]);
+            })
+            ->selectRaw('
+                COUNT(*) as nb_total,
+                SUM(CASE WHEN status = "realisee" THEN 1 ELSE 0 END) as nb_realisees,
+                SUM(CASE WHEN status = "planifiee" AND scheduled_at < NOW() THEN 1 ELSE 0 END) as nb_retard,
+                AVG(CASE WHEN started_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, created_at, started_at) END) as reactivite,
+                AVG(CASE WHEN done_at IS NOT NULL AND started_at IS NOT NULL
+                         THEN TIMESTAMPDIFF(MINUTE, started_at, done_at) END) as duree_pose
+            ')
+            ->first();
+
+        // Taux piges rejetées global
+        $pigesRows = Pige::query()
+            ->whereBetween('created_at', [$from, $to])
+            ->whereHas('poseTask', fn ($q) => $q->whereIn('assigned_user_id', $techIds))
+            ->selectRaw('COUNT(*) as total, SUM(CASE WHEN status = "rejete" THEN 1 ELSE 0 END) as rejected')
+            ->first();
+        $tauxRejet = ($pigesRows && $pigesRows->total > 0)
+            ? round(($pigesRows->rejected / $pigesRows->total) * 100, 1)
+            : 0.0;
+
+        return [
+            'nb_techs_actifs'      => $techIds->count(),
+            'nb_poses_realisees'   => (int) ($aggregate->nb_realisees ?? 0),
+            'reactivite_avg_min'   => $aggregate?->reactivite !== null ? (int) round($aggregate->reactivite) : null,
+            'duree_pose_avg_min'   => $aggregate?->duree_pose !== null ? (int) round($aggregate->duree_pose) : null,
+            'taux_poses_en_retard' => $aggregate && $aggregate->nb_total > 0
+                ? round(($aggregate->nb_retard / $aggregate->nb_total) * 100, 1) : 0.0,
+            'taux_piges_rejetees'  => $tauxRejet,
+        ];
+    }
+
+    /**
+     * Évolution nb poses réalisées par mois — 12 mois glissants.
+     * Toutes équipes / tous techniciens confondus.
+     */
+    public function monthlyTrendAllTechs(int $months = 12): Collection
+    {
+        $end   = now()->endOfMonth();
+        $start = now()->subMonths($months - 1)->startOfMonth();
+
+        $rows = DB::table('pose_tasks')
+            ->where('status', 'realisee')
+            ->whereBetween('done_at', [$start, $end])
+            ->whereNotNull('done_at')
+            ->selectRaw('YEAR(done_at) as y, MONTH(done_at) as m, COUNT(*) as c')
+            ->groupBy('y', 'm')
+            ->get()
+            ->keyBy(fn ($r) => $r->y . '-' . str_pad((string) $r->m, 2, '0', STR_PAD_LEFT));
+
+        $moisFr = [1=>'janv', 2=>'févr', 3=>'mars', 4=>'avr', 5=>'mai', 6=>'juin', 7=>'juil', 8=>'août', 9=>'sept', 10=>'oct', 11=>'nov', 12=>'déc'];
+        $result = collect();
+        for ($i = $months - 1; $i >= 0; $i--) {
+            $d = now()->subMonths($i);
+            $key = $d->year . '-' . str_pad((string) $d->month, 2, '0', STR_PAD_LEFT);
+            $result->push([
+                'label' => $moisFr[$d->month] . ' ' . $d->format('y'),
+                'count' => isset($rows[$key]) ? (int) $rows[$key]->c : 0,
+            ]);
+        }
+        return $result;
+    }
+
+    /**
+     * Top techniciens par commune — qui pose le plus dans chaque commune.
+     * Utile pour identifier les zones d'expertise.
+     * Bloc 2 — Famille A (2026-06-17).
+     *
+     * @return Collection<int, array{user_id, user_name, commune, count}>
+     */
+    public function topByCommune(CarbonInterface $from, CarbonInterface $to, int $limit = 5): Collection
+    {
+        return DB::table('pose_tasks')
+            ->join('panels', 'panels.id', '=', 'pose_tasks.panel_id')
+            ->leftJoin('communes', 'communes.id', '=', 'panels.commune_id')
+            ->join('users', 'users.id', '=', 'pose_tasks.assigned_user_id')
+            ->where('users.role', 'technique')
+            ->where('users.is_active', true)
+            ->where('pose_tasks.status', 'realisee')
+            ->whereNotNull('pose_tasks.assigned_user_id')
+            ->whereBetween('pose_tasks.done_at', [$from, $to])
+            ->selectRaw('
+                users.id as user_id,
+                users.name as user_name,
+                COALESCE(communes.name, "(Sans commune)") as commune,
+                COUNT(*) as count
+            ')
+            ->groupBy('users.id', 'users.name', 'communes.name')
+            ->orderByDesc('count')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($r) => (array) $r)
+            ->values();
+    }
+
+    /**
+     * Top techniciens par campagne — qui a fait le plus de poses sur
+     * les campagnes en cours sur la période.
+     * Bloc 2 — Famille A (2026-06-17).
+     *
+     * @return Collection<int, array{user_id, user_name, campaign, client, count}>
+     */
+    public function topByCampaign(CarbonInterface $from, CarbonInterface $to, int $limit = 5): Collection
+    {
+        return DB::table('pose_tasks')
+            ->join('campaigns', 'campaigns.id', '=', 'pose_tasks.campaign_id')
+            ->leftJoin('clients', 'clients.id', '=', 'campaigns.client_id')
+            ->join('users', 'users.id', '=', 'pose_tasks.assigned_user_id')
+            ->where('users.role', 'technique')
+            ->where('users.is_active', true)
+            ->where('pose_tasks.status', 'realisee')
+            ->whereNotNull('pose_tasks.assigned_user_id')
+            ->whereBetween('pose_tasks.done_at', [$from, $to])
+            ->selectRaw('
+                users.id as user_id,
+                users.name as user_name,
+                campaigns.name as campaign,
+                COALESCE(clients.name, "—") as client,
+                COUNT(*) as count
+            ')
+            ->groupBy('users.id', 'users.name', 'campaigns.id', 'campaigns.name', 'clients.name')
+            ->orderByDesc('count')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($r) => (array) $r)
+            ->values();
+    }
+
     /** Liste paginée des poses du tech. */
     public function posesList(int $techId, CarbonInterface $from, CarbonInterface $to, int $perPage = 20)
     {

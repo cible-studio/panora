@@ -25,40 +25,14 @@
         </div>
     </div>
 
-    {{-- Filtres période — preset OU range custom (mutuellement exclusifs).
-         Quand on choisit un preset, on vide from/to ; quand on saisit
-         une date, on vide le preset. Sinon le serveur a 2 sources de
-         vérité conflictuelles et le filtre date avait l'air de "ne pas
-         marcher" sans qu'on comprenne pourquoi. --}}
-    @php $usingCustomRange = request()->filled('from') || request()->filled('to'); @endphp
-    <form method="GET" class="perf-filter-card" style="margin-bottom:16px">
-        <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
-            <div class="fne-field" style="min-width:160px">
-                <label>Période rapide</label>
-                <select name="preset"
-                        onchange="this.form.querySelector('[name=from]').value='';this.form.querySelector('[name=to]').value='';this.form.submit()">
-                    <option value=""        {{ $usingCustomRange ? 'selected' : '' }} disabled hidden>— Personnalisé —</option>
-                    <option value="year"    {{ !$usingCustomRange && ($preset ?? 'year') === 'year'    ? 'selected' : '' }}>Cette année</option>
-                    <option value="quarter" {{ !$usingCustomRange && ($preset ?? '') === 'quarter' ? 'selected' : '' }}>Ce trimestre</option>
-                    <option value="month"   {{ !$usingCustomRange && ($preset ?? '') === 'month'   ? 'selected' : '' }}>Ce mois</option>
-                    <option value="all"     {{ !$usingCustomRange && ($preset ?? '') === 'all'     ? 'selected' : '' }}>Tout</option>
-                </select>
-            </div>
-            <div class="fne-field" style="min-width:140px">
-                <label>Du</label>
-                <input type="date" name="from" value="{{ request('from', $usingCustomRange ? $from->format('Y-m-d') : '') }}"
-                       onchange="this.form.querySelector('[name=preset]').value='';this.form.submit()">
-            </div>
-            <div class="fne-field" style="min-width:140px">
-                <label>Au</label>
-                <input type="date" name="to" value="{{ request('to', $usingCustomRange ? $to->format('Y-m-d') : '') }}"
-                       onchange="this.form.querySelector('[name=preset]').value='';this.form.submit()">
-            </div>
-            @if($usingCustomRange)
-                <a href="{{ route('admin.performance.commercial.index') }}" class="btn btn-ghost btn-sm" style="height:38px;display:inline-flex;align-items:center" title="Revenir aux périodes rapides">↺ Réinitialiser</a>
-            @endif
-        </div>
-    </form>
+    {{-- Filtres période — partial partagé Performance (Bloc 2 — Famille A 2026-06-17). --}}
+    @include('admin.performance.partials._period_filters', [
+        'action_route' => route('admin.performance.commercial.index'),
+        'reset_route'  => route('admin.performance.commercial.index'),
+        'from'         => $from,
+        'to'           => $to,
+        'preset'       => $preset ?? 'year',
+    ])
 
     {{-- KPI globaux du leaderboard --}}
     @php

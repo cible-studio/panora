@@ -31,20 +31,16 @@ class TechnicianPerformanceController extends Controller
         }
 
         [$from, $to] = $this->resolvePeriod($request);
-        $leaderboard = $this->perf->leaderboardTechs($from, $to);
+        $leaderboard   = $this->perf->leaderboardTechs($from, $to);
+        $globalKpis    = $this->perf->globalKpis($from, $to);
+        $monthlyTrend  = $this->perf->monthlyTrendAllTechs(12);
+        $topByCommune  = $this->perf->topByCommune($from, $to, 5);
+        $topByCampaign = $this->perf->topByCampaign($from, $to, 5);
 
-        // Alignement Performance Commerciale : KPI globaux équipe + courbe 12 mois
-        $globalKpis  = $this->perf->globalTeamKpis($from, $to);
-        $globalTrend = $this->perf->globalMonthlyTrend(12);
-
-        return view('admin.performance.techniciens.index', [
-            'leaderboard' => $leaderboard,
-            'globalKpis'  => $globalKpis,
-            'globalTrend' => $globalTrend,
-            'from'        => $from,
-            'to'          => $to,
-            'preset'      => $request->input('preset'),
-        ]);
+        return view('admin.performance.techniciens.index', compact(
+            'leaderboard', 'globalKpis', 'monthlyTrend',
+            'topByCommune', 'topByCampaign', 'from', 'to'
+        ) + ['preset' => $request->input('preset')]);
     }
 
     public function me(Request $request)
@@ -79,9 +75,9 @@ class TechnicianPerformanceController extends Controller
 
     protected function resolvePeriod(Request $request): array
     {
-        // Cf. CommercialPerformanceController : on accepte UNE seule date
-        // (from ou to) sans exiger les 2, sinon le preset par défaut
-        // écrasait silencieusement la saisie de l'utilisateur.
+        // Range custom : si au moins une des 2 dates est saisie, on respecte
+        // (aligné sur CommercialPerformanceController). Avant : il fallait
+        // les 2 sinon retour au preset par défaut → bug d'expérience.
         $hasFrom = $request->filled('from');
         $hasTo   = $request->filled('to');
         if ($hasFrom || $hasTo) {
@@ -92,13 +88,13 @@ class TechnicianPerformanceController extends Controller
                 $to = $hasTo
                     ? Carbon::parse($request->input('to'))->endOfDay()
                     : Carbon::now()->endOfDay();
-                if ($from->gt($to)) {
-                    [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
-                }
+                if ($from->gt($to)) [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
                 return [$from, $to];
             } catch (\Throwable) {}
         }
         return match ($request->input('preset')) {
+            'today'   => [now()->startOfDay(), now()->endOfDay()],
+            'week'    => [now()->startOfWeek(), now()->endOfWeek()],
             'month'   => [now()->startOfMonth(), now()->endOfMonth()],
             'quarter' => [now()->firstOfQuarter(), now()->lastOfQuarter()],
             'all'     => [Carbon::create(2020, 1, 1), now()],
