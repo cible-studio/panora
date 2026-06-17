@@ -628,7 +628,20 @@ class InvoiceController extends Controller
         }
 
         // Phase 8B cahier §9 — relances de cette facture (timeline)
-        $invoiceRelances = \App\Models\Relance::where('invoice_id', $invoice->id)
+        //
+        // Élargissement (juin 2026, mission user "on ne voit pas
+        // l'historique des relances") : on inclut aussi les relances
+        // GLOBALES du client (invoice_id NULL) saisies via la modale
+        // du tableau Recouvrement — sinon elles n'apparaissent nulle
+        // part sur la fiche facture alors qu'elles sont contextuelles.
+        $invoiceRelances = \App\Models\Relance::query()
+            ->where(function ($q) use ($invoice) {
+                $q->where('invoice_id', $invoice->id)
+                  ->orWhere(function ($qq) use ($invoice) {
+                      $qq->whereNull('invoice_id')
+                         ->where('client_id', $invoice->client_id);
+                  });
+            })
             ->with('user:id,name')
             ->orderByDesc('relance_date')
             ->orderByDesc('id')
