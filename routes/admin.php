@@ -374,6 +374,16 @@ Route::prefix('admin')
         Route::get('map/data', [PanelController::class, 'mapData'])
             ->name('map.data');
 
+        // ── Import GPS depuis Excel/CSV (admin + MP) ──────────────
+        // Formulaire d'upload + traitement. Admin et MP peuvent importer
+        // car ils gèrent tous deux le parc (cohérent avec édition panneau).
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('panels/import-gps', [PanelController::class, 'importGpsForm'])
+                ->name('panels.import-gps.form');
+            Route::post('panels/import-gps', [PanelController::class, 'importGps'])
+                ->name('panels.import-gps');
+        });
+
         // ── Pose OOH ─────────────────────────────── (admin + MP only) ──
         // Le commercial n'a aucun accès au suivi terrain (matrice POSES).
         // ⚠️ Routes AJAX spécifiques AVANT resource pour éviter conflits

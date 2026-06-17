@@ -802,6 +802,131 @@ class PanelController extends Controller
         return view('admin.panels.map', compact('communes', 'geoCoverage'));
     }
 
+    // ══════════════════════════════════════════════════════════════════
+    // IMPORT GPS — Excel / CSV
+    // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * Page d'upload du fichier Excel/CSV de coordonnées GPS.
+     * Format attendu : 3 colonnes — reference, latitude, longitude
+     * (avec ou sans en-tête, le parser détecte).
+     */
+    public function importGpsForm()
+    {
+        return view('admin.panels.import-gps');
+    }
+
+    /**
+     * Traite le fichier uploadé. Supporte XLSX / XLS / CSV / TXT.
+     * Pour chaque ligne :
+     *   1) Tente une correspondance exacte sur reference
+     *   2) Tente avec un infix "CH" (compat prod)
+     *   3) Tente un LIKE en dernier recours
+     *   4) Sinon → liste les "non trouvés"
+     *
+     * Mode FORCE (case à cocher) → écrase les coords existantes.
+     * Mode SAFE (défaut) → skip si lat/lng déjà renseignés et != 0.
+     */
+    public function importGps(Request $request)
+    {
+        $request->validate([
+            'gps_file' => 'required|file|mimes:xlsx,xls,csv,txt|max:5120',
+            'force'    => 'nullable|boolean',
+        ], [
+            'gps_file.mimes' => 'Format accepté : .xlsx, .xls, .csv',
+            'gps_file.max'   => 'Fichier trop volumineux (max 5 Mo).',
+        ]);
+
+        $force = $request->boolean('force');
+        $file  = $request->file('gps_file');
+
+        // Lecture du fichier — PhpSpreadsheet gère XLSX/XLS/CSV nativement.
+        try {
+            $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($file->getRealPath());
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($file->getRealPath());
+            $rows        = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['gps_file' => 'Impossible de lire le fichier : ' . $e->getMessage()]);
+        }
+
+        $updated  = 0;
+        $skipped  = 0;
+        $notfound = [];
+        $bad      = [];
+
+        $rowIndex = 0;
+        foreach ($rows as $row) {
+            $rowIndex++;
+            $values = array_values($row);
+            // Ignore lignes vides + en-tête éventuel (1ère ligne avec mots type "reference")
+            if (empty(array_filter($values, fn($v) => $v !== null && $v !== ''))) continue;
+            $firstCell = strtolower((string) ($values[0] ?? ''));
+            if ($rowIndex === 1 && (str_contains($firstCell, 'ref') || str_contains($firstCell, 'pan'))) {
+                continue;
+            }
+
+            $ref = trim((string) ($values[0] ?? ''));
+            $lat = is_numeric($values[1] ?? null) ? (float) $values[1] : null;
+            $lng = is_numeric($values[2] ?? null) ? (float) $values[2] : null;
+
+            if (!$ref || $lat === null || $lng === null) {
+                $bad[] = "L{$rowIndex} : " . ($ref ?: '(ref vide)') . " — lat/lng invalides";
+                continue;
+            }
+            // Sécurité géographique : la Côte d'Ivoire est à ~4-11°N, -2 à -9°W.
+            // Coords hors de ces bornes = probable erreur de saisie.
+            if ($lat < 3 || $lat > 12 || $lng < -9 || $lng > -2) {
+                $bad[] = "L{$rowIndex} : {$ref} — coords hors CI ({$lat}, {$lng})";
+                continue;
+            }
+
+            // ── Stratégie de matching (3 niveaux) ──
+            $candidates = [$ref];
+            if (preg_match('/^([A-Z]+)-(.+)$/i', $ref, $m)) {
+                $candidates[] = strtoupper($m[1]) . '-CH' . $m[2];
+            }
+            $panel = Panel::whereIn('reference', $candidates)->first();
+            if (!$panel && preg_match('/^([A-Z]+)-(\d+)([A-Z]?)$/i', $ref, $m)) {
+                $panel = Panel::where('reference', 'LIKE', strtoupper($m[1]) . '%' . $m[2] . $m[3])->first();
+            }
+
+            if (!$panel) {
+                $notfound[] = $ref;
+                continue;
+            }
+
+            if (!$force && $panel->latitude && $panel->longitude
+                && (float) $panel->latitude !== 0.0
+                && (float) $panel->longitude !== 0.0) {
+                $skipped++;
+                continue;
+            }
+
+            $panel->update([
+                'latitude'        => $lat,
+                'longitude'       => $lng,
+                'gps_source'      => 'manual',
+                'gps_computed_at' => now(),
+            ]);
+            $updated++;
+        }
+
+        $msg = "✅ {$updated} panneau(x) mis à jour"
+             . ($skipped ? " · ⏭ {$skipped} déjà renseigné(s)" : '')
+             . (count($notfound) ? " · ❌ " . count($notfound) . " non trouvé(s)" : '')
+             . (count($bad) ? " · ⚠ " . count($bad) . " ligne(s) invalide(s)" : '');
+
+        return redirect()->route('admin.panels.map')
+            ->with('success', $msg)
+            ->with('gps_import_report', [
+                'updated'  => $updated,
+                'skipped'  => $skipped,
+                'notfound' => $notfound,
+                'bad'      => $bad,
+            ]);
+    }
+
     // ── DONNÉES CARTE JSON ──
     public function mapData(Request $request)
     {

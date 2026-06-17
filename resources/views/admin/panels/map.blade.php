@@ -4,6 +4,9 @@
 <x-slot name="topbarActions">
     <button onclick="toggleView('map')" id="btn-map" class="btn btn-primary btn-sm">🗺️ Carte</button>
     <button onclick="toggleView('heatmap')" id="btn-heatmap" class="btn btn-ghost btn-sm">🔥 Heatmap</button>
+    <a href="{{ route('admin.panels.import-gps.form') }}" class="btn btn-ghost btn-sm" title="Importer les coordonnées GPS depuis un fichier Excel/CSV">
+        📥 Import GPS
+    </a>
 </x-slot>
 
 {{-- KPI cards — design unifié --}}
