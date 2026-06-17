@@ -2,7 +2,7 @@
 <x-slot name="title">Performance — {{ $user->name }}</x-slot>
 
 <x-slot:topbarLeft>
-    @if(in_array(auth()->user()->role->value, ['admin','mediaplanner'], true))
+    @if(in_array(auth()->user()?->role?->value, ['admin','mediaplanner'], true))
         <a href="{{ route('admin.performance.commercial.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             Classement
@@ -11,7 +11,7 @@
 </x-slot:topbarLeft>
 
 <x-slot name="topbarActions">
-    @if(in_array(auth()->user()->role->value, ['admin','mediaplanner'], true))
+    @if(in_array(auth()->user()?->role?->value, ['admin','mediaplanner'], true))
         <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-ghost btn-sm">⚙ Profil</a>
     @endif
 </x-slot>
