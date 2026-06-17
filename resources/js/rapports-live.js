@@ -45,6 +45,7 @@
         clients:     'panel-clients',
         decappages:  'panel-decap',
         insights:    'panel-insights',
+        sla:         'panel-sla', // M3 SLA enrichi (admin/MP only)
     };
 
     const RapportsLive = {

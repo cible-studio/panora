@@ -42,6 +42,14 @@ window.__RPT__ = {
     // Données onglet Campagnes
     cancellationTrend: {!! json_encode($cancellationTrend->values()) !!},
     campaignStats:     {!! json_encode($campaignStats) !!},
+    // M3 SLA enrichi — séries doughnut motifs (vide si pas admin/MP)
+    slaByMotif:        {!! json_encode(($delayStats ?? null)
+        ? collect($delayStats['by_motif_open'])->map(fn($r) => [
+            'label' => $r['icon'] . ' ' . $r['label'],
+            'count' => $r['count'],
+            'color' => $r['motif']->color(),
+        ])->values()
+        : []) !!},
 };
 </script>
 
@@ -207,18 +215,20 @@ window.__RPT__ = {
         ['id'=>'clients',   'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>','label'=>'Clients'],
         ['id'=>'decap',     'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>','label'=>'Décappages'],
         ['id'=>'insights',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11h.01M15 11h.01M18 21l-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3l-3 3z"/></svg>','label'=>'Insights & Alertes'],
+        // M3 SLA enrichi (admin/MP only — pas commercial, pas technique)
+        ['id'=>'sla',       'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>','label'=>'⚠ SLA & Retards'],
     ];
 
     // Mapping rôle → onglets autorisés (null = tous = admin).
     $tabsByRole = [
-        'admin'        => null, // tous les 9
-        'mediaplanner' => [     // 7 : production / opérationnel
+        'admin'        => null, // tous les 10
+        'mediaplanner' => [     // 8 : production / opérationnel + SLA
             'occupation', 'panneaux', 'periodes', 'campagnes',
-            'zones', 'clients', 'decap',
+            'zones', 'clients', 'decap', 'sla',
             // EXCLUS pour MP : 'ca' (CA stratégique entreprise),
             //                  'insights' (synthèse exécutive direction).
         ],
-        'commercial'   => [     // 4 : strictement personnel filtré
+        'commercial'   => [     // 4 : strictement personnel filtré (pas de SLA)
             'periodes', 'campagnes', 'ca', 'decap',
         ],
     ];
@@ -439,6 +449,13 @@ window.__RPT__ = {
 @include('admin.rapports.partials._tab_insights')
 @endif {{-- panel-insights --}}
 
+{{-- ══════════════════════════════════════════════════════════════
+     ONGLET — SLA & RETARDS (admin/MP only — M3 SLA enrichi)
+══════════════════════════════════════════════════════════════ --}}
+@if(in_array('sla', $allowedTabIds, true))
+@include('admin.rapports.partials._tab_sla')
+@endif
+
 {{-- ════ STYLES ════ --}}
 <style>
 .rpt-tab { flex:1;padding:9px 10px;border-radius:10px;border:none;background:transparent;color:var(--text3);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap; }
@@ -617,6 +634,7 @@ window.RPT = {
         if (id==='clients'   &&!this._clientsDone)  { this.renderClientDistribution(); this._clientsDone=true; }
         if (id==='campagnes' &&!this._campagnesDone){ this.renderCancellationTrend(); this.renderCancelReasonsCamp(); this._campagnesDone=true; }
         if (id==='insights'  &&!this._insightsDone) { this.renderInsightsCharts();this._insightsDone=true; }
+        if (id==='sla'       &&!this._slaDone)      { this.renderSlaMotifs();    this._slaDone=true; }
     },
 
     renderEvol() {
@@ -1036,6 +1054,38 @@ window.RPT = {
             });
         }
     },
+
+    // ── M3 SLA enrichi — doughnut motifs de retard (onglet "SLA & Retards") ──
+    renderSlaMotifs() {
+        const canvas = document.getElementById('chart-sla-motifs');
+        const data = D.slaByMotif || [];
+        if (!canvas || !data.length || typeof Chart === 'undefined') return;
+        const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+        const tickC  = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
+        new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels:   data.map(d => d.label),
+                datasets: [{
+                    data:            data.map(d => d.count),
+                    backgroundColor: data.map(d => d.color),
+                    borderWidth:     2,
+                    borderColor:     isDark ? '#1f2937' : '#fff',
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%',
+                plugins: {
+                    legend: { position: 'right', labels: { color: tickC, font: { size: 11 }, padding: 10 } },
+                    tooltip: { callbacks: {
+                        label: ctx => ` ${ctx.parsed} signalement(s)`,
+                    }},
+                }
+            }
+        });
+    },
 };
 
 // Init graphiques de l'onglet par défaut (occupation) au chargement
@@ -1070,6 +1120,7 @@ RPT.refreshAllCharts = function (newData) {
         'chart-revenue-trend', 'chart-occ-revenue',
         'chart-client-dist', 'hm-bar-chart',
         'chart-inactivity', 'chart-cancel-reasons',
+        'chart-sla-motifs', // M3 SLA enrichi
     ];
     chartIds.forEach(function (id) {
         var c = document.getElementById(id);
@@ -1083,7 +1134,7 @@ RPT.refreshAllCharts = function (newData) {
     }
 
     RPT._evolDone = RPT._caDone = RPT._panneauxDone = RPT._clientsDone =
-        RPT._campagnesDone = RPT._insightsDone = RPT._hmDone = false;
+        RPT._campagnesDone = RPT._insightsDone = RPT._hmDone = RPT._slaDone = false;
 
     var safeCall = function (fn) { try { fn(); } catch (_) {} };
     safeCall(function () { RPT.renderEvol(); });
@@ -1096,6 +1147,7 @@ RPT.refreshAllCharts = function (newData) {
     safeCall(function () { RPT.renderCancelReasonsCamp(); });
     safeCall(function () { RPT.renderClientDistribution(); });
     safeCall(function () { RPT.renderInsightsCharts(); });
+    safeCall(function () { RPT.renderSlaMotifs(); });
     if (typeof HM !== 'undefined' && HM.init) safeCall(function () { HM.init(); });
 };
 
