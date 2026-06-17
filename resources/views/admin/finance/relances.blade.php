@@ -1,22 +1,51 @@
 <x-admin-layout>
 <x-slot name="title">Historique des relances</x-slot>
 
+@php
+    // Bouton retour intelligent : ramène à la page précédente si le user
+    // arrive depuis ailleurs (fiche facture, fiche client, dashboard…),
+    // sinon fallback sur le tableau de bord financier.
+    $referer = url()->previous();
+    $cur = url()->current();
+    $backUrl = ($referer && $referer !== $cur && !str_contains($referer, '/admin/finance/relances'))
+        ? $referer
+        : route('admin.finance.index');
+@endphp
+
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.finance.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
+    <a href="{{ $backUrl }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px"
+       title="Revenir sur la page précédente">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6"/>
         </svg>
-        Retour au tableau de bord
+        Retour
     </a>
 </x-slot:topbarLeft>
 
+<x-slot name="topbarActions">
+    <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement']) }}" class="btn btn-ghost btn-sm">
+        📞 Recouvrement
+    </a>
+    <a href="{{ route('admin.finance.index', ['tab' => 'creances']) }}" class="btn btn-ghost btn-sm">
+        📉 Créances
+    </a>
+</x-slot>
+
 <div class="fin-relances-page">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
-        <div style="width:44px;height:44px;border-radius:12px;background:rgba(232,160,32,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px">📋</div>
-        <div>
-            <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:3px">Historique des relances</div>
-            <div style="font-size:12px;color:var(--text3);line-height:1.4">{{ $relances->total() }} relance(s) enregistrée(s){{ request()->hasAny(['client_id','invoice_id','canal','outcome','from','to']) ? ' (selon le filtre actif)' : ' au total' }}</div>
+    {{-- Hero header — style cohérent avec les autres dashboards. --}}
+    <div style="background:linear-gradient(135deg,rgba(232,160,32,.10),rgba(245,158,11,.06));border:1px solid var(--border);border-radius:16px;padding:22px 26px;margin-bottom:18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div style="width:54px;height:54px;border-radius:14px;background:rgba(232,160,32,.20);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:26px;box-shadow:0 4px 12px rgba(232,160,32,.18)">📋</div>
+        <div style="flex:1;min-width:240px">
+            <div style="font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.2px">Historique des relances</div>
+            <div style="font-size:12.5px;color:var(--text3);margin-top:4px;line-height:1.5">
+                {{ $relances->total() }} relance(s) enregistrée(s){{ request()->hasAny(['client_id','invoice_id','canal','outcome','from','to']) ? ' selon le filtre actif' : ' au total' }}.
+                Filtre, suit, et déclenche une nouvelle action en un clic.
+            </div>
         </div>
+        <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement']) }}"
+           class="btn btn-primary btn-sm" style="font-size:12.5px;font-weight:700">
+            ＋ Enregistrer une relance
+        </a>
     </div>
 
     {{-- KPI cards --}}
@@ -181,9 +210,17 @@
                                         {{ $r->suite_donnee ?: '—' }}
                                     </td>
                                     <td style="font-size:12px;color:var(--text3)">{{ $r->user?->name ?? '—' }}</td>
-                                    <td style="text-align:right">
-                                        <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement']) }}#client-{{ $r->client_id }}"
-                                           class="btn btn-ghost btn-sm" style="font-size:11px">📞 Relancer</a>
+                                    <td style="text-align:right;white-space:nowrap">
+                                        @if($r->client_id)
+                                            {{-- Lien direct vers Recouvrement avec auto-ouverture de la
+                                                 modale "+ Enregistrer une relance" pré-remplie sur ce client.
+                                                 Le retour ramène à cette page (back() intelligent). --}}
+                                            <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement', 'open_relance' => 1, 'client_id' => $r->client_id]) }}"
+                                               class="btn btn-primary btn-sm" style="font-size:11px;font-weight:700"
+                                               title="Ouvrir la modale de relance avec ce client présélectionné">
+                                                📞 Relancer
+                                            </a>
+                                        @endif
                                     </td>
                                 </tr>
                             @endforeach
@@ -241,59 +278,126 @@
 
     @if($relances->isEmpty())
         <div class="fin-card">
-            <div class="fin-empty" style="padding:60px 20px">
-                Aucune relance enregistrée pour le moment.
+            <div class="fin-empty" style="padding:50px 20px;text-align:center">
+                <div style="font-size:36px;margin-bottom:10px">📞</div>
+                <div style="font-size:14px;color:var(--text2);font-weight:600;margin-bottom:4px">Aucune relance enregistrée pour le moment.</div>
+                <div style="font-size:12px;color:var(--text3);line-height:1.5;max-width:420px;margin:0 auto">
+                    Va dans <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement']) }}" style="color:var(--accent);text-decoration:none;font-weight:700">Recouvrement</a>
+                    et clique <strong>+ Relancer</strong> sur une ligne client pour enregistrer la première.
+                </div>
             </div>
         </div>
     @else
+        @php
+            $canalIcons = [
+                'telephone' => '📞', 'email' => '📧', 'whatsapp' => '💬',
+                'visite'    => '🚶', 'courrier' => '✉️', 'autre' => '📝',
+            ];
+            $outcomeColors = [
+                'promesse_paiement' => ['bg' => 'rgba(34,197,94,.12)',  'c' => '#15803d'],
+                'paiement_recu'     => ['bg' => 'rgba(34,197,94,.18)',  'c' => '#15803d'],
+                'a_relancer'        => ['bg' => 'rgba(245,158,11,.14)', 'c' => '#b45309'],
+                'sans_reponse'      => ['bg' => 'rgba(107,114,128,.12)','c' => '#4b5563'],
+                'desaccord'         => ['bg' => 'rgba(239,68,68,.10)',  'c' => '#b91c1c'],
+                'autre'             => ['bg' => 'rgba(99,102,241,.10)', 'c' => '#4338ca'],
+            ];
+        @endphp
         <div class="fin-card">
-            <div class="fin-card-body fin-card-body--flush">
-                <table class="fin-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Client</th>
-                            <th>Facture</th>
-                            <th>Canal</th>
-                            <th>Note</th>
-                            <th>Suite</th>
-                            <th>Auteur</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($relances as $r)
-                            <tr>
-                                <td style="white-space:nowrap;color:var(--text2)">{{ $r->relance_date->format('d/m/Y') }}</td>
-                                <td>
-                                    @if($r->client)
-                                        <a href="{{ route('admin.clients.show', $r->client) }}" style="color:var(--accent);text-decoration:none">{{ $r->client->name }}</a>
-                                    @else
-                                        <span style="color:var(--text3)">—</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    @if($r->invoice)
-                                        <a href="{{ route('admin.invoices.show', $r->invoice) }}" style="font-family:monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $r->invoice->reference }}</a>
-                                    @else
-                                        <span style="color:var(--text3);font-size:11px">— Relance globale</span>
-                                    @endif
-                                </td>
-                                <td>{{ \App\Models\Relance::CANAUX[$r->canal] ?? $r->canal }}</td>
-                                <td style="max-width:340px;color:var(--text2)">{{ Str::limit($r->note, 140) }}</td>
-                                <td style="max-width:240px;color:var(--text2);font-size:12px;font-style:italic">
-                                    @if($r->suite_donnee)
-                                        {{ Str::limit($r->suite_donnee, 100) }}
-                                    @else
-                                        <span style="color:var(--text3)">—</span>
-                                    @endif
-                                </td>
-                                <td style="color:var(--text2);font-size:12px;white-space:nowrap">{{ $r->user?->name ?? '—' }}</td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+            <div class="fin-card-head">
+                <div>
+                    <div class="fin-card-title">📋 Toutes les relances</div>
+                    <div class="fin-card-sub">{{ $relances->total() }} relance(s) — page {{ $relances->currentPage() }}/{{ $relances->lastPage() }}</div>
+                </div>
             </div>
-            <div style="padding:14px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+            <div class="fin-card-body fin-card-body--flush">
+                <div style="overflow-x:auto">
+                    <table class="fin-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Client</th>
+                                <th>Facture</th>
+                                <th>Canal</th>
+                                <th>Résultat</th>
+                                <th>Note (observations)</th>
+                                <th>Suite à donner</th>
+                                <th>Auteur</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($relances as $r)
+                                @php
+                                    $oCfg = $outcomeColors[$r->outcome] ?? ['bg' => 'var(--surface2)', 'c' => 'var(--text3)'];
+                                    $oLbl = $outcomeLabels[$r->outcome] ?? null;
+                                @endphp
+                                <tr>
+                                    <td style="white-space:nowrap;color:var(--text2);font-weight:600">{{ $r->relance_date->format('d/m/Y') }}</td>
+                                    <td>
+                                        @if($r->client)
+                                            <a href="{{ route('admin.clients.show', $r->client) }}"
+                                               style="color:var(--accent);text-decoration:none;font-weight:600"
+                                               title="Voir la fiche client">{{ $r->client->name }}</a>
+                                        @else
+                                            <span style="color:var(--text3)">—</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($r->invoice)
+                                            <a href="{{ route('admin.invoices.show', $r->invoice) }}"
+                                               style="font-family:monospace;color:var(--accent);text-decoration:none;font-weight:700"
+                                               title="Ouvrir la facture">{{ $r->invoice->reference }}</a>
+                                        @else
+                                            <span style="display:inline-block;font-size:10.5px;color:var(--text3);background:var(--surface2);padding:2px 8px;border-radius:6px;font-style:italic"
+                                                  title="Relance enregistrée au niveau client (pas attachée à une facture précise)">— Relance globale</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)">
+                                            {{ $canalIcons[$r->canal] ?? '📞' }}
+                                            {{ \App\Models\Relance::CANAUX[$r->canal] ?? $r->canal }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if($oLbl)
+                                            <span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;background:{{ $oCfg['bg'] }};color:{{ $oCfg['c'] }};white-space:nowrap">{{ $oLbl }}</span>
+                                        @else
+                                            <span style="color:var(--text3);font-size:11px;font-style:italic">— Non renseigné</span>
+                                        @endif
+                                    </td>
+                                    <td style="max-width:320px;color:var(--text2);font-size:12.5px;line-height:1.5">
+                                        @if($r->note)
+                                            <span title="{{ $r->note }}">{{ Str::limit($r->note, 110) }}</span>
+                                        @else
+                                            <span style="color:var(--text3)">—</span>
+                                        @endif
+                                    </td>
+                                    <td style="max-width:200px;color:var(--text2);font-size:12px">
+                                        @if($r->suite_donnee)
+                                            <span title="{{ $r->suite_donnee }}" style="font-style:italic">💬 {{ Str::limit($r->suite_donnee, 70) }}</span>
+                                        @else
+                                            <span style="color:var(--text3);font-size:11px">—</span>
+                                        @endif
+                                    </td>
+                                    <td style="color:var(--text2);font-size:12px;white-space:nowrap">{{ $r->user?->name ?? '—' }}</td>
+                                    <td style="text-align:right;white-space:nowrap">
+                                        @if($r->client_id)
+                                            <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement', 'open_relance' => 1, 'client_id' => $r->client_id]) }}"
+                                               class="btn btn-ghost btn-sm"
+                                               style="font-size:11px;color:var(--accent);font-weight:700"
+                                               title="Enregistrer une nouvelle relance pour ce client">📞 Relancer</a>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div style="padding:14px 18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px">
+                <div style="font-size:12px;color:var(--text3)">
+                    Affichage {{ $relances->firstItem() }}–{{ $relances->lastItem() }} sur {{ $relances->total() }}
+                </div>
                 {{ $relances->withQueryString()->links() }}
             </div>
         </div>
