@@ -33,8 +33,14 @@ class TechnicianPerformanceController extends Controller
         [$from, $to] = $this->resolvePeriod($request);
         $leaderboard = $this->perf->leaderboardTechs($from, $to);
 
+        // Alignement Performance Commerciale : KPI globaux équipe + courbe 12 mois
+        $globalKpis  = $this->perf->globalTeamKpis($from, $to);
+        $globalTrend = $this->perf->globalMonthlyTrend(12);
+
         return view('admin.performance.techniciens.index', [
             'leaderboard' => $leaderboard,
+            'globalKpis'  => $globalKpis,
+            'globalTrend' => $globalTrend,
             'from'        => $from,
             'to'          => $to,
             'preset'      => $request->input('preset'),
@@ -73,10 +79,23 @@ class TechnicianPerformanceController extends Controller
 
     protected function resolvePeriod(Request $request): array
     {
-        if ($request->filled('from') && $request->filled('to')) {
+        // Cf. CommercialPerformanceController : on accepte UNE seule date
+        // (from ou to) sans exiger les 2, sinon le preset par défaut
+        // écrasait silencieusement la saisie de l'utilisateur.
+        $hasFrom = $request->filled('from');
+        $hasTo   = $request->filled('to');
+        if ($hasFrom || $hasTo) {
             try {
-                return [Carbon::parse($request->input('from'))->startOfDay(),
-                        Carbon::parse($request->input('to'))->endOfDay()];
+                $from = $hasFrom
+                    ? Carbon::parse($request->input('from'))->startOfDay()
+                    : Carbon::parse($request->input('to'))->copy()->subYear()->startOfDay();
+                $to = $hasTo
+                    ? Carbon::parse($request->input('to'))->endOfDay()
+                    : Carbon::now()->endOfDay();
+                if ($from->gt($to)) {
+                    [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
+                }
+                return [$from, $to];
             } catch (\Throwable) {}
         }
         return match ($request->input('preset')) {
