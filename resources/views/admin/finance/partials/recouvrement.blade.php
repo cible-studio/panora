@@ -324,5 +324,21 @@ function finOpenRelanceModal(clientId, clientName) {
     const sel = document.getElementById('modal-client-id');
     if (sel) sel.value = clientId;
     document.getElementById('modal-relance').style.display = 'flex';
+    // Focus auto sur le champ note pour gagner du temps de saisie
+    setTimeout(() => {
+        const note = document.querySelector('#modal-relance textarea[name="note"]');
+        if (note) note.focus();
+    }, 50);
 }
+
+// Auto-ouverture si l'URL contient ?open_relance=1&client_id=X — déclenché
+// depuis la page Historique des relances quand on clique "Relancer" sur
+// une ligne "à donner suite". Permet d'enchaîner sans clic supplémentaire.
+document.addEventListener('DOMContentLoaded', function () {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('open_relance') === '1') {
+        const cid = parseInt(params.get('client_id'), 10);
+        if (cid) finOpenRelanceModal(cid, '');
+    }
+});
 </script>
