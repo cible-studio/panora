@@ -55,7 +55,6 @@
                         <option value="commercial"   {{ old('role', $user->role->value) === 'commercial'   ? 'selected' : '' }}>💼 Commercial</option>
                         <option value="mediaplanner" {{ old('role', $user->role->value) === 'mediaplanner' ? 'selected' : '' }}>🗓️ Media Planner</option>
                         <option value="comptable"    {{ old('role', $user->role->value) === 'comptable'    ? 'selected' : '' }}>📊 Comptable</option>
-                        <option value="technique"    {{ old('role', $user->role->value) === 'technique'    ? 'selected' : '' }}>🔧 Technicien</option>
                         <option value="admin"        {{ old('role', $user->role->value) === 'admin'        ? 'selected' : '' }}>🛡️ Administrateur</option>
                     </select>
                 </div>

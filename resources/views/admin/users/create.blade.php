@@ -27,8 +27,8 @@
         <div>
             <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:3px">Créer un compte utilisateur</div>
             <div style="font-size:12px;color:var(--text3);line-height:1.5">
-                Compte commercial, media planner, technicien ou administrateur.
-                Le code agent (SC/MP/TT/AD) est généré automatiquement selon le rôle si tu le laisses vide.
+                Compte commercial, media planner, comptable ou administrateur.
+                Le code agent (SC/MP/CP/AD) est généré automatiquement selon le rôle si tu le laisses vide.
             </div>
         </div>
     </div>
@@ -107,9 +107,11 @@
                         <option value="commercial"   {{ old('role') === 'commercial'   ? 'selected' : '' }}>💼 Commercial</option>
                         <option value="mediaplanner" {{ old('role') === 'mediaplanner' ? 'selected' : '' }}>🗓️ Media Planner</option>
                         <option value="comptable"    {{ old('role') === 'comptable'    ? 'selected' : '' }}>📊 Comptable</option>
-                        <option value="technique"    {{ old('role') === 'technique'    ? 'selected' : '' }}>🔧 Technicien</option>
                         <option value="admin"        {{ old('role') === 'admin'        ? 'selected' : '' }}>🛡️ Administrateur</option>
                     </select>
+                    <small style="display:block;color:var(--text3);font-size:11px;margin-top:4px">
+                        Pour créer un technicien terrain → <a href="{{ route('admin.pose-tasks.techniciens.create') }}" style="color:var(--accent);font-weight:700;text-decoration:none">Gestion Pose → 🔧 Techniciens</a> (pas de mot de passe requis).
+                    </small>
                 </div>
 
                 <div class="section-label">Mot de passe</div>
