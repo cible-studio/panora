@@ -42,14 +42,6 @@ window.__RPT__ = {
     // Données onglet Campagnes
     cancellationTrend: {!! json_encode($cancellationTrend->values()) !!},
     campaignStats:     {!! json_encode($campaignStats) !!},
-    // M3 SLA enrichi — séries doughnut motifs (vide si pas admin/MP)
-    slaByMotif:        {!! json_encode(($delayStats ?? null)
-        ? collect($delayStats['by_motif_open'])->map(fn($r) => [
-            'label' => $r['icon'] . ' ' . $r['label'],
-            'count' => $r['count'],
-            'color' => $r['motif']->color(),
-        ])->values()
-        : []) !!},
 };
 </script>
 
@@ -630,9 +622,8 @@ window.RPT = {
         if (id==='zones'     &&!this._hmDone)       { HM.init();         this._hmDone=true; }
         if (id==='panneaux'  &&!this._panneauxDone) { this.renderTopPanels();    this._panneauxDone=true; }
         if (id==='clients'   &&!this._clientsDone)  { this.renderClientDistribution(); this._clientsDone=true; }
-        if (id==='campagnes' &&!this._campagnesDone){ this.renderCancellationTrend(); this.renderCancelReasonsCamp(); this._campagnesDone=true; }
         if (id==='insights'  &&!this._insightsDone) { this.renderInsightsCharts();this._insightsDone=true; }
-        if (id==='sla'       &&!this._slaDone)      { this.renderSlaMotifs();    this._slaDone=true; }
+        // 'campagnes' et 'sla' switchs retirés le 2026-06-17 (onglets eux-mêmes retirés).
     },
 
     renderEvol() {
@@ -1053,37 +1044,9 @@ window.RPT = {
         }
     },
 
-    // ── M3 SLA enrichi — doughnut motifs de retard (onglet "SLA & Retards") ──
-    renderSlaMotifs() {
-        const canvas = document.getElementById('chart-sla-motifs');
-        const data = D.slaByMotif || [];
-        if (!canvas || !data.length || typeof Chart === 'undefined') return;
-        const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
-        const tickC  = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
-        new Chart(canvas, {
-            type: 'doughnut',
-            data: {
-                labels:   data.map(d => d.label),
-                datasets: [{
-                    data:            data.map(d => d.count),
-                    backgroundColor: data.map(d => d.color),
-                    borderWidth:     2,
-                    borderColor:     isDark ? '#1f2937' : '#fff',
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '60%',
-                plugins: {
-                    legend: { position: 'right', labels: { color: tickC, font: { size: 11 }, padding: 10 } },
-                    tooltip: { callbacks: {
-                        label: ctx => ` ${ctx.parsed} signalement(s)`,
-                    }},
-                }
-            }
-        });
-    },
+    // renderSlaMotifs retiré le 2026-06-17 — l'onglet 'SLA & Retards' a été
+    // retiré de la nav Rapports (cf. _tab_sla.blade.php supprimé). Le doughnut
+    // motifs vit désormais uniquement sur /admin/sla/retards (page dédiée).
 };
 
 // Init graphiques de l'onglet par défaut (occupation) au chargement
@@ -1118,7 +1081,7 @@ RPT.refreshAllCharts = function (newData) {
         'chart-revenue-trend', 'chart-occ-revenue',
         'chart-client-dist', 'hm-bar-chart',
         'chart-inactivity', 'chart-cancel-reasons',
-        'chart-sla-motifs', // M3 SLA enrichi
+        // 'chart-sla-motifs' retiré le 2026-06-17 (onglet SLA retiré de Rapports)
     ];
     chartIds.forEach(function (id) {
         var c = document.getElementById(id);
@@ -1132,7 +1095,7 @@ RPT.refreshAllCharts = function (newData) {
     }
 
     RPT._evolDone = RPT._caDone = RPT._panneauxDone = RPT._clientsDone =
-        RPT._campagnesDone = RPT._insightsDone = RPT._hmDone = RPT._slaDone = false;
+        RPT._campagnesDone = RPT._insightsDone = RPT._hmDone = false;
 
     var safeCall = function (fn) { try { fn(); } catch (_) {} };
     safeCall(function () { RPT.renderEvol(); });
@@ -1145,7 +1108,7 @@ RPT.refreshAllCharts = function (newData) {
     safeCall(function () { RPT.renderCancelReasonsCamp(); });
     safeCall(function () { RPT.renderClientDistribution(); });
     safeCall(function () { RPT.renderInsightsCharts(); });
-    safeCall(function () { RPT.renderSlaMotifs(); });
+    // RPT.renderSlaMotifs() retiré (méthode + canvas n'existent plus)
     if (typeof HM !== 'undefined' && HM.init) safeCall(function () { HM.init(); });
 };
 

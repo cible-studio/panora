@@ -39,13 +39,13 @@
         occupation:  'panel-occupation',
         performance: 'panel-panneaux',
         periodes:    'panel-periodes',
-        campagnes:   'panel-campagnes',
+        // 'campagnes' et 'sla' retirés le 2026-06-17 (onglets eux-mêmes retirés
+        // de la nav — cartes top 'Rapport campagnes' + page dédiée /admin/sla/retards).
         ca:          'panel-ca',
         zones:       'panel-zones',
         clients:     'panel-clients',
         decappages:  'panel-decap',
         insights:    'panel-insights',
-        sla:         'panel-sla', // M3 SLA enrichi (admin/MP only)
     };
 
     const RapportsLive = {
