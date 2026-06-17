@@ -92,7 +92,7 @@
                         <span class="nav-text">Réservations</span>
                     </a>
                     @if($isAdmin || $isMP)
-                    <a href="{{ route('admin.pose-tasks.index') }}" data-tooltip="Gestion Pose OOH" class="nav-item {{ request()->routeIs('admin.pose-tasks.*') && !request()->routeIs('admin.pose-tasks.sla') ? 'active' : '' }}">
+                    <a href="{{ route('admin.pose-tasks.index') }}" data-tooltip="Gestion Pose OOH" class="nav-item {{ request()->routeIs('admin.pose-tasks.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></span>
                         <span class="nav-text">Gestion Pose OOH</span>
                     </a>
@@ -213,10 +213,10 @@
                         <span class="nav-text">Rapports</span>
                     </a>
                     @if($isAdmin || $isMP)
-                    <a href="{{ route('admin.pose-tasks.sla') }}" data-tooltip="SLA — KPI poses/piges" class="nav-item {{ request()->routeIs('admin.pose-tasks.sla') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
-                        <span class="nav-text">SLA</span>
-                    </a>
+                    {{-- Ancienne entrée 'SLA' (admin.pose-tasks.sla) retirée le
+                         2026-06-17 — contenu devenu redondant avec
+                         Performance commerciale + onglet Décappages des Rapports
+                         + page dédiée 'SLA & Retards' (motifs). --}}
                     {{-- M3 SLA enrichi : page analytique motifs de retard (mission 2026-06-17) --}}
                     <a href="{{ route('admin.sla.retards.index') }}" data-tooltip="SLA & Retards — Motifs" class="nav-item {{ request()->routeIs('admin.sla.retards*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
