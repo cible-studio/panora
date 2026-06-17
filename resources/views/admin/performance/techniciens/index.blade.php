@@ -95,7 +95,7 @@
                             <td style="text-align:right;font-weight:700;color:{{ $retardCol }}">{{ $k['taux_poses_en_retard'] }} %</td>
                             <td style="text-align:right;font-weight:700;color:{{ $rejetCol }}">{{ $k['taux_piges_rejetees'] }} %</td>
                             <td style="text-align:right;color:var(--text2)">{{ $k['nb_signalements'] }}</td>
-                            <td style="text-align:right"><a href="{{ route('admin.performance.tech.show', $u) }}" class="btn btn-ghost btn-sm" style="font-size:11px">Drill →</a></td>
+                            <td style="text-align:right"><a href="{{ route('admin.performance.tech.show', $u) }}" class="btn btn-ghost btn-sm" style="font-size:11px">Détail →</a></td>
                         </tr>
                     @empty
                         <tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3);font-style:italic">Aucun technicien actif.</td></tr>
