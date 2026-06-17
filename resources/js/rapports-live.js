@@ -51,7 +51,6 @@
         form: null,
         abortController: null,
         debounceTimer: null,
-        charts: Object.create(null),
         lastFingerprint: null,
 
         init() {
@@ -198,9 +197,16 @@
             // Update href des boutons d'export + 3 cartes top
             this.syncDynamicHrefs(data.exports_qs || qs);
 
-            // Recrée les graphiques Chart.js si configs présentes
-            if (data.charts && typeof Chart !== 'undefined') {
-                this.reinitCharts(data.charts);
+            // Rafraîchit TOUS les graphiques Chart.js + bar custom de la page.
+            // window.RPT est défini par le script inline en bas d'index.blade.php
+            // — il porte refreshAllCharts() qui détruit + recrée chaque chart
+            // depuis le nouveau dataset, sans rechargement.
+            if (data.chartData && window.RPT && typeof window.RPT.refreshAllCharts === 'function') {
+                try {
+                    window.RPT.refreshAllCharts(data.chartData);
+                } catch (e) {
+                    console.warn('[rapports-live] refreshAllCharts failed:', e);
+                }
             }
         },
 
@@ -215,22 +221,6 @@
             document.querySelectorAll('[data-route-base]').forEach(a => {
                 const base = a.dataset.routeBase;
                 if (base) a.href = base + sep;
-            });
-        },
-
-        reinitCharts(configs) {
-            Object.entries(configs).forEach(([canvasId, cfg]) => {
-                const canvas = document.getElementById(canvasId);
-                if (!canvas) return;
-                if (this.charts[canvasId]) {
-                    try { this.charts[canvasId].destroy(); } catch (_) {}
-                    delete this.charts[canvasId];
-                }
-                try {
-                    this.charts[canvasId] = new Chart(canvas, cfg);
-                } catch (e) {
-                    console.warn('[rapports-live] chart init failed:', canvasId, e);
-                }
             });
         },
 

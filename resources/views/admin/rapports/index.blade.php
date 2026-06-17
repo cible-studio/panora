@@ -1045,6 +1045,60 @@ document.addEventListener('DOMContentLoaded', () => {
     RPT._evolDone = true;
 });
 
+// ══════════════════════════════════════════════════════════════════
+// RPT.refreshAllCharts(newData) — rafraîchit TOUS les graphiques
+// Chart.js de la page sans rechargement, appelée par rapports-live.js
+// après chaque réponse AJAX.
+//
+// Étapes :
+//   1. Object.assign(D, newData) → met à jour le data store partagé.
+//      (D pointe sur window.__RPT__ ; on garde la même référence pour
+//       que tous les renders existants voient les nouvelles données.)
+//   2. Détruit toutes les instances Chart.js attachées aux <canvas>
+//      connus, via l'API officielle Chart.getChart() (pas de fuite mém).
+//   3. Reset les flags _xxxDone pour autoriser un re-render.
+//   4. Re-call les renders custom (renderEvol/renderCa) + Chart.js.
+//      Les renders no-op si data absente ou canvas absent → safe.
+// ══════════════════════════════════════════════════════════════════
+RPT.refreshAllCharts = function (newData) {
+    if (!newData) return;
+    Object.assign(D, newData);
+
+    var chartIds = [
+        'chart-occupation-trend', 'chart-top-panels',
+        'chart-cancel-trend', 'chart-cancel-reasons-camp',
+        'chart-revenue-trend', 'chart-occ-revenue',
+        'chart-client-dist', 'hm-bar-chart',
+        'chart-inactivity', 'chart-cancel-reasons',
+    ];
+    chartIds.forEach(function (id) {
+        var c = document.getElementById(id);
+        if (c && typeof Chart !== 'undefined' && Chart.getChart) {
+            var inst = Chart.getChart(c);
+            if (inst) { try { inst.destroy(); } catch (_) {} }
+        }
+    });
+    if (typeof hmChart !== 'undefined' && hmChart) {
+        try { hmChart.destroy(); } catch (_) {} hmChart = null;
+    }
+
+    RPT._evolDone = RPT._caDone = RPT._panneauxDone = RPT._clientsDone =
+        RPT._campagnesDone = RPT._insightsDone = RPT._hmDone = false;
+
+    var safeCall = function (fn) { try { fn(); } catch (_) {} };
+    safeCall(function () { RPT.renderEvol(); });
+    safeCall(function () { RPT.renderCa(); });
+    safeCall(function () { RPT.renderOccupationTrend(); });
+    safeCall(function () { RPT.renderRevenueTrend(); });
+    safeCall(function () { RPT.renderOccVsRevenue(); });
+    safeCall(function () { RPT.renderTopPanels(); });
+    safeCall(function () { RPT.renderCancellationTrend(); });
+    safeCall(function () { RPT.renderCancelReasonsCamp(); });
+    safeCall(function () { RPT.renderClientDistribution(); });
+    safeCall(function () { RPT.renderInsightsCharts(); });
+    if (typeof HM !== 'undefined' && HM.init) safeCall(function () { HM.init(); });
+};
+
 // ══════════════════════════════
 // DRILLDOWN COMMUNE — module
 // ══════════════════════════════
