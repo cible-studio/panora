@@ -28,13 +28,21 @@ use Illuminate\Support\Facades\Log;
  */
 class SignalementsController extends Controller
 {
-    /** Mapping problem_type → libellé + type_panne maintenance. */
-    private const PROBLEM_MAP = [
-        'panneau_casse'    => ['label' => 'Panneau cassé / abîmé',     'type_panne' => 'mecanique'],
-        'acces_bloque'     => ['label' => 'Accès bloqué / impossible', 'type_panne' => 'autre'],
-        'mauvaise_adresse' => ['label' => 'Mauvaise adresse / introuvable', 'type_panne' => 'autre'],
-        'autre'            => ['label' => 'Autre problème',            'type_panne' => 'autre'],
-    ];
+    /**
+     * Mapping problem_type → libellé + type_panne maintenance.
+     *
+     * Source unique = App\Enums\DelayReason (9 motifs depuis mission M3 SLA enrichi).
+     * On garde un accesseur statique le temps qu'il n'y ait plus aucun usage interne
+     * de PROBLEM_MAP. À supprimer une fois les vues migrées vers DelayReason.
+     */
+    private static function problemMap(): array
+    {
+        $map = [];
+        foreach (\App\Enums\DelayReason::cases() as $m) {
+            $map[$m->value] = ['label' => $m->label(), 'type_panne' => $m->panneType()];
+        }
+        return $map;
+    }
 
     public function index(Request $request)
     {
@@ -72,7 +80,7 @@ class SignalementsController extends Controller
             'total'       => PoseTaskAction::where('action', 'problem_reported')->count(),
         ];
 
-        $problemLabels = collect(self::PROBLEM_MAP)->map(fn($v) => $v['label']);
+        $problemLabels = collect(self::problemMap())->map(fn($v) => $v['label']);
 
         return view('admin.signalements.index', compact(
             'signalements', 'status', 'kpi', 'problemLabels'
@@ -99,7 +107,7 @@ class SignalementsController extends Controller
 
         $type      = $action->payload['type'] ?? 'autre';
         $note      = $action->payload['note'] ?? null;
-        $mapping   = self::PROBLEM_MAP[$type] ?? self::PROBLEM_MAP['autre'];
+        $mapping   = self::problemMap()[$type] ?? self::problemMap()['autre'];
 
         $panel = $action->task?->panel;
         if (!$panel) {
@@ -255,7 +263,7 @@ class SignalementsController extends Controller
                 return [
                     'id'         => $a->id,
                     'type'       => $type,
-                    'type_label' => self::PROBLEM_MAP[$type]['label'] ?? 'Problème',
+                    'type_label' => self::problemMap()[$type]['label'] ?? 'Problème',
                     'panel_ref'  => $a->task?->panel?->reference,
                     'panel_name' => $a->task?->panel?->name,
                     'actor'      => $a->actor ?? 'tech',

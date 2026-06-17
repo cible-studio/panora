@@ -83,16 +83,14 @@
     @php
         $type      = $sig->payload['type'] ?? 'autre';
         $note      = $sig->payload['note'] ?? null;
-        $label     = $problemLabels[$type] ?? 'Problème';
+        // Motif effectif (= dernier amendement éventuel ou motif d'origine).
+        $effective = $sig->effectiveMotif();
+        $label     = $effective?->label() ?? ($problemLabels[$type] ?? 'Problème');
+        $typeColor = $effective?->color() ?? '#6b7280';
+        $hasAmend  = $effective && $type !== $effective->value;
         $panel     = $sig->task?->panel;
         $firstPhoto= $panel?->photos?->sortBy('ordre')->first();
         $thumbUrl  = $firstPhoto ? asset('storage/' . $firstPhoto->path) : null;
-        $typeColor = [
-            'panneau_casse'    => '#ef4444',
-            'acces_bloque'     => '#f97316',
-            'mauvaise_adresse' => '#3b82f6',
-            'autre'            => '#6b7280',
-        ][$type] ?? '#6b7280';
     @endphp
     <div class="card" style="margin-bottom:10px;padding:14px;border-left:3px solid {{ $sig->resolved_at ? 'var(--border)' : $typeColor }};overflow:hidden">
         <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
