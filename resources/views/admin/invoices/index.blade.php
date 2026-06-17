@@ -51,8 +51,9 @@
     <a href="?status=brouillon" data-status="brouillon"
        class="kpi-card filter-stat {{ request('status') === 'brouillon' ? 'is-active' : '' }}"
        style="--kpi-color:#6b7280"
-       onmouseenter="this.style.borderColor='#6b7280';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
-       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+       onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.transform='';this.style.boxShadow=''}"
+>
         <div class="kpi-card__top-bar" style="background:#6b7280"></div>
         <div class="kpi-card__icon" style="color:#6b7280"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
         <div class="kpi-card__value" data-kpi="brouillon" data-kpi-value="brouillon" style="color:#6b7280">{{ $totalBrouillons }}</div>
@@ -63,8 +64,8 @@
     <a href="?status=envoyee" data-status="envoyee"
        class="kpi-card filter-stat {{ request('status') === 'envoyee' ? 'is-active' : '' }}"
        style="--kpi-color:#3b82f6"
-       onmouseenter="this.style.borderColor='#3b82f6';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
-       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+       onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:#3b82f6"></div>
         <div class="kpi-card__icon" style="color:#3b82f6"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div>
         <div class="kpi-card__value" data-kpi="envoyee" data-kpi-value="envoyee" style="color:#3b82f6">{{ $totalEnvoyees }}</div>
@@ -75,8 +76,8 @@
     <a href="?status=payee" data-status="payee"
        class="kpi-card filter-stat {{ request('status') === 'payee' ? 'is-active' : '' }}"
        style="--kpi-color:#22c55e"
-       onmouseenter="this.style.borderColor='#22c55e';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
-       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+       onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:#22c55e"></div>
         <div class="kpi-card__icon" style="color:#22c55e"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
         <div class="kpi-card__value" data-kpi="payee" data-kpi-value="payee" style="color:#22c55e">{{ $totalPayees }}</div>
@@ -87,8 +88,8 @@
     <a href="?" data-status=""
        class="kpi-card filter-stat {{ !request('status') ? '' : '' }}"
        style="--kpi-color:var(--accent)"
-       onmouseenter="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
-       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+       onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:var(--accent)"></div>
         <div class="kpi-card__icon" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         <div class="kpi-card__value" data-kpi="ca" data-kpi-value="ca" style="color:var(--accent);font-size:18px">{{ number_format($montantTotal, 0, ',', ' ') }}</div>
@@ -104,8 +105,8 @@
     <a href="?status=partiellement_payee"
        class="kpi-card filter-stat {{ request('status') === 'partiellement_payee' ? 'is-active' : '' }}"
        style="--kpi-color:#f59e0b;padding:14px 16px"
-       onmouseenter="this.style.borderColor='#f59e0b';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
-       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+       onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:#f59e0b"></div>
         <div style="display:flex;justify-content:space-between;align-items:center">
             <div>
@@ -118,8 +119,8 @@
     <a href="?status=en_retard"
        class="kpi-card filter-stat {{ request('status') === 'en_retard' ? 'is-active' : '' }}"
        style="--kpi-color:#ef4444;padding:14px 16px"
-       onmouseenter="this.style.borderColor='#ef4444';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
-       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+       onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:#ef4444"></div>
         <div style="display:flex;justify-content:space-between;align-items:center">
             <div>
@@ -132,8 +133,8 @@
     <a href="?status=litige"
        class="kpi-card filter-stat {{ request('status') === 'litige' ? 'is-active' : '' }}"
        style="--kpi-color:#dc2626;padding:14px 16px"
-       onmouseenter="this.style.borderColor='#dc2626';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
-       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+       onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.transform='';this.style.boxShadow=''}">
         <div class="kpi-card__top-bar" style="background:#dc2626"></div>
         <div style="display:flex;justify-content:space-between;align-items:center">
             <div>
@@ -146,8 +147,9 @@
     <a href="?status=annulee"
        class="kpi-card filter-stat {{ request('status') === 'annulee' ? 'is-active' : '' }}"
        style="--kpi-color:#6b7280;padding:14px 16px"
-       onmouseenter="this.style.borderColor='#6b7280';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
-       onmouseleave="if(!this.classList.contains('is-active')){this.style.borderColor='';this.style.transform='';this.style.boxShadow=''}">
+       onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(0,0,0,.12)'"
+       onmouseleave="if(!this.classList.contains('is-active')){this.style.transform='';this.style.boxShadow=''}"
+>
         <div class="kpi-card__top-bar" style="background:#6b7280"></div>
         <div style="display:flex;justify-content:space-between;align-items:center">
             <div>
@@ -494,10 +496,21 @@ cursor: pointer;
         elements.resetBtn.addEventListener('click', () => {
             currentFilters = { client_id: '', status: '' };
             if (elements.client) elements.client.value = '';
+            // Pour le client géré en Select2, on déclenche le change pour
+            // que le widget se rafraîchisse (le reset .value='' seul ne
+            // suffit pas — Select2 garde l'affichage de l'ancien choix).
+            if (window.jQuery && elements.client) {
+                window.jQuery(elements.client).val('').trigger('change.select2');
+            }
             if (elements.status) elements.status.value = '';
 
-            document.querySelectorAll('.kpi-card[data-kpi]').forEach(card => card.classList.remove('is-active'));
-            
+            // Avant : on ciblait `.kpi-card[data-kpi]` mais seules les 4
+            // cards principales avaient cet attribut sur leur .kpi-card__value.
+            // Les 4 cards secondaires (Partielles / En retard / Litige / Annulées)
+            // n'étaient JAMAIS désélectionnées. On cible désormais TOUTES
+            // les cards filter-stat de la page.
+            document.querySelectorAll('.kpi-card.filter-stat').forEach(card => card.classList.remove('is-active'));
+
             updateResetButton();
             applyFilters();
         });

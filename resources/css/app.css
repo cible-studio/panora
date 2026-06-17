@@ -575,11 +575,14 @@ tr:hover td      { background: rgba(255,255,255,0.015); }
 a.kpi-card, button.kpi-card { cursor: pointer; }
 button.kpi-card { width: 100%; }
 
-/* Barre haute colorée — utilise --kpi-color injecté en inline style */
+/* Barre haute colorée — utilise --kpi-color injecté en inline style.
+   2px (au lieu de 3px) + radius 0 sur les coins inférieurs pour éviter
+   l'effet "barre doublée" au hover (l'ancienne 3px se cumulait
+   visuellement avec le border-color qui changeait au survol). */
 .kpi-card__top-bar {
     position: absolute;
     top: 0; left: 0; right: 0;
-    height: 3px;
+    height: 2px;
     border-radius: 14px 14px 0 0;
 }
 
