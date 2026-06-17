@@ -303,16 +303,38 @@ class CommercialPerformanceService
     }
 
     /**
-     * Classement de TOUS les commerciaux sur la période — leaderboard direction.
+     * Classement de TOUS les « commerciaux responsables » sur la période.
+     *
+     * MAJ 2026-06-17 : aligné sur le pattern SLA (/admin/pose-tasks/sla).
+     * On considère « commercial responsable » TOUT user (admin, MP, commercial)
+     * qui est attribué à au moins 1 campagne via
+     * COALESCE(commercial_user_id, user_id) sur la période + filtres.
+     * → un admin qui amène des clients apparaît dans le classement.
      *
      * @return Collection<int, array{user, ca_ttc, taux_recouvrement, panier_moyen,
      *                                nb_campagnes, encaisse, reste_du}>
      */
     public function leaderboard(CarbonInterface $from, CarbonInterface $to): Collection
     {
-        $commerciaux = User::commerciaux()->get(['id', 'name', 'email', 'agent_code']);
+        // Liste des user_ids attribués (commercial OU créateur fallback) sur la période.
+        $userIds = \DB::table('campaigns')
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'annule')
+            ->where('start_date', '<=', $to)
+            ->where('end_date',   '>=', $from)
+            ->selectRaw('DISTINCT COALESCE(commercial_user_id, user_id) as uid')
+            ->pluck('uid')
+            ->filter()->values()->all();
 
-        return $commerciaux->map(function (User $u) use ($from, $to) {
+        if (empty($userIds)) return collect();
+
+        $users = User::query()
+            ->whereIn('id', $userIds)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'agent_code', 'role']);
+
+        return $users->map(function (User $u) use ($from, $to) {
             $k = $this->kpis($u->id, $from, $to);
             return [
                 'user'              => $u,
@@ -353,8 +375,15 @@ class CommercialPerformanceService
      */
     protected function campaignsBaseQuery(int $commercialId, CarbonInterface $from, CarbonInterface $to)
     {
+        // MAJ 2026-06-17 : aligné sur le pattern SLA (/admin/pose-tasks/sla)
+        // qui utilise COALESCE(commercial_user_id, user_id). Un user est
+        // « commercial responsable » d'une campagne SOIT s'il a
+        // commercial_user_id posé (attribution explicite via M1 ou édition),
+        // SOIT à défaut s'il en est le créateur (user_id). Permet d'inclure
+        // les admins qui amènent des clients sans avoir été explicitement
+        // attribués via la page migration.
         return Campaign::query()
-            ->where('campaigns.commercial_user_id', $commercialId)
+            ->whereRaw('COALESCE(campaigns.commercial_user_id, campaigns.user_id) = ?', [$commercialId])
             ->whereNull('campaigns.deleted_at')
             ->where('campaigns.status', '!=', 'annule')
             ->where('campaigns.start_date', '<=', $to)
