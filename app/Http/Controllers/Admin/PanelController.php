@@ -892,10 +892,15 @@ class PanelController extends Controller
 
             // Tentative format DMS : détecté par la présence de N/S/E/W ou de °
             if (preg_match('/^\s*([NSEWnsew])?\s*(\d+(?:[.,]\d+)?)\s*°?\s*(\d+(?:[.,]\d+)?)?\s*[\'′]?\s*(\d+(?:[.,]\d+)?)?\s*["″]?\s*([NSEWnsew])?\s*$/u', $s, $m)) {
-                $hemisphere = strtoupper($m[5] ?: $m[1] ?: '');
-                $deg = (float) str_replace(',', '.', $m[2]);
-                $min = isset($m[3]) && $m[3] !== '' ? (float) str_replace(',', '.', $m[3]) : 0;
-                $sec = isset($m[4]) && $m[4] !== '' ? (float) str_replace(',', '.', $m[4]) : 0;
+                // PHP n'alloue pas les clés des groupes optionnels NON
+                // matchés — d'où le ?? '' partout pour éviter "Undefined
+                // array key N" quand l'hémisphère ou les sec/min sont absents.
+                $hemiPrefix = $m[1] ?? '';
+                $hemiSuffix = $m[5] ?? '';
+                $hemisphere = strtoupper($hemiSuffix !== '' ? $hemiSuffix : $hemiPrefix);
+                $deg = (float) str_replace(',', '.', $m[2] ?? '0');
+                $min = (($m[3] ?? '') !== '') ? (float) str_replace(',', '.', $m[3]) : 0;
+                $sec = (($m[4] ?? '') !== '') ? (float) str_replace(',', '.', $m[4]) : 0;
                 // Si on a un hémisphère explicite OU le symbole degré, c'est du DMS.
                 if ($hemisphere !== '' || str_contains($s, '°')) {
                     $val = $deg + $min / 60 + $sec / 3600;
