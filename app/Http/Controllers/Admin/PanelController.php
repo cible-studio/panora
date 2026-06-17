@@ -983,8 +983,16 @@ class PanelController extends Controller
              . (count($notfound) ? " · ❌ " . count($notfound) . " non trouvé(s)" : '')
              . (count($bad) ? " · ⚠ " . count($bad) . " ligne(s) invalide(s)" : '');
 
-        return redirect()->route('admin.map')
-            ->with('success', $msg)
+        // Si y'a des non-trouvés ou invalides → on reste sur la page d'import
+        // pour que l'admin VOIE la liste exacte des problèmes et puisse
+        // corriger le fichier. Sinon on redirige vers la carte (succès total).
+        $hasIssues = !empty($notfound) || !empty($bad);
+        $redirect = $hasIssues
+            ? redirect()->route('admin.panels.import-gps.form')
+            : redirect()->route('admin.map');
+
+        return $redirect
+            ->with($hasIssues ? 'warning' : 'success', $msg)
             ->with('gps_import_report', [
                 'updated'  => $updated,
                 'skipped'  => $skipped,
