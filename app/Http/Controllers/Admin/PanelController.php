@@ -917,7 +917,7 @@ class PanelController extends Controller
              . (count($notfound) ? " · ❌ " . count($notfound) . " non trouvé(s)" : '')
              . (count($bad) ? " · ⚠ " . count($bad) . " ligne(s) invalide(s)" : '');
 
-        return redirect()->route('admin.panels.map')
+        return redirect()->route('admin.map')
             ->with('success', $msg)
             ->with('gps_import_report', [
                 'updated'  => $updated,
