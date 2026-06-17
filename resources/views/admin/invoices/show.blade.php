@@ -705,53 +705,83 @@
                  par facture ET par client." Le dashboard finance/recouvrement
                  permet la vue par client ; ici on a la vue par facture.
             ═══════════════════════════════════════════════════════════════════════ --}}
-            @if(!empty($invoiceRelances) && $invoiceRelances->isNotEmpty())
+            {{-- Section relances : toujours visible (CTA si vide) — le user
+                 signalait ne pas voir les relances client globales. La
+                 requête controller inclut désormais celles avec invoice_id
+                 NULL pour ce client (saisies depuis Recouvrement). --}}
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">📞 Relances de cette facture <span style="font-weight:400;color:var(--text3);font-size:12px;margin-left:6px">({{ $invoiceRelances->count() }})</span></div>
-                    <a href="{{ route('admin.clients.show', $invoice->client_id) }}" style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:700">Toutes les relances client →</a>
+                    <div class="card-title">📞 Relances <span style="font-weight:400;color:var(--text3);font-size:12px;margin-left:6px">({{ $invoiceRelances->count() }})</span></div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        @if($invoice->client_id)
+                            <a href="{{ route('admin.finance.relances', ['client_id' => $invoice->client_id]) }}"
+                               style="font-size:11px;color:var(--accent);text-decoration:none;font-weight:700">📋 Toutes les relances client →</a>
+                        @endif
+                    </div>
                 </div>
                 <div class="card-body" style="display:flex;flex-direction:column;gap:6px">
-                    @foreach($invoiceRelances as $r)
-                        @php
-                            $outcomeIcon = match($r->outcome) {
-                                'promesse_paiement' => '📅',
-                                'paiement_recu'     => '✅',
-                                'a_relancer'        => '🔁',
-                                'sans_reponse'      => '📵',
-                                'desaccord'         => '⚠',
-                                default             => null,
-                            };
-                            $outcomeLbl = match($r->outcome) {
-                                'promesse_paiement' => 'Promesse de paiement',
-                                'paiement_recu'     => 'Paiement reçu',
-                                'a_relancer'        => 'À relancer',
-                                'sans_reponse'      => 'Sans réponse',
-                                'desaccord'         => 'Désaccord',
-                                'autre'             => 'Autre',
-                                default             => null,
-                            };
-                        @endphp
-                        <div style="padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px">
-                            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
-                                <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:200px">
-                                    <span style="font-weight:700;font-size:12.5px">{{ \App\Services\ReminderService::canalLabel($r->canal) }}</span>
-                                    <span style="font-size:11px;color:var(--text3)">{{ $r->relance_date->format('d/m/Y') }}</span>
-                                    @if($r->user) <span style="font-size:11px;color:var(--text3)">· {{ $r->user->name }}</span>@endif
+                    @if($invoiceRelances->isEmpty())
+                        <div style="padding:24px;text-align:center;background:var(--surface2);border-radius:10px">
+                            <div style="font-size:30px;margin-bottom:6px">📞</div>
+                            <div style="font-size:13px;color:var(--text2);font-weight:600;margin-bottom:4px">Aucune relance enregistrée pour cette facture ni pour ce client.</div>
+                            <div style="font-size:11.5px;color:var(--text3);line-height:1.5">
+                                Pour enregistrer une relance, ouvre le
+                                <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement']) }}"
+                                   style="color:var(--accent);text-decoration:none;font-weight:700">tableau de bord financier → Recouvrement</a>
+                                et clique <strong>+ Relancer</strong> sur la ligne du client.
+                            </div>
+                        </div>
+                    @else
+                        @foreach($invoiceRelances as $r)
+                            @php
+                                $outcomeIcon = match($r->outcome) {
+                                    'promesse_paiement' => '📅',
+                                    'paiement_recu'     => '✅',
+                                    'a_relancer'        => '🔁',
+                                    'sans_reponse'      => '📵',
+                                    'desaccord'         => '⚠',
+                                    default             => null,
+                                };
+                                $outcomeLbl = match($r->outcome) {
+                                    'promesse_paiement' => 'Promesse de paiement',
+                                    'paiement_recu'     => 'Paiement reçu',
+                                    'a_relancer'        => 'À relancer',
+                                    'sans_reponse'      => 'Sans réponse',
+                                    'desaccord'         => 'Désaccord',
+                                    'autre'             => 'Autre',
+                                    default             => null,
+                                };
+                                $isInvoiceTargeted = ((int) $r->invoice_id === (int) $invoice->id);
+                            @endphp
+                            <div style="padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;{{ $isInvoiceTargeted ? 'border-left:3px solid var(--accent);' : '' }}">
+                                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+                                    <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:200px;flex-wrap:wrap">
+                                        <span style="font-weight:700;font-size:12.5px">{{ \App\Services\ReminderService::canalLabel($r->canal) }}</span>
+                                        <span style="font-size:11px;color:var(--text3)">{{ $r->relance_date->format('d/m/Y') }}</span>
+                                        @if($r->user)
+                                            <span style="font-size:11px;color:var(--text3)">· {{ $r->user->name }}</span>
+                                        @endif
+                                        @if($isInvoiceTargeted)
+                                            <span title="Relance enregistrée directement sur cette facture"
+                                                  style="background:rgba(232,160,32,.18);color:#a16207;padding:1px 7px;border-radius:6px;font-size:9.5px;font-weight:800;letter-spacing:.3px">🎯 CETTE FACTURE</span>
+                                        @else
+                                            <span title="Relance globale du client (toutes ses factures impayées)"
+                                                  style="background:rgba(99,102,241,.10);color:#4338ca;padding:1px 7px;border-radius:6px;font-size:9.5px;font-weight:800;letter-spacing:.3px">👤 CLIENT</span>
+                                        @endif
+                                    </div>
+                                    @if($outcomeIcon)
+                                        <span style="background:rgba(99,102,241,.10);color:#4338ca;padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:700">{{ $outcomeIcon }} {{ $outcomeLbl }}</span>
+                                    @endif
                                 </div>
-                                @if($outcomeIcon)
-                                    <span style="background:rgba(99,102,241,.10);color:#4338ca;padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:700">{{ $outcomeIcon }} {{ $outcomeLbl }}</span>
+                                <div style="font-size:12px;color:var(--text2);margin-top:5px;line-height:1.5">{{ $r->note }}</div>
+                                @if($r->suite_donnee)
+                                    <div style="font-size:11px;color:var(--text3);margin-top:3px;font-style:italic">↳ Suite : {{ $r->suite_donnee }}</div>
                                 @endif
                             </div>
-                            <div style="font-size:12px;color:var(--text2);margin-top:5px;line-height:1.5">{{ $r->note }}</div>
-                            @if($r->suite_donnee)
-                                <div style="font-size:11px;color:var(--text3);margin-top:3px;font-style:italic">↳ Suite : {{ $r->suite_donnee }}</div>
-                            @endif
-                        </div>
-                    @endforeach
+                        @endforeach
+                    @endif
                 </div>
             </div>
-            @endif
 
             {{-- ════════════════════ VENTILATION PAIEMENT PAR COMMUNE ════════════════════
                  Phase 8 finalisation cahier §11 : « répartir chaque encaissement au
