@@ -75,8 +75,64 @@ en attendant la mission.
 
 ---
 
+## 🟡 [Priorité moyenne] Rôle `comptable` jamais commité
+
+**Contexte** : un memory de session mentionne « Rôle COMPTABLE :
+nouveau rôle avec read-all invoice scope, can mark paid/litige but
+NOT create/update/delete/cancel. Added to UserRole enum, … ».
+
+**État réel observé** (audit 2026-06-17 Sous-mission 0) :
+L'enum `users.role` en DB locale contient `'admin','commercial','mediaplanner','technique'` —
+**pas de `'comptable'`**. La migration `ALTER TABLE users MODIFY COLUMN role ENUM(...)`
+n'a pas été appliquée — soit jamais commitée, soit ratée en prod.
+
+**Conséquence** : si un dev tente de créer un user role=comptable
+aujourd'hui, la BDD rejette la valeur. Les Policies qui mentionnent
+`comptable` (s'il y en a) silencieusement no-op.
+
+**Action prévue** : mission séparée pour soit (a) finir d'ajouter le
+rôle proprement avec migration + Policies à jour, soit (b) retirer
+les références orphelines au rôle comptable du code.
+
+---
+
+## 🟢 [Priorité basse] Secteur des clients d'agences externes
+
+**Contexte** : la mission « Module 1 Performance Commerciale » (à venir)
+prévoit des stats CA × secteur via `clients.sector_id`. Mais les
+panneaux d'agences externes (`external_panels.agency_name`) n'ont pas
+de notion de secteur client équivalente.
+
+**Conséquence** : les rapports « CA par secteur » ne couvriront que
+les clients internes CIBLE. La part externe sera invisible — ou regroupée
+sous un fourre-tout « Régie externe ».
+
+**Action prévue** : mission séparée pour étendre le mapping secteur
+aux clients externes (table `external_clients` ou champ sur
+`external_panels.agency`), à scoper avec le métier.
+
+---
+
+## 🟢 [Priorité basse] Table `delay_reasons` éditable
+
+**Contexte** : la mission M3 SLA enrichi (2026-06-17) a centralisé les
+9 motifs dans l'enum PHP `App\Enums\DelayReason`. Ce choix est volontaire :
+pas de migration SQL, déploiement sans risque, type-safe en PHP 8.1.
+
+**Limite** : ajouter / renommer / désactiver un motif nécessite une
+modification du code + déploiement. Pas administrable depuis l'UI.
+
+**Action prévue (si besoin métier émerge)** : mission séparée pour créer
+table `delay_reasons(id, slug, label, icon, color, sort_order, is_active,
+panne_type)` éditable par admin via UI. L'enum DelayReason deviendrait
+alors un fallback statique pour les valeurs initiales, le hub réel
+serait la BDD.
+
+---
+
 ## Historique
 
 | Date       | Mission                                      | Dette ajoutée |
 |------------|----------------------------------------------|---------------|
-| 2026-06-17 | Rapports pilotés par filtres en AJAX         | Les 2 entrées ci-dessus |
+| 2026-06-17 | Rapports pilotés par filtres en AJAX         | Migrations non sqlite-portable + audit sous-rapports |
+| 2026-06-17 | M3 SLA enrichi (Module 3)                    | Rôle comptable + secteur externes + delay_reasons table |
