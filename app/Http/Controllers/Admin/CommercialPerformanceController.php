@@ -124,6 +124,8 @@ class CommercialPerformanceController extends Controller
 
         // 2) Pas de date saisie → preset
         return match ($request->input('preset')) {
+            'today'   => [now()->startOfDay(), now()->endOfDay()],
+            'week'    => [now()->startOfWeek(), now()->endOfWeek()],
             'month'   => [now()->startOfMonth(), now()->endOfMonth()],
             'quarter' => [now()->firstOfQuarter(), now()->lastOfQuarter()],
             'all'     => [Carbon::create(2020, 1, 1), now()],

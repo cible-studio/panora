@@ -73,13 +73,26 @@ class TechnicianPerformanceController extends Controller
 
     protected function resolvePeriod(Request $request): array
     {
-        if ($request->filled('from') && $request->filled('to')) {
+        // Range custom : si au moins une des 2 dates est saisie, on respecte
+        // (aligné sur CommercialPerformanceController). Avant : il fallait
+        // les 2 sinon retour au preset par défaut → bug d'expérience.
+        $hasFrom = $request->filled('from');
+        $hasTo   = $request->filled('to');
+        if ($hasFrom || $hasTo) {
             try {
-                return [Carbon::parse($request->input('from'))->startOfDay(),
-                        Carbon::parse($request->input('to'))->endOfDay()];
+                $from = $hasFrom
+                    ? Carbon::parse($request->input('from'))->startOfDay()
+                    : Carbon::parse($request->input('to'))->copy()->subYear()->startOfDay();
+                $to = $hasTo
+                    ? Carbon::parse($request->input('to'))->endOfDay()
+                    : Carbon::now()->endOfDay();
+                if ($from->gt($to)) [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
+                return [$from, $to];
             } catch (\Throwable) {}
         }
         return match ($request->input('preset')) {
+            'today'   => [now()->startOfDay(), now()->endOfDay()],
+            'week'    => [now()->startOfWeek(), now()->endOfWeek()],
             'month'   => [now()->startOfMonth(), now()->endOfMonth()],
             'quarter' => [now()->firstOfQuarter(), now()->lastOfQuarter()],
             'all'     => [Carbon::create(2020, 1, 1), now()],
