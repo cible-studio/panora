@@ -141,7 +141,7 @@
          dans la période, le commercial avec le plus de CA. Trié par
          CA total du secteur (les plus porteurs en haut). --}}
     <div class="perf-card" style="margin-top:18px">
-        <div class="perf-card-header">
+        <div class="perf-card-head">
             <div>
                 <div class="perf-card-title">🏆 Top commercial par secteur d'activité</div>
                 <div class="perf-card-sub">{{ $topBySector->count() }} secteur(s) actif(s) sur la période — qui domine quoi</div>
