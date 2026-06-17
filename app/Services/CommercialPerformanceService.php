@@ -123,6 +123,66 @@ class CommercialPerformanceService
     }
 
     /**
+     * TOP COMMERCIAL PAR SECTEUR d'activité (vue d'ensemble équipe).
+     *
+     * Pour chaque secteur client présent dans la période, renvoie le
+     * commercial qui a réalisé le plus de CA sur ce secteur, son CA
+     * et son nombre de campagnes. Utile sur le tableau de bord
+     * Performance commerciale (admin/MP) pour identifier les "spécialistes"
+     * de chaque industrie (ex: qui domine Banque & Finance ? Auto ?).
+     *
+     * Stratégie : 1 seule requête SQL groupée (secteur, commercial)
+     * + post-traitement PHP pour garder le top par secteur. Inclut aussi
+     * le CA total du secteur et la part_du_top% pour mesurer la
+     * concentration (un commercial qui fait 90% d'un secteur = monopole).
+     *
+     * @return Collection<array{sector:string, commercial_id:int,
+     *                           commercial_name:string, ca:int, count:int,
+     *                           sector_total_ca:int, share_pct:float}>
+     */
+    public function topCommercialBySector(CarbonInterface $from, CarbonInterface $to): Collection
+    {
+        $rows = Campaign::query()
+            ->join('clients', 'clients.id', '=', 'campaigns.client_id')
+            ->join('users',   'users.id',   '=', 'campaigns.commercial_user_id')
+            ->whereNotNull('campaigns.commercial_user_id')
+            ->whereNull('campaigns.deleted_at')
+            ->where('campaigns.status', '!=', 'annule')
+            ->where('campaigns.start_date', '<=', $to)
+            ->where('campaigns.end_date',   '>=', $from)
+            ->selectRaw('
+                COALESCE(NULLIF(clients.sector, ""), "Non renseigné") as sector,
+                campaigns.commercial_user_id                          as commercial_id,
+                users.name                                            as commercial_name,
+                SUM(campaigns.total_amount)                           as ca,
+                COUNT(*)                                              as cnt
+            ')
+            ->groupBy('sector', 'campaigns.commercial_user_id', 'users.name')
+            ->orderBy('sector')
+            ->orderByDesc('ca')
+            ->get();
+
+        // Pour chaque secteur, garde la 1re ligne (= top par CA) +
+        // calcule la part du top vs total secteur.
+        return $rows->groupBy('sector')
+            ->map(function ($group) {
+                $top       = $group->first();
+                $secteurCa = (int) $group->sum('ca');
+                return [
+                    'sector'           => $top->sector,
+                    'commercial_id'    => (int) $top->commercial_id,
+                    'commercial_name'  => $top->commercial_name,
+                    'ca'               => (int) $top->ca,
+                    'count'            => (int) $top->cnt,
+                    'sector_total_ca'  => $secteurCa,
+                    'share_pct'        => $secteurCa > 0 ? round(($top->ca / $secteurCa) * 100, 1) : 0.0,
+                ];
+            })
+            ->sortByDesc('sector_total_ca')
+            ->values();
+    }
+
+    /**
      * Score de diversification — indice de Herfindahl-Hirschman INVERSÉ.
      *   1.0 = portefeuille parfaitement équilibré (tous clients à parts égales)
      *   0.0 = mono-client (1 client = 100 % du CA)

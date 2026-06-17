@@ -39,9 +39,12 @@ class CommercialPerformanceController extends Controller
 
         [$from, $to] = $this->resolvePeriod($request);
         $leaderboard = $this->perf->leaderboard($from, $to);
+        // Top commercial par secteur d'activité — vue "qui domine quoi"
+        $topBySector = $this->perf->topCommercialBySector($from, $to);
 
         return view('admin.performance.commerciaux.index', [
             'leaderboard' => $leaderboard,
+            'topBySector' => $topBySector,
             'from'        => $from,
             'to'          => $to,
             'preset'      => $request->input('preset'),
