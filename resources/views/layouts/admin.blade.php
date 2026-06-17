@@ -235,6 +235,17 @@
                     </a>
                     @endif
 
+                    {{-- M2 Performance Technicien (mission 2026-06-17) — admin + MP + technique.
+                         Le tech voit son propre drill, idem M1. --}}
+                    @php $isTech = auth()->user()?->role?->value === 'technique'; @endphp
+                    @if($isAdmin || $isMP || $isTech)
+                    <a href="{{ $isTech ? route('admin.performance.tech.me') : route('admin.performance.tech.index') }}"
+                       data-tooltip="Performance techniciens" class="nav-item {{ request()->routeIs('admin.performance.tech.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+                        <span class="nav-text">{{ $isTech ? 'Ma performance' : 'Performance techniciens' }}</span>
+                    </a>
+                    @endif
+
                     {{-- Tableau de bord FINANCIER — Admin + Commercial.
                          Cohérent avec la matrice facturation : MP/Technique
                          ne touchent pas aux finances. --}}

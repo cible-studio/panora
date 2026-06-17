@@ -900,6 +900,20 @@ Route::prefix('admin')
             )->whereNumber('team')->whereNumber('user')->name('teams.members.remove');
         });
 
+        // ── M2 Performance Technicien — pages perf (admin/MP/technique) ──
+        // Le service force le scope au self pour technique.
+        Route::middleware('role:admin,mediaplanner,technique')->group(function () {
+            Route::get('performance/techniciens',
+                [\App\Http\Controllers\Admin\TechnicianPerformanceController::class, 'index']
+            )->name('performance.tech.index');
+            Route::get('performance/techniciens/me',
+                [\App\Http\Controllers\Admin\TechnicianPerformanceController::class, 'me']
+            )->name('performance.tech.me');
+            Route::get('performance/techniciens/{user}',
+                [\App\Http\Controllers\Admin\TechnicianPerformanceController::class, 'show']
+            )->whereNumber('user')->name('performance.tech.show');
+        });
+
         // ── Disponibilités ─────────────────── (admin + MP + commercial) ──
         // Le commercial peut maintenant créer des réservations depuis l'espace
         // disponibilités (matrice DISPONIBILITÉS étendue). La policy
