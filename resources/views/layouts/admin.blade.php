@@ -220,6 +220,16 @@
                     </a>
                     @endif
 
+                    {{-- M1 Performance Commerciale (mission 2026-06-17) — admin + MP + commercial.
+                         Le commercial voit son propre drill (le service force le scope au self). --}}
+                    @if($isAdmin || $isMP || ($isCommercial ?? auth()->user()?->role?->value === 'commercial'))
+                    <a href="{{ ($isCommercial ?? auth()->user()?->role?->value === 'commercial') ? route('admin.performance.commercial.me') : route('admin.performance.commercial.index') }}"
+                       data-tooltip="Performance commerciale" class="nav-item {{ request()->routeIs('admin.performance.commercial.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+                        <span class="nav-text">{{ ($isCommercial ?? auth()->user()?->role?->value === 'commercial') ? 'Ma performance' : 'Performance commerciale' }}</span>
+                    </a>
+                    @endif
+
                     {{-- Tableau de bord FINANCIER — Admin + Commercial.
                          Cohérent avec la matrice facturation : MP/Technique
                          ne touchent pas aux finances. --}}
