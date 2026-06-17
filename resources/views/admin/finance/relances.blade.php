@@ -42,10 +42,10 @@
                 Filtre, suit, et déclenche une nouvelle action en un clic.
             </div>
         </div>
-        <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement']) }}"
+        <button type="button" onclick="relancesOpenModal(null)"
            class="btn btn-primary btn-sm" style="font-size:12.5px;font-weight:700">
             ＋ Enregistrer une relance
-        </a>
+        </button>
     </div>
 
     {{-- KPI cards --}}
@@ -212,14 +212,15 @@
                                     <td style="font-size:12px;color:var(--text3)">{{ $r->user?->name ?? '—' }}</td>
                                     <td style="text-align:right;white-space:nowrap">
                                         @if($r->client_id)
-                                            {{-- Lien direct vers Recouvrement avec auto-ouverture de la
-                                                 modale "+ Enregistrer une relance" pré-remplie sur ce client.
-                                                 Le retour ramène à cette page (back() intelligent). --}}
-                                            <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement', 'open_relance' => 1, 'client_id' => $r->client_id]) }}"
-                                               class="btn btn-primary btn-sm" style="font-size:11px;font-weight:700"
-                                               title="Ouvrir la modale de relance avec ce client présélectionné">
+                                            {{-- Modale ouverte sur place : on reste sur la page Historique
+                                                 (pas de redirect vers Recouvrement). Le POST revient ici
+                                                 via redirect()->back() côté controller. --}}
+                                            <button type="button" class="btn btn-primary btn-sm"
+                                                    style="font-size:11px;font-weight:700"
+                                                    onclick="relancesOpenModal({{ $r->client_id }})"
+                                                    title="Ouvrir la modale de relance avec ce client présélectionné">
                                                 📞 Relancer
-                                            </a>
+                                            </button>
                                         @endif
                                     </td>
                                 </tr>
@@ -289,10 +290,8 @@
         </div>
     @else
         @php
-            $canalIcons = [
-                'telephone' => '📞', 'email' => '📧', 'whatsapp' => '💬',
-                'visite'    => '🚶', 'courrier' => '✉️', 'autre' => '📝',
-            ];
+            // Pas de mapping d'icônes ici : Relance::CANAUX inclut DÉJÀ l'emoji
+            // dans le libellé (ex: "📞 Téléphone"). On évite la doublure.
             $outcomeColors = [
                 'promesse_paiement' => ['bg' => 'rgba(34,197,94,.12)',  'c' => '#15803d'],
                 'paiement_recu'     => ['bg' => 'rgba(34,197,94,.18)',  'c' => '#15803d'],
@@ -353,8 +352,7 @@
                                         @endif
                                     </td>
                                     <td>
-                                        <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)">
-                                            {{ $canalIcons[$r->canal] ?? '📞' }}
+                                        <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);white-space:nowrap">
                                             {{ \App\Models\Relance::CANAUX[$r->canal] ?? $r->canal }}
                                         </span>
                                     </td>
@@ -382,10 +380,10 @@
                                     <td style="color:var(--text2);font-size:12px;white-space:nowrap">{{ $r->user?->name ?? '—' }}</td>
                                     <td style="text-align:right;white-space:nowrap">
                                         @if($r->client_id)
-                                            <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement', 'open_relance' => 1, 'client_id' => $r->client_id]) }}"
-                                               class="btn btn-ghost btn-sm"
-                                               style="font-size:11px;color:var(--accent);font-weight:700"
-                                               title="Enregistrer une nouvelle relance pour ce client">📞 Relancer</a>
+                                            <button type="button" class="btn btn-ghost btn-sm"
+                                                    style="font-size:11px;color:var(--accent);font-weight:700"
+                                                    onclick="relancesOpenModal({{ $r->client_id }})"
+                                                    title="Enregistrer une nouvelle relance pour ce client">📞 Relancer</button>
                                         @endif
                                     </td>
                                 </tr>
@@ -405,15 +403,24 @@
 </div>
 
 <style>
-.fin-relances-page select {
+/* Selects + inputs date — même look unifié */
+.fin-relances-page select,
+.fin-relances-page input[type="date"],
+.fin-relances-page input[type="text"] {
     height: 38px;
     width: 100%;
-    padding: 0 28px 0 10px;
+    padding: 0 10px;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 8px;
     color: var(--text);
     font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+}
+.fin-relances-page select {
+    padding-right: 28px;
     cursor: pointer;
     -webkit-appearance: none;
     appearance: none;
@@ -421,15 +428,193 @@
     background-repeat: no-repeat;
     background-position: right 8px center;
 }
+.fin-relances-page input[type="date"] {
+    color-scheme: light;
+    cursor: text;
+}
+.fin-relances-page select:focus,
+.fin-relances-page input[type="date"]:focus,
+.fin-relances-page input[type="text"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232, 160, 32, .15);
+}
+
 .fin-filter-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px; }
 .fin-filter-bar { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+
 .fin-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+/* Header carte — flex propre + alignement vertical net */
+.fin-card-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.fin-card-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.3;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.fin-card-sub {
+    font-size: 11.5px;
+    color: var(--text3);
+    margin-top: 3px;
+    line-height: 1.4;
+}
+.fin-card-body { padding: 16px 18px; }
 .fin-card-body--flush { padding: 0; }
+
 .fin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .fin-table th { text-align: left; padding: 10px 14px; background: var(--surface2); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); border-bottom: 1px solid var(--border); }
 .fin-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
 .fin-table tr:hover td { background: rgba(232, 160, 32, .04); }
 .fin-empty { text-align: center; color: var(--text3); font-size: 13px; background: var(--surface2); }
+
+/* ─── Modale relance embarquée sur la page ─── */
+.relances-modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, .6);
+    backdrop-filter: blur(2px);
+    z-index: 9999;
+    display: none; align-items: center; justify-content: center;
+    padding: 16px;
+}
+.relances-modal-overlay.is-open { display: flex; }
+.relances-modal {
+    background: var(--surface);
+    border-radius: 14px;
+    max-width: 520px;
+    width: 100%;
+    box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .4);
+    overflow: hidden;
+}
+.relances-modal-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--text);
+}
+.relances-modal-body { padding: 18px; }
+.relances-modal-body .fne-field { margin-bottom: 12px; }
+.relances-modal-body .fne-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.relances-modal-body label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); margin-bottom: 6px; }
+.relances-modal-body label .req { color: #ef4444; }
+.relances-modal-body label .opt { font-size: 10px; color: var(--text3); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.relances-modal-body input, .relances-modal-body select, .relances-modal-body textarea {
+    width: 100%;
+    padding: 8px 10px;
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+}
+.relances-modal-body textarea { height: auto; min-height: 60px; resize: vertical; line-height: 1.5; }
+.relances-modal-body input:focus, .relances-modal-body select:focus, .relances-modal-body textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232, 160, 32, .15);
+}
 </style>
+
+{{-- ───────── Modale "Enregistrer une relance" embarquée ─────────
+     La modale vit DANS la page Historique des relances pour ne pas
+     forcer un redirect vers Recouvrement. Le POST revient ici via
+     redirect()->back() côté FinanceDashboardController::storeRelance.
+--}}
+<div id="relances-modal" class="relances-modal-overlay" onclick="if(event.target===this)relancesCloseModal()">
+    <div class="relances-modal">
+        <div class="relances-modal-head">
+            <div style="font-weight:800;font-size:15px">📞 Enregistrer une relance</div>
+            <button type="button" onclick="relancesCloseModal()"
+                    style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>
+        </div>
+        <form method="POST" action="{{ route('admin.finance.relances.store') }}" class="relances-modal-body">
+            @csrf
+            <div class="fne-field">
+                <label>Client <span class="req">*</span></label>
+                <select name="client_id" id="relances-modal-client" required>
+                    <option value="">— Sélectionner —</option>
+                    @foreach($clientsList as $cl)
+                        <option value="{{ $cl->id }}">{{ $cl->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="fne-grid-2">
+                <div class="fne-field">
+                    <label>Date de la relance <span class="req">*</span></label>
+                    <input type="date" name="relance_date" value="{{ now()->format('Y-m-d') }}" required>
+                </div>
+                <div class="fne-field">
+                    <label>Canal <span class="req">*</span></label>
+                    <select name="canal" required>
+                        @foreach(\App\Services\ReminderService::CANALS as $val)
+                            <option value="{{ $val }}">{{ \App\Services\ReminderService::canalLabel($val) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+            <div class="fne-field">
+                <label>Note de la relance <span class="req">*</span></label>
+                <textarea name="note" rows="3" required placeholder="Résumé de l'échange…"></textarea>
+            </div>
+            <div class="fne-grid-2">
+                <div class="fne-field">
+                    <label>Résultat <span class="opt">— optionnel</span></label>
+                    <select name="outcome">
+                        <option value="">—</option>
+                        <option value="promesse_paiement">📅 Promesse de paiement</option>
+                        <option value="paiement_recu">✅ Paiement reçu</option>
+                        <option value="a_relancer">🔁 À relancer</option>
+                        <option value="sans_reponse">📵 Sans réponse</option>
+                        <option value="desaccord">⚠ Désaccord</option>
+                        <option value="autre">📝 Autre</option>
+                    </select>
+                </div>
+                <div class="fne-field">
+                    <label>Suite donnée <span class="opt">— optionnel</span></label>
+                    <input type="text" name="suite_donnee" placeholder="Ex: rappeler le 15/06…" maxlength="200">
+                </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+                <button type="button" class="btn btn-ghost" onclick="relancesCloseModal()">Annuler</button>
+                <button type="submit" class="btn btn-primary">✅ Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function relancesOpenModal(clientId) {
+    const modal = document.getElementById('relances-modal');
+    const sel = document.getElementById('relances-modal-client');
+    if (sel) sel.value = clientId ? String(clientId) : '';
+    modal.classList.add('is-open');
+    setTimeout(() => {
+        const note = modal.querySelector('textarea[name="note"]');
+        if (note) note.focus();
+    }, 50);
+}
+function relancesCloseModal() {
+    document.getElementById('relances-modal').classList.remove('is-open');
+}
+// ESC ferme la modale
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') relancesCloseModal();
+});
+</script>
 
 </x-admin-layout>
