@@ -908,10 +908,32 @@ class PanelController extends Controller
                     return round($val, 7);
                 }
             }
-            // Sinon format décimal pur (avec gestion virgule + espaces)
+            // Sinon format décimal pur (avec gestion virgule + espaces).
+            // Étapes nettoyage :
+            //   1. enlève espaces / nbsp / apostrophes
+            //   2. enlève les virgules en début/fin (Excel ajoute parfois
+            //      "5,3571022," — la virgule traîtresse fait planter le parse)
+            //   3. virgule décimale française → point
             $s = str_replace([' ', "'", "\xc2\xa0"], '', $s);
+            $s = trim($s, ',;');
             $s = str_replace(',', '.', $s);
-            return is_numeric($s) ? (float) $s : null;
+            if (!is_numeric($s)) return null;
+            $val = (float) $s;
+
+            // ── Auto-réparation virgule décimale absente ──
+            // Cas vu sur le terrain : "-40075988" au lieu de "-4.0075988"
+            // (Excel a tronqué la décimale). Si abs(val) > 90 (impossible
+            // pour une coord), on insère la virgule pour ramener la valeur
+            // dans la plage CI. On essaie plusieurs puissances de 10.
+            if (abs($val) > 90) {
+                foreach ([10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000] as $div) {
+                    $candidate = $val / $div;
+                    if (abs($candidate) >= 1 && abs($candidate) <= 12) {
+                        return round($candidate, 7);
+                    }
+                }
+            }
+            return $val;
         };
 
         $rowIndex = 0;
@@ -947,14 +969,39 @@ class PanelController extends Controller
                 continue;
             }
 
-            // ── Stratégie de matching (3 niveaux) ──
+            // ── Stratégie de matching élargie (6 niveaux) ──
+            // Construit toutes les variantes plausibles d'une référence et
+            // tente un IN (...) en une seule requête. Couvre :
+            //   1. Exact                  : MRY-001A
+            //   2. Avec CH (compat prod)  : MRY-CH001A
+            //   3. Sans suffixe alpha     : MRY-001
+            //   4. Sans suffixe + CH      : MRY-CH001
+            //   5. Sans CH (si déjà CH)   : MRY-001A si Excel a MRY-CH001A
+            //   6. LIKE en dernier recours: MRY%001%
             $candidates = [$ref];
             if (preg_match('/^([A-Z]+)-(.+)$/i', $ref, $m)) {
-                $candidates[] = strtoupper($m[1]) . '-CH' . $m[2];
+                $prefix = strtoupper($m[1]);
+                $suffix = $m[2];
+                // Variante avec CH (compat prod)
+                if (!str_starts_with(strtoupper($suffix), 'CH')) {
+                    $candidates[] = "{$prefix}-CH{$suffix}";
+                } else {
+                    // L'Excel a déjà CH → essayer sans
+                    $candidates[] = "{$prefix}-" . substr($suffix, 2);
+                }
+                // Variantes SANS le suffixe alpha (face A/B)
+                if (preg_match('/^(\d+)([A-Z])$/i', $suffix, $m2)) {
+                    $numOnly = $m2[1];
+                    $candidates[] = "{$prefix}-{$numOnly}";        // MRY-001
+                    $candidates[] = "{$prefix}-CH{$numOnly}";      // MRY-CH001
+                }
             }
-            $panel = Panel::whereIn('reference', $candidates)->first();
+            $panel = Panel::whereIn('reference', array_unique($candidates))->first();
+
+            // LIKE en dernier recours — tente d'absorber les variantes
+            // exotiques (espace, underscore, séparateur différent).
             if (!$panel && preg_match('/^([A-Z]+)-(\d+)([A-Z]?)$/i', $ref, $m)) {
-                $panel = Panel::where('reference', 'LIKE', strtoupper($m[1]) . '%' . $m[2] . $m[3])->first();
+                $panel = Panel::where('reference', 'LIKE', strtoupper($m[1]) . '%' . $m[2] . '%')->first();
             }
 
             if (!$panel) {
