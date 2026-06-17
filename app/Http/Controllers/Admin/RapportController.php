@@ -87,17 +87,21 @@ class RapportController extends Controller
             $dateTo   = Carbon::create($annee, $moisAu, 1)->endOfMonth();
         }
 
-        // ── Filtres additionnels (commune, ville, client, type panneau) ──
+        // ── Filtres additionnels (commune, ville, client, type panneau, zone) ──
         $filterCommune  = $request->input('filter_commune_id');
         $filterCity     = $request->input('filter_city');
         $filterClient   = $request->input('filter_client_id');
         $filterCategory = $request->input('filter_category_id');
+        // Zone : raccourci UX "Abidjan" / "Intérieur" (= toutes villes hors Abidjan)
+        $filterZone     = in_array($request->input('filter_zone'), ['abidjan', 'interieur'], true)
+                          ? $request->input('filter_zone') : null;
 
         $kpi->setFilters([
             'commune_id'  => $filterCommune,
             'city'        => $filterCity,
             'client_id'   => $filterClient,
             'category_id' => $filterCategory,
+            'zone'        => $filterZone,
         ]);
 
         // Variables pour les selects du formulaire
@@ -109,19 +113,22 @@ class RapportController extends Controller
         $anneesDisponibles = range(date('Y'), max(2020, date('Y') - 5));
 
         // Helpers pour appliquer les filtres dimensionnels aux queries legacy
-        $applyPanelFilters = function ($query) use ($filterCommune, $filterCity, $filterCategory) {
+        $applyPanelFilters = function ($query) use ($filterCommune, $filterCity, $filterCategory, $filterZone) {
             if ($filterCommune)  $query->where('commune_id', $filterCommune);
             if ($filterCategory) $query->where('category_id', $filterCategory);
             if ($filterCity)     $query->whereHas('commune', fn($c) => $c->where('city', $filterCity));
+            if ($filterZone)     $query->whereHas('commune', fn($c) => $filterZone === 'abidjan'
+                                    ? $c->where('city', 'Abidjan')
+                                    : $c->where('city', '!=', 'Abidjan'));
             return $query;
         };
         // Le scope RBAC commercial est injecté dans applyCampaignFilters
         // → toutes les queries Campaign de ce controller sont filtrées
         // automatiquement (pas besoin de modifier chaque ligne).
         $self = $this;
-        $applyCampaignFilters = function ($query) use ($filterClient, $filterCommune, $filterCity, $filterCategory, $applyPanelFilters, $self) {
+        $applyCampaignFilters = function ($query) use ($filterClient, $filterCommune, $filterCity, $filterCategory, $filterZone, $applyPanelFilters, $self) {
             if ($filterClient) $query->where('client_id', $filterClient);
-            if ($filterCommune || $filterCity || $filterCategory) {
+            if ($filterCommune || $filterCity || $filterCategory || $filterZone) {
                 $query->whereHas('panels', fn($p) => $applyPanelFilters($p));
             }
             return $self->scopeUserCampaigns($query);
@@ -513,6 +520,7 @@ class RapportController extends Controller
             'filterCity',
             'filterClient',
             'filterCategory',
+            'filterZone',
             'allCommunes',
             'allClients',
             'allCategories',
@@ -1153,6 +1161,54 @@ class RapportController extends Controller
     }
 
     /**
+     * Export Excel — Liste complète des panneaux avec leur taux
+     * d'occupation sur la période, filtrable par zone (Abidjan / Intérieur).
+     */
+    public function exportPanelsOccupationExcel(Request $request, DashboardKpiService $kpi)
+    {
+        $this->applyPeriodAndFilters($request, $kpi);
+        $panels = $kpi->panelsOccupationFull();
+        $period = $kpi->getPeriod();
+        $zoneLabel = $this->zoneLabel($request->input('filter_zone'));
+
+        $filename = 'occupation-panneaux-' . now()->format('Ymd_His') . '.xlsx';
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\PanelsOccupationExport($panels, $period['from'], $period['to'], $zoneLabel),
+            $filename
+        );
+    }
+
+    /**
+     * Export PDF — Même rapport en synthèse imprimable (A4 paysage).
+     */
+    public function exportPanelsOccupationPdf(Request $request, DashboardKpiService $kpi)
+    {
+        $this->applyPeriodAndFilters($request, $kpi);
+        $panels = $kpi->panelsOccupationFull();
+        $period = $kpi->getPeriod();
+        $zoneLabel = $this->zoneLabel($request->input('filter_zone'));
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.panels-occupation-pdf', [
+            'panels'    => $panels,
+            'from'      => $period['from'],
+            'to'        => $period['to'],
+            'zoneLabel' => $zoneLabel,
+            'user'      => $request->user(),
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download('occupation-panneaux-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    private function zoneLabel(?string $zone): ?string
+    {
+        return match ($zone) {
+            'abidjan'   => 'Abidjan',
+            'interieur' => 'Intérieur (hors Abidjan)',
+            default     => null,
+        };
+    }
+
+    /**
      * Helper : applique période + filtres au service KPI à partir du
      * Request (mêmes paramètres que la vue principale).
      * Permet aux exports de respecter les filtres de la page rapports.
@@ -1185,6 +1241,8 @@ class RapportController extends Controller
             'city'        => $request->input('filter_city'),
             'client_id'   => $request->input('filter_client_id'),
             'category_id' => $request->input('filter_category_id'),
+            'zone'        => in_array($request->input('filter_zone'), ['abidjan', 'interieur'], true)
+                                ? $request->input('filter_zone') : null,
         ]);
     }
 
