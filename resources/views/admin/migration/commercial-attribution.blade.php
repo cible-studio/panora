@@ -54,15 +54,15 @@
                     <select name="commercial_user_id" required style="height:34px;padding:0 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12.5px;min-width:180px">
                         <option value="">— Choisir —</option>
                         @foreach($commerciaux as $u)
-                            <option value="{{ $u->id }}">{{ $u->name }} ({{ $u->agent_code }})</option>
+                            <option value="{{ $u->id }}">{{ $u->name }} ({{ $u->agent_code }}{{ $u->role?->value !== 'commercial' ? ' · '.$u->role?->value : '' }})</option>
                         @endforeach
                     </select>
                     <button type="submit" class="btn btn-primary btn-sm" style="font-size:12px">Assigner</button>
-                    @if($creator && $creator->role?->value === 'commercial')
+                    @if($creator && in_array($creator->role?->value, ['admin','mediaplanner','commercial'], true))
                         <button type="submit" name="use_creator" value="1"
                                 class="btn btn-ghost btn-sm"
                                 style="font-size:11.5px;color:#0891b2;border:1px solid rgba(8,145,178,.4)"
-                                title="Assigne directement au créateur ({{ $creator->name }})">
+                                title="Assigne directement au créateur ({{ $creator->name }} · {{ $creator->role?->value }})">
                             ⚡ Créateur
                         </button>
                     @endif
