@@ -876,6 +876,17 @@ Route::prefix('admin')
             )->whereNumber('user')->name('performance.commercial.show');
         });
 
+        // Page de backfill (admin only) — assigner commercial_user_id aux
+        // campagnes historiques case par case (Décision B, pas de migration auto).
+        Route::middleware('role:admin')->group(function () {
+            Route::get('migration/commercial-attribution',
+                [\App\Http\Controllers\Admin\CommercialAttributionController::class, 'index']
+            )->name('migration.commercial-attribution');
+            Route::post('migration/commercial-attribution/{campaign}',
+                [\App\Http\Controllers\Admin\CommercialAttributionController::class, 'assign']
+            )->whereNumber('campaign')->name('migration.commercial-attribution.assign');
+        });
+
         // ── Disponibilités ─────────────────── (admin + MP + commercial) ──
         // Le commercial peut maintenant créer des réservations depuis l'espace
         // disponibilités (matrice DISPONIBILITÉS étendue). La policy
