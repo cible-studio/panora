@@ -99,12 +99,30 @@ class CommercialPerformanceController extends Controller
     /** Période : preset OU dates custom from/to. Défaut : année courante. */
     protected function resolvePeriod(Request $request): array
     {
-        if ($request->filled('from') && $request->filled('to')) {
+        // 1) Range personnalisé : si l'utilisateur a saisi au moins UNE date
+        //    (from OU to), on respecte sa saisie sans exiger les 2 champs.
+        //    Avant : il fallait remplir les 2 dates sinon le preset par
+        //    défaut écrasait tout, ce qui donnait l'impression que le
+        //    filtre date "ne marchait pas".
+        $hasFrom = $request->filled('from');
+        $hasTo   = $request->filled('to');
+        if ($hasFrom || $hasTo) {
             try {
-                return [Carbon::parse($request->input('from'))->startOfDay(),
-                        Carbon::parse($request->input('to'))->endOfDay()];
-            } catch (\Throwable) { /* fallback ↓ */ }
+                $from = $hasFrom
+                    ? Carbon::parse($request->input('from'))->startOfDay()
+                    : Carbon::parse($request->input('to'))->copy()->subYear()->startOfDay();
+                $to = $hasTo
+                    ? Carbon::parse($request->input('to'))->endOfDay()
+                    : Carbon::now()->endOfDay();
+                // Sécurité : si from > to (saisie inversée), on swap.
+                if ($from->gt($to)) {
+                    [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
+                }
+                return [$from, $to];
+            } catch (\Throwable) { /* fallback preset ↓ */ }
         }
+
+        // 2) Pas de date saisie → preset
         return match ($request->input('preset')) {
             'month'   => [now()->startOfMonth(), now()->endOfMonth()],
             'quarter' => [now()->firstOfQuarter(), now()->lastOfQuarter()],
