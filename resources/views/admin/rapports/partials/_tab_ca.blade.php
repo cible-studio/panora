@@ -25,9 +25,21 @@
     </div>
 
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8a020" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            <span style="font-size:13px;font-weight:700;color:var(--text)">CA mensuel {{ $annee }}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">CA mensuel {{ $caMensuelYear ?? $annee }}</span>
+            {{-- Sélecteur d'année interne : indépendant du filtre période global.
+                 Soumet le form-periode pour rester cohérent avec le pipeline AJAX. --}}
+            <select name="ca_year" form="form-periode" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()"
+                    style="margin-left:auto;height:28px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text);cursor:pointer"
+                    title="Choisir l'année à explorer (indépendant du filtre période global)">
+                @foreach($anneesDisponibles ?? [date('Y'), date('Y')-1, date('Y')-2] as $y)
+                    <option value="{{ $y }}" {{ (int)($caMensuelYear ?? $annee) === (int)$y ? 'selected' : '' }}>{{ $y }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div style="font-size:11px;color:var(--text3);font-style:italic;margin-bottom:14px">
+            ℹ️ Année calendaire complète · indépendant du filtre période · suit les filtres dimensionnels (zone, commune, client, type)
         </div>
         <div id="chart-ca" style="display:flex;align-items:flex-end;gap:6px;height:140px"></div>
         <div id="chart-ca-labels" style="display:flex;gap:6px;margin-top:6px"></div>

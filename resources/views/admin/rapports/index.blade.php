@@ -48,22 +48,28 @@ window.__RPT__ = {
 {{-- ════ ACTIONS RAPIDES — exports (COMMIT D) ════ --}}
 @php
     // Filtres communs propagés à tous les exports (= ceux affichés
-    // dans la barre de filtres). Inclut filter_zone (Abidjan/Intérieur).
+    // dans la barre de filtres). Inclut filter_zone (Abidjan/Intérieur)
+    // + ca_year/tableau_year (sélecteurs annuels internes).
     $exportFilters = request()->only([
         'preset','from','to','annee','mois_du','mois_au',
         'filter_commune_id','filter_city','filter_client_id','filter_category_id','filter_zone',
+        'ca_year','tableau_year',
     ]);
 @endphp
+{{-- data-export-route : la base statique de l'URL. rapports-live.js suffixe
+     la query string courante au moment de chaque mise à jour AJAX. --}}
 <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-bottom:14px;flex-wrap:wrap">
     <a href="{{ route('admin.rapports.export.excel', $exportFilters) }}"
+       data-export-route="{{ route('admin.rapports.export.excel') }}"
        style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#16a34a;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700"
-       title="Télécharger le dashboard complet en Excel (8 feuilles)">
+       title="Télécharger le dashboard complet en Excel (8 feuilles) — respecte les filtres actifs">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Exporter Excel
     </a>
     <a href="{{ route('admin.rapports.export.pdf', $exportFilters) }}"
+       data-export-route="{{ route('admin.rapports.export.pdf') }}"
        style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#dc2626;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700"
-       title="Télécharger une synthèse exécutive PDF (1 page)">
+       title="Télécharger une synthèse exécutive PDF (1 page) — respecte les filtres actifs">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8M16 17H8"/></svg>
         Synthèse PDF
     </a>
@@ -71,12 +77,14 @@ window.__RPT__ = {
     <span style="width:1px;height:24px;background:var(--border);margin:0 4px"></span>
     {{-- Exports dédiés : panneaux + taux d'occupation (filtrés par zone si sélectionnée) --}}
     <a href="{{ route('admin.rapports.export.panels-occupation-excel', $exportFilters) }}"
+       data-export-route="{{ route('admin.rapports.export.panels-occupation-excel') }}"
        style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0f766e;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700"
        title="Exporter la liste complète des panneaux avec leur taux d'occupation sur la période (Excel)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
         Panneaux + occupation (Excel)
     </a>
     <a href="{{ route('admin.rapports.export.panels-occupation-pdf', $exportFilters) }}"
+       data-export-route="{{ route('admin.rapports.export.panels-occupation-pdf') }}"
        style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#9333ea;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700"
        title="Exporter la liste complète des panneaux avec leur taux d'occupation (PDF A4 paysage)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8M16 17H8"/></svg>

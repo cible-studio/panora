@@ -1,7 +1,10 @@
 <div id="rpt-topcards">
 {{-- ════ RAPPORTS DÉTAILLÉS — RACCOURCIS ════ --}}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:20px">
+    {{-- Bug E corrigé : data-route-base est utilisé par rapports-live.js pour
+         reconstruire le href avec la query string des filtres courants. --}}
     <a href="{{ route('admin.rapports.campagnes') }}"
+       data-route-base="{{ route('admin.rapports.campagnes') }}"
        style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-left:4px solid #fab80b;border-radius:12px;text-decoration:none;transition:transform .15s,border-color .15s,box-shadow .15s"
        onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(0,0,0,.08)'"
        onmouseleave="this.style.transform='';this.style.boxShadow=''">
@@ -21,6 +24,7 @@
          le lien ou si l'admin a cliqué par erreur côté UI commercial). --}}
     @if(auth()->user()?->role?->value !== 'commercial')
     <a href="{{ route('admin.rapports.annulations') }}"
+       data-route-base="{{ route('admin.rapports.annulations') }}"
        style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-left:4px solid #ef4444;border-radius:12px;text-decoration:none;transition:transform .15s,border-color .15s,box-shadow .15s"
        onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(0,0,0,.08)'"
        onmouseleave="this.style.transform='';this.style.boxShadow=''">
@@ -35,6 +39,7 @@
     </a>
 
     <a href="{{ route('admin.rapports.taxes') }}"
+       data-route-base="{{ route('admin.rapports.taxes') }}"
        style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-left:4px solid #8b5cf6;border-radius:12px;text-decoration:none;transition:transform .15s,border-color .15s,box-shadow .15s"
        onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(0,0,0,.08)'"
        onmouseleave="this.style.transform='';this.style.boxShadow=''">
