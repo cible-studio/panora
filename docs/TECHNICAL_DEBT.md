@@ -178,6 +178,44 @@ fiche performance du commercial ».
 
 ---
 
+## 🟢 [Priorité basse] Histogramme remplace boxplot Chart.js (M2)
+
+**Contexte** : M2 Performance Technicien voulait à l'origine un boxplot
+de la distribution de réactivité. Chart.js n'a pas de type boxplot natif
+(lib `chartjs-chart-boxplot` ~30KB nécessaire).
+
+**Choix retenu** : histogramme à 6 buckets (<1h / 1-4h / 4-24h / 1-3j /
+3-7j / >7j) avec couleurs vert→rouge. Plus lisible pour un patron non-
+statisticien, perte d'information marginale (moyenne, médiane, quartiles
+non affichés mais déductibles visuellement).
+
+**Action si besoin émerge** : ajouter chartjs-chart-boxplot et basculer
+le drill tech. Trivial techniquement (~30 min).
+
+---
+
+## 🟡 [Priorité moyenne] M2 — drill équipe ignore les anciens membres
+
+**Contexte** : la mission M2 (2026-06-17) calcule les KPIs équipe en
+itérant sur `$team->members` (= membres ACTUELS de l'équipe). Un tech
+qui était dans l'équipe il y a 3 mois puis qui a été détaché n'apparaît
+pas dans le drill équipe — ses poses historiques ne comptent pas.
+
+**Conséquence** : si un MP fait des comparaisons N vs N-1 au niveau
+équipe, la composition équipe d'aujourd'hui sert de référence. Si on
+ré-organise les équipes en cours d'année, les stats équipe deviennent
+moins comparables d'une année sur l'autre.
+
+**Mitigation actuelle** : sous-titre explicatif ℹ sur le drill équipe
+(Garde-fou A) qui documente la limite.
+
+**Action si besoin émerge** : table d'historisation `pose_team_memberships
+(user_id, team_id, joined_at, left_at)` qui permettrait de recalculer
+la composition équipe à un instant T. Pas urgent — quasi personne ne
+fait ce type d'analyse rétrospective.
+
+---
+
 ## Historique
 
 | Date       | Mission                                      | Dette ajoutée |
@@ -185,3 +223,4 @@ fiche performance du commercial ».
 | 2026-06-17 | Rapports pilotés par filtres en AJAX         | Migrations non sqlite-portable + audit sous-rapports |
 | 2026-06-17 | M3 SLA enrichi (Module 3)                    | Rôle comptable + secteur externes + delay_reasons table |
 | 2026-06-17 | M1 Performance Commerciale (Module 1)        | Décision C révisée (pas de table sectors) + Herfindahl à valider + lien Rapports↔Perf |
+| 2026-06-17 | M2 Performance Tech / Équipe (Module 2)      | Boxplot → histogramme + drill équipe ignore anciens membres |
