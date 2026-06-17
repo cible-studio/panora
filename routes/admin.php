@@ -408,6 +408,21 @@ Route::prefix('admin')
             // Suggestion intelligente d'un tech (zone + charge + perf)
             Route::get('suggest-tech',     [PoseController::class, 'suggestTech'])    ->name('suggest-tech');
 
+            // ── Sous-module TECHNICIENS (déplacé hors de /admin/users) ─
+            // Admin + MP gèrent les techniciens directement ici car c'est
+            // leur domaine métier. Aucun mot de passe (les techs accèdent
+            // via /tech/{token}/poses, pas via /login).
+            Route::prefix('techniciens')->name('techniciens.')->group(function () {
+                Route::get('/',                   [\App\Http\Controllers\Admin\TechnicienController::class, 'index'])  ->name('index');
+                Route::get('/create',             [\App\Http\Controllers\Admin\TechnicienController::class, 'create']) ->name('create');
+                Route::post('/',                  [\App\Http\Controllers\Admin\TechnicienController::class, 'store'])  ->name('store');
+                Route::get('/{technicien}/edit',  [\App\Http\Controllers\Admin\TechnicienController::class, 'edit'])   ->name('edit');
+                Route::put('/{technicien}',       [\App\Http\Controllers\Admin\TechnicienController::class, 'update']) ->name('update');
+                Route::delete('/{technicien}',    [\App\Http\Controllers\Admin\TechnicienController::class, 'destroy'])->name('destroy');
+                Route::post('/{technicien}/regenerate-token', [\App\Http\Controllers\Admin\TechnicienController::class, 'regenerateToken'])->name('regenerate-token');
+                Route::post('/{technicien}/toggle-active',    [\App\Http\Controllers\Admin\TechnicienController::class, 'toggleActive'])   ->name('toggle-active');
+            });
+
             // ── CRUD standard ─────────────────────────────────────────
             Route::get('/',         [PoseController::class, 'index'])  ->name('index');
             Route::get('/create',   [PoseController::class, 'create']) ->name('create');
