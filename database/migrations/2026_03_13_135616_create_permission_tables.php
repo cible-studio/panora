@@ -9,8 +9,10 @@ return new class extends Migration {
 
     public function up(): void
     {
-        // ← FORCER utf8 pour WAMP
-        DB::statement('SET NAMES utf8');
+        // ← FORCER utf8 pour WAMP (uniquement MySQL — sqlite des tests le rejette)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('SET NAMES utf8');
+        }
 
         $teams = config('permission.teams');
         $tableNames = config('permission.table_names');
