@@ -283,7 +283,8 @@ class CommercialPerformanceService
         $end   = now()->endOfMonth();
         $start = now()->subMonths($months - 1)->startOfMonth();
 
-        $rows = DB::table('campaigns')
+        // CA TTC + nombre de campagnes — source : campaigns
+        $rowsTtc = DB::table('campaigns')
             ->whereNotNull('commercial_user_id')
             ->whereNull('deleted_at')
             ->where('status', '!=', 'annule')
@@ -292,6 +293,17 @@ class CommercialPerformanceService
             ->selectRaw('YEAR(start_date) as y, MONTH(start_date) as m,
                          SUM(total_amount) as ca,
                          COUNT(*) as cnt')
+            ->groupBy('y', 'm')
+            ->get()
+            ->keyBy(fn ($r) => $r->y . '-' . str_pad((string) $r->m, 2, '0', STR_PAD_LEFT));
+
+        // CA HT — source : invoices.net_ht (cohérent avec kpis())
+        $rowsHt = DB::table('invoices')
+            ->whereNotNull('commercial_user_id')
+            ->whereNotIn('status', ['annulee'])
+            ->whereBetween('issued_at', [$start->toDateString(), $end->toDateString()])
+            ->selectRaw('YEAR(issued_at) as y, MONTH(issued_at) as m,
+                         SUM(net_ht) as ca_ht')
             ->groupBy('y', 'm')
             ->get()
             ->keyBy(fn ($r) => $r->y . '-' . str_pad((string) $r->m, 2, '0', STR_PAD_LEFT));
@@ -306,8 +318,9 @@ class CommercialPerformanceService
                 'label' => $moisFr[$d->month] . ' ' . $d->format('y'),
                 'year'  => $d->year,
                 'month' => $d->month,
-                'ca'    => isset($rows[$key]) ? (int) $rows[$key]->ca   : 0,
-                'count' => isset($rows[$key]) ? (int) $rows[$key]->cnt  : 0,
+                'ca'    => isset($rowsTtc[$key]) ? (int) $rowsTtc[$key]->ca    : 0,
+                'ca_ht' => isset($rowsHt[$key])  ? (int) $rowsHt[$key]->ca_ht  : 0,
+                'count' => isset($rowsTtc[$key]) ? (int) $rowsTtc[$key]->cnt   : 0,
             ]);
         }
         return $result;

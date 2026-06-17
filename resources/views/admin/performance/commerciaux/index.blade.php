@@ -50,16 +50,22 @@
 
     {{-- KPI globaux du leaderboard --}}
     @php
+        $totalCaHt   = $leaderboard->sum('ca_ht');
         $totalCa     = $leaderboard->sum('ca_ttc');
         $totalEnc    = $leaderboard->sum('encaisse');
         $tauxMoyen   = $totalCa > 0 ? round($totalEnc / $totalCa * 100, 1) : 0;
         $panierMoyen = $leaderboard->avg('panier_moyen');
     @endphp
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:18px">
+        <div class="perf-kpi" style="border-left-color:#e8a020">
+            <div class="perf-kpi-label">CA HT équipe</div>
+            <div class="perf-kpi-val" style="color:#c97d10">{{ $fmtM($totalCaHt) }} <span style="font-size:12px;color:var(--text3)">FCFA</span></div>
+            <div class="perf-kpi-sub">net_ht des factures émises</div>
+        </div>
         <div class="perf-kpi" style="border-left-color:var(--accent)">
-            <div class="perf-kpi-label">CA total équipe</div>
+            <div class="perf-kpi-label">CA TTC équipe</div>
             <div class="perf-kpi-val">{{ $fmtM($totalCa) }} <span style="font-size:12px;color:var(--text3)">FCFA</span></div>
-            <div class="perf-kpi-sub">somme des CA TTC</div>
+            <div class="perf-kpi-sub">total_amount des campagnes</div>
         </div>
         <div class="perf-kpi" style="border-left-color:#16a34a">
             <div class="perf-kpi-label">Taux recouvrement moyen</div>
@@ -90,13 +96,14 @@
                 <div class="perf-card-sub">Évolution mensuelle du CA équipe et du nombre de campagnes</div>
             </div>
             @php
-                $trendTotalCa  = $globalTrend->sum('ca');
-                $trendTotalCnt = $globalTrend->sum('count');
+                $trendTotalCa   = $globalTrend->sum('ca');
+                $trendTotalCaHt = $globalTrend->sum('ca_ht');
+                $trendTotalCnt  = $globalTrend->sum('count');
             @endphp
-            <div style="font-size:12px;color:var(--text3);text-align:right;line-height:1.45">
-                CA cumulé 12 mois<br>
-                <strong style="color:var(--accent);font-size:14px">{{ number_format($trendTotalCa, 0, ',', ' ') }}</strong>
-                <span style="font-size:10px;color:var(--text3)">FCFA · {{ $trendTotalCnt }} campagnes</span>
+            <div style="font-size:11.5px;color:var(--text3);text-align:right;line-height:1.5">
+                <div>CA TTC 12 mois : <strong style="color:var(--accent);font-size:13px">{{ number_format($trendTotalCa, 0, ',', ' ') }}</strong></div>
+                <div>CA HT 12 mois : <strong style="color:#c97d10;font-size:13px">{{ number_format($trendTotalCaHt, 0, ',', ' ') }}</strong></div>
+                <div style="font-size:10px;color:var(--text3)">{{ $trendTotalCnt }} campagnes</div>
             </div>
         </div>
         <div style="padding:18px 20px">
@@ -271,7 +278,7 @@
             labels: data.map(d => d.label),
             datasets: [
                 {
-                    label: 'CA équipe (FCFA)',
+                    label: 'CA TTC (FCFA)',
                     data: data.map(d => d.ca),
                     borderColor: '#e8a020',
                     backgroundColor: 'rgba(232, 160, 32, 0.12)',
@@ -282,6 +289,19 @@
                     pointRadius: 4,
                     pointHoverRadius: 6,
                     pointBackgroundColor: '#e8a020',
+                },
+                {
+                    label: 'CA HT (FCFA)',
+                    data: data.map(d => d.ca_ht),
+                    borderColor: '#c97d10',
+                    backgroundColor: 'rgba(201, 125, 16, 0.08)',
+                    borderWidth: 2,
+                    tension: 0.35,
+                    fill: false,
+                    yAxisID: 'y',
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: '#c97d10',
                 },
                 {
                     label: 'Campagnes',
@@ -325,7 +345,7 @@
                 y: {
                     beginAtZero: true,
                     position: 'left',
-                    title: { display: true, text: 'CA (FCFA)', color: '#e8a020', font: { weight: 700 } },
+                    title: { display: true, text: 'CA HT / TTC (FCFA)', color: '#e8a020', font: { weight: 700 } },
                     ticks: {
                         callback: v => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : (v >= 1000 ? (v / 1000) + 'k' : v),
                     },
