@@ -489,6 +489,21 @@ class RapportController extends Controller
         $marketBenchmarks  = $kpi->marketBenchmarks();
         $execSummary       = $kpi->executiveSummary();
 
+        // ── M3 SLA enrichi : stats motifs de retard (admin/MP only) ─────
+        // null pour commercial/technique → l'onglet affichera "réservé".
+        $delayStats = null;
+        if (in_array(auth()->user()?->role?->value, ['admin', 'mediaplanner'], true)) {
+            $slaFilters = array_filter([
+                'commune_id'  => $filterCommune,
+                'city'        => $filterCity,
+                'client_id'   => $filterClient,
+                'category_id' => $filterCategory,
+                'zone'        => $filterZone,
+            ]);
+            $delayStats = app(\App\Services\DelayReasonsService::class)
+                ->stats($dateFrom, $dateTo, $slaFilters);
+        }
+
         // Variables filtres exposées à la vue
         $currentPreset = $preset ?? null;
 
@@ -558,6 +573,7 @@ class RapportController extends Controller
             'filterZone',
             'caMensuelYear',
             'tableauMensuelYear',
+            'delayStats',
             'allCommunes',
             'allClients',
             'allCategories',
@@ -611,6 +627,14 @@ class RapportController extends Controller
             'revenueByCommune'  => $data['revenueByCommune']->values(),
             'clientRevenueDist' => $data['clientRevenueDist'],
             'campaignStats'     => $data['campaignStats'],
+            // M3 SLA — séries pour le doughnut motifs (null si pas admin/MP)
+            'slaByMotif'        => $data['delayStats']
+                ? $data['delayStats']['by_motif_open']->map(fn ($r) => [
+                    'label' => $r['icon'] . ' ' . $r['label'],
+                    'count' => $r['count'],
+                    'color' => $r['motif']->color(),
+                ])->values()
+                : collect(),
         ];
 
         $response = response()->json([
@@ -627,6 +651,7 @@ class RapportController extends Controller
                 'clients'     => $render('_tab_clients'),
                 'decappages'  => $render('_tab_decappages'),
                 'insights'    => $render('_tab_insights'),
+                'sla'         => $render('_tab_sla'),
             ],
             'chartData'   => $chartData,
             'exports_qs'  => http_build_query($exportFilters),

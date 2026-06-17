@@ -849,6 +849,17 @@ Route::prefix('admin')
             ->whereNumber('action')
             ->name('signalements.dismiss');
 
+        // ── M3 SLA enrichi : page analytique + édition motif a posteriori ──
+        // Policy PoseTaskActionPolicy (admin/mediaplanner only — commercial/technique → 403).
+        Route::get('sla/retards', [\App\Http\Controllers\Admin\SlaDelaysController::class, 'index'])
+            ->middleware('role:admin,mediaplanner')
+            ->name('sla.retards.index');
+        // Édition motif a posteriori — crée action='motif_modified' SANS écraser l'original.
+        Route::put('sla/retards/{action}/motif', [\App\Http\Controllers\Admin\SlaDelaysController::class, 'updateMotif'])
+            ->middleware('role:admin,mediaplanner')
+            ->whereNumber('action')
+            ->name('sla.retards.motif.update');
+
         // ── Disponibilités ─────────────────── (admin + MP + commercial) ──
         // Le commercial peut maintenant créer des réservations depuis l'espace
         // disponibilités (matrice DISPONIBILITÉS étendue). La policy
