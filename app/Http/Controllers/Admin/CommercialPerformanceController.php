@@ -41,10 +41,13 @@ class CommercialPerformanceController extends Controller
         $leaderboard = $this->perf->leaderboard($from, $to);
         // Top commercial par secteur d'activité — vue "qui domine quoi"
         $topBySector = $this->perf->topCommercialBySector($from, $to);
+        // Courbe globale équipe — évolution CA sur 12 mois
+        $globalTrend = $this->perf->globalMonthlyTrend(12);
 
         return view('admin.performance.commerciaux.index', [
             'leaderboard' => $leaderboard,
             'topBySector' => $topBySector,
+            'globalTrend' => $globalTrend,
             'from'        => $from,
             'to'          => $to,
             'preset'      => $request->input('preset'),

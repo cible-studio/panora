@@ -268,6 +268,52 @@ class CommercialPerformanceService
     }
 
     /**
+     * COURBE GLOBALE — évolution mensuelle du CA équipe sur N mois
+     * (somme de TOUS les commerciaux). Affiché en tête de la page
+     * Performance commerciale pour donner le tempo global de la régie.
+     *
+     * Inclut aussi le nombre de campagnes mensuelles pour distinguer
+     * un mois "gros tickets" (peu de campagnes, gros CA) d'un mois
+     * "volume" (beaucoup de petites campagnes).
+     *
+     * @return Collection<array{label:string,year:int,month:int,ca:int,count:int}>
+     */
+    public function globalMonthlyTrend(int $months = 12): Collection
+    {
+        $end   = now()->endOfMonth();
+        $start = now()->subMonths($months - 1)->startOfMonth();
+
+        $rows = DB::table('campaigns')
+            ->whereNotNull('commercial_user_id')
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'annule')
+            ->where('start_date', '<=', $end)
+            ->where('start_date', '>=', $start)
+            ->selectRaw('YEAR(start_date) as y, MONTH(start_date) as m,
+                         SUM(total_amount) as ca,
+                         COUNT(*) as cnt')
+            ->groupBy('y', 'm')
+            ->get()
+            ->keyBy(fn ($r) => $r->y . '-' . str_pad((string) $r->m, 2, '0', STR_PAD_LEFT));
+
+        $moisFr = [1=>'janv', 2=>'févr', 3=>'mars', 4=>'avr', 5=>'mai', 6=>'juin', 7=>'juil', 8=>'août', 9=>'sept', 10=>'oct', 11=>'nov', 12=>'déc'];
+
+        $result = collect();
+        for ($i = $months - 1; $i >= 0; $i--) {
+            $d   = now()->subMonths($i);
+            $key = $d->year . '-' . str_pad((string) $d->month, 2, '0', STR_PAD_LEFT);
+            $result->push([
+                'label' => $moisFr[$d->month] . ' ' . $d->format('y'),
+                'year'  => $d->year,
+                'month' => $d->month,
+                'ca'    => isset($rows[$key]) ? (int) $rows[$key]->ca   : 0,
+                'count' => isset($rows[$key]) ? (int) $rows[$key]->cnt  : 0,
+            ]);
+        }
+        return $result;
+    }
+
+    /**
      * Comparaison année N vs N-1 du CA.
      * @return array{current:int, previous:int, delta_pct:?float}
      */

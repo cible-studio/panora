@@ -78,6 +78,34 @@
         </div>
     </div>
 
+    {{-- ════════ COURBE GLOBALE — évolution CA équipe sur 12 mois ════════
+         Donne le tempo global de la régie avant le drill-down par
+         commercial. La sub-curve "Campagnes" permet de distinguer un
+         mois "gros tickets" (peu de campagnes, gros CA) d'un mois
+         "volume" (beaucoup de petites campagnes). --}}
+    <div class="perf-card" style="margin-bottom:18px">
+        <div class="perf-card-head">
+            <div>
+                <div class="perf-card-title">📈 Performance globale équipe (12 derniers mois)</div>
+                <div class="perf-card-sub">Évolution mensuelle du CA équipe et du nombre de campagnes</div>
+            </div>
+            @php
+                $trendTotalCa  = $globalTrend->sum('ca');
+                $trendTotalCnt = $globalTrend->sum('count');
+            @endphp
+            <div style="font-size:12px;color:var(--text3);text-align:right;line-height:1.45">
+                CA cumulé 12 mois<br>
+                <strong style="color:var(--accent);font-size:14px">{{ number_format($trendTotalCa, 0, ',', ' ') }}</strong>
+                <span style="font-size:10px;color:var(--text3)">FCFA · {{ $trendTotalCnt }} campagnes</span>
+            </div>
+        </div>
+        <div style="padding:18px 20px">
+            <div style="position:relative;height:280px">
+                <canvas id="perfGlobalTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
     {{-- Tableau leaderboard --}}
     <div class="perf-card">
         <div class="perf-card-head">
@@ -229,5 +257,91 @@
 .perf-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
 .perf-table tr:hover td { background: rgba(232,160,32,.04); }
 </style>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const ctx = document.getElementById('perfGlobalTrendChart');
+    if (!ctx) return;
+    const data = @json($globalTrend);
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.map(d => d.label),
+            datasets: [
+                {
+                    label: 'CA équipe (FCFA)',
+                    data: data.map(d => d.ca),
+                    borderColor: '#e8a020',
+                    backgroundColor: 'rgba(232, 160, 32, 0.12)',
+                    borderWidth: 2.5,
+                    tension: 0.35,
+                    fill: true,
+                    yAxisID: 'y',
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#e8a020',
+                },
+                {
+                    label: 'Campagnes',
+                    data: data.map(d => d.count),
+                    borderColor: '#a855f7',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    borderDash: [6, 4],
+                    tension: 0.35,
+                    fill: false,
+                    yAxisID: 'y2',
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: '#a855f7',
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { boxWidth: 14, font: { size: 12 } },
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (ctx) {
+                            const isCount = ctx.dataset.yAxisID === 'y2';
+                            const val = ctx.parsed.y;
+                            return ctx.dataset.label + ' : '
+                                + (isCount
+                                    ? val + ' campagne' + (val > 1 ? 's' : '')
+                                    : Math.round(val).toLocaleString('fr-FR') + ' FCFA');
+                        },
+                    },
+                },
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    position: 'left',
+                    title: { display: true, text: 'CA (FCFA)', color: '#e8a020', font: { weight: 700 } },
+                    ticks: {
+                        callback: v => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : (v >= 1000 ? (v / 1000) + 'k' : v),
+                    },
+                },
+                y2: {
+                    beginAtZero: true,
+                    position: 'right',
+                    title: { display: true, text: 'Nb campagnes', color: '#a855f7', font: { weight: 700 } },
+                    grid: { drawOnChartArea: false },
+                    ticks: { stepSize: 1, precision: 0 },
+                },
+            },
+        },
+    });
+})();
+</script>
+@endpush
 
 </x-admin-layout>
