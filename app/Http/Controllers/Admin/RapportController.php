@@ -53,7 +53,25 @@ class RapportController extends Controller
         return auth()->user()?->role?->value === 'commercial';
     }
 
+    /**
+     * Page principale — délégué à buildReportData() pour qu'index() et
+     * ajax() partagent EXACTEMENT la même logique de calcul (zéro drift,
+     * RBAC commercial appliqué via $applyCampaignFilters dans le helper).
+     */
     public function index(Request $request, DashboardKpiService $kpi)
+    {
+        return view('admin.rapports.index', $this->buildReportData($request, $kpi));
+    }
+
+    /**
+     * Construit l'intégralité des variables affichées sur la page Rapports.
+     * Source de vérité unique — appelée par index() (rendu full Blade) ET
+     * par ajax() (rendu de partials pour live-update).
+     *
+     * Toute la logique de filtres (zone, commune, ville, client, catégorie,
+     * période preset/custom + scope RBAC commercial) est encapsulée ici.
+     */
+    protected function buildReportData(Request $request, DashboardKpiService $kpi): array
     {
         // ── Résolution de la période : presets OU dates custom ─────
         // Presets : today, week, month, quarter, year, all
@@ -227,31 +245,39 @@ class RapportController extends Controller
         }
 
         // ── CA mensuel (filtres appliqués) ──────────────────────
+        // Sélecteur d'année INTERNE au bloc : indépendant du filtre période
+        // global (cf. Q1 brief — "garder fenêtre globale + sous-titre +
+        // sélecteur année interne pour explorer plusieurs années").
+        $caMensuelYear = (int) ($request->input('ca_year') ?: $annee);
+        if ($caMensuelYear < 2020 || $caMensuelYear > (int) date('Y') + 1) $caMensuelYear = $annee;
         $caMensuel = collect();
         for ($m = 1; $m <= 12; $m++) {
             $ca = $applyCampaignFilters(
-                Campaign::whereYear('start_date', $annee)->whereMonth('start_date', $m)
+                Campaign::whereYear('start_date', $caMensuelYear)->whereMonth('start_date', $m)
             )->sum('total_amount');
             $moisFrCourtCa = [1=>'janv.', 2=>'févr.', 3=>'mars', 4=>'avr.', 5=>'mai', 6=>'juin', 7=>'juil.', 8=>'août', 9=>'sept.', 10=>'oct.', 11=>'nov.', 12=>'déc.'];
             $caMensuel->push(['label' => $moisFrCourtCa[$m] ?? '?', 'ca' => (float) $ca]);
         }
 
         // ── Tableau mensuel (filtres appliqués) ─────────────────
+        // Même logique : sélecteur d'année interne pour explorer plusieurs années.
+        $tableauMensuelYear = (int) ($request->input('tableau_year') ?: $annee);
+        if ($tableauMensuelYear < 2020 || $tableauMensuelYear > (int) date('Y') + 1) $tableauMensuelYear = $annee;
         $tableauMensuel = collect();
         for ($m = 1; $m <= 12; $m++) {
-            $start = Carbon::create($annee, $m, 1)->startOfMonth();
-            $end = Carbon::create($annee, $m, 1)->endOfMonth();
+            $start = Carbon::create($tableauMensuelYear, $m, 1)->startOfMonth();
+            $end = Carbon::create($tableauMensuelYear, $m, 1)->endOfMonth();
             $camps = $applyCampaignFilters(
                 Campaign::where('start_date', '<=', $end)->where('end_date', '>=', $start)
             )->get();
             $ca = $applyCampaignFilters(
-                Campaign::whereYear('start_date', $annee)->whereMonth('start_date', $m)
+                Campaign::whereYear('start_date', $tableauMensuelYear)->whereMonth('start_date', $m)
             )->sum('total_amount');
             $panneaux = $camps->sum(fn($c) => $c->panels()->count());
             $taux = $totalPanneaux > 0 ? min(round(($panneaux / $totalPanneaux) * 100), 100) : 0;
             $moisFrLong = [1=>'janvier', 2=>'février', 3=>'mars', 4=>'avril', 5=>'mai', 6=>'juin', 7=>'juillet', 8=>'août', 9=>'septembre', 10=>'octobre', 11=>'novembre', 12=>'décembre'];
             $tableauMensuel->push([
-                'mois' => ($moisFrLong[$m] ?? '?') . ' ' . $annee,
+                'mois' => ($moisFrLong[$m] ?? '?') . ' ' . $tableauMensuelYear,
                 'nb_campagnes' => $camps->count(),
                 'panneaux_mobilises' => $panneaux,
                 'ca' => (float) $ca,
@@ -388,6 +414,11 @@ class RapportController extends Controller
         if ($filterCommune)  $decapQuery->where('p.commune_id', $filterCommune);
         if ($filterCategory) $decapQuery->where('p.category_id', $filterCategory);
         if ($filterCity)     $decapQuery->where('c2.city', $filterCity);
+        // BUG A : le filtre zone (abidjan/intérieur) n'était pas propagé ici.
+        // → quand le user filtrait Intérieur, des panneaux Abidjan apparaissaient
+        //   quand même dans la liste à décaper.
+        if ($filterZone === 'abidjan')   $decapQuery->where('c2.city', 'Abidjan');
+        if ($filterZone === 'interieur') $decapQuery->where('c2.city', '!=', 'Abidjan');
         $aDecaper = $decapQuery
             ->select('p.reference', 'c2.name as commune', 'cl.name as client_name', 'cp.end_date',
                      DB::raw('DATEDIFF(cp.end_date, NOW()) as jours_restants'))
@@ -461,7 +492,7 @@ class RapportController extends Controller
         // Variables filtres exposées à la vue
         $currentPreset = $preset ?? null;
 
-        return view('admin.rapports.index', compact(
+        return compact(
             'annee',
             'moisDu',
             'moisAu',
@@ -525,16 +556,59 @@ class RapportController extends Controller
             'filterClient',
             'filterCategory',
             'filterZone',
+            'caMensuelYear',
+            'tableauMensuelYear',
             'allCommunes',
             'allClients',
             'allCategories',
             'allCities',
-        ));
+        );
     }
 
-    public function ajax(Request $request)
+    /**
+     * Endpoint AJAX — renvoie tous les blocs de la page Rapports en HTML
+     * pré-rendu via partials Blade, prêts pour innerHTML côté client.
+     *
+     * Source de vérité = buildReportData() (mêmes filtres / mêmes
+     * calculs / même RBAC que la page complète).
+     */
+    public function ajax(Request $request, DashboardKpiService $kpi)
     {
-        return response()->json(['status' => 'ok']);
+        $t0   = microtime(true);
+        $data = $this->buildReportData($request, $kpi);
+
+        $exportFilters = $request->only([
+            'preset','from','to','annee','mois_du','mois_au',
+            'filter_commune_id','filter_city','filter_client_id','filter_category_id','filter_zone',
+            'ca_year','tableau_year',
+        ]);
+
+        $render = fn(string $partial) => view("admin.rapports.partials.$partial", $data)->render();
+
+        $response = response()->json([
+            'summary'     => $render('_summary'),
+            'topcards'    => $render('_topcards'),
+            'kpis'        => $render('_kpis'),
+            'tabs' => [
+                'occupation'  => $render('_tab_occupation'),
+                'performance' => $render('_tab_panneaux'),
+                'periodes'    => $render('_tab_periodes'),
+                'campagnes'   => $render('_tab_campagnes'),
+                'ca'          => $render('_tab_ca'),
+                'zones'       => $render('_tab_zones'),
+                'clients'     => $render('_tab_clients'),
+                'decappages'  => $render('_tab_decappages'),
+                'insights'    => $render('_tab_insights'),
+            ],
+            'exports_qs'  => http_build_query($exportFilters),
+            'fingerprint' => md5(json_encode($exportFilters)),
+        ]);
+
+        $ms = (int) round((microtime(true) - $t0) * 1000);
+        if ($ms > 2000) {
+            \Log::warning('rapports.ajax slow', ['ms' => $ms, 'filters' => $exportFilters]);
+        }
+        return $response->header('X-Rapports-Ms', $ms);
     }
 
     /**

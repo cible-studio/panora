@@ -39,10 +39,12 @@ return new class extends Migration
         });
         
         // Index sur panels - avec vérification d'existence
-        Schema::table('panels', function (Blueprint $table) {
-            // Vérifier et créer l'index status s'il n'existe pas
-            $indexes = DB::select("SHOW INDEX FROM panels WHERE Key_name = 'idx_panels_status'");
-            if (empty($indexes)) {
+        // (SHOW INDEX = MySQL only — sqlite des tests utilise Schema::hasIndex)
+        $hasStatusIndex = DB::getDriverName() === 'mysql'
+            ? !empty(DB::select("SHOW INDEX FROM panels WHERE Key_name = 'idx_panels_status'"))
+            : Schema::hasIndex('panels', 'idx_panels_status');
+        Schema::table('panels', function (Blueprint $table) use ($hasStatusIndex) {
+            if (!$hasStatusIndex) {
                 $table->index('status', 'idx_panels_status');
             }
             
