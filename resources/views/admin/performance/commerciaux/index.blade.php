@@ -145,7 +145,7 @@
                         <th style="text-align:right">Reste dû</th>
                         <th style="text-align:right">Taux</th>
                         <th style="text-align:right">Panier moyen</th>
-                        <th style="text-align:right">Camps</th>
+                        <th style="text-align:right">Campagnes</th>
                         <th></th>
                     </tr>
                 </thead>
