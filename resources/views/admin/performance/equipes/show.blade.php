@@ -67,6 +67,12 @@
             <div>
                 <div class="perf-card-title">🏆 Classement des membres</div>
                 <div class="perf-card-sub">{{ $memberRanking->count() }} technicien(s) — ordonné par poses réalisées</div>
+                {{-- Garde-fou A : sous-titre explicatif pour le drill équipe. --}}
+                <div style="font-size:11px;color:var(--text3);font-style:italic;margin-top:6px;line-height:1.5">
+                    ℹ️ Stats calculées sur les poses dont <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">assigned_user_id</code>
+                    pointe sur un membre <strong>actuel</strong> de l'équipe. Les anciens membres
+                    rattachés à cette équipe par le passé ne sont plus comptés ici.
+                </div>
             </div>
         </div>
         <div class="perf-card-body--flush">

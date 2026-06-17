@@ -98,7 +98,18 @@
 
     {{-- Tableau poses --}}
     <div class="perf-card">
-        <div class="perf-card-head"><div><div class="perf-card-title">📋 Poses du technicien</div><div class="perf-card-sub">{{ $poses->total() }} pose(s) · page {{ $poses->currentPage() }}/{{ $poses->lastPage() }}</div></div></div>
+        <div class="perf-card-head">
+            <div>
+                <div class="perf-card-title">📋 Poses du technicien</div>
+                <div class="perf-card-sub">{{ $poses->total() }} pose(s) · page {{ $poses->currentPage() }}/{{ $poses->lastPage() }}</div>
+                {{-- Garde-fou A : sous-titre explicatif sur le team_name historique. --}}
+                <div style="font-size:11px;color:var(--text3);font-style:italic;margin-top:6px;line-height:1.5">
+                    ℹ️ L'équipe affichée dans chaque ligne correspond à celle du technicien
+                    <strong>au moment de la pose</strong>. Si le tech a changé d'équipe depuis,
+                    les anciennes poses gardent leur ancien rattachement (préservation historique).
+                </div>
+            </div>
+        </div>
         <div class="perf-card-body--flush">
             <table class="perf-table">
                 <thead>
@@ -106,6 +117,7 @@
                         <th>Panneau</th>
                         <th>Commune</th>
                         <th>Campagne</th>
+                        <th>Équipe (au moment de la pose)</th>
                         <th>Planifié</th>
                         <th>Début</th>
                         <th>Fin</th>
@@ -114,11 +126,26 @@
                     </tr>
                 </thead>
                 <tbody>
+                    @php $currentTeamName = $user->poseTeam?->name; @endphp
                     @forelse($poses as $pt)
+                        @php
+                            $teamAtPose = $pt->team_name;
+                            $isOldTeam  = $teamAtPose && $currentTeamName && $teamAtPose !== $currentTeamName;
+                        @endphp
                         <tr>
                             <td><a href="{{ route('admin.pose-tasks.show', $pt) }}" style="font-family:monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $pt->panel?->reference ?? '—' }}</a></td>
                             <td style="color:var(--text2)">{{ $pt->panel?->commune?->name ?? '—' }}</td>
                             <td style="color:var(--text2);font-size:12px">{{ $pt->campaign?->name ?? '—' }}</td>
+                            <td>
+                                @if($teamAtPose)
+                                    <span style="font-size:11.5px;color:var(--text2)">{{ $teamAtPose }}</span>
+                                    @if($isOldTeam)
+                                        <span style="display:inline-block;margin-left:4px;padding:1px 6px;border-radius:999px;background:rgba(245,158,11,.15);color:#b45309;font-size:10px;font-weight:700" title="Le tech a changé d'équipe depuis cette pose">Ancienne équipe</span>
+                                    @endif
+                                @else
+                                    <span style="color:var(--text3);font-style:italic;font-size:11.5px">—</span>
+                                @endif
+                            </td>
                             <td style="color:var(--text3);font-size:12px">{{ $pt->scheduled_at?->format('d/m/Y H:i') }}</td>
                             <td style="color:var(--text3);font-size:12px">{{ $pt->started_at?->format('d/m H:i') ?? '—' }}</td>
                             <td style="color:var(--text3);font-size:12px">{{ $pt->done_at?->format('d/m H:i') ?? '—' }}</td>
@@ -126,7 +153,7 @@
                             <td><span style="padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:700;background:var(--surface2);color:var(--text2)">{{ $pt->status }}</span></td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text3);font-style:italic">Aucune pose sur la période.</td></tr>
+                        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text3);font-style:italic">Aucune pose sur la période.</td></tr>
                     @endforelse
                 </tbody>
             </table>
