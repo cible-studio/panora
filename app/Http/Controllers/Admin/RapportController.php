@@ -53,7 +53,25 @@ class RapportController extends Controller
         return auth()->user()?->role?->value === 'commercial';
     }
 
+    /**
+     * Page principale — délégué à buildReportData() pour qu'index() et
+     * ajax() partagent EXACTEMENT la même logique de calcul (zéro drift,
+     * RBAC commercial appliqué via $applyCampaignFilters dans le helper).
+     */
     public function index(Request $request, DashboardKpiService $kpi)
+    {
+        return view('admin.rapports.index', $this->buildReportData($request, $kpi));
+    }
+
+    /**
+     * Construit l'intégralité des variables affichées sur la page Rapports.
+     * Source de vérité unique — appelée par index() (rendu full Blade) ET
+     * par ajax() (rendu de partials pour live-update).
+     *
+     * Toute la logique de filtres (zone, commune, ville, client, catégorie,
+     * période preset/custom + scope RBAC commercial) est encapsulée ici.
+     */
+    protected function buildReportData(Request $request, DashboardKpiService $kpi): array
     {
         // ── Résolution de la période : presets OU dates custom ─────
         // Presets : today, week, month, quarter, year, all
@@ -461,7 +479,7 @@ class RapportController extends Controller
         // Variables filtres exposées à la vue
         $currentPreset = $preset ?? null;
 
-        return view('admin.rapports.index', compact(
+        return compact(
             'annee',
             'moisDu',
             'moisAu',
@@ -529,12 +547,53 @@ class RapportController extends Controller
             'allClients',
             'allCategories',
             'allCities',
-        ));
+        );
     }
 
-    public function ajax(Request $request)
+    /**
+     * Endpoint AJAX — renvoie tous les blocs de la page Rapports en HTML
+     * pré-rendu via partials Blade, prêts pour innerHTML côté client.
+     *
+     * Source de vérité = buildReportData() (mêmes filtres / mêmes
+     * calculs / même RBAC que la page complète).
+     */
+    public function ajax(Request $request, DashboardKpiService $kpi)
     {
-        return response()->json(['status' => 'ok']);
+        $t0   = microtime(true);
+        $data = $this->buildReportData($request, $kpi);
+
+        $exportFilters = $request->only([
+            'preset','from','to','annee','mois_du','mois_au',
+            'filter_commune_id','filter_city','filter_client_id','filter_category_id','filter_zone',
+            'ca_year','tableau_year',
+        ]);
+
+        $render = fn(string $partial) => view("admin.rapports.partials.$partial", $data)->render();
+
+        $response = response()->json([
+            'summary'     => $render('_summary'),
+            'topcards'    => $render('_topcards'),
+            'kpis'        => $render('_kpis'),
+            'tabs' => [
+                'occupation'  => $render('_tab_occupation'),
+                'performance' => $render('_tab_performance'),
+                'periodes'    => $render('_tab_periodes'),
+                'campagnes'   => $render('_tab_campagnes'),
+                'ca'          => $render('_tab_ca'),
+                'zones'       => $render('_tab_zones'),
+                'clients'     => $render('_tab_clients'),
+                'decappages'  => $render('_tab_decappages'),
+                'insights'    => $render('_tab_insights'),
+            ],
+            'exports_qs'  => http_build_query($exportFilters),
+            'fingerprint' => md5(json_encode($exportFilters)),
+        ]);
+
+        $ms = (int) round((microtime(true) - $t0) * 1000);
+        if ($ms > 2000) {
+            \Log::warning('rapports.ajax slow', ['ms' => $ms, 'filters' => $exportFilters]);
+        }
+        return $response->header('X-Rapports-Ms', $ms);
     }
 
     /**
