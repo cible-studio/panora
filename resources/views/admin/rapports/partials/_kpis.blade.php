@@ -51,7 +51,8 @@ $kpiCards = [
         'id'    => 'decaper',
         'label' => 'À décaper (30j)',
         'val'   => number_format($aDecaper->count()),
-        'sub'   => 'fins de campagne proches',
+        // 30j absolus, indépendants du filtre période — cf. arbitrage Q2.
+        'sub'   => 'fins de campagne dans 30j · indép. période',
         'color' => $aDecaper->count() > 0 ? '#ef4444' : '#22c55e',
         // Avant : 'zones' → l'onglet "Zones & Communes" est masqué pour
         // commercial. On redirige vers 'decap' qui est conservé.

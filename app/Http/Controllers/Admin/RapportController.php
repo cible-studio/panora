@@ -245,31 +245,39 @@ class RapportController extends Controller
         }
 
         // ── CA mensuel (filtres appliqués) ──────────────────────
+        // Sélecteur d'année INTERNE au bloc : indépendant du filtre période
+        // global (cf. Q1 brief — "garder fenêtre globale + sous-titre +
+        // sélecteur année interne pour explorer plusieurs années").
+        $caMensuelYear = (int) ($request->input('ca_year') ?: $annee);
+        if ($caMensuelYear < 2020 || $caMensuelYear > (int) date('Y') + 1) $caMensuelYear = $annee;
         $caMensuel = collect();
         for ($m = 1; $m <= 12; $m++) {
             $ca = $applyCampaignFilters(
-                Campaign::whereYear('start_date', $annee)->whereMonth('start_date', $m)
+                Campaign::whereYear('start_date', $caMensuelYear)->whereMonth('start_date', $m)
             )->sum('total_amount');
             $moisFrCourtCa = [1=>'janv.', 2=>'févr.', 3=>'mars', 4=>'avr.', 5=>'mai', 6=>'juin', 7=>'juil.', 8=>'août', 9=>'sept.', 10=>'oct.', 11=>'nov.', 12=>'déc.'];
             $caMensuel->push(['label' => $moisFrCourtCa[$m] ?? '?', 'ca' => (float) $ca]);
         }
 
         // ── Tableau mensuel (filtres appliqués) ─────────────────
+        // Même logique : sélecteur d'année interne pour explorer plusieurs années.
+        $tableauMensuelYear = (int) ($request->input('tableau_year') ?: $annee);
+        if ($tableauMensuelYear < 2020 || $tableauMensuelYear > (int) date('Y') + 1) $tableauMensuelYear = $annee;
         $tableauMensuel = collect();
         for ($m = 1; $m <= 12; $m++) {
-            $start = Carbon::create($annee, $m, 1)->startOfMonth();
-            $end = Carbon::create($annee, $m, 1)->endOfMonth();
+            $start = Carbon::create($tableauMensuelYear, $m, 1)->startOfMonth();
+            $end = Carbon::create($tableauMensuelYear, $m, 1)->endOfMonth();
             $camps = $applyCampaignFilters(
                 Campaign::where('start_date', '<=', $end)->where('end_date', '>=', $start)
             )->get();
             $ca = $applyCampaignFilters(
-                Campaign::whereYear('start_date', $annee)->whereMonth('start_date', $m)
+                Campaign::whereYear('start_date', $tableauMensuelYear)->whereMonth('start_date', $m)
             )->sum('total_amount');
             $panneaux = $camps->sum(fn($c) => $c->panels()->count());
             $taux = $totalPanneaux > 0 ? min(round(($panneaux / $totalPanneaux) * 100), 100) : 0;
             $moisFrLong = [1=>'janvier', 2=>'février', 3=>'mars', 4=>'avril', 5=>'mai', 6=>'juin', 7=>'juillet', 8=>'août', 9=>'septembre', 10=>'octobre', 11=>'novembre', 12=>'décembre'];
             $tableauMensuel->push([
-                'mois' => ($moisFrLong[$m] ?? '?') . ' ' . $annee,
+                'mois' => ($moisFrLong[$m] ?? '?') . ' ' . $tableauMensuelYear,
                 'nb_campagnes' => $camps->count(),
                 'panneaux_mobilises' => $panneaux,
                 'ca' => (float) $ca,
@@ -406,6 +414,11 @@ class RapportController extends Controller
         if ($filterCommune)  $decapQuery->where('p.commune_id', $filterCommune);
         if ($filterCategory) $decapQuery->where('p.category_id', $filterCategory);
         if ($filterCity)     $decapQuery->where('c2.city', $filterCity);
+        // BUG A : le filtre zone (abidjan/intérieur) n'était pas propagé ici.
+        // → quand le user filtrait Intérieur, des panneaux Abidjan apparaissaient
+        //   quand même dans la liste à décaper.
+        if ($filterZone === 'abidjan')   $decapQuery->where('c2.city', 'Abidjan');
+        if ($filterZone === 'interieur') $decapQuery->where('c2.city', '!=', 'Abidjan');
         $aDecaper = $decapQuery
             ->select('p.reference', 'c2.name as commune', 'cl.name as client_name', 'cp.end_date',
                      DB::raw('DATEDIFF(cp.end_date, NOW()) as jours_restants'))
@@ -543,6 +556,8 @@ class RapportController extends Controller
             'filterClient',
             'filterCategory',
             'filterZone',
+            'caMensuelYear',
+            'tableauMensuelYear',
             'allCommunes',
             'allClients',
             'allCategories',

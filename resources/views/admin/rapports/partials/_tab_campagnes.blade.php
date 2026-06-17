@@ -36,6 +36,9 @@
                 @endphp
                 <span style="margin-left:auto;padding:2px 8px;border-radius:10px;background:{{ $tdCol }}22;color:{{ $tdCol }};font-size:10px;font-weight:700">{{ $tdLabel }} {{ abs($tp) }}%</span>
             </div>
+            <div style="font-size:11px;color:var(--text3);font-style:italic;margin-bottom:10px">
+                ℹ️ 12 mois glissants depuis aujourd'hui · indépendant du filtre période · suit les filtres dimensionnels
+            </div>
             <div style="position:relative;width:100%;height:240px">
                 <canvas id="chart-cancel-trend" role="img" aria-label="Tendance annulations"></canvas>
             </div>
