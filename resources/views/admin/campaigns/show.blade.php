@@ -71,7 +71,68 @@
         $endingSoon = $campaign->isEndingSoon();
         $isRunning  = $campaign->status->value === 'actif';
         $minNewEnd  = $campaign->end_date->copy()->addDay()->format('Y-m-d');
+
+        // ── M3 SLA enrichi — bandeau "Retard détecté" (Précision A) ──
+        // (a) Signalements problem_reported ouverts (isResolved étendu — Précision B)
+        // (b) Poses planifiées avec scheduled_at < now() ET sans signalement actif
+        // (c) Les deux à la fois → 2 bandeaux empilés, retard pose au-dessus
+        $slaOpenSignals  = $campaign->openProblemSignals();
+        $slaOverduePoses = $campaign->overduePoseTasks();
+        $slaDominant     = $campaign->dominantMotif();
     @endphp
+
+    {{-- ── M3 SLA enrichi : Bandeaux retard détecté (cas a / b / c) ── --}}
+    @if($slaOverduePoses->isNotEmpty())
+        {{-- Cas b : pose non démarrée — plus grave, donc en haut --}}
+        <div style="background:linear-gradient(90deg,rgba(220,38,38,.12),rgba(220,38,38,.04));border:1px solid rgba(220,38,38,.35);border-left:5px solid #dc2626;border-radius:12px;padding:14px 18px;margin-bottom:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <div style="font-size:28px;line-height:1">⚠</div>
+            <div style="flex:1;min-width:240px">
+                <div style="font-size:14px;font-weight:800;color:#b91c1c">Pose en retard — {{ $slaOverduePoses->count() }} pose{{ $slaOverduePoses->count() > 1 ? 's' : '' }} non démarrée{{ $slaOverduePoses->count() > 1 ? 's' : '' }}</div>
+                <div style="font-size:12px;color:#7f1d1d;margin-top:3px">
+                    @foreach($slaOverduePoses->take(3) as $pt)
+                        <span style="font-family:monospace;font-weight:700">{{ $pt->panel?->reference }}</span> · planifié le {{ $pt->scheduled_at?->format('d/m/Y') }} (J+{{ (int)$pt->scheduled_at?->diffInDays(now()) }}){{ !$loop->last ? ' · ' : '' }}
+                    @endforeach
+                    @if($slaOverduePoses->count() > 3)
+                        … et {{ $slaOverduePoses->count() - 3 }} autre{{ $slaOverduePoses->count() - 3 > 1 ? 's' : '' }}
+                    @endif
+                </div>
+            </div>
+            @if(in_array(auth()->user()?->role?->value, ['admin','mediaplanner'], true))
+                <a href="{{ route('admin.campaigns.poses', $campaign) }}"
+                   class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;font-weight:700">Voir les poses →</a>
+            @endif
+        </div>
+    @endif
+
+    @if($slaOpenSignals->isNotEmpty())
+        {{-- Cas a : signalement actif — bandeau orange --}}
+        <div style="background:linear-gradient(90deg,rgba(245,158,11,.12),rgba(245,158,11,.04));border:1px solid rgba(245,158,11,.35);border-left:5px solid #f59e0b;border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <div style="font-size:28px;line-height:1">{{ $slaDominant?->icon() ?? '⚠' }}</div>
+            <div style="flex:1;min-width:240px">
+                <div style="font-size:14px;font-weight:800;color:#b45309">
+                    Signalement actif —
+                    @if($slaDominant)
+                        Motif&nbsp;: {{ $slaDominant->label() }}
+                    @else
+                        {{ $slaOpenSignals->count() }} ouvert{{ $slaOpenSignals->count() > 1 ? 's' : '' }}
+                    @endif
+                    <span style="font-weight:600;color:#92400e">({{ $slaOpenSignals->count() }} ouvert{{ $slaOpenSignals->count() > 1 ? 's' : '' }})</span>
+                </div>
+                <div style="font-size:12px;color:#78350f;margin-top:3px">
+                    @foreach($slaOpenSignals->take(3) as $sig)
+                        <span style="font-family:monospace;font-weight:700">{{ $sig->task?->panel?->reference }}</span>{{ !$loop->last ? ' · ' : '' }}
+                    @endforeach
+                    @if($slaOpenSignals->count() > 3)
+                        … et {{ $slaOpenSignals->count() - 3 }} autre{{ $slaOpenSignals->count() - 3 > 1 ? 's' : '' }}
+                    @endif
+                </div>
+            </div>
+            @if(in_array(auth()->user()?->role?->value, ['admin','mediaplanner'], true))
+                <a href="{{ route('admin.sla.retards.index', ['client_id' => $campaign->client_id]) }}"
+                   class="btn btn-sm" style="background:#f59e0b;color:#fff;border:none;font-weight:700">Voir tous les signalements →</a>
+            @endif
+        </div>
+    @endif
 
     {{-- ── EN-TÊTE ── --}}
     <div class="relative mb-8 overflow-hidden rounded-2xl border shadow-xl"

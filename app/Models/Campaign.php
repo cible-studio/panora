@@ -89,6 +89,75 @@ class Campaign extends Model
         return $this->belongsTo(Reservation::class);
     }
 
+    /** Relation pose_tasks (HasMany) pour les helpers SLA. */
+    public function poseTasks(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\PoseTask::class);
+    }
+
+    // ─── M3 SLA enrichi — helpers bandeau "Retard détecté" ──────────────
+
+    /**
+     * Cas (a) Précision A : signalements problem_reported NON RÉSOLUS
+     * (resolved_at IS NULL ET maintenance_id IS NULL — Précision B).
+     * Mémoïsé pour éviter N×N requêtes sur une même page.
+     */
+    public function openProblemSignals(): \Illuminate\Support\Collection
+    {
+        if ($this->relationLoaded('_open_signals')) {
+            return $this->_open_signals;
+        }
+        $signals = \App\Models\PoseTaskAction::query()
+            ->where('action', \App\Models\PoseTaskAction::ACTION_PROBLEM_REPORTED)
+            ->whereNull('resolved_at')
+            ->whereNull('maintenance_id')
+            ->whereHas('task', fn ($q) => $q->where('campaign_id', $this->id))
+            ->with(['task.panel:id,reference'])
+            ->get();
+        $this->_open_signals = $signals;
+        return $signals;
+    }
+
+    /**
+     * Cas (b) Précision A : poses 'planifiee' avec scheduled_at < now()
+     * SANS signalement actif sur cette même pose (déjà signalé = couvert
+     * par cas a, on ne double-affiche pas).
+     */
+    public function overduePoseTasks(): \Illuminate\Support\Collection
+    {
+        if ($this->relationLoaded('_overdue_poses')) {
+            return $this->_overdue_poses;
+        }
+        $openSignalPoseIds = $this->openProblemSignals()->pluck('pose_task_id')->unique()->all();
+        $overdue = $this->poseTasks()
+            ->where('status', 'planifiee')
+            ->where('scheduled_at', '<', now())
+            ->when(!empty($openSignalPoseIds), fn ($q) => $q->whereNotIn('id', $openSignalPoseIds))
+            ->with('panel:id,reference')
+            ->get();
+        $this->_overdue_poses = $overdue;
+        return $overdue;
+    }
+
+    /**
+     * Motif majoritaire des signalements ouverts (cas a).
+     * Délègue à PoseTaskAction::effectiveMotif() pour respecter les amendements.
+     */
+    public function dominantMotif(): ?\App\Enums\DelayReason
+    {
+        $signals = $this->openProblemSignals();
+        if ($signals->isEmpty()) return null;
+        $bucket = [];
+        foreach ($signals as $sig) {
+            $motif = $sig->effectiveMotif();
+            if (!$motif) continue;
+            $bucket[$motif->value] = ($bucket[$motif->value] ?? 0) + 1;
+        }
+        if (empty($bucket)) return null;
+        arsort($bucket);
+        return \App\Enums\DelayReason::from(array_key_first($bucket));
+    }
+
     public function panels()
     {
         // wherePivot('type', 'interne') : protège les lignes externes de
