@@ -148,7 +148,25 @@ class PanelsGpsCoordinatesSeeder extends Seeder
         ));
 
         foreach ($updates as [$ref, $lat, $lng]) {
-            $panel = Panel::where('reference', $ref)->first();
+            // Tolérance de format : la prod utilise un infix "CH" après le
+            // premier tiret (ex: MRY-CH002 au lieu de MRY-002). On essaie :
+            //   1. le format brut (compat dev)
+            //   2. avec "CH" inséré après le premier tiret (compat prod)
+            //   3. en LIKE sur la partie numérique en fallback (très tolérant)
+            $candidates = [$ref];
+            if (preg_match('/^([A-Z]+)-(.+)$/', $ref, $m)) {
+                $candidates[] = $m[1] . '-CH' . $m[2];
+            }
+
+            $panel = Panel::whereIn('reference', $candidates)->first();
+
+            // Fallback : LIKE sur le préfixe + suffixe pour absorber les
+            // variantes (espace, casse, séparateurs). Ne déclenche que si
+            // les 2 formats ci-dessus n'ont rien donné.
+            if (!$panel && preg_match('/^([A-Z]+)-(\d+)([A-Z]?)$/i', $ref, $m)) {
+                $panel = Panel::where('reference', 'LIKE', $m[1] . '%' . $m[2] . $m[3])
+                    ->first();
+            }
 
             if (!$panel) {
                 $notfound[] = $ref;
