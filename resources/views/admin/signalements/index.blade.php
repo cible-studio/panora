@@ -160,8 +160,17 @@
         </div>
 
         {{-- Actions compactes — alignées à droite, dimensions raisonnables. --}}
-        @if(!$sig->resolved_at)
+        @if(!$sig->isResolved())
         <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+            {{-- M3 SLA : édition motif a posteriori (admin/MP only via Policy) --}}
+            @can('amend', $sig)
+            <button type="button"
+                    onclick="slaOpenModal({{ $sig->id }})"
+                    style="padding:7px 12px;min-height:34px;background:var(--surface);color:#a16207;border:1px solid #f59e0b;border-radius:8px;font-weight:600;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:5px"
+                    title="Modifier le motif de ce signalement — l'historique d'origine sera conservé en audit">
+                ✎ Modifier le motif
+            </button>
+            @endcan
             <form method="POST" action="{{ route('admin.signalements.dismiss', $sig->id) }}"
                   onsubmit="return confirm('Marquer le signalement comme traité, sans toucher au panneau ?')"
                   style="margin:0">
@@ -184,6 +193,18 @@
             </button>
         </div>
         @endif
+
+        {{-- Badge "motif modifié" si amendement présent --}}
+        @if($hasAmend)
+            <div style="margin-top:6px;padding:6px 10px;background:rgba(245,158,11,.10);border-left:3px solid #f59e0b;border-radius:6px;font-size:11.5px;color:#a16207">
+                ✎ Motif modifié a posteriori — d'origine : <strong>{{ \App\Enums\DelayReason::tryFrom($type)?->label() ?? 'Inconnu' }}</strong>
+            </div>
+        @endif
+
+        {{-- Modale d'édition (incluse seulement si le user a le droit) --}}
+        @can('amend', $sig)
+            @include('admin.sla._modal_edit_motif', ['action' => $sig])
+        @endcan
     </div>
 @empty
     <div class="card" style="text-align:center;padding:60px 20px;color:var(--text3)">
@@ -317,6 +338,76 @@ document.addEventListener('keydown', (e) => {
 document.getElementById('maintenanceModal').addEventListener('click', (e) => {
     if (e.target.id === 'maintenanceModal') closeMaintenanceModal();
 });
+
+// ─── M3 SLA enrichi — modale d'édition motif a posteriori ─────────────
+function slaOpenModal(actionId) {
+    const m = document.getElementById('modal-edit-motif-' + actionId);
+    if (m) {
+        m.style.display = 'flex';
+        setTimeout(() => m.querySelector('select[name="motif"]')?.focus(), 50);
+    }
+}
+function slaCloseModal(actionId) {
+    const m = document.getElementById('modal-edit-motif-' + actionId);
+    if (m) m.style.display = 'none';
+}
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('.sla-modal-overlay').forEach(el => el.style.display = 'none');
+});
 </script>
+
+<style>
+/* M3 SLA modale d'édition motif */
+.sla-modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, .55);
+    backdrop-filter: blur(2px);
+    z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+}
+.sla-modal {
+    background: var(--surface);
+    border-radius: 14px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .4);
+    overflow: hidden;
+}
+.sla-modal-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+}
+.sla-modal-body { padding: 18px; }
+.sla-modal-body .fne-field { margin-bottom: 12px; }
+.sla-modal-body label {
+    display: block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; color: var(--text2); margin-bottom: 6px;
+}
+.sla-modal-body label .req { color: #ef4444; }
+.sla-modal-body label .opt { font-size: 10px; color: var(--text3); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.sla-modal-body select, .sla-modal-body textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+}
+.sla-modal-body select { height: 38px; }
+.sla-modal-body textarea { min-height: 70px; resize: vertical; line-height: 1.5; }
+.sla-modal-body select:focus, .sla-modal-body textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232, 160, 32, .15);
+}
+</style>
 
 </x-admin-layout>
