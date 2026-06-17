@@ -4,6 +4,11 @@
 <x-slot name="topbarActions">
     <a href="{{ route('admin.performance.tech.index') }}" class="btn btn-ghost btn-sm">📋 Performance techniciens</a>
     <a href="{{ route('admin.teams.index') }}" class="btn btn-ghost btn-sm">⚙ Gérer équipes</a>
+    {{-- Raccourci création rapide (Famille E — décision patronne 2026-06-17) :
+         la sidebar 'Équipes de pose' reste retirée (« on ne gère pas en temps
+         réel ») mais le bouton ici permet de créer une équipe sans
+         naviguer hors du contexte métier. --}}
+    <a href="{{ route('admin.teams.create') }}" class="btn btn-primary btn-sm">+ Nouvelle équipe</a>
 </x-slot>
 
 <div class="perf-page">
