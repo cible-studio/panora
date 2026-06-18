@@ -19,10 +19,15 @@
 <x-admin-layout title="{{ $displayName }}">
 
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.clients.index') }}" class="btn btn-ghost btn-sm">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-        Retour
-    </a>
+    {{-- Smart back prioritaire (depuis Finance, Performance, etc.).
+         Fallback "Retour" → clients.index si pas de ?back= valide. --}}
+    @include('admin.partials._smart_back')
+    @if(!request()->query('back'))
+        <a href="{{ route('admin.clients.index') }}" class="btn btn-ghost btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+            Retour
+        </a>
+    @endif
 </x-slot:topbarLeft>
 
 <x-slot:topbarActions>

@@ -105,7 +105,7 @@
                             @endphp
                             <tr>
                                 <td>
-                                    <a href="{{ route('admin.clients.show', $row['client_id']) }}" style="color:var(--accent);text-decoration:none;font-weight:600">{{ $row['client_name'] }}</a>
+                                    <a href="{{ route('admin.clients.show', ['client' => $row['client_id'], 'back' => 'finance']) }}" style="color:var(--accent);text-decoration:none;font-weight:600">{{ $row['client_name'] }}</a>
                                     {{-- Badge priorité 4 niveaux (§8 cahier) --}}
                                     <span style="display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:1px 8px;background:{{ $prio['bg'] }};color:{{ $prio['color'] }};border-radius:999px;font-size:9.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase">
                                         {{ $prio['icon'] }} {{ $prio['label'] }}

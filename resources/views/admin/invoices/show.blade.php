@@ -22,12 +22,16 @@
 </style>
 
 <x-slot name="topbarLeft">
-    {{-- Bouton retour : back() si referer, sinon liste des factures (fallback fiable) --}}
-    <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('admin.invoices.index') }}"
-       class="btn btn-ghost btn-sm" title="Retour"
-       style="display:inline-flex;align-items:center;gap:4px;">
-        ← Retour
-    </a>
+    {{-- Smart back prioritaire (depuis Finance, Performance, etc.).
+         Si pas de ?back=, fallback referer puis liste factures. --}}
+    @include('admin.partials._smart_back')
+    @if(!request()->query('back'))
+        <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('admin.invoices.index') }}"
+           class="btn btn-ghost btn-sm" title="Retour"
+           style="display:inline-flex;align-items:center;gap:4px;">
+            ← Retour
+        </a>
+    @endif
 </x-slot>
 
 <x-slot name="topbarActions">

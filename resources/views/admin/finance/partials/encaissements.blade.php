@@ -32,7 +32,7 @@
                     <tbody>
                         @foreach($topClients as $c)
                             <tr>
-                                <td><a href="{{ route('admin.clients.show', $c['client_id']) }}" style="color:var(--accent);text-decoration:none">{{ $c['client_name'] }}</a></td>
+                                <td><a href="{{ route('admin.clients.show', ['client' => $c['client_id'], 'back' => 'finance']) }}" style="color:var(--accent);text-decoration:none">{{ $c['client_name'] }}</a></td>
                                 <td class="num">{{ $c['factures_count'] }}</td>
                                 <td class="num strong">{{ $fmt($c['total']) }} FCFA</td>
                             </tr>
@@ -168,7 +168,7 @@
                             <tr>
                                 <td style="white-space:nowrap;color:var(--text2)">{{ $p['paid_at']?->format('d/m/Y') ?? '—' }}</td>
                                 <td>
-                                    <a href="{{ route('admin.invoices.show', $p['invoice_id']) }}"
+                                    <a href="{{ route('admin.invoices.show', ['invoice' => $p['invoice_id'], 'back' => 'finance']) }}"
                                        style="font-family:monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $p['invoice_ref'] }}</a>
                                     @if($p['is_acompte'])
                                         <span style="display:inline-block;margin-left:4px;padding:1px 6px;background:rgba(59,130,246,.15);color:#3b82f6;border-radius:999px;font-size:9.5px;font-weight:700">ACOMPTE</span>
@@ -176,7 +176,7 @@
                                 </td>
                                 <td>
                                     @if($p['client_id'])
-                                        <a href="{{ route('admin.clients.show', $p['client_id']) }}" style="color:var(--text);text-decoration:none">{{ $p['client_name'] }}</a>
+                                        <a href="{{ route('admin.clients.show', ['client' => $p['client_id'], 'back' => 'finance']) }}" style="color:var(--text);text-decoration:none">{{ $p['client_name'] }}</a>
                                     @else
                                         <span style="color:var(--text3)">{{ $p['client_name'] }}</span>
                                     @endif
