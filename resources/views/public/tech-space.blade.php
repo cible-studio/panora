@@ -684,6 +684,11 @@ window.addEventListener('DOMContentLoaded', function () {
                 ? 'inline-block' : 'none';
         }
     }
+    // SM1.5 — exposition temporaire pour que geolocate.js (lot 4) puisse
+    // déclencher applyFilters() + writeFiltersToUrl() lors des toggles
+    // distance/tournée. Supprimer en Phase C une fois lot 5 fait.
+    window.__sm15ApplyFilters     = applyFilters;
+    window.__sm15WriteFiltersToUrl = writeFiltersToUrl;
 
     // ─── 5. Compteurs chips (live, basés sur les cards SSR) ──────
     function refreshChipCounts() {
@@ -773,109 +778,7 @@ window.addEventListener('DOMContentLoaded', function () {
     });
 
     // ─── 9-10. Select2 + openFocusModal — migrés vers public/js/tech/features/search.js (SM1.5 Lot 3) ──
-    }
-
-    // ─── 11. Tri par distance GPS (haversine, calcul JS local) ────
-    const distBtn = document.getElementById('ts-distance-btn');
-    if (distBtn) {
-        distBtn.addEventListener('click', async () => {
-            if (filterState.distance) {
-                // Toggle off — restaure l'ordre SSR original
-                filterState.distance = false;
-                filterState.geo = null;
-                distBtn.classList.remove('is-active');
-                document.getElementById('ts-distance-label').textContent = 'Distance';
-                restoreSsrOrder();
-                document.querySelectorAll('.pose-distance').forEach(e => e.remove());
-                writeFiltersToUrl();
-                return;
-            }
-            distBtn.classList.add('is-active');
-            document.getElementById('ts-distance-label').textContent = '📡 Position…';
-            const pos = await getGeoPosition();
-            if (!pos) {
-                distBtn.classList.remove('is-active');
-                document.getElementById('ts-distance-label').textContent = 'Distance';
-                toastSmall('On ne te trouve pas. Autorise le GPS sur ton téléphone.', 'error');
-                return;
-            }
-            filterState.geo = { lat: pos.lat, lng: pos.lng };
-            filterState.distance = true;
-            document.getElementById('ts-distance-label').textContent = '✓ Proche';
-            sortByDistance(pos.lat, pos.lng);
-            writeFiltersToUrl();
-        });
-    }
-
-    function getGeoPosition() {
-        return new Promise(resolve => {
-            if (!navigator.geolocation) return resolve(null);
-            navigator.geolocation.getCurrentPosition(
-                (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-                () => resolve(null),
-                { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-            );
-        });
-    }
-
-    function haversine(lat1, lng1, lat2, lng2) {
-        const R = 6371000;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLng = (lng2 - lng1) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) ** 2
-            + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
-    function formatDistance(m) {
-        if (m < 950) return Math.round(m) + ' m';
-        return (m / 1000).toFixed(1).replace('.0', '') + ' km';
-    }
-
-    function sortByDistance(lat, lng) {
-        // Pour chaque section commune, on trie les cards par distance
-        // (la TOC zones reste pertinente : on va de proche en proche
-        // DANS chaque zone). Au-delà : option future de re-grouper.
-        document.querySelectorAll('.day-section').forEach(sec => {
-            const cards = Array.from(sec.querySelectorAll('.pose[data-task-id]'));
-            cards.forEach(c => {
-                const pLat = parseFloat(c.dataset.lat);
-                const pLng = parseFloat(c.dataset.lng);
-                const d = (isNaN(pLat) || isNaN(pLng)) ? Infinity : haversine(lat, lng, pLat, pLng);
-                c.dataset.distanceM = String(d);
-                // Insère/MAJ le pill distance
-                let pill = c.querySelector('.pose-distance');
-                if (!pill) {
-                    pill = document.createElement('span');
-                    pill.className = 'pose-distance';
-                    const sub = c.querySelector('.pose-sub');
-                    if (sub) sub.appendChild(pill);
-                }
-                pill.textContent = '📡 ' + (isFinite(d) ? formatDistance(d) : '—');
-            });
-            cards.sort((a, b) => parseFloat(a.dataset.distanceM) - parseFloat(b.dataset.distanceM));
-            cards.forEach(c => sec.appendChild(c));
-        });
-    }
-
-    function restoreSsrOrder() {
-        // L'ordre SSR initial est encodé par data-task-id croissant
-        // (les plus urgentes ont les IDs les plus anciens — pas idéal).
-        // Mieux : on conserve une trace de l'ordre SSR au load.
-        document.querySelectorAll('.day-section').forEach(sec => {
-            const cards = Array.from(sec.querySelectorAll('.pose[data-task-id]'));
-            cards.sort((a, b) => (parseInt(a.dataset.ssrOrder || a.dataset.taskId, 10))
-                              - (parseInt(b.dataset.ssrOrder || b.dataset.taskId, 10)));
-            cards.forEach(c => sec.appendChild(c));
-        });
-    }
-
-    // Mémorise l'ordre SSR initial pour restauration propre
-    document.querySelectorAll('.day-section').forEach(sec => {
-        Array.from(sec.querySelectorAll('.pose[data-task-id]')).forEach((c, i) => {
-            c.dataset.ssrOrder = String(i);
-        });
-    });
+    // ─── 11. Distance haversine + memorize SSR order — migrés vers public/js/tech/features/geolocate.js (SM1.5 Lot 4) ──
 
     // ─── 12. Hero « Prochaine pose » : photo input → pipeline existant ─
     // L'input data-next-photo réutilise le handler change global déjà
@@ -966,142 +869,7 @@ window.addEventListener('DOMContentLoaded', function () {
     // ─── 14. Service Worker — migré vers public/js/tech/core/sw-register.js (Phase 3 SM1) ──
     // ─── 15. Détection online/offline — migrée vers public/js/tech/core/offline.js (Phase 3 SM1) ──
 
-    // ═══════════════════════════════════════════════════════════════
-    // ─── 16. MODE TOURNÉE — TSP nearest-neighbor côté serveur ────
-    //
-    // Le tech clique "🚀 Tournée" → on demande la géoloc → on POST l'IDs
-    // des cards rendues à /poses/optimize → le serveur renvoie l'ordre
-    // optimal + distances cumulées. On réordonne les cards en mode
-    // "tournée" (badge numéro, ordre forcé sur toutes les sections,
-    // groupage par zone désactivé visuellement).
-    // ═══════════════════════════════════════════════════════════════
-    const TOUR_URL = "{{ route('tech.space.optimize', $token) }}";
-    const tourBtn = document.getElementById('ts-tour-btn');
-    const tourSummary = document.getElementById('ts-tour-summary');
-    let tourActive = false;
-    let originalParentByCard = new Map(); // pour restaurer le DOM
-
-    function preserveOriginalOrder() {
-        document.querySelectorAll('.pose[data-task-id]').forEach(c => {
-            originalParentByCard.set(c, { parent: c.parentNode, index: Array.from(c.parentNode.children).indexOf(c) });
-        });
-    }
-    preserveOriginalOrder();
-
-    function exitTourMode() {
-        tourActive = false;
-        tourBtn?.classList.remove('is-active');
-        document.getElementById('ts-tour-label').textContent = 'Tournée';
-        tourSummary?.classList.remove('show');
-        document.querySelectorAll('.pose.tour-mode').forEach(c => {
-            c.classList.remove('tour-mode');
-            c.removeAttribute('data-tour-step');
-            c.querySelector('.pose-tour-leg')?.remove();
-        });
-        // Restaure la position d'origine de chaque card
-        originalParentByCard.forEach((info, card) => {
-            const ref = info.parent.children[info.index];
-            if (ref && ref !== card) info.parent.insertBefore(card, ref);
-            else info.parent.appendChild(card);
-        });
-        document.querySelectorAll('.day-section').forEach(sec => { sec.style.display = ''; });
-        applyFilters();
-    }
-
-    tourBtn?.addEventListener('click', async () => {
-        if (tourActive) { exitTourMode(); return; }
-        if (!navigator.geolocation) {
-            toastSmall('GPS bloqué — autorise-le pour utiliser cette option.', 'error');
-            return;
-        }
-        tourBtn.disabled = true;
-        document.getElementById('ts-tour-label').textContent = '🛰…';
-        const pos = await getGeoPosition();
-        if (!pos) {
-            tourBtn.disabled = false;
-            document.getElementById('ts-tour-label').textContent = 'Tournée';
-            toastSmall('On ne te trouve pas — autorise le GPS.', 'error');
-            return;
-        }
-        document.getElementById('ts-tour-label').textContent = '🔄…';
-        try {
-            const ids = Array.from(document.querySelectorAll('.pose[data-task-id]'))
-                .map(c => parseInt(c.dataset.taskId, 10)).filter(Boolean);
-            const u = new URL(TOUR_URL, location.origin);
-            u.searchParams.set('lat', pos.lat.toFixed(6));
-            u.searchParams.set('lng', pos.lng.toFixed(6));
-            u.searchParams.set('scope', 'rendered');
-            ids.forEach(id => u.searchParams.append('ids[]', id));
-            const r = await fetch(u.toString(), { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
-            const d = await r.json();
-            if (!r.ok || !d.ok) throw new Error('optimize');
-            applyTourOrder(d.order, d.total_meters);
-        } catch (e) {
-            toastSmall('On n\'arrive pas à calculer — essaie encore.', 'error');
-            document.getElementById('ts-tour-label').textContent = 'Tournée';
-        } finally {
-            tourBtn.disabled = false;
-        }
-    });
-
-    function applyTourOrder(order, totalMeters) {
-        tourActive = true;
-        tourBtn.classList.add('is-active');
-        document.getElementById('ts-tour-label').textContent = '✓';
-
-        // 1. Annule les filtres pour révéler toutes les cards de la tournée
-        document.querySelectorAll('.day-section').forEach(s => s.style.display = '');
-
-        // 2. Crée une section "Tournée" en tête, déplace toutes les cards
-        //    selon l'ordre TSP, ajoute le badge numéro + la distance leg.
-        let tourSec = document.getElementById('ts-tour-section');
-        if (!tourSec) {
-            tourSec = document.createElement('div');
-            tourSec.id = 'ts-tour-section';
-            tourSec.className = 'day-section';
-            tourSec.innerHTML = '<div class="commune-header"><div class="ch-left"><h2 style="color:#15803d">🚀 Mon chemin</h2><span class="count">' + order.length + ' arrêts</span></div></div>';
-            const empty = document.getElementById('ts-empty-filter');
-            empty.parentNode.insertBefore(tourSec, empty.nextSibling);
-        } else {
-            // reset content sauf header
-            tourSec.querySelector('.count').textContent = order.length + ' arrêts';
-            // remove previous cards
-            Array.from(tourSec.querySelectorAll('.pose')).forEach(c => c.remove());
-        }
-
-        order.forEach((step, idx) => {
-            const card = document.querySelector(`.pose[data-task-id="${step.id}"]`);
-            if (!card) return;
-            card.classList.add('tour-mode');
-            card.setAttribute('data-tour-step', idx + 1);
-            // Ajoute / met à jour le pill "leg distance"
-            let leg = card.querySelector('.pose-tour-leg');
-            if (!leg) {
-                leg = document.createElement('span');
-                leg.className = 'pose-tour-leg';
-                const sub = card.querySelector('.pose-sub');
-                if (sub) sub.appendChild(leg);
-            }
-            leg.textContent = '🚀 +' + formatDistance(step.leg_meters);
-            tourSec.appendChild(card);
-        });
-
-        // 3. Masque les autres sections (les cards y ont été déplacées)
-        document.querySelectorAll('.day-section').forEach(sec => {
-            if (sec === tourSec) return;
-            if (!sec.querySelector('.pose[data-task-id]')) sec.style.display = 'none';
-        });
-
-        // 4. Affiche la banner total
-        document.getElementById('ts-tour-count').textContent = order.length;
-        document.getElementById('ts-tour-total').textContent = totalMeters >= 1000
-            ? (totalMeters / 1000).toFixed(1).replace('.0', '') + ' km'
-            : totalMeters + ' m';
-        tourSummary.classList.add('show');
-        tourSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    document.getElementById('ts-tour-quit')?.addEventListener('click', exitTourMode);
+    // ─── 16. MODE TOURNÉE — migré vers public/js/tech/features/geolocate.js (SM1.5 Lot 4) ──
 
     // ═══════════════════════════════════════════════════════════════
     // ─── 17. BACKGROUND SYNC photo offline ────────────────────────

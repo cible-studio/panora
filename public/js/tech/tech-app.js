@@ -26,6 +26,7 @@ import { init as initPwaInstall }  from './features/pwa-install.js';
 import { init as initReport }      from './features/report.js';
 import { init as initStatusChanges } from './features/status-changes.js';
 import { init as initSearch }      from './features/search.js';
+import { init as initGeolocate }   from './features/geolocate.js';
 
 // Garde-fou : si TECH_CONFIG n'est pas là, on log mais on n'explose pas
 // (la page continue de fonctionner via le JS inline encore présent).
@@ -42,8 +43,9 @@ function bootstrap() {
     initReport();         // [SM1.5 Lot 1] modale signalement 9 motifs
     initStatusChanges();  // [SM1.5 Lot 2] Y aller / J'y suis / statut générique
     initSearch();         // [SM1.5 Lot 3] Select2 AJAX paginé + openFocusModal
+    initGeolocate();      // [SM1.5 Lot 4] Près de moi + Mon chemin (TSP)
 
-    // NOTE : filters, geolocate, upload restent dans le <script> inline.
+    // NOTE : filters, upload restent dans le <script> inline.
     // Migration en cours en SM1.5 (cf. docs/TECHNICAL_DEBT.md).
 }
 
