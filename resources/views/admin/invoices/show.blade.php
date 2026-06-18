@@ -1096,8 +1096,10 @@
                             </div>
 
                             <div class="mfg">
-                                <label>Date du règlement <span style="color:var(--text3);font-weight:400;font-size:11px">(facultatif — par défaut : aujourd'hui)</span></label>
-                                <input type="date" name="paid_at" max="{{ date('Y-m-d') }}" value="{{ date('Y-m-d') }}">
+                                <label>Date du règlement <span style="color:var(--text3);font-weight:400;font-size:11px">(facultatif — par défaut : aujourd'hui · date future autorisée pour chèques post-datés)</span></label>
+                                {{-- 2026-06-18 : max retiré pour autoriser dates futures
+                                     (chèques post-datés, virements programmés). --}}
+                                <input type="date" name="paid_at" value="{{ date('Y-m-d') }}">
                             </div>
 
                             <div class="mfg">
@@ -1203,7 +1205,8 @@
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                                 <div>
                                     <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Date</label>
-                                    <input type="date" name="paid_at" required value="{{ date('Y-m-d') }}" max="{{ date('Y-m-d') }}"
+                                    {{-- 2026-06-18 : max retiré — date future autorisée (chèque post-daté, virement programmé). --}}
+                                    <input type="date" name="paid_at" required value="{{ date('Y-m-d') }}"
                                            style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px">
                                 </div>
                                 <div>
