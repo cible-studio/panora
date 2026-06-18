@@ -90,6 +90,7 @@
 <form method="GET"
       @if($actionRoute) action="{{ $actionRoute }}" @endif
       class="perf-filter-card"
+      data-perf-filters
       style="margin-bottom:16px{{ $isCompact ? ';padding:10px 14px' : '' }}">
     <div style="display:flex;gap:{{ $isCompact ? '10px' : '14px' }};align-items:flex-end;flex-wrap:wrap;width:100%">
         {{-- Hidden fields à propager (ex : user_id sur les pages show) --}}
@@ -99,10 +100,23 @@
             @endif
         @endforeach
 
+        @php
+            // 2026-06-18 (feedback patronne) : on calcule les VRAIES dates
+            // du/au correspondant au preset sélectionné, et on les pousse
+            // dans les inputs date au lieu de les laisser vides. L'utilisateur
+            // voit donc tout de suite "Ce mois = 01/06/2026 → 30/06/2026"
+            // au lieu de jj/mm/aaaa génériques. Côté serveur, resolvePeriod
+            // priorise from/to s'ils sont remplis ; mais comme on les
+            // resoumet avec le preset, on RETIRE les hidden from/to du submit
+            // change-preset (via JS) — sinon le serveur ignorerait le preset.
+            $fromVal = request('from', optional($from)->format('Y-m-d'));
+            $toVal   = request('to',   optional($to)->format('Y-m-d'));
+            $hasAnyFilter = $usingCustomRange || $currentPreset !== null;
+        @endphp
+
         <div class="fne-field" style="min-width:{{ $isCompact ? '140px' : '170px' }}">
             <label>Période rapide</label>
-            <select name="preset"
-                    onchange="this.form.querySelector('[name=from]').value='';this.form.querySelector('[name=to]').value='';this.form.submit()">
+            <select name="preset" data-perf-preset>
                 <option value=""        {{ $usingCustomRange ? 'selected' : '' }} disabled hidden>— Personnalisée —</option>
                 <option value="today"   {{ !$usingCustomRange && $currentPreset === 'today'   ? 'selected' : '' }}>Aujourd'hui</option>
                 <option value="week"    {{ !$usingCustomRange && $currentPreset === 'week'    ? 'selected' : '' }}>Cette semaine</option>
@@ -115,21 +129,103 @@
         <div class="fne-field" style="min-width:{{ $isCompact ? '130px' : '140px' }}">
             <label>Du</label>
             <input type="date" name="from"
-                   value="{{ request('from', $usingCustomRange ? optional($from)->format('Y-m-d') : '') }}"
-                   onchange="this.form.querySelector('[name=preset]').value='';this.form.submit()">
+                   data-perf-from
+                   value="{{ $fromVal }}">
         </div>
         <div class="fne-field" style="min-width:{{ $isCompact ? '130px' : '140px' }}">
             <label>Au</label>
             <input type="date" name="to"
-                   value="{{ request('to', $usingCustomRange ? optional($to)->format('Y-m-d') : '') }}"
-                   onchange="this.form.querySelector('[name=preset]').value='';this.form.submit()">
+                   data-perf-to
+                   value="{{ $toVal }}">
         </div>
 
-        @if($usingCustomRange && $resetRoute)
+        {{-- Bouton "Réinitialiser" toujours visible, désactivé si aucun
+             filtre actif. Fallback CSS pour la sémantique disabled. --}}
+        @if($resetRoute)
             <a href="{{ $resetRoute }}"
                class="btn btn-ghost btn-sm"
-               style="height:38px;display:inline-flex;align-items:center"
-               title="Revenir aux périodes rapides">↺ Réinitialiser</a>
+               style="height:38px;display:inline-flex;align-items:center;gap:5px;{{ $hasAnyFilter ? '' : 'opacity:.45;pointer-events:none' }}"
+               title="Revenir aux dates par défaut">↺ Réinitialiser</a>
         @endif
     </div>
 </form>
+
+{{-- JS perf-filters — calcule les vraies dates au change preset + auto-submit.
+     Une seule fois grâce à @once même si le partial est inclus 2 fois sur
+     la page (ex. pages show qui ré-incluent le filtre). --}}
+@once
+<script>
+(function () {
+    // Calcule [from, to] (YYYY-MM-DD) à partir d'un preset.
+    // Doit rester aligné avec CommercialPerformanceController::resolvePeriod
+    // côté serveur — sinon le filtre affiché ≠ filtre appliqué.
+    function presetRange(preset) {
+        var now = new Date();
+        var fmt = function (d) {
+            var y = d.getFullYear();
+            var m = String(d.getMonth() + 1).padStart(2, '0');
+            var dd = String(d.getDate()).padStart(2, '0');
+            return y + '-' + m + '-' + dd;
+        };
+        var from, to;
+        switch (preset) {
+            case 'today':
+                from = to = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                break;
+            case 'week': {
+                var dow = (now.getDay() + 6) % 7; // 0 = lundi
+                from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
+                to   = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6);
+                break;
+            }
+            case 'month':
+                from = new Date(now.getFullYear(), now.getMonth(), 1);
+                to   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                break;
+            case 'quarter': {
+                var q = Math.floor(now.getMonth() / 3);
+                from = new Date(now.getFullYear(), q * 3, 1);
+                to   = new Date(now.getFullYear(), q * 3 + 3, 0);
+                break;
+            }
+            case 'year':
+                from = new Date(now.getFullYear(), 0, 1);
+                to   = new Date(now.getFullYear(), 11, 31);
+                break;
+            case 'all':
+                from = new Date(2020, 0, 1);
+                to   = now;
+                break;
+            default:
+                return null;
+        }
+        return { from: fmt(from), to: fmt(to) };
+    }
+
+    document.querySelectorAll('form[data-perf-filters]').forEach(function (form) {
+        var preset = form.querySelector('[data-perf-preset]');
+        var from   = form.querySelector('[data-perf-from]');
+        var to     = form.querySelector('[data-perf-to]');
+
+        if (preset) {
+            preset.addEventListener('change', function () {
+                var r = presetRange(preset.value);
+                if (r) {
+                    from.value = r.from;
+                    to.value   = r.to;
+                }
+                form.submit();
+            });
+        }
+        // Saisie manuelle d'une date → on retire le preset pour basculer en custom.
+        [from, to].forEach(function (input) {
+            if (!input) return;
+            input.addEventListener('change', function () {
+                if (preset) preset.value = '';
+                form.submit();
+            });
+        });
+    });
+})();
+</script>
+@endonce
