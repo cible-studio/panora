@@ -1,10 +1,28 @@
 <x-admin-layout>
 <x-slot name="title">Nouvelle équipe</x-slot>
 
+@php
+    // ── Bouton retour intelligent (2026-06-18, feedback patronne) ──────
+    //   Résout l'origine via ?back=<key> avec whitelist stricte (pas
+    //   d'open-redirect). Fallback : teams.index.
+    //   Le champ hidden `back` est aussi posté au form pour que le store
+    //   redirige vers la bonne page après création.
+    $backMap = [
+        'posetasks'              => ['route' => 'admin.pose-tasks.index',             'label' => 'Tâches de pose'],
+        'performance.commercial' => ['route' => 'admin.performance.commercial.index', 'label' => 'Performance commerciale'],
+        'performance.tech'       => ['route' => 'admin.performance.tech.index',       'label' => 'Performance techniciens'],
+        'performance.team'       => ['route' => 'admin.performance.team.index',       'label' => 'Performance équipes'],
+    ];
+    $backKey = (string) request()->query('back', '');
+    $backCfg = $backMap[$backKey] ?? null;
+    $backUrl   = $backCfg ? route($backCfg['route']) : route('admin.teams.index');
+    $backLabel = $backCfg ? $backCfg['label']         : 'Équipes';
+@endphp
+
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.teams.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
+    <a href="{{ $backUrl }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        Équipes
+        {{ $backLabel }}
     </a>
 </x-slot:topbarLeft>
 
@@ -19,9 +37,10 @@
 
         <form method="POST" action="{{ route('admin.teams.store') }}" class="teams-form">
             @csrf
+            <input type="hidden" name="back" value="{{ $backKey }}">
             @include('admin.teams._form', ['team' => new \App\Models\PoseTeam()])
             <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
-                <a href="{{ route('admin.teams.index') }}" class="btn btn-ghost">Annuler</a>
+                <a href="{{ $backUrl }}" class="btn btn-ghost">Annuler</a>
                 <button type="submit" class="btn btn-primary">Créer l'équipe</button>
             </div>
         </form>

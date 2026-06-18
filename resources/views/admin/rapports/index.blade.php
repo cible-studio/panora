@@ -20,6 +20,9 @@ window.__RPT__ = {
     occParCommune: {!! json_encode($occParCommune->values()) !!},
     evolMensuelle: {!! json_encode($evolMensuelle->values()) !!},
     caMensuel:     {!! json_encode($caMensuel->values()) !!},
+    // Bloc 4 — Commit 13 : séries CA réel (HT facturé + TTC encaissé) pour le graphique 2 lignes
+    caMensuelHt:   {!! json_encode($caMensuelHt->values()) !!},
+    caMensuelTtc:  {!! json_encode($caMensuelTtc->values()) !!},
     tableauMensuel:{!! json_encode($tableauMensuel->values()) !!},
     topClients:    {!! json_encode($topClients->values()) !!},
     statsCommunes: {!! json_encode($statsCommunes->values()) !!},
@@ -618,7 +621,7 @@ window.RPT = {
         tabEl.classList.add('active');
         panelEl.style.display='block';
         if (id==='occupation'&&!this._evolDone)     { this.renderEvol(); this.renderOccupationTrend(); this._evolDone=true; }
-        if (id==='ca'        &&!this._caDone)       { this.renderCa();   this.renderRevenueTrend();    this.renderOccVsRevenue(); this._caDone=true; }
+        if (id==='ca'        &&!this._caDone)       { this.renderCaReal(); this.renderCa();   this.renderRevenueTrend();    this.renderOccVsRevenue(); this._caDone=true; }
         if (id==='zones'     &&!this._hmDone)       { HM.init();         this._hmDone=true; }
         if (id==='panneaux'  &&!this._panneauxDone) { this.renderTopPanels();    this._panneauxDone=true; }
         if (id==='clients'   &&!this._clientsDone)  { this.renderClientDistribution(); this._clientsDone=true; }
@@ -695,6 +698,77 @@ window.RPT = {
                     y:{ beginAtZero:true, max:100, ticks:{color:tickC,font:{size:11},callback:v=>v+'%'}, grid:{color:gridC} },
                 }
             }
+        });
+    },
+
+    // ── Chart.js — CA RÉEL mensuel (2 lignes : HT facturé + TTC encaissé)
+    //   Bloc 4 Commit 13 (2026-06-18). Data injectée via D.caMensuelHt et
+    //   D.caMensuelTtc (CaRealService::mensuelHtFacture / mensuelTtcEncaisse).
+    //   Année calendaire complète scopée sur le sélecteur ca_year.
+    renderCaReal() {
+        const canvas = document.getElementById('chart-ca-real');
+        const ht     = D.caMensuelHt;
+        const ttc    = D.caMensuelTtc;
+        if (!canvas || typeof Chart === 'undefined') return;
+        if (!ht?.length && !ttc?.length) return;
+        const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+        const gridC  = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
+        const tickC  = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)';
+        const labels = (ht?.length ? ht : ttc).map(d => d.label);
+        new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: '📤 HT facturé',
+                        data: ht.map(d => d.ht),
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245,158,11,.12)',
+                        borderWidth: 2.5,
+                        tension: .35,
+                        fill: true,
+                        pointBackgroundColor: '#f59e0b',
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    },
+                    {
+                        label: '💰 TTC encaissé',
+                        data: ttc.map(d => d.ttc),
+                        borderColor: '#16a34a',
+                        backgroundColor: 'rgba(22,163,74,.08)',
+                        borderWidth: 2.5,
+                        tension: .35,
+                        fill: false,
+                        pointBackgroundColor: '#16a34a',
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: tickC, font: { size: 11, weight: '700' }, usePointStyle: true, padding: 14 },
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ' ' + ctx.dataset.label + ' : ' + new Intl.NumberFormat('fr-FR').format(Math.round(ctx.parsed.y)) + ' FCFA',
+                        },
+                    },
+                },
+                scales: {
+                    x: { ticks: { color: tickC, font: { size: 11 } }, grid: { display: false } },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: tickC, font: { size: 11 }, callback: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : (v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v) },
+                        grid: { color: gridC },
+                    },
+                },
+            },
         });
     },
 
@@ -1082,6 +1156,8 @@ RPT.refreshAllCharts = function (newData) {
         'chart-client-dist', 'hm-bar-chart',
         'chart-inactivity', 'chart-cancel-reasons',
         // 'chart-sla-motifs' retiré le 2026-06-17 (onglet SLA retiré de Rapports)
+        // Bloc 4 Commit 13 (2026-06-18) : CA réel mensuel 2 lignes
+        'chart-ca-real',
     ];
     chartIds.forEach(function (id) {
         var c = document.getElementById(id);
@@ -1100,6 +1176,7 @@ RPT.refreshAllCharts = function (newData) {
     var safeCall = function (fn) { try { fn(); } catch (_) {} };
     safeCall(function () { RPT.renderEvol(); });
     safeCall(function () { RPT.renderCa(); });
+    safeCall(function () { RPT.renderCaReal(); });
     safeCall(function () { RPT.renderOccupationTrend(); });
     safeCall(function () { RPT.renderRevenueTrend(); });
     safeCall(function () { RPT.renderOccVsRevenue(); });

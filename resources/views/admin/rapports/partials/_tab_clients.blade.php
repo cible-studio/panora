@@ -4,7 +4,7 @@
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px" class="rpt-grid-clients">
         @php
             $podiums = [
-                ['title' => 'Top CA', 'icon' => '💰', 'color' => '#16a34a', 'rows' => $topClientsByRev,  'metric' => 'revenue', 'unit' => 'FCFA'],
+                ['title' => 'Top CA contractuel', 'icon' => '💰', 'color' => '#16a34a', 'rows' => $topClientsByRev,  'metric' => 'revenue', 'unit' => 'FCFA'],
                 ['title' => 'Top volume', 'icon' => '📊', 'color' => '#3b82f6', 'rows' => $topClientsByVol,  'metric' => 'volume',  'unit' => 'camp.'],
                 ['title' => 'Top fréquence', 'icon' => '⏱️', 'color' => '#a855f7', 'rows' => $topClientsByFreq, 'metric' => 'frequency', 'unit' => '/mois'],
             ];
@@ -50,7 +50,7 @@
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e8a020" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2v10l8 4"/></svg>
-                <span style="font-size:13px;font-weight:700;color:var(--text)">Répartition du CA par client</span>
+                <span style="font-size:13px;font-weight:700;color:var(--text)" title="Basé sur le total contractuel des campagnes (Campaign.total_amount), pas sur les factures émises">Répartition du CA contractuel par client</span>
             </div>
             @if($clientRevenueDist['total'] > 0)
                 <div style="position:relative;width:100%;height:240px">
@@ -114,7 +114,7 @@
             <table style="width:100%;border-collapse:collapse">
                 <thead>
                     <tr style="border-bottom:1px solid var(--border)">
-                        @foreach(['Client','NCC','Campagnes','Actives','CA Total','Panneaux','Dernière activité'] as $h)
+                        @foreach(['Client','NCC','Campagnes','Actives','CA contractuel','Panneaux','Dernière activité'] as $h)
                         <th style="padding:10px 16px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">{{ $h }}</th>
                         @endforeach
                     </tr>

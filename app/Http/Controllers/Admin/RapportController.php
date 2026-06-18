@@ -193,12 +193,42 @@ class RapportController extends Controller
         ];
 
         // ── CA total période (filtres appliqués) ────────────────
+        // ATTENTION (Bloc 4 — Famille B, 2026-06-18) :
+        //   $caTotal = CA CONTRACTUEL = somme de Campaign.total_amount sur les
+        //   campagnes actives dans la période. Sert encore aux tableaux secondaires
+        //   (Top clients, CA par commune, ca_annee, etc.) — cf. arbitrage Q4
+        //   patronne.
+        //   Les NOUVEAUX KPIs "CA réel" (HT facturé + Encaissé TTC) sont
+        //   calculés plus bas via CaRealService — ils ignorent commune/zone/
+        //   category (cf. Q2). Le libellé "CA contractuel" est désormais
+        //   imposé dans les vues pour lever toute ambiguïté.
         $caTotal = $applyCampaignFilters(
             Campaign::where('start_date', '<=', $dateTo)
                     ->where('end_date',   '>=', $dateFrom)
         )->sum('total_amount');
 
         $caTicketMoy = $totalCampagnes > 0 ? round($caTotal / $totalCampagnes) : 0;
+
+        // ── CA RÉEL période (HT facturé + TTC encaissé) — Bloc 4 ─────────
+        //   Le service délègue le calcul à FinancialDashboardService pour
+        //   garantir la cohérence Finance ↔ Rapports (test de cohérence
+        //   au franc près, cf. CaRealServiceConsistencyTest).
+        //   Filtres ignorés : commune, zone, category — la facturation suit
+        //   le client, pas le panneau. Le bandeau d'info (Garde-fou 1) est
+        //   généré côté vue via `$caReelIgnoredFilters`.
+        $caRealSvc = app(\App\Services\CaRealService::class);
+        $caReel = $caRealSvc->kpis(
+            $dateFrom,
+            $dateTo,
+            null, // commercial_id : RBAC déjà géré au niveau Invoice::forCommercialUser via le scope
+            $filterClient ? (int) $filterClient : null,
+            [
+                'commune_id'  => $filterCommune,
+                'zone'        => $filterZone,
+                'category_id' => $filterCategory,
+            ]
+        );
+        $caReelIgnoredFilters = $caReel['ignored_filters'];
 
         // ── Occupation par commune SUR LA PÉRIODE (filtres appliqués) ──
         $communeQuery = Commune::query();
@@ -258,6 +288,22 @@ class RapportController extends Controller
             $moisFrCourtCa = [1=>'janv.', 2=>'févr.', 3=>'mars', 4=>'avr.', 5=>'mai', 6=>'juin', 7=>'juil.', 8=>'août', 9=>'sept.', 10=>'oct.', 11=>'nov.', 12=>'déc.'];
             $caMensuel->push(['label' => $moisFrCourtCa[$m] ?? '?', 'ca' => (float) $ca]);
         }
+
+        // ── CA RÉEL mensuel (HT facturé + TTC encaissé) — Bloc 4 Commit 13
+        //   Source unique CaRealService (cohérent avec FinancialDashboardService).
+        //   Ignore commune/zone/category (cf. Q2) — bandeau d'info géré côté vue.
+        //   Suit le même sélecteur d'année que $caMensuel (ca_year) pour rester
+        //   cohérent : 1 sélecteur, 2 graphiques côte à côte.
+        $caMensuelHt  = $caRealSvc->mensuelHtFacture(
+            $caMensuelYear,
+            null,
+            $filterClient ? (int) $filterClient : null
+        );
+        $caMensuelTtc = $caRealSvc->mensuelTtcEncaisse(
+            $caMensuelYear,
+            null,
+            $filterClient ? (int) $filterClient : null
+        );
 
         // ── Tableau mensuel (filtres appliqués) ─────────────────
         // Même logique : sélecteur d'année interne pour explorer plusieurs années.
@@ -510,9 +556,15 @@ class RapportController extends Controller
             'occupation',
             'caTotal',
             'caTicketMoy',
+            // Bloc 4 — CA réel (HT facturé + TTC encaissé) + bandeau filtres ignorés
+            'caReel',
+            'caReelIgnoredFilters',
             'occParCommune',
             'evolMensuelle',
             'caMensuel',
+            // Bloc 4 — Commit 13 : séries CA réel (HT facturé + TTC encaissé)
+            'caMensuelHt',
+            'caMensuelTtc',
             'tableauMensuel',
             'topClients',
             'statsCommunes',
@@ -598,6 +650,9 @@ class RapportController extends Controller
             'occParCommune'     => $data['occParCommune']->values(),
             'evolMensuelle'     => $data['evolMensuelle']->values(),
             'caMensuel'         => $data['caMensuel']->values(),
+            // Bloc 4 — Commit 13 : séries CA réel pour le graphique 2 lignes
+            'caMensuelHt'       => $data['caMensuelHt']->values(),
+            'caMensuelTtc'      => $data['caMensuelTtc']->values(),
             'tableauMensuel'    => $data['tableauMensuel']->values(),
             'topClients'        => $data['topClients']->values(),
             'statsCommunes'     => $data['statsCommunes']->values(),
@@ -1265,9 +1320,17 @@ class RapportController extends Controller
             'occupation' => $forecaster->occupationForecast(3),
         ];
 
+        // Bloc 4 Commit 14 (2026-06-18) — CA RÉEL sur la même période.
+        // Source unique CaRealService → cohérent avec la page Rapports + Finance.
+        // Pas de scope client (export global). Filtres commune/zone/category
+        // ignorés par construction (cf. Q2 patronne) — note expliquée dans le PDF.
+        $caRealSvc = app(\App\Services\CaRealService::class);
+        $caReel = $caRealSvc->kpis($period['from'], $period['to']);
+
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.synthese-pdf', compact(
             'parc', 'stats', 'revenue', 'inactivity', 'decapStats',
             'topClients', 'insights', 'period', 'forecast',
+            'caReel',
         ) + ['user' => $request->user()])
             ->setPaper('a4', 'portrait');
 

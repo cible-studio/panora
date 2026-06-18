@@ -581,7 +581,13 @@
     <table class="head no-break">
         <tr>
             <td class="logo-cell">
-                <img src="{{ public_path(config('billing.company.logo_path', 'images/panora.png')) }}" alt="{{ config('billing.company.name') }}">
+                {{-- 2026-06-18 : logo CIBLE (fourni par AppServiceProvider View::composer)
+                     en priorité ; fallback sur le logo billing.company configurable. --}}
+                @if(!empty($logoCibleLight))
+                    <img src="{{ $logoCibleLight }}" alt="CIBLE CI">
+                @else
+                    <img src="{{ public_path(config('billing.company.logo_path', 'images/panora.png')) }}" alt="{{ config('billing.company.name') }}">
+                @endif
                 <div class="tagline">Régie OOH · Plateforme Panora</div>
             </td>
             <td class="ref-cell">

@@ -851,6 +851,9 @@ Route::prefix('admin')
 
         // ── M3 SLA enrichi : page analytique + édition motif a posteriori ──
         // Policy PoseTaskActionPolicy (admin/mediaplanner only — commercial/technique → 403).
+        Route::get('sla/retards/export/pdf', [\App\Http\Controllers\Admin\SlaDelaysController::class, 'exportPdf'])
+            ->middleware('role:admin,mediaplanner')
+            ->name('sla.retards.export.pdf');
         Route::get('sla/retards', [\App\Http\Controllers\Admin\SlaDelaysController::class, 'index'])
             ->middleware('role:admin,mediaplanner')
             ->name('sla.retards.index');
@@ -874,6 +877,12 @@ Route::prefix('admin')
             Route::get('performance/commerciaux/export/pdf',
                 [\App\Http\Controllers\Admin\CommercialPerformanceController::class, 'exportPdf']
             )->name('performance.commercial.export.pdf');
+            Route::get('performance/techniciens/export/pdf',
+                [\App\Http\Controllers\Admin\TechnicianPerformanceController::class, 'exportPdf']
+            )->name('performance.tech.export.pdf');
+            Route::get('performance/equipes/export/pdf',
+                [\App\Http\Controllers\Admin\TeamPerformanceController::class, 'exportPdf']
+            )->name('performance.team.export.pdf');
             Route::get('performance/commerciaux/{user}',
                 [\App\Http\Controllers\Admin\CommercialPerformanceController::class, 'show']
             )->whereNumber('user')->name('performance.commercial.show');

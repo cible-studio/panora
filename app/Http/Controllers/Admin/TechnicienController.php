@@ -45,7 +45,12 @@ class TechnicienController extends Controller
 
     public function create()
     {
-        return view('admin.poses.techniciens.create');
+        // 2026-06-18 (feedback patronne) : expose la liste des équipes actives
+        // pour permettre l'affectation directe à la création d'un technicien.
+        $teams = \App\Models\PoseTeam::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        return view('admin.poses.techniciens.create', compact('teams'));
     }
 
     public function store(Request $request)
@@ -55,8 +60,11 @@ class TechnicienController extends Controller
             'email'           => 'nullable|email|unique:users,email',
             'whatsapp_number' => 'nullable|string|max:20|regex:/^[\+\d\s\-\(\)\.]{6,20}$/',
             'agent_code'      => 'nullable|string|max:50|unique:users,agent_code',
+            // 2026-06-18 : équipe optionnelle à la création.
+            'pose_team_id'    => 'nullable|integer|exists:pose_teams,id',
         ], [
             'whatsapp_number.regex' => 'Format WhatsApp invalide (ex: 0707070707 ou +2250707070707).',
+            'pose_team_id.exists'   => 'Équipe inconnue.',
         ]);
 
         // Normalisation WhatsApp en format international (sans + ni espaces)
@@ -82,6 +90,7 @@ class TechnicienController extends Controller
             'role'             => UserRole::TECHNIQUE,
             'agent_code'       => $agentCode,
             'whatsapp_number'  => $data['whatsapp_number'] ?? null,
+            'pose_team_id'     => $data['pose_team_id'] ?? null,
             'is_active'        => true,
         ]);
 
@@ -95,7 +104,10 @@ class TechnicienController extends Controller
     public function edit(User $technicien)
     {
         $this->ensureIsTechnician($technicien);
-        return view('admin.poses.techniciens.edit', compact('technicien'));
+        $teams = \App\Models\PoseTeam::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        return view('admin.poses.techniciens.edit', compact('technicien', 'teams'));
     }
 
     public function update(Request $request, User $technicien)
@@ -107,9 +119,11 @@ class TechnicienController extends Controller
             'email'           => 'nullable|email|unique:users,email,' . $technicien->id,
             'whatsapp_number' => 'nullable|string|max:20|regex:/^[\+\d\s\-\(\)\.]{6,20}$/',
             'agent_code'      => 'nullable|string|max:50|unique:users,agent_code,' . $technicien->id,
+            'pose_team_id'    => 'nullable|integer|exists:pose_teams,id',
             'is_active'       => 'nullable|boolean',
         ], [
             'whatsapp_number.regex' => 'Format WhatsApp invalide.',
+            'pose_team_id.exists'   => 'Équipe inconnue.',
         ]);
 
         if (!empty($data['whatsapp_number'])) {
@@ -121,6 +135,10 @@ class TechnicienController extends Controller
             'email'            => $data['email'] ?: $technicien->email,
             'agent_code'       => $data['agent_code'] ?? null,
             'whatsapp_number'  => $data['whatsapp_number'] ?? null,
+            // 2026-06-18 : si l'admin a explicitement choisi "— Aucune —" on
+            // détache l'équipe (pose_team_id passe à null). Si la clé est
+            // absente du payload (cas rare), on garde l'existant.
+            'pose_team_id'     => $request->has('pose_team_id') ? ($data['pose_team_id'] ?? null) : $technicien->pose_team_id,
             'is_active'        => $request->boolean('is_active', $technicien->is_active),
         ]);
 

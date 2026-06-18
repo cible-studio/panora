@@ -48,6 +48,39 @@ class TechnicianPerformanceController extends Controller
         return redirect()->route('admin.performance.tech.show', $request->user());
     }
 
+    /**
+     * GET /admin/performance/techniciens/export/pdf
+     * Export PDF du leaderboard technicien avec la période courante.
+     * 2026-06-18 (feedback patronne) : cohérent avec commerciaux + SLA.
+     */
+    public function exportPdf(Request $request)
+    {
+        $role = $request->user()->role?->value;
+        if (!in_array($role, ['admin', 'mediaplanner'], true)) {
+            abort(403, 'Accès réservé à l\'administration et media planners.');
+        }
+
+        [$from, $to] = $this->resolvePeriod($request);
+        $leaderboard   = $this->perf->leaderboardTechs($from, $to);
+        $globalKpis    = $this->perf->globalKpis($from, $to);
+        $topByCommune  = $this->perf->topByCommune($from, $to, 10);
+        $topByCampaign = $this->perf->topByCampaign($from, $to, 10);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.performance.techniciens.pdf', [
+            'leaderboard'   => $leaderboard,
+            'globalKpis'    => $globalKpis,
+            'topByCommune'  => $topByCommune,
+            'topByCampaign' => $topByCampaign,
+            'from'          => $from,
+            'to'            => $to,
+            'user'          => $request->user(),
+            'generatedAt'   => now(),
+        ])->setPaper('a4', 'landscape');
+
+        $filename = 'performance-techniciens-' . $from->format('Y-m-d') . '_' . $to->format('Y-m-d') . '.pdf';
+        return $pdf->download($filename);
+    }
+
     public function show(Request $request, User $user)
     {
         $effectiveId = $this->perf->resolveTechIdForCurrentUser($user->id, $request->user());

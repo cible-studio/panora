@@ -7,12 +7,15 @@
     @endphp
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px" class="rpt-grid-5">
         @php
+        // Bloc 4 Garde-fou 2 : ces 5 KPIs sont basés sur le CA CONTRACTUEL
+        // (Campaign.total_amount) — libellé explicite pour lever toute
+        // ambiguïté avec les 2 KPIs CA RÉEL en tête de la page Rapports.
         $caKpis = [
-            ['CA Période',          number_format($caTotal, 0, ',', ' ') . ' FCFA', '#e8a020', 'FCFA · ' . $totalCampagnes . ' campagnes'],
-            ['Ticket moyen',        number_format($caTicketMoy, 0, ',', ' ') . ' FCFA', '#3b82f6', 'par campagne'],
-            ['CA / panneau loué',   number_format($caParPanneau, 0, ',', ' ') . ' FCFA', '#16a34a', 'sur ' . number_format($occupation['occupes']) . ' panneaux occupés'],
-            ['CA moyen / client',   number_format($caParClient, 0, ',', ' ') . ' FCFA', '#06b6d4', 'sur ' . number_format($totalClients) . ' clients actifs'],
-            ['Top client',          $topClients->first()?->name ?? '—', '#a855f7', $topClients->first() ? number_format($topClients->first()->ca_total, 0, ',', ' ') . ' FCFA' : '—'],
+            ['CA contractuel période',  number_format($caTotal, 0, ',', ' ') . ' FCFA', '#e8a020', 'FCFA · ' . $totalCampagnes . ' campagnes'],
+            ['Ticket moyen',            number_format($caTicketMoy, 0, ',', ' ') . ' FCFA', '#3b82f6', 'par campagne (contractuel)'],
+            ['CA contr. / panneau loué',number_format($caParPanneau, 0, ',', ' ') . ' FCFA', '#16a34a', 'sur ' . number_format($occupation['occupes']) . ' panneaux occupés'],
+            ['CA contr. moyen / client',number_format($caParClient, 0, ',', ' ') . ' FCFA', '#06b6d4', 'sur ' . number_format($totalClients) . ' clients actifs'],
+            ['Top client (contractuel)',$topClients->first()?->name ?? '—', '#a855f7', $topClients->first() ? number_format($topClients->first()->ca_total, 0, ',', ' ') . ' FCFA' : '—'],
         ];
         @endphp
         @foreach($caKpis as [$lbl, $val, $col, $sub])
@@ -24,12 +27,16 @@
         @endforeach
     </div>
 
+    {{-- ════ Bloc 4 Commit 13 (2026-06-18) — CA RÉEL mensuel (2 lignes) ════
+         Graphique Chart.js à 2 séries (HT facturé + TTC encaissé) alimenté
+         par CaRealService. Indépendant des filtres commune/zone/category
+         (cf. Q2 patronne — bandeau d'info géré dans _kpis.blade.php).
+         Sélecteur d'année partagé avec le graphique CA contractuel ci-dessous
+         (même `ca_year` → 1 submit, 2 graphiques rafraîchis). ─────────── --}}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8a020" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            <span style="font-size:13px;font-weight:700;color:var(--text)">CA mensuel {{ $caMensuelYear ?? $annee }}</span>
-            {{-- Sélecteur d'année interne : indépendant du filtre période global.
-                 Soumet le form-periode pour rester cohérent avec le pipeline AJAX. --}}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">📊 CA réel mensuel {{ $caMensuelYear ?? $annee }} — HT facturé / TTC encaissé</span>
             <select name="ca_year" form="form-periode" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()"
                     style="margin-left:auto;height:28px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text);cursor:pointer"
                     title="Choisir l'année à explorer (indépendant du filtre période global)">
@@ -39,21 +46,37 @@
             </select>
         </div>
         <div style="font-size:11px;color:var(--text3);font-style:italic;margin-bottom:14px">
-            ℹ️ Année calendaire complète · indépendant du filtre période · suit les filtres dimensionnels (zone, commune, client, type)
+            ℹ️ Année calendaire complète · indépendant des filtres commune/zone/catégorie · basé sur les factures émises (HT) et les paiements reçus (TTC)
+        </div>
+        <div style="position:relative;width:100%;height:260px">
+            <canvas id="chart-ca-real" role="img" aria-label="CA réel mensuel — HT facturé et TTC encaissé"></canvas>
+        </div>
+    </div>
+
+    {{-- Graphique CA CONTRACTUEL mensuel (bars) — Q4 patronne : on garde
+         l'existant car il intègre les filtres dimensionnels et reste utile
+         pour les analyses d'activité commerciale par zone. Libellé clarifié. --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8a020" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span style="font-size:13px;font-weight:700;color:var(--text)" title="CA contractuel basé sur Campaign.total_amount — utile pour le pilotage commercial avec filtres zone/commune">CA contractuel mensuel {{ $caMensuelYear ?? $annee }}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3);font-style:italic;margin-bottom:14px">
+            ℹ️ Année calendaire complète · suit tous les filtres dimensionnels (zone, commune, client, type)
         </div>
         <div id="chart-ca" style="display:flex;align-items:flex-end;gap:6px;height:140px"></div>
         <div id="chart-ca-labels" style="display:flex;gap:6px;margin-top:6px"></div>
     </div>
 
-    {{-- Courbe Chart.js : CA mensuel sur 12 mois glissants (réservations) --}}
+    {{-- Courbe Chart.js : CA contractuel mensuel sur 12 mois glissants (réservations) --}}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            <span style="font-size:13px;font-weight:700;color:var(--text)">Évolution du CA — 12 derniers mois</span>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">Évolution du CA contractuel — 12 derniers mois</span>
             <span style="margin-left:auto;font-size:10px;color:var(--text3);font-style:italic">Réservations confirmées + terminées</span>
         </div>
         <div style="position:relative;width:100%;height:260px">
-            <canvas id="chart-revenue-trend" role="img" aria-label="CA mensuel 12 mois"></canvas>
+            <canvas id="chart-revenue-trend" role="img" aria-label="CA contractuel mensuel 12 mois"></canvas>
         </div>
     </div>
 
@@ -79,7 +102,7 @@
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px">
         <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            <span style="font-size:13px;font-weight:700;color:var(--text)">Classement communes les plus rentables</span>
+            <span style="font-size:13px;font-weight:700;color:var(--text)" title="Classement basé sur le CA contractuel généré par les campagnes (suit les filtres dimensionnels)">Classement communes les plus rentables (CA contractuel)</span>
             <span style="margin-left:auto;font-size:11px;color:var(--text3)">Top {{ $revenueByCommune->count() }}</span>
         </div>
         <div style="overflow-x:auto">
@@ -117,7 +140,7 @@
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px">
         <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            <span style="font-size:13px;font-weight:700;color:var(--text)">CA par ville (vue agrégée)</span>
+            <span style="font-size:13px;font-weight:700;color:var(--text)" title="CA contractuel agrégé par ville — basé sur Campaign.total_amount">CA contractuel par ville (vue agrégée)</span>
             <span style="margin-left:auto;font-size:11px;color:var(--text3)">{{ $revenueByCity->count() }} villes</span>
         </div>
         <div style="overflow-x:auto">
@@ -149,13 +172,13 @@
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
         <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <span style="font-size:13px;font-weight:700;color:var(--text)">Top clients — CA sur la période</span>
+            <span style="font-size:13px;font-weight:700;color:var(--text)" title="Basé sur le total contractuel des campagnes (Campaign.total_amount) — pas sur les factures émises">Top clients — CA contractuel sur la période</span>
         </div>
         <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse">
                 <thead>
                     <tr style="border-bottom:1px solid var(--border)">
-                        @foreach(['#','Client','CA Total','Campagnes','Panneaux'] as $h)
+                        @foreach(['#','Client','CA contractuel','Campagnes','Panneaux'] as $h)
                         <th style="padding:10px 16px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">{{ $h }}</th>
                         @endforeach
                     </tr>

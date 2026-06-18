@@ -39,7 +39,26 @@ class AppServiceProvider extends ServiceProvider
 
         // ─── View composer : injecte les logos Panora dans tous les PDFs ─
         // Évite d'avoir à les passer manuellement depuis chaque controller.
-        \Illuminate\Support\Facades\View::composer(['pdf.*', 'admin.*.pdf.*', 'admin.rapports.*-pdf', 'admin.rapports.pdf.*'], function ($view) {
+        //
+        // 2026-06-18 — Patrons élargis (feedback patronne : "tous les PDF
+        // doivent avoir le logo CIBLE") :
+        //   - admin.*.pdf            → admin.propositions.pdf, admin.sla.pdf, etc.
+        //   - admin.*.*.pdf          → admin.performance.commerciaux.pdf, etc.
+        //   - admin.*.*.pdf.*        → variantes structurées en pdf/<x>.blade.php
+        //
+        // Si tu ajoutes un nouveau PDF dont le NOM contient "pdf" (vue
+        // *.blade.php nommée `pdf.blade.php` ou `xxx-pdf.blade.php`), le
+        // composer le matche automatiquement → pas besoin de passer le logo
+        // manuellement dans le controller.
+        \Illuminate\Support\Facades\View::composer([
+            'pdf.*',
+            'admin.*.pdf',
+            'admin.*.pdf.*',
+            'admin.*.*.pdf',
+            'admin.*.*.pdf.*',
+            'admin.rapports.*-pdf',
+            'admin.rapports.pdf.*',
+        ], function ($view) {
             $assets = new class { use \App\Support\PdfAssets {
                 getPanoraLogoDark as public;
                 getPanoraLogoLight as public;

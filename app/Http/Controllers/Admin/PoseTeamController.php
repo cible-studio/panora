@@ -85,7 +85,7 @@ class PoseTeamController extends Controller
         }
 
         Log::info('pose_team.created', ['id' => $team->id, 'name' => $team->name, 'by' => $request->user()?->name]);
-        return redirect()->route('admin.teams.index')->with('success', "✅ Équipe « {$team->name} » créée.");
+        return $this->redirectBack($request, "✅ Équipe « {$team->name} » créée.");
     }
 
     public function edit(PoseTeam $team)
@@ -134,7 +134,29 @@ class PoseTeamController extends Controller
             'is_active'      => $request->boolean('is_active', $team->is_active),
         ]);
 
-        return redirect()->route('admin.teams.index')->with('success', "✅ Équipe « {$team->name} » mise à jour.");
+        return $this->redirectBack($request, "✅ Équipe « {$team->name} » mise à jour.");
+    }
+
+    /**
+     * Redirection "smart back" — résout la destination depuis le champ
+     * caché `back` du form (whitelist stricte côté contrôleur — pas de
+     * open-redirect). Fallback : teams.index.
+     * Cf. resources/views/admin/teams/create.blade.php pour la liste des
+     * sources autorisées.
+     */
+    protected function redirectBack(Request $request, string $flash)
+    {
+        // ⚠ Whitelist alignée avec resources/views/admin/performance/partials/_smart_back.blade.php
+        //   (single source of truth). Mettre à jour les 2 endroits ensemble.
+        $backMap = [
+            'posetasks'              => 'admin.pose-tasks.index',
+            'performance.commercial' => 'admin.performance.commercial.index',
+            'performance.tech'       => 'admin.performance.tech.index',
+            'performance.team'       => 'admin.performance.team.index',
+        ];
+        $key = (string) $request->input('back', '');
+        $route = $backMap[$key] ?? 'admin.teams.index';
+        return redirect()->route($route)->with('success', $flash);
     }
 
     /** Soft delete : détache les membres + softDelete équipe. */

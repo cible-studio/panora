@@ -20,12 +20,27 @@ $kpiCards = [
         'tab'   => 'occupation',
         'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
     ],
+    {{-- Bloc 4 — Famille B (2026-06-18) : on REMPLACE l'ancien KPI "CA période"
+         (contractuel, basé sur Campaign.total_amount) par 2 KPIs CA RÉEL :
+         📤 HT facturé (invoices.net_ht) et 💰 TTC encaissé (payments.montant).
+         Les filtres commune/zone/category sont IGNORÉS sur ces 2 KPIs
+         (cf. arbitrage Q2 patronne) — bandeau d'info juste au-dessus.
+         Libellés ultra-clairs imposés (Garde-fou 2). --}}
     [
-        'id'    => 'ca',
-        'label' => 'CA période',
-        'val'   => number_format($caTotal / 1000000, 1) . 'M',
-        'sub'   => 'FCFA · ' . number_format($totalCampagnes) . ' campagnes',
-        'color' => '#3b82f6',
+        'id'    => 'ca_ht',
+        'label' => '📤 CA HT facturé',
+        'val'   => number_format(($caReel['ht_facture'] ?? 0) / 1000000, 1) . 'M',
+        'sub'   => 'FCFA · factures émises (hors annulées) · indép. filtres commune/zone',
+        'color' => '#f59e0b',
+        'tab'   => 'ca',
+        'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>',
+    ],
+    [
+        'id'    => 'ca_ttc',
+        'label' => '💰 Encaissé TTC',
+        'val'   => number_format(($caReel['ttc_encaisse'] ?? 0) / 1000000, 1) . 'M',
+        'sub'   => 'FCFA · paiements reçus · indép. filtres commune/zone',
+        'color' => '#16a34a',
         'tab'   => 'ca',
         'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
     ],
@@ -74,18 +89,47 @@ $kpiCards = [
 // version de Laravel — d'ou l'undefined variable signale en prod.
 $kpiRole = auth()->user()?->role?->value;
 $kpiCardsByRole = [
-    'admin'        => null, // tous (6 cards)
-    'mediaplanner' => ['occupation', 'clients', 'zones', 'decap'], // 5 (sans 'ca')
-    'commercial'   => ['ca', 'decap'],                              // 2
+    'admin'        => null, // tous (7 cards : Occup / Libres / CA HT / Encaissé TTC / Clients / Maint. / Décap)
+    'mediaplanner' => ['occupation', 'libres', 'clients', 'maintenance', 'decaper'], // 5 (sans les 2 KPIs CA stratégiques)
+    'commercial'   => ['ca_ht', 'ca_ttc', 'decaper'],                                // 3 (les 2 CA + Décap)
 ];
-$allowedKpiTabs = $kpiCardsByRole[$kpiRole] ?? null;
-if ($allowedKpiTabs !== null) {
+$allowedKpiIds = $kpiCardsByRole[$kpiRole] ?? null;
+if ($allowedKpiIds !== null) {
+    // 2026-06-18 (Bloc 4) : on filtre par `id` désormais — depuis qu'il y a
+    // 2 KPIs CA distincts (ca_ht + ca_ttc) qui partagent le même tab 'ca',
+    // filtrer par `tab` ne discrimine plus correctement.
     $kpiCards = array_values(array_filter(
         $kpiCards,
-        fn($c) => in_array($c['tab'], $allowedKpiTabs, true)
+        fn($c) => in_array($c['id'], $allowedKpiIds, true)
     ));
 }
 @endphp
+
+{{-- ════ Bandeau d'info — Garde-fou 1 patronne (2026-06-18) ════
+     Apparait UNIQUEMENT si des filtres "Commune / Zone / Catégorie panneau"
+     sont actifs ET si l'utilisateur voit au moins un KPI CA réel.
+     Sans ce bandeau, l'utilisateur croirait à un bug ("j'ai filtré sur
+     Cocody mais le CA HT ne bouge pas"). ──────────────────────────── --}}
+@php
+    $hasCaRealCard = collect($kpiCards)->pluck('id')->intersect(['ca_ht', 'ca_ttc'])->isNotEmpty();
+    $ignored = $caReelIgnoredFilters ?? [];
+    $ignoredLabels = [
+        'commune_id'  => 'Commune',
+        'zone'        => 'Zone',
+        'category_id' => 'Catégorie panneau',
+    ];
+    $ignoredHuman = array_values(array_filter(array_map(
+        fn($k) => $ignoredLabels[$k] ?? null,
+        $ignored
+    )));
+@endphp
+@if($hasCaRealCard && !empty($ignoredHuman))
+<div style="background:rgba(59,130,246,.08);border-left:4px solid #3b82f6;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;line-height:1.55;color:#1e3a8a">
+    <strong style="color:#1e40af">ℹ️ Filtres ignorés sur les 2 KPIs CA réel ci-dessous :</strong>
+    {{ implode(' · ', $ignoredHuman) }}.<br>
+    <span style="color:#1e3a8a">La facturation suit le <strong>client</strong>, pas le panneau — ces filtres ne s'appliquent donc pas au CA HT facturé et à l'Encaissé TTC. Pour un CA réel filtré géographiquement, utilise la page <a href="{{ route('admin.finance.index') }}" style="color:#1e40af;font-weight:700;text-decoration:underline">Finance</a>.</span>
+</div>
+@endif
 
 <div id="kpi-cards" style="display:grid;grid-template-columns:repeat({{ max(1, count($kpiCards)) }},1fr);gap:10px;margin-bottom:20px">
     @foreach($kpiCards as $card)

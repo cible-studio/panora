@@ -245,9 +245,17 @@
                     </a>
                     @endif
 
-                    {{-- M2 Performance Équipe — entrée sidebar retirée le 2026-06-17
-                         (user : "on ne gère pas en temps réel les équipes").
-                         Routes /admin/performance/equipes restent accessibles via URL. --}}
+                    {{-- M2 Performance Équipe — entrée sidebar restaurée le 2026-06-18
+                         (user : "ajoute le lien dans le menu pour faciliter l'accès").
+                         Visible admin + mediaplanner uniquement (le technique ne
+                         consulte que sa propre performance, pas le leaderboard équipe). --}}
+                    @if($isAdmin || $isMP)
+                    <a href="{{ route('admin.performance.team.index') }}"
+                       data-tooltip="Performance équipes" class="nav-item {{ request()->routeIs('admin.performance.team.*') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                        <span class="nav-text">Performance équipes</span>
+                    </a>
+                    @endif
 
                     {{-- Tableau de bord FINANCIER — Admin + Commercial.
                          Cohérent avec la matrice facturation : MP/Technique

@@ -3,7 +3,12 @@
 
 <x-slot name="topbarActions">
     <a href="{{ route('admin.signalements.index') }}" class="btn btn-ghost btn-sm">📋 Signalements</a>
-    <a href="{{ route('admin.rapports.index') }}" class="btn btn-ghost btn-sm">📊 Rapports</a>
+    {{-- 2026-06-18 (feedback patronne) : avant le bouton "📊 Rapports" pointait
+         vers la page Rapports globale (sans rapport avec SLA). Remplacé par
+         un export PDF de l'analyse SLA actuelle (avec filtres période). --}}
+    <a href="{{ route('admin.sla.retards.export.pdf', array_filter(request()->only(['from', 'to', 'commune_id', 'client_id', 'zone', 'motif', 'status']))) }}"
+       class="btn btn-ghost btn-sm"
+       title="Télécharger le PDF de l'analyse SLA avec les filtres courants">📄 Exporter PDF</a>
 </x-slot>
 
 <div class="sla-page">
