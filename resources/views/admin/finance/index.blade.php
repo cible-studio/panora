@@ -1,9 +1,10 @@
 <x-admin-layout>
 <x-slot name="title">Tableau de bord financier</x-slot>
 
-{{-- 2026-06-18 (feedback patronne) : "Historique des relances" retiré du
-     topbarActions (zone réservée aux exports PDF) — déplacé vers une carte
-     visible juste au-dessus de la barre de filtres. --}}
+{{-- 2026-06-18 — bouton "Historique des relances" déplacé hors du
+     topbar (encombrait inutilement la barre du haut) vers la rangée
+     d'onglets juste en dessous, où il reste accessible et plus
+     contextuel (à côté de l'onglet Recouvrement). --}}
 
 @php
     $tab = request('tab', 'encaissements');
@@ -26,21 +27,6 @@
         </ul>
     </div>
 @endif
-
-{{-- ════ Accès rapide vers la page Historique des relances ════
-     2026-06-18 (feedback patronne) : ce bouton vivait dans topbarActions ;
-     placé ici pour rester visible sans empiéter sur la zone export PDF. --}}
-<a href="{{ route('admin.finance.relances') }}"
-   style="display:flex;align-items:center;gap:14px;padding:12px 18px;margin-bottom:14px;background:linear-gradient(135deg,rgba(99,102,241,.10),rgba(168,85,247,.06));border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--text);transition:transform .12s,box-shadow .12s"
-   onmouseenter="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 14px rgba(99,102,241,.10)'"
-   onmouseleave="this.style.transform='';this.style.boxShadow=''">
-    <div style="width:38px;height:38px;border-radius:10px;background:rgba(99,102,241,.20);display:flex;align-items:center;justify-content:center;font-size:18px">📞</div>
-    <div style="flex:1">
-        <div style="font-size:14px;font-weight:800;color:var(--text);line-height:1.2">Historique complet des relances</div>
-        <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Stats par canal · filtres avancés · 1 ligne par relance enregistrée</div>
-    </div>
-    <span style="font-size:14px;color:var(--accent);font-weight:700">Ouvrir →</span>
-</a>
 
 {{-- ════ BARRE DE PÉRIODE / FILTRES ════ --}}
 <form method="GET" class="fin-filter-card">
@@ -153,18 +139,29 @@
 </style>
 
 {{-- ════ ONGLETS ════ --}}
-<div class="fin-tabs">
-    @php
-        $tabs = [
-            'encaissements' => ['💵', 'Encaissements'],
-            'creances'      => ['📉', 'Créances'],
-            'recouvrement'  => ['🔁', 'Recouvrement'],
-        ];
-    @endphp
-    @foreach($tabs as $key => [$ico, $label])
-        <a href="{{ route('admin.finance.index', array_merge(request()->query(), ['tab' => $key])) }}"
-           class="fin-tab {{ $tab === $key ? 'is-active' : '' }}">{{ $ico }} {{ $label }}</a>
-    @endforeach
+<div class="fin-tabs-row" style="display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:14px;flex-wrap:wrap">
+    <div class="fin-tabs" style="margin-bottom:0">
+        @php
+            $tabs = [
+                'encaissements' => ['💵', 'Encaissements'],
+                'creances'      => ['📉', 'Créances'],
+                'recouvrement'  => ['🔁', 'Recouvrement'],
+            ];
+        @endphp
+        @foreach($tabs as $key => [$ico, $label])
+            <a href="{{ route('admin.finance.index', array_merge(request()->query(), ['tab' => $key])) }}"
+               class="fin-tab {{ $tab === $key ? 'is-active' : '' }}">{{ $ico }} {{ $label }}</a>
+        @endforeach
+    </div>
+    {{-- Bouton "Historique des relances" déplacé ici depuis le topbar
+         (Bloc 2 demande patronne 2026-06-18). Placé à droite des onglets
+         pour rester contextuel (recouvrement / relances). --}}
+    <a href="{{ route('admin.finance.relances') }}"
+       class="btn btn-ghost btn-sm"
+       style="display:inline-flex;align-items:center;gap:6px;height:36px;font-size:12.5px;font-weight:600"
+       title="Voir l'historique complet des relances (toutes traces enregistrées)">
+        📋 Historique des relances
+    </a>
 </div>
 
 {{-- Chart.js et window.financeBootstrap DOIVENT être poussés AVANT
