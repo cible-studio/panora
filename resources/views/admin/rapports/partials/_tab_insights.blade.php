@@ -371,7 +371,19 @@ CIBLE CI — Affichage urbain</div>
                         <div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic">{{ $insight['details'] }}</div>
                     @endif
                 </div>
-                @if(!empty($insight['cta_label']) && !empty($insight['cta_url']))
+                {{-- 2026-06-18 : 2 formats supportés
+                     - cta_url  : lien externe classique (ex. /admin/panels?status=libre)
+                     - cta_tab  : switch d'onglet via RPT.switchTab(id)
+                     Le service DashboardKpiService::insights() utilise désormais
+                     cta_tab pour les sauts internes (anciennes ancres #tab-x
+                     cassées car les IDs réels sont panel-x). --}}
+                @if(!empty($insight['cta_label']) && !empty($insight['cta_tab']))
+                    <button type="button"
+                            onclick="window.RPT && RPT.switchTab('{{ $insight['cta_tab'] }}'); document.getElementById('panel-{{ $insight['cta_tab'] }}')?.scrollIntoView({behavior:'smooth',block:'start'});"
+                            style="font-size:11px;font-weight:700;padding:5px 12px;background:{{ $colors['color'] }};color:#fff;border-radius:8px;border:none;cursor:pointer;flex-shrink:0;white-space:nowrap">
+                        {{ $insight['cta_label'] }} →
+                    </button>
+                @elseif(!empty($insight['cta_label']) && !empty($insight['cta_url']))
                     <a href="{{ $insight['cta_url'] }}" style="font-size:11px;font-weight:700;padding:5px 12px;background:{{ $colors['color'] }};color:#fff;border-radius:8px;text-decoration:none;flex-shrink:0;white-space:nowrap">
                         {{ $insight['cta_label'] }} →
                     </a>
@@ -380,28 +392,49 @@ CIBLE CI — Affichage urbain</div>
         @endforeach
     </div>
 
-    {{-- Tranches d'inactivité clients (cards + Chart.js bar) --}}
+    {{-- Tranches d'inactivité clients (cards + Chart.js bar).
+         2026-06-18 : quand tous les buckets = 0, on affiche un message
+         vert "✅ portefeuille sain" au lieu de 3 cards à 0 + chart vide
+         qui n'apportait rien à l'utilisateur. --}}
+    @php
+        $inactivityTotal = ($inactivityBucket['3_to_6'] ?? 0)
+                         + ($inactivityBucket['6_to_12'] ?? 0)
+                         + ($inactivityBucket['12_plus'] ?? 0);
+    @endphp
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">📉 Clients inactifs — par tranche</div>
-        <div style="display:grid;grid-template-columns:2fr 3fr;gap:16px;align-items:start">
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-            <div style="text-align:center;padding:14px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:10px">
-                <div style="font-size:24px;font-weight:800;color:#d97706">{{ $inactivityBucket['3_to_6'] }}</div>
-                <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">Inactifs 3-6 mois</div>
+        @if($inactivityTotal === 0)
+            <div style="background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.25);border-radius:10px;padding:18px 20px;display:flex;align-items:center;gap:14px">
+                <div style="font-size:30px">✅</div>
+                <div style="flex:1">
+                    <div style="font-size:13px;font-weight:800;color:#15803d;margin-bottom:3px">Portefeuille sain — aucun client en inactivité prolongée</div>
+                    <div style="font-size:11.5px;color:var(--text2);line-height:1.5">
+                        Tous les clients ont une campagne ou un encaissement de moins de 3 mois.
+                        Pas de risque de churn détecté à date sur le périmètre filtré.
+                    </div>
+                </div>
             </div>
-            <div style="text-align:center;padding:14px;background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.25);border-radius:10px">
-                <div style="font-size:24px;font-weight:800;color:#ea580c">{{ $inactivityBucket['6_to_12'] }}</div>
-                <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">Inactifs 6-12 mois</div>
+        @else
+            <div style="display:grid;grid-template-columns:2fr 3fr;gap:16px;align-items:start">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+                    <div style="text-align:center;padding:14px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:10px">
+                        <div style="font-size:24px;font-weight:800;color:#d97706">{{ $inactivityBucket['3_to_6'] }}</div>
+                        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">Inactifs 3-6 mois</div>
+                    </div>
+                    <div style="text-align:center;padding:14px;background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.25);border-radius:10px">
+                        <div style="font-size:24px;font-weight:800;color:#ea580c">{{ $inactivityBucket['6_to_12'] }}</div>
+                        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">Inactifs 6-12 mois</div>
+                    </div>
+                    <div style="text-align:center;padding:14px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.25);border-radius:10px">
+                        <div style="font-size:24px;font-weight:800;color:#dc2626">{{ $inactivityBucket['12_plus'] }}</div>
+                        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">Inactifs > 12 mois</div>
+                    </div>
+                </div>
+                <div style="position:relative;width:100%;height:180px">
+                    <canvas id="chart-inactivity" role="img" aria-label="Tranches d'inactivité"></canvas>
+                </div>
             </div>
-            <div style="text-align:center;padding:14px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.25);border-radius:10px">
-                <div style="font-size:24px;font-weight:800;color:#dc2626">{{ $inactivityBucket['12_plus'] }}</div>
-                <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">Inactifs > 12 mois</div>
-            </div>
-        </div>
-        <div style="position:relative;width:100%;height:180px">
-            <canvas id="chart-inactivity" role="img" aria-label="Tranches d'inactivité"></canvas>
-        </div>
-        </div>
+        @endif
     </div>
 
     {{-- Motifs d'annulation campagnes (doughnut Chart.js + liste détaillée) --}}

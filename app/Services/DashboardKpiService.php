@@ -2015,7 +2015,11 @@ class DashboardKpiService
                 'title'    => "{$inactive12->count()} client(s) inactif(s) depuis plus de 12 mois",
                 'message'  => 'Risque de churn élevé. Lancez une campagne de reconquête (mail + appel commercial dédié).',
                 'cta_label'=> 'Voir clients inactifs',
-                'cta_url'  => '#tab-clients',
+                // 2026-06-18 (fix lien cassé) : RPT.switchTab('clients') au
+                // lieu de #tab-clients qui ne match aucun id réel. L'ID
+                // panel est "panel-clients" (pas "tab-clients") + un anchor
+                // ne change pas de tab.
+                'cta_tab'  => 'clients',
             ]);
         }
 
@@ -2039,7 +2043,9 @@ class DashboardKpiService
                 'title'    => "Taux d'annulation élevé : {$stats['cancel_rate']}%",
                 'message'  => 'Au-dessus du seuil sain (15%). Analysez les motifs ci-dessous et ajustez le processus de proposition.',
                 'cta_label'=> 'Voir motifs',
-                'cta_url'  => '#tab-cancel-reasons',
+                // 2026-06-18 : pas d'onglet dédié "cancel-reasons" — le graphe
+                // est dans l'onglet "campagnes". Switch vers campagnes.
+                'cta_tab'  => 'campagnes',
             ]);
         }
 
@@ -2066,7 +2072,9 @@ class DashboardKpiService
                 'title'    => "{$overdue->count()} campagne(s) terminée(s) depuis plus de 7 jours",
                 'message'  => 'Vérifiez que les panneaux ont bien été décappés — risque d\'affichage périmé sur le terrain.',
                 'cta_label'=> 'Voir décappages',
-                'cta_url'  => '#tab-decap',
+                // 2026-06-18 (fix lien cassé) : ID réel = panel-decap →
+                // RPT.switchTab('decap').
+                'cta_tab'  => 'decap',
             ]);
         }
 
