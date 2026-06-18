@@ -289,6 +289,22 @@ class RapportController extends Controller
             $caMensuel->push(['label' => $moisFrCourtCa[$m] ?? '?', 'ca' => (float) $ca]);
         }
 
+        // ── CA RÉEL mensuel (HT facturé + TTC encaissé) — Bloc 4 Commit 13
+        //   Source unique CaRealService (cohérent avec FinancialDashboardService).
+        //   Ignore commune/zone/category (cf. Q2) — bandeau d'info géré côté vue.
+        //   Suit le même sélecteur d'année que $caMensuel (ca_year) pour rester
+        //   cohérent : 1 sélecteur, 2 graphiques côte à côte.
+        $caMensuelHt  = $caRealSvc->mensuelHtFacture(
+            $caMensuelYear,
+            null,
+            $filterClient ? (int) $filterClient : null
+        );
+        $caMensuelTtc = $caRealSvc->mensuelTtcEncaisse(
+            $caMensuelYear,
+            null,
+            $filterClient ? (int) $filterClient : null
+        );
+
         // ── Tableau mensuel (filtres appliqués) ─────────────────
         // Même logique : sélecteur d'année interne pour explorer plusieurs années.
         $tableauMensuelYear = (int) ($request->input('tableau_year') ?: $annee);
@@ -546,6 +562,9 @@ class RapportController extends Controller
             'occParCommune',
             'evolMensuelle',
             'caMensuel',
+            // Bloc 4 — Commit 13 : séries CA réel (HT facturé + TTC encaissé)
+            'caMensuelHt',
+            'caMensuelTtc',
             'tableauMensuel',
             'topClients',
             'statsCommunes',
@@ -631,6 +650,9 @@ class RapportController extends Controller
             'occParCommune'     => $data['occParCommune']->values(),
             'evolMensuelle'     => $data['evolMensuelle']->values(),
             'caMensuel'         => $data['caMensuel']->values(),
+            // Bloc 4 — Commit 13 : séries CA réel pour le graphique 2 lignes
+            'caMensuelHt'       => $data['caMensuelHt']->values(),
+            'caMensuelTtc'      => $data['caMensuelTtc']->values(),
             'tableauMensuel'    => $data['tableauMensuel']->values(),
             'topClients'        => $data['topClients']->values(),
             'statsCommunes'     => $data['statsCommunes']->values(),
