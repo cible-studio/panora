@@ -62,17 +62,25 @@ class FinancialDashboardService
             ->filter(fn($inv) => $inv->isOverdue())
             ->sum(fn($inv) => $inv->remainingAmount());
 
-        // Facturé sur la période = total_a_payer des factures émises (issued_at) sur la période
+        // Facturé sur la période = total_a_payer (TTC) des factures émises (issued_at) sur la période
         $facturePeriode = (float) $this->invoicesQueryForPeriod($from, $to, $commercialUserId)->sum('total_a_payer');
+
+        // 2026-06-18 (Bloc 4 — CA réel) : on expose AUSSI le HT facturé pour
+        // permettre au CaRealService de partager la même définition métier
+        // (single source of truth — cf. test de cohérence). Add-on, ne
+        // touche pas à `facture_periode` qui reste en TTC pour les
+        // consommateurs existants.
+        $facturePeriodeHt = (float) $this->invoicesQueryForPeriod($from, $to, $commercialUserId)->sum('net_ht');
 
         $taux = $facturePeriode > 0 ? round(($encaisse / $facturePeriode) * 100, 1) : 0.0;
 
         return [
-            'encaisse'          => round($encaisse, 2),
-            'du'                => round($du, 2),
-            'en_retard'         => round($enRetard, 2),
-            'taux_recouvrement' => $taux,
-            'facture_periode'   => round($facturePeriode, 2),
+            'encaisse'           => round($encaisse, 2),
+            'du'                 => round($du, 2),
+            'en_retard'          => round($enRetard, 2),
+            'taux_recouvrement'  => $taux,
+            'facture_periode'    => round($facturePeriode, 2),
+            'facture_periode_ht' => round($facturePeriodeHt, 2),
         ];
     }
 
