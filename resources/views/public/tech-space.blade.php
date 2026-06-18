@@ -45,9 +45,7 @@
 ])
 
 {{-- Bandeau live : nouvelle pose assignée pendant que tu es sur la page --}}
-<div class="new-task-banner" data-new-task-banner onclick="window.location.reload()">
-    🆕 <span data-new-task-text>On t'a donné un nouveau panneau</span> — touche pour voir
-</div>
+@include('public.tech.partials._banner_new_task')
 
 {{-- ═══ BARRE DE CONTRÔLES STICKY ═══
      - Select2 recherche AJAX paginée (source : tech.space.search) →
@@ -61,26 +59,7 @@
        imprimable A4 avec toutes les poses).
 --}}
 @if($totalActive > 0)
-<div class="controls-bar">
-    <div class="controls-bar-row">
-        <select id="ts-search" data-placeholder="🔍 Cherche un panneau, une rue, une ville…"></select>
-        <a class="ctrl-btn" href="{{ route('tech.space.map', $token) }}" title="Voir tous les panneaux sur une carte">
-            🗺<span style="margin-left:2px;font-size:11px">Carte</span>
-        </a>
-        <button type="button" class="ctrl-btn" id="ts-distance-btn" title="Voir les panneaux les plus proches de moi en premier">
-            📍<span style="margin-left:2px;font-size:11px" id="ts-distance-label">Près de moi</span>
-        </button>
-        <button type="button" class="ctrl-btn" id="ts-tour-btn" title="Calculer le meilleur ordre pour visiter tous les panneaux">
-            🚀<span style="margin-left:2px;font-size:11px" id="ts-tour-label">Mon chemin</span>
-        </button>
-        <a class="ctrl-btn" href="{{ route('tech.space.route-sheet', $token) }}" target="_blank" rel="noopener" title="Liste à imprimer ou à garder sur le téléphone">
-            🖨<span style="margin-left:2px;font-size:11px">Papier</span>
-        </a>
-        <span class="ctrl-btn" id="ts-sync-badge" style="display:none;background:rgba(245,158,11,.15);color:#b45309;border-color:rgba(245,158,11,.4);cursor:pointer" title="Photos à envoyer dès que tu as du réseau">
-            📤<span style="margin-left:2px;font-size:11px" id="ts-sync-count">0</span>
-        </span>
-    </div>
-</div>
+    @include('public.tech.partials._controls_bar', ['token' => $token])
 @endif
 
 {{-- ═══ SOMMAIRE ZONES STICKY (TOC) ═══
@@ -190,36 +169,8 @@
             </div>
         @endif
 
-        {{-- ═══ CHIPS FILTRES ═══
-             Filtres rapides combinables. État stocké dans l'URL
-             (?late=1&today=1&...) pour bookmark / partage / back-fwd.
-             Compteurs live = nb de cards SSR matchant le filtre. --}}
-        <div class="filters-row" id="ts-filters">
-            <button type="button" class="filter-chip" data-filter="late">
-                <span>⏰</span> En retard <span class="chip-count" data-cnt="late">0</span>
-            </button>
-            <button type="button" class="filter-chip" data-filter="today">
-                <span>📅</span> Aujourd'hui <span class="chip-count" data-cnt="today">0</span>
-            </button>
-            <button type="button" class="filter-chip" data-filter="problem">
-                <span>⚠️</span> Avec souci <span class="chip-count" data-cnt="problem">0</span>
-            </button>
-            <button type="button" class="filter-chip" data-filter="reject">
-                <span>🚫</span> Photo à refaire <span class="chip-count" data-cnt="reject">0</span>
-            </button>
-            <button type="button" class="filter-chip" data-filter="en_route" data-filter-kind="status">
-                <span>🚗</span> En route <span class="chip-count" data-cnt="en_route">0</span>
-            </button>
-            <button type="button" class="filter-chip" data-filter="en_cours" data-filter-kind="status">
-                <span>🔧</span> Sur place <span class="chip-count" data-cnt="en_cours">0</span>
-            </button>
-            <button type="button" class="filter-clear" id="ts-filter-clear" style="display:none">Tout voir</button>
-        </div>
-
-        <div id="ts-empty-filter"
-             style="display:none;margin:14px 0;padding:18px;text-align:center;color:var(--text3);background:var(--surface);border:1px dashed var(--border);border-radius:12px;font-size:13px">
-            Aucun panneau ne correspond. Touche « Tout voir » pour effacer le filtre.
-        </div>
+        {{-- ═══ CHIPS FILTRES ═══ --}}
+        @include('public.tech.partials._filters_chips')
 
         @php $today = \Carbon\Carbon::today(); @endphp
         @foreach($groupedByCommune as $communeName => $tasks)
