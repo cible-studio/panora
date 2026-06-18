@@ -147,7 +147,13 @@
     <table>
         <tr>
             <td>
-                <div class="logo">CIBLE CI</div>
+                {{-- 2026-06-18 (feedback patronne : logo CIBLE sur TOUS les PDF).
+                     Variable injectée par AppServiceProvider::boot() View::composer. --}}
+                @if(!empty($logoCibleLight))
+                    <img src="{{ $logoCibleLight }}" alt="CIBLE CI" style="height:38px;margin-bottom:6px;">
+                @else
+                    <div class="logo">CIBLE CI</div>
+                @endif
                 <div class="logo-sub">Régie OOH — Côte d'Ivoire</div>
                 <div class="doc-title">Proposition commerciale</div>
                 <div class="doc-meta">
