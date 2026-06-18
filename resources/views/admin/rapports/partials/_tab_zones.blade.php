@@ -11,8 +11,9 @@
             Nbre panneaux
         </button>
         <button onclick="HM.setMode('ca')"    id="hm-btn-ca"
-                style="font-size:12px;padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:pointer;transition:all .15s">
-            CA annuel
+                style="font-size:12px;padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:pointer;transition:all .15s"
+                title="CA contractuel basé sur les campagnes (Campaign.total_amount)">
+            CA contractuel annuel
         </button>
         <span style="margin-left:auto;font-size:11px;color:var(--text3)">
             {{ $statsCommunes->count() }} communes · survolez une tuile pour le détail
@@ -52,7 +53,7 @@
             <table style="width:100%;border-collapse:collapse;min-width:700px">
                 <thead>
                     <tr style="border-bottom:1px solid var(--border)">
-                        @foreach(['Commune','Total','Occupés','Libres','Maint.','Taux','Tarif moy.','CA ' . $annee] as $h)
+                        @foreach(['Commune','Total','Occupés','Libres','Maint.','Taux','Tarif moy.','CA contractuel ' . $annee] as $h)
                         <th style="padding:10px 16px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">{{ $h }}</th>
                         @endforeach
                     </tr>

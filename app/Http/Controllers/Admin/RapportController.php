@@ -193,12 +193,42 @@ class RapportController extends Controller
         ];
 
         // ── CA total période (filtres appliqués) ────────────────
+        // ATTENTION (Bloc 4 — Famille B, 2026-06-18) :
+        //   $caTotal = CA CONTRACTUEL = somme de Campaign.total_amount sur les
+        //   campagnes actives dans la période. Sert encore aux tableaux secondaires
+        //   (Top clients, CA par commune, ca_annee, etc.) — cf. arbitrage Q4
+        //   patronne.
+        //   Les NOUVEAUX KPIs "CA réel" (HT facturé + Encaissé TTC) sont
+        //   calculés plus bas via CaRealService — ils ignorent commune/zone/
+        //   category (cf. Q2). Le libellé "CA contractuel" est désormais
+        //   imposé dans les vues pour lever toute ambiguïté.
         $caTotal = $applyCampaignFilters(
             Campaign::where('start_date', '<=', $dateTo)
                     ->where('end_date',   '>=', $dateFrom)
         )->sum('total_amount');
 
         $caTicketMoy = $totalCampagnes > 0 ? round($caTotal / $totalCampagnes) : 0;
+
+        // ── CA RÉEL période (HT facturé + TTC encaissé) — Bloc 4 ─────────
+        //   Le service délègue le calcul à FinancialDashboardService pour
+        //   garantir la cohérence Finance ↔ Rapports (test de cohérence
+        //   au franc près, cf. CaRealServiceConsistencyTest).
+        //   Filtres ignorés : commune, zone, category — la facturation suit
+        //   le client, pas le panneau. Le bandeau d'info (Garde-fou 1) est
+        //   généré côté vue via `$caReelIgnoredFilters`.
+        $caRealSvc = app(\App\Services\CaRealService::class);
+        $caReel = $caRealSvc->kpis(
+            $dateFrom,
+            $dateTo,
+            null, // commercial_id : RBAC déjà géré au niveau Invoice::forCommercialUser via le scope
+            $filterClient ? (int) $filterClient : null,
+            [
+                'commune_id'  => $filterCommune,
+                'zone'        => $filterZone,
+                'category_id' => $filterCategory,
+            ]
+        );
+        $caReelIgnoredFilters = $caReel['ignored_filters'];
 
         // ── Occupation par commune SUR LA PÉRIODE (filtres appliqués) ──
         $communeQuery = Commune::query();
@@ -510,6 +540,9 @@ class RapportController extends Controller
             'occupation',
             'caTotal',
             'caTicketMoy',
+            // Bloc 4 — CA réel (HT facturé + TTC encaissé) + bandeau filtres ignorés
+            'caReel',
+            'caReelIgnoredFilters',
             'occParCommune',
             'evolMensuelle',
             'caMensuel',
