@@ -219,17 +219,36 @@ class DashboardKpiService
         return $this->cached('parc_overview', function () {
             $base = fn() => $this->applyPanelEloquentFilters(Panel::whereNull('deleted_at'));
 
-            $total       = $base()->count();
-            $occupied    = $base()->whereIn('status', ['occupe', 'confirme'])->count();
-            $available   = $base()->where('status', 'libre')->count();
-            $option      = $base()->where('status', 'option')->count();
+            $total = $base()->count();
+
+            // BUG FIX 2026-06-18 (CLAUDE.md règle 1 — harmonisation) :
+            //   Avant : "occupé" = status DB instantané (`occupe`/`confirme`)
+            //           → chiffre figé, ignorait la période sélectionnée
+            //           → divergeait du tableau de bord à l'écran (cf.
+            //             RapportController::index lignes 173-185).
+            //   Après : "occupé sur la période" = panneau qui a au moins une
+            //           campagne (actif/planifie/termine) chevauchant
+            //           [from, to]. Même logique que l'écran, donc même
+            //           chiffre dans PDF / Excel / emails / executiveSummary.
+            //   Maintenance : reste sur status DB (statut peu changeant,
+            //           pas besoin de fenêtre temporelle).
+            //   Available = total − occupé − maintenance (cohérent écran).
+            $occupied = $base()->whereHas('campaigns', function ($q) {
+                $q->whereIn('status', ['actif', 'planifie', 'termine'])
+                  ->where('start_date', '<=', $this->to->toDateString())
+                  ->where('end_date',   '>=', $this->from->toDateString())
+                  ->whereNull('deleted_at');
+                $this->applyCampaignEloquentFilters($q);
+            })->count();
+
             $maintenance = $base()->where('status', 'maintenance')->count();
+            $available   = max(0, $total - $occupied - $maintenance);
 
             return [
                 'total'           => $total,
                 'occupied'        => $occupied,
                 'available'       => $available,
-                'option'          => $option,
+                'option'          => 0, // déprécié — conservé pour compat éventuelle
                 'maintenance'     => $maintenance,
                 'occupation_rate' => $total > 0 ? round(($occupied / $total) * 100, 1) : 0,
             ];
