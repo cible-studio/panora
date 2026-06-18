@@ -25,6 +25,7 @@ import { init as initHeartbeat }   from './features/heartbeat.js';
 import { init as initPwaInstall }  from './features/pwa-install.js';
 import { init as initReport }      from './features/report.js';
 import { init as initStatusChanges } from './features/status-changes.js';
+import { init as initSearch }      from './features/search.js';
 
 // Garde-fou : si TECH_CONFIG n'est pas là, on log mais on n'explose pas
 // (la page continue de fonctionner via le JS inline encore présent).
@@ -40,10 +41,10 @@ function bootstrap() {
     initPwaInstall();   // capture beforeinstallprompt
     initReport();         // [SM1.5 Lot 1] modale signalement 9 motifs
     initStatusChanges();  // [SM1.5 Lot 2] Y aller / J'y suis / statut générique
+    initSearch();         // [SM1.5 Lot 3] Select2 AJAX paginé + openFocusModal
 
-    // NOTE : filters, search, upload, geolocate restent dans le <script>
-    // inline de tech-space.blade.php. Migration en cours en SM1.5
-    // (cf. docs/TECHNICAL_DEBT.md).
+    // NOTE : filters, geolocate, upload restent dans le <script> inline.
+    // Migration en cours en SM1.5 (cf. docs/TECHNICAL_DEBT.md).
 }
 
 if (document.readyState === 'loading') {
