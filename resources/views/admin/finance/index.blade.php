@@ -1,11 +1,10 @@
 <x-admin-layout>
 <x-slot name="title">Tableau de bord financier</x-slot>
 
-<x-slot:topbarActions>
-    <a href="{{ route('admin.finance.relances') }}" class="btn btn-ghost btn-sm">
-        📋 Historique des relances
-    </a>
-</x-slot>
+{{-- 2026-06-18 — bouton "Historique des relances" déplacé hors du
+     topbar (encombrait inutilement la barre du haut) vers la rangée
+     d'onglets juste en dessous, où il reste accessible et plus
+     contextuel (à côté de l'onglet Recouvrement). --}}
 
 @php
     $tab = request('tab', 'encaissements');
@@ -140,18 +139,29 @@
 </style>
 
 {{-- ════ ONGLETS ════ --}}
-<div class="fin-tabs">
-    @php
-        $tabs = [
-            'encaissements' => ['💵', 'Encaissements'],
-            'creances'      => ['📉', 'Créances'],
-            'recouvrement'  => ['🔁', 'Recouvrement'],
-        ];
-    @endphp
-    @foreach($tabs as $key => [$ico, $label])
-        <a href="{{ route('admin.finance.index', array_merge(request()->query(), ['tab' => $key])) }}"
-           class="fin-tab {{ $tab === $key ? 'is-active' : '' }}">{{ $ico }} {{ $label }}</a>
-    @endforeach
+<div class="fin-tabs-row" style="display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:14px;flex-wrap:wrap">
+    <div class="fin-tabs" style="margin-bottom:0">
+        @php
+            $tabs = [
+                'encaissements' => ['💵', 'Encaissements'],
+                'creances'      => ['📉', 'Créances'],
+                'recouvrement'  => ['🔁', 'Recouvrement'],
+            ];
+        @endphp
+        @foreach($tabs as $key => [$ico, $label])
+            <a href="{{ route('admin.finance.index', array_merge(request()->query(), ['tab' => $key])) }}"
+               class="fin-tab {{ $tab === $key ? 'is-active' : '' }}">{{ $ico }} {{ $label }}</a>
+        @endforeach
+    </div>
+    {{-- Bouton "Historique des relances" déplacé ici depuis le topbar
+         (Bloc 2 demande patronne 2026-06-18). Placé à droite des onglets
+         pour rester contextuel (recouvrement / relances). --}}
+    <a href="{{ route('admin.finance.relances') }}"
+       class="btn btn-ghost btn-sm"
+       style="display:inline-flex;align-items:center;gap:6px;height:36px;font-size:12.5px;font-weight:600"
+       title="Voir l'historique complet des relances (toutes traces enregistrées)">
+        📋 Historique des relances
+    </a>
 </div>
 
 {{-- Chart.js et window.financeBootstrap DOIVENT être poussés AVANT
