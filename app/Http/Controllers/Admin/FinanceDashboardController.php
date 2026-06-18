@@ -146,9 +146,69 @@ class FinanceDashboardController extends Controller
             }
         };
 
-        $query = Relance::query()->with(['client:id,name', 'invoice:id,reference', 'user:id,name']);
+        // 2026-06-18 (refonte historique) — agrégation par CLIENT :
+        // une ligne par client (au lieu d'une par relance), avec :
+        //   - la dernière relance (date + canal + résultat + facture)
+        //   - le nombre total de relances du client (sur le filtre actif)
+        //   - la dette actuelle du client (snapshot live)
+        // Le détail d'une ligne ouvre le drawer qui liste TOUTES les relances
+        // du client dans l'ordre chronologique descendant.
+        //
+        // Approche pragmatique : on charge jusqu'à 2000 relances filtrées,
+        // puis groupBy en PHP. À 30 clients à relancer avec ~10 relances
+        // chacun = 300 lignes, on est très loin du plafond. Si la régie
+        // dépasse 1000 clients actifs un jour, on rebasculera sur une
+        // sous-query SQL avec MAX(relance_date) + COUNT.
+        $query = Relance::query()->with(['client:id,name,phone', 'invoice:id,reference', 'user:id,name']);
         $applyFilters($query);
-        $relances = $query->orderByDesc('relance_date')->orderByDesc('id')->paginate(30)->withQueryString();
+        $allFiltered = $query->orderByDesc('relance_date')->orderByDesc('id')->take(2000)->get();
+
+        $byClient = $allFiltered->groupBy('client_id')->map(function ($group) {
+            $last = $group->first(); // déjà triées DESC
+            return [
+                'client_id'    => $last->client_id,
+                'client'       => $last->client,
+                'count'        => $group->count(),
+                'last_relance' => $last,
+                'has_invoice'  => $group->whereNotNull('invoice_id')->count(),
+            ];
+        })->values();
+
+        // Dette actuelle par client (snapshot live) — on réutilise
+        // openInvoicesQuery() puis on agrège côté PHP avec remainingAmount()
+        // qui n'est pas une colonne SQL.
+        $clientIds = $byClient->pluck('client_id')->all();
+        $duByClient = [];
+        if (!empty($clientIds)) {
+            $invoices = $this->svc->openInvoicesQuery($commercialUid)
+                ->whereIn('client_id', $clientIds)
+                ->get();
+            foreach ($invoices as $inv) {
+                $cid = $inv->client_id;
+                $rem = $inv->remainingAmount();
+                if ($rem <= 0) continue;
+                if (!isset($duByClient[$cid])) {
+                    $duByClient[$cid] = ['total_du' => 0.0, 'factures_open' => 0];
+                }
+                $duByClient[$cid]['total_du']      += $rem;
+                $duByClient[$cid]['factures_open'] += 1;
+            }
+        }
+        $byClient = $byClient->map(function ($row) use ($duByClient) {
+            $row['total_du']      = $duByClient[$row['client_id']]['total_du']      ?? 0.0;
+            $row['factures_open'] = $duByClient[$row['client_id']]['factures_open'] ?? 0;
+            return $row;
+        })->sortByDesc(fn($r) => $r['last_relance']->relance_date->timestamp)->values();
+
+        // Pagination manuelle : 30 clients par page (pas 30 relances).
+        $page    = max(1, (int) $request->input('page', 1));
+        $perPage = 30;
+        $total   = $byClient->count();
+        $clientsPage = $byClient->slice(($page - 1) * $perPage, $perPage)->values();
+        $relances = new \Illuminate\Pagination\LengthAwarePaginator(
+            $clientsPage, $total, $perPage, $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
 
         // ── KPI cards : total, ce mois, à relancer (outcome=a_relancer)
         $kpiBase = fn() => Relance::query()->tap($applyFilters);
@@ -213,14 +273,51 @@ class FinanceDashboardController extends Controller
      */
     public function relanceDetail(\App\Models\Relance $relance)
     {
+        // 2026-06-18 (refonte historique) — le drawer affiche maintenant
+        // TOUTES les relances du client dont fait partie la relance
+        // demandée, dans l'ordre chronologique descendant. La relance
+        // demandée est mise en évidence (`is-current`) dans la vue.
+        // En-tête : dette actuelle du client + compteur.
         $relance->load([
-            'client:id,name',
+            'client:id,name,phone,email',
             'invoice:id,reference,total_a_payer,status,issued_at',
             'schedule:id,invoice_id,due_date,amount,paid_at',
             'user:id,name',
         ]);
 
-        return view('admin.finance.partials.relance-detail', compact('relance'));
+        $clientId = $relance->client_id;
+        $clientRelances = \App\Models\Relance::query()
+            ->where('client_id', $clientId)
+            ->with([
+                'invoice:id,reference,total_a_payer,status,issued_at',
+                'schedule:id,invoice_id,due_date,amount,paid_at',
+                'user:id,name',
+            ])
+            ->orderByDesc('relance_date')
+            ->orderByDesc('id')
+            ->get();
+
+        // Dette actuelle du client (snapshot live).
+        $commercialUid = $this->resolveCommercialScope();
+        $totalDu = 0.0;
+        $facturesOpen = 0;
+        $invoices = $this->svc->openInvoicesQuery($commercialUid)
+            ->where('client_id', $clientId)
+            ->get();
+        foreach ($invoices as $inv) {
+            $rem = $inv->remainingAmount();
+            if ($rem > 0) {
+                $totalDu      += $rem;
+                $facturesOpen += 1;
+            }
+        }
+
+        return view('admin.finance.partials.relance-detail', [
+            'relance'        => $relance, // mise en évidence
+            'clientRelances' => $clientRelances,
+            'totalDu'        => $totalDu,
+            'facturesOpen'   => $facturesOpen,
+        ]);
     }
 
     public function storeRelance(Request $request, \App\Services\ReminderService $reminders)
