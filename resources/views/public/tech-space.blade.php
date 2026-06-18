@@ -152,6 +152,16 @@
 
 @include('public.tech.partials._modal_report')
 
+{{-- Phase 3 SM1 — publication TECH_CONFIG (csrf + token + routes + bootstrap)
+     consommé par les modules JS chargés juste après. À garder AVANT le
+     <script type="module"> qui suit. --}}
+@include('public.tech.partials._js_config', ['token' => $token])
+
+{{-- Phase 3 SM1 — entry des modules ES (api/state/offline/sw-register +
+     features extraites au fur et à mesure des lots F/G). Le `?v=` invalide
+     le cache navigateur à chaque déploiement (clé : APP_VERSION du .env). --}}
+<script type="module" src="{{ asset('js/tech/tech-app.js') }}?v={{ config('app.version', '1') }}"></script>
+
 <script>
 (function() {
     'use strict';
