@@ -131,4 +131,70 @@ class ReminderService
             default     => '📝 Autre',
         };
     }
+
+    /** Libellé résultat (outcome) humain. */
+    public static function outcomeLabel(?string $outcome): string
+    {
+        return match ($outcome) {
+            'promesse_paiement' => '✅ Promesse de paiement',
+            'paiement_recu'     => '💰 Paiement reçu',
+            'desaccord'         => '⚠ Désaccord',
+            'sans_reponse'      => '📵 Sans réponse',
+            'a_relancer'        => '🔁 À relancer',
+            'autre'             => '📝 Autre',
+            default             => '—',
+        };
+    }
+
+    /**
+     * Liste paginée des relances d'un client (Bloc 3 — Famille D, 2026-06-18).
+     * Utilisée par l'onglet "Relances" sur la fiche client + page Recouvrement.
+     *
+     * @param array{from?:string,to?:string,outcome?:string,canal?:string,invoice_id?:int} $filters
+     */
+    public function listByClient(int $clientId, array $filters = [], int $perPage = 20)
+    {
+        return Relance::query()
+            ->where('client_id', $clientId)
+            ->when(!empty($filters['from']),    fn ($q) => $q->whereDate('relance_date', '>=', $filters['from']))
+            ->when(!empty($filters['to']),      fn ($q) => $q->whereDate('relance_date', '<=', $filters['to']))
+            ->when(!empty($filters['outcome']), fn ($q) => $q->where('outcome', $filters['outcome']))
+            ->when(!empty($filters['canal']),   fn ($q) => $q->where('canal', $filters['canal']))
+            ->when(!empty($filters['invoice_id']), fn ($q) => $q->where('invoice_id', $filters['invoice_id']))
+            ->with([
+                'invoice:id,reference,total_a_payer,status',
+                'schedule:id,invoice_id,due_date,amount',
+                'user:id,name',
+            ])
+            ->orderByDesc('relance_date')
+            ->orderByDesc('id')
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    /**
+     * Stats rapides pour le bandeau "Relances client" (compteurs).
+     * Bloc 3 — Famille D, 2026-06-18.
+     */
+    public function statsByClient(int $clientId): array
+    {
+        $rows = Relance::query()
+            ->where('client_id', $clientId)
+            ->selectRaw('
+                COUNT(*) as total,
+                SUM(CASE WHEN outcome = "promesse_paiement" THEN 1 ELSE 0 END) as promesses,
+                SUM(CASE WHEN outcome = "a_relancer" THEN 1 ELSE 0 END) as a_relancer,
+                SUM(CASE WHEN outcome = "sans_reponse" THEN 1 ELSE 0 END) as sans_reponse,
+                MAX(relance_date) as derniere
+            ')
+            ->first();
+
+        return [
+            'total'        => (int) ($rows->total ?? 0),
+            'promesses'    => (int) ($rows->promesses ?? 0),
+            'a_relancer'   => (int) ($rows->a_relancer ?? 0),
+            'sans_reponse' => (int) ($rows->sans_reponse ?? 0),
+            'derniere'     => $rows->derniere ?? null,
+        ];
+    }
 }

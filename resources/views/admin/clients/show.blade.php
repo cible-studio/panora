@@ -593,6 +593,133 @@
 </div>
 @endif
 
+{{-- ═══ Onglet Relances — Bloc 3 Famille D (2026-06-18) ═══ --}}
+<div class="card" style="margin-top:20px;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+        <div class="card-title">📞 Historique des relances ({{ $relancesStats['total'] }})</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            @if($relancesStats['derniere'])
+                <span style="font-size:11.5px;color:var(--text3)">
+                    Dernière : {{ \Carbon\Carbon::parse($relancesStats['derniere'])->format('d/m/Y') }}
+                </span>
+            @endif
+            <a href="{{ route('admin.finance.relances', ['client_id' => $client->id]) }}"
+               class="btn btn-ghost btn-sm" style="font-size:11.5px">📋 Voir toutes</a>
+            <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement', 'open_relance' => 1, 'client_id' => $client->id]) }}"
+               class="btn btn-primary btn-sm" style="font-size:11.5px">+ Enregistrer une relance</a>
+        </div>
+    </div>
+
+    @if($relancesStats['total'] > 0)
+        {{-- Mini stats --}}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:12px 18px;background:var(--surface2);border-bottom:1px solid var(--border)">
+            <div>
+                <div style="font-size:10px;text-transform:uppercase;font-weight:700;color:var(--text3);letter-spacing:.5px">Total</div>
+                <div style="font-size:18px;font-weight:800;color:var(--text)">{{ $relancesStats['total'] }}</div>
+            </div>
+            <div>
+                <div style="font-size:10px;text-transform:uppercase;font-weight:700;color:var(--text3);letter-spacing:.5px">✅ Promesses</div>
+                <div style="font-size:18px;font-weight:800;color:#15803d">{{ $relancesStats['promesses'] }}</div>
+            </div>
+            <div>
+                <div style="font-size:10px;text-transform:uppercase;font-weight:700;color:var(--text3);letter-spacing:.5px">🔁 À relancer</div>
+                <div style="font-size:18px;font-weight:800;color:#b45309">{{ $relancesStats['a_relancer'] }}</div>
+            </div>
+            <div>
+                <div style="font-size:10px;text-transform:uppercase;font-weight:700;color:var(--text3);letter-spacing:.5px">📵 Sans réponse</div>
+                <div style="font-size:18px;font-weight:800;color:#b91c1c">{{ $relancesStats['sans_reponse'] }}</div>
+            </div>
+        </div>
+    @endif
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Canal</th>
+                    <th>Facture</th>
+                    <th>Note</th>
+                    <th>Résultat</th>
+                    <th>Suite à donner</th>
+                    <th>Par</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($relancesClient as $r)
+                    <tr>
+                        <td style="font-size:12px;color:var(--text2);white-space:nowrap;font-weight:600">
+                            {{ \Carbon\Carbon::parse($r->relance_date)->format('d/m/Y') }}
+                        </td>
+                        <td style="font-size:12px;color:var(--text2)">
+                            {{ \App\Services\ReminderService::canalLabel($r->canal) }}
+                        </td>
+                        <td>
+                            @if($r->invoice)
+                                <a href="{{ route('admin.invoices.show', $r->invoice) }}?back=client"
+                                   style="font-family:monospace;color:var(--accent);text-decoration:none;font-weight:700;font-size:12px">{{ $r->invoice->reference }}</a>
+                            @else
+                                <span style="font-size:11px;color:var(--text3);font-style:italic">— Relance globale</span>
+                            @endif
+                        </td>
+                        <td style="font-size:12px;color:var(--text2);max-width:280px">
+                            @if($r->note)
+                                <span title="{{ $r->note }}">{{ \Illuminate\Support\Str::limit($r->note, 80) }}</span>
+                            @else
+                                <span style="color:var(--text3)">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            @php
+                                $outcomeColors = [
+                                    'promesse_paiement' => ['bg' => 'rgba(34,197,94,.12)',  'c' => '#15803d'],
+                                    'paiement_recu'     => ['bg' => 'rgba(34,197,94,.18)',  'c' => '#15803d'],
+                                    'a_relancer'        => ['bg' => 'rgba(245,158,11,.14)', 'c' => '#b45309'],
+                                    'sans_reponse'      => ['bg' => 'rgba(107,114,128,.12)','c' => '#4b5563'],
+                                    'desaccord'         => ['bg' => 'rgba(239,68,68,.10)',  'c' => '#b91c1c'],
+                                    'autre'             => ['bg' => 'rgba(99,102,241,.10)', 'c' => '#4338ca'],
+                                ];
+                                $cfg = $outcomeColors[$r->outcome] ?? ['bg' => 'var(--surface2)', 'c' => 'var(--text3)'];
+                            @endphp
+                            @if($r->outcome)
+                                <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:700;background:{{ $cfg['bg'] }};color:{{ $cfg['c'] }};white-space:nowrap">
+                                    {{ \App\Services\ReminderService::outcomeLabel($r->outcome) }}
+                                </span>
+                            @else
+                                <span style="font-size:11px;color:var(--text3);font-style:italic">— Non renseigné</span>
+                            @endif
+                        </td>
+                        <td style="font-size:12px;color:var(--text2);max-width:200px">
+                            @if($r->suite_donnee)
+                                <span title="{{ $r->suite_donnee }}" style="font-style:italic">💬 {{ \Illuminate\Support\Str::limit($r->suite_donnee, 60) }}</span>
+                            @else
+                                <span style="color:var(--text3)">—</span>
+                            @endif
+                        </td>
+                        <td style="font-size:11.5px;color:var(--text3);white-space:nowrap">{{ $r->user?->name ?? '—' }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="7" style="text-align:center;padding:30px;color:var(--text3);font-style:italic;font-size:13px">
+                            Aucune relance enregistrée pour ce client.<br>
+                            <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement', 'open_relance' => 1, 'client_id' => $client->id]) }}"
+                               style="color:var(--accent);text-decoration:none;font-weight:700;font-size:12px;margin-top:8px;display:inline-block">
+                                + Enregistrer la première
+                            </a>
+                        </td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+
+    @if($relancesClient->hasPages())
+        <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+            {{ $relancesClient->withQueryString()->links() }}
+        </div>
+    @endif
+</div>
+
 {{-- Modal suppression --}}
 <div id="modal-delete-client" class="modal-overlay" style="display:none"
      onclick="if(event.target===this) closeDeleteClient()">
