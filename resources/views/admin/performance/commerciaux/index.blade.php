@@ -1,15 +1,9 @@
 <x-admin-layout>
 <x-slot name="title">Performance commerciale</x-slot>
 
-<x-slot name="topbarActions">
-    <a href="{{ route('admin.migration.commercial-attribution') }}" class="btn btn-ghost btn-sm">⚙ Attribuer campagnes</a>
-    {{-- 2026-06-18 (feedback patronne) : avant le bouton "📊 Rapports" pointait
-         vers le rapport global (sans rapport avec la page). Remplacé par un
-         export PDF du leaderboard avec les filtres période courants. --}}
-    <a href="{{ route('admin.performance.commercial.export.pdf', array_filter(request()->only(['from', 'to', 'preset']))) }}"
-       class="btn btn-ghost btn-sm"
-       title="Télécharger le PDF du leaderboard avec la période courante">📄 Exporter PDF</a>
-</x-slot>
+{{-- 2026-06-18 — Boutons d'action (Attribuer campagnes / Export PDF)
+     déplacés du topbar vers le hero header ci-dessous, où ils
+     restent contextuels et libèrent la barre du haut. --}}
 
 @php
     // Helper format FCFA — réutilisé partout dans la vue
@@ -27,6 +21,19 @@
                 Classement des commerciaux · {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}
                 ({{ (int)$from->diffInDays($to) + 1 }} jours)
             </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <a href="{{ route('admin.migration.commercial-attribution') }}" class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);color:#7c3aed"
+               title="Attribuer manuellement des campagnes à un commercial">
+                ⚙ Attribuer campagnes
+            </a>
+            <a href="{{ route('admin.performance.commercial.export.pdf', array_filter(request()->only(['from', 'to', 'preset']))) }}"
+               class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#b91c1c"
+               title="Télécharger le PDF du leaderboard avec la période courante">
+                📄 Exporter PDF
+            </a>
         </div>
     </div>
 

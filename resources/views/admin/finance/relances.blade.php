@@ -22,14 +22,9 @@
     </a>
 </x-slot:topbarLeft>
 
-<x-slot name="topbarActions">
-    <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement']) }}" class="btn btn-ghost btn-sm">
-        📞 Recouvrement
-    </a>
-    <a href="{{ route('admin.finance.index', ['tab' => 'creances']) }}" class="btn btn-ghost btn-sm">
-        📉 Créances
-    </a>
-</x-slot>
+{{-- 2026-06-18 — Boutons "Recouvrement" / "Créances" déplacés du
+     topbar (encombrant) vers le hero header juste en dessous, où ils
+     sont contextuels (à côté de "+ Enregistrer une relance"). --}}
 
 <div class="fin-relances-page">
     {{-- Hero header — style cohérent avec les autres dashboards. --}}
@@ -42,10 +37,24 @@
                 Filtre, suit, et déclenche une nouvelle action en un clic.
             </div>
         </div>
-        <button type="button" onclick="relancesOpenModal(null)"
-           class="btn btn-primary btn-sm" style="font-size:12.5px;font-weight:700">
-            ＋ Enregistrer une relance
-        </button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement']) }}"
+               class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);color:#1d4ed8"
+               title="Retour à l'onglet Recouvrement (clients à relancer)">
+                📞 Recouvrement
+            </a>
+            <a href="{{ route('admin.finance.index', ['tab' => 'creances']) }}"
+               class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);color:#b45309"
+               title="Voir l'onglet Créances (balance âgée, factures impayées)">
+                📉 Créances
+            </a>
+            <button type="button" onclick="relancesOpenModal(null)"
+               class="btn btn-primary btn-sm" style="font-size:12.5px;font-weight:700">
+                ＋ Enregistrer une relance
+            </button>
+        </div>
     </div>
 
     {{-- KPI cards --}}

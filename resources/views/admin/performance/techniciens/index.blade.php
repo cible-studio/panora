@@ -1,10 +1,9 @@
 <x-admin-layout>
 <x-slot name="title">Performance techniciens</x-slot>
 
-<x-slot name="topbarActions">
-    <a href="{{ route('admin.performance.team.index') }}" class="btn btn-ghost btn-sm">👥 Performance équipes</a>
-    <a href="{{ route('admin.teams.index') }}" class="btn btn-ghost btn-sm">⚙ Gérer équipes</a>
-</x-slot>
+{{-- 2026-06-18 — Boutons "Performance équipes" / "Gérer équipes"
+     déplacés du topbar (encombrant) vers le hero header juste en
+     dessous, où ils restent contextuels (vues connexes). --}}
 
 <div class="perf-page">
     <div style="background:linear-gradient(135deg,rgba(99,102,241,.10),rgba(168,85,247,.06));border:1px solid var(--border);border-radius:16px;padding:22px 26px;margin-bottom:18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
@@ -14,6 +13,18 @@
             <div style="font-size:12.5px;color:var(--text3);margin-top:4px;line-height:1.5">
                 Classement des techniciens · {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}
             </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <a href="{{ route('admin.performance.team.index') }}" class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);color:#4f46e5"
+               title="Performance par équipe (agrégation)">
+                👥 Performance équipes
+            </a>
+            <a href="{{ route('admin.teams.index') }}" class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(107,114,128,.08);border:1px solid rgba(107,114,128,.25);color:#4b5563"
+               title="Configurer les équipes (membres, leader, couleur)">
+                ⚙ Gérer équipes
+            </a>
         </div>
     </div>
 
