@@ -216,6 +216,41 @@ fait ce type d'analyse rétrospective.
 
 ---
 
+## 🟡 [Priorité moyenne] CA réel non filtrable géographiquement
+
+**Contexte** : Bloc 4 (CA réel sur Rapports, 2026-06-18) a livré 2 nouveaux
+KPIs `CA HT facturé` + `Encaissé TTC` via [CaRealService][crs] qui ignorent
+volontairement les filtres `commune_id` / `zone` / `category_id` (cf.
+arbitrage Q2 patronne).
+
+[crs]: ../app/Services/CaRealService.php
+
+**Conséquence** : impossible aujourd'hui d'obtenir le CA réel ventilé par
+commune sans repasser par la page Finance (qui scope au client, pas au
+panneau). Le bandeau d'info sur Rapports renvoie l'utilisateur vers Finance.
+
+**Cause racine** : la chaîne `invoices → invoice_lines → campaigns → panels
+→ communes` n'est pas exploitée — on garde un join SQL léger et un service
+fin (cf. choix volontaire Option A de l'arbitrage Q2).
+
+**Action prévue (si besoin métier confirmé)** : mission séparée "CA réel
+géographique" — ajouter une méthode `CaRealService::ventilationParCommune()`
+qui :
+1. Liste les invoices émises sur la période (filtres compat).
+2. Pour chaque invoice, récupère la commune via `invoice_lines.campaign_id`
+   → `campaigns.id` → `campaign_panels` → `panels.commune_id`.
+3. Ventile `invoice.net_ht` au prorata du nombre de panneaux par commune
+   (modèle analogue à `FinancialDashboardService::encaissementsByCommune`).
+4. Documenter que la ventilation est une **approximation** (les invoices
+   ne sont pas toujours adossées 1:1 à une campagne — cas des factures
+   multi-campagnes ou des avoirs sans campaign_id).
+
+**Note** : la spec actuelle Garde-fou 1 (bandeau d'info) doit rester
+même si on ajoute cette ventilation — la ventilation reste une approximation
+opérationnelle, pas un fait comptable.
+
+---
+
 ## Historique
 
 | Date       | Mission                                      | Dette ajoutée |
@@ -224,3 +259,4 @@ fait ce type d'analyse rétrospective.
 | 2026-06-17 | M3 SLA enrichi (Module 3)                    | Rôle comptable + secteur externes + delay_reasons table |
 | 2026-06-17 | M1 Performance Commerciale (Module 1)        | Décision C révisée (pas de table sectors) + Herfindahl à valider + lien Rapports↔Perf |
 | 2026-06-17 | M2 Performance Tech / Équipe (Module 2)      | Boxplot → histogramme + drill équipe ignore anciens membres |
+| 2026-06-18 | Bloc 4 — CA réel sur Rapports (Famille B)    | CA réel non filtrable géographiquement (Option A Q2) — fallback Finance documenté |
