@@ -1066,6 +1066,8 @@ Route::prefix('admin')
                 ->name('finance.series');
             Route::get('finance/relances', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'relances'])
                 ->name('finance.relances');
+            Route::get('finance/relances/{relance}/detail', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'relanceDetail'])
+                ->name('finance.relances.detail');
             Route::post('finance/relances', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'storeRelance'])
                 ->name('finance.relances.store');
         });

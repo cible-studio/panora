@@ -211,6 +211,10 @@
                                     </td>
                                     <td style="font-size:12px;color:var(--text3)">{{ $r->user?->name ?? '—' }}</td>
                                     <td style="text-align:right;white-space:nowrap">
+                                        <button type="button" class="btn btn-ghost btn-sm"
+                                                style="font-size:11px;font-weight:700;margin-right:4px"
+                                                onclick="openRelanceDetail({{ $r->id }})"
+                                                title="Voir tout le détail de cette relance">👁 Détail</button>
                                         @if($r->client_id)
                                             {{-- Modale ouverte sur place : on reste sur la page Historique
                                                  (pas de redirect vers Recouvrement). Le POST revient ici
@@ -379,6 +383,10 @@
                                     </td>
                                     <td style="color:var(--text2);font-size:12px;white-space:nowrap">{{ $r->user?->name ?? '—' }}</td>
                                     <td style="text-align:right;white-space:nowrap">
+                                        <button type="button" class="btn btn-ghost btn-sm"
+                                                style="font-size:11px;font-weight:700;margin-right:4px"
+                                                onclick="openRelanceDetail({{ $r->id }})"
+                                                title="Voir tout le détail de cette relance">👁 Détail</button>
                                         @if($r->client_id)
                                             <button type="button" class="btn btn-ghost btn-sm"
                                                     style="font-size:11px;color:var(--accent);font-weight:700"
@@ -616,5 +624,8 @@ document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') relancesCloseModal();
 });
 </script>
+
+{{-- Drawer "Voir le détail" relance — Bloc 3 Famille D (2026-06-18) --}}
+@include('admin.finance.partials._relance_detail_drawer')
 
 </x-admin-layout>

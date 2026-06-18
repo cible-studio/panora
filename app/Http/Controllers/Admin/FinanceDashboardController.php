@@ -202,6 +202,27 @@ class FinanceDashboardController extends Controller
         ]);
     }
 
+    /**
+     * Drawer "Voir le détail" d'une relance (Bloc 3 — Famille D, 2026-06-18).
+     * Endpoint AJAX consommé par le panneau latéral sur :
+     *   - /admin/finance/relances (page recouvrement complète)
+     *   - /admin/clients/{client} (onglet Relances)
+     *
+     * Retourne du HTML partiel (pas du JSON) pour rester sobre — le drawer
+     * fait juste un fetch + innerHTML, pas de re-rendu côté JS.
+     */
+    public function relanceDetail(\App\Models\Relance $relance)
+    {
+        $relance->load([
+            'client:id,name',
+            'invoice:id,reference,total_a_payer,status,issued_at',
+            'schedule:id,invoice_id,due_date,amount,paid_at',
+            'user:id,name',
+        ]);
+
+        return view('admin.finance.partials.relance-detail', compact('relance'));
+    }
+
     public function storeRelance(Request $request, \App\Services\ReminderService $reminders)
     {
         $data = $request->validate([

@@ -30,11 +30,68 @@
     $currentPreset    = $preset ?? null;
 @endphp
 
+@once
+{{-- CSS scoped au partial — harmonise visuellement select / input[type=date]
+     pour qu'ils aient la même hauteur, le même padding, la même typo.
+     2026-06-18 : feedback patronne sur l'affichage de la page show. --}}
+<style>
+.perf-filter-card { display:flex; align-items:center; }
+.perf-filter-card .fne-field { display:flex; flex-direction:column; gap:4px; }
+.perf-filter-card .fne-field label {
+    display:block;
+    font-size:10px;
+    font-weight:800;
+    color:var(--text3);
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    margin:0;
+}
+.perf-filter-card .fne-field select,
+.perf-filter-card .fne-field input[type="date"] {
+    height:38px;
+    box-sizing:border-box;
+    padding:0 12px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    background:var(--surface, #fff);
+    color:var(--text);
+    font-size:13px;
+    font-family:inherit;
+    line-height:1;
+    outline:none;
+    transition:border-color .12s, box-shadow .12s;
+    width:100%;
+}
+.perf-filter-card .fne-field select {
+    padding-right:30px;
+    cursor:pointer;
+    -webkit-appearance:none;
+    appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat:no-repeat;
+    background-position:right 10px center;
+    background-size:12px;
+}
+.perf-filter-card .fne-field input[type="date"] {
+    font-variant-numeric:tabular-nums;
+}
+.perf-filter-card .fne-field select:focus,
+.perf-filter-card .fne-field input[type="date"]:focus {
+    border-color:var(--accent, #e8a020);
+    box-shadow:0 0 0 3px rgba(232,160,32,.18);
+}
+.perf-filter-card .fne-field input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor:pointer; opacity:.6; transition:opacity .12s;
+}
+.perf-filter-card .fne-field input[type="date"]:hover::-webkit-calendar-picker-indicator { opacity:1; }
+</style>
+@endonce
+
 <form method="GET"
       @if($actionRoute) action="{{ $actionRoute }}" @endif
       class="perf-filter-card"
       style="margin-bottom:16px{{ $isCompact ? ';padding:10px 14px' : '' }}">
-    <div style="display:flex;gap:{{ $isCompact ? '10px' : '14px' }};align-items:flex-end;flex-wrap:wrap">
+    <div style="display:flex;gap:{{ $isCompact ? '10px' : '14px' }};align-items:flex-end;flex-wrap:wrap;width:100%">
         {{-- Hidden fields à propager (ex : user_id sur les pages show) --}}
         @foreach($extraHidden as $name => $value)
             @if($value !== null && $value !== '')
