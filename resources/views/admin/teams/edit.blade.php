@@ -1,10 +1,23 @@
 <x-admin-layout>
 <x-slot name="title">Modifier l'équipe — {{ $team->name }}</x-slot>
 
+@php
+    // Bouton retour intelligent — cf. create.blade.php pour la doc.
+    $backMap = [
+        'posetasks'        => ['route' => 'admin.posetasks.index',                 'label' => 'Tâches de pose'],
+        'performance.tech' => ['route' => 'admin.performance.tech.index',          'label' => 'Performance techniciens'],
+        'performance.team' => ['route' => 'admin.performance.team.index',          'label' => 'Performance équipes'],
+    ];
+    $backKey = (string) request()->query('back', '');
+    $backCfg = $backMap[$backKey] ?? null;
+    $backUrl   = $backCfg ? route($backCfg['route']) : route('admin.teams.index');
+    $backLabel = $backCfg ? $backCfg['label']         : 'Équipes';
+@endphp
+
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.teams.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
+    <a href="{{ $backUrl }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        Équipes
+        {{ $backLabel }}
     </a>
 </x-slot:topbarLeft>
 
@@ -22,9 +35,10 @@
 
         <form method="POST" action="{{ route('admin.teams.update', $team) }}" class="teams-form">
             @csrf @method('PUT')
+            <input type="hidden" name="back" value="{{ $backKey }}">
             @include('admin.teams._form')
             <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
-                <a href="{{ route('admin.teams.index') }}" class="btn btn-ghost">Annuler</a>
+                <a href="{{ $backUrl }}" class="btn btn-ghost">Annuler</a>
                 <button type="submit" class="btn btn-primary">Enregistrer</button>
             </div>
         </form>
