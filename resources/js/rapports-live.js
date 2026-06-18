@@ -82,6 +82,11 @@
                     e.preventDefault();
                     const url = new URL(a.href, window.location.origin);
                     const preset = url.searchParams.get('preset');
+                    // Feedback visuel INSTANTANÉ (avant même le AJAX) :
+                    // bascule la classe is-active sur la pilule cliquée pour
+                    // que l'utilisateur voie sa sélection prise en compte
+                    // immédiatement, même si la requête met 1-2s à revenir.
+                    this.markActivePreset(preset);
                     this.setHidden('preset', preset || '');
                     // Clear from/to si on switch sur un preset
                     const fromInp = this.form.querySelector('[name="from"]');
@@ -90,6 +95,13 @@
                     if (toInp)   toInp.value = '';
                     this.reload(true);
                 });
+            });
+
+            // Quand l'utilisateur change la date manuellement, AUCUN preset
+            // n'est actif — on retire la couleur de toutes les pilules.
+            ['from', 'to'].forEach(name => {
+                const inp = this.form.querySelector(`[name="${name}"]`);
+                if (inp) inp.addEventListener('change', () => this.markActivePreset(null));
             });
 
             // Lien "Réinitialiser" (✕) : on capture, on vide les filtres,
@@ -108,6 +120,26 @@
             // les filtres actuellement sélectionnés (utile si la page a été
             // chargée avec des filtres dans la query string).
             this.syncDynamicHrefs(this.collectQueryString());
+        },
+
+        /**
+         * Bascule la classe `is-active` (couleur orange + ombre) sur la
+         * pilule preset correspondante. Source unique de feedback visuel,
+         * indépendante du retour AJAX → l'utilisateur voit sa sélection
+         * appliquée immédiatement.
+         *
+         * @param {string|null} preset 'today' | 'week' | 'month' | … | null
+         */
+        markActivePreset(preset) {
+            this.form.querySelectorAll('.rapport-preset-pill').forEach(pill => {
+                const url = new URL(pill.href, window.location.origin);
+                const pillPreset = url.searchParams.get('preset');
+                if (preset && pillPreset === preset) {
+                    pill.classList.add('is-active');
+                } else {
+                    pill.classList.remove('is-active');
+                }
+            });
         },
 
         setHidden(name, value) {

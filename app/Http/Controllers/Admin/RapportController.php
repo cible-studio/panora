@@ -402,9 +402,13 @@ class RapportController extends Controller
         // période filtrée — un client présent en base mais qui n'a aucun
         // chiffre d'affaires sur la fenêtre choisie est du bruit dans un
         // rapport, et brouille les rangs / la lecture des podiums.
+        // Perf 2026-06-18 : on évite le N+1 en pré-comptant `panels` via
+        // withCount('panels'). Avant : 1 query par campagne × N clients,
+        // soit 250+ queries sur un parc de 50 clients. Après : 1 query
+        // agrégée. Le total_panneaux est strictement identique.
         $statsClients = Client::query()
             ->when($filterClient, fn($q) => $q->where('id', $filterClient))
-            ->with(['campaigns' => fn($q) => $applyCampaignFilters($q)])
+            ->with(['campaigns' => fn($q) => $applyCampaignFilters($q)->withCount('panels')])
             ->get()
             ->map(function ($client) {
                 $campagnesActives = $client->campaigns->where('status', 'actif')->count();
@@ -417,7 +421,7 @@ class RapportController extends Controller
                     'total_campagnes'   => $client->campaigns->count(),
                     'campagnes_actives' => $campagnesActives,
                     'ca_total'          => $client->campaigns->sum('total_amount'),
-                    'total_panneaux'    => $client->campaigns->sum(fn($c) => $c->panels()->count()),
+                    'total_panneaux'    => $client->campaigns->sum('panels_count'),
                     'derniere_campagne' => $derniere,
                 ];
             })
