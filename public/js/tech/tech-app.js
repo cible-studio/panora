@@ -25,6 +25,7 @@ import { init as initHeartbeat }   from './features/heartbeat.js';
 import { init as initPwaInstall }  from './features/pwa-install.js';
 import { init as initReport }      from './features/report.js';
 import { init as initStatusChanges } from './features/status-changes.js';
+import { init as initFilters }     from './features/filters.js';
 import { init as initSearch }      from './features/search.js';
 import { init as initGeolocate }   from './features/geolocate.js';
 
@@ -42,11 +43,12 @@ function bootstrap() {
     initPwaInstall();   // capture beforeinstallprompt
     initReport();         // [SM1.5 Lot 1] modale signalement 9 motifs
     initStatusChanges();  // [SM1.5 Lot 2] Y aller / J'y suis / statut générique
+    initFilters();        // [SM1.5 Lot 5] chips + KPI + zone + clear + restore URL
     initSearch();         // [SM1.5 Lot 3] Select2 AJAX paginé + openFocusModal
     initGeolocate();      // [SM1.5 Lot 4] Près de moi + Mon chemin (TSP)
 
-    // NOTE : filters, upload restent dans le <script> inline.
-    // Migration en cours en SM1.5 (cf. docs/TECHNICAL_DEBT.md).
+    // NOTE : upload reste dans le <script> inline (lot 6 à venir).
+    // Cf. docs/TECHNICAL_DEBT.md.
 }
 
 if (document.readyState === 'loading') {

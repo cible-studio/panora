@@ -9,20 +9,16 @@
 // Source : blocs 22-23 du <script> inline pré-SM1.5 (lignes 771-913).
 // Migration 1:1 comportement-identique.
 //
-// ⚠ Pont avec filterState pré-migration (lot 5) :
-//   Le data callback du AJAX Select2 lit les chips actifs pour respecter
-//   le contexte filtré. Tant que filters.js (lot 5) n'est pas fait, on
-//   lit le filterState inline via window.__sm15FilterStateRef (exposé
-//   par le <script> historique). Une fois lot 5 fait, on basculera sur
-//   import { state } from '../core/state.js' + filterState.* directement.
+// Le data callback du AJAX Select2 lit les chips actifs pour respecter
+// le contexte filtré. Depuis Lot 5 : state.filterState direct, plus de
+// pont __sm15.
 //
 // Dépendances :
+//   - core/state.js : filterState (chips, zone, distance, geo)
 //   - jQuery + Select2 v4 (chargés via <script defer> côté Blade)
 //   - window.TECH_CONFIG.routes.search
 
-function getFilterStateLot3() {
-    return window.__sm15FilterStateRef || { chips: new Set(), zone: null, distance: false, geo: null };
-}
+import { state } from '../core/state.js';
 
 function formatSearchOption($, item) {
     if (!item.id) return $('<span style="color:var(--text3)">' + (item.text || '') + '</span>');
@@ -110,7 +106,7 @@ function setupSelect2($, searchUrl) {
             delay: 220,
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             data: (params) => {
-                const fs = getFilterStateLot3();
+                const fs = state.filterState;
                 const d = {
                     q:    params.term || '',
                     page: params.page || 1,

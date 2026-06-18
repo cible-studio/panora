@@ -11,20 +11,18 @@
 // Source : blocs 11 et 16 du <script> inline pré-SM1.5 (lignes 778-879
 // et 970-1104). Migration 1:1 comportement-identique.
 //
-// ⚠ Ponts temporaires avec inline (lot 5 à venir) :
-//   - window.__sm15FilterStateRef    (filterState pour distance/geo)
-//   - window.__sm15ApplyFilters      (re-évaluer cards visibles)
-//   - window.__sm15WriteFiltersToUrl (persister sort=distance dans URL)
+// Depuis Lot 5 : import direct de state.filterState + applyFilters /
+// writeFiltersToUrl exportés par filters.js, plus de ponts __sm15.
 //
 // Dépendances :
+//   - core/state.js : filterState (distance, geo)
 //   - core/ui-helpers.js : toastSmall
+//   - features/filters.js : applyFilters, writeFiltersToUrl
 //   - window.TECH_CONFIG.routes.optimize
 
+import { state } from '../core/state.js';
 import { toastSmall } from '../core/ui-helpers.js';
-
-function getFilterState() {
-    return window.__sm15FilterStateRef || { distance: false, geo: null };
-}
+import { applyFilters, writeFiltersToUrl } from './filters.js';
 
 function getGeoPosition() {
     return new Promise(resolve => {
@@ -87,7 +85,7 @@ function bindDistance() {
     const distBtn = document.getElementById('ts-distance-btn');
     if (!distBtn) return;
     distBtn.addEventListener('click', async () => {
-        const fs = getFilterState();
+        const fs = state.filterState;
         if (fs.distance) {
             fs.distance = false;
             fs.geo = null;
@@ -96,7 +94,7 @@ function bindDistance() {
             if (lbl) lbl.textContent = 'Distance';
             restoreSsrOrder();
             document.querySelectorAll('.pose-distance').forEach(e => e.remove());
-            window.__sm15WriteFiltersToUrl?.();
+            writeFiltersToUrl();
             return;
         }
         distBtn.classList.add('is-active');
@@ -113,7 +111,7 @@ function bindDistance() {
         fs.distance = true;
         if (lbl) lbl.textContent = '✓ Proche';
         sortByDistance(pos.lat, pos.lng);
-        window.__sm15WriteFiltersToUrl?.();
+        writeFiltersToUrl();
     });
 }
 
@@ -149,7 +147,7 @@ function exitTourMode() {
         else info.parent.appendChild(card);
     });
     document.querySelectorAll('.day-section').forEach(sec => { sec.style.display = ''; });
-    window.__sm15ApplyFilters?.();
+    applyFilters();
 }
 
 function applyTourOrder(order, totalMeters) {
