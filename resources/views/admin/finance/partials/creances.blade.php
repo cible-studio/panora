@@ -1,5 +1,6 @@
 {{-- Onglet CRÉANCES : balance âgée + détail factures impayées --}}
 @php
+    $onlyOverdue = $onlyOverdue ?? false;
     $bucketColors = [
         '0-30'   => '#22c55e',
         '31-60'  => '#eab308',
@@ -87,11 +88,26 @@
 
 {{-- ════ FACTURES IMPAYÉES — DÉTAIL ════ --}}
 <div class="fin-card">
+    @if($onlyOverdue)
+        {{-- 2026-06-18 — Bandeau filtre actif depuis la carte KPI "En retard" --}}
+        <div style="background:rgba(239,68,68,.10);border-left:4px solid #ef4444;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid rgba(239,68,68,.20)">
+            <div style="font-size:12.5px;color:#991b1b;font-weight:700">
+                🔴 Filtre actif : <span style="font-weight:800">factures en retard uniquement</span>
+                <span style="font-weight:500;color:#7f1d1d;font-size:11.5px">— créances dont au moins une échéance est dépassée.</span>
+            </div>
+            <a href="{{ route('admin.finance.index', array_merge(array_filter(request()->except(['only_overdue'])), ['tab' => 'creances'])) }}"
+               style="font-size:11.5px;color:#7f1d1d;text-decoration:none;border:1px solid rgba(239,68,68,.30);background:#fff;padding:4px 10px;border-radius:999px;font-weight:700;white-space:nowrap">
+                ✕ Retirer le filtre
+            </a>
+        </div>
+    @endif
     <div class="fin-card-head">
         <div>
-            <div class="fin-card-title">📄 Factures avec reste à payer</div>
+            <div class="fin-card-title">
+                {{ $onlyOverdue ? '🔴 Factures en retard' : '📄 Factures avec reste à payer' }}
+            </div>
             <div class="fin-card-sub">
-                {{ $creances->count() }} créance(s) ouverte(s){{ $creances->count() >= 200 ? ' — 200 max affichées' : '' }}
+                {{ $creances->count() }} {{ $onlyOverdue ? 'facture(s) en retard' : 'créance(s) ouverte(s)' }}{{ $creances->count() >= 200 ? ' — 200 max affichées' : '' }}
             </div>
         </div>
     </div>

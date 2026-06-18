@@ -100,14 +100,18 @@
         <div class="kpi-card__label">Total dû</div>
         <div class="kpi-card__sub">toutes factures actives · FCFA · <span style="color:#f97316;font-weight:700">voir créances →</span></div>
     </a>
-    <a href="{{ route('admin.invoices.index', ['status' => 'en_retard']) }}"
+    {{-- 2026-06-18 (Hotfix patronne) : la carte "En retard" reste sur la
+         page Finance (onglet Créances) en activant le filtre only_overdue=1,
+         pour rester cohérent avec les 3 autres KPI qui pivotent sur un tab
+         de la même page. --}}
+    <a href="{{ route('admin.finance.index', array_merge($periodQuery, ['tab' => 'creances', 'only_overdue' => 1])) }}"
        class="kpi-card kpi-card--link" style="--kpi-color:#ef4444"
-       title="Liste des factures dont une échéance est dépassée">
+       title="Voir les créances dont une échéance est dépassée (filtre appliqué sur la page Créances)">
         <div class="kpi-card__top-bar" style="background:#ef4444"></div>
         <div class="kpi-card__icon" style="color:#ef4444">🔴</div>
         <div class="kpi-card__value" style="color:#ef4444;font-size:20px">{{ $fmt($kpis['en_retard']) }}</div>
         <div class="kpi-card__label">En retard</div>
-        <div class="kpi-card__sub">échéance dépassée · FCFA · <span style="color:#ef4444;font-weight:700">voir factures →</span></div>
+        <div class="kpi-card__sub">échéance dépassée · FCFA · <span style="color:#ef4444;font-weight:700">voir créances en retard →</span></div>
     </a>
     <a href="{{ route('admin.finance.index', array_merge($periodQuery, ['tab' => 'recouvrement'])) }}"
        class="kpi-card kpi-card--link" style="--kpi-color:#3b82f6"
@@ -171,7 +175,7 @@ window.financeBootstrap = {
 <div class="fin-tab-content">
     @switch($tab)
         @case('creances')
-            @include('admin.finance.partials.creances', compact('aging', 'creances', 'fmt'))
+            @include('admin.finance.partials.creances', compact('aging', 'creances', 'fmt', 'onlyOverdue'))
             @break
         @case('recouvrement')
             @include('admin.finance.partials.recouvrement', compact('clientsToFollow', 'clientsList', 'fmt'))
