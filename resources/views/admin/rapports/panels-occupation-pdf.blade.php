@@ -49,7 +49,8 @@
     <div class="left">
         <h1>OCCUPATION DES PANNEAUX</h1>
         <div class="period">Rapport détaillé par panneau · {{ $operatorName ?? 'CIBLE CI' }}</div>
-        <div class="period">Période : {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }} ({{ (int)$from->diffInDays($to) + 1 }} jours)</div>
+        {{-- Période retirée du header : elle est désormais portée par le
+             bandeau "Type d'export" plus bas (plus complet, avec le preset). --}}
     </div>
     <div class="right">
         Édité le {{ now()->format('d/m/Y H:i') }}<br>
