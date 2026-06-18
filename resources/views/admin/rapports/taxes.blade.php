@@ -16,28 +16,52 @@
     <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);">
         🏛️ Rapport taxes
     </span>
-    <select name="annee" onchange="this.form.submit()"
-            style="height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);">
+    @once
+    <style>
+    /* 2026-06-18 — selects rapports/taxes : chevron + focus ring + hover. */
+    .rpt-tax-select {
+        height: 38px;
+        padding: 0 34px 0 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        font-size: 13px;
+        color: var(--text);
+        font-family: inherit;
+        cursor: pointer;
+        outline: none;
+        transition: border-color .12s, box-shadow .12s, background .12s;
+        -webkit-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 12px;
+    }
+    .rpt-tax-select:hover { border-color: var(--accent, #e8a020); background-color: var(--surface2); }
+    .rpt-tax-select:focus { border-color: var(--accent, #e8a020); box-shadow: 0 0 0 3px rgba(232,160,32,.18); }
+    </style>
+    @endonce
+    {{-- 2026-06-18 : selects harmonisés avec rapports/index — chevron, focus
+         ring, hover. --}}
+    <select name="annee" onchange="this.form.submit()" class="rpt-tax-select">
         @foreach($anneesDisponibles as $a)
             <option value="{{ $a }}" {{ $a == $year ? 'selected' : '' }}>{{ $a }}</option>
         @endforeach
     </select>
-    <select name="commune_id" onchange="this.form.submit()"
-            style="height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);min-width:160px;">
+    <select name="commune_id" onchange="this.form.submit()" class="rpt-tax-select" style="min-width:170px">
         <option value="">Toutes communes</option>
         @foreach($communes as $c)
             <option value="{{ $c->id }}" {{ ($filters['commune_id'] ?? null) == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
         @endforeach
     </select>
-    <select name="client_id" onchange="this.form.submit()"
-            style="height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);min-width:170px;">
+    <select name="client_id" onchange="this.form.submit()" class="rpt-tax-select" style="min-width:180px">
         <option value="">Tous clients</option>
         @foreach($clients as $c)
             <option value="{{ $c->id }}" {{ ($filters['client_id'] ?? null) == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
         @endforeach
     </select>
-    <select name="campaign_id" onchange="this.form.submit()"
-            style="height:38px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);min-width:170px;">
+    <select name="campaign_id" onchange="this.form.submit()" class="rpt-tax-select" style="min-width:180px">
         <option value="">Toutes campagnes</option>
         @foreach($campaigns as $c)
             <option value="{{ $c->id }}" {{ ($filters['campaign_id'] ?? null) == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
