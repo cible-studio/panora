@@ -3,7 +3,12 @@
 
 <x-slot name="topbarActions">
     <a href="{{ route('admin.migration.commercial-attribution') }}" class="btn btn-ghost btn-sm">⚙ Attribuer campagnes</a>
-    <a href="{{ route('admin.rapports.index') }}" class="btn btn-ghost btn-sm">📊 Rapports</a>
+    {{-- 2026-06-18 (feedback patronne) : avant le bouton "📊 Rapports" pointait
+         vers le rapport global (sans rapport avec la page). Remplacé par un
+         export PDF du leaderboard avec les filtres période courants. --}}
+    <a href="{{ route('admin.performance.commercial.export.pdf', array_filter(request()->only(['from', 'to', 'preset']))) }}"
+       class="btn btn-ghost btn-sm"
+       title="Télécharger le PDF du leaderboard avec la période courante">📄 Exporter PDF</a>
 </x-slot>
 
 @php
