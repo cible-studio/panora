@@ -39,19 +39,27 @@ class RapportDashboardExport implements WithMultipleSheets
 {
     use Exportable;
 
-    public function __construct(protected DashboardKpiService $kpi) {}
+    /**
+     * @param ?string $filterRecapLine Récap des filtres actifs sur 1 ligne
+     *                                 (cf. RapportFilterContextService::buildOneLine).
+     *                                 Injecté en metaLine n°2 du bandeau de chaque feuille.
+     */
+    public function __construct(
+        protected DashboardKpiService $kpi,
+        protected ?string $filterRecapLine = null,
+    ) {}
 
     public function sheets(): array
     {
         return [
-            new RapportSheetSynthese($this->kpi),
-            new RapportSheetPanneaux($this->kpi),
-            new RapportSheetClients($this->kpi),
-            new RapportSheetCampagnes($this->kpi),
-            new RapportSheetCommunes($this->kpi),
-            new RapportSheetDecappages($this->kpi),
-            new RapportSheetCA($this->kpi),
-            new RapportSheetForecast($this->kpi),
+            new RapportSheetSynthese($this->kpi, $this->filterRecapLine),
+            new RapportSheetPanneaux($this->kpi, $this->filterRecapLine),
+            new RapportSheetClients($this->kpi, $this->filterRecapLine),
+            new RapportSheetCampagnes($this->kpi, $this->filterRecapLine),
+            new RapportSheetCommunes($this->kpi, $this->filterRecapLine),
+            new RapportSheetDecappages($this->kpi, $this->filterRecapLine),
+            new RapportSheetCA($this->kpi, $this->filterRecapLine),
+            new RapportSheetForecast($this->kpi, $this->filterRecapLine),
         ];
     }
 }
@@ -64,7 +72,10 @@ abstract class RapportSheetBase implements FromCollection, WithHeadings, WithTit
 {
     use ExcelBranding;
 
-    public function __construct(protected DashboardKpiService $kpi) {}
+    public function __construct(
+        protected DashboardKpiService $kpi,
+        protected ?string $filterRecapLine = null,
+    ) {}
 
     public function startCell(): string { return $this->brandingStartCell(); }
 
@@ -85,13 +96,24 @@ abstract class RapportSheetBase implements FromCollection, WithHeadings, WithTit
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $period = $this->kpi->getPeriod();
-                $this->applyBrandingHeader($event, 'RAPPORT · ' . mb_strtoupper($this->title()), array_filter([
-                    'Généré le ' . now()->format('d/m/Y à H:i'),
-                    isset($period['from'], $period['to'])
-                        ? 'Période : ' . $period['from']->format('d/m/Y') . ' → ' . $period['to']->format('d/m/Y')
-                        : null,
-                ]));
+                // Note : si $filterRecapLine est fourni, il contient déjà la
+                // période (cf. RapportFilterContextService::buildOneLine) —
+                // on saute donc la ligne période séparée pour ne pas la dupliquer.
+                if ($this->filterRecapLine) {
+                    $metaLines = [
+                        'Généré le ' . now()->format('d/m/Y à H:i'),
+                        $this->filterRecapLine,
+                    ];
+                } else {
+                    $period = $this->kpi->getPeriod();
+                    $metaLines = array_filter([
+                        'Généré le ' . now()->format('d/m/Y à H:i'),
+                        isset($period['from'], $period['to'])
+                            ? 'Période : ' . $period['from']->format('d/m/Y') . ' → ' . $period['to']->format('d/m/Y')
+                            : null,
+                    ]);
+                }
+                $this->applyBrandingHeader($event, 'RAPPORT · ' . mb_strtoupper($this->title()), $metaLines);
                 $this->applyTableFinishing($event);
             },
         ];

@@ -55,6 +55,11 @@
     </div>
 </div>
 
+{{-- ════ Récap filtres actifs ════
+     Source unique : RapportFilterContextService — cohérent avec
+     l'Excel et le PDF Occupation panneaux. --}}
+@include('admin.rapports.partials._filter_recap_pdf')
+
 {{-- ════ KPIs principaux ════ --}}
 <div class="kpi-grid">
     <div class="kpi-row">

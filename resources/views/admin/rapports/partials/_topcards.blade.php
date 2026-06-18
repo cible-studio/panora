@@ -18,10 +18,13 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </a>
 
-    {{-- Annulations entreprise + Taxes communales : admin/MP only.
-         Pour le commercial, on cache les liens (les routes sont déjà
-         bloquées côté backend, mais évite un 403 si l'admin a partagé
-         le lien ou si l'admin a cliqué par erreur côté UI commercial). --}}
+    {{-- Annulations entreprise : admin/MP only. Pour le commercial, on
+         cache le lien (la route est déjà bloquée côté backend, mais évite
+         un 403 si l'admin a partagé le lien ou si l'admin a cliqué par
+         erreur côté UI commercial).
+         Note : la card "Rapport taxes" a été retirée de ce hub — le
+         rapport reste accessible depuis le module Taxes lui-même
+         (admin/taxes : boutons "📊 Rapport" sur index + historique). --}}
     @if(auth()->user()?->role?->value !== 'commercial')
     <a href="{{ route('admin.rapports.annulations') }}"
        data-route-base="{{ route('admin.rapports.annulations') }}"

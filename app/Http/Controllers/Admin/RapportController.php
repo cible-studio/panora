@@ -1289,12 +1289,15 @@ class RapportController extends Controller
      * Une feuille par module : synthèse, panneaux, clients, campagnes,
      * communes, décappages, CA mensuel, prévisions.
      */
-    public function exportExcel(Request $request, DashboardKpiService $kpi)
+    public function exportExcel(Request $request, DashboardKpiService $kpi, \App\Services\RapportFilterContextService $filterCtx)
     {
         $this->applyPeriodAndFilters($request, $kpi);
+        $period   = $kpi->getPeriod();
+        $recap    = $filterCtx->build($request, $period['from'], $period['to']);
+        $metaLine = $filterCtx->buildOneLine($recap);
         $filename = 'dashboard-panora-' . now()->format('Ymd_His') . '.xlsx';
         return \Maatwebsite\Excel\Facades\Excel::download(
-            new \App\Exports\RapportDashboardExport($kpi),
+            new \App\Exports\RapportDashboardExport($kpi, $metaLine),
             $filename
         );
     }
@@ -1303,7 +1306,7 @@ class RapportController extends Controller
      * Export PDF — synthèse exécutive 1 page (COMMIT D).
      * Reprend les KPIs clés + prévisions linéaires sur 3 mois.
      */
-    public function exportPdf(Request $request, DashboardKpiService $kpi)
+    public function exportPdf(Request $request, DashboardKpiService $kpi, \App\Services\RapportFilterContextService $filterCtx)
     {
         $this->applyPeriodAndFilters($request, $kpi);
 
@@ -1328,10 +1331,13 @@ class RapportController extends Controller
         $caRealSvc = app(\App\Services\CaRealService::class);
         $caReel = $caRealSvc->kpis($period['from'], $period['to']);
 
+        // Récap des filtres actifs (CLAUDE.md règle 1 — source unique).
+        $filterRecap = $filterCtx->build($request, $period['from'], $period['to']);
+
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.synthese-pdf', compact(
             'parc', 'stats', 'revenue', 'inactivity', 'decapStats',
             'topClients', 'insights', 'period', 'forecast',
-            'caReel',
+            'caReel', 'filterRecap',
         ) + ['user' => $request->user()])
             ->setPaper('a4', 'portrait');
 
@@ -1342,16 +1348,18 @@ class RapportController extends Controller
      * Export Excel — Liste complète des panneaux avec leur taux
      * d'occupation sur la période, filtrable par zone (Abidjan / Intérieur).
      */
-    public function exportPanelsOccupationExcel(Request $request, DashboardKpiService $kpi)
+    public function exportPanelsOccupationExcel(Request $request, DashboardKpiService $kpi, \App\Services\RapportFilterContextService $filterCtx)
     {
         $this->applyPeriodAndFilters($request, $kpi);
         $panels = $kpi->panelsOccupationFull();
         $period = $kpi->getPeriod();
         $zoneLabel = $this->zoneLabel($request->input('filter_zone'));
+        $recap     = $filterCtx->build($request, $period['from'], $period['to']);
+        $metaLine  = $filterCtx->buildOneLine($recap);
 
         $filename = 'occupation-panneaux-' . now()->format('Ymd_His') . '.xlsx';
         return \Maatwebsite\Excel\Facades\Excel::download(
-            new \App\Exports\PanelsOccupationExport($panels, $period['from'], $period['to'], $zoneLabel),
+            new \App\Exports\PanelsOccupationExport($panels, $period['from'], $period['to'], $zoneLabel, $metaLine),
             $filename
         );
     }
@@ -1359,19 +1367,22 @@ class RapportController extends Controller
     /**
      * Export PDF — Même rapport en synthèse imprimable (A4 paysage).
      */
-    public function exportPanelsOccupationPdf(Request $request, DashboardKpiService $kpi)
+    public function exportPanelsOccupationPdf(Request $request, DashboardKpiService $kpi, \App\Services\RapportFilterContextService $filterCtx)
     {
         $this->applyPeriodAndFilters($request, $kpi);
         $panels = $kpi->panelsOccupationFull();
         $period = $kpi->getPeriod();
         $zoneLabel = $this->zoneLabel($request->input('filter_zone'));
 
+        $filterRecap = $filterCtx->build($request, $period['from'], $period['to']);
+
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.panels-occupation-pdf', [
-            'panels'    => $panels,
-            'from'      => $period['from'],
-            'to'        => $period['to'],
-            'zoneLabel' => $zoneLabel,
-            'user'      => $request->user(),
+            'panels'      => $panels,
+            'from'        => $period['from'],
+            'to'          => $period['to'],
+            'zoneLabel'   => $zoneLabel,
+            'user'        => $request->user(),
+            'filterRecap' => $filterRecap,
         ])->setPaper('a4', 'landscape');
 
         return $pdf->download('occupation-panneaux-' . now()->format('Ymd_His') . '.pdf');
