@@ -33,8 +33,9 @@
         <div style="flex:1;min-width:240px">
             <div style="font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.2px">Historique des relances</div>
             <div style="font-size:12.5px;color:var(--text3);margin-top:4px;line-height:1.5">
-                {{ $relances->total() }} relance(s) enregistrée(s){{ request()->hasAny(['client_id','invoice_id','canal','outcome','from','to']) ? ' selon le filtre actif' : ' au total' }}.
-                Filtre, suit, et déclenche une nouvelle action en un clic.
+                {{ $relances->total() }} client(s) relancé(s){{ request()->hasAny(['client_id','invoice_id','canal','outcome','from','to']) ? ' selon le filtre actif' : '' }} ·
+                <strong>{{ $kpis['total'] ?? 0 }}</strong> relance(s) au total.
+                Cliquer sur <em>Détail</em> ouvre l'historique complet du client.
             </div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -317,8 +318,8 @@
         <div class="fin-card">
             <div class="fin-card-head">
                 <div>
-                    <div class="fin-card-title">📋 Toutes les relances</div>
-                    <div class="fin-card-sub">{{ $relances->total() }} relance(s) — page {{ $relances->currentPage() }}/{{ $relances->lastPage() }}</div>
+                    <div class="fin-card-title">📋 Historique par client</div>
+                    <div class="fin-card-sub">{{ $relances->total() }} client(s) avec relance — page {{ $relances->currentPage() }}/{{ $relances->lastPage() }} · cliquer <em>Détail</em> pour voir l'historique complet du client.</div>
                 </div>
             </div>
             <div class="fin-card-body fin-card-body--flush">
@@ -326,47 +327,68 @@
                     <table class="fin-table">
                         <thead>
                             <tr>
-                                <th>Date</th>
                                 <th>Client</th>
+                                <th style="text-align:right">Dette actuelle</th>
+                                <th>Relances</th>
+                                <th>Dernière relance</th>
                                 <th>Facture</th>
                                 <th>Canal</th>
                                 <th>Résultat</th>
-                                <th>Note (observations)</th>
-                                <th>Suite à donner</th>
                                 <th>Auteur</th>
                                 <th></th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($relances as $r)
+                            @foreach($relances as $row)
                                 @php
-                                    $oCfg = $outcomeColors[$r->outcome] ?? ['bg' => 'var(--surface2)', 'c' => 'var(--text3)'];
-                                    $oLbl = $outcomeLabels[$r->outcome] ?? null;
+                                    $last = $row['last_relance'];
+                                    $oCfg = $outcomeColors[$last->outcome] ?? ['bg' => 'var(--surface2)', 'c' => 'var(--text3)'];
+                                    $oLbl = $outcomeLabels[$last->outcome] ?? null;
                                 @endphp
                                 <tr>
-                                    <td style="white-space:nowrap;color:var(--text2);font-weight:600">{{ $r->relance_date->format('d/m/Y') }}</td>
                                     <td>
-                                        @if($r->client)
-                                            <a href="{{ route('admin.clients.show', $r->client) }}"
-                                               style="color:var(--accent);text-decoration:none;font-weight:600"
-                                               title="Voir la fiche client">{{ $r->client->name }}</a>
+                                        @if($row['client'])
+                                            <a href="{{ route('admin.clients.show', $row['client']) }}"
+                                               style="color:var(--accent);text-decoration:none;font-weight:700"
+                                               title="Voir la fiche client">{{ $row['client']->name }}</a>
+                                            @if($row['client']->phone)
+                                                <div style="font-size:10.5px;color:var(--text3);margin-top:2px">📞 {{ $row['client']->phone }}</div>
+                                            @endif
                                         @else
                                             <span style="color:var(--text3)">—</span>
                                         @endif
                                     </td>
+                                    <td style="text-align:right;white-space:nowrap;font-family:ui-monospace,monospace">
+                                        @if($row['total_du'] > 0)
+                                            <span style="font-weight:700;color:#b45309">{{ number_format($row['total_du'], 0, ',', ' ') }}</span>
+                                            <div style="font-size:10.5px;color:var(--text3);margin-top:1px;font-family:inherit">{{ $row['factures_open'] }} facture(s) ouverte(s)</div>
+                                        @else
+                                            <span style="color:#15803d;font-weight:700">✓ soldé</span>
+                                        @endif
+                                    </td>
                                     <td>
-                                        @if($r->invoice)
-                                            <a href="{{ route('admin.invoices.show', $r->invoice) }}"
+                                        <span style="display:inline-block;padding:3px 9px;border-radius:999px;background:rgba(232,160,32,.12);color:#9a3412;font-weight:800;font-size:11.5px;font-family:ui-monospace,monospace"
+                                              title="{{ $row['count'] }} relance(s) enregistrée(s) pour ce client">
+                                            ×{{ $row['count'] }}
+                                        </span>
+                                    </td>
+                                    <td style="white-space:nowrap;color:var(--text2);font-weight:600">
+                                        {{ $last->relance_date->format('d/m/Y') }}
+                                        <div style="font-size:10.5px;color:var(--text3);margin-top:2px;font-weight:500">il y a {{ $last->relance_date->diffForHumans(null, true) }}</div>
+                                    </td>
+                                    <td>
+                                        @if($last->invoice)
+                                            <a href="{{ route('admin.invoices.show', $last->invoice) }}"
                                                style="font-family:monospace;color:var(--accent);text-decoration:none;font-weight:700"
-                                               title="Ouvrir la facture">{{ $r->invoice->reference }}</a>
+                                               title="Ouvrir la facture">{{ $last->invoice->reference }}</a>
                                         @else
                                             <span style="display:inline-block;font-size:10.5px;color:var(--text3);background:var(--surface2);padding:2px 8px;border-radius:6px;font-style:italic"
-                                                  title="Relance enregistrée au niveau client (pas attachée à une facture précise)">— Relance globale</span>
+                                                  title="Dernière relance enregistrée au niveau client (pas attachée à une facture précise)">— Relance globale</span>
                                         @endif
                                     </td>
                                     <td>
                                         <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);white-space:nowrap">
-                                            {{ \App\Models\Relance::CANAUX[$r->canal] ?? $r->canal }}
+                                            {{ \App\Models\Relance::CANAUX[$last->canal] ?? $last->canal }}
                                         </span>
                                     </td>
                                     <td>
@@ -376,30 +398,16 @@
                                             <span style="color:var(--text3);font-size:11px;font-style:italic">— Non renseigné</span>
                                         @endif
                                     </td>
-                                    <td style="max-width:320px;color:var(--text2);font-size:12.5px;line-height:1.5">
-                                        @if($r->note)
-                                            <span title="{{ $r->note }}">{{ Str::limit($r->note, 110) }}</span>
-                                        @else
-                                            <span style="color:var(--text3)">—</span>
-                                        @endif
-                                    </td>
-                                    <td style="max-width:200px;color:var(--text2);font-size:12px">
-                                        @if($r->suite_donnee)
-                                            <span title="{{ $r->suite_donnee }}" style="font-style:italic">💬 {{ Str::limit($r->suite_donnee, 70) }}</span>
-                                        @else
-                                            <span style="color:var(--text3);font-size:11px">—</span>
-                                        @endif
-                                    </td>
-                                    <td style="color:var(--text2);font-size:12px;white-space:nowrap">{{ $r->user?->name ?? '—' }}</td>
+                                    <td style="color:var(--text2);font-size:12px;white-space:nowrap">{{ $last->user?->name ?? '—' }}</td>
                                     <td style="text-align:right;white-space:nowrap">
                                         <button type="button" class="btn btn-ghost btn-sm"
                                                 style="font-size:11px;font-weight:700;margin-right:4px"
-                                                onclick="openRelanceDetail({{ $r->id }})"
-                                                title="Voir tout le détail de cette relance">👁 Détail</button>
-                                        @if($r->client_id)
+                                                onclick="openRelanceDetail({{ $last->id }})"
+                                                title="Voir l'historique complet des relances de ce client">👁 Détail</button>
+                                        @if($row['client_id'])
                                             <button type="button" class="btn btn-ghost btn-sm"
                                                     style="font-size:11px;color:var(--accent);font-weight:700"
-                                                    onclick="relancesOpenModal({{ $r->client_id }})"
+                                                    onclick="relancesOpenModal({{ $row['client_id'] }})"
                                                     title="Enregistrer une nouvelle relance pour ce client">📞 Relancer</button>
                                         @endif
                                     </td>
@@ -411,7 +419,7 @@
             </div>
             <div style="padding:14px 18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px">
                 <div style="font-size:12px;color:var(--text3)">
-                    Affichage {{ $relances->firstItem() }}–{{ $relances->lastItem() }} sur {{ $relances->total() }}
+                    Affichage {{ $relances->firstItem() }}–{{ $relances->lastItem() }} sur {{ $relances->total() }} client(s)
                 </div>
                 {{ $relances->withQueryString()->links() }}
             </div>
