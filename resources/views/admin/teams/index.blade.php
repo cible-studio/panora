@@ -1,8 +1,19 @@
 <x-admin-layout>
 <x-slot name="title">Équipes de pose</x-slot>
 
+{{-- 2026-06-18 (feedback patronne) : smart back ajouté quand on arrive
+     depuis une autre page via ?back=<key> (whitelist du partial). --}}
+<x-slot:topbarLeft>
+    @include('admin.performance.partials._smart_back')
+</x-slot:topbarLeft>
+
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.teams.create') }}" class="btn btn-primary btn-sm">+ Nouvelle équipe</a>
+    {{-- Le bouton "+ Nouvelle équipe" propage le `back` courant pour que
+         la redirection après save retombe sur la page d'origine (au lieu
+         de toujours teams.index). Si pas de back, comportement actuel. --}}
+    @php $currentBack = (string) request()->query('back', ''); @endphp
+    <a href="{{ route('admin.teams.create', $currentBack ? ['back' => $currentBack] : []) }}"
+       class="btn btn-primary btn-sm">+ Nouvelle équipe</a>
 </x-slot>
 
 <div style="max-width:1200px;margin:0 auto">
