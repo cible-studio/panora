@@ -643,6 +643,7 @@
                     <th>Résultat</th>
                     <th>Suite à donner</th>
                     <th>Par</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -697,10 +698,16 @@
                             @endif
                         </td>
                         <td style="font-size:11.5px;color:var(--text3);white-space:nowrap">{{ $r->user?->name ?? '—' }}</td>
+                        <td style="text-align:right;white-space:nowrap">
+                            <button type="button" class="btn btn-ghost btn-sm"
+                                    style="font-size:10.5px;font-weight:700"
+                                    onclick="openRelanceDetail({{ $r->id }})"
+                                    title="Voir tout le détail de cette relance">👁 Détail</button>
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" style="text-align:center;padding:30px;color:var(--text3);font-style:italic;font-size:13px">
+                        <td colspan="8" style="text-align:center;padding:30px;color:var(--text3);font-style:italic;font-size:13px">
                             Aucune relance enregistrée pour ce client.<br>
                             <a href="{{ route('admin.finance.index', ['tab' => 'recouvrement', 'open_relance' => 1, 'client_id' => $client->id]) }}"
                                style="color:var(--accent);text-decoration:none;font-weight:700;font-size:12px;margin-top:8px;display:inline-block">
@@ -1025,5 +1032,8 @@ window.ClientContacts = (function () {
 })();
 </script>
 @endpush
+
+{{-- Drawer "Voir le détail" relance — Bloc 3 Famille D (2026-06-18) --}}
+@include('admin.finance.partials._relance_detail_drawer')
 
 </x-admin-layout>
