@@ -148,7 +148,9 @@
     </tbody>
 </table>
 
-{{-- Top commerciaux par secteur --}}
+{{-- Top commerciaux par secteur d'activité.
+     Clés réelles renvoyées par CommercialPerformanceService::topCommercialBySector() :
+       sector · commercial_id · commercial_name · ca · count · sector_total_ca · share_pct --}}
 @if($topBySector->isNotEmpty())
     <h2>🎯 Top commercial par secteur d'activité</h2>
     <table>
@@ -156,19 +158,21 @@
             <tr>
                 <th>Secteur</th>
                 <th>Commercial dominant</th>
-                <th class="r">CA TTC secteur</th>
-                <th class="r">Nb campagnes</th>
-                <th class="r">Part du secteur</th>
+                <th class="r">CA secteur (top)</th>
+                <th class="r">CA secteur total</th>
+                <th class="r">Campagnes</th>
+                <th class="r">Part du top</th>
             </tr>
         </thead>
         <tbody>
             @foreach($topBySector as $sector)
                 <tr>
                     <td class="b">{{ $sector['sector'] ?? '—' }}</td>
-                    <td>{{ $sector['user']?->name ?? '—' }}</td>
-                    <td class="r b">{{ $fmtM($sector['ca_ttc']) }}</td>
-                    <td class="r">{{ $sector['nb_campagnes'] }}</td>
-                    <td class="r muted">{{ number_format($sector['part'] ?? 0, 1, ',', ' ') }} %</td>
+                    <td>{{ $sector['commercial_name'] ?? '—' }}</td>
+                    <td class="r b">{{ $fmtM($sector['ca'] ?? 0) }}</td>
+                    <td class="r muted">{{ $fmtM($sector['sector_total_ca'] ?? 0) }}</td>
+                    <td class="r">{{ $sector['count'] ?? 0 }}</td>
+                    <td class="r muted">{{ number_format($sector['share_pct'] ?? 0, 1, ',', ' ') }} %</td>
                 </tr>
             @endforeach
         </tbody>
