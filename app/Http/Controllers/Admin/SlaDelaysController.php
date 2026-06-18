@@ -84,6 +84,77 @@ class SlaDelaysController extends Controller
     }
 
     /**
+     * GET /admin/sla/retards/export/pdf
+     *
+     * Export PDF de l'analyse SLA & Retards avec les filtres période / motif /
+     * commune / zone / statut courants. 2026-06-18 (feedback patronne) :
+     * remplace l'ancien bouton topbar "📊 Rapports" qui redirigeait vers le
+     * rapport global (sans rapport avec le SLA).
+     */
+    public function exportPdf(Request $request)
+    {
+        $this->authorize('viewAny', PoseTaskAction::class);
+
+        $to   = $request->filled('to')   ? \Carbon\Carbon::parse($request->input('to'))->endOfDay()
+                                         : now();
+        $from = $request->filled('from') ? \Carbon\Carbon::parse($request->input('from'))->startOfDay()
+                                         : now()->subDays(89);
+
+        $filters = array_filter([
+            'commune_id'  => $request->input('commune_id'),
+            'client_id'   => $request->input('client_id'),
+            'zone'        => in_array($request->input('zone'), ['abidjan','interieur'], true) ? $request->input('zone') : null,
+        ]);
+        $motifFilter = \App\Enums\DelayReason::tryFrom((string) $request->input('motif'));
+        $status      = $request->input('status', 'all');
+
+        $stats = $this->service->stats($from, $to, $filters);
+
+        // Liste TOP 100 (un PDF ne doit pas exploser la pagination) — déjà
+        // amplement suffisant pour une analyse récap.
+        $query = PoseTaskAction::query()
+            ->where('action', PoseTaskAction::ACTION_PROBLEM_REPORTED)
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<=', $to)
+            ->with([
+                'task.panel:id,reference,name,commune_id',
+                'task.panel.commune:id,name,city',
+                'task.campaign:id,name,client_id',
+                'task.campaign.client:id,name',
+                'task.technicien:id,name',
+                'resolvedBy:id,name',
+                'maintenance:id,statut',
+            ]);
+
+        if ($status === 'pending')  $query->whereNull('resolved_at')->whereNull('maintenance_id');
+        if ($status === 'resolved') $query->where(fn($q) => $q->whereNotNull('resolved_at')->orWhereNotNull('maintenance_id'));
+        if (!empty($filters['commune_id'])) $query->whereHas('task.panel', fn($p) => $p->where('commune_id', $filters['commune_id']));
+        if (!empty($filters['client_id']))  $query->whereHas('task.campaign', fn($c) => $c->where('client_id', $filters['client_id']));
+        if (($filters['zone'] ?? null) === 'abidjan')   $query->whereHas('task.panel.commune', fn($c) => $c->where('city', 'Abidjan'));
+        if (($filters['zone'] ?? null) === 'interieur') $query->whereHas('task.panel.commune', fn($c) => $c->where('city', '!=', 'Abidjan'));
+
+        $signalements = $query->orderByDesc('created_at')->limit(100)->get();
+        if ($motifFilter) {
+            $signalements = $signalements->filter(fn($a) => $a->effectiveMotif() === $motifFilter)->values();
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.sla.pdf', [
+            'stats'        => $stats,
+            'signalements' => $signalements,
+            'from'         => $from,
+            'to'           => $to,
+            'filters'      => $filters,
+            'motifFilter'  => $motifFilter,
+            'status'       => $status,
+            'user'         => $request->user(),
+            'generatedAt'  => now(),
+        ])->setPaper('a4', 'landscape');
+
+        $filename = 'sla-retards-' . $from->format('Y-m-d') . '_' . $to->format('Y-m-d') . '.pdf';
+        return $pdf->download($filename);
+    }
+
+    /**
      * PUT /admin/sla/retards/{action}
      * Amende le motif d'un signalement a posteriori — crée un audit
      * pose_task_actions.action='motif_modified' SANS écraser l'original.

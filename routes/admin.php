@@ -851,6 +851,9 @@ Route::prefix('admin')
 
         // ── M3 SLA enrichi : page analytique + édition motif a posteriori ──
         // Policy PoseTaskActionPolicy (admin/mediaplanner only — commercial/technique → 403).
+        Route::get('sla/retards/export/pdf', [\App\Http\Controllers\Admin\SlaDelaysController::class, 'exportPdf'])
+            ->middleware('role:admin,mediaplanner')
+            ->name('sla.retards.export.pdf');
         Route::get('sla/retards', [\App\Http\Controllers\Admin\SlaDelaysController::class, 'index'])
             ->middleware('role:admin,mediaplanner')
             ->name('sla.retards.index');
