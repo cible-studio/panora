@@ -251,69 +251,61 @@ opérationnelle, pas un fait comptable.
 
 ---
 
-## 🟡 [Priorité moyenne] Refonte Espace Technicien — SM1.5 à programmer
+## ✅ [Clos 2026-06-18] Refonte Espace Technicien — SM1.5 livrée
 
-État actuel après SM1 (refactor pur, juin 2026 — branche
-`feature/tech-refonte-sm1`) :
+Branche : `feature/tech-refonte-sm1.5` (6 commits + 1 préparation Phase A).
 
-- **Phase 1** ✅ Préparation terminée (audit JS, structure dossiers,
-  TechUrlResolverService shadow, checklist 90 items)
-- **Phase 2** ✅ Découpage Blade en 11 partials terminé
-  (tech-space.blade.php 3125 → 1784 lignes)
-- **Phase 3** ⚠️ Extraction JS partielle (~50 %)
-  - tech-space.blade.php : 1784 → 1702 lignes
-  - 4 features autonomes migrées et actives
-  - 6 features encore dans le `<script>` inline
+**État final** : 100 % des features du tech-space migrées en modules ES.
+`tech-space.blade.php` passe de **3 125 → 179 lignes** (94 % de réduction).
+**0 ligne de JS inline** restante — règle SM1.5 respectée.
 
-### Modules JS effectivement actifs en SM1 (6)
+### Modules JS actifs (14)
 
 `public/js/tech/` :
-- `tech-app.js` — entry, bootstrap, registre des modules
-- `core/api.js` — helpers fetch + CSRF + urlForTask (utilitaire)
-- `core/state.js` — objet d'état partagé (utilitaire)
-- `core/offline.js` — online/offline events + flush queue
+- `tech-app.js` — entry, bootstrap, 10 init() séquentiels
+- `core/api.js` — helpers fetch + CSRF + urlForTask
+- `core/state.js` — objet d'état partagé (filterState + tournée + heartbeat)
+- `core/offline.js` — online/offline events + import flushUploadQueue
 - `core/sw-register.js` — registration Service Worker
+- `core/ui-helpers.js` — flashSuccess, toast, toastSmall, compressImage
 - `features/heartbeat.js` — polling 20s + bump KPIs + détection nouvelle pose
-- `features/pwa-install.js` — capture beforeinstallprompt (nouveau)
+- `features/pwa-install.js` — capture beforeinstallprompt
+- `features/report.js` — modale signalement 9 motifs DelayReason
+- `features/status-changes.js` — Y aller / J'y suis / statut générique
+  + askContradictionReason exporté
+- `features/filters.js` — chips + KPI grid + zone + clear + restore URL
+- `features/search.js` — Select2 AJAX paginé + openFocusModal
+- `features/geolocate.js` — Près de moi (haversine) + Mon chemin (TSP)
+- `features/upload.js` — pipeline pige terrain complet + IndexedDB queue
+  + hero "Prochaine pose"
 
-Total : ~280 lignes JS modulaires.
-window.TECH_CONFIG publié via partial `_js_config.blade.php` (csrf,
-token, 9 routes nommées, motifLabels, bootstrap).
+Total : ~2 000 lignes JS modulaires (vs ~1 600 inline pré-SM1.5).
+La hausse vient des en-têtes de docs + imports explicites + suppression
+des duplications de helpers (factorisés dans ui-helpers).
 
-### Encore en inline (à migrer en SM1.5) — par ordre de priorité
+### Bugs latents corrigés en cours de route
 
-| Module cible | Volume estimé | Sections inline source |
-|---|---|---|
-| `features/upload.js` | ~400 l | compression image, géoloc EXIF, modale justifier pige, upload XHR, aperçu, queue offline IndexedDB |
-| `features/filters.js` | ~200 l | filterState + URL sync + chips + KPI grid + TOC zones |
-| `features/geolocate.js` | ~180 l | distance haversine "Près de moi" + TSP "Mon chemin" |
-| `features/search.js` | ~150 l | Select2 AJAX paginé + openFocusModal |
-| `features/status-changes.js` | ~150 l | bumps "Y aller" (en_route 25%) + "J'y suis" (en_cours 60%) + changement statut générique |
-| `features/report.js` | ~80 l | modale signalement 9 motifs DelayReason + POST report + bandeau "déjà signalé" |
+- **Lot 4** : `}` orphelin ligne 781 de `tech-space.blade.php` (laissé
+  par l'extraction search.js le 18/06). Le Blade compilait mais le
+  `<script>` inline aurait jeté un SyntaxError côté navigateur, neutralisant
+  TOUT le 2e `<script>` (filtres, heartbeat KPIs, upload). Détecté par
+  `node --check` après extraction. Avant : `final depth: -1`. Après :
+  `SYNTAX_OK`. Aucun ticket utilisateur sur le terrain — sans doute
+  parce que le commit search.js n'avait pas encore été déployé.
 
-Volume total restant : ~1160 lignes JS à migrer.
-Estimation effort : **8-12h focus**.
-Priorité : **moyenne** — pas de blocage utilisateur, mais bloque la
-Sous-mission 2 (SM2) qui touchera directement l'UI Focus mode.
+### Ce qui reste comme micro-dette (très basse priorité)
 
-### Conditions de réussite SM1.5
-
-- Suppression effective des 2 blocs `<script>` inline historiques
-- Console DevTools propre sur 5 scénarios (0, 3, 50+ poses ; piges ;
-  pige legacy)
-- Test offline + retry queue IndexedDB intact
-- Snapshot ground truth pixel-à-pixel préservé
-- Checklist 90 items (cf. `docs/snapshots/tech-space-checklist.md`)
-  toujours à 100 %
-
-### Pourquoi ce report
-
-Le brief SM1 estimait Phase 3 à 6-8h. À l'exécution, le volume effectif
-de code interdépendant (1613 lignes JS inline avec 30 blocs logiques et
-variables partagées entre features non encore migrées) rendait risquée
-une livraison Lot G complète sans tests utilisateur intermédiaires.
-Choix tactique validé avec l'utilisateur : sécurité opérationnelle
-(0 régression visible côté tech) > respect du volume annoncé.
+- Le HTML du tech-space charge encore jQuery + Select2 v4 via CDN. C'est
+  une dépendance externe au runtime (cachée par le SW dès la 1re visite).
+  Une SM2 pourrait remplacer Select2 par un combobox custom plus léger
+  pour gagner ~85 KB. Pas prioritaire — Select2 est éprouvé et le tech
+  ne le voit pas.
+- `core/offline.js` importe `flushUploadQueue` depuis `features/upload.js` :
+  c'est un import vers une feature depuis un core, ce qui dépasse
+  techniquement la hiérarchie attendue. Acceptable car la queue offline
+  EST conceptuellement du "core" — à terme, déplacer `queueOfflinePhoto`
+  + `flushUploadQueue` + IndexedDB helpers dans `core/sync-queue.js` et
+  garder `upload.js` purement focus sur l'upload happy-path.
 
 ---
 
@@ -327,3 +319,4 @@ Choix tactique validé avec l'utilisateur : sécurité opérationnelle
 | 2026-06-17 | M2 Performance Tech / Équipe (Module 2)      | Boxplot → histogramme + drill équipe ignore anciens membres |
 | 2026-06-18 | Bloc 4 — CA réel sur Rapports (Famille B)    | CA réel non filtrable géographiquement (Option A Q2) — fallback Finance documenté |
 | 2026-06-18 | Refonte Espace Technicien SM1 (partielle)    | Phase 3 livrée à ~50 % — SM1.5 (8-12h) à programmer pour finaliser l'extraction JS de 6 modules restant en inline |
+| 2026-06-18 | Refonte Espace Technicien SM1.5              | Dette clôturée — 100 % migration ESM, 0 JS inline restant. Micro-dettes résiduelles : Select2 CDN (cachée SW), import core/offline.js → upload.js à isoler en `core/sync-queue.js` en SM2. |
