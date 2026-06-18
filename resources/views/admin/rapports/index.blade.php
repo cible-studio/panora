@@ -137,35 +137,35 @@ window.__RPT__ = {
             Filtres
         </span>
         <select name="filter_zone" onchange="this.form.submit()"
-                style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);min-width:130px;font-weight:600"
+                class="rpt-filter-select" style="min-width:130px;font-weight:600"
                 title="Zone : Abidjan ou Intérieur (toutes les villes hors Abidjan)">
             <option value="">🌍 Toutes zones</option>
             <option value="abidjan"   {{ ($filterZone ?? null) === 'abidjan'   ? 'selected' : '' }}>🏙️ Abidjan</option>
             <option value="interieur" {{ ($filterZone ?? null) === 'interieur' ? 'selected' : '' }}>🌾 Intérieur</option>
         </select>
         <select name="filter_commune_id" onchange="this.form.submit()"
-                style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);min-width:140px;">
+                class="rpt-filter-select" style="min-width:160px;">
             <option value="">Toutes communes</option>
             @foreach($allCommunes as $c)
                 <option value="{{ $c->id }}" {{ $filterCommune == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
             @endforeach
         </select>
         <select name="filter_city" onchange="this.form.submit()"
-                style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);min-width:120px;">
+                class="rpt-filter-select" style="min-width:140px;">
             <option value="">Toutes villes</option>
             @foreach($allCities as $city)
                 <option value="{{ $city }}" {{ $filterCity == $city ? 'selected' : '' }}>{{ $city }}</option>
             @endforeach
         </select>
         <select name="filter_client_id" onchange="this.form.submit()"
-                style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);min-width:140px;">
+                class="rpt-filter-select" style="min-width:170px;">
             <option value="">Tous clients</option>
             @foreach($allClients as $c)
                 <option value="{{ $c->id }}" {{ $filterClient == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
             @endforeach
         </select>
         <select name="filter_category_id" onchange="this.form.submit()"
-                style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);min-width:140px;">
+                class="rpt-filter-select" style="min-width:160px;">
             <option value="">Tous types de panneau</option>
             @foreach($allCategories as $cat)
                 <option value="{{ $cat->id }}" {{ $filterCategory == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
@@ -451,6 +451,32 @@ window.__RPT__ = {
 
 {{-- ════ STYLES ════ --}}
 <style>
+/* ─── Filtres select Rapports (2026-06-18) ────────────────────────
+   Avant : selects sans chevron → ressemblaient à de simples chips
+   pas évidemment cliquables. Fix : chevron SVG, focus ring, hover. */
+.rpt-filter-select {
+    height: 34px;
+    padding: 0 32px 0 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12.5px;
+    color: var(--text);
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+    transition: border-color .12s, box-shadow .12s, background .12s;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px;
+}
+.rpt-filter-select:hover { border-color: var(--accent, #e8a020); background-color: var(--surface2); }
+.rpt-filter-select:focus { border-color: var(--accent, #e8a020); box-shadow: 0 0 0 3px rgba(232,160,32,.18); }
+.rpt-filter-select option { font-size: 13px; padding: 4px; }
+
 .rpt-tab { flex:1;padding:9px 10px;border-radius:10px;border:none;background:transparent;color:var(--text3);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap; }
 .rpt-tab:hover { background:var(--surface2);color:var(--text); }
 .rpt-tab.active { background:var(--accent);color:#000; }
