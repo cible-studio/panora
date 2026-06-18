@@ -64,7 +64,7 @@
             <div class="kpi-sub">{{ $parc['occupied'] }} / {{ $parc['total'] }} panneaux</div>
         </div>
         <div class="kpi color-ca">
-            <div class="kpi-label">CA total période</div>
+            <div class="kpi-label">CA contractuel période</div>
             <div class="kpi-value">{{ number_format($revenue / 1000000, 1, ',', ' ') }} M</div>
             <div class="kpi-sub">FCFA — {{ $stats['total'] }} campagnes</div>
         </div>
@@ -80,6 +80,38 @@
         </div>
     </div>
 </div>
+
+{{-- ════ Bloc CA RÉEL (Bloc 4 Commit 14 — 2026-06-18) ════
+     Source : CaRealService → cohérent au franc près avec FinancialDashboardService.
+     Filtres commune/zone/category ignorés par construction. ──────────────── --}}
+@if(!empty($caReel))
+<h2>💰 CA réel sur la période</h2>
+<div style="background:#fef9e7;border-left:3px solid #f59e0b;padding:8px 10px;margin-bottom:8px;font-size:9px;color:#7c2d12;line-height:1.4">
+    <strong>ℹ️ Note méthodologique :</strong> les chiffres ci-dessous proviennent de la comptabilité (factures émises HT + paiements reçus TTC),
+    et non du contractuel campagne (CA contractuel période ci-dessus).
+    Pour la même période, ils ne tiennent pas compte des filtres « commune / zone / catégorie panneau » :
+    la facturation suit le client, pas le panneau. Pour un CA réel filtré géographiquement, consulter le tableau de bord Finance.
+</div>
+<div class="kpi-grid">
+    <div class="kpi-row">
+        <div class="kpi" style="border-left-color:#f59e0b;width:33%">
+            <div class="kpi-label">📤 CA HT facturé</div>
+            <div class="kpi-value">{{ number_format(($caReel['ht_facture'] ?? 0) / 1000000, 1, ',', ' ') }} M</div>
+            <div class="kpi-sub">FCFA · factures émises hors annulées</div>
+        </div>
+        <div class="kpi" style="border-left-color:#16a34a;width:33%">
+            <div class="kpi-label">💰 Encaissé TTC</div>
+            <div class="kpi-value">{{ number_format(($caReel['ttc_encaisse'] ?? 0) / 1000000, 1, ',', ' ') }} M</div>
+            <div class="kpi-sub">FCFA · paiements reçus</div>
+        </div>
+        <div class="kpi" style="border-left-color:#3b82f6;width:33%">
+            <div class="kpi-label">Taux de recouvrement</div>
+            <div class="kpi-value">{{ number_format($caReel['taux_recouvrement'] ?? 0, 1, ',', ' ') }} %</div>
+            <div class="kpi-sub">encaissé / facturé TTC</div>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- ════ État du parc ════ --}}
 <h2>📊 Vue d'ensemble du parc</h2>

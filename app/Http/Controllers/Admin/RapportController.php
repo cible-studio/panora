@@ -1320,9 +1320,17 @@ class RapportController extends Controller
             'occupation' => $forecaster->occupationForecast(3),
         ];
 
+        // Bloc 4 Commit 14 (2026-06-18) — CA RÉEL sur la même période.
+        // Source unique CaRealService → cohérent avec la page Rapports + Finance.
+        // Pas de scope client (export global). Filtres commune/zone/category
+        // ignorés par construction (cf. Q2 patronne) — note expliquée dans le PDF.
+        $caRealSvc = app(\App\Services\CaRealService::class);
+        $caReel = $caRealSvc->kpis($period['from'], $period['to']);
+
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.synthese-pdf', compact(
             'parc', 'stats', 'revenue', 'inactivity', 'decapStats',
             'topClients', 'insights', 'period', 'forecast',
+            'caReel',
         ) + ['user' => $request->user()])
             ->setPaper('a4', 'portrait');
 
