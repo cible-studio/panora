@@ -179,40 +179,16 @@ window.__RPT__ = {
 <form id="form-periode" method="GET" action="{{ route('admin.rapports.index') }}"
       style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 20px;margin-bottom:20px">
 
-    {{-- Ligne 1 : Presets période ───────────────────────────────── --}}
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:12px;">
-        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:flex;align-items:center;gap:6px">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-            Période rapide
-        </span>
-        @foreach([
-            'today'   => "Aujourd'hui",
-            'week'    => 'Cette semaine',
-            'month'   => 'Ce mois',
-            'quarter' => 'Ce trimestre',
-            'year'    => 'Cette année',
-            'all'     => 'Tout',
-        ] as $key => $label)
-            @php $isActive = $currentPreset === $key; @endphp
-            <a href="{{ route('admin.rapports.index', array_merge(request()->except(['preset','from','to','annee','mois_du','mois_au']), ['preset' => $key])) }}"
-               class="rapport-preset-pill {{ $isActive ? 'is-active' : '' }}">
-                {{ $label }}
-            </a>
-        @endforeach
-        <span style="color:var(--border);">|</span>
-        <input type="date" name="from" value="{{ $dateFrom->format('Y-m-d') }}" onchange="this.form.submit()"
-               style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text)">
-        <span style="color:var(--text3);font-size:12px">→</span>
-        <input type="date" name="to" value="{{ $dateTo->format('Y-m-d') }}" onchange="this.form.submit()"
-               style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text)">
-        <span style="font-size:11px;color:var(--text3);margin-left:auto;">
-            {{ $dateFrom->format('d/m/Y') }} → {{ $dateTo->format('d/m/Y') }}
-            ({{ (int) $dateFrom->diffInDays($dateTo) + 1 }} jours)
-        </span>
-    </div>
+    {{-- ⚠ 2026-06-18 (feedback patronne) : les selects (Commune, Ville,
+         Client, Type panneau) étaient sur la 2e ligne et leur dropdown
+         natif s'ouvrait VERS LE HAUT par manque de place en dessous.
+         Solution : on inverse — Filtres dimensionnels EN HAUT (ligne 1),
+         Période rapide EN BAS (ligne 2). Les dropdowns natifs ont
+         maintenant tout l'espace de la page sous eux et s'ouvrent
+         naturellement vers le bas. --}}
 
-    {{-- Ligne 2 : Filtres dimensionnels ────────────────────────── --}}
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    {{-- Ligne 1 : Filtres dimensionnels ────────────────────────── --}}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:12px;">
         <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:flex;align-items:center;gap:6px">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
             Filtres
@@ -258,8 +234,42 @@ window.__RPT__ = {
                 ✕ Réinitialiser
             </a>
         @endif
-@include('admin.rapports.partials._summary')
     </div>
+
+    {{-- Ligne 2 : Presets période ───────────────────────────────── --}}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:flex;align-items:center;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            Période rapide
+        </span>
+        @foreach([
+            'today'   => "Aujourd'hui",
+            'week'    => 'Cette semaine',
+            'month'   => 'Ce mois',
+            'quarter' => 'Ce trimestre',
+            'year'    => 'Cette année',
+            'all'     => 'Tout',
+        ] as $key => $label)
+            @php $isActive = $currentPreset === $key; @endphp
+            <a href="{{ route('admin.rapports.index', array_merge(request()->except(['preset','from','to','annee','mois_du','mois_au']), ['preset' => $key])) }}"
+               class="rapport-preset-pill {{ $isActive ? 'is-active' : '' }}">
+                {{ $label }}
+            </a>
+        @endforeach
+        <span style="color:var(--border);">|</span>
+        <input type="date" name="from" value="{{ $dateFrom->format('Y-m-d') }}" onchange="this.form.submit()"
+               style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text)">
+        <span style="color:var(--text3);font-size:12px">→</span>
+        <input type="date" name="to" value="{{ $dateTo->format('Y-m-d') }}" onchange="this.form.submit()"
+               style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text)">
+        <span style="font-size:11px;color:var(--text3);margin-left:auto;">
+            {{ $dateFrom->format('d/m/Y') }} → {{ $dateTo->format('d/m/Y') }}
+            ({{ (int) $dateFrom->diffInDays($dateTo) + 1 }} jours)
+        </span>
+    </div>
+
+    {{-- Ligne 3 : récap textuel des filtres actifs (partial _summary) --}}
+    @include('admin.rapports.partials._summary')
 </form>
 
 {{-- ══════════════════════════════════
