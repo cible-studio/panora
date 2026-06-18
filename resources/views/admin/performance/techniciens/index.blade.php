@@ -1,9 +1,17 @@
 <x-admin-layout>
 <x-slot name="title">Performance techniciens</x-slot>
 
+{{-- 2026-06-18 (feedback patronne) : topbarActions désormais réservé aux
+     exports PDF. Les boutons cross-pages sont déplacés dans l'action bar
+     sous le hero. topbarLeft affiche le retour intelligent si ?back= --}}
+<x-slot:topbarLeft>
+    @include('admin.performance.partials._smart_back')
+</x-slot:topbarLeft>
+
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.performance.team.index') }}" class="btn btn-ghost btn-sm">👥 Performance équipes</a>
-    <a href="{{ route('admin.teams.index') }}" class="btn btn-ghost btn-sm">⚙ Gérer équipes</a>
+    <a href="{{ route('admin.performance.tech.export.pdf', array_filter(request()->only(['from', 'to', 'preset']))) }}"
+       class="btn btn-ghost btn-sm"
+       title="Télécharger le PDF du leaderboard avec la période courante">📄 Exporter PDF</a>
 </x-slot>
 
 <div class="perf-page">
@@ -15,6 +23,13 @@
                 Classement des techniciens · {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}
             </div>
         </div>
+    </div>
+
+    {{-- ════ Action bar — anciens boutons topbar + cross-links avec ?back= ════ --}}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+        <a href="{{ route('admin.performance.team.index', ['back' => 'performance.tech']) }}" class="btn btn-ghost btn-sm">👥 Performance équipes</a>
+        <a href="{{ route('admin.performance.commercial.index', ['back' => 'performance.tech']) }}" class="btn btn-ghost btn-sm">📊 Performance commerciale</a>
+        <a href="{{ route('admin.teams.index', ['back' => 'performance.tech']) }}" class="btn btn-ghost btn-sm">⚙ Gérer équipes</a>
     </div>
 
     {{-- Filtres période — partial partagé (Bloc 2 — Famille A). --}}

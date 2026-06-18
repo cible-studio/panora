@@ -39,6 +39,32 @@ class TeamPerformanceController extends Controller
         ]);
     }
 
+    /**
+     * GET /admin/performance/equipes/export/pdf
+     * Export PDF du leaderboard équipes (2026-06-18, feedback patronne).
+     */
+    public function exportPdf(Request $request)
+    {
+        $role = $request->user()->role?->value;
+        if (!in_array($role, ['admin', 'mediaplanner'], true)) {
+            abort(403);
+        }
+
+        [$from, $to] = $this->resolvePeriod($request);
+        $leaderboard = $this->perf->leaderboardTeams($from, $to);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.performance.equipes.pdf', [
+            'leaderboard' => $leaderboard,
+            'from'        => $from,
+            'to'          => $to,
+            'user'        => $request->user(),
+            'generatedAt' => now(),
+        ])->setPaper('a4', 'landscape');
+
+        $filename = 'performance-equipes-' . $from->format('Y-m-d') . '_' . $to->format('Y-m-d') . '.pdf';
+        return $pdf->download($filename);
+    }
+
     public function show(Request $request, PoseTeam $team)
     {
         $role = $request->user()->role?->value;

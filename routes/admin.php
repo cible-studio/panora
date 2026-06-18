@@ -877,6 +877,12 @@ Route::prefix('admin')
             Route::get('performance/commerciaux/export/pdf',
                 [\App\Http\Controllers\Admin\CommercialPerformanceController::class, 'exportPdf']
             )->name('performance.commercial.export.pdf');
+            Route::get('performance/techniciens/export/pdf',
+                [\App\Http\Controllers\Admin\TechnicianPerformanceController::class, 'exportPdf']
+            )->name('performance.tech.export.pdf');
+            Route::get('performance/equipes/export/pdf',
+                [\App\Http\Controllers\Admin\TeamPerformanceController::class, 'exportPdf']
+            )->name('performance.team.export.pdf');
             Route::get('performance/commerciaux/{user}',
                 [\App\Http\Controllers\Admin\CommercialPerformanceController::class, 'show']
             )->whereNumber('user')->name('performance.commercial.show');

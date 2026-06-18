@@ -1,11 +1,14 @@
 <x-admin-layout>
 <x-slot name="title">Performance commerciale</x-slot>
 
+{{-- 2026-06-18 (feedback patronne) : topbarActions ne contient plus que
+     l'export PDF. Le bouton "⚙ Attribuer campagnes" est déplacé dans
+     l'action bar sous le hero. topbarLeft affiche le retour intelligent. --}}
+<x-slot:topbarLeft>
+    @include('admin.performance.partials._smart_back')
+</x-slot:topbarLeft>
+
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.migration.commercial-attribution') }}" class="btn btn-ghost btn-sm">⚙ Attribuer campagnes</a>
-    {{-- 2026-06-18 (feedback patronne) : avant le bouton "📊 Rapports" pointait
-         vers le rapport global (sans rapport avec la page). Remplacé par un
-         export PDF du leaderboard avec les filtres période courants. --}}
     <a href="{{ route('admin.performance.commercial.export.pdf', array_filter(request()->only(['from', 'to', 'preset']))) }}"
        class="btn btn-ghost btn-sm"
        title="Télécharger le PDF du leaderboard avec la période courante">📄 Exporter PDF</a>
@@ -28,6 +31,13 @@
                 ({{ (int)$from->diffInDays($to) + 1 }} jours)
             </div>
         </div>
+    </div>
+
+    {{-- ════ Action bar — anciens boutons topbar + cross-links avec ?back= ════ --}}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+        <a href="{{ route('admin.performance.tech.index', ['back' => 'performance.commercial']) }}" class="btn btn-ghost btn-sm">📋 Performance techniciens</a>
+        <a href="{{ route('admin.performance.team.index', ['back' => 'performance.commercial']) }}" class="btn btn-ghost btn-sm">👥 Performance équipes</a>
+        <a href="{{ route('admin.migration.commercial-attribution') }}" class="btn btn-ghost btn-sm">⚙ Attribuer campagnes</a>
     </div>
 
     {{-- Filtres période — partial partagé Performance (Bloc 2 — Famille A 2026-06-17). --}}

@@ -146,10 +146,13 @@ class PoseTeamController extends Controller
      */
     protected function redirectBack(Request $request, string $flash)
     {
+        // ⚠ Whitelist alignée avec resources/views/admin/performance/partials/_smart_back.blade.php
+        //   (single source of truth). Mettre à jour les 2 endroits ensemble.
         $backMap = [
-            'posetasks'        => 'admin.posetasks.index',
-            'performance.tech' => 'admin.performance.tech.index',
-            'performance.team' => 'admin.performance.team.index',
+            'posetasks'              => 'admin.pose-tasks.index',
+            'performance.commercial' => 'admin.performance.commercial.index',
+            'performance.tech'       => 'admin.performance.tech.index',
+            'performance.team'       => 'admin.performance.team.index',
         ];
         $key = (string) $request->input('back', '');
         $route = $backMap[$key] ?? 'admin.teams.index';

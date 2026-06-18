@@ -2,14 +2,18 @@
 <x-slot name="title">Équipe — {{ $team->name }}</x-slot>
 
 <x-slot:topbarLeft>
-    <a href="{{ route('admin.performance.team.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        Classement équipes
-    </a>
+    @include('admin.performance.partials._smart_back')
+    @if(!request()->query('back'))
+        <a href="{{ route('admin.performance.team.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Classement équipes
+        </a>
+    @endif
 </x-slot:topbarLeft>
 
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.teams.edit', $team) }}" class="btn btn-ghost btn-sm">✏️ Modifier l'équipe</a>
+    {{-- ?back=performance.team.show pour retour smart depuis teams/edit. --}}
+    <a href="{{ route('admin.teams.edit', ['team' => $team, 'back' => 'performance.team']) }}" class="btn btn-ghost btn-sm">✏️ Modifier l'équipe</a>
 </x-slot>
 
 @php

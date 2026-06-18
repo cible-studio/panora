@@ -4,9 +4,10 @@
 @php
     // Bouton retour intelligent — cf. create.blade.php pour la doc.
     $backMap = [
-        'posetasks'        => ['route' => 'admin.posetasks.index',                 'label' => 'Tâches de pose'],
-        'performance.tech' => ['route' => 'admin.performance.tech.index',          'label' => 'Performance techniciens'],
-        'performance.team' => ['route' => 'admin.performance.team.index',          'label' => 'Performance équipes'],
+        'posetasks'              => ['route' => 'admin.pose-tasks.index',             'label' => 'Tâches de pose'],
+        'performance.commercial' => ['route' => 'admin.performance.commercial.index', 'label' => 'Performance commerciale'],
+        'performance.tech'       => ['route' => 'admin.performance.tech.index',       'label' => 'Performance techniciens'],
+        'performance.team'       => ['route' => 'admin.performance.team.index',       'label' => 'Performance équipes'],
     ];
     $backKey = (string) request()->query('back', '');
     $backCfg = $backMap[$backKey] ?? null;

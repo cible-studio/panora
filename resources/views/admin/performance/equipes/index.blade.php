@@ -1,14 +1,18 @@
 <x-admin-layout>
 <x-slot name="title">Performance équipes</x-slot>
 
+{{-- 2026-06-18 (feedback patronne) : topbarActions réservé aux exports PDF.
+     Les boutons de navigation cross-pages sont déplacés dans une action bar
+     sous le hero (cf. plus bas). topbarLeft affiche un retour intelligent
+     si on arrive avec ?back=<key>. --}}
+<x-slot:topbarLeft>
+    @include('admin.performance.partials._smart_back')
+</x-slot:topbarLeft>
+
 <x-slot name="topbarActions">
-    <a href="{{ route('admin.performance.tech.index') }}" class="btn btn-ghost btn-sm">📋 Performance techniciens</a>
-    <a href="{{ route('admin.teams.index') }}" class="btn btn-ghost btn-sm">⚙ Gérer équipes</a>
-    {{-- Raccourci création rapide (Famille E — décision patronne 2026-06-17) :
-         la sidebar 'Équipes de pose' reste retirée (« on ne gère pas en temps
-         réel ») mais le bouton ici permet de créer une équipe sans
-         naviguer hors du contexte métier. --}}
-    <a href="{{ route('admin.teams.create') }}" class="btn btn-primary btn-sm">+ Nouvelle équipe</a>
+    <a href="{{ route('admin.performance.team.export.pdf', array_filter(request()->only(['from', 'to', 'preset']))) }}"
+       class="btn btn-ghost btn-sm"
+       title="Télécharger le PDF du leaderboard équipes">📄 Exporter PDF</a>
 </x-slot>
 
 <div class="perf-page">
@@ -20,6 +24,16 @@
                 {{ $leaderboard->count() }} équipe(s) active(s) · {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}
             </div>
         </div>
+    </div>
+
+    {{-- ════ Action bar (anciens boutons topbar) ════
+         Liens cross-page propagent ?back=performance.team → le bouton
+         smart back de la page destination ramène ici. --}}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+        <a href="{{ route('admin.performance.tech.index', ['back' => 'performance.team']) }}" class="btn btn-ghost btn-sm">📋 Performance techniciens</a>
+        <a href="{{ route('admin.performance.commercial.index', ['back' => 'performance.team']) }}" class="btn btn-ghost btn-sm">📊 Performance commerciale</a>
+        <a href="{{ route('admin.teams.index', ['back' => 'performance.team']) }}" class="btn btn-ghost btn-sm">⚙ Gérer équipes</a>
+        <a href="{{ route('admin.teams.create', ['back' => 'performance.team']) }}" class="btn btn-primary btn-sm" style="margin-left:auto">+ Nouvelle équipe</a>
     </div>
 
     <form method="GET" class="perf-filter-card" style="margin-bottom:16px">
