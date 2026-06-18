@@ -168,7 +168,7 @@
         <div class="fin-card" style="margin-bottom:18px">
             <div class="fin-card-head">
                 <div>
-                    <div class="fin-card-title">🔮 Relances à donner suite</div>
+                    <div class="fin-card-title">⚠️ Relances à donner suite</div>
                     <div class="fin-card-sub">{{ $aVenir->count() }} client(s) dont la dernière relance attend une suite (à recontacter ou promesse à confirmer)</div>
                 </div>
             </div>
