@@ -354,12 +354,18 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
                 <div id="bulk-suggest-result" class="pose-bulk-suggest-result"></div>
             </div>
 
-            {{-- Équipe --}}
+            {{-- Équipe (2026-06-18) — input texte libre remplacé par un VRAI
+                 select alimenté par PoseTeam. Option vide en tête = "détacher"
+                 (envoie une chaîne vide → côté serveur on traitera comme null). --}}
             <div class="pose-bulk-field">
-                <label class="pose-bulk-label"><span>👥 Nom d'équipe</span></label>
+                <label class="pose-bulk-label"><span>👥 Équipe</span></label>
                 <div class="pose-bulk-input-row">
-                    <input type="text" id="bulk-team" class="filter-input"
-                           placeholder="Équipe nord, Pro-pose..." maxlength="100">
+                    <select id="bulk-team" class="filter-select">
+                        <option value="">— Choisir —</option>
+                        @foreach(($teams ?? collect()) as $t)
+                            <option value="{{ $t->name }}">{{ $t->name }}</option>
+                        @endforeach
+                    </select>
                     <button type="button" id="bulk-team-apply" class="btn btn-sm btn-ghost">Appliquer</button>
                 </div>
             </div>
