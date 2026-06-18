@@ -16,7 +16,14 @@
  * désactivé pour éviter de couper un upload en cours).
  */
 
-const SW_VERSION = 'v1.0.0';
+// IMPORTANT : à bumper à chaque release qui modifie tech-app.js, ses
+// imports ESM (core/*.js, features/*.js) ou tech-space.blade.php. Sans
+// ça, le SW resert les versions cachées et le tech ne voit pas les
+// nouveautés (cf. règle #4 de la table fetch ci-dessous : stale-while-
+// revalidate sur tous les scripts).
+//   - v1.0.0  : 1re version PWA tech (déploiement initial juin 2026)
+//   - v1.5.0  : refonte SM1.5 — 14 modules ESM, 0 JS inline
+const SW_VERSION = 'v1.5.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
