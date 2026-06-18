@@ -1,12 +1,12 @@
-// public/js/tech/core/offline.js — Phase 3 SM1.
+// public/js/tech/core/offline.js — Phase 3 SM1, finalisé SM1.5 Lot 6.
 //
 // Détection online/offline + déclenchement de flushUploadQueue() au retour
 // du réseau. Code source : bloc 15 du <script> inline (lignes 1496-1507).
 //
-// flushUploadQueue() est défini dans features/upload.js — on l'invoque ici
-// via window.flushUploadQueue (legacy global déjà publié par upload.js
-// pour rétrocompat avec les anciens appels inline). Ce contrat reste
-// valide tant que upload.js est chargé.
+// Depuis SM1.5 Lot 6 : import nommé de flushUploadQueue (plus de
+// window.flushUploadQueue legacy).
+
+import { flushUploadQueue } from '../features/upload.js';
 
 const offlineBannerId = 'ts-offline-banner';
 
@@ -16,11 +16,7 @@ function updateOfflineState() {
         if (navigator.onLine === false) banner.classList.add('show');
         else banner.classList.remove('show');
     }
-    // Retour online → on tente de rejouer la queue offline. La fonction
-    // peut être absente si upload.js n'a pas (encore) été chargé — guard.
-    if (navigator.onLine !== false && typeof window.flushUploadQueue === 'function') {
-        window.flushUploadQueue();
-    }
+    if (navigator.onLine !== false) flushUploadQueue();
 }
 
 export function init() {

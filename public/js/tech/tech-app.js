@@ -1,23 +1,17 @@
-// public/js/tech/tech-app.js — État après SM1.
+// public/js/tech/tech-app.js — État final SM1.5.
 //
-// Voir docs/TECHNICAL_DEBT.md "Refonte Espace Technicien — SM1.5"
-// pour les modules encore dans le <script> inline de tech-space.blade.php.
+// 100 % des features du tech-space sont migrées en modules ES (lots 1-6).
+// Aucun <script> inline restant côté tech-space.blade.php.
 //
 // Pas de bundler — chargé via <script type="module"> côté Blade. Les
 // imports relatifs './core/x.js' fonctionnent nativement (ESM).
 //
-// Préconditions :
-//   1. window.TECH_CONFIG doit être publié AVANT ce module
-//      (cf. partial resources/views/public/tech/partials/_js_config.blade.php).
-//   2. Le <script> inline historique gère encore les features non migrées :
-//      upload, filters, search, geolocate (distance + tournée), report,
-//      changements de statut (Y aller / J'y suis / modale justifier).
-//      Cf. TECHNICAL_DEBT.md pour le détail.
+// Précondition unique : window.TECH_CONFIG publié AVANT ce module (cf.
+// partial resources/views/public/tech/partials/_js_config.blade.php).
 //
-// Note d'architecture : core/api.js et core/state.js sont des modules
-// UTILITAIRES (helpers + état partagé) consommés à la demande par les
-// features. Ils n'ont pas de fonction init() — pas d'appel bootstrap
-// nécessaire.
+// Note d'architecture : core/api.js, core/state.js, core/ui-helpers.js
+// sont des modules UTILITAIRES (helpers + état partagé) consommés à la
+// demande par les features. Pas de init() — pas d'appel bootstrap.
 
 import { init as initOffline }     from './core/offline.js';
 import { init as initSwRegister }  from './core/sw-register.js';
@@ -28,6 +22,7 @@ import { init as initStatusChanges } from './features/status-changes.js';
 import { init as initFilters }     from './features/filters.js';
 import { init as initSearch }      from './features/search.js';
 import { init as initGeolocate }   from './features/geolocate.js';
+import { init as initUpload }      from './features/upload.js';
 
 // Garde-fou : si TECH_CONFIG n'est pas là, on log mais on n'explose pas
 // (la page continue de fonctionner via le JS inline encore présent).
@@ -46,9 +41,7 @@ function bootstrap() {
     initFilters();        // [SM1.5 Lot 5] chips + KPI + zone + clear + restore URL
     initSearch();         // [SM1.5 Lot 3] Select2 AJAX paginé + openFocusModal
     initGeolocate();      // [SM1.5 Lot 4] Près de moi + Mon chemin (TSP)
-
-    // NOTE : upload reste dans le <script> inline (lot 6 à venir).
-    // Cf. docs/TECHNICAL_DEBT.md.
+    initUpload();         // [SM1.5 Lot 6] photo : preview + GPS + compress + POST + IndexedDB queue
 }
 
 if (document.readyState === 'loading') {
