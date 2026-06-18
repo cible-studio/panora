@@ -68,6 +68,30 @@
                            placeholder="optionnel">
                 </div>
 
+                {{-- 2026-06-18 (feedback patronne) : édition de l'équipe.
+                     "— Aucune équipe —" détache (pose_team_id = null).
+                     Légende explique l'impact sur les FUTURES poses
+                     (historique préservé via team_name VARCHAR snapshot). --}}
+                @php $currentTeamId = old('pose_team_id', $technicien->pose_team_id); @endphp
+                <div class="mfg">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px">
+                        <label style="margin:0">Équipe</label>
+                        <a href="{{ route('admin.teams.create', ['back' => 'posetasks']) }}"
+                           style="background:none;border:1px dashed var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:1px 9px;border-radius:8px;text-decoration:none"
+                           title="Créer une nouvelle équipe">+ Nouvelle équipe</a>
+                    </div>
+                    <select name="pose_team_id">
+                        <option value="">— Aucune équipe —</option>
+                        @foreach(($teams ?? collect()) as $team)
+                            <option value="{{ $team->id }}" {{ (int) $currentTeamId === (int) $team->id ? 'selected' : '' }}>{{ $team->name }}</option>
+                        @endforeach
+                    </select>
+                    <div style="font-size:11px;color:var(--text3);margin-top:4px">
+                        Affecte les <strong>futures</strong> tâches de pose assignées à ce technicien.
+                        Les poses déjà existantes gardent leur snapshot d'équipe d'origine.
+                    </div>
+                </div>
+
                 <div class="mfg">
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
                         <input type="checkbox" name="is_active" value="1" {{ $technicien->is_active ? 'checked' : '' }}>

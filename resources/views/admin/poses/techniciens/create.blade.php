@@ -80,6 +80,27 @@
                     </div>
                 </div>
 
+                {{-- 2026-06-18 (feedback patronne) : sélecteur d'équipe à la
+                     création. Bouton "+ Nouvelle équipe" avec smart-back pour
+                     revenir ici après save. --}}
+                <div class="mfg">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px">
+                        <label style="margin:0">Équipe <span style="font-size:11px;color:var(--text3);font-weight:400">— optionnel</span></label>
+                        <a href="{{ route('admin.teams.create', ['back' => 'posetasks']) }}"
+                           style="background:none;border:1px dashed var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:1px 9px;border-radius:8px;text-decoration:none"
+                           title="Créer une nouvelle équipe (puis retour sur ce formulaire)">+ Nouvelle équipe</a>
+                    </div>
+                    <select name="pose_team_id" class="{{ $errors->has('pose_team_id') ? 'error' : '' }}">
+                        <option value="">— Aucune équipe —</option>
+                        @foreach(($teams ?? collect()) as $team)
+                            <option value="{{ $team->id }}" {{ (int) old('pose_team_id') === (int) $team->id ? 'selected' : '' }}>{{ $team->name }}</option>
+                        @endforeach
+                    </select>
+                    <div style="font-size:11px;color:var(--text3);margin-top:4px">
+                        L'équipe sera reportée automatiquement sur les nouvelles tâches de pose assignées à ce technicien.
+                    </div>
+                </div>
+
                 <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:16px">
                     💡 <strong>Après création :</strong> un lien unique sera généré pour le technicien.
                     Vous pourrez le copier depuis la liste pour l'envoyer en WhatsApp/SMS.
