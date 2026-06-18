@@ -9,16 +9,19 @@
 // refonte. La SM2 introduira un store réactif si besoin.
 
 export const state = {
-    // Bloc filtres (cf. features/filters.js) — clés exactes utilisées par
-    // le code historique pour rester comportement-identique.
+    // Bloc filtres (cf. features/filters.js) — STRUCTURE EXACTE du JS pré-
+    // refonte (cf. lignes 985-991 du <script> avant Phase 3) :
+    //   kpi      : 'all' | 'today' (compatibilité KPI grid existant)
+    //   chips    : Set<string>  ('late' | 'today' | 'problem' | 'reject' | 'en_route' | 'en_cours')
+    //   zone     : string|null  (commune sélectionnée via TOC ou Select2)
+    //   distance : bool         (tri haversine activé)
+    //   geo      : {lat, lng}|null  (position tech captée)
     filterState: {
-        kpi: 'all',           // 'all' | 'today' (cf. KPI cards)
-        late: false,
-        today: false,
-        problem: false,
-        reject: false,
-        en_route: false,
-        en_cours: false,
+        kpi: 'all',
+        chips: new Set(),
+        zone: null,
+        distance: false,
+        geo: null,
     },
 
     // Mode tournée TSP (cf. features/geolocate.js).

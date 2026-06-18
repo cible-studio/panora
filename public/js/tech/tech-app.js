@@ -20,6 +20,10 @@
 
 import { init as initOffline }     from './core/offline.js';
 import { init as initSwRegister }  from './core/sw-register.js';
+import { init as initPwaInstall }  from './features/pwa-install.js';
+import { init as initHeartbeat }   from './features/heartbeat.js';
+import { init as initFilters }     from './features/filters.js';
+import { init as initSearch }      from './features/search.js';
 
 // Garde-fou : si TECH_CONFIG n'est pas là, on log mais on n'explose pas
 // (la page continue de fonctionner via le JS inline encore présent).
@@ -36,11 +40,21 @@ function bootstrap() {
     initSwRegister();
     initOffline();
 
-    // Lots F + G (Phase 3) — features : à ajouter au fur et à mesure.
-    // initPwaInstall();
-    // initHeartbeat();
+    // Lot F (Phase 3) — features simples (autonomes, sans dépendance avec
+    // le JS inline historique restant — donc activées immédiatement) :
+    initPwaInstall();
+    initHeartbeat();
+
+    // ⚠ filters + search seront activés en Lot G : ils dépendent de
+    // constantes (filterState, TOKEN, SEARCH_URL) déclarées dans le bloc
+    // <script> inline du Bloc 2 (lignes 980+ de tech-space.blade.php),
+    // qui partage ces variables avec les sections 11/12/13/16/17 encore
+    // non migrées. Activer plus tôt = double-binding (handler appelé 2x).
+    // Migration synchrone Lot G : suppression du bloc inline + activation.
     // initFilters();
     // initSearch();
+
+    // Lot G (Phase 3) — features complexes :
     // initUpload();
     // initGeolocate();
     // initReport();

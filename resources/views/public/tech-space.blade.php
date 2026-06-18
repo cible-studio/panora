@@ -291,76 +291,7 @@
         }
     });
 
-    // ── Polling heartbeat — KPI live + détection nouvelle pose ────
-    const HEARTBEAT_URL = "{{ route('tech.space.heartbeat', $token) }}";
-    const POLL_MS = 20000;
-    const liveDot = document.querySelector('[data-live-indicator]');
-    // Plus haut ID de pose actuellement dans le DOM — sert de baseline pour
-    // détecter "nouvelle pose assignée" entre 2 ticks heartbeat.
-    let lastKnownTaskId = Array.from(document.querySelectorAll('.pose[data-task-id]'))
-        .reduce((max, el) => Math.max(max, parseInt(el.dataset.taskId, 10) || 0), 0);
-    let firstTick = true;
-
-    function bumpKpi(name, newVal) {
-        const el = document.querySelector(`[data-kpi-value="${name}"]`);
-        if (!el) return;
-        const oldVal = parseInt(el.textContent.trim(), 10) || 0;
-        if (oldVal === newVal) return;
-        el.textContent = newVal;
-        el.classList.remove('kpi-bump');
-        void el.offsetWidth; // force reflow pour relancer l'anim
-        el.classList.add('kpi-bump');
-    }
-
-    async function heartbeatTick() {
-        try {
-            const r = await fetch(HEARTBEAT_URL, {
-                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'same-origin',
-            });
-            if (!r.ok) return;
-            const d = await r.json();
-            if (!d.ok) return;
-
-            // Pulse "live"
-            if (liveDot) {
-                liveDot.classList.add('is-pulsing');
-                setTimeout(() => liveDot.classList.remove('is-pulsing'), 600);
-            }
-
-            bumpKpi('totalActive',     d.totalActive);
-            bumpKpi('activeToday',     d.activeToday);
-            bumpKpi('pigesSentToday',  d.pigesSentToday);
-            bumpKpi('zonesTodayCount', d.zonesTodayCount);
-
-            // Le sub-label "Aujourd'hui" rappelle aussi le nb posées du jour
-            const doneTodayEl = document.querySelector('[data-done-today]');
-            if (doneTodayEl) doneTodayEl.textContent = d.doneToday;
-
-            // MAJ chip "Mes piges" badge (rejected si > 0, sinon total)
-            const chipBadge = document.querySelector('[data-piges-chip-badge]');
-            if (chipBadge) {
-                const v = d.pigesRejected > 0 ? d.pigesRejected : d.pigesTotal;
-                if (parseInt(chipBadge.textContent.trim(), 10) !== v) {
-                    chipBadge.textContent = v;
-                }
-            }
-
-            // Détection nouvelle pose assignée
-            if (!firstTick && d.latestTaskId > lastKnownTaskId) {
-                const banner = document.querySelector('[data-new-task-banner]');
-                if (banner) banner.style.display = 'block';
-            }
-            lastKnownTaskId = Math.max(lastKnownTaskId, d.latestTaskId || 0);
-            firstTick = false;
-        } catch (e) { /* silencieux */ }
-    }
-
-    setTimeout(heartbeatTick, 1500);
-    setInterval(heartbeatTick, POLL_MS);
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) heartbeatTick();
-    });
+    // ── Polling heartbeat — migré vers public/js/tech/features/heartbeat.js (Phase 3 SM1) ──
 
     // ── Feedback fort : overlay plein écran + vibration ──
     function flashSuccess(msg) {
@@ -1490,31 +1421,8 @@ window.addEventListener('DOMContentLoaded', function () {
     refreshChipCounts();
     applyFilters();
 
-    // ─── 14. Service Worker — PWA & cache offline ───────────────
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('{{ asset('tech-sw.js') }}', { scope: '/' })
-            .then(reg => {
-                // Bonne hygiène : log si MAJ du SW dispo (n'active pas auto)
-                reg.addEventListener('updatefound', () => {
-                    /* nouvelle version en cours d'install — prendra effet
-                       au prochain cold start de la PWA */
-                });
-            })
-            .catch(() => { /* échec silencieux : pas critique */ });
-    }
-
-    // ─── 15. Détection online / offline + flush queue Background Sync ──
-    const offlineBanner = document.getElementById('ts-offline-banner');
-    function updateOfflineState() {
-        if (!offlineBanner) return;
-        if (navigator.onLine === false) offlineBanner.classList.add('show');
-        else offlineBanner.classList.remove('show');
-        // Retour online → on tente de rejouer la queue offline
-        if (navigator.onLine !== false) flushUploadQueue();
-    }
-    window.addEventListener('online',  updateOfflineState);
-    window.addEventListener('offline', updateOfflineState);
-    updateOfflineState();
+    // ─── 14. Service Worker — migré vers public/js/tech/core/sw-register.js (Phase 3 SM1) ──
+    // ─── 15. Détection online/offline — migrée vers public/js/tech/core/offline.js (Phase 3 SM1) ──
 
     // ═══════════════════════════════════════════════════════════════
     // ─── 16. MODE TOURNÉE — TSP nearest-neighbor côté serveur ────
