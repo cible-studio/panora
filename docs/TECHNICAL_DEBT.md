@@ -251,6 +251,72 @@ opérationnelle, pas un fait comptable.
 
 ---
 
+## 🟡 [Priorité moyenne] Refonte Espace Technicien — SM1.5 à programmer
+
+État actuel après SM1 (refactor pur, juin 2026 — branche
+`feature/tech-refonte-sm1`) :
+
+- **Phase 1** ✅ Préparation terminée (audit JS, structure dossiers,
+  TechUrlResolverService shadow, checklist 90 items)
+- **Phase 2** ✅ Découpage Blade en 11 partials terminé
+  (tech-space.blade.php 3125 → 1784 lignes)
+- **Phase 3** ⚠️ Extraction JS partielle (~50 %)
+  - tech-space.blade.php : 1784 → 1702 lignes
+  - 4 features autonomes migrées et actives
+  - 6 features encore dans le `<script>` inline
+
+### Modules JS effectivement actifs en SM1 (6)
+
+`public/js/tech/` :
+- `tech-app.js` — entry, bootstrap, registre des modules
+- `core/api.js` — helpers fetch + CSRF + urlForTask (utilitaire)
+- `core/state.js` — objet d'état partagé (utilitaire)
+- `core/offline.js` — online/offline events + flush queue
+- `core/sw-register.js` — registration Service Worker
+- `features/heartbeat.js` — polling 20s + bump KPIs + détection nouvelle pose
+- `features/pwa-install.js` — capture beforeinstallprompt (nouveau)
+
+Total : ~280 lignes JS modulaires.
+window.TECH_CONFIG publié via partial `_js_config.blade.php` (csrf,
+token, 9 routes nommées, motifLabels, bootstrap).
+
+### Encore en inline (à migrer en SM1.5) — par ordre de priorité
+
+| Module cible | Volume estimé | Sections inline source |
+|---|---|---|
+| `features/upload.js` | ~400 l | compression image, géoloc EXIF, modale justifier pige, upload XHR, aperçu, queue offline IndexedDB |
+| `features/filters.js` | ~200 l | filterState + URL sync + chips + KPI grid + TOC zones |
+| `features/geolocate.js` | ~180 l | distance haversine "Près de moi" + TSP "Mon chemin" |
+| `features/search.js` | ~150 l | Select2 AJAX paginé + openFocusModal |
+| `features/status-changes.js` | ~150 l | bumps "Y aller" (en_route 25%) + "J'y suis" (en_cours 60%) + changement statut générique |
+| `features/report.js` | ~80 l | modale signalement 9 motifs DelayReason + POST report + bandeau "déjà signalé" |
+
+Volume total restant : ~1160 lignes JS à migrer.
+Estimation effort : **8-12h focus**.
+Priorité : **moyenne** — pas de blocage utilisateur, mais bloque la
+Sous-mission 2 (SM2) qui touchera directement l'UI Focus mode.
+
+### Conditions de réussite SM1.5
+
+- Suppression effective des 2 blocs `<script>` inline historiques
+- Console DevTools propre sur 5 scénarios (0, 3, 50+ poses ; piges ;
+  pige legacy)
+- Test offline + retry queue IndexedDB intact
+- Snapshot ground truth pixel-à-pixel préservé
+- Checklist 90 items (cf. `docs/snapshots/tech-space-checklist.md`)
+  toujours à 100 %
+
+### Pourquoi ce report
+
+Le brief SM1 estimait Phase 3 à 6-8h. À l'exécution, le volume effectif
+de code interdépendant (1613 lignes JS inline avec 30 blocs logiques et
+variables partagées entre features non encore migrées) rendait risquée
+une livraison Lot G complète sans tests utilisateur intermédiaires.
+Choix tactique validé avec l'utilisateur : sécurité opérationnelle
+(0 régression visible côté tech) > respect du volume annoncé.
+
+---
+
 ## Historique
 
 | Date       | Mission                                      | Dette ajoutée |
@@ -260,3 +326,4 @@ opérationnelle, pas un fait comptable.
 | 2026-06-17 | M1 Performance Commerciale (Module 1)        | Décision C révisée (pas de table sectors) + Herfindahl à valider + lien Rapports↔Perf |
 | 2026-06-17 | M2 Performance Tech / Équipe (Module 2)      | Boxplot → histogramme + drill équipe ignore anciens membres |
 | 2026-06-18 | Bloc 4 — CA réel sur Rapports (Famille B)    | CA réel non filtrable géographiquement (Option A Q2) — fallback Finance documenté |
+| 2026-06-18 | Refonte Espace Technicien SM1 (partielle)    | Phase 3 livrée à ~50 % — SM1.5 (8-12h) à programmer pour finaliser l'extraction JS de 6 modules restant en inline |

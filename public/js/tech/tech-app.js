@@ -1,29 +1,28 @@
-// public/js/tech/tech-app.js — Phase 3 SM1.
+// public/js/tech/tech-app.js — État après SM1.
 //
-// Point d'entrée du JS modulaire de l'Espace Technicien. Importe les
-// modules core (api/state/offline/sw-register) + features (extraites
-// progressivement depuis le <script> inline pré-refonte).
+// Voir docs/TECHNICAL_DEBT.md "Refonte Espace Technicien — SM1.5"
+// pour les modules encore dans le <script> inline de tech-space.blade.php.
 //
 // Pas de bundler — chargé via <script type="module"> côté Blade. Les
 // imports relatifs './core/x.js' fonctionnent nativement (ESM).
 //
 // Préconditions :
-//  1. window.TECH_CONFIG doit être publié AVANT ce module (cf. partial
-//     resources/views/public/tech/partials/_js_config.blade.php).
-//  2. Le code inline restant DANS tech-space.blade.php garde la main sur
-//     les features non encore migrées en Phase 3. Pas de double init.
+//   1. window.TECH_CONFIG doit être publié AVANT ce module
+//      (cf. partial resources/views/public/tech/partials/_js_config.blade.php).
+//   2. Le <script> inline historique gère encore les features non migrées :
+//      upload, filters, search, geolocate (distance + tournée), report,
+//      changements de statut (Y aller / J'y suis / modale justifier).
+//      Cf. TECHNICAL_DEBT.md pour le détail.
 //
-// Stratégie de migration progressive : chaque lot F/G ajoute son init()
-// ici en commentant le bloc inline correspondant. À la fin de Phase 3,
-// le <script> inline ne contient plus que les contrats globaux (jQuery,
-// $ alias, helpers toast utilisés par plusieurs features avant migration).
+// Note d'architecture : core/api.js et core/state.js sont des modules
+// UTILITAIRES (helpers + état partagé) consommés à la demande par les
+// features. Ils n'ont pas de fonction init() — pas d'appel bootstrap
+// nécessaire.
 
 import { init as initOffline }     from './core/offline.js';
 import { init as initSwRegister }  from './core/sw-register.js';
-import { init as initPwaInstall }  from './features/pwa-install.js';
 import { init as initHeartbeat }   from './features/heartbeat.js';
-import { init as initFilters }     from './features/filters.js';
-import { init as initSearch }      from './features/search.js';
+import { init as initPwaInstall }  from './features/pwa-install.js';
 
 // Garde-fou : si TECH_CONFIG n'est pas là, on log mais on n'explose pas
 // (la page continue de fonctionner via le JS inline encore présent).
@@ -32,32 +31,15 @@ if (!window.TECH_CONFIG) {
 }
 
 function bootstrap() {
-    // Lot E (Phase 3) — infrastructure :
-    //   - api.js : utilitaires fetch (importé à la demande par les features)
-    //   - state.js : objet d'état partagé (importé à la demande)
-    //   - sw-register : enregistre le Service Worker /tech-sw.js
-    //   - offline : online/offline events + flush queue retour réseau
-    initSwRegister();
-    initOffline();
+    // Modules activés en SM1 :
+    initSwRegister();   // Service Worker registration
+    initOffline();      // online/offline events + flush queue
+    initHeartbeat();    // polling 20s + KPIs live + détection nouvelle pose
+    initPwaInstall();   // capture beforeinstallprompt
 
-    // Lot F (Phase 3) — features simples (autonomes, sans dépendance avec
-    // le JS inline historique restant — donc activées immédiatement) :
-    initPwaInstall();
-    initHeartbeat();
-
-    // ⚠ filters + search seront activés en Lot G : ils dépendent de
-    // constantes (filterState, TOKEN, SEARCH_URL) déclarées dans le bloc
-    // <script> inline du Bloc 2 (lignes 980+ de tech-space.blade.php),
-    // qui partage ces variables avec les sections 11/12/13/16/17 encore
-    // non migrées. Activer plus tôt = double-binding (handler appelé 2x).
-    // Migration synchrone Lot G : suppression du bloc inline + activation.
-    // initFilters();
-    // initSearch();
-
-    // Lot G (Phase 3) — features complexes :
-    // initUpload();
-    // initGeolocate();
-    // initReport();
+    // NOTE : filters, search, upload, geolocate, report, status-changes
+    // restent dans le <script> inline de tech-space.blade.php.
+    // Migration prévue en SM1.5 (cf. docs/TECHNICAL_DEBT.md).
 }
 
 if (document.readyState === 'loading') {
