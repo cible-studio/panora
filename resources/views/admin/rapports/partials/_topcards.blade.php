@@ -40,6 +40,11 @@
         </div>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </a>
+
+    {{-- 2026-06-18 (feedback patronne) : carte "Rapport taxes" retirée de
+         cette page. Le suivi des taxes communales reste accessible
+         depuis la sidebar (section Opérations → Taxes communes) pour
+         admin + MP — pas besoin de doublonner ici. --}}
     @endif
 </div>
 </div>

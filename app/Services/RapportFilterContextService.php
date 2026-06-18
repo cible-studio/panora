@@ -48,10 +48,17 @@ class RapportFilterContextService
     /**
      * Une seule ligne compacte pour les bandeaux Excel (où l'espace est
      * limité à 1 cellule). Utilisée comme première metaLine des sheets.
+     *
+     * Préfixée par le TYPE de synthèse (globale vs filtrée) pour que le
+     * destinataire du fichier comprenne immédiatement la nature du contenu :
+     *   - "Synthèse globale"  : aucun filtre dimensionnel actif (parc entier)
+     *   - "Synthèse filtrée"  : au moins un filtre dimensionnel actif
+     *     (zone, commune, ville, client ou type de panneau)
      */
     public function buildOneLine(array $recap): string
     {
-        $parts = ['Période : ' . $recap['periode_label']];
+        $type = empty($recap['hasAnyFilter']) ? 'Synthèse globale' : 'Synthèse filtrée';
+        $parts = [$type, 'Période : ' . $recap['periode_label']];
         foreach ($recap['filters'] as $f) {
             $parts[] = $f['label'] . ' : ' . $f['value'];
         }

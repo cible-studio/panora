@@ -95,91 +95,10 @@ window.__RPT__ = {
     </a>
 </div>
 
-{{-- ════ FILTRES AVANCÉS (presets + dates custom + filtres) ════ --}}
-<form id="form-periode" method="GET" action="{{ route('admin.rapports.index') }}"
-      style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 20px;margin-bottom:20px">
-
-    {{-- Ligne 1 : Presets période ───────────────────────────────── --}}
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:12px;">
-        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:flex;align-items:center;gap:6px">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-            Période rapide
-        </span>
-        @foreach([
-            'today'   => "Aujourd'hui",
-            'week'    => 'Cette semaine',
-            'month'   => 'Ce mois',
-            'quarter' => 'Ce trimestre',
-            'year'    => 'Cette année',
-            'all'     => 'Tout',
-        ] as $key => $label)
-            <a href="{{ route('admin.rapports.index', array_merge(request()->except(['preset','from','to','annee','mois_du','mois_au']), ['preset' => $key])) }}"
-               style="padding:6px 12px;font-size:11px;font-weight:600;border-radius:8px;text-decoration:none;border:1px solid {{ $currentPreset === $key ? 'var(--accent)' : 'var(--border)' }};background:{{ $currentPreset === $key ? 'var(--accent)' : 'var(--surface2)' }};color:{{ $currentPreset === $key ? '#fff' : 'var(--text2)' }};">
-                {{ $label }}
-            </a>
-        @endforeach
-        <span style="color:var(--border);">|</span>
-        <input type="date" name="from" value="{{ $dateFrom->format('Y-m-d') }}" onchange="this.form.submit()"
-               style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text)">
-        <span style="color:var(--text3);font-size:12px">→</span>
-        <input type="date" name="to" value="{{ $dateTo->format('Y-m-d') }}" onchange="this.form.submit()"
-               style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text)">
-        <span style="font-size:11px;color:var(--text3);margin-left:auto;">
-            {{ $dateFrom->format('d/m/Y') }} → {{ $dateTo->format('d/m/Y') }}
-            ({{ (int) $dateFrom->diffInDays($dateTo) + 1 }} jours)
-        </span>
-    </div>
-
-    {{-- Ligne 2 : Filtres dimensionnels ────────────────────────── --}}
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:flex;align-items:center;gap:6px">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-            Filtres
-        </span>
-        <select name="filter_zone" onchange="this.form.submit()"
-                class="rpt-filter-select" style="min-width:130px;font-weight:600"
-                title="Zone : Abidjan ou Intérieur (toutes les villes hors Abidjan)">
-            <option value="">🌍 Toutes zones</option>
-            <option value="abidjan"   {{ ($filterZone ?? null) === 'abidjan'   ? 'selected' : '' }}>🏙️ Abidjan</option>
-            <option value="interieur" {{ ($filterZone ?? null) === 'interieur' ? 'selected' : '' }}>🌾 Intérieur</option>
-        </select>
-        <select name="filter_commune_id" onchange="this.form.submit()"
-                class="rpt-filter-select" style="min-width:160px;">
-            <option value="">Toutes communes</option>
-            @foreach($allCommunes as $c)
-                <option value="{{ $c->id }}" {{ $filterCommune == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
-            @endforeach
-        </select>
-        <select name="filter_city" onchange="this.form.submit()"
-                class="rpt-filter-select" style="min-width:140px;">
-            <option value="">Toutes villes</option>
-            @foreach($allCities as $city)
-                <option value="{{ $city }}" {{ $filterCity == $city ? 'selected' : '' }}>{{ $city }}</option>
-            @endforeach
-        </select>
-        <select name="filter_client_id" onchange="this.form.submit()"
-                class="rpt-filter-select" style="min-width:170px;">
-            <option value="">Tous clients</option>
-            @foreach($allClients as $c)
-                <option value="{{ $c->id }}" {{ $filterClient == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
-            @endforeach
-        </select>
-        <select name="filter_category_id" onchange="this.form.submit()"
-                class="rpt-filter-select" style="min-width:160px;">
-            <option value="">Tous types de panneau</option>
-            @foreach($allCategories as $cat)
-                <option value="{{ $cat->id }}" {{ $filterCategory == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
-            @endforeach
-        </select>
-        @if($filterCommune || $filterCity || $filterClient || $filterCategory || ($filterZone ?? null) || $currentPreset)
-            <a href="{{ route('admin.rapports.index') }}"
-               style="font-size:11px;color:var(--text3);text-decoration:underline;margin-left:8px;">
-                ✕ Réinitialiser
-            </a>
-        @endif
-@include('admin.rapports.partials._summary')
-    </div>
-</form>
+{{-- 2026-06-18 (feedback patronne) : la barre de filtres a été déplacée
+     SOUS la barre d'onglets pour libérer la vue d'entrée (KPI/cards plus
+     proches du titre). Voir bloc <form id="form-periode"> plus bas, juste
+     après la div des onglets. --}}
 
 @include('admin.rapports.partials._topcards')
 
@@ -251,6 +170,107 @@ window.__RPT__ = {
     </button>
     @endforeach
 </div>
+
+{{-- ════ FILTRES AVANCÉS (presets + dates custom + filtres) ════
+     2026-06-18 (feedback patronne) : déplacé du dessus de la barre
+     d'onglets vers ICI (sous les onglets). Le user voit d'abord le
+     titre + topcards + KPI + onglets, puis ajuste ses filtres en
+     dessous quand il veut affiner. --}}
+<form id="form-periode" method="GET" action="{{ route('admin.rapports.index') }}"
+      style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 20px;margin-bottom:20px">
+
+    {{-- ⚠ 2026-06-18 (feedback patronne) : les selects (Commune, Ville,
+         Client, Type panneau) étaient sur la 2e ligne et leur dropdown
+         natif s'ouvrait VERS LE HAUT par manque de place en dessous.
+         Solution : on inverse — Filtres dimensionnels EN HAUT (ligne 1),
+         Période rapide EN BAS (ligne 2). Les dropdowns natifs ont
+         maintenant tout l'espace de la page sous eux et s'ouvrent
+         naturellement vers le bas. --}}
+
+    {{-- Ligne 1 : Filtres dimensionnels ────────────────────────── --}}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:flex;align-items:center;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Filtres
+        </span>
+        <select name="filter_zone" onchange="this.form.submit()"
+                class="rpt-filter-select" style="min-width:130px;font-weight:600"
+                title="Zone : Abidjan ou Intérieur (toutes les villes hors Abidjan)">
+            <option value="">Toutes zones</option>
+            <option value="abidjan"   {{ ($filterZone ?? null) === 'abidjan'   ? 'selected' : '' }}>Abidjan</option>
+            <option value="interieur" {{ ($filterZone ?? null) === 'interieur' ? 'selected' : '' }}>Intérieur</option>
+        </select>
+        <select name="filter_commune_id" onchange="this.form.submit()"
+                class="rpt-filter-select" style="min-width:160px;">
+            <option value="">Toutes communes</option>
+            @foreach($allCommunes as $c)
+                <option value="{{ $c->id }}" {{ $filterCommune == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+            @endforeach
+        </select>
+        <select name="filter_city" onchange="this.form.submit()"
+                class="rpt-filter-select" style="min-width:140px;">
+            <option value="">Toutes villes</option>
+            @foreach($allCities as $city)
+                <option value="{{ $city }}" {{ $filterCity == $city ? 'selected' : '' }}>{{ $city }}</option>
+            @endforeach
+        </select>
+        <select name="filter_client_id" onchange="this.form.submit()"
+                class="rpt-filter-select" style="min-width:170px;">
+            <option value="">Tous clients</option>
+            @foreach($allClients as $c)
+                <option value="{{ $c->id }}" {{ $filterClient == $c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+            @endforeach
+        </select>
+        <select name="filter_category_id" onchange="this.form.submit()"
+                class="rpt-filter-select" style="min-width:160px;">
+            <option value="">Tous types de panneau</option>
+            @foreach($allCategories as $cat)
+                <option value="{{ $cat->id }}" {{ $filterCategory == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+            @endforeach
+        </select>
+        @if($filterCommune || $filterCity || $filterClient || $filterCategory || ($filterZone ?? null) || $currentPreset)
+            <a href="{{ route('admin.rapports.index') }}"
+               style="font-size:11px;color:var(--text3);text-decoration:underline;margin-left:8px;">
+                ✕ Réinitialiser
+            </a>
+        @endif
+    </div>
+
+    {{-- Ligne 2 : Presets période ───────────────────────────────── --}}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);display:flex;align-items:center;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            Période rapide
+        </span>
+        @foreach([
+            'today'   => "Aujourd'hui",
+            'week'    => 'Cette semaine',
+            'month'   => 'Ce mois',
+            'quarter' => 'Ce trimestre',
+            'year'    => 'Cette année',
+            'all'     => 'Tout',
+        ] as $key => $label)
+            @php $isActive = $currentPreset === $key; @endphp
+            <a href="{{ route('admin.rapports.index', array_merge(request()->except(['preset','from','to','annee','mois_du','mois_au']), ['preset' => $key])) }}"
+               class="rapport-preset-pill {{ $isActive ? 'is-active' : '' }}">
+                {{ $label }}
+            </a>
+        @endforeach
+        <span style="color:var(--border);">|</span>
+        <input type="date" name="from" value="{{ $dateFrom->format('Y-m-d') }}" onchange="this.form.submit()"
+               style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text)">
+        <span style="color:var(--text3);font-size:12px">→</span>
+        <input type="date" name="to" value="{{ $dateTo->format('Y-m-d') }}" onchange="this.form.submit()"
+               style="height:32px;padding:0 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text)">
+        <span style="font-size:11px;color:var(--text3);margin-left:auto;">
+            {{ $dateFrom->format('d/m/Y') }} → {{ $dateTo->format('d/m/Y') }}
+            ({{ (int) $dateFrom->diffInDays($dateTo) + 1 }} jours)
+        </span>
+    </div>
+
+    {{-- Ligne 3 : récap textuel des filtres actifs (partial _summary) --}}
+    @include('admin.rapports.partials._summary')
+</form>
 
 {{-- ══════════════════════════════════
      ONGLET 1 — OCCUPATION (admin/MP only)
@@ -502,6 +522,44 @@ window.__RPT__ = {
 .cm-status-maintenance { background:rgba(107,114,128,.12);color:#374151; }
 @media (max-width: 900px) { .rpt-grid-2 { grid-template-columns: 1fr !important; } .rpt-grid-clients { grid-template-columns: 1fr !important; } .rpt-grid-5 { grid-template-columns: repeat(2, 1fr) !important; } }
 @keyframes rpt-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.6); } 50% { box-shadow: 0 0 0 4px rgba(220,38,38,0); } }
+
+/* ── Pilules "Période rapide" ───────────────────────────────────
+   Pilule au repos : fond surface2, texte gris, bordure discrète.
+   Pilule active : fond ACCENT plein avec ombre douce + scale léger
+   pour qu'on voie immédiatement laquelle est sélectionnée.
+*/
+.rapport-preset-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 14px;
+    font-size: 11.5px;
+    font-weight: 600;
+    border-radius: 999px;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text2);
+    transition: background .15s, color .15s, border-color .15s, box-shadow .2s, transform .12s;
+    white-space: nowrap;
+}
+.rapport-preset-pill:hover {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent-dark, var(--accent));
+}
+.rapport-preset-pill.is-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 4px 12px -2px rgba(232, 160, 32, .45);
+    transform: translateY(-1px);
+}
+.rapport-preset-pill.is-active:hover {
+    background: var(--accent-dark, var(--accent));
+    color: #fff;
+    border-color: var(--accent-dark, var(--accent));
+}
 </style>
 
 {{-- ════ JAVASCRIPT ════ --}}
