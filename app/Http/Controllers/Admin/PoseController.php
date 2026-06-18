@@ -81,6 +81,9 @@ class PoseController extends Controller
         if ($request->filled('campaign_id'))   $query->where('pose_tasks.campaign_id',      $request->campaign_id);
         if ($request->filled('date_from'))     $query->whereDate('pose_tasks.scheduled_at', '>=', $request->date_from);
         if ($request->filled('date_to'))       $query->whereDate('pose_tasks.scheduled_at', '<=', $request->date_to);
+        // 2026-06-18 : filtre Équipe (team_name VARCHAR — pose_team_id ne vit
+        // que sur users, pas sur pose_tasks ; on requête donc par nom).
+        if ($request->filled('team_name'))     $query->where('pose_tasks.team_name', $request->team_name);
 
         // ─── COMPTEURS KPI sur le périmètre AVANT filtre status ───
         // (chaque carte garde sa vraie valeur quand on en clique une).
@@ -122,6 +125,8 @@ class PoseController extends Controller
 
         $techniciens   = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
         $campaigns     = Campaign::where('status', CampaignStatus::ACTIF->value)->orderBy('name')->get(['id', 'name', 'status']);
+        // 2026-06-18 : alimente le filtre Équipe du formulaire.
+        $teams         = \App\Models\PoseTeam::where('is_active', true)->orderBy('name')->get(['id', 'name']);
         $overdueTasks  = $this->poseService->getOverdueTasks();
         $posesSansPige = PoseTask::where('status', PoseTaskStatus::COMPLETED->value)->whereNotNull('campaign_id')->whereDoesntHave('piges', fn($q) => $q->where('status', '!=', 'rejete'))->count();
 
@@ -136,7 +141,7 @@ class PoseController extends Controller
             ]);
         }
 
-        return view('admin.poses.index', compact('poseTasks', 'techniciens', 'campaigns', 'stats', 'overdueTasks', 'posesSansPige'));
+        return view('admin.poses.index', compact('poseTasks', 'techniciens', 'campaigns', 'teams', 'stats', 'overdueTasks', 'posesSansPige'));
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -373,7 +378,24 @@ class PoseController extends Controller
     // ══════════════════════════════════════════════════════════════
     public function create(Request $request)
     {
-        $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
+        // 2026-06-18 (feedback patronne) : on charge également la liste des
+        // PoseTeam actives pour proposer un VRAI select équipe (au lieu de
+        // l'input texte libre historique). On expose aussi une map
+        // user_id → team_name pour l'auto-remplissage côté JS lorsque
+        // l'admin choisit un technicien déjà rattaché à une équipe.
+        $techniciens = User::where('role', 'technique')
+            ->orderBy('name')
+            ->get(['id', 'name', 'pose_team_id']);
+        $teams = \App\Models\PoseTeam::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        $teamByUser = User::where('role', 'technique')
+            ->whereNotNull('pose_team_id')
+            ->with('poseTeam:id,name')
+            ->get(['id', 'pose_team_id'])
+            ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeam?->name])
+            ->filter()
+            ->toArray();
 
         $preselectedCampaign = null;
         if ($request->filled('campaign_id')) {
@@ -383,7 +405,9 @@ class PoseController extends Controller
             ])->find($request->campaign_id);
         }
 
-        return view('admin.poses.create', compact('techniciens', 'preselectedCampaign'));
+        return view('admin.poses.create', compact(
+            'techniciens', 'teams', 'teamByUser', 'preselectedCampaign'
+        ));
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -489,9 +513,21 @@ class PoseController extends Controller
         }
 
         $poseTask->load(['panel.commune', 'campaign', 'technicien']);
-        $techniciens = User::where('role', 'technique')->orderBy('name')->get(['id', 'name']);
+        $techniciens = User::where('role', 'technique')
+            ->orderBy('name')
+            ->get(['id', 'name', 'pose_team_id']);
+        $teams = \App\Models\PoseTeam::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        $teamByUser = User::where('role', 'technique')
+            ->whereNotNull('pose_team_id')
+            ->with('poseTeam:id,name')
+            ->get(['id', 'pose_team_id'])
+            ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeam?->name])
+            ->filter()
+            ->toArray();
 
-        return view('admin.poses.edit', compact('poseTask', 'techniciens'));
+        return view('admin.poses.edit', compact('poseTask', 'techniciens', 'teams', 'teamByUser'));
     }
 
     // ══════════════════════════════════════════════════════════════

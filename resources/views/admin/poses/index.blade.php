@@ -229,6 +229,17 @@ $hasAnyFilter = request('q') || request('status') || request('technicien_id')
             </select>
         </div>
 
+        {{-- Filtre Équipe (2026-06-18 — mission équipes pose tasks) --}}
+        <div class="filter-group">
+            <label class="filter-label">Équipe</label>
+            <select id="filter-team" class="filter-select" style="width:150px">
+                <option value="">Toutes</option>
+                @foreach(($teams ?? collect()) as $t)
+                <option value="{{ $t->name }}">{{ $t->name }}</option>
+                @endforeach
+            </select>
+        </div>
+
         {{-- Campagne --}}
         <div class="filter-group">
             <label class="filter-label">Campagne</label>
@@ -1109,6 +1120,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         status: '',
         technicien_id: '',
         campaign_id: '',
+        team_name: '',
         date_from: '',
         date_to: '',
         show_orphan: false,
@@ -1121,6 +1133,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         search: document.getElementById('filter-search'),
         status: document.getElementById('filter-status'),
         technicien: document.getElementById('filter-technicien'),
+        team: document.getElementById('filter-team'),
         campaign: document.getElementById('filter-campaign'),
         dateFrom: document.getElementById('filter-date-from'),
         dateTo: document.getElementById('filter-date-to'),
@@ -1137,6 +1150,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
                           currentFilters.status ||
                           currentFilters.technicien_id ||
                           currentFilters.campaign_id ||
+                          currentFilters.team_name ||
                           currentFilters.date_from ||
                           currentFilters.date_to;
         if (elements.resetWrapper) {
@@ -1171,6 +1185,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         if (currentFilters.search) params.set('q', currentFilters.search);
         if (currentFilters.status) params.set('status', currentFilters.status);
         if (currentFilters.technicien_id) params.set('technicien_id', currentFilters.technicien_id);
+        if (currentFilters.team_name) params.set('team_name', currentFilters.team_name);
         if (currentFilters.campaign_id) params.set('campaign_id', currentFilters.campaign_id);
         if (currentFilters.date_from) params.set('date_from', currentFilters.date_from);
         if (currentFilters.date_to) params.set('date_to', currentFilters.date_to);
@@ -1261,11 +1276,12 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
         });
     }
 
-    const selectElements = [elements.technicien, elements.campaign];
+    const selectElements = [elements.technicien, elements.team, elements.campaign];
     selectElements.forEach(el => {
         if (el) {
             el.addEventListener('change', () => {
                 currentFilters.technicien_id = elements.technicien?.value || '';
+                currentFilters.team_name     = elements.team?.value       || '';
                 currentFilters.campaign_id = elements.campaign?.value || '';
                 updateResetButton();
                 applyFilters();
@@ -1362,6 +1378,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
                 status: '',
                 technicien_id: '',
                 campaign_id: '',
+                team_name: '',
                 date_from: '',
                 date_to: '',
                 show_orphan: false
@@ -1370,6 +1387,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
             if (elements.search) elements.search.value = '';
             if (elements.status) elements.status.value = '';
             if (elements.technicien) elements.technicien.value = '';
+            if (elements.team)       elements.team.value = '';
             if (elements.campaign) elements.campaign.value = '';
             if (elements.dateFrom) elements.dateFrom.value = '';
             if (elements.dateTo) elements.dateTo.value = '';
@@ -1387,6 +1405,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
     if (urlParams.has('q')) currentFilters.search = urlParams.get('q');
     if (urlParams.has('status')) currentFilters.status = urlParams.get('status');
     if (urlParams.has('technicien_id')) currentFilters.technicien_id = urlParams.get('technicien_id');
+    if (urlParams.has('team_name'))    currentFilters.team_name    = urlParams.get('team_name');
     if (urlParams.has('campaign_id')) currentFilters.campaign_id = urlParams.get('campaign_id');
     if (urlParams.has('date_from')) currentFilters.date_from = urlParams.get('date_from');
     if (urlParams.has('date_to')) currentFilters.date_to = urlParams.get('date_to');
@@ -1395,6 +1414,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') Confirm.canc
     if (elements.search && currentFilters.search) elements.search.value = currentFilters.search;
     if (elements.status && currentFilters.status) elements.status.value = currentFilters.status;
     if (elements.technicien && currentFilters.technicien_id) elements.technicien.value = currentFilters.technicien_id;
+    if (elements.team       && currentFilters.team_name)     elements.team.value       = currentFilters.team_name;
     if (elements.campaign && currentFilters.campaign_id) elements.campaign.value = currentFilters.campaign_id;
     if (elements.dateFrom && currentFilters.date_from) elements.dateFrom.value = currentFilters.date_from;
     if (elements.dateTo && currentFilters.date_to) elements.dateTo.value = currentFilters.date_to;

@@ -177,21 +177,75 @@ window.__POSE__ = {
                 <div class="pose-step">3</div>
                 <div><div class="pose-section-title">Équipe & Planning</div><div class="pose-section-sub">Assignation et date de la pose terrain</div></div>
             </div>
+            {{-- 2026-06-18 (mission équipes pose tasks) ─────────────────────
+                 Technicien et équipe sont maintenant des VRAIS select alimentés
+                 par les modèles User + PoseTeam. L'observer sur PoseTask::saving
+                 (cf. app/Models/PoseTask.php) auto-sync team_name depuis le
+                 user.poseTeam, mais on permet aussi à l'admin de FORCER une
+                 équipe différente via le select. Boutons "+ Nouveau" pour la
+                 création rapide sans quitter le formulaire en cours. ───── --}}
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
                 <div>
-                    <label class="pose-label">Technicien assigné</label>
-                    <select name="assigned_user_id" class="pose-select">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px">
+                        <label class="pose-label" style="margin:0">Technicien assigné</label>
+                        <button type="button" onclick="openQuickTechModal({target_select_id:'sel-technicien'})"
+                                style="background:none;border:1px dashed var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:1px 9px;border-radius:8px;cursor:pointer"
+                                title="Créer un technicien rapidement (sans quitter ce formulaire)">+ Nouveau</button>
+                    </div>
+                    <select name="assigned_user_id" id="sel-technicien" class="pose-select" data-team-by-user='@json($teamByUser ?? [])'>
                         <option value="">— Non assigné —</option>
                         @foreach($techniciens as $t)
-                        <option value="{{ $t->id }}" {{ old('assigned_user_id')==$t->id?'selected':'' }}>{{ $t->name }}</option>
+                        <option value="{{ $t->id }}" {{ old('assigned_user_id')==$t->id?'selected':'' }}
+                                data-team="{{ $teamByUser[$t->id] ?? '' }}">{{ $t->name }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div>
-                    <label class="pose-label">Nom d'équipe <span style="font-weight:400;color:var(--text3)">(opt.)</span></label>
-                    <input type="text" name="team_name" value="{{ old('team_name') }}" class="pose-input" placeholder="Ex: Équipe B, Koffi & Fils">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px">
+                        <label class="pose-label" style="margin:0">Équipe <span style="font-weight:400;color:var(--text3)">(opt.)</span></label>
+                        <a href="{{ route('admin.teams.create', ['back' => 'posetasks']) }}"
+                           style="background:none;border:1px dashed var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:1px 9px;border-radius:8px;text-decoration:none"
+                           title="Créer une nouvelle équipe (puis retour sur ce formulaire)">+ Nouvelle équipe</a>
+                    </div>
+                    <select name="team_name" id="sel-team" class="pose-select">
+                        <option value="">— Aucune / hérite du technicien —</option>
+                        @foreach(($teams ?? collect()) as $team)
+                            <option value="{{ $team->name }}" {{ old('team_name')===$team->name?'selected':'' }}>{{ $team->name }}</option>
+                        @endforeach
+                        @php $oldTeam = old('team_name'); @endphp
+                        @if($oldTeam && !($teams ?? collect())->contains('name', $oldTeam))
+                            <option value="{{ $oldTeam }}" selected>{{ $oldTeam }} (legacy)</option>
+                        @endif
+                    </select>
                 </div>
             </div>
+            {{-- JS auto-fill équipe au change technicien — seulement si l'admin
+                 n'a pas encore choisi une équipe explicitement (sinon on respecte
+                 son choix). --}}
+            @push('scripts')
+            <script>
+            (function () {
+                var selTech = document.getElementById('sel-technicien');
+                var selTeam = document.getElementById('sel-team');
+                if (!selTech || !selTeam) return;
+                var teamByUser = {};
+                try { teamByUser = JSON.parse(selTech.dataset.teamByUser || '{}'); } catch (e) {}
+
+                selTech.addEventListener('change', function () {
+                    var teamName = teamByUser[selTech.value];
+                    if (!teamName) return;
+                    // Cherche l'option correspondante, ou la crée (cas où l'équipe
+                    // serait inactive — on l'ajoute en (inactive) pour ne pas perdre).
+                    var opt = Array.from(selTeam.options).find(function (o) { return o.value === teamName; });
+                    if (!opt) {
+                        opt = new Option(teamName, teamName, false, false);
+                        selTeam.appendChild(opt);
+                    }
+                    selTeam.value = teamName;
+                });
+            })();
+            </script>
+            @endpush
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
                 <div>
                     <label class="pose-label">Date & heure planifiée *</label>
@@ -777,4 +831,7 @@ window.addEventListener('resize', () => { if (_filteredPanels.length > 0) POSE._
 })();
 </script>
 @endpush
+
+{{-- Modale "+ Nouveau technicien" (création rapide AJAX) — 2026-06-18 --}}
+@include('admin.partials._quick_tech_modal', ['target_select_id' => 'sel-technicien'])
 </x-admin-layout>
