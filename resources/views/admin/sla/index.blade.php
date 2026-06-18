@@ -1,14 +1,14 @@
 <x-admin-layout>
-<x-slot name="title">SLA & Retards</x-slot>
+<x-slot name="title">Analyse des signalements</x-slot>
 
 <x-slot name="topbarActions">
     <a href="{{ route('admin.signalements.index') }}" class="btn btn-ghost btn-sm">📋 Signalements</a>
     {{-- 2026-06-18 (feedback patronne) : avant le bouton "📊 Rapports" pointait
-         vers la page Rapports globale (sans rapport avec SLA). Remplacé par
-         un export PDF de l'analyse SLA actuelle (avec filtres période). --}}
+         vers la page Rapports globale (sans rapport avec cette analyse). Remplacé
+         par un export PDF de l'analyse signalements actuelle (avec filtres période). --}}
     <a href="{{ route('admin.sla.retards.export.pdf', array_filter(request()->only(['from', 'to', 'commune_id', 'client_id', 'zone', 'motif', 'status']))) }}"
        class="btn btn-ghost btn-sm"
-       title="Télécharger le PDF de l'analyse SLA avec les filtres courants">📄 Exporter PDF</a>
+       title="Télécharger le PDF de l'analyse des signalements avec les filtres courants">📄 Exporter PDF</a>
 </x-slot>
 
 <div class="sla-page">
@@ -16,7 +16,7 @@
     <div style="background:linear-gradient(135deg,rgba(239,68,68,.10),rgba(245,158,11,.06));border:1px solid var(--border);border-radius:16px;padding:22px 26px;margin-bottom:18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
         <div style="width:54px;height:54px;border-radius:14px;background:rgba(239,68,68,.20);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:26px;box-shadow:0 4px 12px rgba(239,68,68,.18)">⚠</div>
         <div style="flex:1;min-width:240px">
-            <div style="font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.2px">SLA &amp; Retards</div>
+            <div style="font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.2px">Analyse des signalements</div>
             <div style="font-size:12.5px;color:var(--text3);margin-top:4px;line-height:1.5">
                 Analyse des motifs de retard signalés par les techniciens · {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}
                 ({{ (int)$from->diffInDays($to) + 1 }} jours).

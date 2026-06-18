@@ -44,7 +44,7 @@
         'maintenances'           => ['route' => 'admin.maintenances.index',               'label' => 'Maintenances'],
         'piges'                  => ['route' => 'admin.piges.index',                      'label' => 'Piges photos'],
         'signalements'           => ['route' => 'admin.signalements.index',               'label' => 'Signalements'],
-        'sla'                    => ['route' => 'admin.sla.retards.index',                'label' => 'SLA & Retards'],
+        'sla'                    => ['route' => 'admin.sla.retards.index',                'label' => 'Analyse des signalements'],
     ];
     $backKey = (string) request()->query('back', '');
     $backCfg = $backMap[$backKey] ?? null;

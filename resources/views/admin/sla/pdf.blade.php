@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>SLA & Retards — CIBLE CI</title>
+<title>Analyse des signalements — CIBLE CI</title>
 <style>
     @page { size: A4 landscape; margin: 14mm 12mm 22mm 12mm; }
     body { font-family: 'DejaVu Sans', sans-serif; font-size: 10px; color: #1f2937; line-height: 1.45; }
@@ -41,7 +41,7 @@
         @if(!empty($logoCibleLight))
             <img src="{{ $logoCibleLight }}" alt="CIBLE CI" style="height:30px;margin-bottom:5px;">
         @endif
-        <h1>SLA & RETARDS</h1>
+        <h1>ANALYSE DES SIGNALEMENTS</h1>
         <div class="period">Analyse des motifs de retard signalés par les techniciens · CIBLE CI</div>
         <div class="period">Période : {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }} ({{ $from->diffInDays($to) + 1 }} jours)</div>
         <div style="margin-top:6px">
@@ -216,7 +216,7 @@
 @endif
 
 <div class="footer">
-    CIBLE CI — SLA & Retards · Édité par Panora le {{ $generatedAt->format('d/m/Y à H:i') }}
+    CIBLE CI — Analyse des signalements · Édité par Panora le {{ $generatedAt->format('d/m/Y à H:i') }}
     · Période : {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}
 </div>
 
