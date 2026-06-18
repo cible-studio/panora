@@ -54,10 +54,16 @@ class FinanceDashboardController extends Controller
         // remainingAmount() est une méthode (somme - versements), pas une
         // colonne SQL. Le limit(200) s'applique APRÈS le filtre pour
         // garantir 200 vraies créances et pas 200 lignes pré-filtrage.
+        //
+        // 2026-06-18 (Hotfix patronne) : flag `only_overdue` activé depuis
+        // le KPI "En retard" → restreint la liste aux créances dont au
+        // moins une échéance est dépassée (paymentStatus === 'en_retard').
+        $onlyOverdue       = (bool) $request->boolean('only_overdue');
         $creances          = $this->svc->creancesQuery($commercialUid)
                                   ->orderBy('issued_at')
                                   ->get()
                                   ->filter(fn($inv) => $inv->remainingAmount() > 0.01)
+                                  ->when($onlyOverdue, fn($c) => $c->filter(fn($inv) => $inv->paymentStatus() === 'en_retard'))
                                   ->take(200)
                                   ->values();
 
@@ -82,6 +88,7 @@ class FinanceDashboardController extends Controller
             'to'               => $to,
             'bucket'           => $bucket ?? 'auto',
             'isCommercialView' => $commercialUid !== null,
+            'onlyOverdue'      => $onlyOverdue,
         ]);
     }
 

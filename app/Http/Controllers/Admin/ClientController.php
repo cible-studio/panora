@@ -321,11 +321,22 @@ class ClientController extends Controller
             ->sortBy('panel.reference')
             ->values();
 
+        // ── Bloc 3 — Famille D (2026-06-18) : Historique des relances
+        //    Onglet "Relances" sur la fiche client (vue paginée + stats).
+        //    Source unique : ReminderService.
+        $reminderSvc    = app(\App\Services\ReminderService::class);
+        $relancesClient = $reminderSvc->listByClient($client->id, request()->only([
+            'from', 'to', 'outcome', 'canal', 'invoice_id',
+        ]), 10);
+        $relancesStats  = $reminderSvc->statsByClient($client->id);
+
         return view('admin.clients.show', compact(
             'client',
             'totalFacture',
             'sectors',
-            'panneauxClient'
+            'panneauxClient',
+            'relancesClient',
+            'relancesStats'
         ));
     }
 
