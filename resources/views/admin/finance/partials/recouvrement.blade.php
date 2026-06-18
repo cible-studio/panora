@@ -7,6 +7,15 @@
             <div class="fin-card-sub">{{ $clientsToFollow->count() }} client(s) avec reste à payer · triable</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            {{-- Lien explicite vers la page complète : on a déjà la liste ici
+                 mais c'est la version "Clients à relancer" (1 ligne / client).
+                 La page admin.finance.relances montre l'historique complet
+                 (1 ligne / relance enregistrée) + filtres + stats par canal. --}}
+            <a href="{{ route('admin.finance.relances') }}"
+               class="btn btn-ghost btn-sm"
+               title="Voir l'historique complet des relances (toutes traces enregistrées, filtres avancés)">
+                📋 Voir l'historique complet
+            </a>
             <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('modal-relance').style.display='flex'">
                 + Enregistrer une relance
             </button>
