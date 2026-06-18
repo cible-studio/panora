@@ -159,7 +159,11 @@
 </style>
 
 {{-- ════ ONGLETS ════ --}}
-<div class="fin-tabs-row" style="display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:14px;flex-wrap:wrap">
+{{-- 2026-06-18 (v2) : suppression du `justify-content: space-between`
+     qui éloignait le bouton "Historique" à l'extrême droite et donnait
+     l'impression d'un élément orphelin. Le bouton est désormais collé
+     juste à droite des onglets — mieux ancré au groupe. --}}
+<div class="fin-tabs-row" style="display:flex;align-items:flex-end;gap:10px;margin-bottom:14px;flex-wrap:wrap">
     <div class="fin-tabs" style="margin-bottom:0">
         @php
             $tabs = [
@@ -173,9 +177,9 @@
                class="fin-tab {{ $tab === $key ? 'is-active' : '' }}">{{ $ico }} {{ $label }}</a>
         @endforeach
     </div>
-    {{-- Bouton "Historique des relances" déplacé ici depuis le topbar
-         (Bloc 2 demande patronne 2026-06-18). Placé à droite des onglets
-         pour rester contextuel (recouvrement / relances). --}}
+    {{-- Bouton "Historique des relances" placé immédiatement à droite des
+         onglets (collé visuellement) pour rester contextuel (recouvrement /
+         relances) sans dérive vers le bord droit de la page. --}}
     <a href="{{ route('admin.finance.relances') }}"
        class="btn btn-ghost btn-sm"
        style="display:inline-flex;align-items:center;gap:6px;height:36px;font-size:12.5px;font-weight:600"
