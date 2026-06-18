@@ -1,13 +1,16 @@
 <x-admin-layout>
 <x-slot name="title">Performance techniciens</x-slot>
 
-{{-- 2026-06-18 (feedback patronne) : topbarActions désormais réservé aux
-     exports PDF. Les boutons cross-pages sont déplacés dans l'action bar
-     sous le hero. topbarLeft affiche le retour intelligent si ?back= --}}
+{{-- 2026-06-18 — Boutons "Performance équipes" / "Gérer équipes"
+     déplacés du topbar (encombrant) vers le hero header juste en
+     dessous, où ils restent contextuels (vues connexes). --}}
+
+{{-- Retour intelligent (?back=) --}}
 <x-slot:topbarLeft>
     @include('admin.performance.partials._smart_back')
 </x-slot:topbarLeft>
 
+{{-- Export PDF (zone topbar réservée aux exports) --}}
 <x-slot name="topbarActions">
     <a href="{{ route('admin.performance.tech.export.pdf', array_filter(request()->only(['from', 'to', 'preset']))) }}"
        class="btn btn-ghost btn-sm"
@@ -23,13 +26,21 @@
                 Classement des techniciens · {{ $from->format('d/m/Y') }} → {{ $to->format('d/m/Y') }}
             </div>
         </div>
-    </div>
-
-    {{-- ════ Action bar — anciens boutons topbar + cross-links avec ?back= ════ --}}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
-        <a href="{{ route('admin.performance.team.index', ['back' => 'performance.tech']) }}" class="btn btn-ghost btn-sm">👥 Performance équipes</a>
-        <a href="{{ route('admin.performance.commercial.index', ['back' => 'performance.tech']) }}" class="btn btn-ghost btn-sm">📊 Performance commerciale</a>
-        <a href="{{ route('admin.teams.index', ['back' => 'performance.tech']) }}" class="btn btn-ghost btn-sm">⚙ Gérer équipes</a>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <a href="{{ route('admin.performance.commercial.index', ['back' => 'performance.tech']) }}" class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);color:#7c3aed"
+               title="Voir la performance des commerciaux">📊 Commerciaux</a>
+            <a href="{{ route('admin.performance.team.index', ['back' => 'performance.tech']) }}" class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);color:#4f46e5"
+               title="Performance par équipe (agrégation)">
+                👥 Performance équipes
+            </a>
+            <a href="{{ route('admin.teams.index', ['back' => 'performance.tech']) }}" class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(107,114,128,.08);border:1px solid rgba(107,114,128,.25);color:#4b5563"
+               title="Configurer les équipes (membres, leader, couleur)">
+                ⚙ Gérer équipes
+            </a>
+        </div>
     </div>
 
     {{-- Filtres période — partial partagé (Bloc 2 — Famille A). --}}

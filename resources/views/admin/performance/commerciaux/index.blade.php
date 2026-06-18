@@ -1,18 +1,15 @@
 <x-admin-layout>
 <x-slot name="title">Performance commerciale</x-slot>
 
-{{-- 2026-06-18 (feedback patronne) : topbarActions ne contient plus que
-     l'export PDF. Le bouton "⚙ Attribuer campagnes" est déplacé dans
-     l'action bar sous le hero. topbarLeft affiche le retour intelligent. --}}
+{{-- 2026-06-18 — Boutons d'action (Attribuer campagnes / Export PDF)
+     déplacés du topbar vers le hero header ci-dessous, où ils
+     restent contextuels et libèrent la barre du haut. --}}
+
+{{-- Retour intelligent quand on arrive avec ?back=<key>
+     (depuis Performance équipes, Performance techniciens, etc.) --}}
 <x-slot:topbarLeft>
     @include('admin.performance.partials._smart_back')
 </x-slot:topbarLeft>
-
-<x-slot name="topbarActions">
-    <a href="{{ route('admin.performance.commercial.export.pdf', array_filter(request()->only(['from', 'to', 'preset']))) }}"
-       class="btn btn-ghost btn-sm"
-       title="Télécharger le PDF du leaderboard avec la période courante">📄 Exporter PDF</a>
-</x-slot>
 
 @php
     // Helper format FCFA — réutilisé partout dans la vue
@@ -31,13 +28,26 @@
                 ({{ (int)$from->diffInDays($to) + 1 }} jours)
             </div>
         </div>
-    </div>
-
-    {{-- ════ Action bar — anciens boutons topbar + cross-links avec ?back= ════ --}}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
-        <a href="{{ route('admin.performance.tech.index', ['back' => 'performance.commercial']) }}" class="btn btn-ghost btn-sm">📋 Performance techniciens</a>
-        <a href="{{ route('admin.performance.team.index', ['back' => 'performance.commercial']) }}" class="btn btn-ghost btn-sm">👥 Performance équipes</a>
-        <a href="{{ route('admin.migration.commercial-attribution') }}" class="btn btn-ghost btn-sm">⚙ Attribuer campagnes</a>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            {{-- Cross-links Performance (avec ?back= pour retour intelligent) --}}
+            <a href="{{ route('admin.performance.tech.index', ['back' => 'performance.commercial']) }}" class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);color:#4338ca"
+               title="Voir la performance des techniciens">📋 Techniciens</a>
+            <a href="{{ route('admin.performance.team.index', ['back' => 'performance.commercial']) }}" class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);color:#7c3aed"
+               title="Voir la performance des équipes">👥 Équipes</a>
+            <a href="{{ route('admin.migration.commercial-attribution') }}" class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);color:#7c3aed"
+               title="Attribuer manuellement des campagnes à un commercial">
+                ⚙ Attribuer campagnes
+            </a>
+            <a href="{{ route('admin.performance.commercial.export.pdf', array_filter(request()->only(['from', 'to', 'preset']))) }}"
+               class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#b91c1c"
+               title="Télécharger le PDF du leaderboard avec la période courante">
+                📄 Exporter PDF
+            </a>
+        </div>
     </div>
 
     {{-- Filtres période — partial partagé Performance (Bloc 2 — Famille A 2026-06-17). --}}

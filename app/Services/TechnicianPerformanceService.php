@@ -184,6 +184,122 @@ class TechnicianPerformanceService
             ->values();
     }
 
+    /**
+     * COURBE GLOBALE TECHNIQUE — évolution mensuelle sur N mois.
+     * Symétrique de CommercialPerformanceService::globalMonthlyTrend()
+     * pour aligner les 2 dashboards perf.
+     *
+     * 3 séries :
+     *   - poses_realisees   : nb done_at sur le mois (toutes équipes)
+     *   - poses_planifiees  : nb scheduled_at sur le mois (toutes équipes)
+     *   - retard_pct        : % moyen poses en retard sur le mois
+     *
+     * @return Collection<array{label:string, year:int, month:int,
+     *                          poses_realisees:int, poses_planifiees:int,
+     *                          retard_pct:float}>
+     */
+    public function globalMonthlyTrend(int $months = 12): Collection
+    {
+        $end   = now()->endOfMonth();
+        $start = now()->subMonths($months - 1)->startOfMonth();
+
+        // Poses RÉALISÉES (done_at posé dans le mois)
+        $rowsReal = DB::table('pose_tasks')
+            ->whereNotNull('done_at')
+            ->whereBetween('done_at', [$start, $end])
+            ->selectRaw('YEAR(done_at) as y, MONTH(done_at) as m, COUNT(*) as cnt')
+            ->groupBy('y', 'm')
+            ->get()
+            ->keyBy(fn ($r) => $r->y . '-' . str_pad((string) $r->m, 2, '0', STR_PAD_LEFT));
+
+        // Poses PLANIFIÉES (scheduled_at posé dans le mois)
+        $rowsPlan = DB::table('pose_tasks')
+            ->whereNotNull('scheduled_at')
+            ->whereBetween('scheduled_at', [$start, $end])
+            ->selectRaw('YEAR(scheduled_at) as y, MONTH(scheduled_at) as m, COUNT(*) as cnt')
+            ->groupBy('y', 'm')
+            ->get()
+            ->keyBy(fn ($r) => $r->y . '-' . str_pad((string) $r->m, 2, '0', STR_PAD_LEFT));
+
+        // Poses EN RETARD par mois (scheduled_at dans le mois ET (en retard à la date ref ou done_at > scheduled_at))
+        $rowsRet = DB::table('pose_tasks')
+            ->whereNotNull('scheduled_at')
+            ->whereBetween('scheduled_at', [$start, $end])
+            ->where(function ($q) {
+                $q->whereRaw('done_at > scheduled_at')
+                  ->orWhere(function ($q2) {
+                      $q2->whereNull('done_at')->whereRaw('scheduled_at < NOW()');
+                  });
+            })
+            ->selectRaw('YEAR(scheduled_at) as y, MONTH(scheduled_at) as m, COUNT(*) as cnt')
+            ->groupBy('y', 'm')
+            ->get()
+            ->keyBy(fn ($r) => $r->y . '-' . str_pad((string) $r->m, 2, '0', STR_PAD_LEFT));
+
+        $moisFr = [1=>'janv', 2=>'févr', 3=>'mars', 4=>'avr', 5=>'mai', 6=>'juin', 7=>'juil', 8=>'août', 9=>'sept', 10=>'oct', 11=>'nov', 12=>'déc'];
+
+        $result = collect();
+        for ($i = $months - 1; $i >= 0; $i--) {
+            $d   = now()->subMonths($i);
+            $key = $d->year . '-' . str_pad((string) $d->month, 2, '0', STR_PAD_LEFT);
+            $plan = isset($rowsPlan[$key]) ? (int) $rowsPlan[$key]->cnt : 0;
+            $ret  = isset($rowsRet[$key])  ? (int) $rowsRet[$key]->cnt  : 0;
+            $result->push([
+                'label'            => $moisFr[$d->month] . ' ' . $d->format('y'),
+                'year'             => $d->year,
+                'month'            => $d->month,
+                'poses_realisees'  => isset($rowsReal[$key]) ? (int) $rowsReal[$key]->cnt : 0,
+                'poses_planifiees' => $plan,
+                'retard_pct'       => $plan > 0 ? round(($ret / $plan) * 100, 1) : 0.0,
+            ]);
+        }
+        return $result;
+    }
+
+    /**
+     * KPI agrégés équipe (totalité des techniciens) sur la période.
+     * Permet d'afficher les cards en tête de la page leaderboard.
+     *
+     * @return array{
+     *   nb_techniciens:int, nb_poses_realisees:int, nb_poses_planifiees:int,
+     *   reactivite_avg_min:?int, duree_pose_avg_min:?int,
+     *   taux_retard_avg:float, taux_piges_rejetees_avg:float
+     * }
+     */
+    public function globalTeamKpis(CarbonInterface $from, CarbonInterface $to): array
+    {
+        $techs = User::techniciens()->pluck('id');
+        if ($techs->isEmpty()) {
+            return [
+                'nb_techniciens'           => 0,
+                'nb_poses_realisees'       => 0,
+                'nb_poses_planifiees'      => 0,
+                'reactivite_avg_min'       => null,
+                'duree_pose_avg_min'       => null,
+                'taux_retard_avg'          => 0.0,
+                'taux_piges_rejetees_avg'  => 0.0,
+            ];
+        }
+
+        $kpisByTech = $techs->map(fn ($id) => $this->kpis((int) $id, $from, $to));
+
+        $sum = fn (string $k) => (int) $kpisByTech->sum($k);
+        $avg = fn (string $k) => $kpisByTech
+            ->filter(fn ($r) => $r[$k] !== null)
+            ->avg($k);
+        $avgPct = fn (string $k) => round((float) ($kpisByTech->avg($k) ?? 0), 1);
+
+        return [
+            'nb_techniciens'           => $techs->count(),
+            'nb_poses_realisees'       => $sum('nb_poses_realisees'),
+            'nb_poses_planifiees'      => $sum('nb_poses_planifiees'),
+            'reactivite_avg_min'       => ($a = $avg('reactivite_avg_min')) !== null ? (int) round($a) : null,
+            'duree_pose_avg_min'       => ($a = $avg('duree_pose_avg_min')) !== null ? (int) round($a) : null,
+            'taux_retard_avg'          => $avgPct('taux_poses_en_retard'),
+            'taux_piges_rejetees_avg'  => $avgPct('taux_piges_rejetees'),
+        ];
+    }
+
     /** Leaderboard équipes (admin/MP). */
     public function leaderboardTeams(CarbonInterface $from, CarbonInterface $to): Collection
     {
