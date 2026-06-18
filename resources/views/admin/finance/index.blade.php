@@ -83,20 +83,26 @@
 <div class="fin-kpi-grid">
     <a href="{{ route('admin.finance.index', array_merge($periodQuery, ['tab' => 'encaissements'])) }}#detail-versements"
        class="kpi-card kpi-card--link" style="--kpi-color:#22c55e"
-       title="Voir le détail des versements de la période">
+       title="Voir le détail des versements de la période — bouge avec le filtre période.">
         <div class="kpi-card__top-bar" style="background:#22c55e"></div>
         <div class="kpi-card__icon" style="color:#22c55e">💵</div>
         <div class="kpi-card__value" style="color:#22c55e;font-size:20px">{{ $fmt($kpis['encaisse']) }}</div>
-        <div class="kpi-card__label">Encaissé</div>
+        <div class="kpi-card__label">
+            Encaissé
+            <span style="font-size:9px;font-weight:700;background:rgba(34,197,94,.15);color:#15803d;padding:1px 6px;border-radius:5px;margin-left:4px;letter-spacing:.3px;vertical-align:middle" title="Cette valeur dépend du filtre période">📅 PÉRIODE</span>
+        </div>
         <div class="kpi-card__sub">sur la période · FCFA · <span style="color:#22c55e;font-weight:700">voir détail →</span></div>
     </a>
     <a href="{{ route('admin.finance.index', array_merge($periodQuery, ['tab' => 'creances'])) }}"
        class="kpi-card kpi-card--link" style="--kpi-color:#f97316"
-       title="Voir la balance âgée et les factures impayées">
+       title="État INSTANTANÉ — toutes les factures actives non payées (indépendant du filtre période).">
         <div class="kpi-card__top-bar" style="background:#f97316"></div>
         <div class="kpi-card__icon" style="color:#f97316">⏳</div>
         <div class="kpi-card__value" style="color:#f97316;font-size:20px">{{ $fmt($kpis['du']) }}</div>
-        <div class="kpi-card__label">Total dû</div>
+        <div class="kpi-card__label">
+            Total dû
+            <span style="font-size:9px;font-weight:700;background:rgba(107,114,128,.15);color:#4b5563;padding:1px 6px;border-radius:5px;margin-left:4px;letter-spacing:.3px;vertical-align:middle" title="Valeur instantanée — indépendant du filtre période">🔒 INSTANTANÉ</span>
+        </div>
         <div class="kpi-card__sub">toutes factures actives · FCFA · <span style="color:#f97316;font-weight:700">voir créances →</span></div>
     </a>
     {{-- 2026-06-18 (Hotfix patronne) : la carte "En retard" reste sur la
@@ -105,21 +111,35 @@
          de la même page. --}}
     <a href="{{ route('admin.finance.index', array_merge($periodQuery, ['tab' => 'creances', 'only_overdue' => 1])) }}"
        class="kpi-card kpi-card--link" style="--kpi-color:#ef4444"
-       title="Voir les créances dont une échéance est dépassée (filtre appliqué sur la page Créances)">
+       title="État INSTANTANÉ — créances dont une échéance est aujourd'hui dépassée (indépendant du filtre période).">
         <div class="kpi-card__top-bar" style="background:#ef4444"></div>
         <div class="kpi-card__icon" style="color:#ef4444">🔴</div>
         <div class="kpi-card__value" style="color:#ef4444;font-size:20px">{{ $fmt($kpis['en_retard']) }}</div>
-        <div class="kpi-card__label">En retard</div>
+        <div class="kpi-card__label">
+            En retard
+            <span style="font-size:9px;font-weight:700;background:rgba(107,114,128,.15);color:#4b5563;padding:1px 6px;border-radius:5px;margin-left:4px;letter-spacing:.3px;vertical-align:middle" title="Valeur instantanée — indépendant du filtre période">🔒 INSTANTANÉ</span>
+        </div>
         <div class="kpi-card__sub">échéance dépassée · FCFA · <span style="color:#ef4444;font-weight:700">voir créances en retard →</span></div>
     </a>
     <a href="{{ route('admin.finance.index', array_merge($periodQuery, ['tab' => 'recouvrement'])) }}"
        class="kpi-card kpi-card--link" style="--kpi-color:#3b82f6"
-       title="Ouvrir le recouvrement et les clients à relancer">
+       title="{{ $kpis['taux_recouvrement'] === null ? 'Pas de facture émise sur cette période — l\'encaisse correspond à des paiements d\'anciennes factures.' : 'Ouvrir le recouvrement et les clients à relancer' }}">
         <div class="kpi-card__top-bar" style="background:#3b82f6"></div>
         <div class="kpi-card__icon" style="color:#3b82f6">📊</div>
-        <div class="kpi-card__value" style="color:#3b82f6;font-size:20px">{{ $kpis['taux_recouvrement'] }}%</div>
-        <div class="kpi-card__label">Taux de recouvrement</div>
-        <div class="kpi-card__sub">encaissé ÷ facturé période · <span style="color:#3b82f6;font-weight:700">recouvrement →</span></div>
+        {{-- 2026-06-18 : null = facturé période = 0 + encaisse > 0 → affichage "—"
+             plutôt que "0%" qui était trompeur (impression "rien recouvré"). --}}
+        <div class="kpi-card__value" style="color:#3b82f6;font-size:20px">{{ $kpis['taux_recouvrement'] === null ? '—' : $kpis['taux_recouvrement'] . '%' }}</div>
+        <div class="kpi-card__label">
+            Taux de recouvrement
+            <span style="font-size:9px;font-weight:700;background:rgba(59,130,246,.15);color:#1e40af;padding:1px 6px;border-radius:5px;margin-left:4px;letter-spacing:.3px;vertical-align:middle" title="Bouge avec le filtre période — calculé sur les factures émises ET les paiements reçus dans la période">📅 PÉRIODE</span>
+        </div>
+        <div class="kpi-card__sub">
+            @if($kpis['taux_recouvrement'] === null)
+                <span style="color:#6b7280;font-style:italic">n/a — rien facturé cette période</span>
+            @else
+                encaissé ÷ facturé période · <span style="color:#3b82f6;font-weight:700">recouvrement →</span>
+            @endif
+        </div>
     </a>
 </div>
 

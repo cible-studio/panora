@@ -56,7 +56,7 @@ class CaRealService
      * @return array{
      *     ht_facture: float,
      *     ttc_encaisse: float,
-     *     taux_recouvrement: float,
+     *     taux_recouvrement: float|null,
      *     ignored_filters: array<int,string>,
      * }
      */
@@ -83,9 +83,12 @@ class CaRealService
                 $commercialUserId,
                 $clientId
             );
+            // 2026-06-18 : null quand HT facturé période = 0 mais encaisse > 0
+            // (paiements d'anciennes factures sur la période en cours).
+            // Cohérent avec FinancialDashboardService::kpis.
             $tauxRecouvrement = $htFacture > 0
-                ? round(($ttcEncaisse / max(1.0, $htFacture)) * 100, 1)
-                : 0.0;
+                ? round(($ttcEncaisse / $htFacture) * 100, 1)
+                : ($ttcEncaisse > 0 ? null : 0.0);
         } else {
             $htFacture        = $finance['facture_periode_ht'];
             $ttcEncaisse      = $finance['encaisse'];
