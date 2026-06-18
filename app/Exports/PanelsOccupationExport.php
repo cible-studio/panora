@@ -27,6 +27,7 @@ class PanelsOccupationExport implements FromCollection, WithHeadings, WithMappin
         protected \Carbon\Carbon $from,
         protected \Carbon\Carbon $to,
         protected ?string $zoneLabel = null,
+        protected ?string $filterRecapLine = null,
     ) {}
 
     public function title(): string { return 'Occupation panneaux'; }
@@ -91,12 +92,22 @@ class PanelsOccupationExport implements FromCollection, WithHeadings, WithMappin
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $info = array_filter([
-                    'Période : ' . $this->from->format('d/m/Y') . ' → ' . $this->to->format('d/m/Y'),
-                    $this->zoneLabel ? 'Zone : ' . $this->zoneLabel : null,
-                    $this->panels->count() . ' panneau(x)',
-                    'Généré le ' . now()->format('d/m/Y à H:i'),
-                ]);
+                // Si $filterRecapLine est fourni (cf. RapportFilterContextService),
+                // il contient déjà période + zone + autres filtres : on ne dédouble pas.
+                if ($this->filterRecapLine) {
+                    $info = [
+                        $this->filterRecapLine,
+                        $this->panels->count() . ' panneau(x)',
+                        'Généré le ' . now()->format('d/m/Y à H:i'),
+                    ];
+                } else {
+                    $info = array_filter([
+                        'Période : ' . $this->from->format('d/m/Y') . ' → ' . $this->to->format('d/m/Y'),
+                        $this->zoneLabel ? 'Zone : ' . $this->zoneLabel : null,
+                        $this->panels->count() . ' panneau(x)',
+                        'Généré le ' . now()->format('d/m/Y à H:i'),
+                    ]);
+                }
                 $this->applyBrandingHeader($event, "OCCUPATION DES PANNEAUX", $info);
                 $this->applyTableFinishing($event);
             },

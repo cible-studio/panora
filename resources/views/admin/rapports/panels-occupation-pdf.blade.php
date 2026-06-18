@@ -58,9 +58,15 @@
     </div>
 </div>
 
+{{-- ════ Récap filtres actifs ════
+     Source unique : RapportFilterContextService — cohérent avec l'Excel
+     et le PDF Synthèse exécutive. Le bloc "stats agrégées" qui suit
+     reste à part : ce sont des chiffres calculés, pas du contexte filtre.
+     La ligne "Zone :" est retirée d'ici car déjà présente dans le récap. --}}
+@include('admin.rapports.partials._filter_recap_pdf')
+
 <div class="meta">
     <strong>{{ $panels->count() }}</strong> panneau(x) ·
-    @if($zoneLabel)<strong>Zone :</strong> {{ $zoneLabel }} · @endif
     <strong>Total jours occupés :</strong> {{ number_format($panels->sum('days_occupied'), 0, ',', ' ') }} ·
     <strong>Taux moyen :</strong> {{ $panels->count() > 0 ? round($panels->avg('occupation_rate'), 1) : 0 }} % ·
     <strong>CA estimé :</strong> {{ number_format($panels->sum('estimated_revenue'), 0, ',', ' ') }} FCFA
