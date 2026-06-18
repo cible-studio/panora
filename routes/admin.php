@@ -871,6 +871,9 @@ Route::prefix('admin')
             Route::get('performance/commerciaux/me',
                 [\App\Http\Controllers\Admin\CommercialPerformanceController::class, 'me']
             )->name('performance.commercial.me');
+            Route::get('performance/commerciaux/export/pdf',
+                [\App\Http\Controllers\Admin\CommercialPerformanceController::class, 'exportPdf']
+            )->name('performance.commercial.export.pdf');
             Route::get('performance/commerciaux/{user}',
                 [\App\Http\Controllers\Admin\CommercialPerformanceController::class, 'show']
             )->whereNumber('user')->name('performance.commercial.show');

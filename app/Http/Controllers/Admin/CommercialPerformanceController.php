@@ -60,6 +60,41 @@ class CommercialPerformanceController extends Controller
         return redirect()->route('admin.performance.commercial.show', $request->user());
     }
 
+    /**
+     * GET /admin/performance/commerciaux/export/pdf
+     *
+     * Export PDF du leaderboard commercial avec les filtres période courants.
+     * 2026-06-18 (feedback patronne) : le bouton "Rapports" en topbar pointait
+     * vers la page Rapports globale, ce qui n'avait aucun sens depuis la page
+     * Performance commerciale (autre périmètre). Remplacé par cet export PDF
+     * contextuel.
+     */
+    public function exportPdf(Request $request)
+    {
+        $currentRole = $request->user()->role?->value;
+        if (!in_array($currentRole, ['admin', 'mediaplanner'], true)) {
+            abort(403, 'Accès réservé à l\'administration.');
+        }
+
+        [$from, $to] = $this->resolvePeriod($request);
+        $leaderboard = $this->perf->leaderboard($from, $to);
+        $topBySector = $this->perf->topCommercialBySector($from, $to);
+        $globalTrend = $this->perf->globalMonthlyTrend(12);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.performance.commerciaux.pdf', [
+            'leaderboard' => $leaderboard,
+            'topBySector' => $topBySector,
+            'globalTrend' => $globalTrend,
+            'from'        => $from,
+            'to'          => $to,
+            'user'        => $request->user(),
+            'generatedAt' => now(),
+        ])->setPaper('a4', 'landscape');
+
+        $filename = 'performance-commerciale-' . $from->format('Y-m-d') . '_' . $to->format('Y-m-d') . '.pdf';
+        return $pdf->download($filename);
+    }
+
     /** GET /admin/performance/commerciaux/{user} — drill-down 1 commercial. */
     public function show(Request $request, User $user)
     {
