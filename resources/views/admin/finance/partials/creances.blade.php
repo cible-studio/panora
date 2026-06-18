@@ -69,7 +69,7 @@
                     <tbody>
                         @foreach($aging['by_client'] as $row)
                             <tr>
-                                <td><a href="{{ route('admin.clients.show', $row['client_id']) }}" style="color:var(--accent);text-decoration:none">{{ $row['client_name'] }}</a></td>
+                                <td><a href="{{ route('admin.clients.show', ['client' => $row['client_id'], 'back' => 'finance']) }}" style="color:var(--accent);text-decoration:none">{{ $row['client_name'] }}</a></td>
                                 @foreach($bucketLabels as $bucket => $label)
                                     @php $v = $row['buckets'][$bucket] ?? 0; @endphp
                                     <td class="num" style="color:{{ $v > 0 ? $bucketColors[$bucket] : 'var(--text3)' }}">
@@ -142,10 +142,10 @@
                                 $next = $inv->schedules->whereNull('paid_at')->sortBy('due_date')->first();
                             @endphp
                             <tr>
-                                <td><a href="{{ route('admin.invoices.show', $inv) }}" style="color:var(--accent);text-decoration:none;font-family:monospace;font-weight:700">{{ $inv->reference }}</a></td>
+                                <td><a href="{{ route('admin.invoices.show', ['invoice' => $inv, 'back' => 'finance']) }}" style="color:var(--accent);text-decoration:none;font-family:monospace;font-weight:700">{{ $inv->reference }}</a></td>
                                 <td>
                                     @if($inv->client)
-                                        <a href="{{ route('admin.clients.show', $inv->client) }}"
+                                        <a href="{{ route('admin.clients.show', ['client' => $inv->client, 'back' => 'finance']) }}"
                                            style="color:var(--text);text-decoration:none;border-bottom:1px dashed var(--border2,var(--border))"
                                            title="Voir la fiche client">{{ $inv->client->name }}</a>
                                     @else

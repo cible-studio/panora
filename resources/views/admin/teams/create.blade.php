@@ -7,11 +7,22 @@
     //   d'open-redirect). Fallback : teams.index.
     //   Le champ hidden `back` est aussi posté au form pour que le store
     //   redirige vers la bonne page après création.
+    // Whitelist alignée avec resources/views/admin/partials/_smart_back.blade.php
+    // ET PoseTeamController::redirectBack (single source of truth).
     $backMap = [
-        'posetasks'              => ['route' => 'admin.pose-tasks.index',             'label' => 'Tâches de pose'],
+        'finance'                => ['route' => 'admin.finance.index',                'label' => 'Tableau de bord financier'],
+        'finance.relances'       => ['route' => 'admin.finance.relances',             'label' => 'Historique des relances'],
+        'rapports'               => ['route' => 'admin.rapports.index',               'label' => 'Rapports & Analyses'],
         'performance.commercial' => ['route' => 'admin.performance.commercial.index', 'label' => 'Performance commerciale'],
         'performance.tech'       => ['route' => 'admin.performance.tech.index',       'label' => 'Performance techniciens'],
         'performance.team'       => ['route' => 'admin.performance.team.index',       'label' => 'Performance équipes'],
+        'teams'                  => ['route' => 'admin.teams.index',                  'label' => 'Gérer équipes'],
+        'posetasks'              => ['route' => 'admin.pose-tasks.index',             'label' => 'Tâches de pose'],
+        'posetasks.techniciens'  => ['route' => 'admin.pose-tasks.techniciens.index', 'label' => 'Techniciens'],
+        'clients'                => ['route' => 'admin.clients.index',                'label' => 'Clients'],
+        'campaigns'              => ['route' => 'admin.campaigns.index',              'label' => 'Campagnes'],
+        'invoices'               => ['route' => 'admin.invoices.index',               'label' => 'Factures'],
+        'panels'                 => ['route' => 'admin.panels.index',                 'label' => 'Panneaux'],
     ];
     $backKey = (string) request()->query('back', '');
     $backCfg = $backMap[$backKey] ?? null;
