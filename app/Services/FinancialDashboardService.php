@@ -72,7 +72,15 @@ class FinancialDashboardService
         // consommateurs existants.
         $facturePeriodeHt = (float) $this->invoicesQueryForPeriod($from, $to, $commercialUserId)->sum('net_ht');
 
-        $taux = $facturePeriode > 0 ? round(($encaisse / $facturePeriode) * 100, 1) : 0.0;
+        // Taux recouvrement = encaissé période / facturé période.
+        // 2026-06-18 : on retourne null (au lieu de 0.0 trompeur) quand le
+        // dénominateur est nul mais qu'il y a quand même de l'encaisse —
+        // ça arrive quand on encaisse cette période des factures émises
+        // PRÉCÉDEMMENT. Le label "0%" donnait l'impression "rien recouvré".
+        // La vue affichera "—" et un tooltip explicatif.
+        $taux = $facturePeriode > 0
+            ? round(($encaisse / $facturePeriode) * 100, 1)
+            : ($encaisse > 0 ? null : 0.0);
 
         return [
             'encaisse'           => round($encaisse, 2),
