@@ -69,7 +69,7 @@
                     <label>Montant total (FCFA) *</label>
                     <input type="number" name="montant"
                            value="{{ old('montant', $proposition->montant) }}"
-                           step="1000" min="0">
+                           step="1" min="0">
                 </div>
 
                 <div class="mfg">

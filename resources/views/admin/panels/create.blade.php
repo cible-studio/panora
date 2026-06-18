@@ -233,7 +233,7 @@
                             <label>Tarif mensuel (FCFA)</label>
                             <input type="number" name="monthly_rate"
                                    value="{{ old('monthly_rate', 0) }}"
-                                   step="1000" min="0">
+                                   step="1" min="0">
                         </div>
                         <div class="mfg">
                             <label>Trafic journalier</label>

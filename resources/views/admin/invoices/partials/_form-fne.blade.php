@@ -189,8 +189,11 @@
                                        value="{{ $l['dimension_m2'] ?? 0 }}" min="0" step="0.01">
                             </td>
                             <td class="num col-pu">
+                                {{-- step="1" (FCFA entier, pas de centimes) — 2026-06-18 :
+                                     l'ancien step="1000" rejetait les prix négociés non
+                                     arrondis (ex. 435 600). --}}
                                 <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required
-                                       value="{{ $l['pu_ht_mensuel'] ?? 0 }}" min="0" step="1000">
+                                       value="{{ $l['pu_ht_mensuel'] ?? 0 }}" min="0" step="1">
                             </td>
                             <td class="num col-qte">
                                 <input type="number" name="lines[{{ $i }}][quantite]" class="line-qte" required
@@ -316,8 +319,9 @@
                             <div class="svc-card-field svc-card-field-prix">
                                 <label>Prix HT (FCFA)</label>
                                 <div class="svc-prix-wrap">
+                                    {{-- step="1" — cf. ligne 192 (PU HT) pour la justification. --}}
                                     <input type="number" name="services[{{ $i }}][prix_ht]" value="{{ $s['prix_ht'] ?? 0 }}"
-                                           min="0" step="1000" required {{ $locked ? 'readonly' : '' }}
+                                           min="0" step="1" required {{ $locked ? 'readonly' : '' }}
                                            class="svc-prix">
                                     <span class="svc-prix-suffix">F</span>
                                 </div>
@@ -1556,7 +1560,7 @@
                     <label>Prix HT (FCFA)</label>
                     <div class="svc-prix-wrap">
                         <input type="number" name="services[${idx}][prix_ht]" value="0"
-                               min="0" step="1000" required class="svc-prix">
+                               min="0" step="1" required class="svc-prix">
                         <span class="svc-prix-suffix">F</span>
                     </div>
                 </div>

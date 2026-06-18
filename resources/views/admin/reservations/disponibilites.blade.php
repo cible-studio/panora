@@ -555,7 +555,7 @@
                         <div id="amount-edit-wrap" class="hidden mt-2">
                             <div class="relative">
                                 <input type="number" name="amount" id="modal-amount" min="0"
-                                    step="1000" placeholder="Montant total personnalisé (FCFA)…"
+                                    step="1" placeholder="Montant total personnalisé (FCFA)…"
                                     class="modal-input w-full pr-16" oninput="DISPO.onAmountInput(this.value)">
                                 <span
                                     class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text3)] pointer-events-none font-bold">FCFA</span>
