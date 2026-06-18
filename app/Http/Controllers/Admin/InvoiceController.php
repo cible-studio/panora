@@ -966,12 +966,18 @@ class InvoiceController extends Controller
             return back()->with('info', 'Aucun solde restant à régler.');
         }
 
+        // 2026-06-18 (feedback patronne) : on autorise désormais une date
+        // de paiement DANS LE FUTUR (utile pour engager un chèque post-daté
+        // ou un virement programmé). On enlève le `before_or_equal:today`.
+        // La date reste bornée par une marge raisonnable (5 ans) pour éviter
+        // les saisies aberrantes (typos type 2126).
         $data = $request->validate([
             'reason'  => 'required|string|min:5|max:500',
-            'paid_at' => 'nullable|date|before_or_equal:today',
+            'paid_at' => 'nullable|date|before_or_equal:' . now()->addYears(5)->toDateString(),
         ], [
-            'reason.required' => 'Une raison/justification est obligatoire pour solder manuellement (traçabilité).',
-            'reason.min'      => 'La justification doit faire au moins 5 caractères.',
+            'reason.required'      => 'Une raison/justification est obligatoire pour solder manuellement (traçabilité).',
+            'reason.min'           => 'La justification doit faire au moins 5 caractères.',
+            'paid_at.before_or_equal' => 'La date de paiement est trop lointaine (max +5 ans). Probable saisie erronée.',
         ]);
 
         // Garde : si la campagne est annulée, on bloque (cohérent avec markPaid).
@@ -1065,8 +1071,12 @@ class InvoiceController extends Controller
             return back()->with('error', 'Impossible d\'ajouter un versement à une facture annulée.');
         }
 
+        // 2026-06-18 (feedback patronne) : date de versement DANS LE FUTUR
+        // désormais autorisée pour saisir des paiements programmés (chèques
+        // post-datés, virements à venir, échéances anticipées). Borne max
+        // à +5 ans pour éviter les typos (2126 etc).
         $data = $request->validate([
-            'paid_at'    => 'required|date|before_or_equal:today',
+            'paid_at'    => 'required|date|before_or_equal:' . now()->addYears(5)->toDateString(),
             'montant'    => 'required|numeric|min:1',
             'mode'       => 'required|in:especes,cheque,virement,mobile_money,carte_bancaire,compensation,autre',
             'reference'  => 'nullable|string|max:100',
@@ -1074,6 +1084,8 @@ class InvoiceController extends Controller
             'is_acompte' => 'sometimes|boolean',
             'attachment' => 'nullable|file|mimes:pdf,png,jpg,jpeg,webp|max:5120',
             'note'      => 'nullable|string|max:1000',
+        ], [
+            'paid_at.before_or_equal' => 'La date de versement est trop lointaine (max +5 ans). Probable saisie erronée.',
         ]);
 
         // Délégation au PaymentService (Phase 2 cahier §4 + §5)
