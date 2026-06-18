@@ -114,7 +114,7 @@
             <table style="width:100%;border-collapse:collapse">
                 <thead>
                     <tr style="border-bottom:1px solid var(--border)">
-                        @foreach(['Client','NCC','Campagnes','Actives','CA contractuel','Panneaux','Dernière activité'] as $h)
+                        @foreach(['Client','Secteur d\'activité','NCC','Campagnes','Actives','CA contractuel','Panneaux','Dernière activité'] as $h)
                         <th style="padding:10px 16px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">{{ $h }}</th>
                         @endforeach
                     </tr>
@@ -132,6 +132,13 @@
                                style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:none">{{ $client['name'] }}</a>
                             <span style="font-size:11px;color:var(--text3);margin-left:6px;opacity:.6">↗</span>
                         </td>
+                        <td style="padding:10px 16px;font-size:12px;color:var(--text2)">
+                            @if(!empty($client['sector']))
+                                <span style="display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(168,85,247,.10);color:#7c3aed;font-size:11px;font-weight:600">{{ $client['sector'] }}</span>
+                            @else
+                                <span style="color:var(--text3);font-size:11px">—</span>
+                            @endif
+                        </td>
                         <td style="padding:10px 16px;font-family:monospace;font-size:11px;color:var(--text3)">{{ $client['ncc'] ?? '—' }}</td>
                         <td style="padding:10px 16px;font-size:13px;color:var(--text)">{{ number_format($client['total_campagnes']) }}</td>
                         <td style="padding:10px 16px">
@@ -147,7 +154,7 @@
                         <td style="padding:10px 16px;font-size:11px;color:var(--text3)">{{ $client['derniere_campagne'] ? \Carbon\Carbon::parse($client['derniere_campagne'])->format('d/m/Y') : '—' }}</td>
                     </tr>
                     @empty
-                    <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text3)">Aucun client</td></tr>
+                    <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text3)">Aucun client</td></tr>
                     @endforelse
                 </tbody>
             </table>

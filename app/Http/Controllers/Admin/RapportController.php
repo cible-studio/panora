@@ -410,13 +410,14 @@ class RapportController extends Controller
                 $campagnesActives = $client->campaigns->where('status', 'actif')->count();
                 $derniere = $client->campaigns->sortByDesc('created_at')->first()?->created_at;
                 return [
-                    'id' => $client->id,
-                    'name' => $client->name,
-                    'ncc' => $client->ncc,
-                    'total_campagnes' => $client->campaigns->count(),
+                    'id'                => $client->id,
+                    'name'              => $client->name,
+                    'ncc'               => $client->ncc,
+                    'sector'            => $client->sector, // 2026-06-18 — colonne secteur d'activité
+                    'total_campagnes'   => $client->campaigns->count(),
                     'campagnes_actives' => $campagnesActives,
-                    'ca_total' => $client->campaigns->sum('total_amount'),
-                    'total_panneaux' => $client->campaigns->sum(fn($c) => $c->panels()->count()),
+                    'ca_total'          => $client->campaigns->sum('total_amount'),
+                    'total_panneaux'    => $client->campaigns->sum(fn($c) => $c->panels()->count()),
                     'derniere_campagne' => $derniere,
                 ];
             })
