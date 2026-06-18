@@ -83,7 +83,7 @@
                     <label>Montant total (FCFA) *</label>
                     <input type="number" name="montant"
                            value="{{ old('montant', 0) }}"
-                           step="1000" min="0"
+                           step="1" min="0"
                            class="{{ $errors->has('montant') ? 'error' : '' }}">
                     @error('montant')
                         <div class="field-error">{{ $message }}</div>

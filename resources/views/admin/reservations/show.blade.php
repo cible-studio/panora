@@ -634,7 +634,7 @@
                                 <div class="flex items-center gap-2 justify-end">
                                     <div class="relative">
                                         <input type="number" id="price-input-{{ $panel->id }}" name="unit_price"
-                                               value="{{ $unitPrice }}" min="0" step="1000" required
+                                               value="{{ $unitPrice }}" min="0" step="1" required
                                                class="w-32 pr-10 pl-3 py-1.5 bg-[#1a1a2a] border border-[#e8a020]/40 rounded-lg text-sm text-[#e8a020] font-bold text-right focus:border-[#e8a020] focus:outline-none"
                                                onfocus="this.select()"
                                                onkeydown="if(event.key==='Escape') hidePriceEdit({{ $panel->id }})">
@@ -863,7 +863,7 @@
                         <div id="price-edit-{{ $rowKey }}" style="display:none;margin-top:4px">
                             <form method="POST" action="{{ $row['edit_url'] }}" style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
                                 @csrf @method('PATCH')
-                                <input type="number" name="unit_price" value="{{ $row['unit_price'] }}" min="0" step="1000" required
+                                <input type="number" name="unit_price" value="{{ $row['unit_price'] }}" min="0" step="1" required
                                        style="width:110px;padding:5px 8px;background:var(--surface);border:1px solid var(--accent);border-radius:6px;font-size:12px;color:var(--accent);font-weight:700;text-align:right"
                                        onfocus="this.select()" onkeydown="if(event.key==='Escape') hidePriceEdit('{{ $rowKey }}')">
                                 <button type="submit" style="padding:5px 7px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);border-radius:6px;color:#22c55e;cursor:pointer" title="Valider">✓</button>
@@ -1003,7 +1003,7 @@
             <div style="width:160px">
                 <label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:5px">Prix/mois <span style="font-weight:400">(opt.)</span></label>
                 <div style="position:relative">
-                    <input type="number" id="add-panel-price" min="0" step="1000" placeholder="Tarif catalogue"
+                    <input type="number" id="add-panel-price" min="0" step="1" placeholder="Tarif catalogue"
                            style="width:100%;height:38px;padding:0 40px 0 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;font-size:12px;color:var(--text);box-sizing:border-box">
                     <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text3);pointer-events:none">F</span>
                 </div>

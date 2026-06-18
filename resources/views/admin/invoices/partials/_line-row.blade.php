@@ -30,7 +30,8 @@
     </div>
 
     <input type="number" name="lines[{{ $i }}][dimension_m2]"  class="line-m2 line-num-input"   required min="0"   step="0.01" value="{{ $l['dimension_m2']  ?? 0 }}">
-    <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu line-num-input"   required min="0"   step="1000" value="{{ $l['pu_ht_mensuel'] ?? 0 }}">
+    {{-- step="1" — FCFA entier, accepte tout prix (y.c. non arrondi à 1000). --}}
+    <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu line-num-input"   required min="0"   step="1" value="{{ $l['pu_ht_mensuel'] ?? 0 }}">
     <input type="number" name="lines[{{ $i }}][quantite]"      class="line-qte line-num-input"  required min="1"   step="1"    value="{{ $l['quantite']      ?? 1 }}">
     <input type="number" name="lines[{{ $i }}][duree_mois]"    class="line-mois line-num-input" required min="0.5" step="0.5"  value="{{ $l['duree_mois']    ?? 1 }}">
 

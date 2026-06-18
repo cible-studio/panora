@@ -47,7 +47,7 @@
                         <label>Montant (FCFA) *</label>
                         <input type="number" name="amount"
                                value="{{ old('amount', $tax->amount) }}"
-                               step="1000" min="0">
+                               step="1" min="0">
                     </div>
                 </div>
 

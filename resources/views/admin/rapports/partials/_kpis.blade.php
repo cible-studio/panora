@@ -20,12 +20,14 @@ $kpiCards = [
         'tab'   => 'occupation',
         'icon'  => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
     ],
-    {{-- Bloc 4 — Famille B (2026-06-18) : on REMPLACE l'ancien KPI "CA période"
-         (contractuel, basé sur Campaign.total_amount) par 2 KPIs CA RÉEL :
-         📤 HT facturé (invoices.net_ht) et 💰 TTC encaissé (payments.montant).
-         Les filtres commune/zone/category sont IGNORÉS sur ces 2 KPIs
-         (cf. arbitrage Q2 patronne) — bandeau d'info juste au-dessus.
-         Libellés ultra-clairs imposés (Garde-fou 2). --}}
+    // Bloc 4 — Famille B (2026-06-18) : on REMPLACE l'ancien KPI "CA période"
+    // (contractuel, basé sur Campaign.total_amount) par 2 KPIs CA RÉEL :
+    // 📤 HT facturé (invoices.net_ht) et 💰 TTC encaissé (payments.montant).
+    // Les filtres commune/zone/category sont IGNORÉS sur ces 2 KPIs
+    // (cf. arbitrage Q2 patronne) — bandeau d'info juste au-dessus.
+    // Libellés ultra-clairs imposés (Garde-fou 2).
+    // NB : commentaire PHP `//` obligatoire ici (Blade `{{-- --}}` interdit
+    // dans un @php array — sortie HTML qui casse la syntaxe array).
     [
         'id'    => 'ca_ht',
         'label' => '📤 CA HT facturé',
