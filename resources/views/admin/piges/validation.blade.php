@@ -227,7 +227,12 @@
 
 <script>
 (function () {
-    const PIGES = @json($piges->map(fn($p) => [
+    {{-- Hotfix 2026-06-19 : @json($expr) fait un explode(',') interne qui
+         tronque l'expression au premier `,` à la racine — donc un
+         `fn($p) => [...]` contenant des `=>` virgulés casse en ParseError
+         "Unclosed '[' on line X does not match ')'". On utilise donc
+         {!! json_encode(...) !!} qui n'a pas ce bug Blade. --}}
+    const PIGES = {!! json_encode($piges->map(fn($p) => [
         'id'         => $p->id,
         'photo_url'  => $p->photo_path ? asset('storage/' . $p->photo_path) : null,
         'reference'  => $p->panel?->reference,
@@ -245,7 +250,7 @@
         'detail_url' => route('admin.piges.show', $p),
         'verify_url' => route('admin.piges.verify', $p),
         'reject_url' => route('admin.piges.reject', $p),
-    ]));
+    ]), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) !!};
     const CSRF = '{{ csrf_token() }}';
 
     let currentIndex = 0;
