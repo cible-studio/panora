@@ -1763,6 +1763,8 @@
             padding: 16px 18px 18px;
             display: flex; flex-direction: column; gap: 12px;
             overflow-y: auto;
+            box-sizing: border-box;
+            min-width: 0;
         }
 
         .sm2-t8-card {
@@ -1771,6 +1773,8 @@
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 14px;
+            box-sizing: border-box;
+            min-width: 0;
         }
         .sm2-t8-card-circle {
             flex: 0 0 56px;
@@ -1791,17 +1795,26 @@
             background: var(--c-red-bg);
             border: 2px solid var(--c-red-border);
         }
-        .sm2-t8-card-text { flex: 1; min-width: 0; }
+        .sm2-t8-card-text {
+            flex: 1; min-width: 0;
+            /* Empêche les longs mots / strong de déborder sur mobile 375px.
+               Hotfix 2026-06-19 — Bug 2 : "t'emmèr…" coupé à droite. */
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
         .sm2-t8-card-title {
             font-size: 14px; font-weight: 800;
             color: var(--text);
+            overflow-wrap: break-word;
         }
         .sm2-t8-card-desc {
             font-size: 13px;
             color: var(--text2);
             margin-top: 3px;
             line-height: 1.45;
+            overflow-wrap: break-word;
         }
+        .sm2-t8-card-desc strong { font-weight: 800; }
 
         .sm2-t8-actions {
             display: flex; flex-direction: column; gap: 8px;
