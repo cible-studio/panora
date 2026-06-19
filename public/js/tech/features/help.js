@@ -1,17 +1,26 @@
-// public/js/tech/features/help.js — SM2a Lot 5.1.
+// public/js/tech/features/help.js — SM2a Lot 5.1 + hotfix 2026-06-19.
 //
-// Pilote la modale T8 "Besoin d'aide ?" (spec §3 T8). Ouvre :
+// Pilote la modale T8 "Besoin d'aide ?" (spec §3 T8). S'ouvre :
 //   1. Au tap sur le bouton "?" jaune du header (data-action="open-help")
-//   2. AUTOMATIQUEMENT à la première visite (flag localStorage
-//      tech_first_use à true par défaut). Le flag passe à 'false' à la
-//      fermeture pour ne plus auto-ouvrir aux visites suivantes.
+//   2. AUTOMATIQUEMENT à la 1re visite (flag 'tech_help_seen' absent)
+//
+// Une fois fermée, le flag 'tech_help_seen' = 'true' est écrit en
+// localStorage → plus d'auto-open aux visites suivantes. Le bouton "?"
+// reste actif et permet de rouvrir manuellement.
+//
+// Hotfix 2026-06-19 :
+//   - Renommage du flag canonique 'tech_first_use' → 'tech_help_seen'
+//     (sémantique inversée : 'true' = déjà vu, donc plus d'auto-open).
+//   - On lit AUSSI l'ancien flag pour ne pas re-déclencher la modale
+//     chez les techs qui l'avaient déjà fermée avant le rename.
 //
 // Les boutons "Voir tutoriel" et "Appeler mon chef" sont peuplés depuis
 // TECH_CONFIG.contacts.{tutorialVideoUrl,chiefPhone} — masqués si valeurs
 // manquantes.
 
-const SEL_OVERLAY = '#sm2-t8-overlay';
-const FLAG_KEY    = 'tech_first_use';
+const SEL_OVERLAY     = '#sm2-t8-overlay';
+const FLAG_KEY        = 'tech_help_seen';   // 'true' = modale déjà vue
+const LEGACY_FLAG_KEY = 'tech_first_use';   // 'false' = modale déjà vue (legacy)
 
 function readContacts() {
     return window.TECH_CONFIG?.contacts || {};
@@ -39,6 +48,27 @@ function populateContacts(overlay) {
     }
 }
 
+function shouldAutoOpen() {
+    try {
+        // Si flag canonique présent → modale déjà vue
+        if (localStorage.getItem(FLAG_KEY) === 'true') return false;
+        // Sinon on regarde l'ancien flag (compat avec la 1re version SM2a)
+        if (localStorage.getItem(LEGACY_FLAG_KEY) === 'false') return false;
+        return true;
+    } catch (e) {
+        // Mode privé / localStorage indisponible : on ne harcèle pas le tech,
+        // on n'auto-open pas (sinon ça boucle à chaque reload).
+        return false;
+    }
+}
+
+function markSeen() {
+    try {
+        localStorage.setItem(FLAG_KEY, 'true');
+        localStorage.setItem(LEGACY_FLAG_KEY, 'false'); // dual-write rétro-compat
+    } catch (e) { /* localStorage indispo — best effort */ }
+}
+
 function open() {
     const overlay = document.querySelector(SEL_OVERLAY);
     if (!overlay) return;
@@ -46,7 +76,7 @@ function open() {
     overlay.hidden = false;
     overlay.removeAttribute('aria-hidden');
     requestAnimationFrame(() => overlay.classList.add('is-open'));
-    document.body.style.overflow = 'hidden';
+    document.body.classList.add('sm2-help-open');
 }
 
 function close() {
@@ -55,10 +85,10 @@ function close() {
     overlay.classList.remove('is-open');
     overlay.setAttribute('aria-hidden', 'true');
     setTimeout(() => { overlay.hidden = true; }, 220);
-    document.body.style.overflow = '';
-    // À la 1re fermeture, on flag le tech comme "déjà vu" pour ne plus
-    // auto-ouvrir aux visites suivantes. Le bouton "?" reste actif.
-    try { localStorage.setItem(FLAG_KEY, 'false'); } catch (e) {}
+    document.body.classList.remove('sm2-help-open');
+    // Toute fermeture (croix, "OK j'ai compris", tap backdrop, Esc) marque
+    // la modale comme vue pour éviter le harcèlement à chaque reload.
+    markSeen();
 }
 
 export function init() {
@@ -88,19 +118,9 @@ export function init() {
         }
     });
 
-    // Auto-open à la première visite (flag absent = première fois).
-    // Si TECH_CONFIG.flags.firstUse explicite à false, on n'ouvre pas même
-    // si le localStorage est neuf (pour les écrans d'admin / debug).
-    let firstUse;
-    try {
-        const stored = localStorage.getItem(FLAG_KEY);
-        firstUse = stored === null; // null = jamais visité
-    } catch (e) {
-        firstUse = false;
-    }
-    if (firstUse && window.TECH_CONFIG?.flags?.firstUse !== false) {
-        // Délai très court pour laisser le carnet T1 se peindre avant de
-        // pop la modale (évite un "flash" visuel).
+    // Auto-open à la 1re visite uniquement. TECH_CONFIG.flags.firstUse=false
+    // permet de désactiver explicitement (pages admin / debug / vue dev).
+    if (shouldAutoOpen() && window.TECH_CONFIG?.flags?.firstUse !== false) {
         setTimeout(() => open(), 300);
     }
 }

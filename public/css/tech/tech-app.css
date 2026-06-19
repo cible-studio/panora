@@ -1685,17 +1685,32 @@
         }
 
         /* ─── T8 §spec — Modale "Besoin d'aide ?" ────────────────── */
+        /* Hotfix 2026-06-19 :
+            - background opaque garanti via fallback color + rgba (Safari iOS
+              parfois ignore le rgba si la couleur n'est pas reset)
+            - pointer-events: none quand fermée (pour ne pas bloquer les
+              clics même en opacity:0 / [hidden] non écrasé)
+            - backdrop-filter pour un flou doux derrière */
         .sm2-t8-overlay {
             position: fixed; inset: 0; z-index: 9400;
-            background: rgba(15, 23, 42, .55);
+            background-color: rgba(15, 23, 42, .60);
+            -webkit-backdrop-filter: blur(2px);
+            backdrop-filter: blur(2px);
             display: flex; align-items: flex-end; justify-content: center;
             padding: 0;
             opacity: 0; transition: opacity .2s ease;
+            pointer-events: none;
         }
         @media (min-width: 540px) {
             .sm2-t8-overlay { align-items: center; padding: 16px; }
         }
-        .sm2-t8-overlay.is-open { opacity: 1; }
+        .sm2-t8-overlay.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        /* Quand la modale est ouverte on bloque le scroll de la page
+           principale. La classe est ajoutée par features/help.js. */
+        body.sm2-help-open { overflow: hidden; }
         .sm2-t8-modal {
             width: 100%; max-width: 480px;
             background: var(--surface);
@@ -1706,6 +1721,7 @@
             overflow: hidden;
             max-height: 92vh;
             padding-bottom: env(safe-area-inset-bottom);
+            box-sizing: border-box;
         }
         @media (min-width: 540px) {
             .sm2-t8-modal { border-radius: 18px; }
@@ -1747,6 +1763,8 @@
             padding: 16px 18px 18px;
             display: flex; flex-direction: column; gap: 12px;
             overflow-y: auto;
+            box-sizing: border-box;
+            min-width: 0;
         }
 
         .sm2-t8-card {
@@ -1755,6 +1773,8 @@
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 14px;
+            box-sizing: border-box;
+            min-width: 0;
         }
         .sm2-t8-card-circle {
             flex: 0 0 56px;
@@ -1775,17 +1795,26 @@
             background: var(--c-red-bg);
             border: 2px solid var(--c-red-border);
         }
-        .sm2-t8-card-text { flex: 1; min-width: 0; }
+        .sm2-t8-card-text {
+            flex: 1; min-width: 0;
+            /* Empêche les longs mots / strong de déborder sur mobile 375px.
+               Hotfix 2026-06-19 — Bug 2 : "t'emmèr…" coupé à droite. */
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
         .sm2-t8-card-title {
             font-size: 14px; font-weight: 800;
             color: var(--text);
+            overflow-wrap: break-word;
         }
         .sm2-t8-card-desc {
             font-size: 13px;
             color: var(--text2);
             margin-top: 3px;
             line-height: 1.45;
+            overflow-wrap: break-word;
         }
+        .sm2-t8-card-desc strong { font-weight: 800; }
 
         .sm2-t8-actions {
             display: flex; flex-direction: column; gap: 8px;
@@ -2022,9 +2051,12 @@
         .sm2-t9-empty-icon { font-size: 48px; margin-bottom: 8px; }
 
         /* ─── T1 §3.1 — Bouton aide rond jaune (header) ─────────── */
+        /* Hotfix 2026-06-19 : flex-shrink:0 + min-width pour qu'il ne soit
+           jamais tronqué par le voisin chip "Mes photos" sur mobile étroit. */
         .sm2-help-btn {
-            flex: 0 0 auto;
+            flex: 0 0 44px;
             width: 44px;
+            min-width: 44px;
             height: 44px;
             border-radius: 50%;
             background: var(--c-yellow-bg);
@@ -2039,9 +2071,15 @@
             cursor: pointer;
             padding: 0;
             transition: transform .1s ease, background .15s ease;
+            box-sizing: border-box;
         }
         .sm2-help-btn:active { transform: scale(0.95); background: var(--c-yellow-border); }
         .sm2-help-btn:focus-visible {
             outline: 3px solid rgba(245, 158, 11, .35);
             outline-offset: 2px;
+        }
+        @media (max-width: 420px) {
+            /* Sur mobile très étroit, on raccourcit le chip "Mes photos" pour
+               garantir la place du bouton aide rond. */
+            .sm2-help-btn { width: 40px; min-width: 40px; height: 40px; flex: 0 0 40px; font-size: 18px; }
         }
