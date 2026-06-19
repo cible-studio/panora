@@ -526,10 +526,12 @@
             color: var(--cancelled); font-style: normal; font-weight: 700;
             background: rgba(239,68,68,.08); padding: 1px 6px; border-radius: 6px;
         }
+        /* SM2a Lot 1.3 — pastille de statut agrandie 14 → 18px (spec T1 §3.4
+           "Pastille colorée 18px"). Plus visible d'un coup d'œil sur Android Go. */
         .pose-dot {
-            flex: 0 0 14px; width: 14px; height: 14px; border-radius: 50%;
+            flex: 0 0 18px; width: 18px; height: 18px; border-radius: 50%;
             box-shadow: 0 0 0 4px rgba(15,23,42,.05), 0 0 0 5px currentColor;
-            opacity: .9;
+            opacity: .92;
         }
         .pose-cam {
             flex: 0 0 38px; font-size: 22px;
