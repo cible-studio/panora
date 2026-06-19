@@ -1114,6 +1114,72 @@
         }
         .sm2-done-empty a { color: var(--c-green-text); font-weight: 700; }
 
+        /* ─── T1 §3.7 — Bandeau rouge "photo à refaire" (T9 intégré) ─ */
+        .sm2-t9-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 0 0 12px;
+            padding: 12px 14px;
+            background: var(--c-red-bg);
+            border: 2px solid var(--c-red-border);
+            border-radius: 14px;
+            text-decoration: none;
+            color: var(--c-red-text);
+            min-height: 64px;
+            box-shadow: 0 4px 16px -6px rgba(185, 28, 28, .25);
+            transition: transform .08s, box-shadow .15s;
+        }
+        .sm2-t9-banner:active { transform: scale(.99); }
+        .sm2-t9-icon {
+            flex: 0 0 44px;
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            background: var(--c-red-problem);
+            color: #fff;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sm2-t9-text { flex: 1; min-width: 0; line-height: 1.3; }
+        .sm2-t9-text strong { display: block; font-size: 14px; font-weight: 800; }
+        .sm2-t9-sub {
+            display: block;
+            font-size: 11.5px;
+            color: var(--c-red-text);
+            opacity: .8;
+            margin-top: 2px;
+        }
+        .sm2-t9-chevron {
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--c-red-problem);
+            line-height: 1;
+        }
+
+        /* ─── T1 §3.6 — Bouton "Voir ma tournée sur la carte" ───── */
+        .sm2-tour-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            min-height: 48px;
+            margin: 16px 0 8px;
+            padding: 10px 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text2);
+            font-size: 13.5px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: transform .08s, background .15s, border-color .15s;
+        }
+        .sm2-tour-btn:hover { background: var(--surface); border-color: var(--text3); }
+        .sm2-tour-btn:active { transform: scale(.98); background: var(--border); }
+
         /* ─── T1 §3.1 — Bouton aide rond jaune (header) ─────────── */
         .sm2-help-btn {
             flex: 0 0 auto;

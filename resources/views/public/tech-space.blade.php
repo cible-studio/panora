@@ -119,6 +119,11 @@
             <button type="button" id="ts-tour-quit">Annuler</button>
         </div>
 
+        {{-- SM2a Lot 1.5 — Bandeau rouge "photo à refaire" (T9 intégré
+             dans l'accueil). S'affiche AU-DESSUS de la card MAINTENANT
+             si le tech a au moins une pige refusée. --}}
+        @include('public.tech.partials._banner_t9_rejected')
+
         {{-- ═══ HERO « PROCHAINE POSE » ═══ --}}
         @if(!empty($nextTask))
             @include('public.tech.partials._focus_card', ['task' => $nextTask])
@@ -136,6 +141,9 @@
 
         {{-- SM2a Lot 1.4 — Section "🟢 Déjà faites" pliée par défaut. --}}
         @include('public.tech.partials._done_section')
+
+        {{-- SM2a Lot 1.5 — Bouton secondaire "Voir ma tournée sur la carte". --}}
+        @include('public.tech.partials._tour_button')
 
     @endif
 
