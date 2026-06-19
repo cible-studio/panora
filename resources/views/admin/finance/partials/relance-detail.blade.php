@@ -68,12 +68,24 @@
         <span style="background:rgba(232,160,32,.18);color:#9a3412;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:800;font-family:ui-monospace,monospace">×{{ $clientRelances->count() }}</span>
     </div>
     @if($client)
-        <button type="button" class="btn btn-primary btn-sm"
-                style="font-size:11px;font-weight:700"
-                onclick="relancesOpenModal({{ $client->id }})"
-                title="Enregistrer une nouvelle relance pour ce client">
-            📞 Nouvelle relance
-        </button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+            {{-- 2026-06-19 — PDF dédié à ce client : route existante
+                 finance.relances.export.pdf filtrée par client_id. --}}
+            @if(\Illuminate\Support\Facades\Route::has('admin.finance.relances.export.pdf'))
+                <a href="{{ route('admin.finance.relances.export.pdf', ['client_id' => $client->id]) }}"
+                   class="btn btn-ghost btn-sm" target="_blank"
+                   style="font-size:11px;font-weight:700;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);color:#b91c1c"
+                   title="Télécharger en PDF tout l'historique des relances de {{ $client->name }}">
+                    📄 PDF relances
+                </a>
+            @endif
+            <button type="button" class="btn btn-primary btn-sm"
+                    style="font-size:11px;font-weight:700"
+                    onclick="relancesOpenModal({{ $client->id }})"
+                    title="Enregistrer une nouvelle relance pour ce client">
+                📞 Nouvelle relance
+            </button>
+        </div>
     @endif
 </div>
 
