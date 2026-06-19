@@ -799,21 +799,28 @@
             opacity: .8;
         }
 
-        /* Hero "Prochaine pose" — gros bouton focus, le tech voit ce qui compte */
+        /* ─── SM2a Lot 1.2 — Card MAINTENANT (T1 §3.3) ─────────────
+           Reprend les ids/classes existants (consommés par features/upload.js).
+           Refonte couleurs sémantiques : bordure + fond ORANGE (action en
+           attente), bouton "Y aller" VERT (succès), bouton "Photo" ORANGE.
+           L'ancien label "À FAIRE EN PREMIER" devient "🔥 MAINTENANT". */
         .next-pose-hero {
             margin: 0 0 14px;
-            background: linear-gradient(135deg, #fff 0%, #fffaf0 100%);
-            border: 2px solid var(--accent);
+            background: var(--c-orange-bg);
+            border: 2px solid var(--c-orange-action);
             border-radius: 16px;
-            padding: 14px 14px 12px;
-            box-shadow: 0 12px 32px -10px rgba(232,160,32,.25);
-            position: relative; overflow: hidden;
+            padding: 28px 14px 12px;        /* extra padding-top pour le badge */
+            box-shadow: 0 10px 28px -10px rgba(234, 88, 12, .28);
+            position: relative;
         }
-        .next-pose-hero::before {
-            content: 'À FAIRE EN PREMIER';
-            position: absolute; top: 8px; right: 12px;
-            font-size: 9px; font-weight: 800; letter-spacing: 1px;
-            color: var(--accent-dark); opacity: .65;
+        .next-pose-hero .nph-badge {
+            position: absolute; top: 8px; left: 12px;
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+            color: #fff;
+            background: var(--c-orange-action);
+            padding: 3px 8px; border-radius: 999px;
+            box-shadow: 0 4px 10px -2px rgba(234, 88, 12, .45);
         }
         .next-pose-hero .nph-top {
             display: flex; gap: 12px; align-items: flex-start;
@@ -822,14 +829,14 @@
             flex: 0 0 60px; width: 60px; height: 60px;
             border-radius: 12px;
             background-size: cover; background-position: center;
-            background-color: var(--surface2); border: 1px solid var(--border);
+            background-color: var(--surface); border: 1px solid var(--c-orange-border);
             font-size: 26px; color: var(--text3);
             display: flex; align-items: center; justify-content: center;
         }
         .next-pose-hero .nph-info { flex: 1; min-width: 0; }
         .next-pose-hero .nph-ref {
             font-family: ui-monospace, monospace; font-weight: 800;
-            font-size: 16px; color: var(--accent-dark);
+            font-size: 16px; color: var(--c-orange-text);
         }
         .next-pose-hero .nph-name {
             font-size: 13px; color: var(--text); margin-top: 1px;
@@ -841,30 +848,30 @@
             display: flex; gap: 8px; flex-wrap: wrap;
         }
         .next-pose-hero .nph-meta .late {
-            color: #b91c1c; font-weight: 700;
-            background: rgba(239,68,68,.08); padding: 1px 6px; border-radius: 6px;
+            color: var(--c-red-problem); font-weight: 700;
+            background: var(--c-red-bg); padding: 1px 6px; border-radius: 6px;
         }
         .next-pose-hero .nph-actions {
-            display: flex; gap: 8px; margin-top: 12px;
+            display: flex; gap: 8px; margin-top: 14px;
         }
         .next-pose-hero .nph-act {
-            flex: 1; min-height: 44px;
+            flex: 1; min-height: 48px;
             display: flex; align-items: center; justify-content: center; gap: 6px;
-            font-size: 13px; font-weight: 800;
-            border-radius: 10px; cursor: pointer;
+            font-size: 14px; font-weight: 800;
+            border-radius: 12px; cursor: pointer;
             font-family: inherit; text-decoration: none;
             transition: transform .08s, box-shadow .15s;
         }
         .next-pose-hero .nph-act:active { transform: scale(.97); }
         .next-pose-hero .nph-act.go {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            background: linear-gradient(135deg, #22c55e, var(--c-green-success));
             color: #fff; border: none;
-            box-shadow: 0 6px 16px -4px rgba(59,130,246,.45);
+            box-shadow: 0 6px 16px -4px rgba(22, 163, 74, .42);
         }
         .next-pose-hero .nph-act.cam {
-            background: linear-gradient(135deg, #e8a020, #c2570d);
+            background: linear-gradient(135deg, var(--c-orange-action), #c2410c);
             color: #fff; border: none;
-            box-shadow: 0 6px 16px -4px rgba(232,160,32,.45);
+            box-shadow: 0 6px 16px -4px rgba(234, 88, 12, .42);
         }
         .next-pose-hero .nph-act.cam input { display: none; }
 
