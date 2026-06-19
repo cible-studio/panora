@@ -1,47 +1,84 @@
-// public/js/tech/features/report.js — SM1.5 Lot 1.
+// public/js/tech/features/report.js — SM2a Phase 4 (refonte T5 + T6).
 //
-// Modale de signalement terrain (1 tap depuis une card → "⚠ Souci").
-// 9 motifs DelayReason (centralisés App\Enums\DelayReason — Module 3 SLA).
-// Photo optionnelle compressée client-side. Note libre optionnelle.
-// POST vers /tech/{token}/poses/{taskId}/report. À succès :
-//   - flashSuccess overlay
-//   - bandeau "déjà signalé" injecté sur la card sans reload
-//   - label motif via window.TECH_CONFIG.motifLabels[type]
+// Modale de signalement terrain refondue en 2 étapes sur la même modale
+// physique (cf. _modal_report.blade.php) :
+//   - T5 (data-step="motif")   : le tech voit les 9 motifs et en tape un
+//   - T6 (data-step="details") : motif rappelé, photo optionnelle, textarea
+//                                 avec placeholder dynamique, envoi POST
 //
-// Source : bloc 13 du <script> inline pré-SM1.5 (lignes 763-884).
-// Migration 1:1 comportement-identique.
+// Garde-fou ascendant compatibilité : on conserve les IDs/classes/comportement
+// POST de la version SM1.5 (Lot 1). Seul le flow d'interaction et la
+// présentation changent. Les routes serveur sont strictement inchangées.
 //
 // Dépendances :
-//   - core/api.js : postJson + urlForTask
+//   - core/api.js : urlForTask
 //   - core/ui-helpers.js : flashSuccess, toast, compressImage
-//   - window.TECH_CONFIG.routes.reportTpl (avec __TASK__)
-//   - window.TECH_CONFIG.motifLabels (9 motifs FR)
-//   - window.TECH_CONFIG.csrfToken (pour multipart upload)
-//   - DOM modale #ts-report-modal (rendue par _modal_report.blade.php)
+//   - window.TECH_CONFIG.routes.reportTpl + motifLabels + csrfToken
 
 import { urlForTask } from '../core/api.js';
 import { flashSuccess, toast, compressImage } from '../core/ui-helpers.js';
 
+// Placeholder dynamique du textarea T6 selon motif choisi (cf. spec T6).
+// Tableau aligné sur DelayReason::cases() — 9 valeurs.
+const MOTIF_PLACEHOLDERS = {
+    panneau_casse:         "Ex: le côté droit est arraché par le vent…",
+    acces_bloque:          "Ex: chantier en cours, retour demain…",
+    mauvaise_adresse:      "Ex: numéro introuvable, je suis allé là…",
+    technicien_absent:     "Ex: je n'ai pas pu y aller aujourd'hui…",
+    materiel_indisponible: "Ex: il manque les agrafes / la colle…",
+    meteo:                 "Ex: trop de pluie, j'y vais demain…",
+    retard_impression:     "Ex: l'imprimeur n'a pas livré la bâche…",
+    retard_client:         "Ex: le client n'a pas validé le visuel…",
+    autre:                 "Décris-nous le problème en quelques mots…",
+};
+
 export function init() {
     const modal  = document.getElementById('ts-report-modal');
     if (!modal) return;
-    const refEl    = document.getElementById('ts-report-ref');
-    const noteEl   = document.getElementById('ts-report-note');
-    const sendBtn  = document.getElementById('ts-report-send');
-    const cancel   = document.getElementById('ts-report-cancel');
-    const photoInp = document.getElementById('ts-report-photo');
-    const photoLbl = document.getElementById('ts-report-photo-label');
-    const photoTxt = document.getElementById('ts-report-photo-label-text');
+
+    const refEl       = document.getElementById('ts-report-ref');
+    const noteEl      = document.getElementById('ts-report-note');
+    const sendBtn     = document.getElementById('ts-report-send');
+    const cancelTop   = document.getElementById('ts-report-cancel-top');
+    const cancelLeg   = document.getElementById('ts-report-cancel');
+    const changeBtn   = document.getElementById('ts-report-change-motif');
+    const photoInp    = document.getElementById('ts-report-photo');
+    const photoLbl    = document.getElementById('ts-report-photo-label');
+    const photoTxt    = document.getElementById('ts-report-photo-label-text');
+    const motifIconEl = modal.querySelector('[data-field="motif-icon"]');
+    const motifLblEl  = modal.querySelector('[data-field="motif-label"]');
+
     let attachedPhoto = null;
     let currentTaskId = null;
     let selectedType  = null;
+
+    function setStep(step) {
+        modal.dataset.step = step;
+    }
+
+    function resetState() {
+        selectedType = null;
+        attachedPhoto = null;
+        if (noteEl) { noteEl.value = ''; noteEl.placeholder = ''; }
+        if (sendBtn) sendBtn.disabled = true;
+        if (photoInp) photoInp.value = '';
+        photoLbl?.classList.remove('has-file');
+        if (photoTxt) photoTxt.textContent = 'Ajouter une photo (facultatif)';
+        modal.querySelectorAll('.ts-report-opt').forEach(o => o.classList.remove('sel'));
+        setStep('motif');
+    }
+
+    function closeModal() {
+        modal.classList.remove('show');
+        resetState();
+    }
 
     photoInp?.addEventListener('change', async () => {
         const f = photoInp.files?.[0];
         if (!f) {
             attachedPhoto = null;
             photoLbl?.classList.remove('has-file');
-            if (photoTxt) photoTxt.textContent = '📷 Joindre une photo (facultatif)';
+            if (photoTxt) photoTxt.textContent = 'Ajouter une photo (facultatif)';
             return;
         }
         try {
@@ -49,12 +86,13 @@ export function init() {
             photoLbl?.classList.add('has-file');
             if (photoTxt) photoTxt.textContent = '✓ Photo prête';
         } catch (e) {
-            attachedPhoto = f; // fallback original
+            attachedPhoto = f;
             photoLbl?.classList.add('has-file');
             if (photoTxt) photoTxt.textContent = '✓ Photo prête (non compressée)';
         }
     });
 
+    // Ouverture depuis un bouton data-action="report" (carnet T1 ou drawer T2)
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="report"]');
         if (!btn) return;
@@ -62,29 +100,57 @@ export function init() {
         const pose = btn.closest('[data-task-id]');
         currentTaskId = pose?.dataset.taskId || null;
         if (!currentTaskId) return;
-        selectedType = null;
-        if (noteEl) noteEl.value = '';
-        sendBtn.disabled = true;
-        modal.querySelectorAll('.ts-report-opt').forEach(o => o.classList.remove('sel'));
-        const ref = pose.querySelector('.pose-ref')?.textContent?.trim();
-        if (refEl) refEl.textContent = ref ? ('Panneau ' + ref + ' — choisis le problème.') : 'Choisis ce qui ne va pas.';
-        attachedPhoto = null;
-        if (photoInp) photoInp.value = '';
-        photoLbl?.classList.remove('has-file');
-        if (photoTxt) photoTxt.textContent = '📷 Joindre une photo (facultatif)';
+
+        resetState();
+
+        const ref  = pose.querySelector('.pose-ref')?.textContent?.trim()
+                  || pose.querySelector('[data-field="ref"]')?.textContent?.trim();
+        const name = pose.querySelector('.pose-name')?.textContent?.trim()
+                  || pose.querySelector('[data-field="name"]')?.textContent?.trim();
+        if (refEl) {
+            refEl.textContent = ref
+                ? `Panneau ${ref}${name ? ' — ' + name : ''}`
+                : 'Touche le motif. Le bureau sera prévenu.';
+        }
         modal.classList.add('show');
     });
 
+    // T5 → T6 : sélection d'un motif → bascule
     modal.querySelectorAll('.ts-report-opt').forEach(opt => {
         opt.addEventListener('click', () => {
             selectedType = opt.dataset.type;
             modal.querySelectorAll('.ts-report-opt').forEach(o => o.classList.toggle('sel', o === opt));
-            sendBtn.disabled = false;
+
+            // Peuple le rappel motif T6
+            if (motifIconEl) motifIconEl.textContent = opt.dataset.icon || '📝';
+            if (motifLblEl)  motifLblEl.textContent  = opt.dataset.label || opt.querySelector('.ts-report-opt-label')?.textContent?.trim() || '—';
+
+            // Placeholder dynamique du textarea
+            if (noteEl) noteEl.placeholder = MOTIF_PLACEHOLDERS[selectedType] || MOTIF_PLACEHOLDERS.autre;
+
+            // Active le bouton envoyer
+            if (sendBtn) sendBtn.disabled = false;
+
+            // Switch vers T6
+            setStep('details');
         });
     });
-    cancel?.addEventListener('click', () => modal.classList.remove('show'));
-    modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('show'); });
 
+    // T6 → T5 : "Changer de motif"
+    changeBtn?.addEventListener('click', () => {
+        selectedType = null;
+        if (sendBtn) sendBtn.disabled = true;
+        if (noteEl) noteEl.placeholder = '';
+        modal.querySelectorAll('.ts-report-opt').forEach(o => o.classList.remove('sel'));
+        setStep('motif');
+    });
+
+    // Annuler (T5 top OR legacy bottom)
+    cancelTop?.addEventListener('click', closeModal);
+    cancelLeg?.addEventListener('click', closeModal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+    // Envoi POST (inchangé fonctionnellement vs SM1.5)
     sendBtn?.addEventListener('click', async () => {
         if (!currentTaskId || !selectedType) return;
         sendBtn.disabled = true;
@@ -116,7 +182,7 @@ export function init() {
                 });
             }
             const data = await res.json();
-            modal.classList.remove('show');
+            closeModal();
             if (res.ok && data.ok) {
                 flashSuccess('Souci envoyé au bureau&nbsp;!');
 
