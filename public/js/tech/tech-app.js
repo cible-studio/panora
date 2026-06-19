@@ -23,6 +23,7 @@ import { init as initFilters }     from './features/filters.js';
 import { init as initSearch }      from './features/search.js';
 import { init as initGeolocate }   from './features/geolocate.js';
 import { init as initUpload }      from './features/upload.js';
+import { init as initPoseDrawer }  from './features/pose-drawer.js';
 
 // Garde-fou : si TECH_CONFIG n'est pas là, on log mais on n'explose pas
 // (la page continue de fonctionner via le JS inline encore présent).
@@ -42,6 +43,7 @@ function bootstrap() {
     initSearch();         // [SM1.5 Lot 3] Select2 AJAX paginé + openFocusModal
     initGeolocate();      // [SM1.5 Lot 4] Près de moi + Mon chemin (TSP)
     initUpload();         // [SM1.5 Lot 6] photo : preview + GPS + compress + POST + IndexedDB queue
+    initPoseDrawer();     // [SM2a Lot 2.1A] drawer T2 détail d'une pose + ?focus= deep-link
 }
 
 if (document.readyState === 'loading') {

@@ -1180,6 +1180,149 @@
         .sm2-tour-btn:hover { background: var(--surface); border-color: var(--text3); }
         .sm2-tour-btn:active { transform: scale(.98); background: var(--border); }
 
+        /* ─── T2 §spec — Drawer "Détail d'une pose" ──────────────── */
+        .sm2-t2-overlay {
+            position: fixed; inset: 0; z-index: 9000;
+            background: rgba(15, 23, 42, .55);
+            display: flex; align-items: flex-end; justify-content: center;
+            opacity: 0; transition: opacity .2s ease;
+        }
+        .sm2-t2-overlay.is-open { opacity: 1; }
+        .sm2-t2-drawer {
+            width: 100%; max-width: 540px;
+            background: var(--surface);
+            border-radius: 18px 18px 0 0;
+            max-height: 90vh; overflow-y: auto;
+            transform: translateY(100%);
+            transition: transform .25s ease;
+            display: flex; flex-direction: column;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .sm2-t2-overlay.is-open .sm2-t2-drawer { transform: translateY(0); }
+        @media (min-width: 720px) {
+            /* Sur écran large : ouvre par la droite plutôt que par le bas. */
+            .sm2-t2-overlay { align-items: stretch; justify-content: flex-end; }
+            .sm2-t2-drawer {
+                max-width: 480px; max-height: 100vh;
+                border-radius: 0; transform: translateX(100%);
+            }
+            .sm2-t2-overlay.is-open .sm2-t2-drawer { transform: translateX(0); }
+        }
+
+        .sm2-t2-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border);
+            position: sticky; top: 0;
+            background: var(--surface); z-index: 1;
+        }
+        .sm2-t2-back {
+            display: inline-flex; align-items: center; gap: 6px;
+            min-height: 36px; padding: 6px 10px;
+            background: transparent; border: none;
+            font-size: 14px; font-weight: 700; color: var(--text2);
+            cursor: pointer; font-family: inherit;
+        }
+        .sm2-t2-back:active { background: var(--surface2); border-radius: 8px; }
+        .sm2-t2-close {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: var(--surface2); border: none;
+            font-size: 16px; color: var(--text2);
+            cursor: pointer; font-family: inherit;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+
+        .sm2-t2-body {
+            padding: 18px 16px 24px;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .sm2-t2-pill {
+            align-self: flex-start;
+            font-size: 11px; font-weight: 800;
+            text-transform: uppercase; letter-spacing: .8px;
+            padding: 4px 10px; border-radius: 999px;
+            background: var(--c-orange-bg);
+            color: var(--c-orange-text);
+            border: 1px solid var(--c-orange-border);
+        }
+        .sm2-t2-name {
+            margin: 0;
+            font-size: 18px; font-weight: 800;
+            color: var(--text);
+            line-height: 1.25;
+        }
+        .sm2-t2-ref {
+            font-family: ui-monospace, monospace;
+            font-size: 13px; font-weight: 700;
+            color: var(--c-orange-text);
+            margin-top: -4px;
+        }
+        .sm2-t2-photo-wrap {
+            margin: 4px 0 0;
+            aspect-ratio: 4 / 3;
+            border-radius: 14px; overflow: hidden;
+            background: var(--surface2);
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .sm2-t2-photo {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .sm2-t2-photo[hidden] { display: none; }
+        .sm2-t2-photo-fallback {
+            font-size: 48px; color: var(--text3);
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .sm2-t2-help {
+            display: flex; align-items: flex-start; gap: 8px;
+            padding: 10px 12px;
+            background: var(--c-yellow-bg);
+            border: 1px solid var(--c-yellow-border);
+            color: var(--c-yellow-text);
+            border-radius: 10px;
+            font-size: 12.5px;
+            line-height: 1.4;
+        }
+
+        .sm2-t2-actions {
+            display: flex; flex-direction: column; gap: 8px;
+            margin-top: 4px;
+        }
+        .sm2-t2-btn {
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px;
+            min-height: 52px;
+            padding: 12px 16px;
+            border-radius: 14px;
+            font-size: 15px; font-weight: 800;
+            border: none; cursor: pointer;
+            text-decoration: none;
+            font-family: inherit;
+            transition: transform .08s, box-shadow .15s;
+        }
+        .sm2-t2-btn:active { transform: scale(.98); }
+        .sm2-t2-btn-go {
+            background: linear-gradient(135deg, #22c55e, var(--c-green-success));
+            color: #fff;
+            box-shadow: 0 6px 16px -4px rgba(22, 163, 74, .42);
+        }
+        .sm2-t2-btn-cam {
+            background: linear-gradient(135deg, var(--c-orange-action), #c2410c);
+            color: #fff;
+            box-shadow: 0 6px 16px -4px rgba(234, 88, 12, .42);
+        }
+        .sm2-t2-btn-cam input { display: none; }
+        .sm2-t2-btn-warn {
+            background: var(--c-red-bg);
+            color: var(--c-red-text);
+            border: 1.5px solid var(--c-red-border);
+            min-height: 46px; font-size: 13.5px;
+        }
+
         /* ─── T1 §3.1 — Bouton aide rond jaune (header) ─────────── */
         .sm2-help-btn {
             flex: 0 0 auto;

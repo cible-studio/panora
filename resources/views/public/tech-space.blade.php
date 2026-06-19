@@ -163,6 +163,10 @@
 
 @include('public.tech.partials._modal_report')
 
+{{-- SM2a Lot 2.1A — Drawer T2 "Détail d'une pose" (inclus une fois,
+     piloté par features/pose-drawer.js). --}}
+@include('public.tech.partials._drawer_pose_detail')
+
 {{-- Phase 3 SM1 — publication TECH_CONFIG (csrf + token + routes + bootstrap)
      consommé par les modules JS chargés juste après. À garder AVANT le
      <script type="module"> qui suit. --}}
