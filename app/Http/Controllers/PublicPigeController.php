@@ -25,8 +25,24 @@ use Illuminate\Support\Facades\Storage;
  */
 class PublicPigeController extends Controller
 {
-    public function show(string $token)
+    public function show(string $token, \App\Services\TechUrlResolverService $resolver)
     {
+        // ─── SM2a Lot 2.1B — REDIRECT UNIFIÉ vers tech.space ─────
+        // Si le token résout vers une PoseTask avec tech assigné + token
+        // public actif → on redirige 301 vers le nouveau dashboard avec
+        // ?focus=task_X qui auto-ouvre le drawer T2. Les anciens liens
+        // WhatsApp partagés en masse continuent donc de marcher mais
+        // aterrissent désormais sur l'UI moderne.
+        //
+        // Cas où le resolver retourne null (→ fall-through legacy) :
+        //   - Token != 32 chars (campagne 48 chars : legacy conservé)
+        //   - PoseTask sans assigned_user_id (tech_name_self : legacy)
+        //   - tech_public_token vide ou is_active=false
+        $newUrl = $resolver->resolve($token);
+        if ($newUrl !== null) {
+            return redirect($newUrl, 301);
+        }
+
         // ─── DISPATCH UNIFIÉ ────────────────────────────────────────
         // Un seul format d'URL côté technicien : /pige/{token}. Le token
         // peut représenter soit une intervention unique (PoseTask, 32

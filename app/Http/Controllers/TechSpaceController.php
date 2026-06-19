@@ -158,6 +158,17 @@ class TechSpaceController extends Controller
             ->map(fn($g) => $g->count())
             ->all();
 
+        // SM2a Lot 1.4 — Liste des 30 poses récentes TERMINÉES, pour la
+        // section "🟢 Déjà faites" (pliée par défaut) du carnet T1 §3.5.
+        // Cap à 30 pour éviter de saturer le DOM Android Go ; au-delà, le
+        // tech peut tout voir dans /tech/{token}/piges.
+        $donePosesRecent = PoseTask::where('assigned_user_id', $tech->id)
+            ->where('status', PoseTaskStatus::COMPLETED->value)
+            ->with(['panel:id,reference,name,commune_id', 'panel.commune:id,name'])
+            ->orderByDesc('updated_at')
+            ->limit(30)
+            ->get();
+
         // Regroupement par COMMUNE/ZONE (le tech fait une zone entière avant
         // de se déplacer), pas par campagne ni par date. À l'intérieur d'une
         // zone : les poses en retard d'abord, puis par échéance.
@@ -240,6 +251,31 @@ class TechSpaceController extends Controller
         $pigesRejected = \App\Models\Pige::query()->tap($pigesForTech)
             ->where('status', 'rejete')->count();
 
+        // SM2a Lot 5.2 — Liste des piges refusées en cours (pas encore
+        // refaites). Source unique pour le drawer T9 "À refaire". Filtre
+        // identique à la vue "current" du tableau historique des piges :
+        // on exclut les piges qui ont une successeure plus récente sur le
+        // même (panel, campagne). Cap 20 pour éviter le bourrage DOM si
+        // un tech a un parc historique chargé.
+        $rejectedPiges = \App\Models\Pige::query()
+            ->tap($pigesForTech)
+            ->where('piges.status', 'rejete')
+            ->whereNotExists(function ($sub) {
+                $sub->from('piges as p2')
+                    ->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->whereColumn('p2.panel_id',    'piges.panel_id')
+                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
+                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
+            })
+            ->with([
+                'panel:id,reference,name,commune_id,latitude,longitude',
+                'panel.commune:id,name',
+                'verificateur:id,name',
+            ])
+            ->orderByDesc('piges.taken_at')
+            ->limit(20)
+            ->get();
+
         // Liste TOC zones : agrégat global (toutes poses actives, pas seulement
         // SSR) → chip cliquable sticky pour navigation directe. Une requête
         // groupée sur la BDD pour rester rapide même à 5k+ poses.
@@ -293,6 +329,7 @@ class TechSpaceController extends Controller
             'progressPct'      => $progressPct,
             'groupedByCommune' => $groupedByCommune,
             'doneByCommune'    => $doneByCommune,
+            'donePosesRecent'  => $donePosesRecent, // SM2a Lot 1.4
             'allZones'         => $allZones,
             'nextTask'         => $nextTask,
             // Métriques journée
@@ -304,6 +341,7 @@ class TechSpaceController extends Controller
             // Piges global tech (pour le bouton historique)
             'pigesTotal'       => $pigesTotal,
             'pigesRejected'    => $pigesRejected,
+            'rejectedPiges'    => $rejectedPiges, // SM2a Lot 5.2 (drawer T9)
         ];
     }
 

@@ -181,46 +181,270 @@ function getPosition() {
         .then(r => r || attempt({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }));
 }
 
+// SM2a Lot 3.1 — Refonte vers T3 (spec §3) : preview photo + bandeau
+// noir overlay GPS + heure + boîte verdict GPS colorée selon distance
+// haversine au panneau cible.
+//
 // Le tech voit ce qu'il s'apprête à envoyer (flou, cadrage, etc.) et
-// peut "Reprendre" sans avoir envoyé une mauvaise photo.
-// Retour : Promise<boolean> — true = envoyer ; false = annulé / reprendre.
-function askPhotoPreview(file, panelRef) {
+// peut "Refaire" sans avoir envoyé une mauvaise photo.
+//
+// Retour : Promise<{gps: {lat, lng, acc}|null} | false>
+//   - false : tech a annulé (refaire / Escape)
+//   - { gps } : tech a confirmé. gps réutilisé en aval pour ne pas
+//               re-prompt la géoloc.
+function haversineMetersT3(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const toRad = d => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2
+        + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistanceT3(m) {
+    if (m == null || isNaN(m)) return '—';
+    if (m < 950) return Math.round(m) + ' m';
+    return (m / 1000).toFixed(1).replace('.0', '') + ' km';
+}
+
+function verdictForDistance(m) {
+    if (m == null || isNaN(m)) return null;
+    if (m <  100) return { v: 'ok',   t: '✓ Position GPS bien enregistrée',
+                           s: `Tu es à ${formatDistanceT3(m)} du panneau.`,   icon: '✓' };
+    if (m <  500) return { v: 'warn', t: `⚠ Tu es à ${formatDistanceT3(m)} du panneau`,
+                           s: 'Vérifie que c\'est bien le bon avant d\'envoyer.', icon: '⚠' };
+    return            { v: 'bad',  t: `✗ Tu es à ${formatDistanceT3(m)} du panneau`,
+                           s: 'C\'est probablement pas le bon — refais sur place.', icon: '✗' };
+}
+
+function askPhotoPreview(file, pose) {
     return new Promise((resolve) => {
+        const overlay = document.getElementById('sm2-t3-overlay');
+        if (!overlay) {
+            // Fallback défensif : si le partial T3 n'est pas chargé pour
+            // une raison X, on confirme direct (comportement legacy).
+            console.warn('[sm2-t3] partial absent — fallback auto-confirm');
+            resolve({ gps: null });
+            return;
+        }
+
         const url = URL.createObjectURL(file);
-        const overlay = document.createElement('div');
-        overlay.style.cssText = `position:fixed;inset:0;z-index:99998;background:rgba(15,23,42,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;animation:fadeIn .2s`;
-        overlay.innerHTML = `
-            <style>@keyframes fadeIn{from{opacity:0}to{opacity:1}}</style>
-            <div style="color:#fff;font-size:13px;font-weight:600;margin-bottom:8px;text-align:center">
-                Voici ta photo${panelRef ? ' · <strong>'+panelRef+'</strong>' : ''}
-            </div>
-            <img src="${url}" alt="Aperçu" style="max-width:100%;max-height:60vh;border-radius:14px;box-shadow:0 16px 40px -8px rgba(0,0,0,.6);object-fit:contain;background:#000">
-            <div style="color:#cbd5e1;font-size:11.5px;margin-top:10px;text-align:center;line-height:1.4">
-                Regarde si on voit bien le panneau et l'affiche. Si oui, envoie. Sinon, refais.
-            </div>
-            <div style="display:flex;gap:10px;margin-top:18px;width:100%;max-width:380px">
-                <button type="button" data-act="cancel"
-                        style="flex:1;padding:13px 14px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent">
-                    📷 Refaire
-                </button>
-                <button type="button" data-act="confirm"
-                        style="flex:1;padding:13px 14px;background:linear-gradient(135deg,#e8a020,#c2570d);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 8px 20px -4px rgba(232,160,32,.5);-webkit-tap-highlight-color:transparent">
-                    ✅ Envoyer
-                </button>
-            </div>
-        `;
-        document.body.appendChild(overlay);
-        const close = (val) => {
-            URL.revokeObjectURL(url);
-            overlay.remove();
-            resolve(val);
+        const img = overlay.querySelector('[data-field="photo"]');
+        img.src = url;
+
+        const setText = (sel, txt) => {
+            const el = overlay.querySelector(sel);
+            if (el) el.textContent = txt;
         };
-        overlay.querySelector('[data-act="confirm"]').addEventListener('click', () => close(true));
-        overlay.querySelector('[data-act="cancel"]').addEventListener('click',  () => close(false));
-        document.addEventListener('keydown', function esc(ev) {
-            if (ev.key === 'Escape') { close(false); document.removeEventListener('keydown', esc); }
+        const panelRef = pose?.querySelector('.pose-ref')?.textContent?.trim()
+                      || pose?.querySelector('[data-field="ref"]')?.textContent?.trim()
+                      || pose?.dataset.taskId
+                      || '—';
+        setText('[data-field="pose-ref"]', panelRef);
+
+        // Heure de capture (proxy : maintenant, suffisamment précis).
+        const now = new Date();
+        setText('[data-field="time-text"]', now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }));
+
+        // Verdict initial : pending
+        const verdict = overlay.querySelector('[data-field="verdict"]');
+        verdict.setAttribute('data-verdict', 'pending');
+        setText('[data-field="verdict-icon"]', '⏳');
+        setText('[data-field="verdict-title"]', 'Calcul de la position…');
+        setText('[data-field="verdict-sub"]',   '');
+        setText('[data-field="gps-text"]',      'Position en cours…');
+
+        // Affiche la modale
+        overlay.hidden = false;
+        overlay.removeAttribute('aria-hidden');
+        requestAnimationFrame(() => overlay.classList.add('is-open'));
+        document.body.style.overflow = 'hidden';
+
+        let capturedGps = null;
+
+        // Lance le calcul GPS + verdict en parallèle de l'affichage.
+        getPosition().then(gps => {
+            capturedGps = gps;
+            if (!gps) {
+                verdict.setAttribute('data-verdict', 'unknown');
+                setText('[data-field="verdict-icon"]', '❓');
+                setText('[data-field="verdict-title"]', 'Position GPS non disponible');
+                setText('[data-field="verdict-sub"]',   'On envoie quand même, l\'admin vérifiera.');
+                setText('[data-field="gps-text"]',      'GPS bloqué');
+                return;
+            }
+            setText('[data-field="gps-text"]',
+                `${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}${gps.acc ? ' ±' + Math.round(gps.acc) + ' m' : ''}`);
+
+            const lat = parseFloat(pose?.dataset.lat);
+            const lng = parseFloat(pose?.dataset.lng);
+            if (!isFinite(lat) || !isFinite(lng)) {
+                verdict.setAttribute('data-verdict', 'unknown');
+                setText('[data-field="verdict-icon"]', '📍');
+                setText('[data-field="verdict-title"]', 'Position du panneau inconnue');
+                setText('[data-field="verdict-sub"]',   'On peut quand même envoyer.');
+                return;
+            }
+            const m = haversineMetersT3(gps.lat, gps.lng, lat, lng);
+            const ver = verdictForDistance(m);
+            if (ver) {
+                verdict.setAttribute('data-verdict', ver.v);
+                setText('[data-field="verdict-icon"]', ver.icon);
+                setText('[data-field="verdict-title"]', ver.t);
+                setText('[data-field="verdict-sub"]',   ver.s);
+            }
         });
+
+        const close = (result) => {
+            URL.revokeObjectURL(url);
+            overlay.classList.remove('is-open');
+            overlay.setAttribute('aria-hidden', 'true');
+            setTimeout(() => { overlay.hidden = true; }, 220);
+            document.body.style.overflow = '';
+            // Détache les listeners temporaires
+            document.removeEventListener('keydown', onEsc);
+            overlay.removeEventListener('click', onClick);
+            resolve(result);
+        };
+        const onEsc = (ev) => { if (ev.key === 'Escape') close(false); };
+        const onClick = (ev) => {
+            if (ev.target.closest('[data-action="t3-redo"]')) { ev.preventDefault(); close(false); return; }
+            if (ev.target.closest('[data-action="t3-send"]')) { ev.preventDefault(); close({ gps: capturedGps }); return; }
+        };
+        document.addEventListener('keydown', onEsc);
+        overlay.addEventListener('click', onClick);
     });
+}
+
+// SM2a Lot 3.2 — Écran T4 "Succès + pose suivante". Remplace
+// l'ancien flashSuccess() (overlay 900ms) par un plein écran 4s qui
+// célèbre la photo envoyée et propose la pose suivante. Calcul de la
+// pose suivante côté JS depuis le DOM (priorité même commune).
+function pickNextPose(currentPose) {
+    const currentCommune = currentPose?.dataset.commune || '';
+    const currentTaskId  = currentPose?.dataset.taskId  || '';
+    const remaining = Array.from(document.querySelectorAll('.pose-line[data-task-id]'))
+        .filter(p => p.dataset.taskId !== currentTaskId);
+    if (!remaining.length) return null;
+    const same = remaining.find(p => p.dataset.commune === currentCommune);
+    return same || remaining[0];
+}
+
+function getTechFirstName() {
+    // Lit le prénom depuis le H1 "Bonjour {name}" du topbar.
+    const hello = document.querySelector('.hero-text h1')?.textContent || '';
+    const m = hello.match(/Bonjour\s+(\S+)/i);
+    return m ? m[1].replace(/[!.]/g, '') : '';
+}
+
+function showSuccessScreenT4(currentPose) {
+    const overlay = document.getElementById('sm2-t4-overlay');
+    if (!overlay) {
+        flashSuccess('Photo envoyée&nbsp;! Bravo 🎉');
+        return;
+    }
+
+    // Compteurs : le total ACTUEL inclut encore la pose courante (elle
+    // n'a pas encore été fadée). Donc done = doneActuel+1, total =
+    // doneActuel + remainingActuel.
+    const totalActiveEl = document.querySelector('[data-total-active]');
+    const remainingNow  = document.querySelectorAll('.pose-line[data-task-id]').length;
+    // On lit le compteur "fait" depuis le sub-label "doneToday" ou on
+    // recalcule via totalAssigned - remainingNow + 1. Simple : on
+    // affiche juste "1 panneau fait de plus" si on n'a pas la baseline.
+    const doneEl = overlay.querySelector('[data-field="done-count"]');
+    const totalEl= overlay.querySelector('[data-field="total-count"]');
+    // Compteurs déduits : on présume que le tech connaît son total via
+    // le KPI "À faire" (data-kpi-value="totalActive"). Le compteur va
+    // décrémenter quand la card sera retirée. Pour T4, on affiche
+    // l'état "après cette photo" = totalRemaining - 1 (cette photo est
+    // en train d'être validée par l'admin, donc encore en remainingNow).
+    const totalActive = parseInt(totalActiveEl?.textContent || '0', 10);
+    const done = Math.max(0, totalActive - (remainingNow - 1));
+    if (doneEl)  doneEl.textContent  = String(done);
+    if (totalEl) totalEl.textContent = String(totalActive);
+
+    const firstName = getTechFirstName();
+    const nameField = overlay.querySelector('[data-field="first-name"]');
+    if (nameField) nameField.textContent = firstName ? firstName + ' !' : '!';
+
+    const nextBlock = overlay.querySelector('[data-field="next-block"]');
+    const doneBlock = overlay.querySelector('[data-field="done-block"]');
+    const next = pickNextPose(currentPose);
+
+    if (next) {
+        nextBlock.hidden = false;
+        doneBlock.hidden = true;
+
+        const thumbEl = overlay.querySelector('[data-field="next-thumb"]');
+        const thumbBg = next.querySelector('.pose-thumb')?.style.backgroundImage || '';
+        const thumbUrl = thumbBg.match(/url\(['"]?(.+?)['"]?\)/)?.[1] || null;
+        if (thumbUrl) {
+            thumbEl.style.backgroundImage = `url('${thumbUrl}')`;
+            thumbEl.textContent = '';
+        } else {
+            thumbEl.style.backgroundImage = '';
+            thumbEl.textContent = '🪧';
+        }
+
+        const setNext = (sel, txt) => {
+            const el = overlay.querySelector(sel);
+            if (el) el.textContent = txt || '—';
+        };
+        setNext('[data-field="next-ref"]',     next.querySelector('.pose-ref')?.textContent?.trim());
+        setNext('[data-field="next-name"]',    next.querySelector('.pose-name')?.textContent?.trim());
+        setNext('[data-field="next-commune"]', next.dataset.commune ? '📍 ' + next.dataset.commune : '');
+
+        // Mémorise la task suivante sur le panel (lue par les handlers)
+        overlay.dataset.nextTaskId = next.dataset.taskId;
+    } else {
+        nextBlock.hidden = true;
+        doneBlock.hidden = false;
+        overlay.dataset.nextTaskId = '';
+    }
+
+    overlay.hidden = false;
+    overlay.removeAttribute('aria-hidden');
+    requestAnimationFrame(() => overlay.classList.add('is-open'));
+    document.body.style.overflow = 'hidden';
+
+    // Vibration succès sur mobile (cohérence avec flashSuccess actuel)
+    if (navigator.vibrate) { try { navigator.vibrate([40, 60, 120]); } catch (e) {} }
+
+    // Auto-close après 4s par défaut. Le tap utilisateur l'annule.
+    const autoTimer = setTimeout(() => closeT4(), 4000);
+
+    const onClick = (ev) => {
+        if (ev.target.closest('[data-action="t4-continue"]')) {
+            ev.preventDefault();
+            clearTimeout(autoTimer);
+            const nextId = overlay.dataset.nextTaskId;
+            closeT4();
+            // Ouvre le drawer T2 sur la pose suivante. import dynamique
+            // pour éviter les cycles + retomber gracefully si le module
+            // n'est pas chargé.
+            if (nextId) {
+                const target = document.querySelector(`.pose-line[data-task-id="${nextId}"]`);
+                if (target) target.click();
+            }
+            return;
+        }
+        if (ev.target.closest('[data-action="t4-other"]')) {
+            ev.preventDefault();
+            clearTimeout(autoTimer);
+            closeT4();
+            return;
+        }
+    };
+    function closeT4() {
+        overlay.classList.remove('is-open');
+        overlay.setAttribute('aria-hidden', 'true');
+        setTimeout(() => { overlay.hidden = true; }, 250);
+        document.body.style.overflow = '';
+        overlay.removeEventListener('click', onClick);
+    }
+    overlay.addEventListener('click', onClick);
 }
 
 // Recalcule les compteurs "X poses" sous chaque date après retrait
@@ -260,14 +484,13 @@ function bindMainUpload() {
         const taskId = pose?.dataset.taskId;
         if (!taskId) return;
 
-        // 0. Aperçu : le tech voit sa photo avant qu'on déclenche quoi que
-        //    ce soit (compression, GPS, upload). S'il refuse, on reset
-        //    l'input — il pourra reprendre sans pénalité.
+        // 0. Aperçu T3 : le tech voit sa photo + verdict GPS avant qu'on
+        //    déclenche compression/upload. S'il refuse, on reset l'input.
+        //    La modale retourne { gps } pour qu'on réutilise la position
+        //    captée pendant la preview (évite un 2e prompt GPS).
         const preview = input.files[0];
-        const panelRef = pose?.querySelector('.pose-ref')?.textContent?.trim()
-                       || pose?.dataset.taskId;
-        const confirmed = await askPhotoPreview(preview, panelRef);
-        if (!confirmed) { input.value = ''; return; }
+        const previewResult = await askPhotoPreview(preview, pose);
+        if (!previewResult) { input.value = ''; return; }
 
         // Garde-fou contradiction : signalement non résolu sur cette pose
         // → on demande la justification AVANT compression/upload pour ne
@@ -288,9 +511,12 @@ function bindMainUpload() {
         // 1) Compression locale (HEIC iPhone → JPEG, gros fichier → ~500 KB)
         const blob = await compressImage(file);
 
-        // 2) GPS
-        label.innerHTML = '📍 GPS…';
-        const gps = await getPosition();
+        // 2) GPS — déjà capté en T3, on réutilise. Fallback si manquant.
+        let gps = previewResult.gps;
+        if (!gps) {
+            label.innerHTML = '📍 GPS…';
+            gps = await getPosition();
+        }
         label.innerHTML = (gps && gps.acc) ? `📍 ±${Math.round(gps.acc)} m · envoi…` : '⏳ Envoi…';
 
         // 3) FormData
@@ -352,17 +578,30 @@ function bindMainUpload() {
                 input.value = '';
                 return;
             }
-            flashSuccess('Photo envoyée&nbsp;! Bravo 🎉');
+            // SM2a Lot 3.2 — Écran T4 plein écran 4s + pose suivante
+            // remplace l'ancien flashSuccess overlay 900ms. Lecture du
+            // .pose-line réelle (pas le drawer T2) pour pickNextPose :
+            // les "pose-line" représentent les cards encore actives.
+            const sourcePose = document.querySelector(`.pose-line[data-task-id="${taskId}"]`) || pose;
+            showSuccessScreenT4(sourcePose);
 
             // Pose réalisée → retire la card avec une petite animation
             // de fade-out plutôt que de recharger la page (préserve le
             // scroll position du tech pour les autres poses).
-            if (pose) {
-                pose.style.transition = 'all .4s ease-out';
-                pose.style.opacity   = '0';
-                pose.style.transform = 'translateX(20px)';
+            // Ferme aussi le drawer T2 si la pose était ouverte dedans.
+            if (document.querySelector('#sm2-t2-overlay.is-open')) {
+                document.querySelector('#sm2-t2-overlay')?.classList.remove('is-open');
                 setTimeout(() => {
-                    pose.remove();
+                    const ov = document.querySelector('#sm2-t2-overlay');
+                    if (ov) ov.hidden = true;
+                }, 220);
+            }
+            if (sourcePose) {
+                sourcePose.style.transition = 'all .4s ease-out';
+                sourcePose.style.opacity   = '0';
+                sourcePose.style.transform = 'translateX(20px)';
+                setTimeout(() => {
+                    sourcePose.remove();
                     refreshDayCounters();
                 }, 400);
             }
