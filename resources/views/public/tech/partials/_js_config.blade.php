@@ -40,7 +40,7 @@
         },
         bootstrap: {
             heartbeatInterval: 20000,
-            ssrCap: (int) config('tech_space.ssr_cap', 200),
+            ssrCap: {{ (int) config('tech_space.ssr_cap', 200) }},
         },
     };
 </script>
