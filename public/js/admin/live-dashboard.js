@@ -19,6 +19,18 @@ let lastFetchAt = null;
 let seenEventIds = new Set();
 let bannerHideTimer = null;
 
+// SM2b Phase 7 — Notifications visuelles côté admin.
+// Compte les events "importants" arrivés pendant que l'onglet est caché.
+// On préfixe document.title avec "(N) " + petit dot rouge favicon généré
+// via Canvas data URL.
+const ORIGINAL_TITLE = document.title;
+const ORIGINAL_FAVICON = (() => {
+    const link = document.querySelector('link[rel="icon"]');
+    return link ? link.getAttribute('href') : null;
+})();
+let unseenCount = 0;
+const IMPORTANT_EVENT_TYPES = new Set(['problem_reported', 'photo_rejected', 'photo_sent']);
+
 function $(sel, root = document) { return root.querySelector(sel); }
 function $$(sel, root = document) { return Array.from(root.querySelectorAll(sel)); }
 
@@ -174,11 +186,65 @@ function handleEvents(events) {
         // On ne montre qu'un seul banner à la fois (le plus récent).
         showBanner(fresh[0]);
         fresh.forEach(e => seenEventIds.add(eventId(e)));
+
+        // SM2b Phase 7 — Si l'onglet est caché, on bumpe le compteur
+        // de notifications "non lues" pour signaler dans le titre / favicon.
+        if (document.hidden) {
+            const importantCount = fresh.filter(e => IMPORTANT_EVENT_TYPES.has(e.type)).length;
+            if (importantCount > 0) {
+                unseenCount += importantCount;
+                updateTabBadge();
+            }
+        }
     }
     // Cap mémoire : garde ~500 derniers ids
     if (seenEventIds.size > 500) {
         seenEventIds = new Set([...seenEventIds].slice(-500));
     }
+}
+
+function updateTabBadge() {
+    if (unseenCount <= 0) {
+        document.title = ORIGINAL_TITLE;
+        setFavicon(ORIGINAL_FAVICON);
+        return;
+    }
+    document.title = `(${unseenCount}) ` + ORIGINAL_TITLE.replace(/^\(\d+\)\s*/, '');
+    setFavicon(buildBadgedFaviconDataUrl(unseenCount));
+}
+
+function setFavicon(href) {
+    if (!href) return;
+    let link = document.querySelector('link[rel="icon"]');
+    if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+    }
+    link.setAttribute('href', href);
+}
+
+function buildBadgedFaviconDataUrl(n) {
+    // Génère un favicon 64×64 avec un cercle rouge + chiffre blanc.
+    // Pas de lib externe.
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const ctx = c.getContext('2d');
+    // Fond circulaire orange Panora
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(32, 32, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ea580c';
+    ctx.beginPath(); ctx.arc(32, 32, 26, 0, Math.PI * 2); ctx.fill();
+    // Badge rouge en haut-droite
+    ctx.fillStyle = '#b91c1c';
+    ctx.beginPath(); ctx.arc(50, 14, 14, 0, Math.PI * 2); ctx.fill();
+    // Texte du badge (clamp à 9+)
+    const label = n > 9 ? '9+' : String(n);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, 50, 15);
+    return c.toDataURL('image/png');
 }
 
 async function tick() {
@@ -225,11 +291,15 @@ function init() {
     tick();
     startPolling();
 
-    // Pause si onglet caché — économise BDD + batterie
+    // Pause si onglet caché — économise BDD + batterie + reset badge
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             stopPolling();
         } else {
+            // SM2b Phase 7 — Retour sur l'onglet → on a "vu" les events,
+            // reset le compteur + restore titre + favicon original.
+            unseenCount = 0;
+            updateTabBadge();
             tick();
             startPolling();
         }
