@@ -520,6 +520,9 @@ window.__RPT__ = {
 .cm-status-option      { background:rgba(232,160,32,.12);color:#c2570d; }
 .cm-status-confirme    { background:rgba(59,130,246,.12);color:#1d4ed8; }
 .cm-status-maintenance { background:rgba(107,114,128,.12);color:#374151; }
+/* Breakpoint intermédiaire pour la grille Clients (4 podiums) — évite le tassement
+   sur écran moyen (1200px → 2 colonnes au lieu d'écraser 4 podiums sur 4 colonnes). */
+@media (max-width: 1200px) and (min-width: 901px) { .rpt-grid-clients { grid-template-columns: repeat(2, 1fr) !important; } }
 @media (max-width: 900px) { .rpt-grid-2 { grid-template-columns: 1fr !important; } .rpt-grid-clients { grid-template-columns: 1fr !important; } .rpt-grid-5 { grid-template-columns: repeat(2, 1fr) !important; } }
 @keyframes rpt-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.6); } 50% { box-shadow: 0 0 0 4px rgba(220,38,38,0); } }
 

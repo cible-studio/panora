@@ -493,6 +493,23 @@ class RapportController extends Controller
         $topClientsByVol    = $kpi->topClientsByCriteria('volume', 5);
         $topClientsByFreq   = $kpi->topClientsByCriteria('frequency', 5);
         $clientRevenueDist  = $kpi->clientRevenueDistribution(8);
+
+        // 2026-06-19 — Top secteurs d'activité par CA contractuel
+        // Source : $statsClients (déjà filtré par période + filtres
+        // dimensionnels) → on groupe par secteur, somme du CA, top 5.
+        // Les clients sans secteur renseigné sont exclus du classement.
+        $topSectors = $statsClients
+            ->filter(fn($c) => !empty($c['sector']))
+            ->groupBy('sector')
+            ->map(fn($group, $sector) => [
+                'sector'        => $sector,
+                'ca'            => (float) $group->sum('ca_total'),
+                'clients_count' => $group->count(),
+                'campaigns'     => (int) $group->sum('total_campagnes'),
+            ])
+            ->sortByDesc('ca')
+            ->take(5)
+            ->values();
         $inactivityBucket   = $kpi->inactivityBuckets();
         $inactiveClients3   = $kpi->inactiveClients(3, 50);
         $inactiveClients6   = $kpi->inactiveClients(6, 50);
@@ -585,6 +602,7 @@ class RapportController extends Controller
             'topClientsByRev',
             'topClientsByVol',
             'topClientsByFreq',
+            'topSectors',
             'clientRevenueDist',
             'inactivityBucket',
             'inactiveClients3',

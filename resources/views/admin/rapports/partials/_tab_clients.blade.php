@@ -1,7 +1,7 @@
 <div id="panel-clients" class="rpt-panel" style="display:none">
 
-    {{-- 3 podiums : Top CA / Top Volume / Top Fréquence --}}
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px" class="rpt-grid-clients">
+    {{-- 4 podiums : Top CA / Top Volume / Top Fréquence / Top Secteurs --}}
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px" class="rpt-grid-clients">
         @php
             $podiums = [
                 ['title' => 'Top CA contractuel', 'icon' => '💰', 'color' => '#16a34a', 'rows' => $topClientsByRev,  'metric' => 'revenue', 'unit' => 'FCFA'],
@@ -41,6 +41,34 @@
                 @endif
             </div>
         @endforeach
+
+        {{-- 4ème podium : Top secteurs d'activité par CA (agrégat) --}}
+        @php $sectorColor = '#e8a020'; @endphp
+        <div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid {{ $sectorColor }};border-radius:14px;padding:14px 16px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <span style="font-size:14px">🏭</span>
+                <span style="font-size:12px;font-weight:700;color:var(--text)" title="CA contractuel cumulé par secteur d'activité — top 5 sur la période et filtres actifs. Les clients sans secteur renseigné sont exclus.">Top secteurs d'activité</span>
+            </div>
+            @if($topSectors->isEmpty())
+                <div style="padding:14px;text-align:center;color:var(--text3);font-size:11px;font-style:italic">
+                    Aucun secteur renseigné sur les clients de la période.
+                </div>
+            @else
+                <div style="display:flex;flex-direction:column;gap:6px">
+                    @foreach($topSectors as $i => $s)
+                        <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface2);border-radius:8px"
+                             title="{{ $s['clients_count'] }} client(s) · {{ $s['campaigns'] }} campagne(s)">
+                            <span style="font-size:12px;width:18px;flex-shrink:0">{{ $i===0?'🥇':($i===1?'🥈':($i===2?'🥉':$i+1)) }}</span>
+                            <span style="flex:1;min-width:0;font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                                {{ $s['sector'] }}
+                                <span style="font-size:10px;font-weight:500;color:var(--text3)">· {{ $s['clients_count'] }} clt</span>
+                            </span>
+                            <span style="font-size:11px;font-weight:700;color:{{ $sectorColor }};font-variant-numeric:tabular-nums;text-align:right">{{ number_format($s['ca'], 0, ',', ' ') }} <span style="font-size:9px;font-weight:400;color:var(--text3)">FCFA</span></span>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
     </div>
 
     {{-- Répartition des revenus par client (doughnut) + Bandeau inactivité --}}
