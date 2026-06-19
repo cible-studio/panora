@@ -315,6 +315,14 @@ Route::prefix('admin')
         // Dashboard
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+        // SM2b Lot 1.2 — Dashboard admin live (polling 20s côté front).
+        // JSON-only. Réservé admin + mediaplanner (le commercial n'a pas
+        // vocation à piloter les techs terrain en live).
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('/dashboard/live', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'live'])
+                ->name('dashboard.live');
+        });
+
         // ── Panneaux ────────────────────────────────────────────────
         // Lecture + exports = tous les staff (admin/commercial/MP).
         // Création / modification / suppression / photos = admin + MP.
