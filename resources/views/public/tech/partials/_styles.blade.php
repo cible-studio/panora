@@ -1323,6 +1323,136 @@
             min-height: 46px; font-size: 13.5px;
         }
 
+        /* ─── T7 §spec — Modale "Confirmation Y aller" ───────────── */
+        .sm2-t7-overlay {
+            position: fixed; inset: 0; z-index: 9100;
+            background: rgba(15, 23, 42, .65);
+            display: flex; align-items: flex-end; justify-content: center;
+            padding: 16px;
+            opacity: 0; transition: opacity .2s ease;
+        }
+        @media (min-width: 540px) {
+            .sm2-t7-overlay { align-items: center; }
+        }
+        .sm2-t7-overlay.is-open { opacity: 1; }
+        .sm2-t7-modal {
+            width: 100%; max-width: 460px;
+            background: var(--surface);
+            border-radius: 18px;
+            transform: translateY(20px);
+            transition: transform .25s ease;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 30px 80px -20px rgba(0,0,0,.45);
+        }
+        .sm2-t7-overlay.is-open .sm2-t7-modal { transform: translateY(0); }
+
+        .sm2-t7-head {
+            display: flex; align-items: center;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+        }
+        .sm2-t7-cancel {
+            display: inline-flex; align-items: center; gap: 6px;
+            min-height: 36px; padding: 6px 10px;
+            background: transparent; border: none;
+            font-size: 13.5px; font-weight: 700; color: var(--text2);
+            cursor: pointer; font-family: inherit; border-radius: 8px;
+        }
+        .sm2-t7-cancel:active { background: var(--surface2); }
+
+        .sm2-t7-body { padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+        .sm2-t7-title {
+            margin: 0; font-size: 18px; font-weight: 800;
+            color: var(--text); line-height: 1.25;
+        }
+        .sm2-t7-sub {
+            font-size: 13px; color: var(--text2);
+            margin-top: -4px;
+        }
+
+        .sm2-t7-map {
+            position: relative;
+            height: 140px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--c-blue-bg) 0%, #c7d2fe 100%);
+            overflow: hidden;
+        }
+        .sm2-t7-line {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+        }
+        .sm2-t7-badge {
+            position: absolute;
+            display: inline-flex; align-items: center; gap: 6px;
+            background: var(--surface);
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 11.5px; font-weight: 700;
+            box-shadow: 0 4px 12px -4px rgba(0,0,0,.2);
+        }
+        .sm2-t7-badge-you { top: 12px; left: 12px; color: var(--c-blue-text); }
+        .sm2-t7-badge-panel {
+            bottom: 12px; right: 12px;
+            color: var(--c-orange-text);
+            background: var(--c-orange-bg);
+            border: 1px solid var(--c-orange-border);
+        }
+        .sm2-t7-badge-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            display: inline-block;
+        }
+
+        .sm2-t7-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 2px 0;
+        }
+        .sm2-t7-stat {
+            background: var(--surface2);
+            border-radius: 12px;
+            padding: 10px 12px;
+            text-align: center;
+        }
+        .sm2-t7-stat-value {
+            font-size: 18px; font-weight: 800;
+            color: var(--text);
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums;
+        }
+        .sm2-t7-stat-label {
+            font-size: 10px; font-weight: 800;
+            text-transform: uppercase; letter-spacing: .6px;
+            color: var(--text3);
+            margin-top: 3px;
+        }
+
+        .sm2-t7-btn {
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px;
+            min-height: 52px;
+            padding: 12px 16px;
+            border-radius: 14px;
+            font-size: 15px; font-weight: 800;
+            border: none; cursor: pointer;
+            text-decoration: none;
+            font-family: inherit;
+            transition: transform .08s;
+        }
+        .sm2-t7-btn:active { transform: scale(.98); }
+        .sm2-t7-btn-primary {
+            background: linear-gradient(135deg, #22c55e, var(--c-green-success));
+            color: #fff;
+            box-shadow: 0 6px 16px -4px rgba(22, 163, 74, .42);
+        }
+        .sm2-t7-btn-ghost {
+            background: var(--surface);
+            color: var(--text2);
+            border: 1.5px solid var(--border);
+            min-height: 46px; font-size: 13.5px;
+        }
+
         /* ─── T1 §3.1 — Bouton aide rond jaune (header) ─────────── */
         .sm2-help-btn {
             flex: 0 0 auto;

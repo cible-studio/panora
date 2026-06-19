@@ -167,6 +167,11 @@
      piloté par features/pose-drawer.js). --}}
 @include('public.tech.partials._drawer_pose_detail')
 
+{{-- SM2a Lot 2.2 — Modale T7 "Confirmation Y aller" (piloté par
+     features/y-aller-modal.js — intercepte tous les clics sur
+     [data-go-maps] avant ouverture Google Maps). --}}
+@include('public.tech.partials._modal_y_aller')
+
 {{-- Phase 3 SM1 — publication TECH_CONFIG (csrf + token + routes + bootstrap)
      consommé par les modules JS chargés juste après. À garder AVANT le
      <script type="module"> qui suit. --}}
