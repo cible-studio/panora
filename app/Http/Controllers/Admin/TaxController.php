@@ -268,6 +268,80 @@ class TaxController extends Controller
         return view('admin.taxes.historique', compact('taxes', 'communes', 'totalEnAttente', 'totalPayees', 'totalEnRetard', 'montantTotal'));
     }
 
+    /**
+     * LOT 3 (cahier 2026-06-19) — Historique des paiements d'UNE commune.
+     *
+     * Affiche tous les versements enregistrés (CommuneTaxPayment) chrono-
+     * logiquement avec, pour chaque ligne, le cumul payé jusqu'à cette
+     * date et le solde restant "as of payment" (recalculé en temps réel).
+     *
+     * Important : aucune opération n'est supprimée — les SoftDeletes
+     * éventuels sont aussi inclus (avec marqueur visuel) pour respecter
+     * la spec "Aucune opération ne doit être supprimée de l'historique".
+     */
+    public function communePaymentsHistory(Commune $commune, Request $request, TaxCalculationService $calc)
+    {
+        // Tous les paiements, y compris soft-deleted (immutabilité spec).
+        $payments = CommuneTaxPayment::withTrashed()
+            ->where('commune_id', $commune->id)
+            ->with('recordedBy:id,name')
+            ->orderBy('paid_at')
+            ->orderBy('created_at')
+            ->get();
+
+        // Cumul payé chrono — calculé en PHP au fil des lignes.
+        $cumulOdp = 0;
+        $cumulTm  = 0;
+        $rows = $payments->map(function (CommuneTaxPayment $p) use (&$cumulOdp, &$cumulTm) {
+            $cumulOdp += (int) $p->odp_paye;
+            $cumulTm  += (int) $p->tm_paye;
+            return [
+                'payment'      => $p,
+                'cumul_odp'    => $cumulOdp,
+                'cumul_tm'     => $cumulTm,
+                'cumul_total'  => $cumulOdp + $cumulTm,
+            ];
+        });
+
+        // Total dû "live" : on prend l'année courante par défaut (configurable
+        // via ?year=…). Le solde restant final tient compte de ce live.
+        $year = (int) $request->input('year', date('Y'));
+        $totalDuLive = $this->computeAnnualTotalDue($commune, $year, $calc);
+
+        // Pour chaque ligne, on calcule le solde "as of payment" :
+        //   solde = total dû recalculé live − cumul payé jusqu'à cette ligne
+        $rows = $rows->map(function ($r) use ($totalDuLive) {
+            $r['solde_apres'] = max(0, $totalDuLive - $r['cumul_total']);
+            return $r;
+        });
+
+        return view('admin.taxes.commune-history', [
+            'commune'      => $commune,
+            'rows'         => $rows,
+            'year'         => $year,
+            'totalDuLive'  => $totalDuLive,
+            'totalPaye'    => $cumulOdp + $cumulTm,
+            'soldeFinal'   => max(0, $totalDuLive - ($cumulOdp + $cumulTm)),
+            'anneesDispos' => range(date('Y') + 1, max(2020, date('Y') - 5)),
+        ]);
+    }
+
+    /**
+     * Total dû annuel d'une commune — somme des 12 mois théoriques
+     * (ODP + TM). Source unique de vérité = TaxCalculationService, donc
+     * cohérent au franc près avec le dashboard live.
+     */
+    private function computeAnnualTotalDue(Commune $commune, int $year, TaxCalculationService $calc): int
+    {
+        $total = 0;
+        for ($mois = 1; $mois <= 12; $mois++) {
+            $lines = $calc->generateLines(TaxCalculationService::PERIOD_MONTHLY, $mois, $year, ['commune_id' => $commune->id]);
+            $totals = $calc->summarize($lines);
+            $total += (int) ($totals['odp_total'] ?? 0) + (int) ($totals['tm_total'] ?? 0);
+        }
+        return $total;
+    }
+
     public function create()
     {
         $communes = Commune::orderBy('name')->get();
@@ -497,6 +571,8 @@ class TaxController extends Controller
             $latestPaidAt = null;
             $anyAttestation = false;
             $directPaymentId = null;
+            // LOT 1 — Pré-remplissage modale si le paiement direct existe.
+            $directMode = $directReference = $directComment = null;
 
             foreach ($communePayments as $p) {
                 $paymentMonths = self::monthsForPeriod($p->period_type, $p->period_value);
@@ -519,6 +595,9 @@ class TaxController extends Controller
                 // ligne précise. S'il n'existe pas, le bouton restera "Payer".
                 if ($p->period_type === $periodType && (int) $p->period_value === (int) $periodValue) {
                     $directPaymentId = $p->id;
+                    $directMode      = $p->mode;
+                    $directReference = $p->reference;
+                    $directComment   = $p->comment;
                 }
             }
 
@@ -556,6 +635,14 @@ class TaxController extends Controller
                 'attestation'    => $anyAttestation,
                 'statut'         => $statut,
                 'payment_id'     => $directPaymentId,
+                // LOT 1 — Champs de traçabilité pour pré-remplir la modale
+                // quand on modifie le paiement direct existant. Null si la
+                // ligne tableau correspond à des paiements multi-périodes
+                // (ex : trimestre vu en mensuel) — on ne sait pas lequel
+                // pré-remplir, le user devra ressaisir.
+                'mode'           => $directMode,
+                'reference'      => $directReference,
+                'comment'        => $directComment,
                 'lignes'         => $lignes,
             ];
         })
@@ -600,6 +687,10 @@ class TaxController extends Controller
             'odp_theorique'     => 'required|numeric|min:0',
             'tm_theorique'      => 'required|numeric|min:0',
             'paid_at'           => 'nullable|date',
+            // LOT 1 (cahier 2026-06-19) — Traçabilité paiements.
+            'mode'              => 'nullable|in:' . implode(',', array_keys(\App\Models\CommuneTaxPayment::MODES)),
+            'reference'         => 'nullable|string|max:100',
+            'comment'           => 'nullable|string|max:2000',
             'attestation_recue' => 'sometimes|boolean',
             'attestation_date'  => 'nullable|date',
             'notes'             => 'nullable|string|max:1000',
@@ -618,6 +709,9 @@ class TaxController extends Controller
                 'odp_paye'          => $data['odp_paye'],
                 'tm_paye'           => $data['tm_paye'],
                 'paid_at'           => $data['paid_at'] ?? now(),
+                'mode'              => $data['mode']      ?? null,
+                'reference'         => $data['reference'] ?? null,
+                'comment'           => $data['comment']   ?? null,
                 'attestation_recue' => $data['attestation_recue'] ?? false,
                 'attestation_date'  => $data['attestation_date'] ?? null,
                 'notes'             => $data['notes'] ?? null,

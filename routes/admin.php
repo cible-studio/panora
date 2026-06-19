@@ -620,6 +620,13 @@ Route::prefix('admin')
             Route::get ('taxes/details/excel', [TaxController::class, 'detailsExcel']) ->name('taxes.details.excel');
             Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
             Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
+            // LOT 3 (cahier 2026-06-19) — Historique paiements détaillé d'une
+            // commune (1 ligne / versement avec cumul + solde après).
+            // Placée AVANT Route::resource pour éviter la collision sur
+            // {tax} qui matcherait le mot "commune".
+            Route::get ('taxes/commune/{commune}/payments-history',
+                [TaxController::class, 'communePaymentsHistory'])
+                ->name('taxes.commune.payments-history');
             Route::resource('taxes', TaxController::class);
             Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
             Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');

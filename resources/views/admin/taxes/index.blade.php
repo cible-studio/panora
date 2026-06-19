@@ -176,8 +176,30 @@
                     <input type="checkbox" id="pm-attestation" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
                     <label for="pm-attestation" style="font-size:12px;color:var(--text2);cursor:pointer;">Attestation reçue</label>
                 </div>
+                {{-- LOT 1 — Modes de paiement (cahier 2026-06-19). Le mode est
+                     fortement recommandé pour la traçabilité comptable (export
+                     vers le cabinet). Référence = N° chèque / bordereau /
+                     transaction Mobile Money. --}}
+                <div>
+                    <label class="filter-label">Mode de paiement <span style="color:var(--accent)">*</span></label>
+                    <select id="pm-mode" class="filter-input" style="width:100%;height:38px;font-weight:600">
+                        <option value="">— Choisir un mode —</option>
+                        @foreach(\App\Models\CommuneTaxPayment::MODES as $key => $label)
+                            <option value="{{ $key }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="filter-label">Référence</label>
+                    <input type="text" id="pm-reference" class="filter-input" maxlength="100"
+                           style="width:100%;" placeholder="N° chèque / bordereau / transaction">
+                </div>
                 <div style="grid-column:1/3;">
-                    <label class="filter-label">Notes (optionnel)</label>
+                    <label class="filter-label">Commentaire (banque, motif, observation)</label>
+                    <textarea id="pm-comment" rows="2" class="filter-input" style="width:100%;resize:vertical;font-family:inherit;" maxlength="2000" placeholder="Ex : Chèque BICICI déposé le 18/06, à l'attention de la mairie de Cocody…"></textarea>
+                </div>
+                <div style="grid-column:1/3;">
+                    <label class="filter-label">Notes internes (optionnel)</label>
                     <textarea id="pm-notes" rows="2" class="filter-input" style="width:100%;resize:vertical;font-family:inherit;" maxlength="1000" placeholder="N° quittance, observations…"></textarea>
                 </div>
             </div>
@@ -405,12 +427,19 @@ window.TaxModule = (function () {
                             ? `<div style="font-size:9px;color:var(--text3);margin-top:2px;">payé : ${fmt(c.total_paye)}</div>`
                             : ''}
                     </td>
-                    <td style="text-align:center;">
+                    <td style="text-align:center;white-space:nowrap;">
                         <button type="button"
                                 class="tax-pay-btn ${c.payment_id ? 'tax-pay-btn-edit' : ''}"
                                 onclick="TaxModule.openPaymentModal(${c.commune_id})">
                             ${c.payment_id ? '✏️ Modifier' : '💰 Payer'}
                         </button>
+                        {{-- LOT 3 — Historique paiements détaillé de cette commune. --}}
+                        <a href="/admin/taxes/commune/${c.commune_id}/payments-history"
+                           class="tax-pay-btn"
+                           style="margin-left:4px;background:rgba(59,130,246,.10);color:#1d4ed8;border:1px solid rgba(59,130,246,.30);text-decoration:none;display:inline-block"
+                           title="Voir l'historique complet des versements de ${c.commune}">
+                            📋 Historique
+                        </a>
                     </td>
                 </tr>
             `;
@@ -541,6 +570,12 @@ window.TaxModule = (function () {
             document.getElementById('pm-tm-paye').value  = row.tm_paye  || row.tm_theorique;
             document.getElementById('pm-attestation').checked = !!row.attestation;
             document.getElementById('pm-notes').value = '';
+            // LOT 1 — Reset des champs de traçabilité (le user remplit à chaque
+            // versement, on ne pré-remplit pas avec l'ancien mode car ça
+            // pousserait à des erreurs si le moyen de paiement change).
+            document.getElementById('pm-mode').value      = row.mode      || '';
+            document.getElementById('pm-reference').value = row.reference || '';
+            document.getElementById('pm-comment').value   = row.comment   || '';
             // paid_at : si déjà payé, restaurer la date saisie ; sinon today
             // (on n'a pas la date back en JSON pour l'instant — date du jour OK).
             document.getElementById('pm-paid-at').value = '{{ now()->format("Y-m-d") }}';
@@ -574,6 +609,10 @@ window.TaxModule = (function () {
                 paid_at:          document.getElementById('pm-paid-at').value || '',
                 attestation_recue: document.getElementById('pm-attestation').checked ? '1' : '0',
                 notes:            document.getElementById('pm-notes').value || '',
+                // LOT 1 — Traçabilité paiements (cahier 2026-06-19).
+                mode:             document.getElementById('pm-mode').value      || '',
+                reference:        document.getElementById('pm-reference').value || '',
+                comment:          document.getElementById('pm-comment').value   || '',
             });
 
             try {
