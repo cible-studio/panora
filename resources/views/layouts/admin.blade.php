@@ -219,19 +219,12 @@
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
                         <span class="nav-text">Rapports</span>
                     </a>
-                    @if($isAdmin || $isMP)
-                    {{-- Ancienne entrée 'SLA' (admin.pose-tasks.sla) retirée le
-                         2026-06-17 — contenu devenu redondant avec
-                         Performance commerciale + onglet Décappages des Rapports
-                         + page dédiée 'SLA & Retards' (motifs). --}}
-                    {{-- Page analytique des signalements terrain (mission 2026-06-17, renommée 2026-06-18).
-                         Distincte de "Signalements terrain" qui est la vue OPÉRATIONNELLE (liste à traiter)
-                         — ici c'est l'ANALYSE (motifs dominants, croisements, panneaux récurrents). --}}
-                    <a href="{{ route('admin.sla.retards.index') }}" data-tooltip="Analyse des signalements" class="nav-item {{ request()->routeIs('admin.sla.retards*') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
-                        <span class="nav-text">Analyse des signalements</span>
-                    </a>
-                    @endif
+                    {{-- 2026-06-19 — Fusion : l'onglet "Analyse des signalements"
+                         est désormais accessible directement depuis l'écran
+                         Signalements terrain (onglet "📊 Analyse" en haut),
+                         plus besoin d'une entrée sidebar dédiée. La route
+                         admin.sla.retards.index reste accessible et redirige
+                         vers /admin/signalements?view=analyse. --}}
 
                     {{-- M1 Performance Commerciale (mission 2026-06-17) — admin + MP + commercial.
                          Le commercial voit son propre drill (le service force le scope au self). --}}
