@@ -62,9 +62,18 @@ async function tickKpis() {
                     ? 'En pause'
                     : me.current_status || 'En activité');
 
-        const done  = me.progress?.done ?? 0;
-        const total = me.progress?.total ?? 0;
-        const remaining = Math.max(0, total - done);
+        // Hotfix 2026-06-19 :
+        //   - "FAITES AUJOURD'HUI" lit progress.done_today (nouvel attribut)
+        //     au lieu de progress.done qui est désormais le total cumulé du
+        //     tech (cohérent avec l'écran tech "5/7").
+        //   - "RESTANT" lit progress.remaining (= poses actives non livrées)
+        //     directement depuis le serveur au lieu d'un calcul fragile.
+        //   Fallback : si le serveur ne renvoie pas done_today/remaining
+        //   (vieux JSON cached), on retombe sur l'ancien calcul.
+        const done       = me.progress?.done       ?? 0;
+        const total      = me.progress?.total      ?? 0;
+        const doneToday  = me.progress?.done_today ?? done;
+        const remaining  = me.progress?.remaining  ?? Math.max(0, total - done);
         const setK = (k, v) => {
             const el = document.querySelector(`[data-kpi="${k}"]`);
             if (el) {
@@ -76,7 +85,7 @@ async function tickKpis() {
                 }
             }
         };
-        setK('done', done);
+        setK('done', doneToday);
         // "in_progress" sur la fiche = 1 si le tech a une pose active, 0 sinon
         setK('in_progress', me.current_status === 'sur_place' || me.current_status === 'en_route' ? 1 : 0);
         setK('remaining', remaining);
