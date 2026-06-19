@@ -36,7 +36,7 @@
                        class="tech-live-action tech-live-action--wa"
                        title="WhatsApp">💬</a>
                 @endif
-                <a href="{{ route('admin.map.live') }}?focus={{ $tech->id }}"
+                <a href="{{ route('admin.pilotage.map') }}?focus={{ $tech->id }}"
                    class="tech-live-action tech-live-action--map"
                    title="Localiser sur la carte">📍</a>
             </div>

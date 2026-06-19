@@ -330,6 +330,10 @@ Route::prefix('admin')
                 abort_if($user->role?->value !== 'technique', 404);
                 return view('admin.dashboard.tech-live', ['tech' => $user]);
             })->name('pilotage.tech');
+            // SM2b Phase 4 — Carte live A3.
+            Route::get('/pilotage/map', function () {
+                return view('admin.dashboard.map-live');
+            })->name('pilotage.map');
             Route::get('/tech/{user}/timeline', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'techTimeline'])
                 ->name('tech.timeline');
             Route::get('/map/live', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'mapLive'])

@@ -5,7 +5,7 @@
         <h2 class="live-techs-title">
             Techs en activité <span class="live-techs-count" data-field="techs-count">(0)</span>
         </h2>
-        <a href="{{ route('admin.map.live') }}" class="live-techs-map-link" hidden>🗺️ Carte live</a>
+        <a href="{{ route('admin.pilotage.map') }}" class="live-techs-map-link" hidden>🗺️ Carte live</a>
     </header>
 
     <div class="live-techs-empty" data-field="techs-empty">
