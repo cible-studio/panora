@@ -110,6 +110,38 @@ class PoseTask extends Model
                 $task->team_name = $user->poseTeam->name;
             }
         });
+
+        // SM2c B3 — Notifie le tech au moment où une PoseTask lui est
+        // assignée (création OU update qui pose assigned_user_id pour la
+        // 1re fois). Utilise saved() pour avoir l'ID + relation panel.
+        static::saved(function (PoseTask $task) {
+            if (!$task->assigned_user_id) return;
+            $wasFreshlyAssigned = $task->wasRecentlyCreated
+                || ($task->wasChanged('assigned_user_id') && $task->getOriginal('assigned_user_id') === null);
+            if (!$wasFreshlyAssigned) return;
+
+            $panelRef = $task->panel?->reference
+                     ?? \App\Models\Panel::query()->whereKey($task->panel_id)->value('reference')
+                     ?? 'un panneau';
+            $sched = $task->scheduled_at ? $task->scheduled_at->format('d/m à H\hi') : null;
+
+            try {
+                \App\Models\TechNotification::notify(
+                    userId:  $task->assigned_user_id,
+                    type:    'new_pose',
+                    title:   '🆕 Nouvelle pose : ' . $panelRef,
+                    detail:  $sched ? 'Prévue le ' . $sched : 'À programmer dans ton carnet.',
+                    payload: ['task_id' => $task->id, 'panel_id' => $task->panel_id],
+                );
+            } catch (\Throwable $e) {
+                // On loggue mais on n'empêche jamais la création de la
+                // PoseTask (ex : si la migration tech_notifications n'a pas
+                // été exécutée sur cet env, ne pas casser la création).
+                \Illuminate\Support\Facades\Log::warning('TechNotification new_pose failed', [
+                    'task_id' => $task->id, 'err' => $e->getMessage(),
+                ]);
+            }
+        });
     }
 
     // ── RELATIONS ──

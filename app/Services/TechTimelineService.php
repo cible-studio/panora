@@ -90,13 +90,19 @@ class TechTimelineService
                 $location = $p->panel?->commune?->name;
 
                 if ($p->created_at && $p->created_at->between($startDay, $endDay)) {
+                    // SM2c B1 — Surface le flag is_off_schedule pour que
+                    // la timeline A2 affiche un badge "hors créneau" sur
+                    // les photos envoyées en dehors du créneau prévu.
                     $events->push([
                         'at'       => $p->created_at,
-                        'type'     => 'photo_sent',
-                        'label'    => 'Photo envoyée',
+                        'type'     => $p->is_off_schedule ? 'photo_sent_off_schedule' : 'photo_sent',
+                        'label'    => $p->is_off_schedule ? 'Photo envoyée (hors créneau)' : 'Photo envoyée',
                         'subject'  => $subject,
                         'location' => $location,
-                        'meta'     => ['pige_id' => $p->id],
+                        'meta'     => array_filter([
+                            'pige_id'         => $p->id,
+                            'is_off_schedule' => $p->is_off_schedule ? true : null,
+                        ]),
                     ]);
                 }
                 if ($p->verified_at && $p->verified_at->between($startDay, $endDay)) {

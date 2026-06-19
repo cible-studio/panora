@@ -23,12 +23,13 @@ function relSeconds(d) {
 }
 
 const EVENT_META = {
-    tech_arrived:     { icon: '📍', color: '#ea580c' },
-    pose_completed:   { icon: '✅', color: '#16a34a' },
-    photo_sent:       { icon: '📷', color: '#1e40af' },
-    photo_validated:  { icon: '✓',  color: '#16a34a' },
-    photo_rejected:   { icon: '✗',  color: '#b91c1c' },
-    problem_reported: { icon: '⚠',  color: '#b91c1c' },
+    tech_arrived:            { icon: '📍', color: '#ea580c' },
+    pose_completed:          { icon: '✅', color: '#16a34a' },
+    photo_sent:              { icon: '📷', color: '#1e40af' },
+    photo_sent_off_schedule: { icon: '⏰', color: '#d97706' }, // SM2c B1 — hors créneau
+    photo_validated:         { icon: '✓',  color: '#16a34a' },
+    photo_rejected:          { icon: '✗',  color: '#b91c1c' },
+    problem_reported:        { icon: '⚠',  color: '#b91c1c' },
 };
 
 async function tickKpis() {
