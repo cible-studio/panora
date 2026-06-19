@@ -46,7 +46,23 @@ class SignalementsController extends Controller
 
     public function index(Request $request)
     {
-        $status = $request->input('status', 'pending'); // pending|all|resolved
+        // SM2-fusion (2026-06-19) : onglet 'analyse' fusionne l'ancienne page
+        // /admin/sla/retards. Le paramètre 'view' peut être :
+        //   - 'todo' (défaut) : liste pending
+        //   - 'all'            : liste complète
+        //   - 'resolved'       : liste résolus
+        //   - 'analyse'        : KPIs analytiques + motif dominant + croisements
+        $view = $request->input('view', $request->input('status', 'todo'));
+        if (!in_array($view, ['todo', 'all', 'resolved', 'analyse'], true)) {
+            $view = 'todo';
+        }
+        // Backward-compat : les 3 premiers status sont mappés
+        $status = match ($view) {
+            'todo'     => 'pending',
+            'all'      => 'all',
+            'resolved' => 'resolved',
+            default    => 'pending', // pour 'analyse' on n'utilise pas $status
+        };
 
         $query = PoseTaskAction::query()
             ->where('action', 'problem_reported')
@@ -82,9 +98,51 @@ class SignalementsController extends Controller
 
         $problemLabels = collect(self::problemMap())->map(fn($v) => $v['label']);
 
+        // ─── Données complémentaires pour l'onglet "Analyse" ──────────
+        // On les charge uniquement si view=analyse pour ne pas alourdir
+        // les autres onglets.
+        $analyse = null;
+        if ($view === 'analyse') {
+            $analyse = $this->buildAnalysePayload($request);
+        }
+
         return view('admin.signalements.index', compact(
-            'signalements', 'status', 'kpi', 'problemLabels'
+            'signalements', 'status', 'view', 'kpi', 'problemLabels', 'analyse'
         ));
+    }
+
+    /**
+     * Compose la data nécessaire au rendu de l'onglet Analyse.
+     * Reprend la logique de SlaDelaysController::index() sans dupliquer :
+     * on appelle le DelayReasonsService et on récupère stats + filtres.
+     */
+    protected function buildAnalysePayload(Request $request): array
+    {
+        $service = app(\App\Services\DelayReasonsService::class);
+
+        $to   = $request->filled('to')   ? \Carbon\Carbon::parse($request->input('to'))->endOfDay()
+                                         : now();
+        $from = $request->filled('from') ? \Carbon\Carbon::parse($request->input('from'))->startOfDay()
+                                         : now()->subDays(89);
+
+        $filters = array_filter([
+            'commune_id'  => $request->input('commune_id'),
+            'client_id'   => $request->input('client_id'),
+            'zone'        => in_array($request->input('zone'), ['abidjan','interieur'], true) ? $request->input('zone') : null,
+        ]);
+        $motifFilter = \App\Enums\DelayReason::tryFrom((string) $request->input('motif'));
+
+        $stats = $service->stats($from, $to, $filters);
+
+        return [
+            'stats'       => $stats,
+            'from'        => $from,
+            'to'          => $to,
+            'filters'     => $filters,
+            'motifFilter' => $motifFilter,
+            'allCommunes' => \App\Models\Commune::orderBy('name')->get(['id','name','city']),
+            'allClients'  => \App\Models\Client::orderBy('name')->get(['id','name']),
+        ];
     }
 
     /**

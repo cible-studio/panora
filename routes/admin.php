@@ -892,7 +892,15 @@ Route::prefix('admin')
         Route::get('sla/retards/export/pdf', [\App\Http\Controllers\Admin\SlaDelaysController::class, 'exportPdf'])
             ->middleware('role:admin,mediaplanner')
             ->name('sla.retards.export.pdf');
-        Route::get('sla/retards', [\App\Http\Controllers\Admin\SlaDelaysController::class, 'index'])
+        // 2026-06-19 — Fusion : l'ancienne page /admin/sla/retards a été fusionnée
+        // dans /admin/signalements (onglet "📊 Analyse"). On conserve la route
+        // pour ne casser aucun lien existant (bookmarks, smart_back?back=sla,
+        // PDFs déjà imprimés…) — elle redirige avec les filtres préservés.
+        Route::get('sla/retards', function (\Illuminate\Http\Request $request) {
+            $params = array_merge(['view' => 'analyse'],
+                $request->only(['from','to','motif','zone','commune_id','client_id']));
+            return redirect()->route('admin.signalements.index', $params);
+        })
             ->middleware('role:admin,mediaplanner')
             ->name('sla.retards.index');
         // Édition motif a posteriori — crée action='motif_modified' SANS écraser l'original.

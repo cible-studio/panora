@@ -1,10 +1,51 @@
-<x-admin-layout title="Signalements terrain">
+<x-admin-layout title="Signalements & Analyse">
 
 <x-slot:topbarLeft>
     <h1 style="font-size:20px;font-weight:800;margin:0;display:flex;align-items:center;gap:8px">
         ⚠️ Signalements terrain
+        @if($view === 'analyse')
+            <span style="font-size:12px;font-weight:600;color:var(--text3);background:var(--surface2);padding:3px 9px;border-radius:999px;border:1px solid var(--border)">Analyse</span>
+        @endif
     </h1>
 </x-slot:topbarLeft>
+
+{{-- ── Onglets (SM2-fusion 2026-06-19) ────────────────────
+     Fusion de l'ancienne page /admin/sla/retards dans cet écran.
+     4 onglets : "À traiter" (défaut), "Tous", "Résolus", "Analyse".
+     L'onglet Analyse rend @include('admin.signalements._analyse_section').
+   ─────────────────────────────────────────────────────────── --}}
+<div style="display:flex;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:4px;margin-bottom:18px;overflow-x:auto;flex-wrap:wrap">
+    @php
+        $tabs = [
+            'todo'     => ['label' => '⚠️ À traiter', 'badge' => $kpi['pending']],
+            'all'      => ['label' => 'Tous',          'badge' => $kpi['total']],
+            'resolved' => ['label' => '✓ Résolus',     'badge' => $kpi['maintenance'] + $kpi['dismissed']],
+            'analyse'  => ['label' => '📊 Analyse',    'badge' => null],
+        ];
+    @endphp
+    @foreach($tabs as $key => $t)
+        @php $active = $view === $key; @endphp
+        <a href="{{ route('admin.signalements.index', ['view' => $key]) }}"
+           style="flex:1;min-width:130px;text-align:center;padding:9px 14px;border-radius:9px;font-size:13.5px;font-weight:{{ $active ? '800' : '600' }};text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;{{ $active ? 'background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.06)' : 'color:var(--text2)' }}">
+            {{ $t['label'] }}
+            @if($t['badge'] !== null && $t['badge'] > 0)
+                <span style="font-size:11px;padding:1px 7px;border-radius:999px;background:{{ $active ? 'var(--accent)' : 'var(--surface2)' }};color:{{ $active ? '#fff' : 'var(--text3)' }};font-weight:700">{{ $t['badge'] }}</span>
+            @endif
+        </a>
+    @endforeach
+</div>
+
+{{-- ──────────────────────────────────────────────────────────
+     ONGLET "ANALYSE" — rendu via le partial extrait de
+     l'ancienne page /admin/sla/retards. Pas de liste, juste
+     les KPIs + croisements + panneaux récurrents.
+   ────────────────────────────────────────────────────────── --}}
+@if($view === 'analyse')
+    @include('admin.signalements._analyse_section', [
+        'analyse'    => $analyse,
+        'formAction' => route('admin.signalements.index'),
+    ])
+@else
 
 {{-- ── KPI cards ────────────────────────────────────────── --}}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">
@@ -38,19 +79,11 @@
     </div>
 </div>
 
-{{-- ── Filtres ─────────────────────────────────────────── --}}
+{{-- ── Filtres (les onglets remplacent le segmented status) ── --}}
 <div class="card" style="margin-bottom:18px">
     <form method="GET" action="{{ route('admin.signalements.index') }}"
           style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
-        <div style="display:flex;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:4px">
-            @foreach(['pending' => '⚠️ À traiter', 'all' => 'Tous', 'resolved' => '✓ Traités'] as $key => $label)
-            <a href="{{ route('admin.signalements.index', ['status' => $key]) }}"
-               style="padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;
-                      {{ $status === $key ? 'background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.04)' : 'color:var(--text2)' }}">
-                {{ $label }}
-            </a>
-            @endforeach
-        </div>
+        <input type="hidden" name="view" value="{{ $view }}">
 
         <select name="type" onchange="this.form.submit()"
                 style="padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:13px">
@@ -61,7 +94,7 @@
         </select>
 
         @if(request('type'))
-            <a href="{{ route('admin.signalements.index', ['status' => $status]) }}"
+            <a href="{{ route('admin.signalements.index', ['view' => $view]) }}"
                style="font-size:12px;color:var(--text3);text-decoration:none">✕ Réinitialiser</a>
         @endif
     </form>
@@ -410,4 +443,5 @@ document.addEventListener('keydown', (e) => {
 }
 </style>
 
+@endif
 </x-admin-layout>
