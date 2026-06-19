@@ -450,18 +450,64 @@
             background: linear-gradient(90deg, #f97316, #ef4444);
         }
 
-        /* Ligne pose compacte — vignette + ref + statut, tap = caméra */
+        /* Ligne pose compacte — pastille + ref + statut, tap = drawer T2.
+           Refonte radicale 2026-06-19 (spec T1 §3.1) : la ligne ne contient
+           plus thumbnail + boutons inline. Toutes les actions sont dans le
+           drawer pose-detail. Tap n'importe où sur .pose-row → open drawer. */
         .pose-line {
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 14px;
             padding: 0;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             overflow: hidden;
             box-shadow: 0 1px 3px rgba(15,23,42,.05);
             transition: box-shadow .15s, transform .08s;
         }
         .pose-line:active { transform: scale(.997); box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+        .pose-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px;
+            min-height: 60px;
+            cursor: pointer;
+            position: relative;
+        }
+        .pose-row .pose-dot {
+            flex: 0 0 14px; width: 14px; height: 14px; border-radius: 50%;
+            box-shadow: 0 0 0 3px rgba(15,23,42,.05);
+            opacity: .92;
+        }
+        .pose-row-info { flex: 1; min-width: 0; }
+        .pose-row-info .pose-ref {
+            font-family: ui-monospace, "SF Mono", Menlo, monospace;
+            font-size: 14px; font-weight: 800; color: var(--accent-dark);
+            line-height: 1.2;
+        }
+        .pose-row-info .pose-name {
+            font-size: 13px; color: var(--text); font-weight: 600;
+            margin-top: 1px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .pose-row-info .pose-sub {
+            font-size: 11px; color: var(--text3); margin-top: 2px;
+            display: flex; gap: 8px; flex-wrap: wrap;
+        }
+        .pose-row-info .pose-sub .late {
+            color: var(--cancelled); font-weight: 700;
+            background: rgba(239,68,68,.08);
+            padding: 1px 6px; border-radius: 6px;
+        }
+        .pose-chevron {
+            flex: 0 0 auto;
+            font-size: 24px; line-height: 1;
+            color: var(--text3);
+            font-weight: 400;
+        }
+        .pose-row:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: -2px;
+            border-radius: 12px;
+        }
         .pose-main {
             display: flex; align-items: center; gap: 12px;
             padding: 12px; min-height: 80px;
