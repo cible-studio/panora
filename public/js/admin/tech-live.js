@@ -10,6 +10,21 @@ const CFG = window.ADMIN_TECH_LIVE_CONFIG || {};
 const POLL_MS = CFG.pollMs || 20000;
 
 let pollTimer = null;
+// Hotfix 2026-06-19 : filtre actif sur la timeline (null = tous les
+// événements). Toggled depuis les KPI cards en haut de page.
+//   - 'done'        → photo_sent(_off_schedule), pose_completed, photo_validated
+//   - 'in_progress' → tech_arrived
+//   - 'problems'    → problem_reported, photo_rejected
+let currentFilter = null;
+// Cache du dernier payload d'events pour réappliquer le filtre sans
+// re-fetcher après un clic KPI.
+let lastEvents = [];
+
+const FILTER_TYPES = {
+    done:        new Set(['photo_sent', 'photo_sent_off_schedule', 'pose_completed', 'photo_validated']),
+    in_progress: new Set(['tech_arrived']),
+    problems:    new Set(['problem_reported', 'photo_rejected']),
+};
 
 function $(sel, root = document) { return root.querySelector(sel); }
 
@@ -124,25 +139,50 @@ async function tickTimeline() {
 }
 
 function renderTimeline(events) {
-    const list  = $('[data-field="timeline-list"]');
-    const empty = $('[data-field="timeline-empty"]');
-    const tpl   = $('[data-field="timeline-row-tpl"]');
+    lastEvents = events || [];
+    drawTimeline();
+}
+
+// Sépare le filtrage + rendu pour qu'un clic KPI puisse redessiner
+// sans re-fetcher l'API.
+function drawTimeline() {
+    const list        = $('[data-field="timeline-list"]');
+    const empty       = $('[data-field="timeline-empty"]');
+    const emptyFilter = $('[data-field="timeline-empty-filter"]');
+    const tpl         = $('[data-field="timeline-row-tpl"]');
     if (!list || !tpl) return;
 
-    if (!events.length) {
-        list.hidden = true;
-        empty.hidden = false;
+    // Empty state global (aucun event du tout)
+    if (!lastEvents.length) {
+        list.hidden        = true;
+        if (empty)       empty.hidden       = false;
+        if (emptyFilter) emptyFilter.hidden = true;
         return;
     }
-    list.hidden = false;
-    empty.hidden = true;
+
+    // Applique le filtre KPI éventuel
+    const filtered = currentFilter
+        ? lastEvents.filter(e => FILTER_TYPES[currentFilter]?.has(e.type))
+        : lastEvents;
+
+    // Empty state filtré (events présents mais aucun ne matche)
+    if (!filtered.length) {
+        list.hidden        = true;
+        if (empty)       empty.hidden       = true;
+        if (emptyFilter) emptyFilter.hidden = false;
+        return;
+    }
+
+    list.hidden        = false;
+    if (empty)       empty.hidden       = true;
+    if (emptyFilter) emptyFilter.hidden = true;
 
     while (list.querySelector('li.tech-live-event')) {
         list.querySelector('li.tech-live-event').remove();
     }
 
     // Tri DESC (plus récent en haut) — backend renvoie ASC, on inverse
-    events.slice().reverse().forEach(ev => {
+    filtered.slice().reverse().forEach(ev => {
         const meta = EVENT_META[ev.type] || { icon: '•', color: '#9ca3af' };
         const node = tpl.content.cloneNode(true);
         const li   = node.querySelector('li');
@@ -168,7 +208,48 @@ function renderTimeline(events) {
             extra.hidden = false;
         }
 
+        // Lien cliquable vers la pige / pose / signalement selon le type.
+        // Hotfix 2026-06-19 — la patronne veut naviguer direct depuis la
+        // frise vers la fiche détail concernée.
+        const anchor = li.querySelector('[data-field="event-link"]');
+        if (anchor) {
+            if (ev.link_url) {
+                anchor.setAttribute('href', ev.link_url);
+                anchor.classList.add('is-clickable');
+            } else {
+                anchor.removeAttribute('href');
+                anchor.classList.remove('is-clickable');
+            }
+        }
+
         list.appendChild(node);
+    });
+}
+
+// ── Filtres KPI cards ─────────────────────────────────────────────
+// Clic sur un KPI = toggle du filtre correspondant. Si filtre déjà
+// actif, on le retire. Sinon on l'active (les autres se désactivent).
+function bindKpiFilters() {
+    document.querySelectorAll('[data-kpi-filter]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const want = btn.dataset.kpiFilter;
+            currentFilter = (currentFilter === want) ? null : want;
+            // Sync aria-pressed sur toutes les cartes
+            document.querySelectorAll('[data-kpi-filter]').forEach(b => {
+                const active = b.dataset.kpiFilter === currentFilter;
+                b.setAttribute('aria-pressed', active ? 'true' : 'false');
+                b.classList.toggle('is-active', active);
+            });
+            drawTimeline();
+        });
+    });
+    document.querySelector('[data-action="clear-filter"]')?.addEventListener('click', () => {
+        currentFilter = null;
+        document.querySelectorAll('[data-kpi-filter]').forEach(b => {
+            b.setAttribute('aria-pressed', 'false');
+            b.classList.remove('is-active');
+        });
+        drawTimeline();
     });
 }
 
@@ -190,6 +271,7 @@ function stop() {
 
 function init() {
     if (!$('[data-tech-live]')) return;
+    bindKpiFilters();
     tick();
     start();
     document.addEventListener('visibilitychange', () => {

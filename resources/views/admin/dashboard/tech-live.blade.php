@@ -43,24 +43,33 @@
             </div>
         </header>
 
-        {{-- ════ 4 KPIs personnels ════ --}}
-        <section class="tech-live-kpis">
-            <div class="tech-live-kpi">
+        {{-- ════ 4 KPIs personnels — cliquables = filtres timeline ════
+             Hotfix 2026-06-19 : la patronne veut pouvoir filtrer la
+             frise "Activité du jour" en tapant un KPI. "Restant" est un
+             cas à part : c'est un lien vers la liste des poses du tech
+             (pas filtrable dans la frise — un "restant" n'a pas d'event). --}}
+        <section class="tech-live-kpis" data-kpi-grid>
+            <button type="button" class="tech-live-kpi" data-kpi-filter="done"
+                    aria-pressed="false" title="Filtrer les photos envoyées + poses terminées">
                 <div class="tech-live-kpi-value" data-kpi="done">—</div>
                 <div class="tech-live-kpi-label">Faites aujourd'hui</div>
-            </div>
-            <div class="tech-live-kpi">
+            </button>
+            <button type="button" class="tech-live-kpi" data-kpi-filter="in_progress"
+                    aria-pressed="false" title="Filtrer les arrivées sur place">
                 <div class="tech-live-kpi-value" data-kpi="in_progress">—</div>
                 <div class="tech-live-kpi-label">En cours</div>
-            </div>
-            <div class="tech-live-kpi">
+            </button>
+            <a href="{{ route('admin.pose-tasks.index', ['assigned_user_id' => $tech->id]) }}"
+               class="tech-live-kpi"
+               title="Voir la liste des poses restantes de {{ $tech->name }}">
                 <div class="tech-live-kpi-value" data-kpi="remaining">—</div>
-                <div class="tech-live-kpi-label">Restant</div>
-            </div>
-            <div class="tech-live-kpi">
+                <div class="tech-live-kpi-label">Restant ↗</div>
+            </a>
+            <button type="button" class="tech-live-kpi" data-kpi-filter="problems"
+                    aria-pressed="false" title="Filtrer les signalements et photos refusées">
                 <div class="tech-live-kpi-value" data-kpi="problems">—</div>
                 <div class="tech-live-kpi-label">Signalements</div>
-            </div>
+            </button>
         </section>
 
         {{-- ════ Card "EN CE MOMENT" — orange ════ --}}
@@ -84,22 +93,35 @@
             </div>
             <ol class="tech-live-timeline-list" data-field="timeline-list" hidden>
                 <template data-field="timeline-row-tpl">
+                    {{-- Hotfix 2026-06-19 : la ligne devient cliquable via
+                         <a data-field="event-link">. Si link_url est présent
+                         dans le payload, JS pose href + clic = navigation
+                         directe vers pige/pose. Sinon le <a> reste sans
+                         href et ne déclenche rien (style standard). --}}
                     <li class="tech-live-event">
-                        <div class="tech-live-event-dot" data-field="event-dot"></div>
-                        <div class="tech-live-event-body">
-                            <div class="tech-live-event-head">
-                                <strong data-field="event-label">—</strong>
-                                <span data-field="event-time">—</span>
+                        <a class="tech-live-event-anchor" data-field="event-link">
+                            <div class="tech-live-event-dot" data-field="event-dot"></div>
+                            <div class="tech-live-event-body">
+                                <div class="tech-live-event-head">
+                                    <strong data-field="event-label">—</strong>
+                                    <span data-field="event-time">—</span>
+                                </div>
+                                <div class="tech-live-event-meta">
+                                    <span data-field="event-subject">—</span>
+                                    <span data-field="event-location" hidden></span>
+                                </div>
+                                <div class="tech-live-event-extra" data-field="event-extra" hidden></div>
                             </div>
-                            <div class="tech-live-event-meta">
-                                <span data-field="event-subject">—</span>
-                                <span data-field="event-location" hidden></span>
-                            </div>
-                            <div class="tech-live-event-extra" data-field="event-extra" hidden></div>
-                        </div>
+                        </a>
                     </li>
                 </template>
             </ol>
+            <div class="tech-live-timeline-empty-filter" data-field="timeline-empty-filter" hidden>
+                <span>Aucun événement de ce type aujourd'hui.</span>
+                <button type="button" class="tech-live-timeline-clear-filter" data-action="clear-filter">
+                    ✕ Réinitialiser le filtre
+                </button>
+            </div>
         </section>
 
     </div>
