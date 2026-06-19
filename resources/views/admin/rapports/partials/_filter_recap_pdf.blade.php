@@ -16,31 +16,20 @@
         $isGlobale = empty($filterRecap['hasAnyFilter']);
         $typeLabel = $isGlobale ? 'Synthèse globale' : 'Synthèse filtrée';
         $typeColor = $isGlobale ? '#0f766e' : '#b45309'; // teal vs ambre
-        $typeNote  = $isGlobale
-            ? 'Aucun filtre dimensionnel — données sur l\'ensemble du parc.'
-            : 'Données restreintes aux critères de sélection ci-dessous.';
     @endphp
-    <div style="margin-top:6px;margin-bottom:14px;padding:8px 12px;background:#fafafa;border-left:3px solid {{ $typeColor }};border-radius:3px;font-size:9.5px;color:#374151;line-height:1.5">
-        {{-- Ligne 1 : TYPE D'EXPORT (la VRAIE info que le destinataire veut voir d'emblée) --}}
-        <div style="margin-bottom:4px;padding-bottom:4px;border-bottom:1px dotted #d1d5db">
-            <strong style="color:{{ $typeColor }};text-transform:uppercase;letter-spacing:.5px;font-size:9px">Type d'export :</strong>
-            <strong style="color:#111827;font-size:10.5px">{{ $typeLabel }}</strong>
-            <span style="color:#6b7280;font-style:italic">— {{ $typeNote }}</span>
-        </div>
-        {{-- Ligne 2 : période --}}
-        <div>
-            <strong style="color:#111827">📅 Période :</strong> {{ $filterRecap['periode_label'] }}
-        </div>
-        {{-- Ligne 3 : filtres actifs (uniquement si "Synthèse filtrée") --}}
+    {{-- Bandeau compact 1 ligne (2 si filtres actifs) — pensé pour ne pas
+         détonner avec le header PDF et ne pas dupliquer la période. --}}
+    <div style="margin-top:4px;margin-bottom:10px;padding:5px 10px;background:#f8fafc;border-left:3px solid {{ $typeColor }};font-size:9px;color:#374151;line-height:1.5">
+        <span style="color:{{ $typeColor }};text-transform:uppercase;letter-spacing:.4px;font-weight:700;font-size:8.5px">Type :</span>
+        <strong style="color:#111827">{{ $typeLabel }}</strong>
+        <span style="color:#9ca3af">·</span>
+        <strong style="color:#374151">Période :</strong> {{ $filterRecap['periode_label'] }}
         @if(!empty($filterRecap['filters']))
-            <div style="margin-top:4px">
-                <strong style="color:#111827">🎯 Critères de sélection :</strong>
-                @foreach($filterRecap['filters'] as $f)
-                    <span style="display:inline-block;margin-right:10px">
-                        {{ $f['icon'] }} <strong>{{ $f['label'] }} :</strong> {{ $f['value'] }}
-                    </span>
-                @endforeach
-            </div>
+            <br>
+            <span style="color:{{ $typeColor }};text-transform:uppercase;letter-spacing:.4px;font-weight:700;font-size:8.5px">Critères :</span>
+            @foreach($filterRecap['filters'] as $f)
+                <span style="margin-right:8px"><strong style="color:#374151">{{ $f['label'] }} :</strong> {{ $f['value'] }}</span>
+            @endforeach
         @endif
     </div>
 @endif

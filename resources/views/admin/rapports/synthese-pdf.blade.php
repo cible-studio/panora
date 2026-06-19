@@ -46,7 +46,8 @@
         @endif
         <h1>SYNTHÈSE EXÉCUTIVE</h1>
         <div class="period">Dashboard analytique OOH — {{ $operatorName ?? 'CIBLE CI' }}</div>
-        <div class="period">Période : {{ $period['from']->format('d/m/Y') }} → {{ $period['to']->format('d/m/Y') }}</div>
+        {{-- Période retirée du header : elle est désormais portée par le
+             bandeau "Type d'export" plus bas (plus complet, avec le preset). --}}
     </div>
     <div class="right">
         Édité le {{ now()->format('d/m/Y H:i') }}<br>
