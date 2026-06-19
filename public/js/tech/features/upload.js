@@ -168,17 +168,35 @@ export async function flushUploadQueue() {
 // Géolocalisation robuste (best-effort, ne bloque pas l'upload).
 // 1er essai haute précision (10 s — zones difficiles), retry en précision
 // dégradée (réseau/cellule) avant d'abandonner. Renvoie aussi acc (±m).
+//
+// Hotfix 2026-06-19 : log la raison de l'échec GPS pour diagnostic
+// (permission denied / position unavailable / timeout). La fonction
+// retourne toujours null en cas d'échec, mais window.__lastGpsError
+// permet d'afficher le motif dans la modale T3.
 function getPosition() {
-    if (!navigator.geolocation) return Promise.resolve(null);
-    const attempt = (opts) => new Promise(resolve => {
+    if (!navigator.geolocation) {
+        window.__lastGpsError = 'API geolocation indisponible sur ce navigateur';
+        console.warn('[gps] navigator.geolocation absent');
+        return Promise.resolve(null);
+    }
+    const attempt = (opts, label) => new Promise(resolve => {
         navigator.geolocation.getCurrentPosition(
-            pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }),
-            ()  => resolve(null),
+            pos => {
+                window.__lastGpsError = null;
+                resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy });
+            },
+            (err) => {
+                const codes = { 1: 'PERMISSION_DENIED', 2: 'POSITION_UNAVAILABLE', 3: 'TIMEOUT' };
+                const codeLabel = codes[err.code] || ('CODE_' + err.code);
+                window.__lastGpsError = `${codeLabel}${err.message ? ' — ' + err.message : ''} (${label})`;
+                console.warn(`[gps] ${label} échec :`, codeLabel, err.message);
+                resolve(null);
+            },
             opts
         );
     });
-    return attempt({ enableHighAccuracy: true,  timeout: 10000, maximumAge: 15000 })
-        .then(r => r || attempt({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }));
+    return attempt({ enableHighAccuracy: true,  timeout: 10000, maximumAge: 15000 }, 'haute précision')
+        .then(r => r || attempt({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }, 'précision dégradée'));
 }
 
 // SM2a Lot 3.1 — Refonte vers T3 (spec §3) : preview photo + bandeau
@@ -267,11 +285,30 @@ function askPhotoPreview(file, pose) {
         getPosition().then(gps => {
             capturedGps = gps;
             if (!gps) {
+                // Hotfix 2026-06-19 : affiche le motif de l'échec GPS
+                // (permission, position indisponible, timeout, navigateur)
+                // pour que le tech puisse corriger (autoriser, sortir, etc.).
+                const err = window.__lastGpsError || '';
+                let title = 'Position GPS non disponible';
+                let sub   = 'On envoie quand même, l\'admin vérifiera.';
+                if (err.includes('PERMISSION_DENIED')) {
+                    title = '🔒 GPS bloqué par le navigateur';
+                    sub   = 'Autorise la géolocalisation dans les paramètres du site, puis recommence.';
+                } else if (err.includes('POSITION_UNAVAILABLE')) {
+                    title = '📡 Pas de signal GPS';
+                    sub   = 'Sors à l\'extérieur ou vers une fenêtre, puis recommence.';
+                } else if (err.includes('TIMEOUT')) {
+                    title = '⏱️ GPS trop lent à répondre';
+                    sub   = 'Attends quelques secondes et recommence.';
+                } else if (err.includes('indisponible')) {
+                    title = '🚫 Géolocalisation non supportée';
+                    sub   = 'Ce navigateur ne fournit pas le GPS — bascule sur le téléphone.';
+                }
                 verdict.setAttribute('data-verdict', 'unknown');
                 setText('[data-field="verdict-icon"]', '❓');
-                setText('[data-field="verdict-title"]', 'Position GPS non disponible');
-                setText('[data-field="verdict-sub"]',   'On envoie quand même, l\'admin vérifiera.');
-                setText('[data-field="gps-text"]',      'GPS bloqué');
+                setText('[data-field="verdict-title"]', title);
+                setText('[data-field="verdict-sub"]',   sub);
+                setText('[data-field="gps-text"]',      err || 'GPS bloqué');
                 return;
             }
             setText('[data-field="gps-text"]',
