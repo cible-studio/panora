@@ -80,9 +80,27 @@
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
     <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
         <span style="font-size:13px;font-weight:700;color:var(--text);">🏛️ Détail par commune</span>
-        <div style="display:flex;align-items:center;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            {{-- 2026-06-19 — Filtre Zone (Abidjan / Intérieur). Le filtrage
+                 est côté JS car les données de toutes les communes sont déjà
+                 chargées dans currentData après loadCalcul(). --}}
+            <select id="tax-filter-zone" class="filter-input" style="height:34px;font-size:12px;font-weight:600;min-width:130px"
+                    title="Filtrer par zone géographique">
+                <option value="">Toutes zones</option>
+                <option value="abidjan">Abidjan</option>
+                <option value="interieur">Intérieur</option>
+            </select>
+            {{-- Filtre Commune spécifique — restreint le tableau à une seule
+                 commune (utile pour préparer un paiement ou justifier un montant). --}}
+            <select id="tax-filter-commune" class="filter-input" style="height:34px;font-size:12px;min-width:160px"
+                    title="Filtrer sur une commune précise">
+                <option value="">Toutes communes</option>
+                @foreach($communes as $c)
+                    <option value="{{ $c->id }}">{{ $c->name }}</option>
+                @endforeach
+            </select>
             <input type="text" id="tax-search" class="filter-input"
-                   placeholder="Rechercher commune…" style="height:34px;width:200px;font-size:12px;">
+                   placeholder="Rechercher commune…" style="height:34px;width:180px;font-size:12px;">
             <span id="tax-loading" style="display:none;font-size:11px;color:var(--text3);">⏳ Calcul…</span>
         </div>
     </div>
@@ -366,7 +384,7 @@ window.TaxModule = (function () {
                 .join(' · ') || '—';
 
             return `
-                <tr data-commune-id="${c.commune_id}" data-search="${(c.commune || '').toLowerCase()}">
+                <tr data-commune-id="${c.commune_id}" data-city="${(c.city || '').toLowerCase()}" data-search="${(c.commune || '').toLowerCase()}">
                     <td>
                         <strong>${c.commune}</strong>
                         <div style="font-size:10px;color:var(--text3);margin-top:2px;" title="${lignesTooltip}">
@@ -416,10 +434,21 @@ window.TaxModule = (function () {
     }
 
     function applySearchFilter() {
-        const term = (document.getElementById('tax-search').value || '').trim().toLowerCase();
+        // 2026-06-19 — Combine 3 filtres : recherche texte + zone + commune.
+        // Cohérence avec le reste de l'app (rapports, finance) : Abidjan =
+        // ville='Abidjan', Intérieur = tout le reste. Le dataset des lignes
+        // contient data-commune-id et data-city pour matcher sans recalculer.
+        const term       = (document.getElementById('tax-search').value || '').trim().toLowerCase();
+        const zone       = document.getElementById('tax-filter-zone').value;       // '' | 'abidjan' | 'interieur'
+        const communeId  = document.getElementById('tax-filter-commune').value;    // '' | id
         document.querySelectorAll('#tax-table-body tr[data-commune-id]').forEach(tr => {
-            const visible = !term || tr.dataset.search.includes(term);
-            tr.style.display = visible ? '' : 'none';
+            const matchTerm    = !term      || tr.dataset.search.includes(term);
+            const matchCommune = !communeId || tr.dataset.communeId === communeId;
+            const city         = (tr.dataset.city || '').toLowerCase();
+            const matchZone    = !zone
+                || (zone === 'abidjan'   && city === 'abidjan')
+                || (zone === 'interieur' && city !== 'abidjan');
+            tr.style.display = (matchTerm && matchCommune && matchZone) ? '' : 'none';
         });
     }
 
@@ -477,6 +506,9 @@ window.TaxModule = (function () {
                 loadCalcul();
             });
             document.getElementById('tax-search').addEventListener('input', applySearchFilter);
+            // 2026-06-19 — Listeners pour les 2 nouveaux filtres (Zone + Commune).
+            document.getElementById('tax-filter-zone').addEventListener('change', applySearchFilter);
+            document.getElementById('tax-filter-commune').addEventListener('change', applySearchFilter);
 
             // Filtres KPI
             document.querySelectorAll('.tax-kpi-card[data-kpi-filter]').forEach(card => {

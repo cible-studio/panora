@@ -536,6 +536,11 @@ class TaxController extends Controller
             return [
                 'commune'        => $commune->name,
                 'commune_id'     => $commune->id,
+                // 2026-06-19 — Exposé pour les filtres Zone (Abidjan/Intérieur)
+                // et Commune côté JS. La règle métier "zone" reste cohérente
+                // avec le reste de l'app : Abidjan = panneaux dans une commune
+                // dont city='Abidjan', Intérieur = tout le reste.
+                'city'           => $commune->city,
                 'odp_taux'       => $odpRate,
                 'tm_taux'        => $tmRate,
                 'nb_panneaux'    => (int) $commune->panels->count(),
