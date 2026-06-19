@@ -91,6 +91,15 @@
         {{-- ── 4. Card MAINTENANT (pose courante mise en avant) ── --}}
         @if(!empty($nextTask))
             @include('public.tech.partials._focus_card', ['task' => $nextTask])
+        @else
+            {{-- Edge case : poses actives présentes mais pas de "next" calculée
+                 (ex : toutes les SSR sont vides). On invite à choisir dans la liste. --}}
+            <div class="empty" style="padding:24px 16px;margin-bottom:14px">
+                <div class="icon" style="font-size:36px">👇</div>
+                <p style="font-size:14px;color:var(--text2);margin:0">
+                    Choisis une pose dans la liste ci-dessous pour commencer.
+                </p>
+            </div>
         @endif
 
         {{-- ── 5. Liste compacte des poses groupée par commune ── --}}
