@@ -139,6 +139,12 @@ Route::prefix('tech')->middleware(['throttle:60,1', \App\Http\Middleware\SetFren
     Route::get('/{token}/heartbeat', [\App\Http\Controllers\TechSpaceController::class, 'heartbeat'])
         ->name('tech.space.heartbeat');
 
+    // SM2c B3 — Notifications du tech (drawer + badge).
+    Route::get('/{token}/notifications', [\App\Http\Controllers\TechSpaceController::class, 'notifications'])
+        ->name('tech.space.notifications');
+    Route::post('/{token}/notifications/mark-read', [\App\Http\Controllers\TechSpaceController::class, 'notificationsMarkRead'])
+        ->name('tech.space.notifications.mark-read');
+
     // Recherche AJAX scalable : source pour Select2 (paginé, full-text sur
     // référence/nom/commune/campagne/client). Permet au tech de trouver
     // une pose précise même si elle n'est pas dans le SSR initial (cap 200).

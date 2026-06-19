@@ -15,7 +15,7 @@ class Pige extends Model
         'gps_lat', 'gps_lng',
         'geo_distance_m', 'geo_check',
         'taken_at', 'verified_at',
-        'status', 'rejection_reason', 'notes',
+        'status', 'rejection_reason', 'is_off_schedule', 'notes',
         'client_uuid',
         'archived_at',
     ];
@@ -27,6 +27,7 @@ class Pige extends Model
         'gps_lat'        => 'float',
         'gps_lng'        => 'float',
         'geo_distance_m' => 'integer',
+        'is_off_schedule' => 'boolean',
     ];
 
     // ══════════════════════════════════════════════════════════════

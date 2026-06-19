@@ -583,6 +583,18 @@ class PigeController extends Controller
         // Notification email client (si transition vers vérifiée)
         if ($wasNotVerified) {
             $this->notifyClientPigeValidated($pige->fresh()->loadMissing('campaign.client','panel.commune'));
+
+            // SM2c B3 — Notif positive côté tech : le chef a validé ta photo.
+            if ($pige->user_id) {
+                $panelRef = $pige->panel?->reference ?? 'un panneau';
+                \App\Models\TechNotification::notify(
+                    userId:  $pige->user_id,
+                    type:    'photo_validated',
+                    title:   '✓ Photo validée : ' . $panelRef,
+                    detail:  'Le chef a validé ta photo. Bon boulot !',
+                    payload: ['pige_id' => $pige->id, 'task_id' => $pige->pose_task_id],
+                );
+            }
         }
 
         if ($request->wantsJson()) {
@@ -668,6 +680,18 @@ class PigeController extends Controller
 
         // Alerte instantanée
         $this->alertService->notifyPigeRejected($pige->fresh()->load('panel'), $request->rejection_reason);
+
+        // SM2c B3 — notification visible côté tech dans le drawer B3.
+        if ($pige->user_id) {
+            $panelRef = $pige->panel?->reference ?? 'un panneau';
+            \App\Models\TechNotification::notify(
+                userId:  $pige->user_id,
+                type:    'photo_rejected',
+                title:   '🚫 Photo refusée : ' . $panelRef,
+                detail:  $request->rejection_reason,
+                payload: ['pige_id' => $pige->id, 'task_id' => $pige->pose_task_id],
+            );
+        }
 
         if ($request->wantsJson()) {
             // Retourner les infos pour mise à jour

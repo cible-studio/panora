@@ -583,7 +583,15 @@ function bindMainUpload() {
             // .pose-line réelle (pas le drawer T2) pour pickNextPose :
             // les "pose-line" représentent les cards encore actives.
             const sourcePose = document.querySelector(`.pose-line[data-task-id="${taskId}"]`) || pose;
-            showSuccessScreenT4(sourcePose);
+
+            // SM2c B2 — Si c'était la dernière pose du jour, on affiche
+            // l'écran "Fin de journée" plein écran avec confettis au
+            // lieu de l'écran T4 succès standard.
+            if (data.is_last_pose_of_day && typeof window.__sm2cShowEndOfDay === 'function') {
+                window.__sm2cShowEndOfDay({ sourcePose });
+            } else {
+                showSuccessScreenT4(sourcePose);
+            }
 
             // Pose réalisée → retire la card avec une petite animation
             // de fade-out plutôt que de recharger la page (préserve le

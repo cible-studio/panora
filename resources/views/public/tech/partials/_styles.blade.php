@@ -15,3 +15,9 @@
      tech-app.css, bump SW_VERSION (cf. tech-sw.js) pour purger l'ancien. --}}
 <link rel="stylesheet"
       href="{{ asset('css/tech/tech-app.css') }}?v={{ config('app.version', '1') }}">
+{{-- SM2c — bonus CSS (B1 modale + B2 confettis + B3 drawer notifs +
+     finitions haute lisibilité / éco batterie). Chargé séparément du
+     bundle principal pour faciliter l'extraction future et permettre
+     un fallback gracieux si le fichier est manquant. --}}
+<link rel="stylesheet"
+      href="{{ asset('css/tech/sm2c.css') }}?v={{ config('app.version', '1') }}">
