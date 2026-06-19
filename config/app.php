@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | App version (cache-busting des assets statiques)
+    |--------------------------------------------------------------------------
+    | Utilisée par les vues Blade pour le query string `?v={app.version}` sur
+    | les <link href="...css"> et <script src="...js">. Bumper à chaque
+    | release qui modifie un asset public pour forcer le navigateur à
+    | re-télécharger (sinon il sert la version cachée).
+    |
+    | Format recommandé : YYYYMMDD-suffix (ex: 20260619-hotfix1).
+    | Pour les techs en PWA, bumper ÉGALEMENT SW_VERSION dans tech-sw.js.
+    */
+    'version' => env('APP_VERSION', '20260619-hotfix1'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Operator Name (régie qui opère la plateforme Panora)
     |--------------------------------------------------------------------------
     | Panora est la plateforme SaaS multi-régie. CIBLE CI est la régie qui

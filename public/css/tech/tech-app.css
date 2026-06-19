@@ -1,3 +1,9 @@
+/* SM2 hotfix — \[hidden\] doit toujours masquer un élément. Sans cette
+   règle, les overlays SM2a/c (.sm2-t2-overlay, .sm2-t3-overlay, etc.)
+   restent invisibles MAIS interceptent tous les clics car CSS
+   display:flex écrase la règle UA stylesheet [hidden]{display:none}. */
+[hidden] { display: none !important; }
+
         :root {
             --accent: #e8a020;
             --accent-dark: #c2570d;
