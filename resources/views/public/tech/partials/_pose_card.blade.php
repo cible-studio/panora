@@ -6,16 +6,16 @@
      auto-suffisant. Le partial parent (_pose_list ou squelette) ne passe
      que $task + $today (référence Carbon partagée pour cohérence du tri).
 
-     ⚠ NOTE PRÉ-EXISTANTE : la ligne data-blocking-signal-type utilise
-     $problemType qui n'a jamais été défini dans le code original. Blade
-     rend une chaîne vide → préservé tel quel pour rester pixel-identique
-     (Phase 2 = refactor pur, pas de correctifs).
+     SM2a Lot 1.3 — bug `$problemType` corrigé : la variable n'a jamais
+     été définie, l'attribut data-blocking-signal-type rendait toujours
+     vide ET n'est jamais lu par le JS (seul data-blocking-signal-label
+     est consommé par features/upload.js l.277). Attribut supprimé.
 
      IDs/data-attrs critiques pour le JS (à ne PAS modifier) :
        - class="pose pose-line"
        - data-task-id, data-task-status, data-search, data-lat, data-lng,
          data-scheduled-today, data-late, data-has-problem, data-has-reject,
-         data-scheduled-at, data-commune, data-blocking-signal-*
+         data-scheduled-at, data-commune, data-blocking-signal-label
        - data-action="photo"/"arrive"/"report"
        - data-go-maps
        - input[data-photo-input]
@@ -77,7 +77,6 @@
      data-scheduled-at="{{ $sched ? \Carbon\Carbon::parse($sched)->toIso8601String() : '' }}"
      data-commune="{{ $task->panel?->commune?->name }}"
      @if($lastProblem)
-     data-blocking-signal-type="{{ $problemType }}"
      data-blocking-signal-label="{{ $problemLabel }}"
      @endif>
     {{-- Bandeau ROUGE "photo refusée par le superviseur" — motif
