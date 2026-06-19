@@ -2022,9 +2022,12 @@
         .sm2-t9-empty-icon { font-size: 48px; margin-bottom: 8px; }
 
         /* ─── T1 §3.1 — Bouton aide rond jaune (header) ─────────── */
+        /* Hotfix 2026-06-19 : flex-shrink:0 + min-width pour qu'il ne soit
+           jamais tronqué par le voisin chip "Mes photos" sur mobile étroit. */
         .sm2-help-btn {
-            flex: 0 0 auto;
+            flex: 0 0 44px;
             width: 44px;
+            min-width: 44px;
             height: 44px;
             border-radius: 50%;
             background: var(--c-yellow-bg);
@@ -2039,9 +2042,15 @@
             cursor: pointer;
             padding: 0;
             transition: transform .1s ease, background .15s ease;
+            box-sizing: border-box;
         }
         .sm2-help-btn:active { transform: scale(0.95); background: var(--c-yellow-border); }
         .sm2-help-btn:focus-visible {
             outline: 3px solid rgba(245, 158, 11, .35);
             outline-offset: 2px;
+        }
+        @media (max-width: 420px) {
+            /* Sur mobile très étroit, on raccourcit le chip "Mes photos" pour
+               garantir la place du bouton aide rond. */
+            .sm2-help-btn { width: 40px; min-width: 40px; height: 40px; flex: 0 0 40px; font-size: 18px; }
         }
