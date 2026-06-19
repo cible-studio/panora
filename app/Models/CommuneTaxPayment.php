@@ -57,12 +57,9 @@ class CommuneTaxPayment extends Model
     {
         return $this->mode ? (self::MODES[$this->mode] ?? ucfirst($this->mode)) : null;
     }
-
-    /** Total versé sur cette ligne (odp_paye + tm_paye). */
-    public function getTotalPayeAttribute(): int
-    {
-        return (int) ($this->odp_paye ?? 0) + (int) ($this->tm_paye ?? 0);
-    }
+    // Note 2026-06-19 — l'accesseur getTotalPayeAttribute() existe déjà
+    // plus bas dans le fichier (return float). On ne le re-déclare pas
+    // ici pour éviter "Cannot redeclare" fatal.
 
     // RÈGLE 4 — entiers FCFA (audit Phase 8E : cohérence avec
     // invoice_lines.odp_ligne/tm_ligne et commune.odp_rate/tm_rate).
