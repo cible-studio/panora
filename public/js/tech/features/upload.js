@@ -317,6 +317,136 @@ function askPhotoPreview(file, pose) {
     });
 }
 
+// SM2a Lot 3.2 — Écran T4 "Succès + pose suivante". Remplace
+// l'ancien flashSuccess() (overlay 900ms) par un plein écran 4s qui
+// célèbre la photo envoyée et propose la pose suivante. Calcul de la
+// pose suivante côté JS depuis le DOM (priorité même commune).
+function pickNextPose(currentPose) {
+    const currentCommune = currentPose?.dataset.commune || '';
+    const currentTaskId  = currentPose?.dataset.taskId  || '';
+    const remaining = Array.from(document.querySelectorAll('.pose-line[data-task-id]'))
+        .filter(p => p.dataset.taskId !== currentTaskId);
+    if (!remaining.length) return null;
+    const same = remaining.find(p => p.dataset.commune === currentCommune);
+    return same || remaining[0];
+}
+
+function getTechFirstName() {
+    // Lit le prénom depuis le H1 "Bonjour {name}" du topbar.
+    const hello = document.querySelector('.hero-text h1')?.textContent || '';
+    const m = hello.match(/Bonjour\s+(\S+)/i);
+    return m ? m[1].replace(/[!.]/g, '') : '';
+}
+
+function showSuccessScreenT4(currentPose) {
+    const overlay = document.getElementById('sm2-t4-overlay');
+    if (!overlay) {
+        flashSuccess('Photo envoyée&nbsp;! Bravo 🎉');
+        return;
+    }
+
+    // Compteurs : le total ACTUEL inclut encore la pose courante (elle
+    // n'a pas encore été fadée). Donc done = doneActuel+1, total =
+    // doneActuel + remainingActuel.
+    const totalActiveEl = document.querySelector('[data-total-active]');
+    const remainingNow  = document.querySelectorAll('.pose-line[data-task-id]').length;
+    // On lit le compteur "fait" depuis le sub-label "doneToday" ou on
+    // recalcule via totalAssigned - remainingNow + 1. Simple : on
+    // affiche juste "1 panneau fait de plus" si on n'a pas la baseline.
+    const doneEl = overlay.querySelector('[data-field="done-count"]');
+    const totalEl= overlay.querySelector('[data-field="total-count"]');
+    // Compteurs déduits : on présume que le tech connaît son total via
+    // le KPI "À faire" (data-kpi-value="totalActive"). Le compteur va
+    // décrémenter quand la card sera retirée. Pour T4, on affiche
+    // l'état "après cette photo" = totalRemaining - 1 (cette photo est
+    // en train d'être validée par l'admin, donc encore en remainingNow).
+    const totalActive = parseInt(totalActiveEl?.textContent || '0', 10);
+    const done = Math.max(0, totalActive - (remainingNow - 1));
+    if (doneEl)  doneEl.textContent  = String(done);
+    if (totalEl) totalEl.textContent = String(totalActive);
+
+    const firstName = getTechFirstName();
+    const nameField = overlay.querySelector('[data-field="first-name"]');
+    if (nameField) nameField.textContent = firstName ? firstName + ' !' : '!';
+
+    const nextBlock = overlay.querySelector('[data-field="next-block"]');
+    const doneBlock = overlay.querySelector('[data-field="done-block"]');
+    const next = pickNextPose(currentPose);
+
+    if (next) {
+        nextBlock.hidden = false;
+        doneBlock.hidden = true;
+
+        const thumbEl = overlay.querySelector('[data-field="next-thumb"]');
+        const thumbBg = next.querySelector('.pose-thumb')?.style.backgroundImage || '';
+        const thumbUrl = thumbBg.match(/url\(['"]?(.+?)['"]?\)/)?.[1] || null;
+        if (thumbUrl) {
+            thumbEl.style.backgroundImage = `url('${thumbUrl}')`;
+            thumbEl.textContent = '';
+        } else {
+            thumbEl.style.backgroundImage = '';
+            thumbEl.textContent = '🪧';
+        }
+
+        const setNext = (sel, txt) => {
+            const el = overlay.querySelector(sel);
+            if (el) el.textContent = txt || '—';
+        };
+        setNext('[data-field="next-ref"]',     next.querySelector('.pose-ref')?.textContent?.trim());
+        setNext('[data-field="next-name"]',    next.querySelector('.pose-name')?.textContent?.trim());
+        setNext('[data-field="next-commune"]', next.dataset.commune ? '📍 ' + next.dataset.commune : '');
+
+        // Mémorise la task suivante sur le panel (lue par les handlers)
+        overlay.dataset.nextTaskId = next.dataset.taskId;
+    } else {
+        nextBlock.hidden = true;
+        doneBlock.hidden = false;
+        overlay.dataset.nextTaskId = '';
+    }
+
+    overlay.hidden = false;
+    overlay.removeAttribute('aria-hidden');
+    requestAnimationFrame(() => overlay.classList.add('is-open'));
+    document.body.style.overflow = 'hidden';
+
+    // Vibration succès sur mobile (cohérence avec flashSuccess actuel)
+    if (navigator.vibrate) { try { navigator.vibrate([40, 60, 120]); } catch (e) {} }
+
+    // Auto-close après 4s par défaut. Le tap utilisateur l'annule.
+    const autoTimer = setTimeout(() => closeT4(), 4000);
+
+    const onClick = (ev) => {
+        if (ev.target.closest('[data-action="t4-continue"]')) {
+            ev.preventDefault();
+            clearTimeout(autoTimer);
+            const nextId = overlay.dataset.nextTaskId;
+            closeT4();
+            // Ouvre le drawer T2 sur la pose suivante. import dynamique
+            // pour éviter les cycles + retomber gracefully si le module
+            // n'est pas chargé.
+            if (nextId) {
+                const target = document.querySelector(`.pose-line[data-task-id="${nextId}"]`);
+                if (target) target.click();
+            }
+            return;
+        }
+        if (ev.target.closest('[data-action="t4-other"]')) {
+            ev.preventDefault();
+            clearTimeout(autoTimer);
+            closeT4();
+            return;
+        }
+    };
+    function closeT4() {
+        overlay.classList.remove('is-open');
+        overlay.setAttribute('aria-hidden', 'true');
+        setTimeout(() => { overlay.hidden = true; }, 250);
+        document.body.style.overflow = '';
+        overlay.removeEventListener('click', onClick);
+    }
+    overlay.addEventListener('click', onClick);
+}
+
 // Recalcule les compteurs "X poses" sous chaque date après retrait
 // d'une pose terminée (évite l'incohérence visuelle), met à jour le
 // total header, et reload la page si plus aucune pose.
@@ -448,17 +578,30 @@ function bindMainUpload() {
                 input.value = '';
                 return;
             }
-            flashSuccess('Photo envoyée&nbsp;! Bravo 🎉');
+            // SM2a Lot 3.2 — Écran T4 plein écran 4s + pose suivante
+            // remplace l'ancien flashSuccess overlay 900ms. Lecture du
+            // .pose-line réelle (pas le drawer T2) pour pickNextPose :
+            // les "pose-line" représentent les cards encore actives.
+            const sourcePose = document.querySelector(`.pose-line[data-task-id="${taskId}"]`) || pose;
+            showSuccessScreenT4(sourcePose);
 
             // Pose réalisée → retire la card avec une petite animation
             // de fade-out plutôt que de recharger la page (préserve le
             // scroll position du tech pour les autres poses).
-            if (pose) {
-                pose.style.transition = 'all .4s ease-out';
-                pose.style.opacity   = '0';
-                pose.style.transform = 'translateX(20px)';
+            // Ferme aussi le drawer T2 si la pose était ouverte dedans.
+            if (document.querySelector('#sm2-t2-overlay.is-open')) {
+                document.querySelector('#sm2-t2-overlay')?.classList.remove('is-open');
                 setTimeout(() => {
-                    pose.remove();
+                    const ov = document.querySelector('#sm2-t2-overlay');
+                    if (ov) ov.hidden = true;
+                }, 220);
+            }
+            if (sourcePose) {
+                sourcePose.style.transition = 'all .4s ease-out';
+                sourcePose.style.opacity   = '0';
+                sourcePose.style.transform = 'translateX(20px)';
+                setTimeout(() => {
+                    sourcePose.remove();
                     refreshDayCounters();
                 }, 400);
             }

@@ -1582,6 +1582,130 @@
             box-shadow: 0 6px 16px -4px rgba(22, 163, 74, .42);
         }
 
+        /* ─── T4 §spec — Écran "Succès + pose suivante" ───────────── */
+        .sm2-t4-overlay {
+            position: fixed; inset: 0; z-index: 9300;
+            background: var(--c-green-success);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity .25s ease;
+            overflow-y: auto;
+        }
+        .sm2-t4-overlay.is-open { opacity: 1; }
+        .sm2-t4-panel {
+            width: 100%; max-width: 460px;
+            color: #fff;
+            display: flex; flex-direction: column;
+            transform: translateY(20px);
+            transition: transform .3s ease;
+            padding: 32px 20px 24px;
+            min-height: 100%;
+            padding-bottom: calc(24px + env(safe-area-inset-bottom));
+        }
+        .sm2-t4-overlay.is-open .sm2-t4-panel { transform: translateY(0); }
+
+        .sm2-t4-hero {
+            text-align: center;
+            padding: 12px 0 24px;
+        }
+        .sm2-t4-check {
+            width: 84px; height: 84px;
+            margin: 0 auto 14px;
+            background: rgba(255,255,255,.12);
+            border: 2px solid rgba(255,255,255,.35);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .sm2-t4-title {
+            margin: 0;
+            font-size: 26px; font-weight: 800;
+            line-height: 1.2;
+        }
+        .sm2-t4-sub {
+            margin-top: 4px;
+            font-size: 14px; opacity: .85;
+        }
+        .sm2-t4-progress {
+            margin-top: 14px;
+            display: inline-block;
+            padding: 5px 12px;
+            background: rgba(255,255,255,.15);
+            border-radius: 999px;
+            font-size: 13px;
+            font-variant-numeric: tabular-nums;
+        }
+        .sm2-t4-progress strong { font-weight: 800; }
+
+        .sm2-t4-next, .sm2-t4-done {
+            background: #fff;
+            color: var(--text);
+            border-radius: 16px;
+            padding: 16px;
+            margin-top: 14px;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .sm2-t4-next-label {
+            font-size: 10px; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 1px;
+            color: var(--c-orange-action);
+        }
+        .sm2-t4-next-card {
+            display: flex; gap: 12px; align-items: flex-start;
+            padding: 12px;
+            background: var(--c-orange-bg);
+            border: 1px solid var(--c-orange-border);
+            border-radius: 12px;
+        }
+        .sm2-t4-next-thumb {
+            flex: 0 0 56px; width: 56px; height: 56px;
+            border-radius: 10px;
+            background-size: cover; background-position: center;
+            background-color: var(--surface2);
+            font-size: 24px; color: var(--text3);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .sm2-t4-next-info { flex: 1; min-width: 0; }
+        .sm2-t4-next-ref {
+            font-family: ui-monospace, monospace;
+            font-size: 14px; font-weight: 800;
+            color: var(--c-orange-text);
+        }
+        .sm2-t4-next-name {
+            font-size: 13px; color: var(--text); margin-top: 2px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .sm2-t4-next-meta { font-size: 11.5px; color: var(--text3); margin-top: 3px; }
+
+        .sm2-t4-done { text-align: center; }
+        .sm2-t4-done-icon { font-size: 42px; }
+        .sm2-t4-done-title {
+            font-size: 16px; font-weight: 800;
+            color: var(--text);
+        }
+
+        .sm2-t4-btn {
+            min-height: 50px;
+            border-radius: 12px;
+            font-size: 14.5px; font-weight: 800;
+            border: none; cursor: pointer;
+            font-family: inherit;
+            display: flex; align-items: center; justify-content: center;
+            gap: 6px;
+            transition: transform .08s;
+        }
+        .sm2-t4-btn:active { transform: scale(.98); }
+        .sm2-t4-btn-go {
+            background: linear-gradient(135deg, var(--c-orange-action), #c2410c);
+            color: #fff;
+            box-shadow: 0 4px 12px -2px rgba(234, 88, 12, .35);
+        }
+        .sm2-t4-btn-ghost {
+            background: var(--surface);
+            color: var(--text2);
+            border: 1.5px solid var(--border);
+            min-height: 44px;
+            font-size: 13px;
+        }
+
         /* ─── T1 §3.1 — Bouton aide rond jaune (header) ─────────── */
         .sm2-help-btn {
             flex: 0 0 auto;

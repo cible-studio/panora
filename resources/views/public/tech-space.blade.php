@@ -177,6 +177,11 @@
      le DOM, est show/hidden via la classe is-open). --}}
 @include('public.tech.partials._modal_photo_preview')
 
+{{-- SM2a Lot 3.2 — Écran T4 "Succès + pose suivante" (piloté par
+     features/upload.js showSuccessScreenT4 — remplace l'ancien
+     flashSuccess overlay 900ms par un plein écran 4s avec next pose). --}}
+@include('public.tech.partials._screen_success')
+
 {{-- Phase 3 SM1 — publication TECH_CONFIG (csrf + token + routes + bootstrap)
      consommé par les modules JS chargés juste après. À garder AVANT le
      <script type="module"> qui suit. --}}
