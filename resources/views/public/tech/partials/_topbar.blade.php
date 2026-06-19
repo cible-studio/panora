@@ -32,6 +32,15 @@
                 </span>
             @endif
         </a>
+        {{-- SM2a T1 §3.1 — Bouton aide rond jaune (consommé par features/help.js
+             Phase 5 : tap → modale T8 "Besoin d'aide ?"). Pour l'instant pas
+             d'action JS branchée — le bouton apparaît mais ne fait rien.
+             Cohérence accessibilité : aria-label + role button. --}}
+        <button type="button"
+                class="sm2-help-btn"
+                data-action="open-help"
+                aria-label="Ouvrir l'aide"
+                title="Besoin d'aide ?">?</button>
     </div>
 
     <div class="hero">
@@ -68,23 +77,10 @@
         </button>
     </div>
 
-    {{-- Progression à paliers visuels (10/25/50/75/100) — encourageant et lisible --}}
-    @if(($totalAssigned ?? 0) > 0)
-    <div class="progress-staged">
-        <div class="progress-staged-head">
-            <span>Progression globale</span>
-            <strong>{{ $totalDone }}/{{ $totalAssigned }} · {{ $progressPct }}%</strong>
-        </div>
-        <div class="progress-staged-track">
-            <div class="progress-staged-fill" style="width:{{ $progressPct ?? 0 }}%"></div>
-        </div>
-        <div class="progress-staged-marks">
-            @foreach([10, 25, 50, 75, 100] as $m)
-                <span class="{{ $progressPct >= $m ? 'passed' : '' }}">{{ $m }}%</span>
-            @endforeach
-        </div>
-    </div>
-    @endif
+    {{-- SM2a Lot 1.1 — La progression a été déplacée dans son propre partial
+         _progress_bar.blade.php (barre simple + message motivant T1 §3.2).
+         L'ancien `.progress-staged` (paliers 10/25/50/75/100) a été retiré. --}}
+    @include('public.tech.partials._progress_bar')
 
     {{-- Récap zones de la journée (visible si au moins une zone) --}}
     @if(!empty($zonesTodayList))

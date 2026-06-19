@@ -16,6 +16,36 @@
             --in-progress: #3b82f6;
             --done: #22c55e;
             --cancelled: #ef4444;
+
+            /* ═════ SM2a — Couleurs sémantiques universelles ═════
+               Cf. SM2_DOSSIER_SPECIFICATION.md §6.1 — "couleur = sens".
+               Cohabitent avec les variables existantes ci-dessus pour
+               ne rien casser dans les écrans non-refondus. Seront
+               consommées exclusivement par les composants SM2. */
+            --c-orange-action: #ea580c;
+            --c-orange-bg:     #fff7ed;
+            --c-orange-border: #fed7aa;
+            --c-orange-text:   #c2410c;
+
+            --c-green-success: #16a34a;
+            --c-green-bg:      #f0fdf4;
+            --c-green-border:  #bbf7d0;
+            --c-green-text:    #166534;
+
+            --c-red-problem:   #b91c1c;
+            --c-red-bg:        #fef2f2;
+            --c-red-border:    #fecaca;
+            --c-red-text:      #7f1d1d;
+
+            --c-blue-info:     #1e40af;
+            --c-blue-bg:       #e0e7ff;
+            --c-blue-border:   #c7d2fe;
+            --c-blue-text:     #3730a3;
+
+            --c-yellow-help:   #f59e0b;
+            --c-yellow-bg:     #fef3c7;
+            --c-yellow-border: #fcd34d;
+            --c-yellow-text:   #92400e;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
@@ -930,5 +960,75 @@
         @media print {
             .header, .controls-bar, .zones-toc, .new-task-banner,
             #toast-container, .offline-banner { display: none !important; }
+        }
+
+        /* ═════════════════════════════════════════════════════════════
+           SM2a — Composants refondus
+           Section regroupée en bas pour faciliter l'extraction Phase 6
+           (vers public/css/tech/tech-app.css).
+           ═════════════════════════════════════════════════════════════ */
+
+        /* ─── T1 §3.2 — Barre de progression simple ─────────────── */
+        .sm2-progress {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-top: 12px;
+        }
+        .sm2-progress-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sm2-progress-track {
+            flex: 1;
+            height: 10px;
+            background: var(--c-green-bg);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .sm2-progress-fill {
+            height: 100%;
+            background: var(--c-green-success);
+            border-radius: 999px;
+            transition: width .35s ease;
+        }
+        .sm2-progress-count {
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--c-green-text);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+        .sm2-progress-msg {
+            font-size: 12px;
+            color: var(--text2);
+            margin-top: 4px;
+        }
+
+        /* ─── T1 §3.1 — Bouton aide rond jaune (header) ─────────── */
+        .sm2-help-btn {
+            flex: 0 0 auto;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--c-yellow-bg);
+            border: 1.5px solid var(--c-yellow-border);
+            color: var(--c-yellow-text);
+            font-size: 20px;
+            font-weight: 800;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+            transition: transform .1s ease, background .15s ease;
+        }
+        .sm2-help-btn:active { transform: scale(0.95); background: var(--c-yellow-border); }
+        .sm2-help-btn:focus-visible {
+            outline: 3px solid rgba(245, 158, 11, .35);
+            outline-offset: 2px;
         }
 </style>
