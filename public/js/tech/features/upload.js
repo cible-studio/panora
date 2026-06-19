@@ -482,7 +482,15 @@ function bindMainUpload() {
         const label  = input.closest('label');
         const pose   = label?.closest('[data-task-id]');
         const taskId = pose?.dataset.taskId;
-        if (!taskId) return;
+        // Garde-fou anti-"undefined URL" (hotfix 2026-06-19) :
+        // si le DOM ne porte pas data-task-id, on prévient le tech au
+        // lieu d'envoyer un POST silencieux vers une route inexistante.
+        if (!taskId || taskId === 'undefined') {
+            console.error('[upload] data-task-id manquant — pose non identifiée. input=', input, 'pose=', pose);
+            toast('Erreur : pose non identifiée. Recharge la page.', 'error');
+            input.value = '';
+            return;
+        }
 
         // 0. Aperçu T3 : le tech voit sa photo + verdict GPS avant qu'on
         //    déclenche compression/upload. S'il refuse, on reset l'input.
@@ -594,8 +602,11 @@ function bindMainUpload() {
             }
 
             // Pose réalisée → retire la card avec une petite animation
-            // de fade-out plutôt que de recharger la page (préserve le
-            // scroll position du tech pour les autres poses).
+            // de fade-out plus, depuis le hotfix 2026-06-19, on RECHARGE
+            // la page après l'écran T4 pour que le serveur recalcule
+            // $nextTask (la "Card MAINTENANT" doit afficher la pose
+            // suivante, pas rester figée sur la pose qu'on vient de
+            // terminer).
             // Ferme aussi le drawer T2 si la pose était ouverte dedans.
             if (document.querySelector('#sm2-t2-overlay.is-open')) {
                 document.querySelector('#sm2-t2-overlay')?.classList.remove('is-open');
@@ -613,6 +624,19 @@ function bindMainUpload() {
                     refreshDayCounters();
                 }, 400);
             }
+            // Fade-out ALSO la focus card si c'est elle qu'on vient de
+            // terminer (sinon elle reste affichée sur la pose qu'on a
+            // terminée jusqu'au reload).
+            const focusCard = document.getElementById('next-pose-hero');
+            if (focusCard && focusCard.dataset.taskId === String(taskId)) {
+                focusCard.style.transition = 'all .4s ease-out';
+                focusCard.style.opacity = '0.4';
+                focusCard.style.pointerEvents = 'none';
+            }
+            // Recharge la page après que l'écran T4 ait fini son animation
+            // (4 s) — laisse le tech voir le succès, puis le serveur
+            // recalcule $nextTask = la pose suivante par priorité.
+            setTimeout(() => { window.location.reload(); }, 4500);
         } catch (err) {
             // En mode offline (ou erreur fetch), on enqueue la photo pour
             // un rejouage automatique au retour réseau. Évite au tech de
@@ -635,62 +659,34 @@ function bindMainUpload() {
 }
 
 // ── Hero "Prochaine pose" ───────────────────────────────────────
-// L'input data-next-photo réutilise le handler change global
-// ci-dessus. Mais il faut l'attacher à la card correspondante dans le
-// DOM principal (sinon pas de data-task-id sur le label). On délègue :
-// au change, on simule un click sur l'input de la card. Si la pose n'est
-// pas dans la liste SSR (au-delà du cap), on passe par directUploadFromHero
-// qui POST directement sans passer par la pipeline d'aperçu.
+// Hotfix 2026-06-19 (post-refonte radicale) :
+//
+// L'ancien bindHero attachait un SECOND handler 'change' direct sur
+// l'input [data-next-photo] de la focus card, qui dupliquait l'upload
+// déjà fait par bindMainUpload (handler délégué sur [data-photo-input]).
+//
+// Avant la refonte, ce double handler était inoffensif : la focus card
+// n'avait PAS data-task-id, donc bindMainUpload bailait via
+// `if (!taskId) return;` et seul le path bindHero faisait l'upload via
+// directUploadFromHero(nextTaskId) en bouclant sur la pose-line de la
+// liste (qui avait, elle, data-photo-input + data-task-id).
+//
+// Depuis la refonte (Phase 2) :
+//   - la focus card EXPOSE data-task-id → bindMainUpload fait l'upload
+//   - _pose_card compact n'a PLUS data-photo-input → bindHero tombait
+//     dans le fallback directUploadFromHero, donc DEUX uploads (double-POST)
+//     + un risque de fetch('undefined') si nextTaskId était mal lu.
+//
+// Solution : on garde uniquement le data-go-maps pour le bump
+// en_route (utile car le delegate bindGoMaps lit data-task-status).
+// Le handler change direct est RETIRÉ.
 function bindHero() {
     const hero = document.getElementById('next-pose-hero');
     if (!hero) return;
-    const nextTaskId = hero.dataset.nextTaskId;
-    const heroInput  = hero.querySelector('[data-next-photo]');
-    heroInput?.addEventListener('change', function () {
-        const file = heroInput.files?.[0];
-        if (!file) return;
-        const targetCard = document.querySelector(`.pose-line[data-task-id="${nextTaskId}"]`);
-        const targetInput = targetCard?.querySelector('[data-photo-input]');
-        if (!targetInput) {
-            directUploadFromHero(file, nextTaskId);
-            heroInput.value = '';
-            return;
-        }
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        targetInput.files = dt.files;
-        targetInput.dispatchEvent(new Event('change', { bubbles: true }));
-        heroInput.value = '';
-    });
-    // « Y aller » : déclenche aussi le bump status en_route comme la ligne
-    // standard. On laisse le delegate global s'en charger en posant un
-    // data-go-maps sur le lien (déjà fait dans le HTML).
+    // Bump status en_route via le delegate de status-changes.js — on
+    // pose un data-go-maps explicite (l'ancien data-next-go-maps existe
+    // toujours en HTML, on s'assure que data-go-maps est là aussi).
     hero.querySelector('[data-next-go-maps]')?.setAttribute('data-go-maps', '1');
-}
-
-async function directUploadFromHero(file, taskId) {
-    const csrf  = window.TECH_CONFIG?.csrfToken;
-    const photoTpl = window.TECH_CONFIG?.routes?.photoTpl;
-    toastSmall('On prépare ta photo…', 'info');
-    const fd = new FormData();
-    fd.append('photo', file, 'photo.jpg');
-    fd.append('client_uuid', (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(16).slice(2)));
-    try {
-        const r = await fetch(urlForTask(photoTpl, taskId), {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-            body: fd,
-        });
-        const d = await r.json().catch(() => ({}));
-        if (r.ok && d.ok) {
-            toastSmall('Photo envoyée — panneau posé !', 'success');
-            setTimeout(() => location.reload(), 1200);
-        } else {
-            toastSmall(d.error || `Erreur ${r.status}`, 'error');
-        }
-    } catch (e) {
-        toastSmall('Pas de réseau — réessaie quand ça revient', 'error');
-    }
 }
 
 export function init() {
