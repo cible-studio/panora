@@ -32,11 +32,28 @@
         $ntGo  = 'https://www.google.com/maps/search/?api=1&query=' . urlencode(implode(', ', $ntLoc));
     }
 @endphp
-{{-- SM2a Lot 1.2 — Refonte visuelle T1 §3.3.
-     Le squelette HTML, les ids et les data-* sont volontairement
-     conservés (consommés par features/upload.js — hero handler). Seul
-     le rendu CSS bouge (couleurs sémantiques + label "MAINTENANT 🔥"). --}}
-<div class="next-pose-hero" id="next-pose-hero" data-next-task-id="{{ $nt->id }}">
+{{-- SM2a Lot 1.2 + hotfix 2026-06-19 (refonte radicale).
+     IDs et data-* conservés pour upload.js bindHero (lit data-next-task-id).
+     AJOUTÉ : data-task-id (canonique) + data-task-status + data-lat/lng
+     pour que TOUS les modules JS qui font closest('[data-task-id]')
+     (status-changes, y-aller-modal, report, pose-drawer, off-schedule)
+     fonctionnent quand le bouton est DANS la focus card et pas dans une
+     pose-line de la liste.
+     Avant ce fix : closest('[data-task-id]') retournait null →
+     urlForTask(tpl, undefined) → URL "/tech/{token}/.../undefined/...".
+     Bouton "Y aller" préfixé data-go-maps pour bénéficier de la modale T7
+     d'avertissement + bump status en_route partagé. --}}
+<div class="next-pose-hero pose"
+     id="next-pose-hero"
+     data-next-task-id="{{ $nt->id }}"
+     data-task-id="{{ $nt->id }}"
+     data-task-status="{{ $ntStatus?->value ?? 'planifiee' }}"
+     data-lat="{{ $nt->panel?->latitude }}"
+     data-lng="{{ $nt->panel?->longitude }}"
+     data-commune="{{ $nt->panel?->commune?->name }}"
+     data-scheduled-at="{{ $ntSched ? \Carbon\Carbon::parse($ntSched)->toIso8601String() : '' }}"
+     data-scheduled-today="{{ $ntToday ? '1' : '0' }}"
+     data-late="{{ $ntLate ? '1' : '0' }}">
     <span class="nph-badge" aria-hidden="true">🔥 MAINTENANT</span>
     <div class="nph-top">
         @if($ntThumb)
@@ -46,7 +63,7 @@
         @endif
         <div class="nph-info">
             <div class="nph-ref">{{ $nt->panel?->reference ?? '—' }}</div>
-            <div class="nph-name">{{ $nt->panel?->name ?? '' }}</div>
+            <div class="nph-name pose-name">{{ $nt->panel?->name ?? '' }}</div>
             <div class="nph-meta">
                 @if($ntLate)<span class="late">⏰ En retard</span>@endif
                 @if($nt->panel?->commune?->name)<span>📍 {{ $nt->panel->commune->name }}</span>@endif
@@ -56,7 +73,7 @@
     </div>
     <div class="nph-actions">
         <a class="nph-act go" href="{{ $ntGo }}" target="_blank" rel="noopener"
-           data-next-go-maps>🧭 Y aller</a>
+           data-go-maps data-next-go-maps>🧭 Y aller</a>
         <label class="nph-act cam" data-next-pose-photo>
             <input type="file" accept="image/*" capture="environment" data-photo-input data-next-photo>
             📷 Prendre la photo
