@@ -165,7 +165,10 @@ class AdminLiveDashboardService
                         'tech_full_name'   => $p->user?->name,
                         'at'               => $p->created_at->toIso8601String(),
                         'pige_id'          => $p->id,
-                        'actionable_url'   => route('admin.piges.validation'),
+                        // SM2b Phase 5 — Le tap sur "Valider →" ouvre la
+                        // modale via data-action="open-validate-pige".
+                        'actionable_url'   => '#validate-' . $p->id,
+                        'actionable_data'  => ['action' => 'open-validate-pige', 'pige-id' => $p->id],
                     ]);
                 }
                 if ($p->status === 'verifie' && $p->verified_at && $p->verified_at >= $since) {

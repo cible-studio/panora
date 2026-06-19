@@ -124,6 +124,15 @@ function showBanner(event) {
     const detail = [event.tech_full_name, event.location_label].filter(Boolean).join(' · ');
     banner.querySelector('[data-field="event-detail"]').textContent = detail || '';
     const cta = banner.querySelector('[data-field="event-cta"]');
+    // SM2b Phase 5 — Si event.actionable_data porte un data-action,
+    // on le pose sur le CTA pour que pige-validate.js puisse l'ouvrir.
+    cta.removeAttribute('data-action');
+    cta.removeAttribute('data-pige-id');
+    if (event.actionable_data) {
+        Object.entries(event.actionable_data).forEach(([k, v]) => {
+            cta.setAttribute('data-' + k, v);
+        });
+    }
     if (event.actionable_url) {
         cta.setAttribute('href', event.actionable_url);
         cta.hidden = false;

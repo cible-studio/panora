@@ -582,6 +582,8 @@ Route::prefix('admin')
             // ── Actions sur une pige ───────────────────────────────────
             Route::post('{pige}/verify', [PigeController::class, 'verify']) ->name('verify');
             Route::post('{pige}/reject', [PigeController::class, 'reject']) ->name('reject');
+            // SM2b Phase 5 — Détail JSON pour modale validation A4.
+            Route::get('{pige}/detail-json', [PigeController::class, 'detailJson'])->name('detail-json');
         
             // ── CRUD standard ──────────────────────────────────────────
             Route::get('/',           [PigeController::class, 'index'])  ->name('index');
