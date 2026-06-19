@@ -1,49 +1,36 @@
-{{-- _pose_card.blade.php — Phase 2 SM1 (rendu pixel-identique).
-     Card complète d'une pose dans la liste groupée par commune.
+{{-- _pose_card.blade.php — Refonte radicale 2026-06-19 (hotfix SM2a).
+     Conforme à spec §3.1 maquette T1 (ligne compacte de la liste).
 
-     Tous les calculs (status, isLate, thumbUrl, goUrl, searchHay,
-     lastProblem, rejPige, isToday) sont LOCAUX au partial pour rester
-     auto-suffisant. Le partial parent (_pose_list ou squelette) ne passe
-     que $task + $today (référence Carbon partagée pour cohérence du tri).
+     Avant : 139 lignes — thumbnail + boutons inline (Y aller / J'y suis /
+     Souci) + bandeaux signalement + photo refusée.
+     Après : 1 ligne compacte (pastille + ref/name/commune + chevron).
+     Tap n'importe où sur la ligne → ouvre le drawer _drawer_pose_detail
+     qui contient TOUTES les actions terrain (Y aller / Photo / Souci).
 
-     SM2a Lot 1.3 — bug `$problemType` corrigé : la variable n'a jamais
-     été définie, l'attribut data-blocking-signal-type rendait toujours
-     vide ET n'est jamais lu par le JS (seul data-blocking-signal-label
-     est consommé par features/upload.js l.277). Attribut supprimé.
-
-     IDs/data-attrs critiques pour le JS (à ne PAS modifier) :
+     CRITIQUE — data-* préservés pour les modules JS qui les lisent :
        - class="pose pose-line"
-       - data-task-id, data-task-status, data-search, data-lat, data-lng,
-         data-scheduled-today, data-late, data-has-problem, data-has-reject,
-         data-scheduled-at, data-commune, data-blocking-signal-label
-       - data-action="photo"/"arrive"/"report"
-       - data-go-maps
-       - input[data-photo-input]
+       - data-task-id / data-task-status (status-changes / pose-drawer)
+       - data-lat / data-lng (geolocate, y-aller-modal)
+       - data-search (filters)
+       - data-late / data-scheduled-today / data-scheduled-at
+       - data-has-problem / data-has-reject
+       - data-commune
+       - data-blocking-signal-label
 
-     Variables passées via @include :
-       - $task (PoseTask) — la pose à afficher
-       - $today (Carbon) — date pivot pour les comparaisons isLate / isToday --}}
+     Bandeaux conservés AU-DESSUS de la ligne (utiles pour le tech
+     même en mode compact) :
+       - "Photo refusée" rouge (pige refusée par superviseur)
+       - "Déjà signalé" jaune (motif déjà remonté)
+   ──────────────────────────────────────────────────────────── --}}
 @php
     $status = $task->status instanceof \App\Enums\PoseTaskStatus
         ? $task->status
         : \App\Enums\PoseTaskStatus::from((string) $task->status);
     $statusColor = $status->color();
 
-    $sched = $task->scheduled_at ?? $task->created_at;
-    $isLate = $sched && \Carbon\Carbon::parse($sched)->startOfDay()->lt($today);
-
-    // Photo cible du panneau : 1re photo si dispo, sinon placeholder
-    $firstPhoto = $task->panel?->photos?->sortBy('ordre')->first();
-    $thumbUrl   = $firstPhoto ? asset('storage/' . $firstPhoto->path) : null;
-
-    // "Y aller" : direction GPS si lat/lng dispo, sinon recherche adresse
-    $hasGps = $task->panel?->latitude && $task->panel?->longitude;
-    if ($hasGps) {
-        $goUrl = 'https://www.google.com/maps/dir/?api=1&destination=' . $task->panel->latitude . ',' . $task->panel->longitude;
-    } else {
-        $loc = array_filter([$task->panel?->adresse, $task->panel?->quartier, $task->panel?->commune?->name, 'Côte d\'Ivoire']);
-        $goUrl = 'https://www.google.com/maps/search/?api=1&query=' . urlencode(implode(', ', $loc));
-    }
+    $sched   = $task->scheduled_at ?? $task->created_at;
+    $isLate  = $sched && \Carbon\Carbon::parse($sched)->startOfDay()->lt($today);
+    $isToday = $sched && \Carbon\Carbon::parse($sched)->isToday();
 
     $searchHay = mb_strtolower(implode(' ', array_filter([
         $task->panel?->reference, $task->panel?->name,
@@ -51,18 +38,12 @@
         $task->panel?->adresse, $task->campaign?->name,
         $task->campaign?->client?->name,
     ])));
-@endphp
-@php
-    // Dernier signalement de problème terrain (s'il y en a un)
+
     $lastProblem  = $task->lastProblemReport;
     $problemMotif = $lastProblem?->effectiveMotif();
     $problemLabel = $problemMotif?->label();
     $problemAgo   = $lastProblem?->created_at?->diffForHumans(null, true);
-@endphp
-@php $rejPige = $task->latestRejectedPige; @endphp
-@php
-    $sched = $task->scheduled_at ?? $task->created_at;
-    $isToday = $sched && \Carbon\Carbon::parse($sched)->isToday();
+    $rejPige      = $task->latestRejectedPige;
 @endphp
 <div class="pose pose-line {{ $lastProblem ? 'has-problem' : '' }} {{ $rejPige ? 'has-reject' : '' }}"
      data-task-id="{{ $task->id }}"
@@ -76,64 +57,34 @@
      data-has-reject="{{ $rejPige ? '1' : '0' }}"
      data-scheduled-at="{{ $sched ? \Carbon\Carbon::parse($sched)->toIso8601String() : '' }}"
      data-commune="{{ $task->panel?->commune?->name }}"
-     @if($lastProblem)
-     data-blocking-signal-label="{{ $problemLabel }}"
-     @endif>
-    {{-- Bandeau ROUGE "photo refusée par le superviseur" — motif
-         visible direct, le tech sait quoi corriger en re-prenant
-         la photo. Prioritaire sur le bandeau signalement. --}}
+     @if($lastProblem) data-blocking-signal-label="{{ $problemLabel }}" @endif>
+
+    {{-- Bandeaux alerte AU-DESSUS de la ligne (visibles sans ouvrir le drawer) --}}
     @include('public.tech.partials._banner_rejected_photo', ['rejPige' => $rejPige])
-    {{-- Bandeau "déjà signalé" — rappel au tech pour ne pas
-         re-signaler le même problème sans le savoir. --}}
-    <div class="pose-reported-banner" data-problem-banner
-         style="{{ $lastProblem ? '' : 'display:none' }}">
-        ⚠ Tu as déjà dit : <strong data-problem-label>{{ $problemLabel ?: '—' }}</strong>
-        <span class="reported-when" data-problem-when>{{ $problemAgo ? 'il y a '.$problemAgo : '' }}</span>
-    </div>
-    {{-- Geste 1 : tap n'importe où sur la ligne = caméra arrière --}}
-    <label class="pose-main" data-action="photo">
-        <input type="file" accept="image/*" capture="environment" data-photo-input>
-        @if($thumbUrl)
-            <span class="pose-thumb" style="background-image:url('{{ $thumbUrl }}')"></span>
-        @else
-            <span class="pose-thumb" title="Pas de photo de référence">🪧</span>
-        @endif
-        <div class="pose-info">
-            <div class="pose-ref">
-                {{ $task->panel?->reference ?? '—' }}
-            </div>
+    @if($lastProblem)
+        <div class="pose-reported-banner" data-problem-banner>
+            ⚠ Tu as déjà dit : <strong data-problem-label>{{ $problemLabel ?: '—' }}</strong>
+            <span class="reported-when" data-problem-when>{{ $problemAgo ? 'il y a '.$problemAgo : '' }}</span>
+        </div>
+    @endif
+
+    {{-- Ligne compacte : pastille statut + ref/nom + meta légère + chevron --}}
+    <div class="pose-row" role="button" tabindex="0"
+         aria-label="Voir le détail de la pose {{ $task->panel?->reference ?? '' }}">
+        <span class="pose-dot" style="background:{{ $statusColor }}" title="{{ $status->label() }}"></span>
+        <div class="pose-row-info">
+            <div class="pose-ref">{{ $task->panel?->reference ?? '—' }}</div>
             @if($task->panel?->name)
-                <div class="pose-name">{{ $task->panel->name }}</div>
+                <div class="pose-name">{{ \Illuminate\Support\Str::limit($task->panel->name, 36) }}</div>
             @endif
             <div class="pose-sub">
-                @if($isLate)
-                    <span class="late">⏰ En retard</span>
-                @endif
-                @if($task->campaign)
-                    <span>📢 {{ Str::limit($task->campaign->name, 28) }}</span>
-                @endif
+                @if($isLate)<span class="late">⏰ En retard</span>@endif
+                @if($task->panel?->commune?->name)<span>📍 {{ $task->panel->commune->name }}</span>@endif
                 @if($task->scheduled_at)
                     <span>📅 {{ \Carbon\Carbon::parse($task->scheduled_at)->format('d/m à H\hi') }}</span>
                 @endif
             </div>
         </div>
-        <span class="pose-dot" style="background:{{ $statusColor }}" title="{{ $status->label() }}"></span>
-        <span class="pose-cam" aria-hidden="true">📷</span>
-    </label>
-    <div class="pose-actions-row">
-        <a class="pose-act act-go" href="{{ $goUrl }}" target="_blank" rel="noopener" data-go-maps>🧭 Y aller</a>
-        {{-- Bouton "Sur place" : visible si pas encore terminé.
-             Désactivé si déjà en_cours pour éviter les re-clics. --}}
-        <button type="button"
-                class="pose-act act-arrive"
-                data-action="arrive"
-                {{ $status->value === 'en_cours' ? 'disabled' : '' }}>
-            @if($status->value === 'en_cours')
-                ✓ J'y suis
-            @else
-                📍 J'y suis
-            @endif
-        </button>
-        <button type="button" class="pose-act act-warn" data-action="report">⚠️ Souci</button>
+        <span class="pose-chevron" aria-hidden="true">›</span>
     </div>
 </div>
