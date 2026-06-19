@@ -1,3 +1,10 @@
+/* SM2 hotfix — l'attribut HTML hidden DOIT toujours masquer un
+   élément. Sans ce !important, .xxx-overlay { display:flex } définit
+   plus tard dans le fichier surcharge la règle UA stylesheet
+   [hidden]{display:none} et l'overlay reste position:fixed inset:0
+   en opacity:0 → invisible mais intercepte TOUS les clics de la page. */
+[hidden] { display: none !important; }
+
 /* SM2b Phase 5 — Modale validation photo (A4). */
 
 .pige-validate-overlay {

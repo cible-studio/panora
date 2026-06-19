@@ -1,3 +1,10 @@
+/* SM2 hotfix — l'attribut HTML hidden DOIT toujours masquer un
+   élément. Sans ce !important, .xxx-overlay { display:flex } définit
+   plus tard dans le fichier surcharge la règle UA stylesheet
+   [hidden]{display:none} et l'overlay reste position:fixed inset:0
+   en opacity:0 → invisible mais intercepte TOUS les clics de la page. */
+[hidden] { display: none !important; }
+
 /* SM2c — Écrans bonus B1 + B2 + B3 + finitions. Chargé EN PLUS de
    tech-app.css. Réutilise les variables --c-* SM2a déjà exposées par
    tech-app.css :root. */
