@@ -51,11 +51,25 @@ class AdminLiveDashboardService
         $startOfDay = Carbon::today()->startOfDay();
         $endOfDay   = Carbon::today()->endOfDay();
 
-        $totalToday = PoseTask::whereBetween('scheduled_at', [$startOfDay, $endOfDay])
-            ->whereNotNull('panel_id')
+        // Hotfix 2026-06-19 :
+        // L'ancienne version comptait `done` par scheduled_at today. Or les
+        // techs travaillent en avance/retard de leurs poses planifiées — un
+        // tech qui livre 5 poses prévues le 01/07 alors qu'on est le 19/06
+        // avait son compteur "FAITES" bloqué à 0 sur le pilotage admin.
+        // On bascule sur done_at qui reflète l'activité RÉELLE du jour.
+        //
+        // POSES DU JOUR : poses planifiées aujourd'hui OU livrées aujourd'hui
+        // (union, sans double-comptage).
+        $totalToday = PoseTask::whereNotNull('panel_id')
+            ->where(function ($q) use ($startOfDay, $endOfDay) {
+                $q->whereBetween('scheduled_at', [$startOfDay, $endOfDay])
+                  ->orWhereBetween('done_at',    [$startOfDay, $endOfDay]);
+            })
             ->count();
 
-        $done = PoseTask::whereBetween('scheduled_at', [$startOfDay, $endOfDay])
+        // FAITES = poses livrées aujourd'hui (done_at), peu importe la date
+        // initialement prévue.
+        $done = PoseTask::whereBetween('done_at', [$startOfDay, $endOfDay])
             ->where('status', PoseTaskStatus::COMPLETED->value)
             ->count();
 
@@ -101,11 +115,36 @@ class AdminLiveDashboardService
         $startOfDay = Carbon::today()->startOfDay();
         $endOfDay   = Carbon::today()->endOfDay();
 
-        $total = PoseTask::where('assigned_user_id', $tech->id)
-            ->whereBetween('scheduled_at', [$startOfDay, $endOfDay])->count();
-        $done  = PoseTask::where('assigned_user_id', $tech->id)
-            ->whereBetween('scheduled_at', [$startOfDay, $endOfDay])
-            ->where('status', PoseTaskStatus::COMPLETED->value)->count();
+        // Hotfix 2026-06-19 :
+        // L'ancienne version comptait par scheduled_at today → "0/0" sur la
+        // fiche tech même quand le tech avait fini ses 5 poses prévues le
+        // 01/07 alors qu'on est le 19/06.
+        //
+        // progress.done  = total des poses LIVRÉES du tech (= ce qu'il voit
+        //                  comme "X faits" dans son espace tech)
+        // progress.total = total des poses qui lui sont ASSIGNÉES (actives
+        //                  + livrées). Permet à l'admin de voir où en est
+        //                  le tech globalement.
+        // done_today     = poses livrées aujourd'hui (utile pour fiche tech
+        //                  qui affichait "FAITES AUJOURD'HUI").
+        $doneTotal = PoseTask::where('assigned_user_id', $tech->id)
+            ->where('status', PoseTaskStatus::COMPLETED->value)
+            ->count();
+
+        $activeTotal = PoseTask::where('assigned_user_id', $tech->id)
+            ->whereNotIn('status', [
+                PoseTaskStatus::COMPLETED->value,
+                PoseTaskStatus::CANCELLED->value,
+            ])
+            ->count();
+
+        $total = $activeTotal + $doneTotal;
+        $done  = $doneTotal;
+
+        $doneToday = PoseTask::where('assigned_user_id', $tech->id)
+            ->where('status', PoseTaskStatus::COMPLETED->value)
+            ->whereBetween('done_at', [$startOfDay, $endOfDay])
+            ->count();
 
         // Tâche actuellement "active" = en_route ou en_cours (la plus récente
         // si plusieurs — rare en pratique).
@@ -134,8 +173,10 @@ class AdminLiveDashboardService
             'current_location_label' => $current?->panel?->commune?->name,
             'current_pose_label'     => $current?->panel?->name,
             'progress' => [
-                'done'  => $done,
-                'total' => $total,
+                'done'       => $done,
+                'total'      => $total,
+                'done_today' => $doneToday,
+                'remaining'  => $activeTotal,
             ],
         ];
     }

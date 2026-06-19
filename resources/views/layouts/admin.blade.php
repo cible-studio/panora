@@ -61,13 +61,9 @@
                         <span class="nav-text">Tableau de bord</span>
                     </a>
                     @php $u = auth()->user(); $isAdmin = $u?->role?->value === 'admin'; $isMP = $u?->role?->value === 'mediaplanner'; $isCom = $u?->role?->value === 'commercial'; @endphp
-                    {{-- SM2b — Pilotage terrain live (admin + MP uniquement). --}}
-                    @if($isAdmin || $isMP)
-                    <a href="{{ route('admin.pilotage') }}" data-tooltip="Pilotage terrain (live)" class="nav-item {{ request()->routeIs('admin.pilotage') ? 'active' : '' }}">
-                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></span>
-                        <span class="nav-text">Pilotage terrain</span>
-                    </a>
-                    @endif
+                    {{-- 2026-06-19 — "Pilotage terrain" déplacé en section "Opérations"
+                         juste sous "Gestion Pose OOH" (regroupement logique demandé
+                         par la patronne : suivi tech terrain à côté de la gestion). --}}
                     {{-- Disponibilités : visible aux 3 rôles staff (admin, MP, commercial)
                          depuis l'ouverture aux commerciaux pour faire des réservations. --}}
                     <a href="{{ route('admin.reservations.disponibilites') }}" data-tooltip="Disponibilités" class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
@@ -102,6 +98,13 @@
                     <a href="{{ route('admin.pose-tasks.index') }}" data-tooltip="Gestion Pose OOH" class="nav-item {{ request()->routeIs('admin.pose-tasks.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></span>
                         <span class="nav-text">Gestion Pose OOH</span>
+                    </a>
+                    {{-- SM2b — Pilotage terrain live (admin + MP uniquement).
+                         Placé sous "Gestion Pose OOH" (2026-06-19) : regroupement
+                         logique avec le suivi opérationnel des poses. --}}
+                    <a href="{{ route('admin.pilotage') }}" data-tooltip="Pilotage terrain (live)" class="nav-item {{ request()->routeIs('admin.pilotage') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></span>
+                        <span class="nav-text">Pilotage terrain</span>
                     </a>
                     <a href="{{ route('admin.piges.index') }}" data-tooltip="Piges Photos" class="nav-item {{ request()->routeIs('admin.piges.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
