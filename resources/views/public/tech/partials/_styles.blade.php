@@ -1016,6 +1016,104 @@
             margin-top: 4px;
         }
 
+        /* ─── T1 §3.5 — Section "Déjà faites" pliée ─────────────── */
+        .sm2-done-section {
+            margin: 18px 0 14px;
+            border-radius: 14px;
+            background: var(--c-green-bg);
+            border: 1px solid var(--c-green-border);
+            overflow: hidden;
+        }
+        .sm2-done-summary {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            cursor: pointer;
+            list-style: none;
+            user-select: none;
+            min-height: 48px;
+        }
+        .sm2-done-summary::-webkit-details-marker { display: none; }
+        .sm2-done-icon { font-size: 18px; line-height: 1; }
+        .sm2-done-label { flex: 1; color: var(--c-green-text); font-size: 13.5px; }
+        .sm2-done-label strong { font-weight: 800; font-variant-numeric: tabular-nums; }
+        .sm2-done-toggle {
+            font-size: 14px;
+            color: var(--c-green-text);
+            font-weight: 800;
+            transition: transform .15s ease;
+        }
+        details[open] > .sm2-done-summary .sm2-done-toggle { transform: rotate(180deg); }
+        .sm2-done-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 4px 10px 12px;
+            background: var(--surface);
+            border-top: 1px solid var(--c-green-border);
+        }
+        .sm2-done-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            padding: 8px 10px;
+            background: var(--c-green-bg);
+            border-radius: 10px;
+        }
+        .sm2-done-row-dot {
+            flex: 0 0 22px;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: var(--c-green-success);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sm2-done-row-info { flex: 1; min-width: 0; }
+        .sm2-done-row-ref {
+            font-family: ui-monospace, monospace;
+            font-size: 12.5px;
+            font-weight: 800;
+            color: var(--c-green-text);
+        }
+        .sm2-done-row-name {
+            font-size: 12.5px;
+            color: var(--text);
+            margin-top: 1px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .sm2-done-row-meta {
+            font-size: 11px;
+            color: var(--text3);
+            margin-top: 2px;
+        }
+        .sm2-done-all {
+            display: block;
+            text-align: center;
+            padding: 10px;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: var(--c-green-text);
+            text-decoration: none;
+            border-top: 1px dashed var(--c-green-border);
+            background: var(--surface);
+        }
+        .sm2-done-empty {
+            padding: 12px 14px;
+            font-size: 12px;
+            color: var(--text3);
+            font-style: italic;
+            background: var(--surface);
+            border-top: 1px solid var(--c-green-border);
+        }
+        .sm2-done-empty a { color: var(--c-green-text); font-weight: 700; }
+
         /* ─── T1 §3.1 — Bouton aide rond jaune (header) ─────────── */
         .sm2-help-btn {
             flex: 0 0 auto;

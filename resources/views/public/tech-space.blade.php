@@ -134,6 +134,9 @@
             'today'            => $today,
         ])
 
+        {{-- SM2a Lot 1.4 — Section "🟢 Déjà faites" pliée par défaut. --}}
+        @include('public.tech.partials._done_section')
+
     @endif
 
     <div class="footer">

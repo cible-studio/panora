@@ -158,6 +158,17 @@ class TechSpaceController extends Controller
             ->map(fn($g) => $g->count())
             ->all();
 
+        // SM2a Lot 1.4 — Liste des 30 poses récentes TERMINÉES, pour la
+        // section "🟢 Déjà faites" (pliée par défaut) du carnet T1 §3.5.
+        // Cap à 30 pour éviter de saturer le DOM Android Go ; au-delà, le
+        // tech peut tout voir dans /tech/{token}/piges.
+        $donePosesRecent = PoseTask::where('assigned_user_id', $tech->id)
+            ->where('status', PoseTaskStatus::COMPLETED->value)
+            ->with(['panel:id,reference,name,commune_id', 'panel.commune:id,name'])
+            ->orderByDesc('updated_at')
+            ->limit(30)
+            ->get();
+
         // Regroupement par COMMUNE/ZONE (le tech fait une zone entière avant
         // de se déplacer), pas par campagne ni par date. À l'intérieur d'une
         // zone : les poses en retard d'abord, puis par échéance.
@@ -293,6 +304,7 @@ class TechSpaceController extends Controller
             'progressPct'      => $progressPct,
             'groupedByCommune' => $groupedByCommune,
             'doneByCommune'    => $doneByCommune,
+            'donePosesRecent'  => $donePosesRecent, // SM2a Lot 1.4
             'allZones'         => $allZones,
             'nextTask'         => $nextTask,
             // Métriques journée
