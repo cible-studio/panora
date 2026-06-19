@@ -342,6 +342,118 @@ class TaxController extends Controller
         return $total;
     }
 
+    /**
+     * LOT 2 (cahier 2026-06-19) — Fiche commune détaillée.
+     *
+     * Construit pour une commune et une année :
+     *   - infos générales (panneaux, occupés, taux occupation)
+     *   - matrice mensuelle 12 lignes (ODP dû · TM due · Total dû · Total payé · Solde)
+     *   - cumuls trimestriels (4 lignes Q1..Q4)
+     *   - cumul annuel
+     *
+     * Source unique pour le calcul théorique : TaxCalculationService.
+     * Source unique pour les paiements : CommuneTaxPayment (cohérent
+     * avec /admin/taxes/calcul, agrégation multi-périodicité prorata).
+     */
+    public function showCommune(Commune $commune, Request $request, TaxCalculationService $calc)
+    {
+        $year = (int) $request->input('year', date('Y'));
+        $anneesDispos = range(date('Y') + 1, max(2020, date('Y') - 5));
+
+        // ── Infos générales (snapshot live) ────────────────────────
+        $panels = $commune->panels()
+            ->whereNull('deleted_at')
+            ->whereNotIn('status', ['maintenance'])
+            ->get();
+        $nbPanneaux = $panels->count();
+        $nbOccupes  = $panels->whereIn('status', ['occupe', 'confirme', 'option'])->count();
+        $tauxOccupation = $nbPanneaux > 0 ? round(($nbOccupes / $nbPanneaux) * 100, 1) : 0;
+
+        // ── Tous les paiements de l'année (tous types confondus) ──
+        // Agrégés par mois ensuite via prorata, comme dans calcul().
+        $allPayments = CommuneTaxPayment::where('commune_id', $commune->id)
+            ->where('period_year', $year)
+            ->get();
+
+        // ── Matrice mensuelle (Jan..Déc) ──────────────────────────
+        $monthNames = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+                              'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+        $matrix = [];
+        for ($m = 1; $m <= 12; $m++) {
+            // Calcul théorique mois m (TaxCalculationService)
+            $lines  = $calc->generateLines(TaxCalculationService::PERIOD_MONTHLY, $m, $year, ['commune_id' => $commune->id]);
+            $totals = $calc->summarize($lines);
+            $odpTheo = (int) ($totals['odp_total'] ?? 0);
+            $tmTheo  = (int) ($totals['tm_total']  ?? 0);
+
+            // Paiements applicables à ce mois (prorata si multi-période)
+            $odpPaye = 0.0;
+            $tmPaye  = 0.0;
+            foreach ($allPayments as $p) {
+                $months = self::monthsForPeriod($p->period_type, $p->period_value);
+                if (!in_array($m, $months, true)) continue;
+                $prorata = 1 / count($months);
+                $odpPaye += ((float) $p->odp_paye) * $prorata;
+                $tmPaye  += ((float) $p->tm_paye)  * $prorata;
+            }
+            $odpPaye = (int) round($odpPaye);
+            $tmPaye  = (int) round($tmPaye);
+            $totalTheo  = $odpTheo + $tmTheo;
+            $totalPaye  = $odpPaye + $tmPaye;
+            $solde      = max(0, $totalTheo - $totalPaye);
+
+            $matrix[] = [
+                'mois'        => $m,
+                'mois_label'  => $monthNames[$m],
+                'odp_du'      => $odpTheo,
+                'tm_du'       => $tmTheo,
+                'total_du'    => $totalTheo,
+                'total_paye'  => $totalPaye,
+                'solde'       => $solde,
+                'statut'      => $totalTheo === 0 ? 'aucun'
+                               : ($totalPaye <= 0 ? 'non_paye'
+                               : ($totalPaye >= $totalTheo - 1 ? 'paye' : 'partiel')),
+            ];
+        }
+
+        // ── Cumul trimestriel Q1..Q4 (somme des 3 mois du trimestre)
+        $quarterly = [];
+        for ($q = 1; $q <= 4; $q++) {
+            $monthsInQ = range(($q - 1) * 3 + 1, $q * 3);
+            $slice = collect($matrix)->whereIn('mois', $monthsInQ);
+            $quarterly[] = [
+                'q'           => $q,
+                'label'       => 'T' . $q . ' (' . $monthNames[$monthsInQ[0]] . '-' . $monthNames[$monthsInQ[2]] . ')',
+                'odp_du'      => $slice->sum('odp_du'),
+                'tm_du'       => $slice->sum('tm_du'),
+                'total_du'    => $slice->sum('total_du'),
+                'total_paye'  => $slice->sum('total_paye'),
+                'solde'       => $slice->sum('solde'),
+            ];
+        }
+
+        // ── Cumul annuel ─────────────────────────────────────────
+        $annual = [
+            'odp_du'     => collect($matrix)->sum('odp_du'),
+            'tm_du'      => collect($matrix)->sum('tm_du'),
+            'total_du'   => collect($matrix)->sum('total_du'),
+            'total_paye' => collect($matrix)->sum('total_paye'),
+            'solde'      => collect($matrix)->sum('solde'),
+        ];
+
+        return view('admin.taxes.commune-show', [
+            'commune'        => $commune,
+            'year'           => $year,
+            'anneesDispos'   => $anneesDispos,
+            'nbPanneaux'     => $nbPanneaux,
+            'nbOccupes'      => $nbOccupes,
+            'tauxOccupation' => $tauxOccupation,
+            'matrix'         => $matrix,
+            'quarterly'      => $quarterly,
+            'annual'         => $annual,
+        ]);
+    }
+
     public function create()
     {
         $communes = Commune::orderBy('name')->get();
@@ -660,6 +772,43 @@ class TaxController extends Controller
             'communes_actives' => $rows->count(),
             'panneaux_total'   => (int) $rows->sum('nb_panneaux'),
         ];
+
+        // LOT 4 (cahier 2026-06-19) — KPIs supplémentaires.
+        //   - Répartition Abidjan / Intérieur (montants théoriques)
+        //   - Top 5 communes par montant dû
+        //   - Taux de couverture global (payé / dû)
+        $abidjan = $rows->filter(fn ($r) => strtolower($r['city'] ?? '') === 'abidjan');
+        $interieur = $rows->reject(fn ($r) => strtolower($r['city'] ?? '') === 'abidjan');
+        $kpi['breakdown'] = [
+            'abidjan' => [
+                'total_du'   => (float) $abidjan->sum('total_theorique'),
+                'total_paye' => (float) $abidjan->sum('total_paye'),
+                'solde'      => (float) $abidjan->sum('solde'),
+                'communes'   => $abidjan->count(),
+                'panneaux'   => (int) $abidjan->sum('nb_panneaux'),
+            ],
+            'interieur' => [
+                'total_du'   => (float) $interieur->sum('total_theorique'),
+                'total_paye' => (float) $interieur->sum('total_paye'),
+                'solde'      => (float) $interieur->sum('solde'),
+                'communes'   => $interieur->count(),
+                'panneaux'   => (int) $interieur->sum('nb_panneaux'),
+            ],
+        ];
+        $kpi['top_communes'] = $rows
+            ->sortByDesc('total_theorique')
+            ->take(5)
+            ->map(fn ($r) => [
+                'commune_id'      => $r['commune_id'],
+                'commune'         => $r['commune'],
+                'total_theorique' => (float) $r['total_theorique'],
+                'total_paye'      => (float) $r['total_paye'],
+                'solde'           => (float) $r['solde'],
+            ])
+            ->values();
+        $kpi['taux_couverture'] = $kpi['grand_total'] > 0
+            ? round(($kpi['paye_total'] / $kpi['grand_total']) * 100, 1)
+            : 0;
 
         return response()->json([
             'period_type'  => $periodType,

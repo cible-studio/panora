@@ -627,6 +627,11 @@ Route::prefix('admin')
             Route::get ('taxes/commune/{commune}/payments-history',
                 [TaxController::class, 'communePaymentsHistory'])
                 ->name('taxes.commune.payments-history');
+            // LOT 2 (cahier 2026-06-19) — Fiche commune détaillée (suivi mensuel
+            // + cumul trimestriel + cumul annuel).
+            Route::get ('taxes/commune/{commune}',
+                [TaxController::class, 'showCommune'])
+                ->name('taxes.commune.show');
             Route::resource('taxes', TaxController::class);
             Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
             Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');

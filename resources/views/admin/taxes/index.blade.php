@@ -74,6 +74,56 @@
         <div class="kpi-hint" style="font-size:10px;color:var(--text3);margin-top:3px;">FCFA · cliquer pour filtrer</div>
     </div>
     @endforeach
+    {{-- LOT 4 (cahier 2026-06-19) — KPI Taux de couverture (% payé / dû). --}}
+    <div class="tax-kpi-card" style="background:var(--surface);border:1px solid var(--border);border-left:4px solid #6366f1;border-radius:12px;padding:14px 16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px">Taux couverture</span>
+            <span style="font-size:14px">📊</span>
+        </div>
+        <div data-kpi="taux_couverture" style="font-size:18px;font-weight:800;color:#6366f1;font-variant-numeric:tabular-nums">—</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">% payé / dû sur la période</div>
+    </div>
+</div>
+
+{{-- ════ LOT 4 — KPIs supplémentaires (Abidjan/Intérieur + Top communes) ════ --}}
+<div style="display:grid;grid-template-columns:1fr 1.5fr;gap:12px;margin-bottom:18px" class="tax-extras-grid">
+    {{-- Répartition Abidjan / Intérieur --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px">
+        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+            🌍 Répartition géographique
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.20);border-radius:8px">
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.4px">Abidjan</div>
+                    <div data-kpi-extra="abidjan_count" style="font-size:10.5px;color:var(--text3);margin-top:2px">— communes · — panneaux</div>
+                </div>
+                <div style="text-align:right">
+                    <div data-kpi-extra="abidjan_du" style="font-size:13px;font-weight:800;color:#1d4ed8;font-variant-numeric:tabular-nums">—</div>
+                    <div data-kpi-extra="abidjan_paye" style="font-size:10px;color:#15803d;margin-top:1px">payé : —</div>
+                </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.20);border-radius:8px">
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.4px">Intérieur</div>
+                    <div data-kpi-extra="interieur_count" style="font-size:10.5px;color:var(--text3);margin-top:2px">— communes · — panneaux</div>
+                </div>
+                <div style="text-align:right">
+                    <div data-kpi-extra="interieur_du" style="font-size:13px;font-weight:800;color:#15803d;font-variant-numeric:tabular-nums">—</div>
+                    <div data-kpi-extra="interieur_paye" style="font-size:10px;color:#15803d;margin-top:1px">payé : —</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{-- Top 5 communes par montant dû --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px">
+        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+            🏆 Top 5 communes les plus taxées (période)
+        </div>
+        <div id="top-communes-list" style="display:flex;flex-direction:column;gap:5px">
+            <div style="text-align:center;color:var(--text3);font-size:11px;font-style:italic;padding:10px">Chargement…</div>
+        </div>
+    </div>
 </div>
 
 {{-- ════ TABLEAU LIVE ════ --}}
@@ -377,6 +427,49 @@ window.TaxModule = (function () {
             const key = el.dataset.kpi;
             el.textContent = fmt(kpi[key] || 0);
         });
+        // LOT 4 — Taux de couverture (% payé / dû).
+        const cov = document.querySelector('[data-kpi="taux_couverture"]');
+        if (cov) cov.textContent = (kpi.taux_couverture ?? 0) + ' %';
+
+        // LOT 4 — Répartition Abidjan / Intérieur.
+        const setExtra = (id, val) => {
+            const el = document.querySelector(`[data-kpi-extra="${id}"]`);
+            if (el) el.textContent = val;
+        };
+        const ab = kpi.breakdown?.abidjan   || {};
+        const it = kpi.breakdown?.interieur || {};
+        setExtra('abidjan_count',   `${ab.communes ?? 0} communes · ${ab.panneaux ?? 0} panneaux`);
+        setExtra('abidjan_du',      fmt(ab.total_du ?? 0) + ' FCFA');
+        setExtra('abidjan_paye',    'payé : ' + fmt(ab.total_paye ?? 0));
+        setExtra('interieur_count', `${it.communes ?? 0} communes · ${it.panneaux ?? 0} panneaux`);
+        setExtra('interieur_du',    fmt(it.total_du ?? 0) + ' FCFA');
+        setExtra('interieur_paye',  'payé : ' + fmt(it.total_paye ?? 0));
+
+        // LOT 4 — Top 5 communes (cliquable vers la fiche).
+        const topEl = document.getElementById('top-communes-list');
+        if (topEl) {
+            const top = kpi.top_communes || [];
+            if (top.length === 0) {
+                topEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;font-style:italic;padding:10px">Aucune commune sur la période.</div>';
+            } else {
+                topEl.innerHTML = top.map((c, i) => {
+                    const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));
+                    const pctPaye = c.total_theorique > 0 ? Math.round((c.total_paye / c.total_theorique) * 100) : 0;
+                    return `
+                        <a href="/admin/taxes/commune/${c.commune_id}"
+                           style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-radius:8px;text-decoration:none;color:inherit;transition:transform .15s"
+                           onmouseenter="this.style.transform='translateX(2px)'"
+                           onmouseleave="this.style.transform=''"
+                           title="Ouvrir la fiche détaillée de ${c.commune}">
+                            <span style="font-size:12px;width:22px;flex-shrink:0;text-align:center">${medal}</span>
+                            <span style="flex:1;font-size:12px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.commune}</span>
+                            <span style="font-size:11.5px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;text-align:right">${fmt(c.total_theorique)}</span>
+                            <span style="font-size:9.5px;color:${pctPaye >= 80 ? '#15803d' : (pctPaye >= 30 ? '#b45309' : '#b91c1c')};font-weight:700;width:32px;text-align:right">${pctPaye}%</span>
+                        </a>
+                    `;
+                }).join('');
+            }
+        }
     }
 
     function statusPill(statut) {
@@ -433,6 +526,13 @@ window.TaxModule = (function () {
                                 onclick="TaxModule.openPaymentModal(${c.commune_id})">
                             ${c.payment_id ? '✏️ Modifier' : '💰 Payer'}
                         </button>
+                        {{-- LOT 2 — Fiche commune (suivi mensuel + cumul trim/annuel). --}}
+                        <a href="/admin/taxes/commune/${c.commune_id}"
+                           class="tax-pay-btn"
+                           style="margin-left:4px;background:rgba(232,160,32,.10);color:#b45309;border:1px solid rgba(232,160,32,.30);text-decoration:none;display:inline-block"
+                           title="Fiche détaillée de ${c.commune} (suivi mensuel + trimestriel + annuel)">
+                            🏛️ Fiche
+                        </a>
                         {{-- LOT 3 — Historique paiements détaillé de cette commune. --}}
                         <a href="/admin/taxes/commune/${c.commune_id}/payments-history"
                            class="tax-pay-btn"
