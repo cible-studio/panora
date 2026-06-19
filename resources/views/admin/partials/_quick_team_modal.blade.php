@@ -22,8 +22,10 @@
     $availableTechs   = $available_techs ?? collect();
 @endphp
 
+{{-- 2026-06-19 — z-index 10500 : doit rester AU-DESSUS de Select2 (10000 dans app.css)
+     sinon les dropdowns Select2 (ex : champ Campagne, Client) dépassent par-dessus. --}}
 <div id="qtt-modal"
-     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9000;align-items:center;justify-content:center;padding:16px"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10500;align-items:center;justify-content:center;padding:16px"
      onclick="if(event.target===this)closeQuickTeamModal()">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:480px;display:flex;flex-direction:column;overflow:hidden"
          onclick="event.stopPropagation()">
@@ -142,6 +144,11 @@
         opts = opts || {};
         if (opts.target_select_id)  QTT_TARGET = opts.target_select_id;
         QTT_RELOAD = !!opts.reload_on_success;
+        // Ferme les dropdowns Select2 ouverts pour éviter qu'ils dépassent
+        // visuellement par-dessus la modale (cf. capture 2026-06-19).
+        if (window.jQuery && jQuery.fn.select2) {
+            try { jQuery('select.select2-hidden-accessible').select2('close'); } catch (e) {}
+        }
         document.getElementById('qtt-name').value = '';
         document.getElementById('qtt-description').value = '';
         // Reset des cases membres (sinon les coches précédentes persistent).

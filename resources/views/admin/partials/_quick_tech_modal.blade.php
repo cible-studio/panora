@@ -17,8 +17,10 @@
     $targetSelectId = $target_select_id ?? 'qt-target-select';
 @endphp
 
+{{-- 2026-06-19 — z-index 10500 : doit rester AU-DESSUS de Select2 (10000 dans app.css)
+     sinon les dropdowns Select2 (ex : champ Campagne, Client) dépassent par-dessus. --}}
 <div id="qt-modal"
-     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9000;align-items:center;justify-content:center;padding:16px"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10500;align-items:center;justify-content:center;padding:16px"
      onclick="if(event.target===this)closeQuickTechModal()">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:480px;display:flex;flex-direction:column;overflow:hidden"
          onclick="event.stopPropagation()">
