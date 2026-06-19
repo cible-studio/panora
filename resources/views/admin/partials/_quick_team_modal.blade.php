@@ -14,11 +14,11 @@
 @php
     $qtTargetSelectId = $target_select_id ?? 'qt-team-target-select';
     $palette          = \App\Models\PoseTeam::COLOR_PALETTE;
-    // Techniciens disponibles pour rattachement immédiat à la nouvelle équipe.
-    // La vue parent peut passer `available_techs` (collection filtrée sur
-    // pose_team_id NULL). Sinon, on n'affiche pas la zone de checkboxes
-    // pour garder la modale simple — l'admin pourra ajouter des membres plus
-    // tard depuis /admin/teams.
+    // Liste de techniciens proposée à la sélection. Inclut TOUS les techniciens
+    // (avec et sans équipe). Cocher un tech déjà rattaché à une équipe Y
+    // le DÉPLACE vers la nouvelle équipe — l'observer User::pose_team_id
+    // gère ce transfert via un simple UPDATE bulk dans PoseTeamController::store.
+    // L'info de l'équipe actuelle est affichée en badge informatif.
     $availableTechs   = $available_techs ?? collect();
 @endphp
 
@@ -56,25 +56,34 @@
             </div>
 
             @if($availableTechs->isNotEmpty())
-                {{-- Liste de techniciens disponibles (= sans équipe assignée).
-                     Ceux déjà dans une équipe sont volontairement omis : un
-                     technicien ne peut être que dans UNE seule équipe à la fois
-                     (cf. User.pose_team_id, foreign key simple). --}}
+                {{-- Liste de tous les techniciens. Ceux déjà dans une équipe sont
+                     affichés avec un badge "actuellement dans X". Les cocher les
+                     DÉPLACE vers la nouvelle équipe (1 tech = 1 équipe, simple
+                     transfert via update pose_team_id). --}}
                 <div style="margin-bottom:12px">
                     <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:5px">Membres à rattacher (optionnel)</label>
-                    <div style="max-height:170px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:8px 10px">
+                    <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:8px 10px">
                         @foreach($availableTechs as $tech)
+                            @php $currentTeam = $tech->poseTeam?->name; @endphp
                             <label class="qtt-tech-row" style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:12.5px">
-                                <input type="checkbox" class="qtt-member" value="{{ $tech->id }}" style="margin:0;accent-color:var(--accent);width:15px;height:15px">
+                                <input type="checkbox" class="qtt-member" value="{{ $tech->id }}"
+                                       data-current-team="{{ $currentTeam ?? '' }}"
+                                       style="margin:0;accent-color:var(--accent);width:15px;height:15px;flex-shrink:0">
                                 <span style="font-weight:600;color:var(--text)">{{ $tech->name }}</span>
                                 @if($tech->agent_code)
                                     <span style="font-family:ui-monospace,monospace;font-size:10.5px;color:var(--text3)">({{ $tech->agent_code }})</span>
+                                @endif
+                                @if($currentTeam)
+                                    <span style="margin-left:auto;font-size:10.5px;background:rgba(245,158,11,.14);color:#b45309;padding:1px 8px;border-radius:999px;font-weight:600"
+                                          title="Le cocher le transférera vers la nouvelle équipe">
+                                        ↻ {{ $currentTeam }}
+                                    </span>
                                 @endif
                             </label>
                         @endforeach
                     </div>
                     <small style="display:block;color:var(--text3);font-size:10.5px;margin-top:4px">
-                        Cocher les techniciens à inclure dans l'équipe. Seuls ceux <strong>sans équipe</strong> apparaissent (un technicien ne peut être que dans une équipe à la fois).
+                        Cocher les techniciens à inclure dans l'équipe. Ceux ayant un badge <span style="background:rgba(245,158,11,.14);color:#b45309;padding:0 6px;border-radius:999px;font-size:9.5px;font-weight:600">↻ équipe</span> seront <strong>transférés</strong> depuis leur équipe actuelle.
                     </small>
                 </div>
             @endif

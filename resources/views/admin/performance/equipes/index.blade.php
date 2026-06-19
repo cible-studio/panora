@@ -43,7 +43,9 @@
 
     @include('admin.partials._quick_team_modal', [
         'target_select_id' => 'noop-no-select-here',
-        'available_techs'  => \App\Models\User::techniciens()->whereNull('pose_team_id')->get(['id', 'name', 'agent_code']),
+        // TOUS les techniciens — ceux déjà dans une équipe affichent un badge
+        // "↻ équipe X" et la sélection les TRANSFÈRE vers la nouvelle équipe.
+        'available_techs'  => \App\Models\User::techniciens()->with('poseTeam:id,name')->get(['id', 'name', 'agent_code', 'pose_team_id']),
     ])
 
     <form method="GET" class="perf-filter-card" style="margin-bottom:16px">
