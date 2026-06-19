@@ -7,7 +7,10 @@
 // pour ne pas re-pop la modale en boucle.
 
 const SEL_OVERLAY = '#sm2c-b1-overlay';
-const TOLERANCE_MIN = 60;
+// Hotfix 2026-06-19 : tolérance portée à 120 min (= 2h) cohérente avec
+// le seuil "négligeable" du helper PHP HumanTimeDiff::formatScheduleDiff.
+// On peut faire des poses 2h en avance/retard sans modale interruptive.
+const TOLERANCE_MIN = 120;
 const ACK_KEY_PREFIX = 'off_schedule_ack_';
 let pendingPoseEl = null;
 let nextClickEvent = null;
@@ -33,16 +36,59 @@ function markAcked(taskId) {
     catch (e) {}
 }
 
+// Aligné sur app/Helpers/HumanTimeDiff::formatScheduleDiff (PHP).
+// Évite d'afficher "275h 30 min en avance" pour une pose dans 11 jours.
+//
+// Retourne null si l'écart est négligeable (< 2h) → la modale ne s'ouvre
+// pas. Sinon une formulation humaine prête à coller à la suite du verbe.
+//
+// Exemples (depuis maintenant) :
+//   - 30 min      → null
+//   - 6h après    → "avec 6 heures d'avance"
+//   - 6h avant    → "avec 6 heures de retard"
+//   - 20h après   → "avec moins d'un jour d'avance"
+//   - 3 jours    → "avec 3 jours d'avance"
+//   - 15 jours    → "prévue dans 2 semaines"
+//   - 2 mois      → "prévue le 19 août"
 function describeOffset(scheduledAt) {
-    const diffMs = scheduledAt - Date.now();
-    const abs = Math.abs(diffMs);
-    const h = Math.floor(abs / 3600000);
-    const m = Math.floor((abs % 3600000) / 60000);
-    const direction = diffMs > 0 ? 'en avance' : 'de retard';
-    const parts = [];
-    if (h > 0) parts.push(`${h}h`);
-    if (m > 0) parts.push(`${m} min`);
-    return `${parts.join(' ') || 'quelques minutes'} ${direction}`;
+    const diffMs    = scheduledAt - Date.now();
+    const absMin    = Math.abs(diffMs) / 60000;
+    if (absMin < 120) return null;
+
+    const isLate    = diffMs < 0;
+    const direction = isLate ? 'de retard' : "d'avance";
+
+    // 2h ≤ écart < 12h
+    if (absMin < 12 * 60) {
+        const h = Math.floor(absMin / 60);
+        return `avec ${h} heures ${direction}`;
+    }
+    // 12h ≤ écart < 24h
+    if (absMin < 24 * 60) {
+        return `avec moins d'un jour ${direction}`;
+    }
+
+    const absDays = Math.floor(absMin / (24 * 60));
+
+    // 1j ≤ écart < 7j
+    if (absDays < 7) {
+        const jourMot = absDays > 1 ? 'jours' : 'jour';
+        return `avec ${absDays} ${jourMot} ${direction}`;
+    }
+
+    // 7j ≤ écart < 30j — semaines pour l'avance, jours pour le retard
+    if (absDays < 30 && !isLate) {
+        const semaines   = Math.floor(absDays / 7);
+        const semaineMot = semaines > 1 ? 'semaines' : 'semaine';
+        return `prévue dans ${semaines} ${semaineMot}`;
+    }
+    if (absDays < 30 && isLate) {
+        return `avec ${absDays} jours de retard`;
+    }
+
+    // > 30 jours → date pleine (en français localisé via toLocaleDateString)
+    const dateStr = scheduledAt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+    return `prévue le ${dateStr}`;
 }
 
 function open(poseEl) {
@@ -55,8 +101,18 @@ function open(poseEl) {
     const titleEl = overlay.querySelector('[data-field="title"]');
     const subEl   = overlay.querySelector('[data-field="sub"]');
     const offset  = describeOffset(scheduled);
+
+    // Si offset null (< 2h, ne devrait pas arriver — déjà filtré par
+    // isOffSchedule — mais défensif), on n'ouvre pas la modale.
+    if (!offset) { pendingPoseEl = null; return; }
+
     titleEl && (titleEl.textContent = 'Tu démarres cette pose ' + offset);
-    subEl   && (subEl.textContent   = `Elle était prévue à ${scheduled.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}. Tu peux la faire maintenant mais elle apparaîtra hors créneau pour le chef.`);
+    // Wording neutre / bienveillant (hotfix 2026-06-19) : on garde
+    // l'info de la date/heure prévue, sans le "hors créneau pour le chef"
+    // qui anxiogénise le tech terrain.
+    const datePart = scheduled.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+    const timePart = scheduled.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    subEl   && (subEl.textContent   = `Elle était prévue le ${datePart} à ${timePart}. Tu peux la faire maintenant, c'est noté.`);
 
     overlay.hidden = false;
     overlay.removeAttribute('aria-hidden');
