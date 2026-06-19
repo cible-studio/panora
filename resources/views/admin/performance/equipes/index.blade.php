@@ -33,8 +33,18 @@
         <a href="{{ route('admin.performance.tech.index', ['back' => 'performance.team']) }}" class="btn btn-ghost btn-sm">📋 Performance techniciens</a>
         <a href="{{ route('admin.performance.commercial.index', ['back' => 'performance.team']) }}" class="btn btn-ghost btn-sm">📊 Performance commerciale</a>
         <a href="{{ route('admin.teams.index', ['back' => 'performance.team']) }}" class="btn btn-ghost btn-sm">⚙ Gérer équipes</a>
-        <a href="{{ route('admin.teams.create', ['back' => 'performance.team']) }}" class="btn btn-primary btn-sm" style="margin-left:auto">+ Nouvelle équipe</a>
+        {{-- 2026-06-19 — Bouton ouvre la modale rapide (au lieu de naviguer).
+             Mode reload_on_success : recharge après création pour faire
+             apparaître la nouvelle équipe dans le classement ci-dessous. --}}
+        <button type="button" onclick="openQuickTeamModal({reload_on_success:true})"
+                class="btn btn-primary btn-sm" style="margin-left:auto"
+                title="Créer une équipe rapidement (modale)">+ Nouvelle équipe</button>
     </div>
+
+    @include('admin.partials._quick_team_modal', [
+        'target_select_id' => 'noop-no-select-here',
+        'available_techs'  => \App\Models\User::techniciens()->whereNull('pose_team_id')->get(['id', 'name', 'agent_code']),
+    ])
 
     <form method="GET" class="perf-filter-card" style="margin-bottom:16px">
         <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">

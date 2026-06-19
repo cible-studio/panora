@@ -107,6 +107,9 @@
     var QTT_TARGET = @json($qtTargetSelectId);
     var CSRF       = '{{ csrf_token() }}';
     var URL        = '{{ route('admin.teams.store') }}';
+    // Si true, recharge la page après création réussie (utile pour pages liste).
+    // Si false (défaut), injecte juste dans le select cible (formulaires).
+    var QTT_RELOAD = false;
 
     // Slug couleur actuellement sélectionnée (1ère par défaut).
     var QTT_COLOR = (function () {
@@ -128,7 +131,8 @@
 
     window.openQuickTeamModal = function (opts) {
         opts = opts || {};
-        if (opts.target_select_id) QTT_TARGET = opts.target_select_id;
+        if (opts.target_select_id)  QTT_TARGET = opts.target_select_id;
+        QTT_RELOAD = !!opts.reload_on_success;
         document.getElementById('qtt-name').value = '';
         document.getElementById('qtt-description').value = '';
         // Reset des cases membres (sinon les coches précédentes persistent).
@@ -210,11 +214,18 @@
             }
 
             var ok = document.getElementById('qtt-success');
-            ok.innerHTML = '✅ Équipe <strong>' + data.team.name + '</strong> créée et sélectionnée.';
+            ok.innerHTML = '✅ Équipe <strong>' + data.team.name + '</strong> créée'
+                         + (QTT_RELOAD ? ', rechargement de la page…' : ' et sélectionnée.');
             ok.style.display = 'block';
-            btn.textContent = '✓ Créée — fermer';
+            btn.textContent = QTT_RELOAD ? '⏳ Rechargement…' : '✓ Créée — fermer';
             btn.onclick = function () { closeQuickTeamModal(); };
             btn.disabled = false;
+
+            // Mode page liste (perf équipes, gestion équipes) : on reload pour
+            // que la nouvelle équipe apparaisse dans le classement/tableau.
+            if (QTT_RELOAD) {
+                setTimeout(function () { window.location.reload(); }, 700);
+            }
         } catch (e) {
             showErr('Erreur réseau : ' + (e.message || e));
             btn.disabled = false; btn.textContent = '✓ Créer l\'équipe';
