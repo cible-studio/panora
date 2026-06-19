@@ -315,6 +315,36 @@ Route::prefix('admin')
         // Dashboard
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+        // SM2b Lot 1.2 + 1.4 — Dashboard admin live (polling 20s côté front).
+        // JSON-only. Réservé admin + mediaplanner (le commercial n'a pas
+        // vocation à piloter les techs terrain en live).
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('/dashboard/live', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'live'])
+                ->name('dashboard.live');
+            // SM2b Phase 2 — Page Blade A1 "Pilotage terrain".
+            Route::get('/pilotage', function () {
+                return view('admin.dashboard.live');
+            })->name('pilotage');
+            // SM2b Phase 3 — Fiche tech A2 (Blade live).
+            Route::get('/pilotage/tech/{user}', function (\App\Models\User $user) {
+                abort_if($user->role?->value !== 'technique', 404);
+                return view('admin.dashboard.tech-live', ['tech' => $user]);
+            })->name('pilotage.tech');
+            // SM2b Phase 4 — Carte live A3.
+            Route::get('/pilotage/map', function () {
+                return view('admin.dashboard.map-live');
+            })->name('pilotage.map');
+            // SM2b Phase 6 — Vue équipe A5.
+            Route::get('/pilotage/team/{poseTeam}', function (\App\Models\PoseTeam $poseTeam) {
+                $poseTeam->load('members');
+                return view('admin.dashboard.team-live', ['team' => $poseTeam]);
+            })->name('pilotage.team');
+            Route::get('/tech/{user}/timeline', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'techTimeline'])
+                ->name('tech.timeline');
+            Route::get('/map/live', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'mapLive'])
+                ->name('map.live');
+        });
+
         // ── Panneaux ────────────────────────────────────────────────
         // Lecture + exports = tous les staff (admin/commercial/MP).
         // Création / modification / suppression / photos = admin + MP.
@@ -557,6 +587,8 @@ Route::prefix('admin')
             // ── Actions sur une pige ───────────────────────────────────
             Route::post('{pige}/verify', [PigeController::class, 'verify']) ->name('verify');
             Route::post('{pige}/reject', [PigeController::class, 'reject']) ->name('reject');
+            // SM2b Phase 5 — Détail JSON pour modale validation A4.
+            Route::get('{pige}/detail-json', [PigeController::class, 'detailJson'])->name('detail-json');
         
             // ── CRUD standard ──────────────────────────────────────────
             Route::get('/',           [PigeController::class, 'index'])  ->name('index');

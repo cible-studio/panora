@@ -61,6 +61,13 @@
                         <span class="nav-text">Tableau de bord</span>
                     </a>
                     @php $u = auth()->user(); $isAdmin = $u?->role?->value === 'admin'; $isMP = $u?->role?->value === 'mediaplanner'; $isCom = $u?->role?->value === 'commercial'; @endphp
+                    {{-- SM2b — Pilotage terrain live (admin + MP uniquement). --}}
+                    @if($isAdmin || $isMP)
+                    <a href="{{ route('admin.pilotage') }}" data-tooltip="Pilotage terrain (live)" class="nav-item {{ request()->routeIs('admin.pilotage') ? 'active' : '' }}">
+                        <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></span>
+                        <span class="nav-text">Pilotage terrain</span>
+                    </a>
+                    @endif
                     {{-- Disponibilités : visible aux 3 rôles staff (admin, MP, commercial)
                          depuis l'ouverture aux commerciaux pour faire des réservations. --}}
                     <a href="{{ route('admin.reservations.disponibilites') }}" data-tooltip="Disponibilités" class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
