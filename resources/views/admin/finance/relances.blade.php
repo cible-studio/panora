@@ -51,6 +51,19 @@
                title="Voir l'onglet Créances (balance âgée, factures impayées)">
                 📉 Créances
             </a>
+            {{-- Exports avec motifs — respectent les filtres actifs (période, client, canal, résultat). --}}
+            <a href="{{ route('admin.finance.relances.export.excel', request()->query()) }}"
+               class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.30);color:#15803d;font-weight:700"
+               title="Télécharger toutes les relances en Excel (1 ligne par relance, avec motif/note + suite à donner)">
+                📥 Excel
+            </a>
+            <a href="{{ route('admin.finance.relances.export.pdf', request()->query()) }}"
+               class="btn btn-ghost btn-sm"
+               style="font-size:12px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);color:#b91c1c;font-weight:700"
+               title="Télécharger une synthèse PDF groupée par client (A4 paysage)">
+                📄 PDF
+            </a>
             <button type="button" onclick="relancesOpenModal(null)"
                class="btn btn-primary btn-sm" style="font-size:12.5px;font-weight:700">
                 ＋ Enregistrer une relance

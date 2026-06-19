@@ -1078,6 +1078,12 @@ Route::prefix('admin')
                 ->name('finance.series');
             Route::get('finance/relances', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'relances'])
                 ->name('finance.relances');
+            // Exports historique relances (Excel détaillé + PDF synthèse par client)
+            // Avant /{relance}/detail pour éviter la collision sur "export" qui matche \w+
+            Route::get('finance/relances/export/excel', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'exportRelancesExcel'])
+                ->name('finance.relances.export.excel');
+            Route::get('finance/relances/export/pdf', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'exportRelancesPdf'])
+                ->name('finance.relances.export.pdf');
             Route::get('finance/relances/{relance}/detail', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'relanceDetail'])
                 ->name('finance.relances.detail');
             Route::post('finance/relances', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'storeRelance'])

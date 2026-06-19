@@ -113,12 +113,15 @@ class FinanceDashboardController extends Controller
     // RELANCES
     // ══════════════════════════════════════════════════════════════════
 
-    public function relances(Request $request)
+    /**
+     * Source UNIQUE des filtres pour toutes les vues/exports de relances
+     * (page Historique, export Excel, export PDF). CLAUDE.md règle 1 —
+     * pas de duplication entre l'affichage et les exports.
+     */
+    private function applyRelanceFiltersFromRequest(Request $request): \Closure
     {
         $commercialUid = $this->resolveCommercialScope();
-
-        // Base query scopée + filtres optionnels
-        $applyFilters = function ($q) use ($request, $commercialUid) {
+        return function ($q) use ($request, $commercialUid) {
             if ($commercialUid !== null) {
                 $q->forCommercialUser($commercialUid);
             }
@@ -145,6 +148,12 @@ class FinanceDashboardController extends Controller
                 $q->where('relance_date', '<=', $to->endOfDay());
             }
         };
+    }
+
+    public function relances(Request $request)
+    {
+        $commercialUid = $this->resolveCommercialScope();
+        $applyFilters = $this->applyRelanceFiltersFromRequest($request);
 
         // 2026-06-18 (refonte historique) — agrégation par CLIENT :
         // une ligne par client (au lieu d'une par relance), avec :
@@ -318,6 +327,90 @@ class FinanceDashboardController extends Controller
             'totalDu'        => $totalDu,
             'facturesOpen'   => $facturesOpen,
         ]);
+    }
+
+    /**
+     * Construit la ligne récap des filtres actifs (pour bandeau Excel/PDF).
+     * Cohérent avec le formulaire de la vue Historique.
+     */
+    private function buildRelanceFilterRecap(Request $request): string
+    {
+        $parts = [];
+        if ($from = $request->date('from')) $parts[] = 'Du ' . $from->format('d/m/Y');
+        if ($to   = $request->date('to'))   $parts[] = 'au ' . $to->format('d/m/Y');
+        if ($cid  = $request->integer('client_id')) {
+            $name = \App\Models\Client::whereKey($cid)->value('name');
+            if ($name) $parts[] = 'Client : ' . $name;
+        }
+        if ($canal = $request->string('canal')->toString()) {
+            $parts[] = 'Canal : ' . (\App\Models\Relance::CANAUX[$canal] ?? $canal);
+        }
+        if ($outcome = $request->string('outcome')->toString()) {
+            $labels = [
+                'promesse_paiement' => 'Promesse paiement',
+                'paiement_recu'     => 'Paiement reçu',
+                'a_relancer'        => 'À relancer',
+                'sans_reponse'      => 'Sans réponse',
+                'desaccord'         => 'Désaccord',
+                'autre'             => 'Autre',
+                '__empty'           => 'Sans résultat',
+            ];
+            $parts[] = 'Résultat : ' . ($labels[$outcome] ?? $outcome);
+        }
+        return $parts ? implode(' · ', $parts) : 'Toutes les relances (aucun filtre actif)';
+    }
+
+    /**
+     * Charge les relances filtrées (collection complète, sans pagination)
+     * avec relations utiles pour l'export — partagé entre Excel et PDF.
+     */
+    private function loadRelancesForExport(Request $request): \Illuminate\Support\Collection
+    {
+        $applyFilters = $this->applyRelanceFiltersFromRequest($request);
+        return \App\Models\Relance::query()
+            ->with(['client:id,name,phone', 'invoice:id,reference', 'user:id,name'])
+            ->tap($applyFilters)
+            ->orderBy('client_id')
+            ->orderByDesc('relance_date')
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    /**
+     * Export Excel — 1 ligne par relance avec tous les champs (motif/note,
+     * suite à donner, canal, résultat, auteur, facture). Respecte les filtres.
+     */
+    public function exportRelancesExcel(Request $request)
+    {
+        $relances = $this->loadRelancesForExport($request);
+        $recapLine = $this->buildRelanceFilterRecap($request);
+
+        $filename = 'relances-' . now()->format('Ymd_His') . '.xlsx';
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\RelancesExport($relances, $recapLine),
+            $filename
+        );
+    }
+
+    /**
+     * Export PDF — synthèse groupée par client (1 section par client avec
+     * historique chronologique). Respecte les filtres.
+     */
+    public function exportRelancesPdf(Request $request)
+    {
+        $relances = $this->loadRelancesForExport($request);
+        $byClient = $relances->groupBy('client_id');
+        $recapLine = $this->buildRelanceFilterRecap($request);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.finance.relances-pdf', [
+            'byClient'        => $byClient,
+            'totalRelances'   => $relances->count(),
+            'filterRecapLine' => $recapLine,
+            'user'            => $request->user(),
+            'operatorName'    => 'CIBLE CI',
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download('relances-' . now()->format('Ymd_His') . '.pdf');
     }
 
     public function storeRelance(Request $request, \App\Services\ReminderService $reminders)
