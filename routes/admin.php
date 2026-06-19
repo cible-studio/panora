@@ -323,6 +323,8 @@ Route::prefix('admin')
                 ->name('dashboard.live');
             Route::get('/tech/{user}/timeline', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'techTimeline'])
                 ->name('tech.timeline');
+            Route::get('/map/live', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'mapLive'])
+                ->name('map.live');
         });
 
         // ── Panneaux ────────────────────────────────────────────────
