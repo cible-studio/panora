@@ -20,7 +20,7 @@
         <script>
             window.ADMIN_DASHBOARD_CONFIG = {
                 endpoint: @json(route('admin.dashboard.live')),
-                techDetailUrlTpl: @json(route('admin.tech.timeline', ['user' => '__USER__'])),
+                techDetailUrlTpl: @json(route('admin.pilotage.tech', ['user' => '__USER__'])),
                 pollMs: 20000,
             };
         </script>
