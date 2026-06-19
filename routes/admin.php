@@ -334,6 +334,11 @@ Route::prefix('admin')
             Route::get('/pilotage/map', function () {
                 return view('admin.dashboard.map-live');
             })->name('pilotage.map');
+            // SM2b Phase 6 — Vue équipe A5.
+            Route::get('/pilotage/team/{poseTeam}', function (\App\Models\PoseTeam $poseTeam) {
+                $poseTeam->load('members');
+                return view('admin.dashboard.team-live', ['team' => $poseTeam]);
+            })->name('pilotage.team');
             Route::get('/tech/{user}/timeline', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'techTimeline'])
                 ->name('tech.timeline');
             Route::get('/map/live', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'mapLive'])
