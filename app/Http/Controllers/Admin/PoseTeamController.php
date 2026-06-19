@@ -60,8 +60,11 @@ class PoseTeamController extends Controller
         if (!empty($data['leader_user_id'])) {
             $alreadyLeader = PoseTeam::where('leader_user_id', $data['leader_user_id'])->first();
             if ($alreadyLeader) {
-                return back()->withInput()->with('error',
-                    "🚫 Ce technicien est déjà leader de l'équipe « {$alreadyLeader->name} ». Réassigne-le ou choisis un autre leader.");
+                $msg = "🚫 Ce technicien est déjà leader de l'équipe « {$alreadyLeader->name} ». Réassigne-le ou choisis un autre leader.";
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json(['ok' => false, 'message' => $msg], 422);
+                }
+                return back()->withInput()->with('error', $msg);
             }
         }
 
@@ -85,6 +88,20 @@ class PoseTeamController extends Controller
         }
 
         Log::info('pose_team.created', ['id' => $team->id, 'name' => $team->name, 'by' => $request->user()?->name]);
+
+        // 2026-06-19 — Réponse AJAX pour la modale "Création rapide" intégrée
+        // au formulaire de pose (cf. _quick_team_modal.blade.php). Compat
+        // préservée : si l'appel n'est pas XHR, redirect classique.
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'ok'   => true,
+                'team' => [
+                    'id'         => $team->id,
+                    'name'       => $team->name,
+                    'color_slug' => $team->color_slug,
+                ],
+            ]);
+        }
         return $this->redirectBack($request, "✅ Équipe « {$team->name} » créée.");
     }
 

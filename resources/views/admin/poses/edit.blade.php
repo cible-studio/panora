@@ -205,9 +205,10 @@ window.__EDIT__ = {
                 <div>
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px">
                         <label class="pose-label" style="margin:0">Équipe <span style="font-weight:400;color:var(--text3)">(opt.)</span></label>
-                        <a href="{{ route('admin.teams.create', ['back' => 'posetasks']) }}"
-                           style="background:none;border:1px dashed var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:1px 9px;border-radius:8px;text-decoration:none"
-                           title="Créer une nouvelle équipe">+ Nouvelle équipe</a>
+                        {{-- 2026-06-19 — Modale rapide (au lieu de naviguer). --}}
+                        <button type="button" onclick="openQuickTeamModal({target_select_id:'sel-team'})"
+                                style="background:none;border:1px dashed var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:1px 9px;border-radius:8px;cursor:pointer"
+                                title="Créer une équipe rapidement (sans quitter ce formulaire)">+ Nouvelle équipe</button>
                     </div>
                     <select name="team_name" id="sel-team" class="pose-select">
                         <option value="">— Aucune / hérite du technicien —</option>
@@ -611,4 +612,5 @@ $(document).ready(()=>EDIT.init());
 
 {{-- Modale "+ Nouveau technicien" (création rapide AJAX) — 2026-06-18 --}}
 @include('admin.partials._quick_tech_modal', ['target_select_id' => 'sel-technicien'])
+@include('admin.partials._quick_team_modal', ['target_select_id' => 'sel-team'])
 </x-admin-layout>
