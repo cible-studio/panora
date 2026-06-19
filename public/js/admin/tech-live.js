@@ -69,13 +69,26 @@ async function tickKpis() {
             return;
         }
 
-        statusEl && (statusEl.textContent = me.current_status === 'sur_place'
-            ? 'Sur place'
-            : me.current_status === 'en_route'
-                ? 'En route'
-                : me.current_status === 'inactif'
-                    ? 'En pause'
-                    : me.current_status || 'En activité');
+        // Hotfix 2026-06-19 — statut + apparence du pulse vivant :
+        //   - sur_place / en_route → "Sur place" / "En route" + pulse vert animé
+        //   - inactif + remaining=0 + total>0 → "✅ Tournée terminée" + pulse vert fixe
+        //   - inactif autre cas → "En pause" + pulse gris SANS animation (rien
+        //     ne se passe en ce moment, anxiogène de faire clignoter en vert)
+        const doneNow      = me.progress?.done       ?? 0;
+        const totalNow     = me.progress?.total      ?? 0;
+        const remainingNow = me.progress?.remaining  ?? Math.max(0, totalNow - doneNow);
+        const isDone = me.current_status === 'inactif' && remainingNow === 0 && totalNow > 0;
+        let statusText;
+        if (me.current_status === 'sur_place')      statusText = 'Sur place';
+        else if (me.current_status === 'en_route')  statusText = 'En route';
+        else if (me.current_status === 'inactif')   statusText = isDone ? '✅ Tournée terminée' : 'En pause';
+        else                                        statusText = me.current_status || 'En activité';
+        statusEl && (statusEl.textContent = statusText);
+        const subStatus = $('.tech-live-substatus');
+        if (subStatus) {
+            subStatus.classList.toggle('is-idle', me.current_status === 'inactif' && !isDone);
+            subStatus.classList.toggle('is-done', isDone);
+        }
 
         // Hotfix 2026-06-19 :
         //   - "FAITES AUJOURD'HUI" lit progress.done_today (nouvel attribut)
@@ -100,9 +113,16 @@ async function tickKpis() {
                 }
             }
         };
-        setK('done', doneToday);
-        // "in_progress" sur la fiche = 1 si le tech a une pose active, 0 sinon
-        setK('in_progress', me.current_status === 'sur_place' || me.current_status === 'en_route' ? 1 : 0);
+        // Hotfix 2026-06-19 :
+        // 'done' et 'in_progress' sont désormais RECALCULÉS depuis la
+        // timeline elle-même par recomputeKpisFromTimeline() pour que
+        // les compteurs collent EXACTEMENT à ce que le filtre affichera.
+        // On garde une valeur de fallback ici tant que la timeline n'est
+        // pas encore arrivée (premier tick).
+        if (!lastEvents.length) {
+            setK('done', doneToday);
+            setK('in_progress', me.current_status === 'sur_place' || me.current_status === 'en_route' ? 1 : 0);
+        }
         setK('remaining', remaining);
 
         // "Problems" — compté côté global, on ne distingue pas par tech ici.
@@ -140,7 +160,30 @@ async function tickTimeline() {
 
 function renderTimeline(events) {
     lastEvents = events || [];
+    recomputeKpisFromTimeline();
     drawTimeline();
+}
+
+// Recompte 'done' / 'in_progress' / 'problems' depuis la timeline pour
+// garantir cohérence avec ce que le filtre KPI affichera. Sans ça, le
+// compteur "0 en cours" + une liste filtrée de 4 arrivées est confus.
+function recomputeKpisFromTimeline() {
+    const setK = (k, v) => {
+        const el = document.querySelector(`[data-kpi="${k}"]`);
+        if (!el) return;
+        if (el.textContent !== String(v)) {
+            el.textContent = String(v);
+            el.classList.remove('kpi-bump');
+            void el.offsetWidth;
+            el.classList.add('kpi-bump');
+        }
+    };
+    const doneCnt    = lastEvents.filter(e => FILTER_TYPES.done.has(e.type)).length;
+    const arrivalCnt = lastEvents.filter(e => FILTER_TYPES.in_progress.has(e.type)).length;
+    const probCnt    = lastEvents.filter(e => FILTER_TYPES.problems.has(e.type)).length;
+    setK('done', doneCnt);
+    setK('in_progress', arrivalCnt);
+    setK('problems', probCnt > 0 ? probCnt : '—');
 }
 
 // Sépare le filtrage + rendu pour qu'un clic KPI puisse redessiner
@@ -205,6 +248,16 @@ function drawTimeline() {
         const extra = li.querySelector('[data-field="event-extra"]');
         if (ev.type === 'photo_rejected' && ev.meta?.reason) {
             extra.textContent = '💬 ' + ev.meta.reason;
+            extra.hidden = false;
+        }
+        // Hotfix 2026-06-19 — explicite ce qu'est "hors créneau" pour
+        // que la patronne sache ce que ça veut dire au survol.
+        if (ev.type === 'photo_sent_off_schedule') {
+            const labelEl = li.querySelector('[data-field="event-label"]');
+            if (labelEl) {
+                labelEl.title = "Cette photo a été envoyée plus de 2 heures avant ou après l'horaire planifié de la pose. Le tech a confirmé démarrer hors créneau.";
+            }
+            extra.textContent = '⏰ Pose démarrée hors du créneau prévu (le tech a confirmé)';
             extra.hidden = false;
         }
 
