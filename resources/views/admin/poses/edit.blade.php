@@ -612,5 +612,10 @@ $(document).ready(()=>EDIT.init());
 
 {{-- Modale "+ Nouveau technicien" (création rapide AJAX) — 2026-06-18 --}}
 @include('admin.partials._quick_tech_modal', ['target_select_id' => 'sel-technicien'])
-@include('admin.partials._quick_team_modal', ['target_select_id' => 'sel-team'])
+@include('admin.partials._quick_team_modal', [
+    'target_select_id' => 'sel-team',
+    // Techniciens dispo = role technique + sans pose_team_id (un tech ne peut
+    // être que dans UNE équipe à la fois — cf. User.pose_team_id).
+    'available_techs'  => \App\Models\User::techniciens()->whereNull('pose_team_id')->get(['id', 'name', 'agent_code']),
+])
 </x-admin-layout>

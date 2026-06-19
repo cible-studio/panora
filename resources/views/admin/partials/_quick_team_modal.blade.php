@@ -14,6 +14,12 @@
 @php
     $qtTargetSelectId = $target_select_id ?? 'qt-team-target-select';
     $palette          = \App\Models\PoseTeam::COLOR_PALETTE;
+    // Techniciens disponibles pour rattachement immédiat à la nouvelle équipe.
+    // La vue parent peut passer `available_techs` (collection filtrée sur
+    // pose_team_id NULL). Sinon, on n'affiche pas la zone de checkboxes
+    // pour garder la modale simple — l'admin pourra ajouter des membres plus
+    // tard depuis /admin/teams.
+    $availableTechs   = $available_techs ?? collect();
 @endphp
 
 <div id="qtt-modal"
@@ -49,6 +55,30 @@
                 <small style="display:block;color:var(--text3);font-size:10.5px;margin-top:4px">8 couleurs prédéfinies, cohérentes avec le design system Panora.</small>
             </div>
 
+            @if($availableTechs->isNotEmpty())
+                {{-- Liste de techniciens disponibles (= sans équipe assignée).
+                     Ceux déjà dans une équipe sont volontairement omis : un
+                     technicien ne peut être que dans UNE seule équipe à la fois
+                     (cf. User.pose_team_id, foreign key simple). --}}
+                <div style="margin-bottom:12px">
+                    <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:5px">Membres à rattacher (optionnel)</label>
+                    <div style="max-height:170px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:8px 10px">
+                        @foreach($availableTechs as $tech)
+                            <label class="qtt-tech-row" style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:12.5px">
+                                <input type="checkbox" class="qtt-member" value="{{ $tech->id }}" style="margin:0;accent-color:var(--accent);width:15px;height:15px">
+                                <span style="font-weight:600;color:var(--text)">{{ $tech->name }}</span>
+                                @if($tech->agent_code)
+                                    <span style="font-family:ui-monospace,monospace;font-size:10.5px;color:var(--text3)">({{ $tech->agent_code }})</span>
+                                @endif
+                            </label>
+                        @endforeach
+                    </div>
+                    <small style="display:block;color:var(--text3);font-size:10.5px;margin-top:4px">
+                        Cocher les techniciens à inclure dans l'équipe. Seuls ceux <strong>sans équipe</strong> apparaissent (un technicien ne peut être que dans une équipe à la fois).
+                    </small>
+                </div>
+            @endif
+
             <div style="margin-bottom:12px">
                 <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:5px">Description (optionnel)</label>
                 <textarea id="qtt-description" rows="2" maxlength="500"
@@ -70,6 +100,7 @@
 <style>
     .qtt-color.is-selected { transform: scale(1.1); border-color: var(--text) !important; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
     .qtt-color:hover       { transform: scale(1.05); }
+    .qtt-tech-row:hover    { background: var(--surface); }
 </style>
 <script>
 (function () {
@@ -100,6 +131,8 @@
         if (opts.target_select_id) QTT_TARGET = opts.target_select_id;
         document.getElementById('qtt-name').value = '';
         document.getElementById('qtt-description').value = '';
+        // Reset des cases membres (sinon les coches précédentes persistent).
+        document.querySelectorAll('.qtt-member').forEach(function (cb) { cb.checked = false; });
         var err = document.getElementById('qtt-error');
         var ok  = document.getElementById('qtt-success');
         if (err) err.style.display = 'none';
@@ -141,6 +174,11 @@
             name:        name,
             color_slug:  QTT_COLOR,
             description: document.getElementById('qtt-description').value,
+        });
+        // Membres cochés → envoyés en member_ids[] (le controller PoseTeamController
+        // les rattachera via User::pose_team_id en une seule requête UPDATE).
+        document.querySelectorAll('.qtt-member:checked').forEach(function (cb) {
+            fd.append('member_ids[]', cb.value);
         });
 
         try {
