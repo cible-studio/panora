@@ -602,8 +602,11 @@ function bindMainUpload() {
             }
 
             // Pose réalisée → retire la card avec une petite animation
-            // de fade-out plutôt que de recharger la page (préserve le
-            // scroll position du tech pour les autres poses).
+            // de fade-out plus, depuis le hotfix 2026-06-19, on RECHARGE
+            // la page après l'écran T4 pour que le serveur recalcule
+            // $nextTask (la "Card MAINTENANT" doit afficher la pose
+            // suivante, pas rester figée sur la pose qu'on vient de
+            // terminer).
             // Ferme aussi le drawer T2 si la pose était ouverte dedans.
             if (document.querySelector('#sm2-t2-overlay.is-open')) {
                 document.querySelector('#sm2-t2-overlay')?.classList.remove('is-open');
@@ -621,6 +624,19 @@ function bindMainUpload() {
                     refreshDayCounters();
                 }, 400);
             }
+            // Fade-out ALSO la focus card si c'est elle qu'on vient de
+            // terminer (sinon elle reste affichée sur la pose qu'on a
+            // terminée jusqu'au reload).
+            const focusCard = document.getElementById('next-pose-hero');
+            if (focusCard && focusCard.dataset.taskId === String(taskId)) {
+                focusCard.style.transition = 'all .4s ease-out';
+                focusCard.style.opacity = '0.4';
+                focusCard.style.pointerEvents = 'none';
+            }
+            // Recharge la page après que l'écran T4 ait fini son animation
+            // (4 s) — laisse le tech voir le succès, puis le serveur
+            // recalcule $nextTask = la pose suivante par priorité.
+            setTimeout(() => { window.location.reload(); }, 4500);
         } catch (err) {
             // En mode offline (ou erreur fetch), on enqueue la photo pour
             // un rejouage automatique au retour réseau. Évite au tech de
