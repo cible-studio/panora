@@ -26,6 +26,7 @@ import { init as initUpload }      from './features/upload.js';
 import { init as initPoseDrawer }  from './features/pose-drawer.js';
 import { init as initYAllerModal } from './features/y-aller-modal.js';
 import { init as initHelp }        from './features/help.js';
+import { init as initT9Rejected }  from './features/t9-rejected.js';
 
 // Garde-fou : si TECH_CONFIG n'est pas là, on log mais on n'explose pas
 // (la page continue de fonctionner via le JS inline encore présent).
@@ -48,6 +49,7 @@ function bootstrap() {
     initPoseDrawer();     // [SM2a Lot 2.1A] drawer T2 détail d'une pose + ?focus= deep-link
     initYAllerModal();    // [SM2a Lot 2.2] modale T7 confirmation Y aller (mini-carte + stats)
     initHelp();           // [SM2a Lot 5.1] modale T8 aide (auto-open 1re visite)
+    initT9Rejected();     // [SM2a Lot 5.2] drawer T9 photos refusées + redo
 }
 
 if (document.readyState === 'loading') {

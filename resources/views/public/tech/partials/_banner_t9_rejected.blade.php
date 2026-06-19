@@ -9,16 +9,19 @@
        - $pigesRejected (int) — déjà calculé côté TechSpaceController
        - $token (str)
 --}}
+{{-- SM2a Lot 5.2 — Le bandeau ouvre désormais le drawer T9 (au lieu de
+     naviguer vers la page piges?status=rejete). Le drawer est rendu une
+     seule fois dans tech-space (cf. _drawer_t9_rejected.blade.php). --}}
 @if(($pigesRejected ?? 0) > 0)
-<a href="{{ route('tech.space.piges', $token) }}?status=rejete"
-   class="sm2-t9-banner"
-   role="alert"
-   aria-label="Photos refusées à refaire">
-    <span class="sm2-t9-icon" aria-hidden="true">⚠️</span>
-    <div class="sm2-t9-text">
+<button type="button"
+        class="sm2-t9-banner-pinned"
+        data-action="open-t9"
+        aria-label="Photos refusées à refaire">
+    <span class="sm2-t9-pinned-icon" aria-hidden="true">⚠️</span>
+    <div class="sm2-t9-pinned-text">
         <strong>{{ $pigesRejected }} photo{{ $pigesRejected > 1 ? 's' : '' }} à refaire</strong>
-        <span class="sm2-t9-sub">le chef a demandé une nouvelle prise — touche pour voir</span>
+        <span class="sm2-t9-pinned-sub">le chef a demandé une nouvelle prise — touche pour voir</span>
     </div>
-    <span class="sm2-t9-chevron" aria-hidden="true">›</span>
-</a>
+    <span class="sm2-t9-pinned-chevron" aria-hidden="true">›</span>
+</button>
 @endif

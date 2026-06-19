@@ -1114,24 +1114,31 @@
         }
         .sm2-done-empty a { color: var(--c-green-text); font-weight: 700; }
 
-        /* ─── T1 §3.7 — Bandeau rouge "photo à refaire" (T9 intégré) ─ */
-        .sm2-t9-banner {
+        /* ─── T1 §3.7 — Bandeau rouge "photo à refaire" (épinglé) ─
+           Renommé en *-pinned* en Phase 5 Lot 5.2 pour éviter le
+           conflit de noms avec les classes du drawer T9 (.sm2-t9-banner
+           est désormais l'EN-TÊTE du drawer). --}}
+        .sm2-t9-banner-pinned {
             display: flex;
             align-items: center;
             gap: 12px;
+            width: 100%;
             margin: 0 0 12px;
             padding: 12px 14px;
             background: var(--c-red-bg);
             border: 2px solid var(--c-red-border);
             border-radius: 14px;
+            text-align: left;
             text-decoration: none;
             color: var(--c-red-text);
             min-height: 64px;
             box-shadow: 0 4px 16px -6px rgba(185, 28, 28, .25);
             transition: transform .08s, box-shadow .15s;
+            cursor: pointer;
+            font-family: inherit;
         }
-        .sm2-t9-banner:active { transform: scale(.99); }
-        .sm2-t9-icon {
+        .sm2-t9-banner-pinned:active { transform: scale(.99); }
+        .sm2-t9-pinned-icon {
             flex: 0 0 44px;
             width: 44px; height: 44px;
             border-radius: 50%;
@@ -1142,16 +1149,16 @@
             align-items: center;
             justify-content: center;
         }
-        .sm2-t9-text { flex: 1; min-width: 0; line-height: 1.3; }
-        .sm2-t9-text strong { display: block; font-size: 14px; font-weight: 800; }
-        .sm2-t9-sub {
+        .sm2-t9-pinned-text { flex: 1; min-width: 0; line-height: 1.3; }
+        .sm2-t9-pinned-text strong { display: block; font-size: 14px; font-weight: 800; }
+        .sm2-t9-pinned-sub {
             display: block;
             font-size: 11.5px;
             color: var(--c-red-text);
             opacity: .8;
             margin-top: 2px;
         }
-        .sm2-t9-chevron {
+        .sm2-t9-pinned-chevron {
             font-size: 28px;
             font-weight: 600;
             color: var(--c-red-problem);
@@ -1838,6 +1845,210 @@
             min-height: 44px;
             font-size: 13px;
         }
+
+        /* ─── T9 §spec — Drawer "Photos à refaire" ──────────────── */
+        .sm2-t9-overlay {
+            position: fixed; inset: 0; z-index: 9500;
+            background: rgba(15, 23, 42, .55);
+            display: flex; align-items: flex-end; justify-content: center;
+            opacity: 0; transition: opacity .2s ease;
+        }
+        .sm2-t9-overlay.is-open { opacity: 1; }
+        .sm2-t9-drawer {
+            width: 100%; max-width: 540px;
+            background: var(--surface);
+            border-radius: 18px 18px 0 0;
+            max-height: 92vh; overflow-y: auto;
+            transform: translateY(100%);
+            transition: transform .25s ease;
+            display: flex; flex-direction: column;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .sm2-t9-overlay.is-open .sm2-t9-drawer { transform: translateY(0); }
+        @media (min-width: 720px) {
+            .sm2-t9-overlay { align-items: stretch; justify-content: flex-end; }
+            .sm2-t9-drawer {
+                max-width: 480px; max-height: 100vh;
+                border-radius: 0; transform: translateX(100%);
+            }
+            .sm2-t9-overlay.is-open .sm2-t9-drawer { transform: translateX(0); }
+        }
+
+        .sm2-t9-head {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 14px;
+            background: var(--c-red-bg);
+            border-bottom: 1px solid var(--c-red-border);
+            position: sticky; top: 0; z-index: 1;
+        }
+        .sm2-t9-back, .sm2-t9-close {
+            background: rgba(255,255,255,.5);
+            border: 1px solid var(--c-red-border);
+            color: var(--c-red-text);
+            font-size: 13px; font-weight: 700;
+            border-radius: 8px;
+            padding: 6px 10px;
+            cursor: pointer; font-family: inherit;
+            min-height: 34px;
+            display: inline-flex; align-items: center; gap: 4px;
+        }
+        .sm2-t9-close {
+            width: 34px; height: 34px;
+            padding: 0; border-radius: 50%;
+            justify-content: center;
+        }
+        .sm2-t9-title {
+            flex: 1;
+            margin: 0; font-size: 14.5px; font-weight: 800;
+            color: var(--c-red-text);
+            text-align: center;
+        }
+
+        .sm2-t9-body {
+            padding: 14px 14px 20px;
+            display: flex; flex-direction: column; gap: 18px;
+        }
+
+        .sm2-t9-card {
+            background: var(--surface);
+            border: 1.5px solid var(--c-red-border);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 6px 18px -8px rgba(185, 28, 28, .25);
+        }
+
+        .sm2-t9-banner {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--c-red-problem);
+            color: #fff;
+            padding: 10px 14px;
+        }
+        .sm2-t9-banner-icon {
+            flex: 0 0 44px;
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.18);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+        }
+        .sm2-t9-banner-text strong {
+            display: block; font-size: 12px; font-weight: 800;
+            letter-spacing: 1.5px;
+        }
+        .sm2-t9-banner-text span { font-size: 14px; font-weight: 700; opacity: .95; }
+
+        .sm2-t9-which {
+            padding: 12px 14px 0;
+            font-size: 13px; color: var(--text); line-height: 1.45;
+        }
+
+        .sm2-t9-bubble {
+            margin: 12px 14px 0;
+            padding: 10px 12px;
+            background: var(--c-yellow-bg);
+            border: 1px solid var(--c-yellow-border);
+            border-radius: 12px;
+            border-top-left-radius: 4px;
+        }
+        .sm2-t9-bubble-head {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 10px; font-weight: 800;
+            text-transform: uppercase; letter-spacing: .5px;
+            color: var(--c-yellow-text);
+            margin-bottom: 4px;
+        }
+        .sm2-t9-bubble-avatar { font-size: 14px; line-height: 1; }
+        .sm2-t9-bubble-label { letter-spacing: .8px; }
+        .sm2-t9-bubble-text {
+            font-size: 13px; color: var(--text);
+            line-height: 1.45; font-style: italic;
+        }
+
+        .sm2-t9-photo-row {
+            display: flex; gap: 12px;
+            padding: 12px 14px 0;
+            align-items: stretch;
+        }
+        .sm2-t9-photo-wrap {
+            flex: 0 0 100px; width: 100px; height: 130px;
+            border-radius: 10px;
+            background: var(--surface2);
+            position: relative;
+            overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 30px; color: var(--text3);
+        }
+        .sm2-t9-photo {
+            display: block;
+            width: 100%; height: 100%;
+            object-fit: cover;
+        }
+        .sm2-t9-photo-badge {
+            position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+            font-size: 9px; font-weight: 800;
+            background: var(--c-red-problem);
+            color: #fff;
+            padding: 2px 7px;
+            border-radius: 999px;
+            letter-spacing: .8px;
+            white-space: nowrap;
+        }
+        .sm2-t9-photo-wrap-empty { font-size: 36px; }
+        .sm2-t9-meta {
+            flex: 1;
+            display: flex; flex-direction: column; gap: 6px;
+            padding: 6px 0;
+        }
+        .sm2-t9-meta-row {
+            display: flex; flex-direction: column;
+            background: var(--surface2);
+            border-radius: 8px;
+            padding: 6px 10px;
+        }
+        .sm2-t9-meta-label {
+            font-size: 9.5px; font-weight: 800;
+            text-transform: uppercase; letter-spacing: .6px;
+            color: var(--text3);
+        }
+        .sm2-t9-meta-value {
+            font-size: 12.5px; color: var(--text); font-weight: 700;
+        }
+
+        .sm2-t9-actions {
+            display: flex; flex-direction: column; gap: 8px;
+            padding: 14px;
+        }
+        .sm2-t9-btn {
+            display: flex; align-items: center; justify-content: center;
+            gap: 6px;
+            min-height: 50px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 14px; font-weight: 800;
+            border: none; cursor: pointer;
+            font-family: inherit;
+            text-decoration: none;
+            transition: transform .08s;
+        }
+        .sm2-t9-btn:active { transform: scale(.98); }
+        .sm2-t9-btn-primary {
+            background: linear-gradient(135deg, #ef4444, var(--c-red-problem));
+            color: #fff;
+            box-shadow: 0 6px 16px -4px rgba(185, 28, 28, .42);
+        }
+        .sm2-t9-btn-primary:disabled { opacity: .55; box-shadow: none; cursor: not-allowed; }
+        .sm2-t9-btn-ghost {
+            background: var(--surface);
+            color: var(--text2);
+            border: 1.5px solid var(--border);
+            min-height: 44px; font-size: 13px;
+        }
+
+        .sm2-t9-empty {
+            text-align: center; padding: 40px 20px;
+            color: var(--text3);
+        }
+        .sm2-t9-empty-icon { font-size: 48px; margin-bottom: 8px; }
 
         /* ─── T1 §3.1 — Bouton aide rond jaune (header) ─────────── */
         .sm2-help-btn {

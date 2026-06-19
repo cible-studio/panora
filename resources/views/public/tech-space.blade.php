@@ -186,6 +186,11 @@
      features/help.js — auto-open à la 1re visite + tap sur "?" jaune). --}}
 @include('public.tech.partials._modal_help')
 
+{{-- SM2a Lot 5.2 — Drawer T9 "Photos à refaire" (piloté par
+     features/t9-rejected.js — déclenché par le bandeau rouge épinglé
+     ou par tout data-action="open-t9"). --}}
+@include('public.tech.partials._drawer_t9_rejected')
+
 {{-- Phase 3 SM1 — publication TECH_CONFIG (csrf + token + routes + bootstrap)
      consommé par les modules JS chargés juste après. À garder AVANT le
      <script type="module"> qui suit. --}}

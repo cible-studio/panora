@@ -251,6 +251,31 @@ class TechSpaceController extends Controller
         $pigesRejected = \App\Models\Pige::query()->tap($pigesForTech)
             ->where('status', 'rejete')->count();
 
+        // SM2a Lot 5.2 — Liste des piges refusées en cours (pas encore
+        // refaites). Source unique pour le drawer T9 "À refaire". Filtre
+        // identique à la vue "current" du tableau historique des piges :
+        // on exclut les piges qui ont une successeure plus récente sur le
+        // même (panel, campagne). Cap 20 pour éviter le bourrage DOM si
+        // un tech a un parc historique chargé.
+        $rejectedPiges = \App\Models\Pige::query()
+            ->tap($pigesForTech)
+            ->where('piges.status', 'rejete')
+            ->whereNotExists(function ($sub) {
+                $sub->from('piges as p2')
+                    ->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->whereColumn('p2.panel_id',    'piges.panel_id')
+                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
+                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
+            })
+            ->with([
+                'panel:id,reference,name,commune_id,latitude,longitude',
+                'panel.commune:id,name',
+                'verificateur:id,name',
+            ])
+            ->orderByDesc('piges.taken_at')
+            ->limit(20)
+            ->get();
+
         // Liste TOC zones : agrégat global (toutes poses actives, pas seulement
         // SSR) → chip cliquable sticky pour navigation directe. Une requête
         // groupée sur la BDD pour rester rapide même à 5k+ poses.
@@ -316,6 +341,7 @@ class TechSpaceController extends Controller
             // Piges global tech (pour le bouton historique)
             'pigesTotal'       => $pigesTotal,
             'pigesRejected'    => $pigesRejected,
+            'rejectedPiges'    => $rejectedPiges, // SM2a Lot 5.2 (drawer T9)
         ];
     }
 
