@@ -888,6 +888,12 @@ class TechSpaceController extends Controller
             ->first();
         if (!$tech) return response()->json(['ok' => false], 404);
 
+        // SM2b Lot 1.1 — stamp last_seen_at à chaque heartbeat (20s).
+        // Permet au AdminLiveDashboardService de déterminer les techs
+        // en ligne (last_seen_at < 10 min). updateQuietly() pour ne pas
+        // déclencher d'events (audit, notif) sur un simple ping.
+        $tech->forceFill(['last_seen_at' => now()])->saveQuietly();
+
         $today      = Carbon::today();
         $startOfDay = $today->copy()->startOfDay();
         $endOfDay   = $today->copy()->endOfDay();

@@ -19,6 +19,7 @@ class User extends Authenticatable
         'role', 'agent_code', 'is_active',
         'two_fa_enabled', 'last_login_at',
         'reservations_last_seen_at',
+        'last_seen_at',                  // SM2b Lot 1.1 — heartbeat tech / admin
         'whatsapp_number', 'tech_public_token',
         'pose_team_id', // M2 — équipe de pose (techniciens)
     ];
@@ -33,6 +34,7 @@ class User extends Authenticatable
         'two_fa_enabled' => 'boolean',
         'last_login_at'  => 'datetime',
         'reservations_last_seen_at' => 'datetime',
+        'last_seen_at'   => 'datetime',
     ];
 
     /**
