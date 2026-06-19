@@ -30,6 +30,9 @@ function readTaskData(poseEl) {
         id:        poseEl.dataset.taskId || '',
         status:    poseEl.dataset.taskStatus || '',
         commune:   poseEl.dataset.commune || '',
+        // SM2a Lot 3.1 : lat/lng remontés pour calcul Haversine côté T3
+        lat:       poseEl.dataset.lat || '',
+        lng:       poseEl.dataset.lng || '',
         ref:       poseEl.querySelector('.pose-ref')?.textContent?.trim() || '',
         name:      poseEl.querySelector('.pose-name')?.textContent?.trim() || '',
         photo:     photoUrl,
@@ -42,6 +45,8 @@ function readTaskData(poseEl) {
 function populateDrawer(drawer, data) {
     drawer.dataset.taskId       = data.id;
     drawer.dataset.taskStatus   = data.status;
+    drawer.dataset.lat          = data.lat;
+    drawer.dataset.lng          = data.lng;
 
     const set = (sel, value) => {
         const el = drawer.querySelector(sel);

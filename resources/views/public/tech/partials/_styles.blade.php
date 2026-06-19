@@ -1453,6 +1453,135 @@
             min-height: 46px; font-size: 13.5px;
         }
 
+        /* ─── T3 §spec — Modale "Photo prise — validation GPS" ──── */
+        .sm2-t3-overlay {
+            position: fixed; inset: 0; z-index: 9200;
+            background: rgba(15, 23, 42, .92);
+            display: flex; align-items: flex-end; justify-content: center;
+            padding: 0;
+            opacity: 0; transition: opacity .2s ease;
+        }
+        .sm2-t3-overlay.is-open { opacity: 1; }
+        @media (min-width: 540px) {
+            .sm2-t3-overlay { align-items: center; padding: 16px; }
+        }
+        .sm2-t3-modal {
+            width: 100%; max-width: 460px;
+            background: var(--surface);
+            border-radius: 18px 18px 0 0;
+            display: flex; flex-direction: column;
+            transform: translateY(20px);
+            transition: transform .25s ease;
+            overflow: hidden;
+            max-height: 100vh;
+        }
+        @media (min-width: 540px) {
+            .sm2-t3-modal { border-radius: 18px; max-height: 92vh; }
+        }
+        .sm2-t3-overlay.is-open .sm2-t3-modal { transform: translateY(0); }
+
+        .sm2-t3-photo-wrap {
+            position: relative;
+            background: #000;
+            aspect-ratio: 3 / 4;
+            max-height: 55vh;
+            overflow: hidden;
+        }
+        .sm2-t3-photo {
+            display: block;
+            width: 100%; height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+        .sm2-t3-photo-overlay {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: linear-gradient(0deg, rgba(0,0,0,.85), rgba(0,0,0,0));
+            color: #fff;
+            font-size: 12px; font-weight: 600;
+            padding: 18px 14px 10px;
+            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+        }
+        .sm2-t3-overlay-icon { font-size: 14px; }
+        .sm2-t3-overlay-sep { opacity: .6; }
+
+        .sm2-t3-body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+        .sm2-t3-title { margin: 0; font-size: 16px; font-weight: 800; color: var(--text); }
+        .sm2-t3-pose {
+            font-family: ui-monospace, monospace;
+            font-size: 13px; font-weight: 700;
+            color: var(--c-orange-text);
+            margin-top: -6px;
+        }
+
+        .sm2-t3-verdict {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1.5px solid;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .sm2-t3-verdict-icon {
+            font-size: 22px; line-height: 1;
+            flex: 0 0 24px;
+        }
+        .sm2-t3-verdict-text { flex: 1; }
+        .sm2-t3-verdict-text strong { display: block; font-weight: 800; font-size: 13.5px; }
+        .sm2-t3-verdict-text span { font-size: 12px; opacity: .9; }
+
+        .sm2-t3-verdict[data-verdict="ok"] {
+            background: var(--c-green-bg);
+            border-color: var(--c-green-border);
+            color: var(--c-green-text);
+        }
+        .sm2-t3-verdict[data-verdict="warn"] {
+            background: var(--c-orange-bg);
+            border-color: var(--c-orange-border);
+            color: var(--c-orange-text);
+        }
+        .sm2-t3-verdict[data-verdict="bad"] {
+            background: var(--c-red-bg);
+            border-color: var(--c-red-border);
+            color: var(--c-red-text);
+        }
+        .sm2-t3-verdict[data-verdict="pending"] {
+            background: var(--surface2);
+            border-color: var(--border);
+            color: var(--text2);
+        }
+        .sm2-t3-verdict[data-verdict="unknown"] {
+            background: var(--c-yellow-bg);
+            border-color: var(--c-yellow-border);
+            color: var(--c-yellow-text);
+        }
+
+        .sm2-t3-actions {
+            display: flex; gap: 8px;
+            margin-top: 2px;
+        }
+        .sm2-t3-btn {
+            min-height: 50px;
+            border-radius: 12px;
+            font-size: 14px; font-weight: 800;
+            border: none; cursor: pointer;
+            font-family: inherit;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            transition: transform .08s;
+        }
+        .sm2-t3-btn:active { transform: scale(.98); }
+        .sm2-t3-btn-redo {
+            flex: 1;
+            background: var(--surface2);
+            color: var(--text2);
+            border: 1.5px solid var(--border);
+        }
+        .sm2-t3-btn-send {
+            flex: 2;
+            background: linear-gradient(135deg, #22c55e, var(--c-green-success));
+            color: #fff;
+            box-shadow: 0 6px 16px -4px rgba(22, 163, 74, .42);
+        }
+
         /* ─── T1 §3.1 — Bouton aide rond jaune (header) ─────────── */
         .sm2-help-btn {
             flex: 0 0 auto;

@@ -172,6 +172,11 @@
      [data-go-maps] avant ouverture Google Maps). --}}
 @include('public.tech.partials._modal_y_aller')
 
+{{-- SM2a Lot 3.1 — Modale T3 "Photo prise + validation GPS" (piloté
+     par features/upload.js askPhotoPreview — la modale persiste dans
+     le DOM, est show/hidden via la classe is-open). --}}
+@include('public.tech.partials._modal_photo_preview')
+
 {{-- Phase 3 SM1 — publication TECH_CONFIG (csrf + token + routes + bootstrap)
      consommé par les modules JS chargés juste après. À garder AVANT le
      <script type="module"> qui suit. --}}
