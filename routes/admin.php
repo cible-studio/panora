@@ -1122,6 +1122,11 @@ Route::prefix('admin')
                 ->name('finance.index');
             Route::get('finance/series', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'series'])
                 ->name('finance.series');
+            // 2026-06-19 — Exports récap complet Finance (Excel multi-feuilles + PDF synthèse).
+            Route::get('finance/export/excel', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'exportRecapExcel'])
+                ->name('finance.export.excel');
+            Route::get('finance/export/pdf', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'exportRecapPdf'])
+                ->name('finance.export.pdf');
             Route::get('finance/relances', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'relances'])
                 ->name('finance.relances');
             // Exports historique relances (Excel détaillé + PDF synthèse par client)
