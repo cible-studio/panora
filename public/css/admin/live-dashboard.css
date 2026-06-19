@@ -63,6 +63,21 @@
     box-shadow: 0 0 0 0 rgba(22, 163, 74, .6);
     animation: la-pulse 2s ease-in-out infinite;
 }
+/* Hotfix 2026-06-19 — variantes du pulse appliquées par tech-live.js :
+   - .is-idle  : tech inactif avec poses restantes → pulse gris fixe
+                 (rien ne se passe, pas la peine d'animer en vert)
+   - .is-done  : tech inactif mais tournée terminée → pulse vert fixe
+                 (positif mais sans bruit visuel) */
+.tech-live-substatus.is-idle .live-status-pulse {
+    background: #9ca3af;
+    box-shadow: none;
+    animation: none;
+}
+.tech-live-substatus.is-done .live-status-pulse {
+    background: var(--la-green, #16a34a);
+    box-shadow: 0 0 0 4px rgba(22, 163, 74, .15);
+    animation: none;
+}
 @keyframes la-pulse {
     0%   { box-shadow: 0 0 0 0 rgba(22, 163, 74, .6); }
     70%  { box-shadow: 0 0 0 10px rgba(22, 163, 74, 0); }
@@ -78,6 +93,8 @@
 @media (max-width: 980px) { .live-kpi-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 580px) { .live-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
 
+/* Hotfix 2026-06-19 : KPI cards transformées en <a> cliquables.
+   Reset des styles de lien + hover discret pour signaler l'affordance. */
 .live-kpi {
     display: flex; align-items: center; gap: 12px;
     background: #fff;
@@ -85,6 +102,16 @@
     border-left-width: 4px;
     border-radius: 12px;
     padding: 14px 16px;
+    color: inherit;
+    text-decoration: none;
+    transition: transform .08s, box-shadow .15s, border-color .15s;
+}
+.live-kpi:hover {
+    box-shadow: 0 4px 12px -4px rgba(15, 23, 42, .12);
+    transform: translateY(-1px);
+}
+.live-kpi:active {
+    transform: translateY(0);
 }
 .live-kpi--total    { border-left-color: var(--la-blue); }
 .live-kpi--done     { border-left-color: var(--la-green); }
