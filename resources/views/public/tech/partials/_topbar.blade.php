@@ -51,35 +51,13 @@
         </div>
     </div>
 
-    {{-- Grille KPI — 4 cartes cliquables (filtre la liste en dessous).
-         Polling 20s met à jour data-kpi-value en douceur. État actif
-         marqué par aria-pressed + classe 'is-active'. --}}
-    <div class="kpi-grid" role="group" aria-label="Filtres rapides">
-        <button type="button" class="kpi-card kpi-todo is-active" data-kpi-filter="all" aria-pressed="true">
-            <div class="kpi-label">À faire</div>
-            <div class="kpi-value" data-kpi-value="totalActive" data-total-active>{{ $totalActive }}</div>
-            <div class="kpi-sub">panneaux à poser</div>
-        </button>
-        <button type="button" class="kpi-card kpi-today" data-kpi-filter="today" aria-pressed="false">
-            <div class="kpi-label">Aujourd'hui</div>
-            <div class="kpi-value" data-kpi-value="activeToday">{{ $activeToday ?? 0 }}</div>
-            <div class="kpi-sub">à poser aujourd'hui @if(($doneToday ?? 0) > 0)· <strong data-done-today>{{ $doneToday }}</strong> fait{{ $doneToday > 1 ? 's' : '' }} ✓@endif</div>
-        </button>
-        <a href="{{ route('tech.space.piges', $token) }}" class="kpi-card kpi-piges" data-kpi-link>
-            <div class="kpi-label">Photos</div>
-            <div class="kpi-value" data-kpi-value="pigesSentToday">{{ $pigesSentToday ?? 0 }}</div>
-            <div class="kpi-sub">envoyée{{ ($pigesSentToday ?? 0) > 1 ? 's' : '' }} aujourd'hui</div>
-        </a>
-        <button type="button" class="kpi-card kpi-zones" data-kpi-action="scroll-zones">
-            <div class="kpi-label">Zones</div>
-            <div class="kpi-value" data-kpi-value="zonesTodayCount">{{ $zonesTodayCount ?? 0 }}</div>
-            <div class="kpi-sub">touche pour aller voir ↓</div>
-        </button>
-    </div>
-
-    {{-- SM2a Lot 1.1 — La progression a été déplacée dans son propre partial
-         _progress_bar.blade.php (barre simple + message motivant T1 §3.2).
-         L'ancien `.progress-staged` (paliers 10/25/50/75/100) a été retiré. --}}
+    {{-- SM2a Lot 1.1 — Barre de progression simple (T1 §3.2).
+         Hotfix 2026-06-19 : la grille des 4 KPIs (À FAIRE / AUJOURD'HUI /
+         PHOTOS / ZONES) a été retirée. La spec demande UNIQUEMENT la barre
+         verte + compteur "X/Y" + message motivant. Les compteurs détaillés
+         restent disponibles dans les rapports / le polling met à jour la
+         barre de progression et le compteur via data-progress-* (cf.
+         features/heartbeat.js). --}}
     @include('public.tech.partials._progress_bar')
 
     {{-- Récap zones de la journée (visible si au moins une zone) --}}
