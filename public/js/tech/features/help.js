@@ -46,7 +46,10 @@ function open() {
     overlay.hidden = false;
     overlay.removeAttribute('aria-hidden');
     requestAnimationFrame(() => overlay.classList.add('is-open'));
-    document.body.style.overflow = 'hidden';
+    // Bloque le scroll de la page principale via une classe (pas style
+    // inline) pour que le retrait soit symétrique et que d'autres
+    // mécanismes puissent piggy-back dessus (tests E2E par ex.).
+    document.body.classList.add('sm2-help-open');
 }
 
 function close() {
@@ -55,10 +58,13 @@ function close() {
     overlay.classList.remove('is-open');
     overlay.setAttribute('aria-hidden', 'true');
     setTimeout(() => { overlay.hidden = true; }, 220);
-    document.body.style.overflow = '';
+    document.body.classList.remove('sm2-help-open');
     // À la 1re fermeture, on flag le tech comme "déjà vu" pour ne plus
     // auto-ouvrir aux visites suivantes. Le bouton "?" reste actif.
-    try { localStorage.setItem(FLAG_KEY, 'false'); } catch (e) {}
+    try {
+        localStorage.setItem(FLAG_KEY, 'false');           // legacy compat
+        localStorage.setItem('tech_help_seen', 'true');    // SM2a-hotfix : flag canonique
+    } catch (e) {}
 }
 
 export function init() {
