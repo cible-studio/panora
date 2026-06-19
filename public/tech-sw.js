@@ -27,7 +27,8 @@
 //   - v2.1.0  : SM2c — écrans bonus B1/B2/B3 + préférences + sm2c.css
 //   - v2.2.0  : hotfix SM2a — modale aide (5 bugs critiques) + KPIs retirés
 //   - v2.3.0  : refonte radicale tech-space — squelette propre + pose-card compact
-const SW_VERSION = 'v2.3.0';
+//   - v2.4.0  : 3 bugs critiques post-refonte (upload undefined / card rotation / off-schedule humain)
+const SW_VERSION = 'v2.4.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
