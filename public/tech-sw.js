@@ -24,7 +24,8 @@
 //   - v1.0.0  : 1re version PWA tech (déploiement initial juin 2026)
 //   - v1.5.0  : refonte SM1.5 — 14 modules ESM, 0 JS inline
 //   - v2.0.0  : refonte SM2a — 9 écrans T1-T9 + CSS extrait + 18 modules JS
-const SW_VERSION = 'v2.0.0';
+//   - v2.1.0  : SM2c — écrans bonus B1/B2/B3 + préférences + sm2c.css
+const SW_VERSION = 'v2.1.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

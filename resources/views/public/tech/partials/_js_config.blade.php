@@ -21,6 +21,9 @@
             map:         @json(route('tech.space.map',         ['token' => $token])),
             optimize:    @json(route('tech.space.optimize',    ['token' => $token])),
             piges:       @json(route('tech.space.piges',       ['token' => $token])),
+            {{-- SM2c B3 : centre de notifications tech --}}
+            notifications:         @json(route('tech.space.notifications',          ['token' => $token])),
+            notificationsMarkRead: @json(route('tech.space.notifications.mark-read', ['token' => $token])),
             {{-- Routes paramétrées : __TASK__ remplacé côté JS au moment de l'appel --}}
             statusTpl:   @json(route('tech.space.status', ['token' => $token, 'task' => '__TASK__'])),
             photoTpl:    @json(route('tech.space.photo',  ['token' => $token, 'task' => '__TASK__'])),

@@ -191,6 +191,18 @@
      ou par tout data-action="open-t9"). --}}
 @include('public.tech.partials._drawer_t9_rejected')
 
+{{-- SM2c B1 — Modale "Pose hors créneau" (intercepteur tap pose-line). --}}
+@include('public.tech.partials._modal_off_schedule')
+
+{{-- SM2c B2 — Écran "Fin de journée" plein écran avec confettis. --}}
+@include('public.tech.partials._screen_end_of_day')
+
+{{-- SM2c B3 — Drawer centre de notifications (badge sur "?" du header). --}}
+@include('public.tech.partials._drawer_notifications')
+
+{{-- SM2c Phase 4 — Drawer préférences (tap long sur header T1). --}}
+@include('public.tech.partials._drawer_tech_preferences')
+
 {{-- Phase 3 SM1 — publication TECH_CONFIG (csrf + token + routes + bootstrap)
      consommé par les modules JS chargés juste après. À garder AVANT le
      <script type="module"> qui suit. --}}
