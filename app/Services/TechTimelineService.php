@@ -55,6 +55,10 @@ class TechTimelineService
             ->each(function (PoseTask $t) use ($events, $startDay, $endDay) {
                 $subject  = $t->panel?->name ?? '—';
                 $location = $t->panel?->commune?->name;
+                // Lien vers la fiche pose admin — rendu cliquable dans la
+                // timeline (hotfix 2026-06-19). La patronne veut pouvoir
+                // naviguer direct depuis l'activité du jour.
+                $taskUrl  = route('admin.pose-tasks.show', $t->id);
                 if ($t->started_at && $t->started_at->between($startDay, $endDay)) {
                     $events->push([
                         'at'       => $t->started_at,
@@ -62,6 +66,7 @@ class TechTimelineService
                         'label'    => 'Arrivé sur place',
                         'subject'  => $subject,
                         'location' => $location,
+                        'link_url' => $taskUrl,
                         'meta'     => ['task_id' => $t->id],
                     ]);
                 }
@@ -72,6 +77,7 @@ class TechTimelineService
                         'label'    => 'Pose terminée',
                         'subject'  => $subject,
                         'location' => $location,
+                        'link_url' => $taskUrl,
                         'meta'     => ['task_id' => $t->id],
                     ]);
                 }
@@ -89,6 +95,7 @@ class TechTimelineService
                 $subject  = $p->panel?->name ?? '—';
                 $location = $p->panel?->commune?->name;
 
+                $pigeUrl = route('admin.piges.show', $p->id);
                 if ($p->created_at && $p->created_at->between($startDay, $endDay)) {
                     // SM2c B1 — Surface le flag is_off_schedule pour que
                     // la timeline A2 affiche un badge "hors créneau" sur
@@ -99,6 +106,7 @@ class TechTimelineService
                         'label'    => $p->is_off_schedule ? 'Photo envoyée (hors créneau)' : 'Photo envoyée',
                         'subject'  => $subject,
                         'location' => $location,
+                        'link_url' => $pigeUrl,
                         'meta'     => array_filter([
                             'pige_id'         => $p->id,
                             'is_off_schedule' => $p->is_off_schedule ? true : null,
@@ -113,6 +121,7 @@ class TechTimelineService
                         'label'    => $isReject ? 'Photo refusée' : 'Photo validée',
                         'subject'  => $subject,
                         'location' => $location,
+                        'link_url' => $pigeUrl,
                         'meta'     => array_filter([
                             'pige_id' => $p->id,
                             'reason'  => $isReject ? $p->rejection_reason : null,
@@ -134,6 +143,9 @@ class TechTimelineService
                     'label'    => 'Souci signalé',
                     'subject'  => $a->task?->panel?->name ?? '—',
                     'location' => $a->task?->panel?->commune?->name,
+                    // Lien vers la page Signalements filtrée À traiter
+                    // (l'admin atterrit pile sur le signal à traiter).
+                    'link_url' => route('admin.signalements.index', ['view' => 'todo']),
                     'meta'     => array_filter([
                         'task_id'  => $a->pose_task_id,
                         'resolved' => $a->resolved_at !== null,
