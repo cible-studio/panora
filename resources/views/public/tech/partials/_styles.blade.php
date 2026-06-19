@@ -1706,6 +1706,139 @@
             font-size: 13px;
         }
 
+        /* ─── T8 §spec — Modale "Besoin d'aide ?" ────────────────── */
+        .sm2-t8-overlay {
+            position: fixed; inset: 0; z-index: 9400;
+            background: rgba(15, 23, 42, .55);
+            display: flex; align-items: flex-end; justify-content: center;
+            padding: 0;
+            opacity: 0; transition: opacity .2s ease;
+        }
+        @media (min-width: 540px) {
+            .sm2-t8-overlay { align-items: center; padding: 16px; }
+        }
+        .sm2-t8-overlay.is-open { opacity: 1; }
+        .sm2-t8-modal {
+            width: 100%; max-width: 480px;
+            background: var(--surface);
+            border-radius: 18px 18px 0 0;
+            display: flex; flex-direction: column;
+            transform: translateY(20px);
+            transition: transform .25s ease;
+            overflow: hidden;
+            max-height: 92vh;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        @media (min-width: 540px) {
+            .sm2-t8-modal { border-radius: 18px; }
+        }
+        .sm2-t8-overlay.is-open .sm2-t8-modal { transform: translateY(0); }
+
+        .sm2-t8-head {
+            display: flex; align-items: center; gap: 12px;
+            padding: 16px 18px;
+            background: var(--c-yellow-bg);
+            border-bottom: 1px solid var(--c-yellow-border);
+            position: sticky; top: 0;
+        }
+        .sm2-t8-head-icon { font-size: 28px; line-height: 1; flex: 0 0 32px; }
+        .sm2-t8-head-text { flex: 1; }
+        .sm2-t8-title {
+            margin: 0;
+            font-size: 16px; font-weight: 800;
+            color: var(--c-yellow-text);
+        }
+        .sm2-t8-subtitle {
+            font-size: 12px;
+            color: var(--c-yellow-text);
+            opacity: .8;
+            margin-top: 2px;
+        }
+        .sm2-t8-close {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.5);
+            border: 1px solid var(--c-yellow-border);
+            font-size: 14px; color: var(--c-yellow-text);
+            cursor: pointer; font-family: inherit;
+            display: inline-flex; align-items: center; justify-content: center;
+            flex: 0 0 32px;
+        }
+
+        .sm2-t8-body {
+            padding: 16px 18px 18px;
+            display: flex; flex-direction: column; gap: 12px;
+            overflow-y: auto;
+        }
+
+        .sm2-t8-card {
+            display: flex; align-items: flex-start; gap: 14px;
+            padding: 14px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+        }
+        .sm2-t8-card-circle {
+            flex: 0 0 56px;
+            width: 56px; height: 56px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px;
+        }
+        .sm2-t8-card-circle-go {
+            background: var(--c-green-bg);
+            border: 2px solid var(--c-green-border);
+        }
+        .sm2-t8-card-circle-cam {
+            background: var(--c-orange-bg);
+            border: 2px solid var(--c-orange-border);
+        }
+        .sm2-t8-card-circle-warn {
+            background: var(--c-red-bg);
+            border: 2px solid var(--c-red-border);
+        }
+        .sm2-t8-card-text { flex: 1; min-width: 0; }
+        .sm2-t8-card-title {
+            font-size: 14px; font-weight: 800;
+            color: var(--text);
+        }
+        .sm2-t8-card-desc {
+            font-size: 13px;
+            color: var(--text2);
+            margin-top: 3px;
+            line-height: 1.45;
+        }
+
+        .sm2-t8-actions {
+            display: flex; flex-direction: column; gap: 8px;
+            margin-top: 8px;
+        }
+        .sm2-t8-btn {
+            display: flex; align-items: center; justify-content: center;
+            gap: 6px;
+            min-height: 48px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 14px; font-weight: 800;
+            border: none; cursor: pointer;
+            font-family: inherit;
+            text-decoration: none;
+            transition: transform .08s;
+        }
+        .sm2-t8-btn:active { transform: scale(.98); }
+        .sm2-t8-btn-primary {
+            background: linear-gradient(135deg, #22c55e, var(--c-green-success));
+            color: #fff;
+            box-shadow: 0 4px 12px -2px rgba(22, 163, 74, .35);
+        }
+        .sm2-t8-btn-ghost {
+            background: var(--surface);
+            color: var(--text2);
+            border: 1.5px solid var(--border);
+            min-height: 44px;
+            font-size: 13px;
+        }
+
         /* ─── T1 §3.1 — Bouton aide rond jaune (header) ─────────── */
         .sm2-help-btn {
             flex: 0 0 auto;

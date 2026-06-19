@@ -25,6 +25,7 @@ import { init as initGeolocate }   from './features/geolocate.js';
 import { init as initUpload }      from './features/upload.js';
 import { init as initPoseDrawer }  from './features/pose-drawer.js';
 import { init as initYAllerModal } from './features/y-aller-modal.js';
+import { init as initHelp }        from './features/help.js';
 
 // Garde-fou : si TECH_CONFIG n'est pas là, on log mais on n'explose pas
 // (la page continue de fonctionner via le JS inline encore présent).
@@ -46,6 +47,7 @@ function bootstrap() {
     initUpload();         // [SM1.5 Lot 6] photo : preview + GPS + compress + POST + IndexedDB queue
     initPoseDrawer();     // [SM2a Lot 2.1A] drawer T2 détail d'une pose + ?focus= deep-link
     initYAllerModal();    // [SM2a Lot 2.2] modale T7 confirmation Y aller (mini-carte + stats)
+    initHelp();           // [SM2a Lot 5.1] modale T8 aide (auto-open 1re visite)
 }
 
 if (document.readyState === 'loading') {

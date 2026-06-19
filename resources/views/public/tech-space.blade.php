@@ -182,6 +182,10 @@
      flashSuccess overlay 900ms par un plein écran 4s avec next pose). --}}
 @include('public.tech.partials._screen_success')
 
+{{-- SM2a Lot 5.1 — Modale T8 "Besoin d'aide ?" (piloté par
+     features/help.js — auto-open à la 1re visite + tap sur "?" jaune). --}}
+@include('public.tech.partials._modal_help')
+
 {{-- Phase 3 SM1 — publication TECH_CONFIG (csrf + token + routes + bootstrap)
      consommé par les modules JS chargés juste après. À garder AVANT le
      <script type="module"> qui suit. --}}
