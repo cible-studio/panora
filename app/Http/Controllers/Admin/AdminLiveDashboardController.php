@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Services\AdminLiveDashboardService;
+use App\Services\TechTimelineService;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * SM2b Lot 1.2 — Controller du dashboard admin live.
@@ -18,7 +22,10 @@ use Illuminate\Http\JsonResponse;
  */
 class AdminLiveDashboardController extends Controller
 {
-    public function __construct(protected AdminLiveDashboardService $service) {}
+    public function __construct(
+        protected AdminLiveDashboardService $service,
+        protected TechTimelineService       $timeline,
+    ) {}
 
     /**
      * GET /admin/dashboard/live → JSON payload temps réel.
@@ -28,5 +35,29 @@ class AdminLiveDashboardController extends Controller
     {
         $payload = $this->service->buildLivePayload();
         return response()->json($payload);
+    }
+
+    /**
+     * GET /admin/tech/{user}/timeline → frise chronologique d'un tech.
+     * Param query optionnel : ?date=YYYY-MM-DD (défaut: today).
+     */
+    public function techTimeline(Request $request, User $user): JsonResponse
+    {
+        $date = $request->filled('date')
+            ? CarbonImmutable::parse($request->input('date'))
+            : CarbonImmutable::today();
+
+        $events = $this->timeline->buildTimeline($user, $date);
+
+        return response()->json([
+            'as_of'  => now()->toIso8601String(),
+            'tech'   => [
+                'id'        => $user->id,
+                'full_name' => $user->name,
+                'initials'  => mb_substr($user->name, 0, 2),
+            ],
+            'date'   => $date->format('Y-m-d'),
+            'events' => $events,
+        ]);
     }
 }
