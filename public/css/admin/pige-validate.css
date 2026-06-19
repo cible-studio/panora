@@ -1,0 +1,182 @@
+/* SM2 hotfix — l'attribut HTML hidden DOIT toujours masquer un
+   élément. Sans ce !important, .xxx-overlay { display:flex } définit
+   plus tard dans le fichier surcharge la règle UA stylesheet
+   [hidden]{display:none} et l'overlay reste position:fixed inset:0
+   en opacity:0 → invisible mais intercepte TOUS les clics de la page. */
+[hidden] { display: none !important; }
+
+/* SM2b Phase 5 — Modale validation photo (A4). */
+
+.pige-validate-overlay {
+    position: fixed; inset: 0; z-index: 9500;
+    background: rgba(15, 23, 42, .65);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    opacity: 0; transition: opacity .2s ease;
+}
+.pige-validate-overlay.is-open { opacity: 1; }
+.pige-validate-modal {
+    background: #fff;
+    border-radius: 14px;
+    width: 100%; max-width: 880px;
+    max-height: 92vh;
+    overflow-y: auto;
+    transform: translateY(20px);
+    transition: transform .25s ease;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,.45);
+}
+.pige-validate-overlay.is-open .pige-validate-modal { transform: translateY(0); }
+
+.pige-validate-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #fafafa;
+}
+.pige-validate-head h2 { margin: 0; font-size: 15px; font-weight: 800; }
+.pige-validate-close {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: #f3f4f6; border: none;
+    font-size: 14px;
+    cursor: pointer;
+}
+.pige-validate-close:hover { background: #e5e7eb; }
+
+.pige-validate-body { padding: 18px; min-height: 200px; }
+.pige-validate-error button {
+    margin-top: 8px;
+    background: #ea580c; color: #fff;
+    border: none; padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer; font-weight: 700;
+}
+
+.pige-validate-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+@media (max-width: 640px) {
+    .pige-validate-grid { grid-template-columns: 1fr; }
+}
+.pige-validate-photo-wrap {
+    background: #f3f4f6;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 0;
+    position: relative;
+}
+.pige-validate-photo-wrap--ref { aspect-ratio: 4 / 3; }
+.pige-validate-photo {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: contain;
+    background: #000;
+}
+.pige-validate-photo-cap {
+    font-size: 10.5px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .5px;
+    padding: 4px 8px;
+    background: rgba(0,0,0,.65);
+    color: #fff;
+    position: absolute; top: 8px; left: 8px;
+    border-radius: 6px;
+}
+
+.pige-validate-info {
+    background: #f9fafb;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+}
+.pige-validate-row { display: flex; gap: 12px; padding: 4px 0; }
+.pige-validate-key { flex: 0 0 130px; color: #6b7280; font-weight: 700; font-size: 11.5px; text-transform: uppercase; }
+.pige-validate-val { flex: 1; color: #111827; }
+
+.pige-validate-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.pige-validate-btn {
+    min-height: 50px;
+    border-radius: 10px;
+    font-size: 14.5px; font-weight: 800;
+    border: none; cursor: pointer;
+    font-family: inherit;
+    display: flex; align-items: center; justify-content: center;
+    gap: 6px;
+    transition: transform .08s, filter .12s;
+}
+.pige-validate-btn:active { transform: scale(.98); }
+.pige-validate-btn:disabled { opacity: .55; cursor: not-allowed; }
+.pige-validate-btn--validate {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #fff;
+}
+.pige-validate-btn--reject {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1.5px solid #fecaca;
+}
+.pige-validate-btn--cancel {
+    background: #f3f4f6; color: #4b5563;
+    border: 1.5px solid #d1d5db;
+    min-height: 44px; font-size: 13px;
+}
+
+.pige-validate-reject {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #e5e7eb;
+}
+.pige-validate-reject-title { font-size: 13px; font-weight: 800; color: #b91c1c; margin-bottom: 8px; }
+.pige-validate-reject-quick {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+}
+@media (max-width: 540px) { .pige-validate-reject-quick { grid-template-columns: repeat(2, 1fr); } }
+.pige-validate-reject-quick button {
+    background: #fff7ed; color: #c2410c; border: 1.5px solid #fed7aa;
+    padding: 8px 10px; border-radius: 8px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+}
+.pige-validate-reject-quick button:hover { background: #fed7aa; }
+.pige-validate-reject textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 10px 12px;
+    border: 1.5px solid #d1d5db;
+    border-radius: 8px;
+    font: inherit; font-size: 13px;
+    resize: vertical;
+}
+.pige-validate-reject textarea:focus { outline: 2px solid #fed7aa; border-color: #ea580c; }
+.pige-validate-reject-actions {
+    display: flex; gap: 8px;
+    margin-top: 10px;
+}
+.pige-validate-reject-actions .pige-validate-btn { flex: 1; }
+
+/* Toast */
+.pige-validate-toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #111827; color: #fff;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 13.5px; font-weight: 700;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3);
+    opacity: 0;
+    transition: opacity .2s, transform .2s;
+    z-index: 9600;
+}
+.pige-validate-toast.is-open { opacity: 1; transform: translateX(-50%) translateY(0); }
+.pige-validate-toast--success { background: #16a34a; }
+.pige-validate-toast--error   { background: #b91c1c; }

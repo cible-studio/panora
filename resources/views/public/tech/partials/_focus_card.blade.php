@@ -32,7 +32,12 @@
         $ntGo  = 'https://www.google.com/maps/search/?api=1&query=' . urlencode(implode(', ', $ntLoc));
     }
 @endphp
+{{-- SM2a Lot 1.2 — Refonte visuelle T1 §3.3.
+     Le squelette HTML, les ids et les data-* sont volontairement
+     conservés (consommés par features/upload.js — hero handler). Seul
+     le rendu CSS bouge (couleurs sémantiques + label "MAINTENANT 🔥"). --}}
 <div class="next-pose-hero" id="next-pose-hero" data-next-task-id="{{ $nt->id }}">
+    <span class="nph-badge" aria-hidden="true">🔥 MAINTENANT</span>
     <div class="nph-top">
         @if($ntThumb)
             <span class="nph-thumb" style="background-image:url('{{ $ntThumb }}')"></span>

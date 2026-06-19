@@ -184,12 +184,14 @@ class FinanceDashboardController extends Controller
         })->values();
 
         // Dette actuelle par client (snapshot live) — on réutilise
-        // openInvoicesQuery() puis on agrège côté PHP avec remainingAmount()
-        // qui n'est pas une colonne SQL.
+        // creancesQuery() (public wrapper de openInvoicesQuery qui est
+        // protected) puis on agrège côté PHP avec remainingAmount() qui
+        // n'est pas une colonne SQL. creancesQuery précharge payments
+        // ce qui évite le N+1 sur remainingAmount.
         $clientIds = $byClient->pluck('client_id')->all();
         $duByClient = [];
         if (!empty($clientIds)) {
-            $invoices = $this->svc->openInvoicesQuery($commercialUid)
+            $invoices = $this->svc->creancesQuery($commercialUid)
                 ->whereIn('client_id', $clientIds)
                 ->get();
             foreach ($invoices as $inv) {
@@ -306,11 +308,12 @@ class FinanceDashboardController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        // Dette actuelle du client (snapshot live).
+        // Dette actuelle du client (snapshot live). Voir relances() :
+        // creancesQuery() = wrapper public d'openInvoicesQuery().
         $commercialUid = $this->resolveCommercialScope();
         $totalDu = 0.0;
         $facturesOpen = 0;
-        $invoices = $this->svc->openInvoicesQuery($commercialUid)
+        $invoices = $this->svc->creancesQuery($commercialUid)
             ->where('client_id', $clientId)
             ->get();
         foreach ($invoices as $inv) {

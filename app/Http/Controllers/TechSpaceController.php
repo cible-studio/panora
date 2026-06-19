@@ -158,6 +158,17 @@ class TechSpaceController extends Controller
             ->map(fn($g) => $g->count())
             ->all();
 
+        // SM2a Lot 1.4 — Liste des 30 poses récentes TERMINÉES, pour la
+        // section "🟢 Déjà faites" (pliée par défaut) du carnet T1 §3.5.
+        // Cap à 30 pour éviter de saturer le DOM Android Go ; au-delà, le
+        // tech peut tout voir dans /tech/{token}/piges.
+        $donePosesRecent = PoseTask::where('assigned_user_id', $tech->id)
+            ->where('status', PoseTaskStatus::COMPLETED->value)
+            ->with(['panel:id,reference,name,commune_id', 'panel.commune:id,name'])
+            ->orderByDesc('updated_at')
+            ->limit(30)
+            ->get();
+
         // Regroupement par COMMUNE/ZONE (le tech fait une zone entière avant
         // de se déplacer), pas par campagne ni par date. À l'intérieur d'une
         // zone : les poses en retard d'abord, puis par échéance.
@@ -240,6 +251,31 @@ class TechSpaceController extends Controller
         $pigesRejected = \App\Models\Pige::query()->tap($pigesForTech)
             ->where('status', 'rejete')->count();
 
+        // SM2a Lot 5.2 — Liste des piges refusées en cours (pas encore
+        // refaites). Source unique pour le drawer T9 "À refaire". Filtre
+        // identique à la vue "current" du tableau historique des piges :
+        // on exclut les piges qui ont une successeure plus récente sur le
+        // même (panel, campagne). Cap 20 pour éviter le bourrage DOM si
+        // un tech a un parc historique chargé.
+        $rejectedPiges = \App\Models\Pige::query()
+            ->tap($pigesForTech)
+            ->where('piges.status', 'rejete')
+            ->whereNotExists(function ($sub) {
+                $sub->from('piges as p2')
+                    ->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->whereColumn('p2.panel_id',    'piges.panel_id')
+                    ->whereColumn('p2.campaign_id', 'piges.campaign_id')
+                    ->whereColumn('p2.taken_at',    '>', 'piges.taken_at');
+            })
+            ->with([
+                'panel:id,reference,name,commune_id,latitude,longitude',
+                'panel.commune:id,name',
+                'verificateur:id,name',
+            ])
+            ->orderByDesc('piges.taken_at')
+            ->limit(20)
+            ->get();
+
         // Liste TOC zones : agrégat global (toutes poses actives, pas seulement
         // SSR) → chip cliquable sticky pour navigation directe. Une requête
         // groupée sur la BDD pour rester rapide même à 5k+ poses.
@@ -293,6 +329,7 @@ class TechSpaceController extends Controller
             'progressPct'      => $progressPct,
             'groupedByCommune' => $groupedByCommune,
             'doneByCommune'    => $doneByCommune,
+            'donePosesRecent'  => $donePosesRecent, // SM2a Lot 1.4
             'allZones'         => $allZones,
             'nextTask'         => $nextTask,
             // Métriques journée
@@ -304,6 +341,7 @@ class TechSpaceController extends Controller
             // Piges global tech (pour le bouton historique)
             'pigesTotal'       => $pigesTotal,
             'pigesRejected'    => $pigesRejected,
+            'rejectedPiges'    => $rejectedPiges, // SM2a Lot 5.2 (drawer T9)
         ];
     }
 
@@ -850,6 +888,12 @@ class TechSpaceController extends Controller
             ->first();
         if (!$tech) return response()->json(['ok' => false], 404);
 
+        // SM2b Lot 1.1 — stamp last_seen_at à chaque heartbeat (20s).
+        // Permet au AdminLiveDashboardService de déterminer les techs
+        // en ligne (last_seen_at < 10 min). updateQuietly() pour ne pas
+        // déclencher d'events (audit, notif) sur un simple ping.
+        $tech->forceFill(['last_seen_at' => now()])->saveQuietly();
+
         $today      = Carbon::today();
         $startOfDay = $today->copy()->startOfDay();
         $endOfDay   = $today->copy()->endOfDay();
@@ -936,6 +980,57 @@ class TechSpaceController extends Controller
      * si applicable. Pagination simple (30 par page). Le tech voit ce
      * qu'il a envoyé, ce qui est validé, ce qu'il doit reprendre.
      */
+    /**
+     * SM2c B3 — GET /tech/{token}/notifications
+     * Liste des notifications du tech (30 dernières, JSON).
+     */
+    public function notifications(string $token)
+    {
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->first();
+        if (!$tech) return response()->json(['items' => []], 404);
+
+        $items = \App\Models\TechNotification::where('user_id', $tech->id)
+            ->orderByDesc('created_at')
+            ->limit(30)
+            ->get(['id', 'type', 'title', 'detail', 'payload', 'read_at', 'created_at'])
+            ->map(fn($n) => [
+                'id'         => $n->id,
+                'type'       => $n->type,
+                'title'      => $n->title,
+                'detail'     => $n->detail,
+                'payload'    => $n->payload,
+                'read_at'    => optional($n->read_at)->toIso8601String(),
+                'created_at' => $n->created_at?->toIso8601String(),
+            ])->all();
+
+        return response()->json([
+            'as_of' => now()->toIso8601String(),
+            'items' => $items,
+        ]);
+    }
+
+    /**
+     * SM2c B3 — POST /tech/{token}/notifications/mark-read
+     * Marque toutes les notifs du tech comme lues (ou une seule via ?id=).
+     */
+    public function notificationsMarkRead(Request $request, string $token)
+    {
+        $tech = User::where('tech_public_token', $token)
+            ->where('is_active', true)
+            ->first();
+        if (!$tech) return response()->json(['ok' => false], 404);
+
+        $q = \App\Models\TechNotification::where('user_id', $tech->id)
+            ->whereNull('read_at');
+        if ($id = $request->integer('id')) {
+            $q->where('id', $id);
+        }
+        $count = $q->update(['read_at' => now()]);
+        return response()->json(['ok' => true, 'updated' => $count]);
+    }
+
     public function piges(Request $request, string $token)
     {
         $tech = User::where('tech_public_token', $token)
@@ -1210,18 +1305,27 @@ class TechSpaceController extends Controller
         //   tech qui upload, donc user_id = $tech->id. Et on lie la pige
         //   à la PoseTask (pose_task_id) pour le filtrage robuste côté
         //   tech-space (et les jointures admin futures).
+        // SM2c B1 — Détection "hors créneau" : la pige est marquée si le
+        // tech envoie sa photo > 60 min avant OU > 60 min après l'heure
+        // prévue (config tech_space.schedule_tolerance, défaut 60 min).
+        // Côté admin, ce flag est affiché dans la timeline tech A2.
+        $tolerance = (int) config('tech_space.schedule_tolerance', 60);
+        $isOffSchedule = $task->scheduled_at
+            && abs(now()->diffInMinutes($task->scheduled_at)) > $tolerance;
+
         $pige = Pige::create([
-            'panel_id'     => $task->panel_id,
-            'campaign_id'  => $task->campaign_id,
-            'pose_task_id' => $task->id,
-            'user_id'      => $tech->id,
-            'photo_path'   => $path,
-            'taken_at'     => now(),
-            'gps_lat'      => $data['gps_lat'] ?? null,
-            'gps_lng'      => $data['gps_lng'] ?? null,
-            'notes'        => implode(' · ', $noteParts),
-            'status'       => 'en_attente',
-            'client_uuid'  => $data['client_uuid'] ?? null,
+            'panel_id'        => $task->panel_id,
+            'campaign_id'     => $task->campaign_id,
+            'pose_task_id'    => $task->id,
+            'user_id'         => $tech->id,
+            'photo_path'      => $path,
+            'taken_at'        => now(),
+            'gps_lat'         => $data['gps_lat'] ?? null,
+            'gps_lng'         => $data['gps_lng'] ?? null,
+            'notes'           => implode(' · ', $noteParts),
+            'status'          => 'en_attente',
+            'is_off_schedule' => $isOffSchedule,
+            'client_uuid'     => $data['client_uuid'] ?? null,
         ]);
 
         // Marque la tâche comme réalisée si pas déjà fait.
@@ -1281,12 +1385,24 @@ class TechSpaceController extends Controller
             dedupKey: 'pige-uploaded-' . $pige->id,
         );
 
+        // SM2c B2 — Compte les poses restantes du jour pour déclencher
+        // l'écran "fin de journée" si on vient de finir la dernière.
+        $today = \Carbon\Carbon::today();
+        $todayTasksRemaining = PoseTask::where('assigned_user_id', $tech->id)
+            ->whereBetween('scheduled_at', [$today->startOfDay(), $today->copy()->endOfDay()])
+            ->whereNotIn('status', [PoseTaskStatus::COMPLETED->value, PoseTaskStatus::CANCELLED->value])
+            ->count();
+
         return response()->json([
             'ok'        => true,
             'pige_id'   => $pige->id,
             'photo_url' => Storage::url($path),
             'message'   => '✅ Photo envoyée. Pose validée — en attente vérification.',
             'task_done' => true,
+            // SM2c B1 — informatif côté front
+            'is_off_schedule'      => $isOffSchedule,
+            // SM2c B2 — true si plus aucune pose du jour à faire
+            'is_last_pose_of_day'  => $todayTasksRemaining === 0,
         ]);
     }
 

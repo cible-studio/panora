@@ -32,6 +32,15 @@
                 </span>
             @endif
         </a>
+        {{-- SM2a T1 §3.1 — Bouton aide rond jaune (consommé par features/help.js
+             Phase 5 : tap → modale T8 "Besoin d'aide ?"). Pour l'instant pas
+             d'action JS branchée — le bouton apparaît mais ne fait rien.
+             Cohérence accessibilité : aria-label + role button. --}}
+        <button type="button"
+                class="sm2-help-btn"
+                data-action="open-help"
+                aria-label="Ouvrir l'aide"
+                title="Besoin d'aide ?">?</button>
     </div>
 
     <div class="hero">
@@ -42,49 +51,14 @@
         </div>
     </div>
 
-    {{-- Grille KPI — 4 cartes cliquables (filtre la liste en dessous).
-         Polling 20s met à jour data-kpi-value en douceur. État actif
-         marqué par aria-pressed + classe 'is-active'. --}}
-    <div class="kpi-grid" role="group" aria-label="Filtres rapides">
-        <button type="button" class="kpi-card kpi-todo is-active" data-kpi-filter="all" aria-pressed="true">
-            <div class="kpi-label">À faire</div>
-            <div class="kpi-value" data-kpi-value="totalActive" data-total-active>{{ $totalActive }}</div>
-            <div class="kpi-sub">panneaux à poser</div>
-        </button>
-        <button type="button" class="kpi-card kpi-today" data-kpi-filter="today" aria-pressed="false">
-            <div class="kpi-label">Aujourd'hui</div>
-            <div class="kpi-value" data-kpi-value="activeToday">{{ $activeToday ?? 0 }}</div>
-            <div class="kpi-sub">à poser aujourd'hui @if(($doneToday ?? 0) > 0)· <strong data-done-today>{{ $doneToday }}</strong> fait{{ $doneToday > 1 ? 's' : '' }} ✓@endif</div>
-        </button>
-        <a href="{{ route('tech.space.piges', $token) }}" class="kpi-card kpi-piges" data-kpi-link>
-            <div class="kpi-label">Photos</div>
-            <div class="kpi-value" data-kpi-value="pigesSentToday">{{ $pigesSentToday ?? 0 }}</div>
-            <div class="kpi-sub">envoyée{{ ($pigesSentToday ?? 0) > 1 ? 's' : '' }} aujourd'hui</div>
-        </a>
-        <button type="button" class="kpi-card kpi-zones" data-kpi-action="scroll-zones">
-            <div class="kpi-label">Zones</div>
-            <div class="kpi-value" data-kpi-value="zonesTodayCount">{{ $zonesTodayCount ?? 0 }}</div>
-            <div class="kpi-sub">touche pour aller voir ↓</div>
-        </button>
-    </div>
-
-    {{-- Progression à paliers visuels (10/25/50/75/100) — encourageant et lisible --}}
-    @if(($totalAssigned ?? 0) > 0)
-    <div class="progress-staged">
-        <div class="progress-staged-head">
-            <span>Progression globale</span>
-            <strong>{{ $totalDone }}/{{ $totalAssigned }} · {{ $progressPct }}%</strong>
-        </div>
-        <div class="progress-staged-track">
-            <div class="progress-staged-fill" style="width:{{ $progressPct ?? 0 }}%"></div>
-        </div>
-        <div class="progress-staged-marks">
-            @foreach([10, 25, 50, 75, 100] as $m)
-                <span class="{{ $progressPct >= $m ? 'passed' : '' }}">{{ $m }}%</span>
-            @endforeach
-        </div>
-    </div>
-    @endif
+    {{-- SM2a Lot 1.1 — Barre de progression simple (T1 §3.2).
+         Hotfix 2026-06-19 : la grille des 4 KPIs (À FAIRE / AUJOURD'HUI /
+         PHOTOS / ZONES) a été retirée. La spec demande UNIQUEMENT la barre
+         verte + compteur "X/Y" + message motivant. Les compteurs détaillés
+         restent disponibles dans les rapports / le polling met à jour la
+         barre de progression et le compteur via data-progress-* (cf.
+         features/heartbeat.js). --}}
+    @include('public.tech.partials._progress_bar')
 
     {{-- Récap zones de la journée (visible si au moins une zone) --}}
     @if(!empty($zonesTodayList))

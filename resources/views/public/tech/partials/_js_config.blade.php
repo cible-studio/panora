@@ -21,6 +21,9 @@
             map:         @json(route('tech.space.map',         ['token' => $token])),
             optimize:    @json(route('tech.space.optimize',    ['token' => $token])),
             piges:       @json(route('tech.space.piges',       ['token' => $token])),
+            {{-- SM2c B3 : centre de notifications tech --}}
+            notifications:         @json(route('tech.space.notifications',          ['token' => $token])),
+            notificationsMarkRead: @json(route('tech.space.notifications.mark-read', ['token' => $token])),
             {{-- Routes paramétrées : __TASK__ remplacé côté JS au moment de l'appel --}}
             statusTpl:   @json(route('tech.space.status', ['token' => $token, 'task' => '__TASK__'])),
             photoTpl:    @json(route('tech.space.photo',  ['token' => $token, 'task' => '__TASK__'])),
@@ -28,6 +31,13 @@
         },
         {{-- Labels DelayReason FR (utilisés par le bandeau "déjà signalé" en JS) --}}
         motifLabels: @json(collect(\App\Enums\DelayReason::cases())->mapWithKeys(fn($m) => [$m->value => $m->label()])),
+        {{-- SM2a Phase 5 : contacts pour la modale T8 "Besoin d'aide ?".
+             Valeurs servies par config si dispo, sinon null (les boutons
+             correspondants sont automatiquement masqués par features/help.js). --}}
+        contacts: {
+            chiefPhone:       @json(config('tech_space.chief_phone', null)),
+            tutorialVideoUrl: @json(config('tech_space.tutorial_url', null)),
+        },
         bootstrap: {
             heartbeatInterval: 20000,
             ssrCap: (int) config('tech_space.ssr_cap', 200),

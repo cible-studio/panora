@@ -44,7 +44,10 @@
         'maintenances'           => ['route' => 'admin.maintenances.index',               'label' => 'Maintenances'],
         'piges'                  => ['route' => 'admin.piges.index',                      'label' => 'Piges photos'],
         'signalements'           => ['route' => 'admin.signalements.index',               'label' => 'Signalements'],
-        'sla'                    => ['route' => 'admin.sla.retards.index',                'label' => 'Analyse des signalements'],
+        // 2026-06-19 : 'sla' fusionné dans la page Signalements (onglet "Analyse").
+        // L'alias reste pour les anciens liens (back=sla) — il pointe désormais
+        // vers ?view=analyse de la page fusionnée.
+        'sla'                    => ['route' => 'admin.signalements.index',               'label' => 'Analyse des signalements', 'params' => ['view' => 'analyse']],
     ];
     $backKey = (string) request()->query('back', '');
     $backCfg = $backMap[$backKey] ?? null;
@@ -54,7 +57,7 @@
     @php
         // Le route() peut échouer si la route n'existe pas pour le rôle courant.
         // On essaie, et on tombe silencieusement si problème (au pire pas de bouton).
-        try { $backUrl = route($backCfg['route']); } catch (\Throwable $e) { $backUrl = null; }
+        try { $backUrl = route($backCfg['route'], $backCfg['params'] ?? []); } catch (\Throwable $e) { $backUrl = null; }
     @endphp
     @if($backUrl)
         <a href="{{ $backUrl }}"

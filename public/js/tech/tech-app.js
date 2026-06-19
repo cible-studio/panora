@@ -23,6 +23,11 @@ import { init as initFilters }     from './features/filters.js';
 import { init as initSearch }      from './features/search.js';
 import { init as initGeolocate }   from './features/geolocate.js';
 import { init as initUpload }      from './features/upload.js';
+import { init as initPoseDrawer }  from './features/pose-drawer.js';
+import { init as initYAllerModal } from './features/y-aller-modal.js';
+import { init as initHelp }        from './features/help.js';
+import { init as initT9Rejected }  from './features/t9-rejected.js';
+import { init as initSm2c }        from './features/sm2c.js';
 
 // Garde-fou : si TECH_CONFIG n'est pas là, on log mais on n'explose pas
 // (la page continue de fonctionner via le JS inline encore présent).
@@ -42,6 +47,11 @@ function bootstrap() {
     initSearch();         // [SM1.5 Lot 3] Select2 AJAX paginé + openFocusModal
     initGeolocate();      // [SM1.5 Lot 4] Près de moi + Mon chemin (TSP)
     initUpload();         // [SM1.5 Lot 6] photo : preview + GPS + compress + POST + IndexedDB queue
+    initPoseDrawer();     // [SM2a Lot 2.1A] drawer T2 détail d'une pose + ?focus= deep-link
+    initYAllerModal();    // [SM2a Lot 2.2] modale T7 confirmation Y aller (mini-carte + stats)
+    initHelp();           // [SM2a Lot 5.1] modale T8 aide (auto-open 1re visite)
+    initT9Rejected();     // [SM2a Lot 5.2] drawer T9 photos refusées + redo
+    initSm2c();           // [SM2c] B1 off-schedule + B2 end-of-day + B3 notifs + prefs
 }
 
 if (document.readyState === 'loading') {

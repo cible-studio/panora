@@ -119,6 +119,11 @@
             <button type="button" id="ts-tour-quit">Annuler</button>
         </div>
 
+        {{-- SM2a Lot 1.5 — Bandeau rouge "photo à refaire" (T9 intégré
+             dans l'accueil). S'affiche AU-DESSUS de la card MAINTENANT
+             si le tech a au moins une pige refusée. --}}
+        @include('public.tech.partials._banner_t9_rejected')
+
         {{-- ═══ HERO « PROCHAINE POSE » ═══ --}}
         @if(!empty($nextTask))
             @include('public.tech.partials._focus_card', ['task' => $nextTask])
@@ -133,6 +138,12 @@
             'doneByCommune'    => $doneByCommune,
             'today'            => $today,
         ])
+
+        {{-- SM2a Lot 1.4 — Section "🟢 Déjà faites" pliée par défaut. --}}
+        @include('public.tech.partials._done_section')
+
+        {{-- SM2a Lot 1.5 — Bouton secondaire "Voir ma tournée sur la carte". --}}
+        @include('public.tech.partials._tour_button')
 
     @endif
 
@@ -151,6 +162,46 @@
 </div>
 
 @include('public.tech.partials._modal_report')
+
+{{-- SM2a Lot 2.1A — Drawer T2 "Détail d'une pose" (inclus une fois,
+     piloté par features/pose-drawer.js). --}}
+@include('public.tech.partials._drawer_pose_detail')
+
+{{-- SM2a Lot 2.2 — Modale T7 "Confirmation Y aller" (piloté par
+     features/y-aller-modal.js — intercepte tous les clics sur
+     [data-go-maps] avant ouverture Google Maps). --}}
+@include('public.tech.partials._modal_y_aller')
+
+{{-- SM2a Lot 3.1 — Modale T3 "Photo prise + validation GPS" (piloté
+     par features/upload.js askPhotoPreview — la modale persiste dans
+     le DOM, est show/hidden via la classe is-open). --}}
+@include('public.tech.partials._modal_photo_preview')
+
+{{-- SM2a Lot 3.2 — Écran T4 "Succès + pose suivante" (piloté par
+     features/upload.js showSuccessScreenT4 — remplace l'ancien
+     flashSuccess overlay 900ms par un plein écran 4s avec next pose). --}}
+@include('public.tech.partials._screen_success')
+
+{{-- SM2a Lot 5.1 — Modale T8 "Besoin d'aide ?" (piloté par
+     features/help.js — auto-open à la 1re visite + tap sur "?" jaune). --}}
+@include('public.tech.partials._modal_help')
+
+{{-- SM2a Lot 5.2 — Drawer T9 "Photos à refaire" (piloté par
+     features/t9-rejected.js — déclenché par le bandeau rouge épinglé
+     ou par tout data-action="open-t9"). --}}
+@include('public.tech.partials._drawer_t9_rejected')
+
+{{-- SM2c B1 — Modale "Pose hors créneau" (intercepteur tap pose-line). --}}
+@include('public.tech.partials._modal_off_schedule')
+
+{{-- SM2c B2 — Écran "Fin de journée" plein écran avec confettis. --}}
+@include('public.tech.partials._screen_end_of_day')
+
+{{-- SM2c B3 — Drawer centre de notifications (badge sur "?" du header). --}}
+@include('public.tech.partials._drawer_notifications')
+
+{{-- SM2c Phase 4 — Drawer préférences (tap long sur header T1). --}}
+@include('public.tech.partials._drawer_tech_preferences')
 
 {{-- Phase 3 SM1 — publication TECH_CONFIG (csrf + token + routes + bootstrap)
      consommé par les modules JS chargés juste après. À garder AVANT le

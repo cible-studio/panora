@@ -439,6 +439,73 @@ class PigeController extends Controller
         return view('admin.piges.show', compact('pige'));
     }
 
+    /**
+     * SM2b Phase 5 — Détail JSON d'une pige pour la modale validation A4.
+     * Consommé par features/admin/pige-validate.js. Renvoie tout ce qu'il
+     * faut pour rendre la modale : photo URL, photo référence panneau,
+     * GPS pige + GPS panneau + distance haversine, tech, campagne.
+     */
+    public function detailJson(Pige $pige)
+    {
+        $pige->load([
+            'panel.commune', 'panel.format',
+            'panel.photos',
+            'campaign.client',
+            'technicien:id,name,whatsapp_number',
+            'verificateur:id,name',
+        ]);
+
+        $photoUrl = $pige->photo_path ? asset('storage/' . $pige->photo_path) : null;
+        $refPhoto = $pige->panel?->photos?->sortBy('ordre')->first();
+        $refPhotoUrl = $refPhoto ? asset('storage/' . $refPhoto->path) : null;
+
+        // Distance haversine GPS pige ↔ GPS panneau (si les 2 dispos)
+        $distM = null;
+        if ($pige->gps_lat && $pige->gps_lng && $pige->panel?->latitude && $pige->panel?->longitude) {
+            $R = 6371000;
+            $lat1 = deg2rad((float) $pige->gps_lat);
+            $lat2 = deg2rad((float) $pige->panel->latitude);
+            $dLat = $lat2 - $lat1;
+            $dLng = deg2rad(((float) $pige->panel->longitude) - ((float) $pige->gps_lng));
+            $a = sin($dLat/2)**2 + cos($lat1)*cos($lat2)*sin($dLng/2)**2;
+            $distM = (int) round($R * 2 * atan2(sqrt($a), sqrt(1-$a)));
+        }
+
+        return response()->json([
+            'id'         => $pige->id,
+            'status'     => $pige->status,
+            'taken_at'   => $pige->taken_at?->toIso8601String(),
+            'photo_url'  => $photoUrl,
+            'ref_photo_url' => $refPhotoUrl,
+            'gps' => [
+                'lat'    => $pige->gps_lat ? (float) $pige->gps_lat : null,
+                'lng'    => $pige->gps_lng ? (float) $pige->gps_lng : null,
+                'dist_m' => $distM,
+            ],
+            'panel' => [
+                'id'        => $pige->panel?->id,
+                'reference' => $pige->panel?->reference,
+                'name'      => $pige->panel?->name,
+                'commune'   => $pige->panel?->commune?->name,
+            ],
+            'campaign' => [
+                'id'     => $pige->campaign?->id,
+                'name'   => $pige->campaign?->name,
+                'client' => $pige->campaign?->client?->name,
+            ],
+            'tech' => [
+                'id'    => $pige->technicien?->id,
+                'name'  => $pige->technicien?->name,
+                'phone' => $pige->technicien?->whatsapp_number,
+            ],
+            'rejection_reason' => $pige->rejection_reason,
+            'verified_at'      => $pige->verified_at?->toIso8601String(),
+            'verifier_name'    => $pige->verificateur?->name,
+            'verify_url'       => route('admin.piges.verify', $pige),
+            'reject_url'       => route('admin.piges.reject', $pige),
+        ]);
+    }
+
     // ══════════════════════════════════════════════════════════════
     // VALIDATION — page dédiée "Piges à valider" avec navigation clavier
     //
@@ -516,6 +583,18 @@ class PigeController extends Controller
         // Notification email client (si transition vers vérifiée)
         if ($wasNotVerified) {
             $this->notifyClientPigeValidated($pige->fresh()->loadMissing('campaign.client','panel.commune'));
+
+            // SM2c B3 — Notif positive côté tech : le chef a validé ta photo.
+            if ($pige->user_id) {
+                $panelRef = $pige->panel?->reference ?? 'un panneau';
+                \App\Models\TechNotification::notify(
+                    userId:  $pige->user_id,
+                    type:    'photo_validated',
+                    title:   '✓ Photo validée : ' . $panelRef,
+                    detail:  'Le chef a validé ta photo. Bon boulot !',
+                    payload: ['pige_id' => $pige->id, 'task_id' => $pige->pose_task_id],
+                );
+            }
         }
 
         if ($request->wantsJson()) {
@@ -601,6 +680,18 @@ class PigeController extends Controller
 
         // Alerte instantanée
         $this->alertService->notifyPigeRejected($pige->fresh()->load('panel'), $request->rejection_reason);
+
+        // SM2c B3 — notification visible côté tech dans le drawer B3.
+        if ($pige->user_id) {
+            $panelRef = $pige->panel?->reference ?? 'un panneau';
+            \App\Models\TechNotification::notify(
+                userId:  $pige->user_id,
+                type:    'photo_rejected',
+                title:   '🚫 Photo refusée : ' . $panelRef,
+                detail:  $request->rejection_reason,
+                payload: ['pige_id' => $pige->id, 'task_id' => $pige->pose_task_id],
+            );
+        }
 
         if ($request->wantsJson()) {
             // Retourner les infos pour mise à jour

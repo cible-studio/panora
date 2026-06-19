@@ -1,0 +1,208 @@
+/* SM2 hotfix — l'attribut HTML hidden DOIT toujours masquer un
+   élément. Sans ce !important, .xxx-overlay { display:flex } définit
+   plus tard dans le fichier surcharge la règle UA stylesheet
+   [hidden]{display:none} et l'overlay reste position:fixed inset:0
+   en opacity:0 → invisible mais intercepte TOUS les clics de la page. */
+[hidden] { display: none !important; }
+
+/* SM2b Phase 3 — Fiche tech LIVE (A2). Hérite des variables --la-* du
+   live-dashboard.css (importé avant). */
+
+/* Header */
+.tech-live-head {
+    display: flex; align-items: center; gap: 14px;
+    background: #fff;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 12px;
+    padding: 14px 18px;
+}
+.tech-live-back {
+    flex: 0 0 auto;
+    color: var(--text2, #4b5563);
+    font-size: 13px; font-weight: 700;
+    text-decoration: none;
+    padding: 6px 10px; border-radius: 8px;
+    background: #f3f4f6;
+}
+.tech-live-back:hover { background: #e5e7eb; }
+.tech-live-avatar {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--la-orange, #ea580c), #c2410c);
+    color: #fff; font-weight: 800; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px -2px rgba(234,88,12,.4);
+}
+.tech-live-meta { flex: 1; min-width: 0; }
+.tech-live-name {
+    margin: 0; font-size: 18px; font-weight: 800;
+    color: var(--text, #111827);
+}
+.tech-live-substatus {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 4px;
+    font-size: 12px; color: var(--text2, #4b5563);
+    background: var(--la-green-bg, #f0fdf4);
+    border: 1px solid #bbf7d0;
+    padding: 3px 10px; border-radius: 999px;
+    font-weight: 700;
+}
+.tech-live-actions-quick {
+    display: flex; gap: 6px;
+    flex: 0 0 auto;
+}
+.tech-live-action {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    text-decoration: none;
+    font-size: 18px;
+    background: #f3f4f6;
+    transition: transform .1s, background .15s;
+}
+.tech-live-action:hover { background: #e5e7eb; transform: translateY(-1px); }
+.tech-live-action--call { background: var(--la-blue-bg, #e0e7ff); color: var(--la-blue, #1e40af); }
+.tech-live-action--wa   { background: var(--la-green-bg, #f0fdf4); color: var(--la-green, #16a34a); }
+.tech-live-action--map  { background: var(--la-orange-bg, #fff7ed); color: var(--la-orange, #ea580c); }
+
+/* KPIs personnels */
+.tech-live-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+@media (max-width: 560px) { .tech-live-kpis { grid-template-columns: repeat(2, 1fr); } }
+.tech-live-kpi {
+    background: #fff;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 12px;
+    padding: 14px 16px;
+    text-align: center;
+}
+.tech-live-kpi-value {
+    font-size: 26px; font-weight: 800;
+    color: var(--text, #111827);
+    font-variant-numeric: tabular-nums;
+    transition: transform .25s cubic-bezier(.16,1,.3,1);
+}
+.tech-live-kpi-value.kpi-bump { animation: la-bump .6s cubic-bezier(.16,1,.3,1); }
+.tech-live-kpi-label {
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .5px;
+    color: var(--text3, #6b7280);
+    margin-top: 3px;
+}
+
+/* Card "EN CE MOMENT" */
+.tech-live-current {
+    background: var(--la-orange-bg, #fff7ed);
+    border: 1.5px solid #fed7aa;
+    border-radius: 12px;
+    padding: 14px 18px;
+}
+.tech-live-current-label {
+    font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--la-orange, #ea580c);
+    margin-bottom: 6px;
+}
+.tech-live-current-body {
+    display: flex; align-items: center; gap: 12px;
+}
+.tech-live-current-icon {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(234,88,12,.2);
+    animation: la-pulse 1.8s ease-in-out infinite;
+}
+.tech-live-current-title {
+    font-size: 15px; font-weight: 800;
+    color: var(--text, #111827);
+}
+.tech-live-current-sub {
+    font-size: 12px; color: var(--text2, #4b5563);
+    margin-top: 2px;
+}
+
+/* Timeline */
+.tech-live-timeline {
+    background: #fff;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 12px;
+    padding: 14px 18px;
+}
+.tech-live-timeline-title {
+    margin: 0 0 14px;
+    font-size: 14px; font-weight: 800;
+    color: var(--text, #111827);
+}
+.tech-live-timeline-empty {
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--text3, #6b7280);
+    font-size: 13px;
+}
+.tech-live-timeline-empty-icon { font-size: 34px; margin-bottom: 6px; }
+
+.tech-live-timeline-list {
+    list-style: none; margin: 0; padding: 0;
+    position: relative;
+}
+.tech-live-timeline-list::before {
+    content: ''; position: absolute;
+    left: 14px; top: 8px; bottom: 8px;
+    width: 2px;
+    background: #e5e7eb;
+}
+.tech-live-event {
+    position: relative;
+    display: flex; gap: 12px;
+    padding: 8px 0 8px 36px;
+}
+.tech-live-event-dot {
+    position: absolute; left: 4px; top: 8px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #9ca3af;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 800; color: inherit;
+    z-index: 1;
+}
+.tech-live-event.is-current .tech-live-event-dot {
+    box-shadow: 0 0 0 4px rgba(234,88,12,.15);
+    animation: la-pulse 1.8s ease-in-out infinite;
+    color: #fff;
+}
+.tech-live-event-body { flex: 1; min-width: 0; }
+.tech-live-event-head {
+    display: flex; align-items: center; gap: 8px;
+    justify-content: space-between;
+}
+.tech-live-event-head strong {
+    font-size: 13.5px; font-weight: 800;
+    color: var(--text, #111827);
+}
+.tech-live-event-head span {
+    font-size: 11.5px;
+    color: var(--text3, #6b7280);
+    font-variant-numeric: tabular-nums;
+}
+.tech-live-event-meta {
+    font-size: 12px; color: var(--text2, #4b5563);
+    margin-top: 2px;
+}
+.tech-live-event-meta span { margin-right: 8px; }
+.tech-live-event-extra {
+    font-size: 11.5px; color: var(--text3, #6b7280);
+    margin-top: 4px;
+    padding: 4px 8px;
+    background: #f3f4f6;
+    border-radius: 6px;
+    font-style: italic;
+}

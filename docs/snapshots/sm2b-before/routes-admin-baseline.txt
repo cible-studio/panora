@@ -1,0 +1,24 @@
+  GET|HEAD        admin/dashboard .................................. admin.dashboard › Admin\DashboardController@index
+  GET|HEAD        admin/map .................................................... admin.map › Admin\PanelController@map
+  GET|HEAD        admin/map/data ...................................... admin.map.data › Admin\PanelController@mapData
+  GET|HEAD        admin/piges ......................................... admin.piges.index › Admin\PigeController@index
+  POST            admin/piges ......................................... admin.piges.store › Admin\PigeController@store
+  GET|HEAD        admin/piges/archives .......................... admin.piges.archives › Admin\PigeController@archives
+  GET|HEAD        admin/piges/campaign-panels ...... admin.piges.campaign-panels › Admin\PigeController@campaignPanels
+  GET|HEAD        admin/piges/create ................................ admin.piges.create › Admin\PigeController@create
+  GET|HEAD        admin/piges/validation .................... admin.piges.validation › Admin\PigeController@validation
+  POST            admin/piges/verify-batch ............... admin.piges.verify-batch › Admin\PigeController@verifyBatch
+  GET|HEAD        admin/piges/{pige} .................................... admin.piges.show › Admin\PigeController@show
+  PUT             admin/piges/{pige} ................................ admin.piges.update › Admin\PigeController@update
+  DELETE          admin/piges/{pige} .............................. admin.piges.destroy › Admin\PigeController@destroy
+  GET|HEAD        admin/piges/{pige}/edit ............................... admin.piges.edit › Admin\PigeController@edit
+  POST            admin/piges/{pige}/reject ......................... admin.piges.reject › Admin\PigeController@reject
+  POST            admin/piges/{pige}/verify ......................... admin.piges.verify › Admin\PigeController@verify
+  GET|HEAD        admin/teams ..................................... admin.teams.index › Admin\PoseTeamController@index
+  POST            admin/teams ..................................... admin.teams.store › Admin\PoseTeamController@store
+  GET|HEAD        admin/teams/create ............................ admin.teams.create › Admin\PoseTeamController@create
+  PUT|PATCH       admin/teams/{team} ............................ admin.teams.update › Admin\PoseTeamController@update
+  DELETE          admin/teams/{team} .......................... admin.teams.destroy › Admin\PoseTeamController@destroy
+  GET|HEAD        admin/teams/{team}/edit ........................... admin.teams.edit › Admin\PoseTeamController@edit
+  POST            admin/teams/{team}/members ........... admin.teams.members.add › Admin\PoseTeamController@addMembers
+  DELETE          admin/teams/{team}/members/{user} admin.teams.members.remove › Admin\PoseTeamController@removeMember

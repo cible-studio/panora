@@ -139,6 +139,12 @@ Route::prefix('tech')->middleware(['throttle:60,1', \App\Http\Middleware\SetFren
     Route::get('/{token}/heartbeat', [\App\Http\Controllers\TechSpaceController::class, 'heartbeat'])
         ->name('tech.space.heartbeat');
 
+    // SM2c B3 — Notifications du tech (drawer + badge).
+    Route::get('/{token}/notifications', [\App\Http\Controllers\TechSpaceController::class, 'notifications'])
+        ->name('tech.space.notifications');
+    Route::post('/{token}/notifications/mark-read', [\App\Http\Controllers\TechSpaceController::class, 'notificationsMarkRead'])
+        ->name('tech.space.notifications.mark-read');
+
     // Recherche AJAX scalable : source pour Select2 (paginé, full-text sur
     // référence/nom/commune/campagne/client). Permet au tech de trouver
     // une pose précise même si elle n'est pas dans le SSR initial (cap 200).
@@ -314,6 +320,36 @@ Route::prefix('admin')
 
         // Dashboard
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+        // SM2b Lot 1.2 + 1.4 — Dashboard admin live (polling 20s côté front).
+        // JSON-only. Réservé admin + mediaplanner (le commercial n'a pas
+        // vocation à piloter les techs terrain en live).
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            Route::get('/dashboard/live', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'live'])
+                ->name('dashboard.live');
+            // SM2b Phase 2 — Page Blade A1 "Pilotage terrain".
+            Route::get('/pilotage', function () {
+                return view('admin.dashboard.live');
+            })->name('pilotage');
+            // SM2b Phase 3 — Fiche tech A2 (Blade live).
+            Route::get('/pilotage/tech/{user}', function (\App\Models\User $user) {
+                abort_if($user->role?->value !== 'technique', 404);
+                return view('admin.dashboard.tech-live', ['tech' => $user]);
+            })->name('pilotage.tech');
+            // SM2b Phase 4 — Carte live A3.
+            Route::get('/pilotage/map', function () {
+                return view('admin.dashboard.map-live');
+            })->name('pilotage.map');
+            // SM2b Phase 6 — Vue équipe A5.
+            Route::get('/pilotage/team/{poseTeam}', function (\App\Models\PoseTeam $poseTeam) {
+                $poseTeam->load('members');
+                return view('admin.dashboard.team-live', ['team' => $poseTeam]);
+            })->name('pilotage.team');
+            Route::get('/tech/{user}/timeline', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'techTimeline'])
+                ->name('tech.timeline');
+            Route::get('/map/live', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'mapLive'])
+                ->name('map.live');
+        });
 
         // ── Panneaux ────────────────────────────────────────────────
         // Lecture + exports = tous les staff (admin/commercial/MP).
@@ -557,6 +593,8 @@ Route::prefix('admin')
             // ── Actions sur une pige ───────────────────────────────────
             Route::post('{pige}/verify', [PigeController::class, 'verify']) ->name('verify');
             Route::post('{pige}/reject', [PigeController::class, 'reject']) ->name('reject');
+            // SM2b Phase 5 — Détail JSON pour modale validation A4.
+            Route::get('{pige}/detail-json', [PigeController::class, 'detailJson'])->name('detail-json');
         
             // ── CRUD standard ──────────────────────────────────────────
             Route::get('/',           [PigeController::class, 'index'])  ->name('index');
@@ -854,7 +892,15 @@ Route::prefix('admin')
         Route::get('sla/retards/export/pdf', [\App\Http\Controllers\Admin\SlaDelaysController::class, 'exportPdf'])
             ->middleware('role:admin,mediaplanner')
             ->name('sla.retards.export.pdf');
-        Route::get('sla/retards', [\App\Http\Controllers\Admin\SlaDelaysController::class, 'index'])
+        // 2026-06-19 — Fusion : l'ancienne page /admin/sla/retards a été fusionnée
+        // dans /admin/signalements (onglet "📊 Analyse"). On conserve la route
+        // pour ne casser aucun lien existant (bookmarks, smart_back?back=sla,
+        // PDFs déjà imprimés…) — elle redirige avec les filtres préservés.
+        Route::get('sla/retards', function (\Illuminate\Http\Request $request) {
+            $params = array_merge(['view' => 'analyse'],
+                $request->only(['from','to','motif','zone','commune_id','client_id']));
+            return redirect()->route('admin.signalements.index', $params);
+        })
             ->middleware('role:admin,mediaplanner')
             ->name('sla.retards.index');
         // Édition motif a posteriori — crée action='motif_modified' SANS écraser l'original.
