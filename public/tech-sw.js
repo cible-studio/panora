@@ -29,7 +29,8 @@
 //   - v2.3.0  : refonte radicale tech-space — squelette propre + pose-card compact
 //   - v2.4.0  : 3 bugs critiques post-refonte (upload undefined / card rotation / off-schedule humain)
 //   - v2.5.0  : fix PHP non-évalué dans _js_config (ssrCap) qui cassait window.TECH_CONFIG
-const SW_VERSION = 'v2.5.0';
+//   - v2.6.0  : diagnostic GPS amélioré côté modale T3 (motifs d'échec)
+const SW_VERSION = 'v2.6.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
