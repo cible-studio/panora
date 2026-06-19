@@ -105,10 +105,20 @@ class PoseTask extends Model
             if (!$task->isDirty('assigned_user_id') || empty($task->assigned_user_id)) {
                 return;
             }
-            $user = User::with('poseTeam:id,name')->find($task->assigned_user_id);
-            if ($user?->poseTeam) {
-                $task->team_name = $user->poseTeam->name;
+            // 2026-06-19 — Multi-équipe : on n'auto-déduit team_name QUE si
+            // le tech appartient à une seule équipe. S'il est dans plusieurs,
+            // l'admin doit choisir manuellement (sinon ambiguïté). Si team_name
+            // est déjà renseigné par l'admin, on respecte son choix.
+            if (!empty($task->team_name)) {
+                return;
             }
+            $user = User::with('poseTeams:id,name')->find($task->assigned_user_id);
+            $teams = $user?->poseTeams ?? collect();
+            if ($teams->count() === 1) {
+                $task->team_name = $teams->first()->name;
+            }
+            // Sinon (0 ou ≥2 équipes) : team_name reste tel quel — l'admin
+            // garde la responsabilité du choix.
         });
     }
 

@@ -192,11 +192,15 @@ window.__POSE__ = {
                                 style="background:none;border:1px dashed var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:1px 9px;border-radius:8px;cursor:pointer"
                                 title="Créer un technicien rapidement (sans quitter ce formulaire)">+ Nouveau</button>
                     </div>
+                    {{-- 2026-06-19 — Multi-équipe : data-team passe d'une string à un JSON array.
+                         L'auto-fill équipe ne s'active que si le tech a UNE seule équipe (sinon
+                         l'admin choisit manuellement parmi ses N équipes). --}}
                     <select name="assigned_user_id" id="sel-technicien" class="pose-select" data-team-by-user='@json($teamByUser ?? [])'>
                         <option value="">— Non assigné —</option>
                         @foreach($techniciens as $t)
+                        @php $teamsList = $teamByUser[$t->id] ?? []; @endphp
                         <option value="{{ $t->id }}" {{ old('assigned_user_id')==$t->id?'selected':'' }}
-                                data-team="{{ $teamByUser[$t->id] ?? '' }}">{{ $t->name }}</option>
+                                data-teams="{{ json_encode($teamsList) }}">{{ $t->name }}{{ count($teamsList) > 1 ? ' (' . count($teamsList) . ' équipes)' : '' }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -234,10 +238,13 @@ window.__POSE__ = {
                 try { teamByUser = JSON.parse(selTech.dataset.teamByUser || '{}'); } catch (e) {}
 
                 selTech.addEventListener('change', function () {
-                    var teamName = teamByUser[selTech.value];
-                    if (!teamName) return;
-                    // Cherche l'option correspondante, ou la crée (cas où l'équipe
-                    // serait inactive — on l'ajoute en (inactive) pour ne pas perdre).
+                    // 2026-06-19 — Multi-équipe : teamByUser[id] est désormais un ARRAY.
+                    // On n'auto-fill que si le tech a EXACTEMENT 1 équipe.
+                    // S'il en a plusieurs ou aucune, l'admin choisit manuellement
+                    // (cohérent avec PoseTask::saving observer).
+                    var teamsList = teamByUser[selTech.value];
+                    if (!Array.isArray(teamsList) || teamsList.length !== 1) return;
+                    var teamName = teamsList[0];
                     var opt = Array.from(selTeam.options).find(function (o) { return o.value === teamName; });
                     if (!opt) {
                         opt = new Option(teamName, teamName, false, false);
@@ -840,6 +847,6 @@ window.addEventListener('resize', () => { if (_filteredPanels.length > 0) POSE._
     'target_select_id' => 'sel-team',
     // TOUS les techniciens — ceux déjà dans une équipe affichent un badge
     // "↻ équipe X" et la sélection les TRANSFÈRE vers la nouvelle équipe.
-    'available_techs'  => \App\Models\User::techniciens()->with('poseTeam:id,name')->get(['id', 'name', 'agent_code', 'pose_team_id']),
+    'available_techs'  => \App\Models\User::techniciens()->with('poseTeams:id,name')->get(['id', 'name', 'agent_code']),
 ])
 </x-admin-layout>

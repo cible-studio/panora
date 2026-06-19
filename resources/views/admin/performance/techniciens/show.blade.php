@@ -12,8 +12,12 @@
 </x-slot:topbarLeft>
 
 @php
-    $teamHex = $user->poseTeam?->colorHex() ?? '#6366f1';
-    $teamBg  = $user->poseTeam?->colorBgHex() ?? 'rgba(99,102,241,.10)';
+    // 2026-06-19 — Multi-équipe : on prend la 1ère équipe du tech pour la
+    // couleur dominante du hero (couleur "principale"). Les autres équipes
+    // apparaissent ensuite en chips dans la ligne descriptive.
+    $primaryTeam = $user->poseTeams->first();
+    $teamHex = $primaryTeam?->colorHex() ?? '#6366f1';
+    $teamBg  = $primaryTeam?->colorBgHex() ?? 'rgba(99,102,241,.10)';
 @endphp
 
 <div class="perf-page">
@@ -31,8 +35,11 @@
             </div>
             <div style="font-size:12.5px;color:var(--text3);margin-top:3px">
                 <span style="font-family:monospace">{{ $user->agent_code }}</span> · Technicien
-                @if($user->poseTeam)
-                    · <span style="padding:1px 8px;border-radius:999px;background:{{ $teamBg }};color:{{ $teamHex }};font-weight:700">{{ $user->poseTeam->name }}</span>
+                {{-- 2026-06-19 — Multi-équipe : N chips, 1 par équipe avec sa couleur propre. --}}
+                @if($user->poseTeams->isNotEmpty())
+                    @foreach($user->poseTeams as $tm)
+                        · <span style="padding:1px 8px;border-radius:999px;background:{{ $tm->colorBgHex() }};color:{{ $tm->colorHex() }};font-weight:700">{{ $tm->name }}</span>
+                    @endforeach
                 @else
                     · <span style="font-style:italic">Sans équipe</span>
                 @endif
@@ -127,11 +134,15 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @php $currentTeamName = $user->poseTeam?->name; @endphp
+                    @php
+                        // 2026-06-19 — Multi-équipe : "is old team" = team_name de la pose
+                        // n'est dans AUCUNE des équipes actuelles du tech (= ancienne équipe).
+                        $currentTeamNames = $user->poseTeams->pluck('name')->all();
+                    @endphp
                     @forelse($poses as $pt)
                         @php
                             $teamAtPose = $pt->team_name;
-                            $isOldTeam  = $teamAtPose && $currentTeamName && $teamAtPose !== $currentTeamName;
+                            $isOldTeam  = $teamAtPose && !empty($currentTeamNames) && !in_array($teamAtPose, $currentTeamNames, true);
                         @endphp
                         <tr>
                             <td><a href="{{ route('admin.pose-tasks.show', $pt) }}" style="font-family:monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $pt->panel?->reference ?? '—' }}</a></td>

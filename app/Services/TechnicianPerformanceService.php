@@ -175,7 +175,8 @@ class TechnicianPerformanceService
     /** Leaderboard tous techs (admin/MP). */
     public function leaderboardTechs(CarbonInterface $from, CarbonInterface $to): Collection
     {
-        return User::techniciens()->with('poseTeam:id,name,color_slug')->get()
+        // 2026-06-19 — Multi-équipe : on charge poseTeams (plural).
+        return User::techniciens()->with('poseTeams:id,name,color_slug')->get()
             ->map(fn (User $u) => [
                 'user' => $u,
                 'kpis' => $this->kpis($u->id, $from, $to),
