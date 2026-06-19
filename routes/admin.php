@@ -321,6 +321,10 @@ Route::prefix('admin')
         Route::middleware('role:admin,mediaplanner')->group(function () {
             Route::get('/dashboard/live', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'live'])
                 ->name('dashboard.live');
+            // SM2b Phase 2 — Page Blade A1 "Pilotage terrain".
+            Route::get('/pilotage', function () {
+                return view('admin.dashboard.live');
+            })->name('pilotage');
             Route::get('/tech/{user}/timeline', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'techTimeline'])
                 ->name('tech.timeline');
             Route::get('/map/live', [\App\Http\Controllers\Admin\AdminLiveDashboardController::class, 'mapLive'])
