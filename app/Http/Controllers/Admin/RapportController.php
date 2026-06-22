@@ -1193,6 +1193,56 @@ class RapportController extends Controller
         ]);
     }
 
+    /**
+     * GET /admin/rapports/decap/pdf
+     * Export PDF "Feuille de décappage" pour les techs terrain.
+     * Liste UNIQUEMENT les panneaux non encore décappés (pending),
+     * groupés par campagne, avec réf, nom, commune, adresse, GPS et
+     * une case à cocher pour pointer sur place au crayon.
+     *
+     * Filtres optionnels :
+     *   - ?overdue=1  → ne garde que les campagnes en retard (>7j)
+     */
+    public function decapPdf(Request $request, DashboardKpiService $kpi)
+    {
+        $overdueOnly = $request->boolean('overdue', false);
+
+        // decapList() ne charge que id/reference/name/commune_id sur panels.
+        // Pour le PDF tech on a besoin d'adresse + quartier + GPS. On re-fetch.
+        $campaigns = $kpi->decapList(100)->filter(fn($c) => $c->pending_count > 0);
+        if ($overdueOnly) {
+            $campaigns = $campaigns->filter(fn($c) => $c->is_overdue);
+        }
+        $campaigns = $campaigns->values();
+
+        // Re-charge les panels en eager-load complet (juste les panel_ids
+        // visibles dans le PDF pour éviter de charger tout le parc).
+        $allPanelIds = $campaigns->flatMap(fn($c) => $c->panels->pluck('id'))->unique()->values();
+        $panelsFull = \App\Models\Panel::with('commune:id,name,city')
+            ->whereIn('id', $allPanelIds)
+            ->get(['id', 'reference', 'name', 'commune_id', 'adresse', 'quartier', 'latitude', 'longitude'])
+            ->keyBy('id');
+
+        // Stats résumé pour le header PDF
+        $totals = [
+            'campaigns'  => $campaigns->count(),
+            'panels'     => $campaigns->sum('pending_count'),
+            'overdue'    => $campaigns->filter(fn($c) => $c->is_overdue)->count(),
+            'generated_by' => $request->user()?->name ?? '—',
+            'generated_at' => now(),
+        ];
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.decap-pdf', [
+            'campaigns'   => $campaigns,
+            'panelsFull'  => $panelsFull,
+            'totals'      => $totals,
+            'overdueOnly' => $overdueOnly,
+        ])->setPaper('A4', 'portrait');
+
+        $filename = 'decappage-' . now()->format('Y-m-d') . ($overdueOnly ? '-retards' : '') . '.pdf';
+        return $pdf->download($filename);
+    }
+
     public function markDecapped(Request $request, DashboardKpiService $kpi)
     {
         $request->validate([

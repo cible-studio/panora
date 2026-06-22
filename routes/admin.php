@@ -1272,6 +1272,10 @@ Route::prefix('admin')
             ->name('rapports.decap.markAll');
         Route::get('/rapports/decap/summary',   [RapportController::class, 'decapSummary'])
             ->name('rapports.decap.summary');
+        // 2026-06-19 — Feuille de décappage PDF imprimable pour les techs
+        // terrain. Liste les panneaux NON ENCORE décappés avec adresse + GPS.
+        Route::get('/rapports/decap/pdf',       [RapportController::class, 'decapPdf'])
+            ->name('rapports.decap.pdf');
 
         // ── Sections admin + MP (vue production / opérationnelle) ──
         // MP = Media Planner : pilote la production et la diffusion. Il
