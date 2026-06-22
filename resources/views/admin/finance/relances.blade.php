@@ -382,6 +382,18 @@
                                         @if($row['total_du'] > 0)
                                             <span style="font-weight:700;color:#b45309">{{ number_format($row['total_du'], 0, ',', ' ') }}</span>
                                             <div style="font-size:10.5px;color:var(--text3);margin-top:1px;font-family:inherit">{{ $row['factures_open'] }} facture(s) ouverte(s)</div>
+                                            @if(($row['brouillons_count'] ?? 0) > 0)
+                                                <div style="font-size:10px;color:#6b7280;margin-top:2px;font-family:inherit;font-style:italic" title="Facture(s) en cours de saisie, pas encore envoyée(s) au client">
+                                                    📝 + {{ $row['brouillons_count'] }} brouillon{{ $row['brouillons_count'] > 1 ? 's' : '' }} ({{ number_format($row['brouillons_total'], 0, ',', ' ') }})
+                                                </div>
+                                            @endif
+                                        @elseif(($row['brouillons_count'] ?? 0) > 0)
+                                            {{-- Hotfix 2026-06-22 : pas de dette envoyée mais brouillon(s)
+                                                 en cours → on dit "📝 brouillon" plutôt que "✓ soldé". --}}
+                                            <span style="color:#6b7280;font-weight:700" title="Facture(s) en cours de saisie, pas encore envoyée(s)">
+                                                📝 {{ $row['brouillons_count'] }} brouillon{{ $row['brouillons_count'] > 1 ? 's' : '' }}
+                                            </span>
+                                            <div style="font-size:10.5px;color:var(--text3);margin-top:1px;font-family:inherit">{{ number_format($row['brouillons_total'], 0, ',', ' ') }} FCFA en cours</div>
                                         @else
                                             <span style="color:#15803d;font-weight:700">✓ soldé</span>
                                         @endif
