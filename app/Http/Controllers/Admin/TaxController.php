@@ -25,11 +25,19 @@ class TaxController extends Controller
      */
     private static function monthsForPeriod(string $type, int $value): array
     {
+        // Hotfix TX-2 v2 (2026-06-22) : bornes EXPLICITES (mensuel 1..12,
+        // trimestriel 1..4) + exception sur type inconnu au lieu de
+        // retourner []. Empêche les "division by zero" silencieuses en
+        // aval quand un CommuneTaxPayment legacy a un period_type corrompu.
         return match ($type) {
-            'mensuel'     => [$value],
-            'trimestriel' => range(($value - 1) * 3 + 1, $value * 3),
+            'mensuel'     => ($value >= 1 && $value <= 12)
+                                ? [$value]
+                                : throw new \InvalidArgumentException("Mois invalide : $value"),
+            'trimestriel' => ($value >= 1 && $value <= 4)
+                                ? range(($value - 1) * 3 + 1, $value * 3)
+                                : throw new \InvalidArgumentException("Trimestre invalide : $value"),
             'annuel'      => range(1, 12),
-            default       => [],
+            default       => throw new \InvalidArgumentException("Périodicité inconnue : $type"),
         };
     }
 
@@ -809,7 +817,24 @@ class TaxController extends Controller
             $directMode = $directReference = $directComment = null;
 
             foreach ($communePayments as $p) {
-                $paymentMonths = self::monthsForPeriod($p->period_type, $p->period_value);
+                // Hotfix TX-2 v2 (2026-06-22) : monthsForPeriod throw
+                // désormais sur period_type/value invalide. On absorbe
+                // l'exception ici pour ne pas crasher TOUT l'endpoint
+                // à cause d'un seul enregistrement legacy corrompu.
+                // L'admin verra dans les logs quelle ligne ignorer.
+                try {
+                    $paymentMonths = self::monthsForPeriod($p->period_type, $p->period_value);
+                } catch (\InvalidArgumentException $e) {
+                    Log::warning('tax.payment.skipped_invalid_period', [
+                        'payment_id'   => $p->id,
+                        'commune_id'   => $commune->id,
+                        'period_type'  => $p->period_type,
+                        'period_value' => $p->period_value,
+                        'error'        => $e->getMessage(),
+                    ]);
+                    continue;
+                }
+                if (empty($paymentMonths)) continue; // garde-fou extra
                 $overlap = array_values(array_intersect($paymentMonths, $queryMonths));
                 if (empty($overlap)) continue;
                 $prorata = count($overlap) / count($paymentMonths);

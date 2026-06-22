@@ -66,6 +66,33 @@ class TaxCalculationServicePureTest extends TestCase
     }
 
     /**
+     * Hotfix B canari TX-2 v2 : resolvePeriod doit borner explicitement
+     * trimestriel à [1..4] et mensuel à [1..12]. Si quelqu'un retire la
+     * garde, periodValue=0 en trimestriel donnait Carbon::create(year,
+     * -2, 1) avec rollover silencieux et calcul incohérent.
+     */
+    public function test_resolve_period_throws_on_invalid_quarter(): void
+    {
+        $service = new TaxCalculationService();
+        $this->expectException(\InvalidArgumentException::class);
+        $service->resolvePeriod(TaxCalculationService::PERIOD_QUARTERLY, 5, 2026);
+    }
+
+    public function test_resolve_period_throws_on_invalid_month(): void
+    {
+        $service = new TaxCalculationService();
+        $this->expectException(\InvalidArgumentException::class);
+        $service->resolvePeriod(TaxCalculationService::PERIOD_MONTHLY, 13, 2026);
+    }
+
+    public function test_resolve_period_throws_on_unknown_type(): void
+    {
+        $service = new TaxCalculationService();
+        $this->expectException(\InvalidArgumentException::class);
+        $service->resolvePeriod('hebdo', 1, 2026);
+    }
+
+    /**
      * Hotfix B canari TX-OCC-1 : TaxController::calcul DOIT consulter
      * l'occupation effective panneau-par-panneau pour la TM. Si demain
      * quelqu'un remet le calcul TM forfaitaire (sans $moisOccByPanel),
