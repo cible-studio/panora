@@ -318,6 +318,20 @@ class InvoiceController extends Controller
     protected function panelToOption($panel, string $source, ?float $negotiatedPu): array
     {
         $m2          = (float) ($panel->format?->surface_m2 ?? 0);
+        // Hotfix TX-UX-1 (2026-06-22) : si le panneau remonte avec
+        // surface = 0, c'est qu'il n'a pas de format ou que le format
+        // n'a ni width/height ni colonne surface renseignée. On le
+        // signale dans les logs pour que l'admin nettoie la BDD —
+        // sans bloquer la facturation (front fallback : champ vide
+        // + bordure orange à corriger manuellement).
+        if ($m2 <= 0) {
+            \Illuminate\Support\Facades\Log::info('invoice.panel_lookup.missing_surface', [
+                'panel_id'    => $panel->id,
+                'reference'   => $panel->reference ?? null,
+                'format_id'   => $panel->format_id ?? null,
+                'source'      => $source,
+            ]);
+        }
         $catalogRate = (float) ($panel->monthly_rate ?? 0);
         $pu          = $negotiatedPu ?? $catalogRate;
         $ref         = $panel->reference ?? ('#' . $panel->id);

@@ -98,6 +98,38 @@ class TaxCalculationServicePureTest extends TestCase
      * quelqu'un remet le calcul TM forfaitaire (sans $moisOccByPanel),
      * ce test pète immédiatement — y compris sur SQLite sans MySQL.
      */
+    /**
+     * Hotfix B canari TX-UX-1 : le formulaire FNE doit toujours setter
+     * le champ m² à la sélection d'un panneau (même 0 → visible
+     * orange), et plus jamais "no-op" avec une condition truthy
+     * sur dimension_m2 qui faussement filtrait les surfaces à 0.
+     */
+    public function test_invoice_form_fne_autofills_m2_even_when_zero(): void
+    {
+        $source = file_get_contents(
+            __DIR__ . '/../../resources/views/admin/invoices/partials/_form-fne.blade.php'
+        );
+
+        // L'ancien comportement "if (item.dimension_m2 && m2Field)" est
+        // truthy-only → un panneau avec dimension_m2=0 ne déclenchait
+        // PAS l'autofill, et le user voyait un champ vide silencieux.
+        $this->assertStringNotContainsString(
+            'if (item.dimension_m2 && m2Field) m2Field.value = item.dimension_m2;',
+            $source,
+            'BUG TX-UX-1 EN COURS DE RÉGRESSION : le test truthy-only ' .
+            'sur dimension_m2 est revenu. Doit setter le champ TOUJOURS ' .
+            'pour visibilité (vide + bordure orange si 0).'
+        );
+
+        // Le nouveau code doit setter via une lecture intermédiaire
+        // explicite (m2Val) qui gère le cas 0.
+        $this->assertStringContainsString(
+            'const m2Val = Number(item.dimension_m2 || 0);',
+            $source,
+            'TX-UX-1 sentinelle : la lecture explicite m2Val doit exister.'
+        );
+    }
+
     public function test_tax_controller_calcul_uses_occupation_per_panel_for_tm(): void
     {
         $source = file_get_contents(__DIR__ . '/../../app/Http/Controllers/Admin/TaxController.php');
