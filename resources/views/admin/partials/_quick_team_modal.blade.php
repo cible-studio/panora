@@ -236,14 +236,16 @@
             ok.innerHTML = '✅ Équipe <strong>' + data.team.name + '</strong> créée'
                          + (QTT_RELOAD ? ', rechargement de la page…' : ' et sélectionnée.');
             ok.style.display = 'block';
-            btn.textContent = QTT_RELOAD ? '⏳ Rechargement…' : '✓ Créée — fermer';
-            btn.onclick = function () { closeQuickTeamModal(); };
-            btn.disabled = false;
+            btn.textContent = QTT_RELOAD ? '⏳ Rechargement…' : '✓ Fermeture…';
+            btn.disabled = true;
 
-            // Mode page liste (perf équipes, gestion équipes) : on reload pour
-            // que la nouvelle équipe apparaisse dans le classement/tableau.
+            // Hotfix 2026-06-22 : la modale se ferme AUTOMATIQUEMENT après
+            // 800 ms (laisse voir le toast de succès) au lieu d'imposer un
+            // 2e clic. Mode page liste : reload après 700 ms.
             if (QTT_RELOAD) {
                 setTimeout(function () { window.location.reload(); }, 700);
+            } else {
+                setTimeout(function () { closeQuickTeamModal(); }, 800);
             }
         } catch (e) {
             showErr('Erreur réseau : ' + (e.message || e));

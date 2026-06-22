@@ -271,9 +271,33 @@ class FinanceDashboardController extends Controller
                 $duByClient[$cid]['factures_open'] += 1;
             }
         }
-        $byClient = $byClient->map(function ($row) use ($duByClient) {
-            $row['total_du']      = $duByClient[$row['client_id']]['total_du']      ?? 0.0;
-            $row['factures_open'] = $duByClient[$row['client_id']]['factures_open'] ?? 0;
+        // Brouillons en attente par client — hotfix 2026-06-22 : la patronne
+        // voyait "✓ soldé" sur un client qui venait d'avoir une nouvelle
+        // facture en BROUILLON. Techniquement le brouillon n'est pas une
+        // dette (pas envoyée au client) mais l'UX doit le signaler pour
+        // éviter la confusion ("j'ai créé une facture, pourquoi soldé ?").
+        $brouillonsByClient = [];
+        if (!empty($clientIds)) {
+            $drafts = \App\Models\Invoice::query()
+                ->where('status', 'brouillon')
+                ->whereNull('credit_note_for_id')
+                ->whereIn('client_id', $clientIds)
+                ->when($commercialUid !== null, fn($q) => $q->forCommercialUser($commercialUid))
+                ->get(['id', 'client_id', 'total_amount']);
+            foreach ($drafts as $d) {
+                $cid = $d->client_id;
+                if (!isset($brouillonsByClient[$cid])) {
+                    $brouillonsByClient[$cid] = ['brouillons_count' => 0, 'brouillons_total' => 0.0];
+                }
+                $brouillonsByClient[$cid]['brouillons_count'] += 1;
+                $brouillonsByClient[$cid]['brouillons_total'] += (float) ($d->total_amount ?? 0);
+            }
+        }
+        $byClient = $byClient->map(function ($row) use ($duByClient, $brouillonsByClient) {
+            $row['total_du']         = $duByClient[$row['client_id']]['total_du']      ?? 0.0;
+            $row['factures_open']    = $duByClient[$row['client_id']]['factures_open'] ?? 0;
+            $row['brouillons_count'] = $brouillonsByClient[$row['client_id']]['brouillons_count'] ?? 0;
+            $row['brouillons_total'] = $brouillonsByClient[$row['client_id']]['brouillons_total'] ?? 0.0;
             return $row;
         })->sortByDesc(fn($r) => $r['last_relance']->relance_date->timestamp)->values();
 
