@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Enums\CampaignStatus;
 use App\Models\Campaign;
 use App\Models\Commune;
+use App\Models\CommuneTaxPayment;
 use App\Models\Panel;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
@@ -116,8 +118,18 @@ class TaxCalculationService
                 $unitRate = (float) ($rates[$type] ?? 0);
                 if ($unitRate <= 0) continue; // pas tarif → ligne ignorée
 
-                // Formule : tarif × surface × nombre de mois
-                $amount = round($unitRate * $surface * $months, 2);
+                // BUG TX-1 corrigé 2026-06-22 :
+                // Les tarifs ODP/TM stockés dans communes.odp_rate et tm_rate
+                // sont des tarifs ANNUELS (FCFA/m²/an). Multiplier directement
+                // par $months (=12 pour annuel) donnait ×12 le bon montant :
+                //   Plateau 246 m² × 15 000 × 12 = 44 280 000 FCFA (faux)
+                //   alors que l'attendu annuel est 246 × 15 000 = 3 690 000.
+                //
+                // Formule correcte : tarif_annuel × surface × (nb_mois / 12)
+                //   annuel        : ×(12/12) = ×1     → 246 × 15 000 = 3 690 000 ✓
+                //   trimestriel   : ×(3/12)  = ×0.25
+                //   mensuel       : ×(1/12)
+                $amount = round($unitRate * $surface * ($months / 12), 2);
 
                 $lines->push([
                     'commune'        => $commune->name,
@@ -243,15 +255,229 @@ class TaxCalculationService
     /**
      * Agrégation des lignes pour les KPI / résumés. Évite d'avoir à
      * reparcourir la collection manuellement à chaque vue.
+     *
+     * Hotfix TX-4 (2026-06-22) : ajout des alias 'odp_total' et 'tm_total'
+     * lus par TaxController::showCommune et computeAnnualTotalDue (qui
+     * retournaient 0 partout car ces clés n'étaient jamais émises — la
+     * matrice mensuelle de la fiche commune affichait donc 0 DÛ partout).
+     * Les anciennes clés 'total', 'by_type', 'by_commune', 'panels_count',
+     * 'lines_count' restent intactes (rétro-compat details.blade.php).
      */
     public function summarize(Collection $lines): array
     {
+        $byType = $lines->groupBy('type')->map->sum('amount');
         return [
             'total'        => (float) $lines->sum('amount'),
-            'by_type'      => $lines->groupBy('type')->map->sum('amount'),
+            'by_type'      => $byType,
             'by_commune'   => $lines->groupBy('commune')->map->sum('amount'),
             'panels_count' => $lines->pluck('panel_id')->unique()->count(),
             'lines_count'  => $lines->count(),
+            // Alias pour les consommateurs TaxController qui les attendaient.
+            'odp_total'    => (float) ($byType[self::TYPE_ODP] ?? 0),
+            'tm_total'     => (float) ($byType[self::TYPE_TM]  ?? 0),
         ];
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PHASE 1 (2026-06-22) — Refonte API "calcul par commune sur
+    //  période [debut, fin]". Source unique pour les calculs ODP/TM
+    //  panneau-par-panneau (mois d'existence × mois d'occupation),
+    //  remplace l'ancien calcul "tarif × surface × nbMois" qui était
+    //  faux pour 3 raisons :
+    //    1. ×12 parasite (TX-1) sur les périodes annuelles
+    //    2. Pas de prise en compte de la date d'installation /
+    //       démantèlement (TX-cas réels)
+    //    3. TM toujours comptée même si panneau jamais occupé
+    //
+    //  Les méthodes ci-dessous travaillent par panneau (prorata mois)
+    //  et reflètent la règle métier OOH formellement (cf. brief
+    //  RÈGLES MÉTIER de la mission refonte taxes).
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * ODP totale due pour une commune sur la période [debut, fin].
+     * Somme par panneau : tarif_ODP × surface × (mois_existence / 12).
+     */
+    public function calculODPCommune(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): int
+    {
+        $rate = (float) $commune->ratesAt($debut)['odp'] ?? 0;
+        if ($rate <= 0) return 0;
+        $total = 0.0;
+        foreach ($this->panneauxPourCalcul($commune) as $panel) {
+            $surface = (float) ($panel->format?->surface ?? 0);
+            if ($surface <= 0) continue;
+            $moisExistence = $this->moisExistencePanneau($panel, $debut, $fin);
+            if ($moisExistence === 0) continue;
+            $total += $rate * $surface * ($moisExistence / 12);
+        }
+        return (int) round($total);
+    }
+
+    /**
+     * TM totale due pour une commune sur la période [debut, fin].
+     * Somme par panneau : tarif_TM × surface × (mois_occupation / 12).
+     * Un panneau jamais occupé sur la période contribue 0.
+     */
+    public function calculTMCommune(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): int
+    {
+        $rate = (float) ($commune->ratesAt($debut)['tm'] ?? 0);
+        if ($rate <= 0) return 0;
+        $total = 0.0;
+        foreach ($this->panneauxPourCalcul($commune) as $panel) {
+            $surface = (float) ($panel->format?->surface ?? 0);
+            if ($surface <= 0) continue;
+            $moisOccupation = $this->moisOccupationPanneau($panel, $debut, $fin);
+            if ($moisOccupation === 0) continue;
+            $total += $rate * $surface * ($moisOccupation / 12);
+        }
+        return (int) round($total);
+    }
+
+    /**
+     * Total DÛ (ODP + TM) pour une commune sur une période.
+     */
+    public function totalDuCommune(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): int
+    {
+        return $this->calculODPCommune($commune, $debut, $fin)
+             + $this->calculTMCommune($commune, $debut, $fin);
+    }
+
+    /**
+     * Total PAYÉ par la régie à cette commune sur la période, filtré
+     * STRICTEMENT par la date de versement (paid_at). Hotfix TX-6 :
+     * c'est cette méthode qui évite qu'un versement 22/06/2026 apparaisse
+     * dans le total payé de l'année 2021.
+     */
+    public function totalPayeCommune(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): int
+    {
+        $payments = CommuneTaxPayment::query()
+            ->where('commune_id', $commune->id)
+            ->whereNotNull('paid_at')
+            ->whereBetween('paid_at', [$debut->copy()->startOfDay(), $fin->copy()->endOfDay()])
+            ->get(['odp_paye', 'tm_paye']);
+        return (int) $payments->sum(fn($p) => (int) $p->odp_paye + (int) $p->tm_paye);
+    }
+
+    /**
+     * Solde restant = dû − payé. Peut être négatif (trop-payé).
+     */
+    public function soldeRestant(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): int
+    {
+        return $this->totalDuCommune($commune, $debut, $fin)
+             - $this->totalPayeCommune($commune, $debut, $fin);
+    }
+
+    /**
+     * Statut d'une commune sur une période : 'non_paye' | 'partiel' | 'paye'.
+     */
+    public function statutCommune(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): string
+    {
+        $du   = $this->totalDuCommune($commune, $debut, $fin);
+        $paye = $this->totalPayeCommune($commune, $debut, $fin);
+        if ($paye <= 0)      return 'non_paye';
+        if ($paye >= $du)    return 'paye';
+        return 'partiel';
+    }
+
+    /**
+     * Taux de couverture (0..100). Si rien n'est dû, on retourne 100
+     * (par convention : pas de dette = "couvert" → bouton vert).
+     */
+    public function tauxCouverture(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): int
+    {
+        $du = $this->totalDuCommune($commune, $debut, $fin);
+        if ($du <= 0) return 100;
+        $paye = $this->totalPayeCommune($commune, $debut, $fin);
+        return min(100, (int) round(($paye / $du) * 100));
+    }
+
+    /**
+     * Compte les mois calendaires d'existence d'un panneau dans une
+     * période. Règle simple "1 jour dans le mois = 1 mois compté" :
+     * - début effectif = max(periode.debut, panneau.created_at)
+     * - fin effective  = min(periode.fin, panneau.deleted_at OR ∞)
+     * - retourne 0 si fin < début (panneau hors période)
+     *
+     * Le panneau démantelé = panneau soft-deleted (deleted_at posé).
+     * On reste compatible avec l'existant qui n'a pas de colonne
+     * dismantled_at dédiée — décision validée en Phase α.
+     */
+    public function moisExistencePanneau(Panel $panel, CarbonInterface $debut, CarbonInterface $fin): int
+    {
+        $createdAt = $panel->created_at ? Carbon::parse($panel->created_at) : null;
+        $deletedAt = $panel->deleted_at ? Carbon::parse($panel->deleted_at) : null;
+
+        $existeDepuis = $createdAt ?: $debut;
+        $existeJusqua = $deletedAt;
+
+        $debutEff = Carbon::parse($debut)->max($existeDepuis);
+        $finEff   = $existeJusqua
+            ? Carbon::parse($fin)->min($existeJusqua)
+            : Carbon::parse($fin);
+
+        if ($finEff->lessThan($debutEff)) return 0;
+
+        return $this->compteMoisCalendaires($debutEff, $finEff);
+    }
+
+    /**
+     * Compte les mois où un panneau a été occupé par au moins 1
+     * campagne ACTIVE sur la période. Règle simple : 1 jour de campagne
+     * dans le mois = 1 mois compté (alignée avec la pratique métier).
+     *
+     * Hotfix TM (clé règles métier) : un panneau jamais occupé contribue
+     * 0 à la TM, conformément à la spec OOH ivoirienne.
+     */
+    public function moisOccupationPanneau(Panel $panel, CarbonInterface $debut, CarbonInterface $fin): int
+    {
+        $moisOccupes = 0;
+        $current = Carbon::parse($debut)->startOfMonth();
+        $finC    = Carbon::parse($fin)->endOfMonth();
+
+        while ($current->lessThanOrEqualTo($finC)) {
+            $moisFinC = $current->copy()->endOfMonth();
+            $aCampagne = \DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->where('campaign_panels.panel_id', $panel->id)
+                ->where('campaigns.status', CampaignStatus::ACTIF->value)
+                ->whereNull('campaigns.deleted_at')
+                ->where('campaigns.start_date', '<=', $moisFinC->toDateString())
+                ->where('campaigns.end_date',   '>=', $current->toDateString())
+                ->exists();
+            if ($aCampagne) $moisOccupes++;
+            $current->addMonth();
+        }
+        return $moisOccupes;
+    }
+
+    /**
+     * Compte le nombre de mois calendaires couverts par [a, b] (1 jour
+     * dans un mois suffit pour compter le mois).
+     */
+    protected function compteMoisCalendaires(CarbonInterface $a, CarbonInterface $b): int
+    {
+        $a = Carbon::parse($a)->startOfMonth();
+        $b = Carbon::parse($b)->startOfMonth();
+        if ($b->lessThan($a)) return 0;
+        return (int) ($a->diffInMonths($b)) + 1;
+    }
+
+    /**
+     * Sélection des panneaux d'une commune pour le calcul fiscal.
+     * Décision Phase α : on prend TOUS les panneaux internes existants
+     * (exclut soft-deleted MAIS leur deleted_at est ré-utilisé via
+     * withTrashed() pour les calculs au prorata "panneau démantelé en
+     * juillet" — voir moisExistencePanneau).
+     *
+     * À ce stade pragmatique : on prend les panneaux NON soft-deleted +
+     * les soft-deleted dont deleted_at est >= debut de la période (sinon
+     * impossible d'avoir des mois d'existence dans la fenêtre).
+     */
+    protected function panneauxPourCalcul(Commune $commune)
+    {
+        return Panel::withTrashed()
+            ->with('format:id,name,width,height,surface')
+            ->where('commune_id', $commune->id)
+            ->get();
     }
 }
