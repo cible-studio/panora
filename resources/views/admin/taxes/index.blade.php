@@ -762,8 +762,14 @@ window.TaxModule = (function () {
             document.getElementById('pm-tm-theorique').textContent  = fmt(row.tm_theorique)  + ' FCFA';
             document.getElementById('pm-total-theorique').textContent = fmt(row.total_theorique) + ' FCFA';
 
-            document.getElementById('pm-odp-paye').value = row.odp_paye || row.odp_theorique;
-            document.getElementById('pm-tm-paye').value  = row.tm_paye  || row.tm_theorique;
+            // Hotfix Phase 3 (2026-06-22) : saisie LIBRE des montants (brief
+            // règle métier : "pas d'auto-calcul Payé en totalité"). On ne
+            // pré-remplit qu'en mode édition d'un paiement existant
+            // (row.odp_paye > 0 ou row.tm_paye > 0). Sinon : vide pour que
+            // la patronne tape précisément ce qu'elle a versé à la mairie.
+            const isEdit = (row.odp_paye > 0 || row.tm_paye > 0);
+            document.getElementById('pm-odp-paye').value = isEdit ? row.odp_paye : '';
+            document.getElementById('pm-tm-paye').value  = isEdit ? row.tm_paye  : '';
             document.getElementById('pm-attestation').checked = !!row.attestation;
             document.getElementById('pm-notes').value = '';
             // LOT 1 — Reset des champs de traçabilité (le user remplit à chaque
@@ -788,6 +794,31 @@ window.TaxModule = (function () {
 
         async submitPayment() {
             if (!pmContext) return;
+
+            // Hotfix TX-9 (2026-06-22) — Alerte non-bloquante "paiement
+            // annuel à mi-année". Si la patronne enregistre un paiement
+            // de type ANNUEL avec une date avant juillet, on lui demande
+            // confirmation : c'est suspect (la mairie ne facture pas le
+            // plein annuel avant juin/juillet typiquement). C'est une
+            // confirmation, pas un blocage : elle peut toujours valider.
+            const paidAtVal = document.getElementById('pm-paid-at').value;
+            if (currentPeriodType === 'annuel' && paidAtVal) {
+                const paidDate = new Date(paidAtVal);
+                if (paidDate.getMonth() < 6) { // jan..juin (mois 0..5)
+                    const moisFr = ['janvier','février','mars','avril','mai','juin'];
+                    const mLabel = moisFr[paidDate.getMonth()] || (paidDate.getMonth() + 1);
+                    const ok = confirm(
+                        '⚠️ Tu enregistres un paiement ANNUEL daté du ' +
+                        paidDate.toLocaleDateString('fr-FR') +
+                        ' (' + mLabel + ').\n\n' +
+                        'Habituellement les mairies facturent le plein annuel après juin. ' +
+                        "C'est bien volontaire ?\n\n" +
+                        '✓ OK pour continuer · Annuler pour rectifier la date ou la périodicité.'
+                    );
+                    if (!ok) return;
+                }
+            }
+
             const btn = document.getElementById('pm-submit-btn');
             btn.disabled = true;
             btn.textContent = 'Enregistrement…';

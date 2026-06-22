@@ -912,6 +912,21 @@ class TaxController extends Controller
             'notes'             => 'nullable|string|max:1000',
         ]);
 
+        // Phase 3 (2026-06-22) — Trace l'ancien montant AVANT modification
+        // pour audit fiscal (immutabilité de la piste de paiement, brief
+        // règle métier). On garde updateOrCreate pour permettre la
+        // correction d'une typo, mais l'historique est journalisé via
+        // Log::info et accessible dans les logs (et audits owen-it).
+        $existing = CommuneTaxPayment::where([
+            'commune_id'   => $data['commune_id'],
+            'period_type'  => $data['period_type'],
+            'period_year'  => $data['period_year'],
+            'period_value' => $data['period_value'],
+        ])->first();
+        $previousOdp = $existing ? (int) $existing->odp_paye : null;
+        $previousTm  = $existing ? (int) $existing->tm_paye  : null;
+        $isUpdate    = (bool) $existing;
+
         $payment = CommuneTaxPayment::updateOrCreate(
             [
                 'commune_id'   => $data['commune_id'],
@@ -935,12 +950,15 @@ class TaxController extends Controller
             ]
         );
 
-        Log::info('commune_tax_payment.recorded', [
-            'commune_id' => $data['commune_id'],
-            'period'     => "{$data['period_type']}-{$data['period_year']}-{$data['period_value']}",
-            'odp_paye'   => $data['odp_paye'],
-            'tm_paye'    => $data['tm_paye'],
-            'by'         => auth()->id(),
+        Log::info($isUpdate ? 'commune_tax_payment.updated' : 'commune_tax_payment.recorded', [
+            'commune_id'       => $data['commune_id'],
+            'period'           => "{$data['period_type']}-{$data['period_year']}-{$data['period_value']}",
+            'is_update'        => $isUpdate,
+            'previous_odp_paye'=> $previousOdp,
+            'previous_tm_paye' => $previousTm,
+            'new_odp_paye'     => (int) $data['odp_paye'],
+            'new_tm_paye'      => (int) $data['tm_paye'],
+            'by'               => auth()->id(),
         ]);
 
         return response()->json([
