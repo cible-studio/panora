@@ -810,6 +810,26 @@ class TaxController extends Controller
             ? round(($kpi['paye_total'] / $kpi['grand_total']) * 100, 1)
             : 0;
 
+        // LOT 4 (cahier 2026-06-19) — Évolution mensuelle des paiements
+        // sur l'année en cours. Agrégat des CommuneTaxPayment par mois
+        // de paid_at (date effective du versement), ODP + TM cumulés.
+        // Utile pour visualiser les pics de recouvrement saisonniers.
+        $paymentsThisYear = CommuneTaxPayment::where('period_year', $periodYear)
+            ->whereNotNull('paid_at')
+            ->whereYear('paid_at', $periodYear)
+            ->get(['paid_at', 'odp_paye', 'tm_paye']);
+        $monthNamesShort = ['', 'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+        $paymentsEvolution = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $monthly = $paymentsThisYear->filter(fn ($p) => (int) $p->paid_at->month === $m);
+            $paymentsEvolution[] = [
+                'mois'  => $m,
+                'label' => $monthNamesShort[$m],
+                'total' => (int) round($monthly->sum('odp_paye') + $monthly->sum('tm_paye')),
+            ];
+        }
+        $kpi['payments_evolution'] = $paymentsEvolution;
+
         return response()->json([
             'period_type'  => $periodType,
             'period_year'  => $periodYear,

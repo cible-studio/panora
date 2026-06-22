@@ -126,6 +126,23 @@
     </div>
 </div>
 
+{{-- LOT 4 (cahier 2026-06-19) — Évolution mensuelle des paiements de taxes
+     sur l'année courante. Source : CommuneTaxPayment.paid_at agrégé par mois. --}}
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap">
+        <div>
+            <div style="font-size:12px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:6px">
+                📈 Évolution mensuelle des paiements
+            </div>
+            <div style="font-size:10.5px;color:var(--text3);margin-top:2px">Versements taxes communales — année en cours</div>
+        </div>
+        <div id="payments-evol-total" style="font-size:11px;color:var(--text3);font-weight:600">—</div>
+    </div>
+    <div style="position:relative;height:160px">
+        <canvas id="chart-payments-evolution" role="img" aria-label="Évolution mensuelle des paiements de taxes"></canvas>
+    </div>
+</div>
+
 {{-- ════ TABLEAU LIVE ════ --}}
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
     <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
@@ -315,6 +332,10 @@
 </style>
 
 @push('scripts')
+{{-- LOT 4 (cahier 2026-06-19) — Chart.js pour le mini-chart d'évolution
+     mensuelle des paiements. Doit être chargé AVANT le script TaxModule
+     qui l'utilise (sinon typeof Chart === 'undefined' au 1er rendu). --}}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 window.TaxModule = (function () {
     const csrf = '{{ csrf_token() }}';
@@ -470,6 +491,59 @@ window.TaxModule = (function () {
                 }).join('');
             }
         }
+
+        // LOT 4 — Évolution mensuelle des paiements (mini chart 12 mois).
+        renderPaymentsEvolution(kpi.payments_evolution || []);
+    }
+
+    let paymentsEvolutionChart = null;
+    function renderPaymentsEvolution(series) {
+        const canvas = document.getElementById('chart-payments-evolution');
+        if (!canvas || typeof Chart === 'undefined') return;
+        const labels = series.map(s => s.label);
+        const data   = series.map(s => s.total);
+        const totalYear = data.reduce((a, b) => a + b, 0);
+        const totalEl = document.getElementById('payments-evol-total');
+        if (totalEl) totalEl.textContent = 'Total année : ' + fmt(totalYear) + ' FCFA';
+
+        if (paymentsEvolutionChart) {
+            paymentsEvolutionChart.data.labels = labels;
+            paymentsEvolutionChart.data.datasets[0].data = data;
+            paymentsEvolutionChart.update();
+            return;
+        }
+        paymentsEvolutionChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Paiements (FCFA)',
+                    data,
+                    backgroundColor: 'rgba(34,197,94,.45)',
+                    borderColor: '#16a34a',
+                    borderWidth: 1.5,
+                    borderRadius: 4,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => fmt(ctx.parsed.y) + ' FCFA',
+                        },
+                    },
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: v => v >= 1e6 ? (v/1e6).toFixed(1) + 'M' : (v >= 1e3 ? (v/1e3).toFixed(0) + 'k' : v) },
+                    },
+                },
+            },
+        });
     }
 
     function statusPill(statut) {
