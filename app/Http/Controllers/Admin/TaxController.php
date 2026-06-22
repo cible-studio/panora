@@ -281,9 +281,24 @@ class TaxController extends Controller
      */
     public function communePaymentsHistory(Commune $commune, Request $request, TaxCalculationService $calc)
     {
-        // Tous les paiements, y compris soft-deleted (immutabilité spec).
+        $year = (int) $request->input('year', date('Y'));
+
+        // Hotfix TX-6 + TX-10 (2026-06-22) : on filtre STRICTEMENT par
+        // l'année du paid_at (date de versement) ET non par period_year.
+        // Avant : aucun filtre → un versement 22/06/2026 apparaissait dans
+        // l'historique 2021. Maintenant : 2021 affiche zéro si rien n'a
+        // été versé en 2021. Si paid_at est NULL on garde le fallback
+        // period_year (cas legacy avant l'introduction de paid_at).
+        // withTrashed() conservé : immutabilité fiscale (les annulations
+        // sont des paiements négatifs, jamais une suppression physique).
         $payments = CommuneTaxPayment::withTrashed()
             ->where('commune_id', $commune->id)
+            ->where(function ($q) use ($year) {
+                $q->whereYear('paid_at', $year)
+                  ->orWhere(function ($qq) use ($year) {
+                      $qq->whereNull('paid_at')->where('period_year', $year);
+                  });
+            })
             ->with('recordedBy:id,name')
             ->orderBy('paid_at')
             ->orderBy('created_at')
@@ -303,9 +318,8 @@ class TaxController extends Controller
             ];
         });
 
-        // Total dû "live" : on prend l'année courante par défaut (configurable
-        // via ?year=…). Le solde restant final tient compte de ce live.
-        $year = (int) $request->input('year', date('Y'));
+        // Total dû "live" pour l'année sélectionnée. Le solde restant final
+        // tient compte de ce live.
         $totalDuLive = $this->computeAnnualTotalDue($commune, $year, $calc);
 
         // Pour chaque ligne, on calcule le solde "as of payment" :
@@ -315,14 +329,23 @@ class TaxController extends Controller
             return $r;
         });
 
+        // Hotfix TX-5 (2026-06-22) : taux couverture cohérent — base sur
+        // les MÊMES données que cette vue (cumulOdp + cumulTm pour l'année).
+        $totalPaye  = $cumulOdp + $cumulTm;
+        $soldeFinal = max(0, $totalDuLive - $totalPaye);
+        $tauxCouv   = $totalDuLive > 0
+            ? (int) round(min(100, ($totalPaye / $totalDuLive) * 100))
+            : ($totalPaye > 0 ? 100 : 0); // pas de dû mais paiement = trop-payé → 100%
+
         return view('admin.taxes.commune-history', [
-            'commune'      => $commune,
-            'rows'         => $rows,
-            'year'         => $year,
-            'totalDuLive'  => $totalDuLive,
-            'totalPaye'    => $cumulOdp + $cumulTm,
-            'soldeFinal'   => max(0, $totalDuLive - ($cumulOdp + $cumulTm)),
-            'anneesDispos' => range(date('Y') + 1, max(2020, date('Y') - 5)),
+            'commune'        => $commune,
+            'rows'           => $rows,
+            'year'           => $year,
+            'totalDuLive'    => $totalDuLive,
+            'totalPaye'      => $totalPaye,
+            'soldeFinal'     => $soldeFinal,
+            'tauxCouverture' => $tauxCouv,
+            'anneesDispos'   => range(date('Y') + 1, max(2020, date('Y') - 5)),
         ]);
     }
 
@@ -369,10 +392,16 @@ class TaxController extends Controller
         $nbOccupes  = $panels->whereIn('status', ['occupe', 'confirme', 'option'])->count();
         $tauxOccupation = $nbPanneaux > 0 ? round(($nbOccupes / $nbPanneaux) * 100, 1) : 0;
 
-        // ── Tous les paiements de l'année (tous types confondus) ──
-        // Agrégés par mois ensuite via prorata, comme dans calcul().
+        // ── Paiements de l'année (filtre TX-6 : on prend les paiements
+        //    dont paid_at tombe dans l'année courante, fallback period_year
+        //    pour les enregistrements legacy sans paid_at). ───────────
         $allPayments = CommuneTaxPayment::where('commune_id', $commune->id)
-            ->where('period_year', $year)
+            ->where(function ($q) use ($year) {
+                $q->whereYear('paid_at', $year)
+                  ->orWhere(function ($qq) use ($year) {
+                      $qq->whereNull('paid_at')->where('period_year', $year);
+                  });
+            })
             ->get();
 
         // ── Matrice mensuelle (Jan..Déc) ──────────────────────────
@@ -380,24 +409,27 @@ class TaxController extends Controller
                               'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
         $matrix = [];
         for ($m = 1; $m <= 12; $m++) {
-            // Calcul théorique mois m (TaxCalculationService)
+            // Calcul théorique mois m (TaxCalculationService — Phase 1
+            // émet désormais odp_total/tm_total → fix TX-4).
             $lines  = $calc->generateLines(TaxCalculationService::PERIOD_MONTHLY, $m, $year, ['commune_id' => $commune->id]);
             $totals = $calc->summarize($lines);
             $odpTheo = (int) ($totals['odp_total'] ?? 0);
             $tmTheo  = (int) ($totals['tm_total']  ?? 0);
 
-            // Paiements applicables à ce mois (prorata si multi-période)
-            $odpPaye = 0.0;
-            $tmPaye  = 0.0;
+            // Hotfix TX-8 (2026-06-22) : un paiement = 1 ligne sur le mois
+            // de paid_at. Avant : la répartition prorata 1/count(months)
+            // divisait fictivement un versement annuel de 11 616 000 en
+            // 12 × 968 000 sur chaque mois — illisible pour la patronne.
+            // Maintenant : on affiche le montant réellement versé ce mois
+            // précis, peu importe la périodicité initialement déclarée.
+            $odpPaye = 0;
+            $tmPaye  = 0;
             foreach ($allPayments as $p) {
-                $months = self::monthsForPeriod($p->period_type, $p->period_value);
-                if (!in_array($m, $months, true)) continue;
-                $prorata = 1 / count($months);
-                $odpPaye += ((float) $p->odp_paye) * $prorata;
-                $tmPaye  += ((float) $p->tm_paye)  * $prorata;
+                if (!$p->paid_at) continue; // legacy sans date → ignoré ici
+                if ((int) $p->paid_at->month !== $m) continue;
+                $odpPaye += (int) $p->odp_paye;
+                $tmPaye  += (int) $p->tm_paye;
             }
-            $odpPaye = (int) round($odpPaye);
-            $tmPaye  = (int) round($tmPaye);
             $totalTheo  = $odpTheo + $tmTheo;
             $totalPaye  = $odpPaye + $tmPaye;
             $solde      = max(0, $totalTheo - $totalPaye);
@@ -574,15 +606,26 @@ class TaxController extends Controller
      */
     public function calcul(Request $request): JsonResponse
     {
+        // Hotfix TX-2 (2026-06-22) : validation period_value CONTEXTUELLE
+        // au period_type. Avant : max:12 même en trimestriel → un
+        // period_value=5 passait la validation puis monthsForPeriod
+        // produisait range(13, 15) → Carbon::create(year, 13, …) avec
+        // rollover silencieux et calcul incohérent (HTTP 500 sur Plateau
+        // dans certains scénarios reproduits).
         $request->validate([
             'period_type'  => 'required|in:mensuel,trimestriel,annuel',
             'period_year'  => 'required|integer|min:2000|max:2099',
             'period_value' => 'required|integer|min:0|max:12',
         ]);
-
         $periodType  = $request->input('period_type');
-        $periodYear  = (int) $request->input('period_year');
         $periodValue = (int) $request->input('period_value');
+        // Borne contextuelle : mensuel 1..12, trimestriel 1..4, annuel 0.
+        $maxByType = ['mensuel' => 12, 'trimestriel' => 4, 'annuel' => 0];
+        $minByType = ['mensuel' => 1,  'trimestriel' => 1, 'annuel' => 0];
+        if ($periodValue < $minByType[$periodType] || $periodValue > $maxByType[$periodType]) {
+            abort(422, "Valeur de période invalide pour le type {$periodType} (attendu {$minByType[$periodType]}..{$maxByType[$periodType]}).");
+        }
+        $periodYear  = (int) $request->input('period_year');
 
         $nbMois = match ($periodType) {
             'mensuel'     => 1,
@@ -650,8 +693,12 @@ class TaxController extends Controller
 
                     $m2  = round((float) $fmt->width * (float) $fmt->height, 2);
                     $qty = $panels->count();
-                    $odp = round($odpRate * $m2 * $qty * $nbMois);
-                    $tm  = round($tmRate  * $m2 * $qty * $nbMois);
+                    // Hotfix TX-1/TX-7 (2026-06-22) : tarifs ANNUELS.
+                    // Multiplier par $nbMois directement donnait ×12 sur
+                    // l'annuel (484m² × 1000 = 5 808 000 au lieu de 484 000).
+                    // Bonne formule : tarif × surface × qty × (nbMois / 12).
+                    $odp = round($odpRate * $m2 * $qty * ($nbMois / 12));
+                    $tm  = round($tmRate  * $m2 * $qty * ($nbMois / 12));
 
                     return [
                         'format_id'  => $fmt->id,

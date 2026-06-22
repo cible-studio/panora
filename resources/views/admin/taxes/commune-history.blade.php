@@ -55,7 +55,10 @@
     <div class="fin-card" style="padding:14px 18px;border-left:4px solid #3b82f6">
         <div style="font-size:10.5px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">📊 Taux couverture</div>
         <div style="font-size:22px;font-weight:800;color:#1d4ed8">
-            {{ $totalDuLive > 0 ? round(($totalPaye / $totalDuLive) * 100, 1) : 0 }} %
+            {{-- Hotfix TX-5 (2026-06-22) : on lit la valeur calculée
+                 côté controller (avec son garde-fou "trop-payé → 100%")
+                 au lieu de recalculer inline avec un risque de divergence. --}}
+            {{ $tauxCouverture ?? ($totalDuLive > 0 ? (int) round(($totalPaye / $totalDuLive) * 100) : 0) }} %
         </div>
         <div style="font-size:11px;color:var(--text3)">payé / dû</div>
     </div>
