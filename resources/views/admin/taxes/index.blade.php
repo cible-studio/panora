@@ -356,6 +356,12 @@ window.TaxModule = (function () {
         sel.innerHTML = '';
         if (currentPeriodType === 'mensuel') {
             sel.style.display = '';
+            // Hotfix TX-3 (2026-06-22) : si on vient d'annuel (=0), forcer
+            // à 1 pour ne pas envoyer period_value=0 en mensuel (qui
+            // produisait monthNames[-1] = undefined → "undefined 2026").
+            if (currentPeriodValue < 1 || currentPeriodValue > 12) {
+                currentPeriodValue = (new Date()).getMonth() + 1;
+            }
             for (let i = 1; i <= 12; i++) {
                 const o = document.createElement('option');
                 o.value = i;
@@ -365,15 +371,21 @@ window.TaxModule = (function () {
             }
         } else if (currentPeriodType === 'trimestriel') {
             sel.style.display = '';
+            // Hotfix TX-3 : si valeur hors [1..4] (vient d'annuel=0 ou
+            // d'un mensuel > 4), on convertit/borne avant la boucle pour
+            // ne JAMAIS rendre une option sans selected.
+            if (currentPeriodValue < 1) {
+                currentPeriodValue = 1;
+            } else if (currentPeriodValue > 4) {
+                currentPeriodValue = Math.min(4, Math.ceil(currentPeriodValue / 3));
+            }
             for (let i = 1; i <= 4; i++) {
                 const o = document.createElement('option');
                 o.value = i;
                 o.textContent = quarterNames[i - 1];
-                if (i === Math.min(currentPeriodValue, 4)) o.selected = true;
+                if (i === currentPeriodValue) o.selected = true;
                 sel.appendChild(o);
             }
-            // si l'ancienne valeur > 4 (mois), reset à 1
-            if (currentPeriodValue > 4) currentPeriodValue = Math.ceil(currentPeriodValue / 3);
         } else {
             sel.style.display = 'none';
             currentPeriodValue = 0;
@@ -381,11 +393,15 @@ window.TaxModule = (function () {
     }
 
     function buildPeriodLabel() {
+        // Hotfix TX-3 (2026-06-22) : garde-fou contre les valeurs hors
+        // bornes pour ne JAMAIS afficher "undefined 2026" dans le sous-titre.
         if (currentPeriodType === 'mensuel') {
-            return `${monthNames[currentPeriodValue - 1]} ${currentPeriodYear}`;
+            const idx = (currentPeriodValue >= 1 && currentPeriodValue <= 12) ? currentPeriodValue - 1 : 0;
+            return `${monthNames[idx]} ${currentPeriodYear}`;
         }
         if (currentPeriodType === 'trimestriel') {
-            return `${quarterNames[currentPeriodValue - 1]} ${currentPeriodYear}`;
+            const idx = (currentPeriodValue >= 1 && currentPeriodValue <= 4) ? currentPeriodValue - 1 : 0;
+            return `${quarterNames[idx]} ${currentPeriodYear}`;
         }
         return `Année ${currentPeriodYear}`;
     }
@@ -590,9 +606,15 @@ window.TaxModule = (function () {
                         ${statusPill(c.statut)}
                         ${attestationBadge}
                         ${c.paid_at ? `<div style="font-size:9px;color:var(--text3);margin-top:3px;">${c.paid_at}</div>` : ''}
-                        ${c.total_paye > 0 && c.statut !== 'paye'
-                            ? `<div style="font-size:9px;color:var(--text3);margin-top:2px;">payé : ${fmt(c.total_paye)}</div>`
-                            : ''}
+                        ${c.statut === 'partiel'
+                            ? `<div style="margin-top:4px;font-weight:800;font-size:13px;color:#c2570d;font-variant-numeric:tabular-nums;" title="Solde restant à payer">
+                                  Solde&nbsp;: ${fmt(c.solde)}
+                               </div>
+                               <div style="font-size:9px;color:var(--text3);">payé&nbsp;: ${fmt(c.total_paye)}</div>`
+                            : (c.total_paye > 0 && c.statut !== 'paye'
+                                ? `<div style="font-size:9px;color:var(--text3);margin-top:2px;">payé : ${fmt(c.total_paye)}</div>`
+                                : '')
+                        }
                     </td>
                     <td style="text-align:center;white-space:nowrap;">
                         <button type="button"
@@ -740,8 +762,14 @@ window.TaxModule = (function () {
             document.getElementById('pm-tm-theorique').textContent  = fmt(row.tm_theorique)  + ' FCFA';
             document.getElementById('pm-total-theorique').textContent = fmt(row.total_theorique) + ' FCFA';
 
-            document.getElementById('pm-odp-paye').value = row.odp_paye || row.odp_theorique;
-            document.getElementById('pm-tm-paye').value  = row.tm_paye  || row.tm_theorique;
+            // Hotfix Phase 3 (2026-06-22) : saisie LIBRE des montants (brief
+            // règle métier : "pas d'auto-calcul Payé en totalité"). On ne
+            // pré-remplit qu'en mode édition d'un paiement existant
+            // (row.odp_paye > 0 ou row.tm_paye > 0). Sinon : vide pour que
+            // la patronne tape précisément ce qu'elle a versé à la mairie.
+            const isEdit = (row.odp_paye > 0 || row.tm_paye > 0);
+            document.getElementById('pm-odp-paye').value = isEdit ? row.odp_paye : '';
+            document.getElementById('pm-tm-paye').value  = isEdit ? row.tm_paye  : '';
             document.getElementById('pm-attestation').checked = !!row.attestation;
             document.getElementById('pm-notes').value = '';
             // LOT 1 — Reset des champs de traçabilité (le user remplit à chaque
@@ -766,6 +794,31 @@ window.TaxModule = (function () {
 
         async submitPayment() {
             if (!pmContext) return;
+
+            // Hotfix TX-9 (2026-06-22) — Alerte non-bloquante "paiement
+            // annuel à mi-année". Si la patronne enregistre un paiement
+            // de type ANNUEL avec une date avant juillet, on lui demande
+            // confirmation : c'est suspect (la mairie ne facture pas le
+            // plein annuel avant juin/juillet typiquement). C'est une
+            // confirmation, pas un blocage : elle peut toujours valider.
+            const paidAtVal = document.getElementById('pm-paid-at').value;
+            if (currentPeriodType === 'annuel' && paidAtVal) {
+                const paidDate = new Date(paidAtVal);
+                if (paidDate.getMonth() < 6) { // jan..juin (mois 0..5)
+                    const moisFr = ['janvier','février','mars','avril','mai','juin'];
+                    const mLabel = moisFr[paidDate.getMonth()] || (paidDate.getMonth() + 1);
+                    const ok = confirm(
+                        '⚠️ Tu enregistres un paiement ANNUEL daté du ' +
+                        paidDate.toLocaleDateString('fr-FR') +
+                        ' (' + mLabel + ').\n\n' +
+                        'Habituellement les mairies facturent le plein annuel après juin. ' +
+                        "C'est bien volontaire ?\n\n" +
+                        '✓ OK pour continuer · Annuler pour rectifier la date ou la périodicité.'
+                    );
+                    if (!ok) return;
+                }
+            }
+
             const btn = document.getElementById('pm-submit-btn');
             btn.disabled = true;
             btn.textContent = 'Enregistrement…';
