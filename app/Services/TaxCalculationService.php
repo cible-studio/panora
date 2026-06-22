@@ -232,10 +232,20 @@ class TaxCalculationService
      */
     public function resolvePeriod(string $periodType, int $periodValue, int $year): array
     {
+        // Hotfix TX-2 v2 (2026-06-22) : assertion bornes EXPLICITE en
+        // tête de méthode. Avant : un periodValue=0 en trimestriel
+        // donnait Carbon::create($year, -2, 1) avec rollover silencieux
+        // sur l'année précédente, calcul incohérent en aval.
+        if ($periodType === self::PERIOD_MONTHLY && ($periodValue < 1 || $periodValue > 12)) {
+            throw new \InvalidArgumentException("Mois invalide pour mensuel : $periodValue (attendu 1..12).");
+        }
+        if ($periodType === self::PERIOD_QUARTERLY && ($periodValue < 1 || $periodValue > 4)) {
+            throw new \InvalidArgumentException("Trimestre invalide : $periodValue (attendu 1..4).");
+        }
         return match ($periodType) {
             self::PERIOD_MONTHLY => [
-                Carbon::create($year, max(1, min(12, $periodValue)), 1)->startOfDay(),
-                Carbon::create($year, max(1, min(12, $periodValue)), 1)->endOfMonth(),
+                Carbon::create($year, $periodValue, 1)->startOfDay(),
+                Carbon::create($year, $periodValue, 1)->endOfMonth(),
                 1,
             ],
             self::PERIOD_QUARTERLY => [

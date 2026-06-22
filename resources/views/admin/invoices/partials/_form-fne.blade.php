@@ -1442,8 +1442,29 @@
 
                 // Cas panneau : on remplit tout (designation, commune, m², PU)
                 designationField.value = item.designation || item.text;
-                if (item.dimension_m2 && m2Field) m2Field.value = item.dimension_m2;
-                if (item.pu_suggested && puField) puField.value = Math.round(item.pu_suggested);
+
+                // Hotfix TX-UX-1 (2026-06-22) : autofill ROBUSTE — toujours
+                // setter le champ m² (même 0), pour que la patronne voie
+                // tout de suite si le format du panneau n'est pas renseigné
+                // côté BDD (au lieu d'un champ vide où elle ne sait pas
+                // quoi faire). Pareil pour PU. Le user corrigera la valeur
+                // manuellement si elle est 0 ou suspecte.
+                if (m2Field) {
+                    const m2Val = Number(item.dimension_m2 || 0);
+                    m2Field.value = m2Val > 0 ? m2Val : '';
+                    // Indice visuel discret si la surface est inconnue.
+                    if (m2Val <= 0) {
+                        m2Field.setAttribute('title', "Surface inconnue côté panneau — saisis-la à la main.");
+                        m2Field.style.borderColor = '#f59e0b';
+                    } else {
+                        m2Field.removeAttribute('title');
+                        m2Field.style.borderColor = '';
+                    }
+                }
+                if (puField) {
+                    const puVal = Math.round(Number(item.pu_suggested || 0));
+                    puField.value = puVal > 0 ? puVal : '';
+                }
 
                 // Sélectionner la commune dans le select Commune
                 if (item.commune_id) {

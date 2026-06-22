@@ -25,11 +25,19 @@ class TaxController extends Controller
      */
     private static function monthsForPeriod(string $type, int $value): array
     {
+        // Hotfix TX-2 v2 (2026-06-22) : bornes EXPLICITES (mensuel 1..12,
+        // trimestriel 1..4) + exception sur type inconnu au lieu de
+        // retourner []. Empêche les "division by zero" silencieuses en
+        // aval quand un CommuneTaxPayment legacy a un period_type corrompu.
         return match ($type) {
-            'mensuel'     => [$value],
-            'trimestriel' => range(($value - 1) * 3 + 1, $value * 3),
+            'mensuel'     => ($value >= 1 && $value <= 12)
+                                ? [$value]
+                                : throw new \InvalidArgumentException("Mois invalide : $value"),
+            'trimestriel' => ($value >= 1 && $value <= 4)
+                                ? range(($value - 1) * 3 + 1, $value * 3)
+                                : throw new \InvalidArgumentException("Trimestre invalide : $value"),
             'annuel'      => range(1, 12),
-            default       => [],
+            default       => throw new \InvalidArgumentException("Périodicité inconnue : $type"),
         };
     }
 
@@ -648,6 +656,69 @@ class TaxController extends Controller
             ->whereNotNull('odp_rate')
             ->get(['id', 'name', 'odp_rate', 'tm_rate']);
 
+        // ── Hotfix TX-OCC-1 (2026-06-22) ────────────────────────────
+        // Pré-calcule en BULK, pour CHAQUE panneau du parc, le nombre de
+        // mois où il est OCCUPÉ par une campagne ACTIVE chevauchant la
+        // période [periodStart, periodEnd]. Évite la TM forfaitaire
+        // appliquée à TOUS les panneaux (bug BOUAFLE 1 666 FCFA sur
+        // panneau jamais loué).
+        //
+        // Stratégie : 1 seule requête pour toutes les campagnes actives
+        // qui chevauchent la fenêtre, groupBy panel_id, puis comptage
+        // mois calendaires en mémoire. Pas de N+1.
+        $queryMonthsAll = self::monthsForPeriod($periodType, $periodValue);
+        $periodStart = \Carbon\Carbon::create($periodYear, $queryMonthsAll[0] ?? 1, 1)->startOfDay();
+        $periodEnd   = \Carbon\Carbon::create($periodYear, end($queryMonthsAll) ?: 12, 1)->endOfMonth();
+
+        $allPanelIds = $communes->flatMap(fn($c) => $c->panels->pluck('id'))->unique()->values()->all();
+        $assignmentsByPanel = [];
+        if (!empty($allPanelIds)) {
+            $assignmentsByPanel = \DB::table('campaign_panels')
+                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                ->whereIn('campaign_panels.panel_id', $allPanelIds)
+                ->where('campaigns.status', \App\Enums\CampaignStatus::ACTIF->value)
+                ->whereNull('campaigns.deleted_at')
+                ->where('campaigns.start_date', '<=', $periodEnd->toDateString())
+                ->where('campaigns.end_date',   '>=', $periodStart->toDateString())
+                ->get([
+                    'campaign_panels.panel_id',
+                    'campaigns.start_date',
+                    'campaigns.end_date',
+                ])
+                ->groupBy('panel_id')
+                ->all();
+        }
+
+        // Compte mois calendaires où au moins 1 campagne du panneau
+        // chevauche le mois entier. Pratique métier OOH : 1 jour de
+        // campagne dans le mois = mois compté.
+        $countOccupiedMonths = function (array $rows, \Carbon\Carbon $pStart, \Carbon\Carbon $pEnd): int {
+            if (empty($rows)) return 0;
+            $count = 0;
+            $current = $pStart->copy()->startOfMonth();
+            $endC    = $pEnd->copy()->endOfMonth();
+            while ($current->lessThanOrEqualTo($endC)) {
+                $monthEnd = $current->copy()->endOfMonth();
+                foreach ($rows as $r) {
+                    $cStart = \Carbon\Carbon::parse($r->start_date);
+                    $cEnd   = \Carbon\Carbon::parse($r->end_date);
+                    if ($cStart->lessThanOrEqualTo($monthEnd) && $cEnd->greaterThanOrEqualTo($current)) {
+                        $count++;
+                        break;
+                    }
+                }
+                $current->addMonth();
+            }
+            return $count;
+        };
+
+        // Map finale : panel_id → nb_mois_occupes dans la fenêtre.
+        $moisOccByPanel = [];
+        foreach ($allPanelIds as $pid) {
+            $rows = isset($assignmentsByPanel[$pid]) ? $assignmentsByPanel[$pid]->all() : [];
+            $moisOccByPanel[$pid] = $countOccupiedMonths($rows, $periodStart, $periodEnd);
+        }
+
         // ── Agrégation des paiements multi-périodicité ──────────────
         // Bug avant : on ne lookupait que les paiements de la périodicité
         // EXACTE demandée (mensuel/trimestriel/annuel). Conséquence : payer
@@ -687,18 +758,30 @@ class TaxController extends Controller
             // Lignes détaillées par format (pour affichage tableau)
             $lignes = $commune->panels
                 ->groupBy('format_id')
-                ->map(function ($panels) use ($tmRate, $odpRate, $nbMois) {
+                ->map(function ($panels) use ($tmRate, $odpRate, $nbMois, $moisOccByPanel) {
                     $fmt = $panels->first()->format;
                     if (!$fmt?->width || !$fmt?->height) return null;
 
                     $m2  = round((float) $fmt->width * (float) $fmt->height, 2);
                     $qty = $panels->count();
                     // Hotfix TX-1/TX-7 (2026-06-22) : tarifs ANNUELS.
-                    // Multiplier par $nbMois directement donnait ×12 sur
-                    // l'annuel (484m² × 1000 = 5 808 000 au lieu de 484 000).
-                    // Bonne formule : tarif × surface × qty × (nbMois / 12).
+                    // ODP : forfaitaire (tous les panneaux du parc payent
+                    // l'ODP, peu importe leur occupation effective).
                     $odp = round($odpRate * $m2 * $qty * ($nbMois / 12));
-                    $tm  = round($tmRate  * $m2 * $qty * ($nbMois / 12));
+
+                    // Hotfix TX-OCC-1 (2026-06-22) : TM panneau-par-panneau
+                    // selon l'OCCUPATION EFFECTIVE. Un panneau jamais loué
+                    // sur la fenêtre contribue 0. Conforme à la règle métier
+                    // (TM = taxe sur l'exploitation publicitaire effective).
+                    // BOUAFLE 1 panneau libre depuis toujours : passe de
+                    // 1 667 FCFA forfaitaires à 0 attendu.
+                    $tm = 0.0;
+                    foreach ($panels as $p) {
+                        $moisOcc = $moisOccByPanel[$p->id] ?? 0;
+                        if ($moisOcc === 0) continue;
+                        $tm += $tmRate * $m2 * ($moisOcc / 12);
+                    }
+                    $tm = round($tm);
 
                     return [
                         'format_id'  => $fmt->id,
@@ -734,7 +817,24 @@ class TaxController extends Controller
             $directMode = $directReference = $directComment = null;
 
             foreach ($communePayments as $p) {
-                $paymentMonths = self::monthsForPeriod($p->period_type, $p->period_value);
+                // Hotfix TX-2 v2 (2026-06-22) : monthsForPeriod throw
+                // désormais sur period_type/value invalide. On absorbe
+                // l'exception ici pour ne pas crasher TOUT l'endpoint
+                // à cause d'un seul enregistrement legacy corrompu.
+                // L'admin verra dans les logs quelle ligne ignorer.
+                try {
+                    $paymentMonths = self::monthsForPeriod($p->period_type, $p->period_value);
+                } catch (\InvalidArgumentException $e) {
+                    Log::warning('tax.payment.skipped_invalid_period', [
+                        'payment_id'   => $p->id,
+                        'commune_id'   => $commune->id,
+                        'period_type'  => $p->period_type,
+                        'period_value' => $p->period_value,
+                        'error'        => $e->getMessage(),
+                    ]);
+                    continue;
+                }
+                if (empty($paymentMonths)) continue; // garde-fou extra
                 $overlap = array_values(array_intersect($paymentMonths, $queryMonths));
                 if (empty($overlap)) continue;
                 $prorata = count($overlap) / count($paymentMonths);
