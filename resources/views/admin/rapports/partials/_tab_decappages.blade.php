@@ -46,9 +46,33 @@
 
     {{-- Campagnes terminées récemment (à décaper) --}}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">
-        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><polyline points="9 11 12 14 22 4"/></svg>
-            Campagnes terminées — à décaper ({{ $decapList->count() }})
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap">
+            <div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><polyline points="9 11 12 14 22 4"/></svg>
+                Campagnes terminées — à décaper ({{ $decapList->count() }})
+            </div>
+            {{-- 2026-06-19 — Export PDF "Feuille de décappage" pour les techs.
+                 Bouton split : "Toutes" ouvre toutes les campagnes terminées,
+                 "Retards uniquement" filtre sur > 7j (gain de papier sur le
+                 terrain quand seules les urgentes comptent). --}}
+            @if($decapList->isNotEmpty())
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <a href="{{ route('admin.rapports.decap.pdf') }}"
+                       target="_blank"
+                       style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;background:#1f2937;color:#fff;border-radius:8px;text-decoration:none;font-size:11.5px;font-weight:700"
+                       title="Imprimable A4 — liste des panneaux à décaper avec adresse + GPS + case à cocher">
+                        📄 Exporter PDF (tech)
+                    </a>
+                    @if(($decapStats['overdue'] ?? 0) > 0)
+                        <a href="{{ route('admin.rapports.decap.pdf', ['overdue' => 1]) }}"
+                           target="_blank"
+                           style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;background:#dc2626;color:#fff;border-radius:8px;text-decoration:none;font-size:11.5px;font-weight:700"
+                           title="PDF des panneaux en retard de décappage uniquement (> 7j)">
+                            ⚠ Retards uniquement
+                        </a>
+                    @endif
+                </div>
+            @endif
         </div>
         @if($decapList->isEmpty())
             <div style="padding:32px;text-align:center;color:var(--text3);font-size:12px;font-style:italic">Aucune campagne récemment terminée.</div>
