@@ -64,4 +64,41 @@ class TaxCalculationServicePureTest extends TestCase
             'BUG TX-1 EN COURS DE RÉGRESSION : l\'ancienne formule ×12 est revenue.'
         );
     }
+
+    /**
+     * Hotfix B canari TX-OCC-1 : TaxController::calcul DOIT consulter
+     * l'occupation effective panneau-par-panneau pour la TM. Si demain
+     * quelqu'un remet le calcul TM forfaitaire (sans $moisOccByPanel),
+     * ce test pète immédiatement — y compris sur SQLite sans MySQL.
+     */
+    public function test_tax_controller_calcul_uses_occupation_per_panel_for_tm(): void
+    {
+        $source = file_get_contents(__DIR__ . '/../../app/Http/Controllers/Admin/TaxController.php');
+
+        // 1) On doit calculer le moisOccByPanel en bulk avant la map.
+        $this->assertStringContainsString(
+            '$moisOccByPanel',
+            $source,
+            'BUG TX-OCC-1 EN COURS DE RÉGRESSION : TaxController::calcul ' .
+            'doit pré-calculer une map panel_id → mois occupés via ' .
+            '$moisOccByPanel.'
+        );
+
+        // 2) Et la TM doit boucler par panneau plutôt que forfaitaire.
+        $this->assertStringContainsString(
+            '$moisOcc = $moisOccByPanel[$p->id] ?? 0;',
+            $source,
+            'BUG TX-OCC-1 EN COURS DE RÉGRESSION : la TM doit lire ' .
+            'l\'occupation par panneau au lieu d\'appliquer tarif×m²×(nbMois/12).'
+        );
+
+        // 3) L'ancienne formule forfaitaire TM ne doit plus exister.
+        $this->assertStringNotContainsString(
+            '$tm  = round($tmRate  * $m2 * $qty * ($nbMois / 12));',
+            $source,
+            'BUG TX-OCC-1 EN COURS DE RÉGRESSION : la TM forfaitaire ' .
+            '(facturée même sur panneau libre, ex. BOUAFLE 1 667 FCFA) ' .
+            'est revenue. Doit être un calcul par panneau avec occupation.'
+        );
+    }
 }
