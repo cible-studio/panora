@@ -283,14 +283,17 @@ class FinanceDashboardController extends Controller
                 ->whereNull('credit_note_for_id')
                 ->whereIn('client_id', $clientIds)
                 ->when($commercialUid !== null, fn($q) => $q->forCommercialUser($commercialUid))
-                ->get(['id', 'client_id', 'total_amount']);
+                // Hotfix 2026-06-22 : colonne réelle 'total_a_payer' (cf.
+                // Invoice::$fillable). 'total_amount' n'existe pas → 1054
+                // sur /admin/finance/relances.
+                ->get(['id', 'client_id', 'total_a_payer']);
             foreach ($drafts as $d) {
                 $cid = $d->client_id;
                 if (!isset($brouillonsByClient[$cid])) {
                     $brouillonsByClient[$cid] = ['brouillons_count' => 0, 'brouillons_total' => 0.0];
                 }
                 $brouillonsByClient[$cid]['brouillons_count'] += 1;
-                $brouillonsByClient[$cid]['brouillons_total'] += (float) ($d->total_amount ?? 0);
+                $brouillonsByClient[$cid]['brouillons_total'] += (float) ($d->total_a_payer ?? 0);
             }
         }
         $byClient = $byClient->map(function ($row) use ($duByClient, $brouillonsByClient) {
