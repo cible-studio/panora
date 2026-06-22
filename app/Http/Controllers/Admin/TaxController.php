@@ -667,56 +667,82 @@ class TaxController extends Controller
         // qui chevauchent la fenêtre, groupBy panel_id, puis comptage
         // mois calendaires en mémoire. Pas de N+1.
         $queryMonthsAll = self::monthsForPeriod($periodType, $periodValue);
-        $periodStart = \Carbon\Carbon::create($periodYear, $queryMonthsAll[0] ?? 1, 1)->startOfDay();
-        $periodEnd   = \Carbon\Carbon::create($periodYear, end($queryMonthsAll) ?: 12, 1)->endOfMonth();
+        $lastMonth = $queryMonthsAll ? max($queryMonthsAll) : 12;
+        $firstMonth = $queryMonthsAll ? min($queryMonthsAll) : 1;
+        $periodStart = \Carbon\Carbon::create($periodYear, $firstMonth, 1)->startOfDay();
+        $periodEnd   = \Carbon\Carbon::create($periodYear, $lastMonth, 1)->endOfMonth();
 
         $allPanelIds = $communes->flatMap(fn($c) => $c->panels->pluck('id'))->unique()->values()->all();
+
+        // Hotfix urgent 2026-06-22 : la requête SQL ci-dessous a planté en
+        // prod (HTTP 500 reproductible sur /admin/taxes/calcul). Sans accès
+        // aux logs locaux MySQL on n'a pas pu identifier la cause exacte
+        // (panneau orphelin sans campaign_panels ? colonne absente ?
+        // collation ?). On wrappe défensivement : si la query échoue, on
+        // log la cause + fallback "0 mois occupés" pour TOUS les panneaux,
+        // ce qui équivaut au comportement de la refonte initiale (TM = 0
+        // partout). C'est restrictif mais ça préserve l'endpoint.
         $assignmentsByPanel = [];
-        if (!empty($allPanelIds)) {
-            $assignmentsByPanel = \DB::table('campaign_panels')
-                ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
-                ->whereIn('campaign_panels.panel_id', $allPanelIds)
-                ->where('campaigns.status', \App\Enums\CampaignStatus::ACTIF->value)
-                ->whereNull('campaigns.deleted_at')
-                ->where('campaigns.start_date', '<=', $periodEnd->toDateString())
-                ->where('campaigns.end_date',   '>=', $periodStart->toDateString())
-                ->get([
-                    'campaign_panels.panel_id',
-                    'campaigns.start_date',
-                    'campaigns.end_date',
-                ])
-                ->groupBy('panel_id')
-                ->all();
-        }
-
-        // Compte mois calendaires où au moins 1 campagne du panneau
-        // chevauche le mois entier. Pratique métier OOH : 1 jour de
-        // campagne dans le mois = mois compté.
-        $countOccupiedMonths = function (array $rows, \Carbon\Carbon $pStart, \Carbon\Carbon $pEnd): int {
-            if (empty($rows)) return 0;
-            $count = 0;
-            $current = $pStart->copy()->startOfMonth();
-            $endC    = $pEnd->copy()->endOfMonth();
-            while ($current->lessThanOrEqualTo($endC)) {
-                $monthEnd = $current->copy()->endOfMonth();
-                foreach ($rows as $r) {
-                    $cStart = \Carbon\Carbon::parse($r->start_date);
-                    $cEnd   = \Carbon\Carbon::parse($r->end_date);
-                    if ($cStart->lessThanOrEqualTo($monthEnd) && $cEnd->greaterThanOrEqualTo($current)) {
-                        $count++;
-                        break;
-                    }
-                }
-                $current->addMonth();
-            }
-            return $count;
-        };
-
-        // Map finale : panel_id → nb_mois_occupes dans la fenêtre.
         $moisOccByPanel = [];
-        foreach ($allPanelIds as $pid) {
-            $rows = isset($assignmentsByPanel[$pid]) ? $assignmentsByPanel[$pid]->all() : [];
-            $moisOccByPanel[$pid] = $countOccupiedMonths($rows, $periodStart, $periodEnd);
+        try {
+            if (!empty($allPanelIds)) {
+                $assignmentsByPanel = \DB::table('campaign_panels')
+                    ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
+                    ->whereIn('campaign_panels.panel_id', $allPanelIds)
+                    ->where('campaigns.status', \App\Enums\CampaignStatus::ACTIF->value)
+                    ->whereNull('campaigns.deleted_at')
+                    ->where('campaigns.start_date', '<=', $periodEnd->toDateString())
+                    ->where('campaigns.end_date',   '>=', $periodStart->toDateString())
+                    ->get([
+                        'campaign_panels.panel_id',
+                        'campaigns.start_date',
+                        'campaigns.end_date',
+                    ])
+                    ->groupBy('panel_id')
+                    ->all();
+            }
+
+            // Compte mois calendaires où au moins 1 campagne du panneau
+            // chevauche le mois entier. Pratique métier OOH : 1 jour de
+            // campagne dans le mois = mois compté.
+            $countOccupiedMonths = function ($rows, \Carbon\Carbon $pStart, \Carbon\Carbon $pEnd): int {
+                if (empty($rows)) return 0;
+                $count = 0;
+                $current = $pStart->copy()->startOfMonth();
+                $endC    = $pEnd->copy()->endOfMonth();
+                while ($current->lessThanOrEqualTo($endC)) {
+                    $monthEnd = $current->copy()->endOfMonth();
+                    foreach ($rows as $r) {
+                        $cStart = \Carbon\Carbon::parse($r->start_date);
+                        $cEnd   = \Carbon\Carbon::parse($r->end_date);
+                        if ($cStart->lessThanOrEqualTo($monthEnd) && $cEnd->greaterThanOrEqualTo($current)) {
+                            $count++;
+                            break;
+                        }
+                    }
+                    $current->addMonth();
+                }
+                return $count;
+            };
+
+            // Map finale : panel_id → nb_mois_occupes dans la fenêtre.
+            foreach ($allPanelIds as $pid) {
+                $rows = $assignmentsByPanel[$pid] ?? null;
+                $rowsArr = $rows ? (is_array($rows) ? $rows : $rows->all()) : [];
+                $moisOccByPanel[$pid] = $countOccupiedMonths($rowsArr, $periodStart, $periodEnd);
+            }
+        } catch (\Throwable $e) {
+            Log::error('tax.calcul.occupation_bulk_failed', [
+                'message'      => $e->getMessage(),
+                'period_type'  => $periodType,
+                'period_value' => $periodValue,
+                'period_year'  => $periodYear,
+                'panel_count'  => count($allPanelIds),
+                'trace_first'  => collect($e->getTrace())->take(3)->all(),
+            ]);
+            // Fallback : 0 mois occupés partout → TM = 0 partout.
+            // Préfère 0 (rare faux négatif) à un crash 500 sur tout l'endpoint.
+            $moisOccByPanel = array_fill_keys($allPanelIds, 0);
         }
 
         // ── Agrégation des paiements multi-périodicité ──────────────
