@@ -76,15 +76,23 @@ class PoseTeamController extends Controller
             'is_active'      => true,
         ]);
 
-        // Membres optionnels (sync via pose_team_id)
+        // 2026-06-19 — Refonte multi-équipe : attach via la pivot pose_team_user
+        // au lieu d'un bulk update qui aurait écrasé l'équipe précédente.
+        // Un même technicien peut désormais être membre de plusieurs équipes.
+        $now = now();
         if (!empty($data['member_ids'])) {
-            User::whereIn('id', $data['member_ids'])->update(['pose_team_id' => $team->id]);
+            $attachData = collect($data['member_ids'])
+                ->mapWithKeys(fn ($id) => [(int) $id => ['joined_at' => $now]])
+                ->all();
+            // syncWithoutDetaching = ajoute sans retirer ce qui existe déjà.
+            $team->members()->syncWithoutDetaching($attachData);
         }
-        // Le leader est aussi membre s'il n'est pas déjà rattaché ailleurs
+        // Le leader est automatiquement membre (idempotent : sans détacher
+        // ses autres équipes).
         if (!empty($data['leader_user_id'])) {
-            User::where('id', $data['leader_user_id'])
-                ->whereNull('pose_team_id')
-                ->update(['pose_team_id' => $team->id]);
+            $team->members()->syncWithoutDetaching([
+                (int) $data['leader_user_id'] => ['joined_at' => $now],
+            ]);
         }
 
         Log::info('pose_team.created', ['id' => $team->id, 'name' => $team->name, 'by' => $request->user()?->name]);
@@ -196,7 +204,11 @@ class PoseTeamController extends Controller
     {
         $membersCount = $team->members()->count();
 
-        // Détache les membres (pose_team_id = NULL)
+        // 2026-06-19 — Multi-équipe : on détache UNIQUEMENT cette équipe-ci
+        // (les techs gardent leurs autres équipes). Detach via la pivot.
+        $team->members()->detach();
+        // Aussi, on nettoie l'éventuel pose_team_id legacy qui pointe encore
+        // sur cette équipe (compat rétro avec vues non encore migrées).
         User::where('pose_team_id', $team->id)->update(['pose_team_id' => null]);
 
         // SoftDelete équipe
@@ -204,7 +216,7 @@ class PoseTeamController extends Controller
 
         Log::info('pose_team.softDeleted', ['id' => $team->id, 'name' => $team->name, 'detached_members' => $membersCount]);
         return redirect()->route('admin.teams.index')
-            ->with('success', "✅ Équipe « {$team->name} » supprimée. {$membersCount} membre(s) détaché(s). Consultation historique préservée.");
+            ->with('success', "✅ Équipe « {$team->name} » supprimée. {$membersCount} membre(s) détaché(s) de cette équipe. Consultation historique préservée.");
     }
 
     /** POST /admin/teams/{team}/members — ajouter des techs à l'équipe. */
@@ -215,9 +227,13 @@ class PoseTeamController extends Controller
             'user_ids.*' => 'integer|exists:users,id',
         ]);
 
-        $count = User::whereIn('id', $data['user_ids'])
-            ->where('role', \App\Enums\UserRole::TECHNIQUE->value)
-            ->update(['pose_team_id' => $team->id]);
+        // 2026-06-19 — attach via pivot (les techs gardent leurs autres équipes).
+        $now = now();
+        $attachData = collect($data['user_ids'])
+            ->mapWithKeys(fn ($id) => [(int) $id => ['joined_at' => $now]])
+            ->all();
+        $team->members()->syncWithoutDetaching($attachData);
+        $count = count($attachData);
 
         return back()->with('success', "✅ {$count} technicien(s) ajouté(s) à l'équipe.");
     }
@@ -225,10 +241,16 @@ class PoseTeamController extends Controller
     /** DELETE /admin/teams/{team}/members/{user} — retirer un membre. */
     public function removeMember(Request $request, PoseTeam $team, User $user)
     {
-        if ($user->pose_team_id !== $team->id) {
+        // 2026-06-19 — détach uniquement de cette équipe-ci, le tech garde
+        // ses autres équipes (multi-appartenance).
+        if (!$team->members()->where('users.id', $user->id)->exists()) {
             return back()->with('error', '🚫 Ce technicien n\'est pas membre de cette équipe.');
         }
-        $user->forceFill(['pose_team_id' => null])->save();
+        $team->members()->detach($user->id);
+        // Compat rétro : si pose_team_id legacy pointe sur cette équipe, nettoie.
+        if ($user->pose_team_id === $team->id) {
+            $user->forceFill(['pose_team_id' => null])->save();
+        }
         return back()->with('success', "✅ {$user->name} retiré de l'équipe.");
     }
 }

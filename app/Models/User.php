@@ -158,10 +158,37 @@ class User extends Authenticatable
                      ->orderBy('name');
     }
 
-    /** Équipe de pose à laquelle le tech est rattaché (nullable). */
+    /**
+     * @deprecated 2026-06-19 — Conservée pour rétro-compat lecture lors de
+     *             la transition. Retourne UNIQUEMENT la 1ère équipe rattachée
+     *             via la pivot (la plus ancienne). Préférer poseTeams() qui
+     *             retourne toutes les équipes du tech.
+     */
     public function poseTeam(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(\App\Models\PoseTeam::class, 'pose_team_id');
+    }
+
+    /**
+     * Équipes de pose auxquelles le tech est rattaché (refonte 2026-06-19).
+     * N-to-N via pose_team_user. Un tech peut être membre de plusieurs équipes
+     * simultanément (intervention multi-chantiers).
+     */
+    public function poseTeams(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(\App\Models\PoseTeam::class, 'pose_team_user', 'user_id', 'pose_team_id')
+            ->withPivot('joined_at')
+            ->orderBy('pose_team_user.joined_at');
+    }
+
+    /**
+     * Équipe "principale" du tech : la 1ère rejointe (= la plus ancienne).
+     * Utilisée par l'observer PoseTask::saving pour auto-déduire team_name
+     * quand l'admin ne le précise pas. Si le tech n'a aucune équipe, retourne null.
+     */
+    public function primaryPoseTeam(): ?\App\Models\PoseTeam
+    {
+        return $this->poseTeams()->first();
     }
 
     /** Équipe dont ce user est leader (HasOne — uniq côté BDD). */

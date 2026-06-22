@@ -110,6 +110,72 @@ class FinanceDashboardController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════════
+    // EXPORTS RÉCAP FINANCE (2026-06-19)
+    // Excel multi-feuilles + PDF synthèse. Sources : FinancialDashboardService
+    // — identique à la page Finance affichée à l'écran (pas de doublure).
+    // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * Charge en une fois toutes les sections du dashboard pour les exports.
+     * Évite la duplication entre exportRecapExcel() et exportRecapPdf().
+     */
+    private function loadRecapData(Request $request): array
+    {
+        [$from, $to]    = $this->parsePeriod($request);
+        $commercialUid  = $this->resolveCommercialScope();
+        return [
+            'from'             => $from,
+            'to'               => $to,
+            'kpis'             => $this->svc->kpis($from, $to, $commercialUid),
+            'recentPayments'   => $this->svc->recentPayments($from, $to, 1000, $commercialUid),
+            'creances'         => $this->svc->creancesQuery($commercialUid)
+                                       ->orderBy('issued_at')
+                                       ->get()
+                                       ->filter(fn ($inv) => $inv->remainingAmount() > 0.01)
+                                       ->values(),
+            'clientsToFollow'  => $this->svc->clientsToFollow('total_du', $commercialUid),
+            'topClients'       => $this->svc->encaissementsByClient($from, $to, 50, $commercialUid),
+        ];
+    }
+
+    /** Excel multi-feuilles : Synthèse + Versements + Créances + Recouvrement + Top clients. */
+    public function exportRecapExcel(Request $request)
+    {
+        $data = $this->loadRecapData($request);
+        $filename = 'finance-recap-' . now()->format('Ymd_His') . '.xlsx';
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\FinanceRecapExport(
+                $data['kpis'],
+                $data['recentPayments'],
+                $data['creances'],
+                $data['clientsToFollow'],
+                $data['topClients'],
+                $data['from'],
+                $data['to'],
+                $request->user()?->name,
+            ),
+            $filename
+        );
+    }
+
+    /** PDF synthèse exécutive : KPI globaux + top 10 par section. */
+    public function exportRecapPdf(Request $request)
+    {
+        $data = $this->loadRecapData($request);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.finance.recap-pdf', [
+            'kpis'             => $data['kpis'],
+            'recentPayments'   => $data['recentPayments'],
+            'creances'         => $data['creances'],
+            'clientsToFollow'  => $data['clientsToFollow'],
+            'from'             => $data['from'],
+            'to'               => $data['to'],
+            'user'             => $request->user(),
+            'operatorName'     => 'CIBLE CI',
+        ])->setPaper('a4', 'portrait');
+        return $pdf->download('finance-recap-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    // ══════════════════════════════════════════════════════════════════
     // RELANCES
     // ══════════════════════════════════════════════════════════════════
 

@@ -20,15 +20,46 @@ class CommuneTaxPayment extends Model
         self::PERIOD_ANNUEL,
     ];
 
+    // LOT 1 — Modes de paiement (cahier 2026-06-19). Alignés sur les
+    // libellés métier officiels CIBLE CI (mêmes intitulés que sur
+    // l'export Excel comptable des factures).
+    public const MODE_VIREMENT     = 'virement';
+    public const MODE_CHEQUE       = 'cheque';
+    public const MODE_ESPECES      = 'especes';
+    public const MODE_MOBILE_MONEY = 'mobile_money';
+    public const MODE_AUTRE        = 'autre';
+
+    public const MODES = [
+        self::MODE_VIREMENT     => '🏦 Virement',
+        self::MODE_CHEQUE       => '📝 Chèque',
+        self::MODE_ESPECES      => '💵 Espèces',
+        self::MODE_MOBILE_MONEY => '📱 Mobile Money',
+        self::MODE_AUTRE        => '🌀 Autre',
+    ];
+
     protected $fillable = [
         'commune_id', 'period_type', 'period_year', 'period_value',
         'odp_theorique', 'tm_theorique',
         'odp_paye', 'tm_paye',
         'paid_at',
+        // LOT 1 — Traçabilité paiements (cahier 2026-06-19).
+        'mode', 'reference', 'comment',
         'attestation_recue', 'attestation_date', 'attestation_path',
         'notes',
         'recorded_by',
     ];
+
+    /**
+     * Libellé human-readable du mode (avec emoji) — utilisé dans les
+     * tableaux et exports. Fallback sur le slug brut si inconnu.
+     */
+    public function getModeLabelAttribute(): ?string
+    {
+        return $this->mode ? (self::MODES[$this->mode] ?? ucfirst($this->mode)) : null;
+    }
+    // Note 2026-06-19 — l'accesseur getTotalPayeAttribute() existe déjà
+    // plus bas dans le fichier (return float). On ne le re-déclare pas
+    // ici pour éviter "Cannot redeclare" fatal.
 
     // RÈGLE 4 — entiers FCFA (audit Phase 8E : cohérence avec
     // invoice_lines.odp_ligne/tm_ligne et commune.odp_rate/tm_rate).

@@ -620,6 +620,18 @@ Route::prefix('admin')
             Route::get ('taxes/details/excel', [TaxController::class, 'detailsExcel']) ->name('taxes.details.excel');
             Route::post('taxes/payments',      [TaxController::class, 'recordPayment'])->name('taxes.payments.record');
             Route::get ('taxes/historique',    [TaxController::class, 'historique'])   ->name('taxes.historique');
+            // LOT 3 (cahier 2026-06-19) — Historique paiements détaillé d'une
+            // commune (1 ligne / versement avec cumul + solde après).
+            // Placée AVANT Route::resource pour éviter la collision sur
+            // {tax} qui matcherait le mot "commune".
+            Route::get ('taxes/commune/{commune}/payments-history',
+                [TaxController::class, 'communePaymentsHistory'])
+                ->name('taxes.commune.payments-history');
+            // LOT 2 (cahier 2026-06-19) — Fiche commune détaillée (suivi mensuel
+            // + cumul trimestriel + cumul annuel).
+            Route::get ('taxes/commune/{commune}',
+                [TaxController::class, 'showCommune'])
+                ->name('taxes.commune.show');
             Route::resource('taxes', TaxController::class);
             Route::patch('taxes/{tax}/pay', [TaxController::class, 'markPaid'])->name('taxes.pay');
             Route::get('taxes/export/pdf', [TaxController::class, 'exportPdf'])->name('taxes.export.pdf');
@@ -1122,6 +1134,11 @@ Route::prefix('admin')
                 ->name('finance.index');
             Route::get('finance/series', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'series'])
                 ->name('finance.series');
+            // 2026-06-19 — Exports récap complet Finance (Excel multi-feuilles + PDF synthèse).
+            Route::get('finance/export/excel', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'exportRecapExcel'])
+                ->name('finance.export.excel');
+            Route::get('finance/export/pdf', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'exportRecapPdf'])
+                ->name('finance.export.pdf');
             Route::get('finance/relances', [\App\Http\Controllers\Admin\FinanceDashboardController::class, 'relances'])
                 ->name('finance.relances');
             // Exports historique relances (Excel détaillé + PDF synthèse par client)

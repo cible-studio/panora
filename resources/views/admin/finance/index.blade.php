@@ -186,6 +186,25 @@
        title="Voir l'historique complet des relances (toutes traces enregistrées)">
         📋 Historique des relances
     </a>
+    {{-- 2026-06-19 — Récap complet (Excel multi-feuilles + PDF synthèse).
+         Inclut KPIs, versements, créances, recouvrement, top clients.
+         Respecte les filtres période actifs. --}}
+    @if(\Illuminate\Support\Facades\Route::has('admin.finance.export.excel'))
+        <a href="{{ route('admin.finance.export.excel', request()->query()) }}"
+           class="btn btn-ghost btn-sm"
+           style="display:inline-flex;align-items:center;gap:6px;height:36px;font-size:12.5px;font-weight:700;background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.30);color:#15803d"
+           title="Récap Excel complet : 5 feuilles (KPI · Versements · Créances · Recouvrement · Top clients)">
+            📥 Récap Excel
+        </a>
+    @endif
+    @if(\Illuminate\Support\Facades\Route::has('admin.finance.export.pdf'))
+        <a href="{{ route('admin.finance.export.pdf', request()->query()) }}"
+           class="btn btn-ghost btn-sm"
+           style="display:inline-flex;align-items:center;gap:6px;height:36px;font-size:12.5px;font-weight:700;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);color:#b91c1c"
+           title="Récap PDF exécutif : 1-2 pages avec KPI globaux et top 10 de chaque section">
+            📄 Récap PDF
+        </a>
+    @endif
 </div>
 
 {{-- Chart.js et window.financeBootstrap DOIVENT être poussés AVANT

@@ -74,6 +74,73 @@
         <div class="kpi-hint" style="font-size:10px;color:var(--text3);margin-top:3px;">FCFA · cliquer pour filtrer</div>
     </div>
     @endforeach
+    {{-- LOT 4 (cahier 2026-06-19) — KPI Taux de couverture (% payé / dû). --}}
+    <div class="tax-kpi-card" style="background:var(--surface);border:1px solid var(--border);border-left:4px solid #6366f1;border-radius:12px;padding:14px 16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px">Taux couverture</span>
+            <span style="font-size:14px">📊</span>
+        </div>
+        <div data-kpi="taux_couverture" style="font-size:18px;font-weight:800;color:#6366f1;font-variant-numeric:tabular-nums">—</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">% payé / dû sur la période</div>
+    </div>
+</div>
+
+{{-- ════ LOT 4 — KPIs supplémentaires (Abidjan/Intérieur + Top communes) ════ --}}
+<div style="display:grid;grid-template-columns:1fr 1.5fr;gap:12px;margin-bottom:18px" class="tax-extras-grid">
+    {{-- Répartition Abidjan / Intérieur --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px">
+        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+            🌍 Répartition géographique
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.20);border-radius:8px">
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.4px">Abidjan</div>
+                    <div data-kpi-extra="abidjan_count" style="font-size:10.5px;color:var(--text3);margin-top:2px">— communes · — panneaux</div>
+                </div>
+                <div style="text-align:right">
+                    <div data-kpi-extra="abidjan_du" style="font-size:13px;font-weight:800;color:#1d4ed8;font-variant-numeric:tabular-nums">—</div>
+                    <div data-kpi-extra="abidjan_paye" style="font-size:10px;color:#15803d;margin-top:1px">payé : —</div>
+                </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.20);border-radius:8px">
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.4px">Intérieur</div>
+                    <div data-kpi-extra="interieur_count" style="font-size:10.5px;color:var(--text3);margin-top:2px">— communes · — panneaux</div>
+                </div>
+                <div style="text-align:right">
+                    <div data-kpi-extra="interieur_du" style="font-size:13px;font-weight:800;color:#15803d;font-variant-numeric:tabular-nums">—</div>
+                    <div data-kpi-extra="interieur_paye" style="font-size:10px;color:#15803d;margin-top:1px">payé : —</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{-- Top 5 communes par montant dû --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px">
+        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+            🏆 Top 5 communes les plus taxées (période)
+        </div>
+        <div id="top-communes-list" style="display:flex;flex-direction:column;gap:5px">
+            <div style="text-align:center;color:var(--text3);font-size:11px;font-style:italic;padding:10px">Chargement…</div>
+        </div>
+    </div>
+</div>
+
+{{-- LOT 4 (cahier 2026-06-19) — Évolution mensuelle des paiements de taxes
+     sur l'année courante. Source : CommuneTaxPayment.paid_at agrégé par mois. --}}
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap">
+        <div>
+            <div style="font-size:12px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:6px">
+                📈 Évolution mensuelle des paiements
+            </div>
+            <div style="font-size:10.5px;color:var(--text3);margin-top:2px">Versements taxes communales — année en cours</div>
+        </div>
+        <div id="payments-evol-total" style="font-size:11px;color:var(--text3);font-weight:600">—</div>
+    </div>
+    <div style="position:relative;height:160px">
+        <canvas id="chart-payments-evolution" role="img" aria-label="Évolution mensuelle des paiements de taxes"></canvas>
+    </div>
 </div>
 
 {{-- ════ TABLEAU LIVE ════ --}}
@@ -176,8 +243,30 @@
                     <input type="checkbox" id="pm-attestation" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
                     <label for="pm-attestation" style="font-size:12px;color:var(--text2);cursor:pointer;">Attestation reçue</label>
                 </div>
+                {{-- LOT 1 — Modes de paiement (cahier 2026-06-19). Le mode est
+                     fortement recommandé pour la traçabilité comptable (export
+                     vers le cabinet). Référence = N° chèque / bordereau /
+                     transaction Mobile Money. --}}
+                <div>
+                    <label class="filter-label">Mode de paiement <span style="color:var(--accent)">*</span></label>
+                    <select id="pm-mode" class="filter-input" style="width:100%;height:38px;font-weight:600">
+                        <option value="">— Choisir un mode —</option>
+                        @foreach(\App\Models\CommuneTaxPayment::MODES as $key => $label)
+                            <option value="{{ $key }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="filter-label">Référence</label>
+                    <input type="text" id="pm-reference" class="filter-input" maxlength="100"
+                           style="width:100%;" placeholder="N° chèque / bordereau / transaction">
+                </div>
                 <div style="grid-column:1/3;">
-                    <label class="filter-label">Notes (optionnel)</label>
+                    <label class="filter-label">Commentaire (banque, motif, observation)</label>
+                    <textarea id="pm-comment" rows="2" class="filter-input" style="width:100%;resize:vertical;font-family:inherit;" maxlength="2000" placeholder="Ex : Chèque BICICI déposé le 18/06, à l'attention de la mairie de Cocody…"></textarea>
+                </div>
+                <div style="grid-column:1/3;">
+                    <label class="filter-label">Notes internes (optionnel)</label>
                     <textarea id="pm-notes" rows="2" class="filter-input" style="width:100%;resize:vertical;font-family:inherit;" maxlength="1000" placeholder="N° quittance, observations…"></textarea>
                 </div>
             </div>
@@ -243,6 +332,10 @@
 </style>
 
 @push('scripts')
+{{-- LOT 4 (cahier 2026-06-19) — Chart.js pour le mini-chart d'évolution
+     mensuelle des paiements. Doit être chargé AVANT le script TaxModule
+     qui l'utilise (sinon typeof Chart === 'undefined' au 1er rendu). --}}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 window.TaxModule = (function () {
     const csrf = '{{ csrf_token() }}';
@@ -355,6 +448,102 @@ window.TaxModule = (function () {
             const key = el.dataset.kpi;
             el.textContent = fmt(kpi[key] || 0);
         });
+        // LOT 4 — Taux de couverture (% payé / dû).
+        const cov = document.querySelector('[data-kpi="taux_couverture"]');
+        if (cov) cov.textContent = (kpi.taux_couverture ?? 0) + ' %';
+
+        // LOT 4 — Répartition Abidjan / Intérieur.
+        const setExtra = (id, val) => {
+            const el = document.querySelector(`[data-kpi-extra="${id}"]`);
+            if (el) el.textContent = val;
+        };
+        const ab = kpi.breakdown?.abidjan   || {};
+        const it = kpi.breakdown?.interieur || {};
+        setExtra('abidjan_count',   `${ab.communes ?? 0} communes · ${ab.panneaux ?? 0} panneaux`);
+        setExtra('abidjan_du',      fmt(ab.total_du ?? 0) + ' FCFA');
+        setExtra('abidjan_paye',    'payé : ' + fmt(ab.total_paye ?? 0));
+        setExtra('interieur_count', `${it.communes ?? 0} communes · ${it.panneaux ?? 0} panneaux`);
+        setExtra('interieur_du',    fmt(it.total_du ?? 0) + ' FCFA');
+        setExtra('interieur_paye',  'payé : ' + fmt(it.total_paye ?? 0));
+
+        // LOT 4 — Top 5 communes (cliquable vers la fiche).
+        const topEl = document.getElementById('top-communes-list');
+        if (topEl) {
+            const top = kpi.top_communes || [];
+            if (top.length === 0) {
+                topEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;font-style:italic;padding:10px">Aucune commune sur la période.</div>';
+            } else {
+                topEl.innerHTML = top.map((c, i) => {
+                    const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));
+                    const pctPaye = c.total_theorique > 0 ? Math.round((c.total_paye / c.total_theorique) * 100) : 0;
+                    return `
+                        <a href="/admin/taxes/commune/${c.commune_id}"
+                           style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-radius:8px;text-decoration:none;color:inherit;transition:transform .15s"
+                           onmouseenter="this.style.transform='translateX(2px)'"
+                           onmouseleave="this.style.transform=''"
+                           title="Ouvrir la fiche détaillée de ${c.commune}">
+                            <span style="font-size:12px;width:22px;flex-shrink:0;text-align:center">${medal}</span>
+                            <span style="flex:1;font-size:12px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.commune}</span>
+                            <span style="font-size:11.5px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;text-align:right">${fmt(c.total_theorique)}</span>
+                            <span style="font-size:9.5px;color:${pctPaye >= 80 ? '#15803d' : (pctPaye >= 30 ? '#b45309' : '#b91c1c')};font-weight:700;width:32px;text-align:right">${pctPaye}%</span>
+                        </a>
+                    `;
+                }).join('');
+            }
+        }
+
+        // LOT 4 — Évolution mensuelle des paiements (mini chart 12 mois).
+        renderPaymentsEvolution(kpi.payments_evolution || []);
+    }
+
+    let paymentsEvolutionChart = null;
+    function renderPaymentsEvolution(series) {
+        const canvas = document.getElementById('chart-payments-evolution');
+        if (!canvas || typeof Chart === 'undefined') return;
+        const labels = series.map(s => s.label);
+        const data   = series.map(s => s.total);
+        const totalYear = data.reduce((a, b) => a + b, 0);
+        const totalEl = document.getElementById('payments-evol-total');
+        if (totalEl) totalEl.textContent = 'Total année : ' + fmt(totalYear) + ' FCFA';
+
+        if (paymentsEvolutionChart) {
+            paymentsEvolutionChart.data.labels = labels;
+            paymentsEvolutionChart.data.datasets[0].data = data;
+            paymentsEvolutionChart.update();
+            return;
+        }
+        paymentsEvolutionChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Paiements (FCFA)',
+                    data,
+                    backgroundColor: 'rgba(34,197,94,.45)',
+                    borderColor: '#16a34a',
+                    borderWidth: 1.5,
+                    borderRadius: 4,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => fmt(ctx.parsed.y) + ' FCFA',
+                        },
+                    },
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: v => v >= 1e6 ? (v/1e6).toFixed(1) + 'M' : (v >= 1e3 ? (v/1e3).toFixed(0) + 'k' : v) },
+                    },
+                },
+            },
+        });
     }
 
     function statusPill(statut) {
@@ -405,12 +594,26 @@ window.TaxModule = (function () {
                             ? `<div style="font-size:9px;color:var(--text3);margin-top:2px;">payé : ${fmt(c.total_paye)}</div>`
                             : ''}
                     </td>
-                    <td style="text-align:center;">
+                    <td style="text-align:center;white-space:nowrap;">
                         <button type="button"
                                 class="tax-pay-btn ${c.payment_id ? 'tax-pay-btn-edit' : ''}"
                                 onclick="TaxModule.openPaymentModal(${c.commune_id})">
                             ${c.payment_id ? '✏️ Modifier' : '💰 Payer'}
                         </button>
+                        {{-- LOT 2 — Fiche commune (suivi mensuel + cumul trim/annuel). --}}
+                        <a href="/admin/taxes/commune/${c.commune_id}"
+                           class="tax-pay-btn"
+                           style="margin-left:4px;background:rgba(232,160,32,.10);color:#b45309;border:1px solid rgba(232,160,32,.30);text-decoration:none;display:inline-block"
+                           title="Fiche détaillée de ${c.commune} (suivi mensuel + trimestriel + annuel)">
+                            🏛️ Fiche
+                        </a>
+                        {{-- LOT 3 — Historique paiements détaillé de cette commune. --}}
+                        <a href="/admin/taxes/commune/${c.commune_id}/payments-history"
+                           class="tax-pay-btn"
+                           style="margin-left:4px;background:rgba(59,130,246,.10);color:#1d4ed8;border:1px solid rgba(59,130,246,.30);text-decoration:none;display:inline-block"
+                           title="Voir l'historique complet des versements de ${c.commune}">
+                            📋 Historique
+                        </a>
                     </td>
                 </tr>
             `;
@@ -541,6 +744,12 @@ window.TaxModule = (function () {
             document.getElementById('pm-tm-paye').value  = row.tm_paye  || row.tm_theorique;
             document.getElementById('pm-attestation').checked = !!row.attestation;
             document.getElementById('pm-notes').value = '';
+            // LOT 1 — Reset des champs de traçabilité (le user remplit à chaque
+            // versement, on ne pré-remplit pas avec l'ancien mode car ça
+            // pousserait à des erreurs si le moyen de paiement change).
+            document.getElementById('pm-mode').value      = row.mode      || '';
+            document.getElementById('pm-reference').value = row.reference || '';
+            document.getElementById('pm-comment').value   = row.comment   || '';
             // paid_at : si déjà payé, restaurer la date saisie ; sinon today
             // (on n'a pas la date back en JSON pour l'instant — date du jour OK).
             document.getElementById('pm-paid-at').value = '{{ now()->format("Y-m-d") }}';
@@ -574,6 +783,10 @@ window.TaxModule = (function () {
                 paid_at:          document.getElementById('pm-paid-at').value || '',
                 attestation_recue: document.getElementById('pm-attestation').checked ? '1' : '0',
                 notes:            document.getElementById('pm-notes').value || '',
+                // LOT 1 — Traçabilité paiements (cahier 2026-06-19).
+                mode:             document.getElementById('pm-mode').value      || '',
+                reference:        document.getElementById('pm-reference').value || '',
+                comment:          document.getElementById('pm-comment').value   || '',
             });
 
             try {

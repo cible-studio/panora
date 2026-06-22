@@ -115,7 +115,8 @@
                     @endif
                 </td>
                 <td class="b">{{ $row['user']->name ?? '—' }}</td>
-                <td class="muted">{{ $row['user']->poseTeam?->name ?? '—' }}</td>
+                {{-- 2026-06-19 — Multi-équipe : liste les noms séparés par virgules. --}}
+                <td class="muted">{{ $row['user']->poseTeams->pluck('name')->join(', ') ?: '—' }}</td>
                 <td class="r">{{ $k['nb_poses_total'] }}</td>
                 <td class="r b" style="color:#15803d">{{ $k['nb_poses_realisees'] }}</td>
                 <td class="r muted">{{ $k['nb_poses_planifiees'] }}</td>

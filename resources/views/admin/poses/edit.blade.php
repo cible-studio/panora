@@ -194,11 +194,13 @@ window.__EDIT__ = {
                                 style="background:none;border:1px dashed var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:1px 9px;border-radius:8px;cursor:pointer"
                                 title="Créer un technicien rapidement">+ Nouveau</button>
                     </div>
+                    {{-- 2026-06-19 — Multi-équipe : data-teams (JSON array). Auto-fill équipe seulement si 1 seule. --}}
                     <select name="assigned_user_id" id="sel-technicien" class="pose-select" data-team-by-user='@json($teamByUser ?? [])'>
                         <option value="">— Non assigné —</option>
                         @foreach($techniciens as $t)
+                        @php $teamsList = $teamByUser[$t->id] ?? []; @endphp
                         <option value="{{ $t->id }}" {{ old('assigned_user_id',$poseTask->assigned_user_id)==$t->id?'selected':'' }}
-                                data-team="{{ $teamByUser[$t->id] ?? '' }}">{{ $t->name }}</option>
+                                data-teams="{{ json_encode($teamsList) }}">{{ $t->name }}{{ count($teamsList) > 1 ? ' (' . count($teamsList) . ' équipes)' : '' }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -230,8 +232,11 @@ window.__EDIT__ = {
                 var teamByUser = {};
                 try { teamByUser = JSON.parse(selTech.dataset.teamByUser || '{}'); } catch (e) {}
                 selTech.addEventListener('change', function () {
-                    var teamName = teamByUser[selTech.value];
-                    if (!teamName) return;
+                    // 2026-06-19 — Multi-équipe : teamByUser[id] est un array.
+                    // Auto-fill uniquement si le tech a EXACTEMENT 1 équipe.
+                    var teamsList = teamByUser[selTech.value];
+                    if (!Array.isArray(teamsList) || teamsList.length !== 1) return;
+                    var teamName = teamsList[0];
                     var opt = Array.from(selTeam.options).find(function (o) { return o.value === teamName; });
                     if (!opt) {
                         opt = new Option(teamName, teamName, false, false);
@@ -616,6 +621,6 @@ $(document).ready(()=>EDIT.init());
     'target_select_id' => 'sel-team',
     // TOUS les techniciens — ceux déjà dans une équipe affichent un badge
     // "↻ équipe X" et la sélection les TRANSFÈRE vers la nouvelle équipe.
-    'available_techs'  => \App\Models\User::techniciens()->with('poseTeam:id,name')->get(['id', 'name', 'agent_code', 'pose_team_id']),
+    'available_techs'  => \App\Models\User::techniciens()->with('poseTeams:id,name')->get(['id', 'name', 'agent_code']),
 ])
 </x-admin-layout>

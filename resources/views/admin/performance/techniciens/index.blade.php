@@ -146,8 +146,11 @@
                                 <div style="font-size:10.5px;color:var(--text3);font-family:monospace">{{ $u->agent_code }}</div>
                             </td>
                             <td>
-                                @if($u->poseTeam)
-                                    <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;background:{{ $u->poseTeam->colorBgHex() }};color:{{ $u->poseTeam->colorHex() }};font-size:11px;font-weight:700">{{ $u->poseTeam->name }}</span>
+                                {{-- 2026-06-19 — Multi-équipe : N chips (1 par équipe) avec couleur propre. --}}
+                                @if($u->poseTeams->isNotEmpty())
+                                    @foreach($u->poseTeams as $teamItem)
+                                        <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;background:{{ $teamItem->colorBgHex() }};color:{{ $teamItem->colorHex() }};font-size:11px;font-weight:700;margin:1px 2px">{{ $teamItem->name }}</span>
+                                    @endforeach
                                 @else
                                     <span style="font-size:11px;color:var(--text3);font-style:italic">—</span>
                                 @endif

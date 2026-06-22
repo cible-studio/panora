@@ -45,7 +45,7 @@
         'target_select_id' => 'noop-no-select-here',
         // TOUS les techniciens — ceux déjà dans une équipe affichent un badge
         // "↻ équipe X" et la sélection les TRANSFÈRE vers la nouvelle équipe.
-        'available_techs'  => \App\Models\User::techniciens()->with('poseTeam:id,name')->get(['id', 'name', 'agent_code', 'pose_team_id']),
+        'available_techs'  => \App\Models\User::techniciens()->with('poseTeams:id,name')->get(['id', 'name', 'agent_code']),
     ])
 
     <form method="GET" class="perf-filter-card" style="margin-bottom:16px">

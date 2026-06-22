@@ -99,7 +99,8 @@ class TechnicianPerformanceController extends Controller
         $reactivity    = $this->perf->reactivityDistribution($user->id, $from, $to);
         $poses         = $this->perf->posesList($user->id, $from, $to, 15);
 
-        $user->load('poseTeam:id,name,color_slug', 'teamLeading:id,name');
+        // 2026-06-19 — Multi-équipe : on charge la relation pluriel poseTeams.
+        $user->load('poseTeams:id,name,color_slug', 'teamLeading:id,name');
 
         return view('admin.performance.techniciens.show', compact(
             'user', 'kpis', 'dailyPoses', 'reactivity', 'poses', 'from', 'to'

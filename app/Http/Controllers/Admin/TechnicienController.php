@@ -90,9 +90,20 @@ class TechnicienController extends Controller
             'role'             => UserRole::TECHNIQUE,
             'agent_code'       => $agentCode,
             'whatsapp_number'  => $data['whatsapp_number'] ?? null,
+            // Champ legacy conservé pour rétro-compat lecture (vues non migrées).
+            // La vraie source de vérité multi-équipe est la pivot pose_team_user.
             'pose_team_id'     => $data['pose_team_id'] ?? null,
             'is_active'        => true,
         ]);
+
+        // 2026-06-19 — Multi-équipe : si une équipe est choisie, on l'attache
+        // via la pivot. Le tech peut ensuite être ajouté à d'autres équipes
+        // depuis la fiche équipe sans perdre celle-ci.
+        if (!empty($data['pose_team_id'])) {
+            $tech->poseTeams()->syncWithoutDetaching([
+                (int) $data['pose_team_id'] => ['joined_at' => now()],
+            ]);
+        }
 
         // Génère le token public à la création (utilisé pour /tech/{token}/poses)
         $tech->ensureTechPublicToken();
@@ -130,17 +141,25 @@ class TechnicienController extends Controller
             $data['whatsapp_number'] = $this->normalizeWhatsApp($data['whatsapp_number']);
         }
 
+        // 2026-06-19 — Multi-équipe : le select pose_team_id de cette vue
+        // représente "l'équipe à AJOUTER" pour ce tech (l'admin retire les
+        // équipes individuellement via PoseTeamController::removeMember).
+        // Le champ legacy users.pose_team_id est aligné sur la valeur choisie
+        // pour rétro-compat lecture.
+        $newTeamId = $request->has('pose_team_id') ? ($data['pose_team_id'] ?? null) : $technicien->pose_team_id;
         $technicien->update([
             'name'             => $data['name'],
             'email'            => $data['email'] ?: $technicien->email,
             'agent_code'       => $data['agent_code'] ?? null,
             'whatsapp_number'  => $data['whatsapp_number'] ?? null,
-            // 2026-06-18 : si l'admin a explicitement choisi "— Aucune —" on
-            // détache l'équipe (pose_team_id passe à null). Si la clé est
-            // absente du payload (cas rare), on garde l'existant.
-            'pose_team_id'     => $request->has('pose_team_id') ? ($data['pose_team_id'] ?? null) : $technicien->pose_team_id,
+            'pose_team_id'     => $newTeamId,
             'is_active'        => $request->boolean('is_active', $technicien->is_active),
         ]);
+        if (!empty($newTeamId)) {
+            $technicien->poseTeams()->syncWithoutDetaching([
+                (int) $newTeamId => ['joined_at' => now()],
+            ]);
+        }
 
         return redirect()->route('admin.pose-tasks.techniciens.index')
             ->with('success', "Technicien {$technicien->name} mis à jour.");

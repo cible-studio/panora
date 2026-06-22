@@ -383,18 +383,19 @@ class PoseController extends Controller
         // l'input texte libre historique). On expose aussi une map
         // user_id → team_name pour l'auto-remplissage côté JS lorsque
         // l'admin choisit un technicien déjà rattaché à une équipe.
+        // 2026-06-19 — Multi-équipe : $teamByUser passe d'un id → 1 nom
+        // à un id → liste de noms ['Équipe A', 'Équipe B']. La vue + le JS
+        // d'auto-fill sont adaptés en conséquence.
         $techniciens = User::where('role', 'technique')
+            ->with('poseTeams:id,name')
             ->orderBy('name')
-            ->get(['id', 'name', 'pose_team_id']);
+            ->get(['id', 'name']);
         $teams = \App\Models\PoseTeam::where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name']);
-        $teamByUser = User::where('role', 'technique')
-            ->whereNotNull('pose_team_id')
-            ->with('poseTeam:id,name')
-            ->get(['id', 'pose_team_id'])
-            ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeam?->name])
-            ->filter()
+        $teamByUser = $techniciens
+            ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeams->pluck('name')->all()])
+            ->filter(fn ($names) => !empty($names))
             ->toArray();
 
         $preselectedCampaign = null;
@@ -512,19 +513,18 @@ class PoseController extends Controller
                 ->with('error', 'Cette tâche ne peut plus être modifiée.');
         }
 
+        // 2026-06-19 — Multi-équipe (cf. create()) : id → liste de noms.
         $poseTask->load(['panel.commune', 'campaign', 'technicien']);
         $techniciens = User::where('role', 'technique')
+            ->with('poseTeams:id,name')
             ->orderBy('name')
-            ->get(['id', 'name', 'pose_team_id']);
+            ->get(['id', 'name']);
         $teams = \App\Models\PoseTeam::where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name']);
-        $teamByUser = User::where('role', 'technique')
-            ->whereNotNull('pose_team_id')
-            ->with('poseTeam:id,name')
-            ->get(['id', 'pose_team_id'])
-            ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeam?->name])
-            ->filter()
+        $teamByUser = $techniciens
+            ->mapWithKeys(fn ($u) => [$u->id => $u->poseTeams->pluck('name')->all()])
+            ->filter(fn ($names) => !empty($names))
             ->toArray();
 
         return view('admin.poses.edit', compact('poseTask', 'techniciens', 'teams', 'teamByUser'));

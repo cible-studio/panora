@@ -94,16 +94,21 @@ class PoseTeam extends Model
     }
 
     // ── Relations ──
-    /** Techniciens rattachés à cette équipe. */
-    public function members(): HasMany
+    /**
+     * Techniciens rattachés à cette équipe.
+     * Refonte 2026-06-19 : N-to-N via la pivot pose_team_user.
+     * Un même tech peut désormais être membre de plusieurs équipes.
+     */
+    public function members(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
-        return $this->hasMany(User::class, 'pose_team_id');
+        return $this->belongsToMany(User::class, 'pose_team_user', 'pose_team_id', 'user_id')
+            ->withPivot('joined_at');
     }
 
     /** Membres actifs uniquement. */
-    public function activeMembers(): HasMany
+    public function activeMembers(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
-        return $this->members()->where('is_active', true);
+        return $this->members()->where('users.is_active', true);
     }
 
     /** Chef d'équipe (User). */
