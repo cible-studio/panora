@@ -57,11 +57,14 @@
             <button type="button" class="tech-live-kpi" data-kpi-filter="in_progress"
                     aria-pressed="false" title="Filtrer les arrivées sur place">
                 <div class="tech-live-kpi-value" data-kpi="in_progress">—</div>
-                <div class="tech-live-kpi-label">En cours</div>
+                <div class="tech-live-kpi-label">Arrivées</div>
             </button>
-            <a href="{{ route('admin.pose-tasks.index', ['assigned_user_id' => $tech->id]) }}"
+            {{-- Hotfix 2026-06-19 : PoseController index accepte technicien_id
+                 (pas assigned_user_id). status=planifiee pour ne montrer que
+                 les poses RESTANTES (non terminées, non annulées). --}}
+            <a href="{{ route('admin.pose-tasks.index', ['technicien_id' => $tech->id, 'status' => 'planifiee']) }}"
                class="tech-live-kpi"
-               title="Voir la liste des poses restantes de {{ $tech->name }}">
+               title="Voir les poses planifiées de {{ $tech->name }}">
                 <div class="tech-live-kpi-value" data-kpi="remaining">—</div>
                 <div class="tech-live-kpi-label">Restant ↗</div>
             </a>
