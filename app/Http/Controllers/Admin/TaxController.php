@@ -773,7 +773,7 @@ class TaxController extends Controller
             1
         )->toDateString();
 
-        $rows = $communes->map(function ($commune) use ($nbMois, $allPayments, $queryMonths, $periodType, $periodYear, $periodValue, $rateDate) {
+        $rows = $communes->map(function ($commune) use ($nbMois, $allPayments, $queryMonths, $periodType, $periodYear, $periodValue, $rateDate, $moisOccByPanel) {
             // Phase audit 8E — tarifs HISTORISÉS, pas courants.
             // Avant : $commune->odp_rate (valeur actuelle) → divergeait
             // avec la facturation qui utilise ratesAt(issued_at).
