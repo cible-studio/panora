@@ -1207,34 +1207,80 @@ class RapportController extends Controller
     {
         $overdueOnly = $request->boolean('overdue', false);
 
-        // decapList() ne charge que id/reference/name/commune_id sur panels.
-        // Pour le PDF tech on a besoin d'adresse + quartier + GPS. On re-fetch.
+        // 1) decapList() ne charge que id/reference/name/commune_id sur panels.
+        //    Pour le PDF tech il faut adresse + quartier + GPS → re-fetch.
         $campaigns = $kpi->decapList(100)->filter(fn($c) => $c->pending_count > 0);
         if ($overdueOnly) {
             $campaigns = $campaigns->filter(fn($c) => $c->is_overdue);
         }
         $campaigns = $campaigns->values();
 
-        // Re-charge les panels en eager-load complet (juste les panel_ids
-        // visibles dans le PDF pour éviter de charger tout le parc).
+        // 2) Re-charge les panels en eager-load complet.
         $allPanelIds = $campaigns->flatMap(fn($c) => $c->panels->pluck('id'))->unique()->values();
         $panelsFull = \App\Models\Panel::with('commune:id,name,city')
             ->whereIn('id', $allPanelIds)
             ->get(['id', 'reference', 'name', 'commune_id', 'adresse', 'quartier', 'latitude', 'longitude'])
             ->keyBy('id');
 
-        // Stats résumé pour le header PDF
+        // 3) Refonte 2026-06-22 — Groupage par COMMUNE (tournée géographique
+        //    du tech, pas par campagne). Chaque entry contient :
+        //      - name / city (commune)
+        //      - panels  : Collection de panels enrichis (campaign_name,
+        //                  campaign_id, is_overdue, days_overdue, end_date)
+        //      - total_panels / overdue_count
+        $byCommune = [];
+        foreach ($campaigns as $c) {
+            $daysOverdue = (int) $c->end_date->diffInDays(now(), false);
+            foreach ($c->panels as $p) {
+                if ($p->decapped_at !== null) continue; // skip déjà décappés
+                $full = $panelsFull->get($p->id);
+                $communeName = $full?->commune?->name ?? $p->commune?->name ?? 'Sans commune';
+                $communeCity = $full?->commune?->city ?? null;
+                $key = $communeName;
+                if (!isset($byCommune[$key])) {
+                    $byCommune[$key] = [
+                        'name'    => $communeName,
+                        'city'    => $communeCity,
+                        'panels'  => collect(),
+                        'overdue' => 0,
+                    ];
+                }
+                $byCommune[$key]['panels']->push([
+                    'reference'     => $p->reference,
+                    'name'          => $p->name,
+                    'adresse'       => $full?->adresse,
+                    'quartier'      => $full?->quartier,
+                    'latitude'      => $full?->latitude,
+                    'longitude'     => $full?->longitude,
+                    'campaign_name' => $c->name,
+                    'campaign_end'  => $c->end_date,
+                    'is_overdue'    => $c->is_overdue,
+                    'days_overdue'  => $daysOverdue,
+                ]);
+                if ($c->is_overdue) $byCommune[$key]['overdue']++;
+            }
+        }
+        // Tri : communes avec retards d'abord, puis par nb panneaux desc
+        $byCommune = collect($byCommune)
+            ->map(function ($entry) {
+                $entry['total_panels'] = $entry['panels']->count();
+                return $entry;
+            })
+            ->sortByDesc(fn($e) => sprintf('%d-%06d', $e['overdue'] > 0 ? 1 : 0, $e['total_panels']))
+            ->values();
+
+        // 4) Stats résumé pour le header
         $totals = [
-            'campaigns'  => $campaigns->count(),
-            'panels'     => $campaigns->sum('pending_count'),
-            'overdue'    => $campaigns->filter(fn($c) => $c->is_overdue)->count(),
+            'campaigns'    => $campaigns->count(),
+            'panels'       => $campaigns->sum('pending_count'),
+            'communes'     => $byCommune->count(),
+            'overdue'      => $campaigns->filter(fn($c) => $c->is_overdue)->count(),
             'generated_by' => $request->user()?->name ?? '—',
             'generated_at' => now(),
         ];
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.decap-pdf', [
-            'campaigns'   => $campaigns,
-            'panelsFull'  => $panelsFull,
+            'byCommune'   => $byCommune,
             'totals'      => $totals,
             'overdueOnly' => $overdueOnly,
         ])->setPaper('A4', 'portrait');
