@@ -417,11 +417,26 @@ class FinanceDashboardController extends Controller
             }
         }
 
+        // Hotfix 2026-06-22 : alignement avec la liste des relances qui
+        // distingue déjà "soldé" vs "brouillons en cours" (cf. relances()).
+        // Sans ça, un client comme BNI affichait "✓ Soldé" dans le drawer
+        // alors qu'il avait 1 brouillon 24M en attente d'envoi.
+        $drafts = \App\Models\Invoice::query()
+            ->where('status', 'brouillon')
+            ->whereNull('credit_note_for_id')
+            ->where('client_id', $clientId)
+            ->when($commercialUid !== null, fn($q) => $q->forCommercialUser($commercialUid))
+            ->get(['id', 'total_a_payer']);
+        $brouillonsCount = $drafts->count();
+        $brouillonsTotal = (float) $drafts->sum('total_a_payer');
+
         return view('admin.finance.partials.relance-detail', [
-            'relance'        => $relance, // mise en évidence
-            'clientRelances' => $clientRelances,
-            'totalDu'        => $totalDu,
-            'facturesOpen'   => $facturesOpen,
+            'relance'         => $relance, // mise en évidence
+            'clientRelances'  => $clientRelances,
+            'totalDu'         => $totalDu,
+            'facturesOpen'    => $facturesOpen,
+            'brouillonsCount' => $brouillonsCount,
+            'brouillonsTotal' => $brouillonsTotal,
         ]);
     }
 

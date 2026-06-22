@@ -53,6 +53,19 @@
             @if($totalDu > 0)
                 <div style="font-size:18px;font-weight:800;color:#b45309;font-family:ui-monospace,monospace;margin-top:2px">{{ $fmt($totalDu) }} <span style="font-size:10px;font-family:inherit;color:var(--text3)">FCFA</span></div>
                 <div style="font-size:10.5px;color:var(--text3);margin-top:2px">{{ $facturesOpen }} facture(s) ouverte(s)</div>
+                @if(($brouillonsCount ?? 0) > 0)
+                    <div style="font-size:10.5px;color:#6b7280;margin-top:3px;font-style:italic" title="Facture(s) en cours de saisie, pas encore envoyée(s)">
+                        📝 + {{ $brouillonsCount }} brouillon{{ $brouillonsCount > 1 ? 's' : '' }} ({{ $fmt($brouillonsTotal) }})
+                    </div>
+                @endif
+            @elseif(($brouillonsCount ?? 0) > 0)
+                {{-- Hotfix 2026-06-22 : alignement avec la liste — un client
+                     avec brouillon en cours n'est pas "soldé" même s'il
+                     n'a aucune facture ENVOYÉE non payée. --}}
+                <div style="font-size:14px;font-weight:800;color:#6b7280;margin-top:4px" title="Facture(s) en cours de saisie, pas encore envoyée(s)">
+                    📝 {{ $brouillonsCount }} brouillon{{ $brouillonsCount > 1 ? 's' : '' }}
+                </div>
+                <div style="font-size:10.5px;color:var(--text3);margin-top:2px;font-family:ui-monospace,monospace">{{ $fmt($brouillonsTotal) }} FCFA en cours</div>
             @else
                 <div style="font-size:14px;font-weight:800;color:#15803d;margin-top:4px">✓ Soldé</div>
                 <div style="font-size:10.5px;color:var(--text3);margin-top:2px">aucune facture ouverte</div>
