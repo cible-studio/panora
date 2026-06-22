@@ -64,4 +64,100 @@ class TaxCalculationServicePureTest extends TestCase
             'BUG TX-1 EN COURS DE RÉGRESSION : l\'ancienne formule ×12 est revenue.'
         );
     }
+
+    /**
+     * Hotfix B canari TX-2 v2 : resolvePeriod doit borner explicitement
+     * trimestriel à [1..4] et mensuel à [1..12]. Si quelqu'un retire la
+     * garde, periodValue=0 en trimestriel donnait Carbon::create(year,
+     * -2, 1) avec rollover silencieux et calcul incohérent.
+     */
+    public function test_resolve_period_throws_on_invalid_quarter(): void
+    {
+        $service = new TaxCalculationService();
+        $this->expectException(\InvalidArgumentException::class);
+        $service->resolvePeriod(TaxCalculationService::PERIOD_QUARTERLY, 5, 2026);
+    }
+
+    public function test_resolve_period_throws_on_invalid_month(): void
+    {
+        $service = new TaxCalculationService();
+        $this->expectException(\InvalidArgumentException::class);
+        $service->resolvePeriod(TaxCalculationService::PERIOD_MONTHLY, 13, 2026);
+    }
+
+    public function test_resolve_period_throws_on_unknown_type(): void
+    {
+        $service = new TaxCalculationService();
+        $this->expectException(\InvalidArgumentException::class);
+        $service->resolvePeriod('hebdo', 1, 2026);
+    }
+
+    /**
+     * Hotfix B canari TX-OCC-1 : TaxController::calcul DOIT consulter
+     * l'occupation effective panneau-par-panneau pour la TM. Si demain
+     * quelqu'un remet le calcul TM forfaitaire (sans $moisOccByPanel),
+     * ce test pète immédiatement — y compris sur SQLite sans MySQL.
+     */
+    /**
+     * Hotfix B canari TX-UX-1 : le formulaire FNE doit toujours setter
+     * le champ m² à la sélection d'un panneau (même 0 → visible
+     * orange), et plus jamais "no-op" avec une condition truthy
+     * sur dimension_m2 qui faussement filtrait les surfaces à 0.
+     */
+    public function test_invoice_form_fne_autofills_m2_even_when_zero(): void
+    {
+        $source = file_get_contents(
+            __DIR__ . '/../../resources/views/admin/invoices/partials/_form-fne.blade.php'
+        );
+
+        // L'ancien comportement "if (item.dimension_m2 && m2Field)" est
+        // truthy-only → un panneau avec dimension_m2=0 ne déclenchait
+        // PAS l'autofill, et le user voyait un champ vide silencieux.
+        $this->assertStringNotContainsString(
+            'if (item.dimension_m2 && m2Field) m2Field.value = item.dimension_m2;',
+            $source,
+            'BUG TX-UX-1 EN COURS DE RÉGRESSION : le test truthy-only ' .
+            'sur dimension_m2 est revenu. Doit setter le champ TOUJOURS ' .
+            'pour visibilité (vide + bordure orange si 0).'
+        );
+
+        // Le nouveau code doit setter via une lecture intermédiaire
+        // explicite (m2Val) qui gère le cas 0.
+        $this->assertStringContainsString(
+            'const m2Val = Number(item.dimension_m2 || 0);',
+            $source,
+            'TX-UX-1 sentinelle : la lecture explicite m2Val doit exister.'
+        );
+    }
+
+    public function test_tax_controller_calcul_uses_occupation_per_panel_for_tm(): void
+    {
+        $source = file_get_contents(__DIR__ . '/../../app/Http/Controllers/Admin/TaxController.php');
+
+        // 1) On doit calculer le moisOccByPanel en bulk avant la map.
+        $this->assertStringContainsString(
+            '$moisOccByPanel',
+            $source,
+            'BUG TX-OCC-1 EN COURS DE RÉGRESSION : TaxController::calcul ' .
+            'doit pré-calculer une map panel_id → mois occupés via ' .
+            '$moisOccByPanel.'
+        );
+
+        // 2) Et la TM doit boucler par panneau plutôt que forfaitaire.
+        $this->assertStringContainsString(
+            '$moisOcc = $moisOccByPanel[$p->id] ?? 0;',
+            $source,
+            'BUG TX-OCC-1 EN COURS DE RÉGRESSION : la TM doit lire ' .
+            'l\'occupation par panneau au lieu d\'appliquer tarif×m²×(nbMois/12).'
+        );
+
+        // 3) L'ancienne formule forfaitaire TM ne doit plus exister.
+        $this->assertStringNotContainsString(
+            '$tm  = round($tmRate  * $m2 * $qty * ($nbMois / 12));',
+            $source,
+            'BUG TX-OCC-1 EN COURS DE RÉGRESSION : la TM forfaitaire ' .
+            '(facturée même sur panneau libre, ex. BOUAFLE 1 667 FCFA) ' .
+            'est revenue. Doit être un calcul par panneau avec occupation.'
+        );
+    }
 }

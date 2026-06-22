@@ -167,6 +167,8 @@ class TaxCalculationServiceTest extends TestCase
 
     // ─────────────────────────────────────────────────────────────
     //  TEST 5 — TM panneau jamais occupé
+    //  Hotfix B canari BOUAFLE (commune avec 1 panneau libre depuis
+    //  toujours qui affichait 1 667 FCFA en mensuel — bug TX-OCC-1).
     // ─────────────────────────────────────────────────────────────
     public function test_tm_panneau_jamais_occupe(): void
     {
@@ -272,5 +274,76 @@ class TaxCalculationServiceTest extends TestCase
 
         $this->assertEquals(3_690_000, $odp);
         $this->assertNotEquals(44_280_000, $odp, 'Le bug ×12 est de retour !');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  HOTFIX B (2026-06-22) — Bug TX-OCC-1 : TM ≠ 0 sur libre
+    //  Le brief exige 3 sentinelles : libre / option seulement /
+    //  annulée. Test 5 (libre) couvre déjà la cible BOUAFLE.
+    //  Les 2 tests ci-dessous étendent à 'option' et 'annule'.
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * TEST 9 — Une campagne en statut "option" (ou tout statut ≠ actif)
+     * ne doit JAMAIS compter dans le calcul d'occupation TM.
+     * Sinon un panneau en simple option provisoire serait taxé alors
+     * qu'aucun affichage n'a eu lieu.
+     */
+    public function test_tm_zero_si_reservation_option_seulement(): void
+    {
+        $yopougon = Commune::factory()->create(['name' => 'Yopougon', 'odp_rate' => 1000, 'tm_rate' => 1000]);
+        $format   = $this->makeFormat(12);
+        $panel    = $this->makePanel($yopougon, $format, Carbon::create(2025, 1, 1));
+
+        // Campagne en OPTION (pas actif) sur juin-novembre 2026
+        // → moisOccupationPanneau doit IGNORER cette campagne.
+        $this->assignCampaign(
+            $panel,
+            Carbon::create(2026, 6, 1),
+            Carbon::create(2026, 11, 30),
+            'option'
+        );
+
+        $tm = $this->service->calculTMCommune(
+            $yopougon, Carbon::create(2026, 1, 1), Carbon::create(2026, 12, 31)
+        );
+        $this->assertEquals(0, $tm, 'TM doit être 0 quand le panneau n\'a qu\'une campagne en option (pas actif).');
+    }
+
+    /**
+     * TEST 10 — Une campagne annulée (deleted_at non null OU statut
+     * 'annule') ne doit JAMAIS compter dans le calcul d'occupation TM.
+     */
+    public function test_tm_zero_si_reservation_annulee(): void
+    {
+        $yopougon = Commune::factory()->create(['name' => 'Yopougon', 'odp_rate' => 1000, 'tm_rate' => 1000]);
+        $format   = $this->makeFormat(12);
+        $panel    = $this->makePanel($yopougon, $format, Carbon::create(2025, 1, 1));
+
+        // Cas A — campagne soft-deleted (annulation logique).
+        $campA = $this->assignCampaign(
+            $panel,
+            Carbon::create(2026, 1, 1),
+            Carbon::create(2026, 12, 31),
+            'actif'
+        );
+        $campA->delete(); // soft-delete : deleted_at posé.
+
+        // Cas B — campagne avec status='annule' (statut métier).
+        $this->assignCampaign(
+            $panel,
+            Carbon::create(2026, 1, 1),
+            Carbon::create(2026, 12, 31),
+            'annule'
+        );
+
+        $tm = $this->service->calculTMCommune(
+            $yopougon, Carbon::create(2026, 1, 1), Carbon::create(2026, 12, 31)
+        );
+        $this->assertEquals(
+            0,
+            $tm,
+            'TM doit être 0 si toutes les campagnes du panneau sont annulées ou soft-deleted.'
+        );
     }
 }
