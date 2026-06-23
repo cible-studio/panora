@@ -22,13 +22,15 @@
 <div id="qt-modal"
      style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10500;align-items:center;justify-content:center;padding:16px"
      onclick="if(event.target===this)closeQuickTechModal()">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:480px;display:flex;flex-direction:column;overflow:hidden"
+    {{-- 2026-06-22 fix : max-height 90vh + scroll corps central. Sans ça,
+         sur petit écran, le footer (boutons) sortait du viewport. --}}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:480px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden"
          onclick="event.stopPropagation()">
-        <div style="padding:14px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div style="padding:14px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
             <h3 style="font-size:15px;font-weight:700;margin:0">🔧 Nouveau technicien</h3>
             <button type="button" onclick="closeQuickTechModal()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3)">✕</button>
         </div>
-        <div style="padding:18px 22px">
+        <div style="padding:18px 22px;overflow-y:auto;flex:1;min-height:0">
             <div style="background:rgba(232,160,32,.06);border:1px solid rgba(232,160,32,.20);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:11.5px;color:var(--text2);line-height:1.5">
                 💡 Création rapide : un code agent <strong>TT-XXX</strong> est généré automatiquement.
                 Le mot de passe temporaire est affiché 1 fois pour transmission au technicien.
@@ -61,7 +63,7 @@
             <div id="qt-error"   style="display:none;background:rgba(239,68,68,.10);border:1px solid #ef4444;border-radius:8px;padding:9px 12px;margin-top:8px;color:#b91c1c;font-size:12px"></div>
             <div id="qt-success" style="display:none;background:rgba(34,197,94,.10);border:1px solid #22c55e;border-radius:8px;padding:10px 12px;margin-top:8px;font-size:12px;color:#15803d"></div>
         </div>
-        <div style="padding:13px 22px;border-top:1px solid var(--border);background:var(--surface2);display:flex;gap:8px;justify-content:flex-end">
+        <div style="padding:13px 22px;border-top:1px solid var(--border);background:var(--surface2);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0">
             <button type="button" class="btn btn-ghost" onclick="closeQuickTechModal()">Annuler</button>
             <button type="button" id="qt-submit" class="btn btn-primary">✓ Créer le technicien</button>
         </div>
