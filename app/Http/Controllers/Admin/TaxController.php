@@ -918,6 +918,33 @@ class TaxController extends Controller
                 default                      => 'partiel',
             };
 
+            // FIX 2026-06-22 — Statut ANNUEL (sur 12 mois) en plus du statut période.
+            // Permet aux KPI Soldé/Partiel/Non payé de refléter l'état du DOSSIER
+            // de la commune sur l'année, indépendamment du mode (Mensuel / Trim /
+            // Annuel / Personnalisé). Sans ça, en mode Mensuel, le compteur Partiel
+            // affichait souvent 0 (une commune est rarement à "moitié payée" sur
+            // un mois précis — elle est plutôt "non payé" ou "soldé" sur ce mois).
+            // Avec ce calcul, on identifie les communes "en cours de règlement"
+            // sur l'année qui ont déjà commencé à payer mais pas tout soldé.
+            $totalTheoYear = round($odpTheo + $tmTheo, 2);
+            if ($nbMois > 0 && $nbMois !== 12) {
+                // Extrapolation simple : (théorique sur N mois) × (12 / N)
+                $totalTheoYear = round(($odpTheo + $tmTheo) * (12 / $nbMois), 2);
+            }
+            // Total payé sur l'année (TOUS les paiements de l'année cette commune,
+            // sans prorata d'intersection — vue dossier).
+            $totalPayeYear = 0.0;
+            foreach ($communePayments as $p) {
+                $totalPayeYear += ((float) $p->odp_paye) + ((float) $p->tm_paye);
+            }
+            $totalPayeYear = round($totalPayeYear, 2);
+            $statutYear = match (true) {
+                $totalTheoYear === 0.0              => 'aucun',
+                $totalPayeYear <= 0                 => 'non_paye',
+                $totalPayeYear >= $totalTheoYear - 1 => 'paye',
+                default                             => 'partiel',
+            };
+
             return [
                 'commune'        => $commune->name,
                 'commune_id'     => $commune->id,
@@ -940,7 +967,8 @@ class TaxController extends Controller
                 'solde'          => max(0, $totalTheo - $totalPaye),
                 'paid_at'        => $latestPaidAt?->format('d/m/Y'),
                 'attestation'    => $anyAttestation,
-                'statut'         => $statut,
+                'statut'         => $statut,        // statut sur la PÉRIODE courante (affichage tableau)
+                'statut_year'    => $statutYear,    // statut ANNUEL (filtres KPI Soldé/Partiel/Non payé)
                 'payment_id'     => $directPaymentId,
                 // LOT 1 — Champs de traçabilité pour pré-remplir la modale
                 // quand on modifie le paiement direct existant. Null si la
@@ -968,11 +996,13 @@ class TaxController extends Controller
             'solde_total'      => (float) $rows->sum('solde'),
             'communes_actives' => $rows->count(),
             'panneaux_total'   => (int) $rows->sum('nb_panneaux'),
-            // FIX 2026-06-22 — Nouveaux compteurs par statut de paiement
-            // (cliquables côté UI pour filtrer la liste).
-            'communes_soldees'    => $rows->where('statut', 'paye')->count(),
-            'communes_partielles' => $rows->where('statut', 'partiel')->count(),
-            'communes_non_payees' => $rows->where('statut', 'non_paye')->count(),
+            // FIX 2026-06-22 v2 — Compteurs basés sur le statut ANNUEL
+            // (pas sur la période courante). Ainsi en mode Mensuel/Trim/Perso
+            // on voit quand même les communes en cours de règlement sur
+            // l'année, pas seulement celles à moitié payées sur 1 mois précis.
+            'communes_soldees'    => $rows->where('statut_year', 'paye')->count(),
+            'communes_partielles' => $rows->where('statut_year', 'partiel')->count(),
+            'communes_non_payees' => $rows->where('statut_year', 'non_paye')->count(),
         ];
 
         // LOT 4 (cahier 2026-06-19) — KPIs supplémentaires.

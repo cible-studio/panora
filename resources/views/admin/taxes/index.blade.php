@@ -788,11 +788,14 @@ window.TaxModule = (function () {
             case 'grand_total': return data.sort((a, b) => b.total_theorique - a.total_theorique);
             case 'paye_total':  return data.filter(c => c.total_paye > 0).sort((a, b) => b.total_paye - a.total_paye);
             case 'solde_total': return data.filter(c => c.solde > 0).sort((a, b) => b.solde - a.solde);
-            // FIX 2026-06-22 — Nouveaux filtres par statut de paiement :
-            // soldé (paye), partiel, non payé. Triés alpha pour la lecture.
-            case 'communes_soldees':    return sortAlpha(data.filter(c => c.statut === 'paye'));
-            case 'communes_partielles': return sortAlpha(data.filter(c => c.statut === 'partiel'));
-            case 'communes_non_payees': return sortAlpha(data.filter(c => c.statut === 'non_paye'));
+            // FIX 2026-06-22 v2 — Filtres basés sur statut_year (ANNUEL).
+            // Permet de voir les communes en cours de règlement même en
+            // mode Mensuel/Trim/Personnalisé (sans ça, le compteur Partiel
+            // restait à 0 hors mode Annuel — alors qu'on a clairement des
+            // communes en cours de règlement sur l'année).
+            case 'communes_soldees':    return sortAlpha(data.filter(c => c.statut_year === 'paye'));
+            case 'communes_partielles': return sortAlpha(data.filter(c => c.statut_year === 'partiel'));
+            case 'communes_non_payees': return sortAlpha(data.filter(c => c.statut_year === 'non_paye'));
             // Défaut : tri alphabétique propre (avec accents) si data n'est pas
             // déjà trié côté serveur (sécurité supplémentaire).
             default:            return sortAlpha(data);
