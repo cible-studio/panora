@@ -135,9 +135,14 @@ class RapportController extends Controller
             if ($filterCommune)  $query->where('commune_id', $filterCommune);
             if ($filterCategory) $query->where('category_id', $filterCategory);
             if ($filterCity)     $query->whereHas('commune', fn($c) => $c->where('city', $filterCity));
-            if ($filterZone)     $query->whereHas('commune', fn($c) => $filterZone === 'abidjan'
-                                    ? $c->where('city', 'Abidjan')
-                                    : $c->where('city', '!=', 'Abidjan'));
+            // FIX 2026-06-22 — Liste blanche officielle Commune::ABIDJAN_COMMUNES.
+            // Le champ city n'était pas fiable (Bingerville pouvait être
+            // city='Bingerville' au lieu de city='Abidjan' selon l'import).
+            if ($filterZone === 'abidjan') {
+                $query->whereIn('commune_id', \App\Models\Commune::abidjanIds());
+            } elseif ($filterZone === 'interieur') {
+                $query->whereNotIn('commune_id', \App\Models\Commune::abidjanIds());
+            }
             return $query;
         };
         // Le scope RBAC commercial est injecté dans applyCampaignFilters
@@ -234,8 +239,9 @@ class RapportController extends Controller
         $communeQuery = Commune::query();
         if ($filterCommune) $communeQuery->where('id', $filterCommune);
         if ($filterCity)    $communeQuery->where('city', $filterCity);
-        if ($filterZone === 'abidjan')   $communeQuery->where('city', 'Abidjan');
-        if ($filterZone === 'interieur') $communeQuery->where('city', '!=', 'Abidjan');
+        // FIX 2026-06-22 — Liste blanche Commune::ABIDJAN_COMMUNES (cf. fix dans applyPanelFilters).
+        if ($filterZone === 'abidjan')   $communeQuery->whereIn('id', Commune::abidjanIds());
+        if ($filterZone === 'interieur') $communeQuery->whereNotIn('id', Commune::abidjanIds());
         $communes = $communeQuery->get();
 
         $occParCommune = $communes->map(function ($commune) use ($dateFrom, $dateTo, $filterCategory, $filterClient, $applyCampaignFilters) {
@@ -360,8 +366,9 @@ class RapportController extends Controller
         $communesForStats = Commune::query()
             ->when($filterCommune, fn($q) => $q->where('id', $filterCommune))
             ->when($filterCity,    fn($q) => $q->where('city', $filterCity))
-            ->when($filterZone === 'abidjan',   fn($q) => $q->where('city', 'Abidjan'))
-            ->when($filterZone === 'interieur', fn($q) => $q->where('city', '!=', 'Abidjan'))
+            // FIX 2026-06-22 — Liste blanche Commune::ABIDJAN_COMMUNES (cf. applyPanelFilters).
+            ->when($filterZone === 'abidjan',   fn($q) => $q->whereIn('id', Commune::abidjanIds()))
+            ->when($filterZone === 'interieur', fn($q) => $q->whereNotIn('id', Commune::abidjanIds()))
             ->get();
 
         $statsCommunes = $communesForStats->map(function ($commune) use ($dateFrom, $dateTo, $filterCategory, $applyCampaignFilters) {

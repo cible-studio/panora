@@ -902,11 +902,12 @@ class TaxController extends Controller
             return [
                 'commune'        => $commune->name,
                 'commune_id'     => $commune->id,
-                // 2026-06-19 — Exposé pour les filtres Zone (Abidjan/Intérieur)
-                // et Commune côté JS. La règle métier "zone" reste cohérente
-                // avec le reste de l'app : Abidjan = panneaux dans une commune
-                // dont city='Abidjan', Intérieur = tout le reste.
+                // FIX 2026-06-22 — is_abidjan calculé via la liste blanche
+                // officielle Commune::ABIDJAN_COMMUNES (cf. Commune::isAbidjan).
+                // Le champ city brut était unreliable (Bingerville pouvait
+                // être city='Bingerville' au lieu de city='Abidjan' selon l'import).
                 'city'           => $commune->city,
+                'is_abidjan'     => $commune->isAbidjan(),
                 'odp_taux'       => $odpRate,
                 'tm_taux'        => $tmRate,
                 'nb_panneaux'    => (int) $commune->panels->count(),
@@ -934,7 +935,9 @@ class TaxController extends Controller
             ];
         })
         ->filter(fn($r) => $r['nb_panneaux'] > 0) // hide communes vides
-        ->sortBy('commune')
+        // FIX 2026-06-22 — Tri alphabétique accent-insensitive (Adjamé, Attécoubé,
+        // Port-Bouët triés correctement même avec accents/tirets/casse mixtes).
+        ->sortBy(fn ($r) => Commune::normalizeForMatch($r['commune']))
         ->values();
 
         // KPIs globaux
@@ -946,14 +949,24 @@ class TaxController extends Controller
             'solde_total'      => (float) $rows->sum('solde'),
             'communes_actives' => $rows->count(),
             'panneaux_total'   => (int) $rows->sum('nb_panneaux'),
+            // FIX 2026-06-22 — Nouveaux compteurs par statut de paiement
+            // (cliquables côté UI pour filtrer la liste).
+            'communes_soldees'    => $rows->where('statut', 'paye')->count(),
+            'communes_partielles' => $rows->where('statut', 'partiel')->count(),
+            'communes_non_payees' => $rows->where('statut', 'non_paye')->count(),
         ];
 
         // LOT 4 (cahier 2026-06-19) — KPIs supplémentaires.
         //   - Répartition Abidjan / Intérieur (montants théoriques)
         //   - Top 5 communes par montant dû
         //   - Taux de couverture global (payé / dû)
-        $abidjan = $rows->filter(fn ($r) => strtolower($r['city'] ?? '') === 'abidjan');
-        $interieur = $rows->reject(fn ($r) => strtolower($r['city'] ?? '') === 'abidjan');
+        // FIX 2026-06-22 — Liste blanche officielle Commune::ABIDJAN_COMMUNES
+        // (cf. Commune::isAbidjan). Le champ city n'était pas fiable selon
+        // l'import : Bingerville pouvait être city='Bingerville' au lieu de
+        // city='Abidjan' → comptée à tort en Intérieur. is_abidjan est
+        // calculé en amont via la liste blanche → plus de divergence.
+        $abidjan   = $rows->filter(fn ($r) => !empty($r['is_abidjan']));
+        $interieur = $rows->reject(fn ($r) => !empty($r['is_abidjan']));
         $kpi['breakdown'] = [
             'abidjan' => [
                 'total_du'   => (float) $abidjan->sum('total_theorique'),

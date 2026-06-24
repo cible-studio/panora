@@ -83,6 +83,26 @@
         <div data-kpi="taux_couverture" style="font-size:18px;font-weight:800;color:#6366f1;font-variant-numeric:tabular-nums">—</div>
         <div style="font-size:10px;color:var(--text3);margin-top:3px">% payé / dû sur la période</div>
     </div>
+    {{-- FIX 2026-06-22 — Compteur communes SOLDÉES (cliquable pour filtrer). --}}
+    <div class="tax-kpi-card" data-kpi-filter="communes_soldees"
+         style="background:var(--surface);border:1px solid var(--border);border-left:4px solid #22c55e;border-radius:12px;padding:14px 16px;cursor:pointer;transition:box-shadow .15s,transform .1s;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px">✓ Soldé</span>
+            <span style="font-size:14px">🟢</span>
+        </div>
+        <div data-kpi="communes_soldees" style="font-size:18px;font-weight:800;color:#15803d;font-variant-numeric:tabular-nums">—</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">commune(s) entièrement payée(s)</div>
+    </div>
+    {{-- FIX 2026-06-22 — Compteur communes PARTIELLES (cliquable pour filtrer). --}}
+    <div class="tax-kpi-card" data-kpi-filter="communes_partielles"
+         style="background:var(--surface);border:1px solid var(--border);border-left:4px solid #f59e0b;border-radius:12px;padding:14px 16px;cursor:pointer;transition:box-shadow .15s,transform .1s;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px">◐ Partiel</span>
+            <span style="font-size:14px">🟠</span>
+        </div>
+        <div data-kpi="communes_partielles" style="font-size:18px;font-weight:800;color:#b45309;font-variant-numeric:tabular-nums">—</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">commune(s) payée(s) en partie</div>
+    </div>
 </div>
 
 {{-- ════ LOT 4 — KPIs supplémentaires (Abidjan/Intérieur + Top communes) ════ --}}
@@ -589,7 +609,12 @@ window.TaxModule = (function () {
                 .join(' · ') || '—';
 
             return `
-                <tr data-commune-id="${c.commune_id}" data-city="${(c.city || '').toLowerCase()}" data-search="${(c.commune || '').toLowerCase()}">
+                {{-- FIX 2026-06-22 — On expose is_abidjan calculé côté serveur
+                     (via la liste blanche officielle Commune::ABIDJAN_COMMUNES)
+                     plutôt que de se fier au champ city qui n'est pas fiable
+                     selon l'import (ex : Bingerville pouvait être city='Bingerville'
+                     au lieu de city='Abidjan'). --}}
+                <tr data-commune-id="${c.commune_id}" data-abidjan="${c.is_abidjan ? '1' : '0'}" data-search="${(c.commune || '').toLowerCase()}">
                     <td>
                         <strong>${c.commune}</strong>
                         <div style="font-size:10px;color:var(--text3);margin-top:2px;" title="${lignesTooltip}">
@@ -669,12 +694,23 @@ window.TaxModule = (function () {
         document.querySelectorAll('#tax-table-body tr[data-commune-id]').forEach(tr => {
             const matchTerm    = !term      || tr.dataset.search.includes(term);
             const matchCommune = !communeId || tr.dataset.communeId === communeId;
-            const city         = (tr.dataset.city || '').toLowerCase();
+            // FIX 2026-06-22 — On utilise data-abidjan (booléen calculé côté
+            // serveur via la liste blanche officielle des 13 communes du
+            // District Autonome d'Abidjan), pas le champ city qui n'est
+            // pas fiable selon l'import (Bingerville/Anyama/Songon notamment).
+            const isAbidjan    = tr.dataset.abidjan === '1';
             const matchZone    = !zone
-                || (zone === 'abidjan'   && city === 'abidjan')
-                || (zone === 'interieur' && city !== 'abidjan');
+                || (zone === 'abidjan'   && isAbidjan)
+                || (zone === 'interieur' && !isAbidjan);
             tr.style.display = (matchTerm && matchCommune && matchZone) ? '' : 'none';
         });
+    }
+
+    // FIX 2026-06-22 — Tri alphabétique JavaScript accent-insensitive
+    // (Adjamé, Attécoubé, Port-Bouët triés correctement). Cohérent avec
+    // le tri serveur (Commune::normalizeForMatch).
+    function sortAlpha(data) {
+        return data.sort((a, b) => (a.commune || '').localeCompare(b.commune || '', 'fr', { sensitivity: 'base' }));
     }
 
     function getFilteredSortedCommunes() {
@@ -686,17 +722,27 @@ window.TaxModule = (function () {
             case 'grand_total': return data.sort((a, b) => b.total_theorique - a.total_theorique);
             case 'paye_total':  return data.filter(c => c.total_paye > 0).sort((a, b) => b.total_paye - a.total_paye);
             case 'solde_total': return data.filter(c => c.solde > 0).sort((a, b) => b.solde - a.solde);
-            default:            return data;
+            // FIX 2026-06-22 — Nouveaux filtres par statut de paiement :
+            // soldé (paye), partiel, non payé. Triés alpha pour la lecture.
+            case 'communes_soldees':    return sortAlpha(data.filter(c => c.statut === 'paye'));
+            case 'communes_partielles': return sortAlpha(data.filter(c => c.statut === 'partiel'));
+            case 'communes_non_payees': return sortAlpha(data.filter(c => c.statut === 'non_paye'));
+            // Défaut : tri alphabétique propre (avec accents) si data n'est pas
+            // déjà trié côté serveur (sécurité supplémentaire).
+            default:            return sortAlpha(data);
         }
     }
 
     function setKpiSubtitle() {
         const labels = {
-            odp_total:   'Triées par ODP théorique',
-            tm_total:    'Triées par TM théorique',
-            grand_total: 'Triées par total décroissant',
-            paye_total:  'Filtrées : avec paiement · triées par montant payé',
-            solde_total: 'Filtrées : avec solde restant · triées par solde',
+            odp_total:           'Triées par ODP théorique',
+            tm_total:            'Triées par TM théorique',
+            grand_total:         'Triées par total décroissant',
+            paye_total:          'Filtrées : avec paiement · triées par montant payé',
+            solde_total:         'Filtrées : avec solde restant · triées par solde',
+            communes_soldees:    'Filtrées : communes SOLDÉES · ordre alphabétique',
+            communes_partielles: 'Filtrées : communes en paiement PARTIEL · ordre alphabétique',
+            communes_non_payees: 'Filtrées : communes NON PAYÉES · ordre alphabétique',
         };
         const el = document.querySelector('#tax-table-body')
             ?.closest('div[style*="border-radius:14px"]')

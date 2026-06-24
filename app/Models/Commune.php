@@ -18,6 +18,84 @@ class Commune extends Model
         'tm_rate'  => 'integer',
     ];
 
+    /**
+     * Liste officielle des 13 communes du District Autonome d'Abidjan.
+     *
+     * Source unique pour la classification "Abidjan vs Intérieur" — préférée
+     * au champ `city` qui n'est pas fiable (selon l'import, on peut avoir
+     * city='Abidjan' ou city='Bingerville' pour Bingerville). Cette liste
+     * blanche garantit qu'un nouvel ajout n'oublie pas la classification.
+     *
+     * Match case-insensitive + tolérance des accents et tirets.
+     */
+    public const ABIDJAN_COMMUNES = [
+        'abobo', 'adjame', 'attecoube', 'cocody', 'koumassi', 'marcory',
+        'plateau', 'port-bouet', 'treichville', 'yopougon',
+        'anyama', 'bingerville', 'songon',
+    ];
+
+    /**
+     * Vrai si cette commune fait partie du District Autonome d'Abidjan.
+     * Normalise le nom (lowercase, sans accents, sans espaces) avant match.
+     */
+    public function isAbidjan(): bool
+    {
+        return self::nameIsAbidjan($this->name);
+    }
+
+    /**
+     * Version statique — utile dans les filtres SQL et les agrégations
+     * où on a juste le nom (string) sans charger l'instance complète.
+     */
+    public static function nameIsAbidjan(?string $name): bool
+    {
+        if (empty($name)) return false;
+        $normalized = self::normalizeForMatch($name);
+        return in_array($normalized, self::ABIDJAN_COMMUNES, true);
+    }
+
+    /**
+     * IDs (en BDD) de toutes les communes du District Autonome d'Abidjan.
+     * Cache statique en mémoire : 1 seule requête par request HTTP même si
+     * appelée 10 fois (utilisé dans les filtres de plusieurs controllers).
+     *
+     * Usage :
+     *   Panel::whereIn('commune_id', Commune::abidjanIds())          // Abidjan
+     *   Panel::whereNotIn('commune_id', Commune::abidjanIds())       // Intérieur
+     */
+    public static function abidjanIds(): array
+    {
+        static $cache = null;
+        if ($cache !== null) return $cache;
+        return $cache = self::query()
+            ->select(['id', 'name'])
+            ->get()
+            ->filter(fn ($c) => $c->isAbidjan())
+            ->pluck('id')
+            ->all();
+    }
+
+    /**
+     * Normalise un nom de commune pour le matching : lowercase, accents
+     * remplacés (é→e, è→e, ô→o…), tirets et espaces unifiés.
+     */
+    public static function normalizeForMatch(string $name): string
+    {
+        $name = mb_strtolower(trim($name), 'UTF-8');
+        // Translit accents → ASCII
+        $name = strtr($name, [
+            'à'=>'a','â'=>'a','ä'=>'a',
+            'é'=>'e','è'=>'e','ê'=>'e','ë'=>'e',
+            'î'=>'i','ï'=>'i',
+            'ô'=>'o','ö'=>'o',
+            'ù'=>'u','û'=>'u','ü'=>'u',
+            'ç'=>'c','ñ'=>'n',
+        ]);
+        // "port-bouet", "san-pedro" — normaliser espaces internes en tiret
+        $name = preg_replace('/\s+/', '-', $name);
+        return $name;
+    }
+
     public function zones()
     {
         return $this->hasMany(Zone::class);
