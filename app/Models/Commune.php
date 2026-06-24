@@ -46,12 +46,22 @@ class Commune extends Model
     /**
      * Version statique — utile dans les filtres SQL et les agrégations
      * où on a juste le nom (string) sans charger l'instance complète.
+     *
+     * Tolérance aux suffixes : on matche aussi les variantes comme
+     * "COCODY ANGRÉ", "ABOBO 1", "PORT-BOUET RIVIERA". Strategy :
+     *   - équivalence exacte ("cocody" == "cocody")  → vrai
+     *   - préfixe + séparateur ("cocody-angre" commence par "cocody-") → vrai
+     *   - rien d'autre  → faux (évite faux positifs sur ex. "abobosso")
      */
     public static function nameIsAbidjan(?string $name): bool
     {
         if (empty($name)) return false;
         $normalized = self::normalizeForMatch($name);
-        return in_array($normalized, self::ABIDJAN_COMMUNES, true);
+        foreach (self::ABIDJAN_COMMUNES as $abj) {
+            if ($normalized === $abj) return true;
+            if (str_starts_with($normalized, $abj . '-')) return true;
+        }
+        return false;
     }
 
     /**
