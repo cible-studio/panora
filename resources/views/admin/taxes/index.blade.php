@@ -683,15 +683,17 @@ window.TaxModule = (function () {
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:#a855f7;font-weight:600;">${fmt(c.tm_theorique)}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:var(--accent);">${fmt(c.total_theorique)}</td>
                     <td style="text-align:center;">
-                        {{-- FIX 2026-06-22 — Quand un filtre KPI Soldé/Partiel/Non payé est
-                             actif, on affiche le statut ANNUEL (statut_year) au lieu du
-                             statut période. Ainsi quand on clique "Partiel", la colonne
-                             montre "Partiel" pour ces communes (sinon elles affichaient
-                             "Payé" parce qu'elles ont soldé leur mois courant — ce qui
-                             portait à confusion). --}}
-                        ${['communes_soldees','communes_partielles','communes_non_payees'].includes(activeKpiFilter)
-                            ? statusPill(c.statut_year) + '<div style="font-size:9px;color:var(--text3);margin-top:2px">(statut année)</div>'
-                            : statusPill(c.statut)}
+                        {{-- FIX 2026-06-22 — Affichage à 2 niveaux :
+                             - Statut PÉRIODE (gros, principal)
+                             - Sous-info statut ANNUEL si différent + label "(année)"
+                             Toujours visible, peu importe le mode Mensuel/Trim/Perso
+                             ou le filtre KPI. Le user voit en un coup d'œil que la
+                             commune a soldé son mois mais reste en cours de règlement
+                             sur l'année. --}}
+                        ${statusPill(c.statut)}
+                        ${c.statut_year && c.statut_year !== c.statut
+                            ? `<div style="margin-top:3px">${statusPill(c.statut_year)}<span style="font-size:9px;color:var(--text3);margin-left:3px">année</span></div>`
+                            : ''}
                         ${attestationBadge}
                         ${c.paid_at ? `<div style="font-size:9px;color:var(--text3);margin-top:3px;">${c.paid_at}</div>` : ''}
                         ${c.statut === 'partiel'
