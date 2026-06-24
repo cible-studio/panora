@@ -23,12 +23,16 @@ class TaxController extends Controller
      * mensuel-Y-2 couvre [2], un trimestriel-Y-1 couvre [1,2,3], un
      * annuel-Y-0 couvre [1..12].
      */
-    private static function monthsForPeriod(string $type, int $value): array
+    private static function monthsForPeriod(string $type, int $value, ?int $endValue = null): array
     {
         // Hotfix TX-2 v2 (2026-06-22) : bornes EXPLICITES (mensuel 1..12,
         // trimestriel 1..4) + exception sur type inconnu au lieu de
         // retourner []. Empêche les "division by zero" silencieuses en
         // aval quand un CommuneTaxPayment legacy a un period_type corrompu.
+        //
+        // FIX 2026-06-22 — Ajout du type 'personnalise' : range libre
+        // de $value (mois début) à $endValue (mois fin). Permet par ex.
+        // "Mai → Septembre" ou "Février → Août".
         return match ($type) {
             'mensuel'     => ($value >= 1 && $value <= 12)
                                 ? [$value]
@@ -37,6 +41,9 @@ class TaxController extends Controller
                                 ? range(($value - 1) * 3 + 1, $value * 3)
                                 : throw new \InvalidArgumentException("Trimestre invalide : $value"),
             'annuel'      => range(1, 12),
+            'personnalise' => ($value >= 1 && $value <= 12 && $endValue !== null && $endValue >= $value && $endValue <= 12)
+                                ? range($value, $endValue)
+                                : throw new \InvalidArgumentException("Période personnalisée invalide : $value → $endValue"),
             default       => throw new \InvalidArgumentException("Périodicité inconnue : $type"),
         };
     }
@@ -621,17 +628,28 @@ class TaxController extends Controller
         // rollover silencieux et calcul incohérent (HTTP 500 sur Plateau
         // dans certains scénarios reproduits).
         $request->validate([
-            'period_type'  => 'required|in:mensuel,trimestriel,annuel',
+            // FIX 2026-06-22 — Ajout type 'personnalise' (mois début → mois fin libre).
+            'period_type'  => 'required|in:mensuel,trimestriel,annuel,personnalise',
             'period_year'  => 'required|integer|min:2000|max:2099',
             'period_value' => 'required|integer|min:0|max:12',
+            // Requis seulement en mode personnalisé.
+            'period_end_value' => 'nullable|integer|min:1|max:12',
         ]);
         $periodType  = $request->input('period_type');
         $periodValue = (int) $request->input('period_value');
-        // Borne contextuelle : mensuel 1..12, trimestriel 1..4, annuel 0.
-        $maxByType = ['mensuel' => 12, 'trimestriel' => 4, 'annuel' => 0];
-        $minByType = ['mensuel' => 1,  'trimestriel' => 1, 'annuel' => 0];
+        $periodEndValue = $request->input('period_end_value') !== null
+            ? (int) $request->input('period_end_value')
+            : null;
+        // Borne contextuelle : mensuel 1..12, trimestriel 1..4, annuel 0, personnalise 1..12.
+        $maxByType = ['mensuel' => 12, 'trimestriel' => 4, 'annuel' => 0, 'personnalise' => 12];
+        $minByType = ['mensuel' => 1,  'trimestriel' => 1, 'annuel' => 0, 'personnalise' => 1];
         if ($periodValue < $minByType[$periodType] || $periodValue > $maxByType[$periodType]) {
             abort(422, "Valeur de période invalide pour le type {$periodType} (attendu {$minByType[$periodType]}..{$maxByType[$periodType]}).");
+        }
+        if ($periodType === 'personnalise') {
+            if ($periodEndValue === null || $periodEndValue < $periodValue) {
+                abort(422, "Mois de fin invalide pour période personnalisée (doit être >= mois de début).");
+            }
         }
         $periodYear  = (int) $request->input('period_year');
 
@@ -639,6 +657,7 @@ class TaxController extends Controller
             'mensuel'     => 1,
             'trimestriel' => 3,
             'annuel'      => 12,
+            'personnalise' => ($periodEndValue - $periodValue + 1),
             default       => 1,
         };
 
@@ -666,7 +685,7 @@ class TaxController extends Controller
         // Stratégie : 1 seule requête pour toutes les campagnes actives
         // qui chevauchent la fenêtre, groupBy panel_id, puis comptage
         // mois calendaires en mémoire. Pas de N+1.
-        $queryMonthsAll = self::monthsForPeriod($periodType, $periodValue);
+        $queryMonthsAll = self::monthsForPeriod($periodType, $periodValue, $periodEndValue);
         $lastMonth = $queryMonthsAll ? max($queryMonthsAll) : 12;
         $firstMonth = $queryMonthsAll ? min($queryMonthsAll) : 1;
         $periodStart = \Carbon\Carbon::create($periodYear, $firstMonth, 1)->startOfDay();
@@ -755,7 +774,7 @@ class TaxController extends Controller
         // qui couvrent la fenêtre de mois de la période demandée. Prorata
         // appliqué quand un paiement déborde la fenêtre (ex: paiement
         // annuel vu en Q1 = 25% du montant payé).
-        $queryMonths = self::monthsForPeriod($periodType, $periodValue);
+        $queryMonths = self::monthsForPeriod($periodType, $periodValue, $periodEndValue);
 
         $allPayments = CommuneTaxPayment::where('period_year', $periodYear)
             ->whereIn('period_type', ['mensuel', 'trimestriel', 'annuel'])

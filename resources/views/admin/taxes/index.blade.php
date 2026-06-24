@@ -27,11 +27,18 @@
             <button type="button" class="tax-tab {{ $periodType === 'mensuel' ? 'active' : '' }}" data-period-type="mensuel">Mensuel</button>
             <button type="button" class="tax-tab {{ $periodType === 'trimestriel' ? 'active' : '' }}" data-period-type="trimestriel">Trimestriel</button>
             <button type="button" class="tax-tab {{ $periodType === 'annuel' ? 'active' : '' }}" data-period-type="annuel">Annuel</button>
+            {{-- FIX 2026-06-22 — Période personnalisée (mois début → mois fin) --}}
+            <button type="button" class="tax-tab {{ $periodType === 'personnalise' ? 'active' : '' }}" data-period-type="personnalise">Personnalisée</button>
         </div>
 
         {{-- Sélecteur valeur période (mois 1-12 / trimestre 1-4 / vide pour annuel) --}}
         <select id="period-value-select" class="filter-select" style="width:160px;">
             {{-- Rempli en JS selon le type --}}
+        </select>
+        {{-- FIX 2026-06-22 — Sélecteur "mois fin" affiché uniquement en mode personnalisé --}}
+        <span id="period-end-arrow" style="display:none;font-size:12px;color:var(--text3);">→</span>
+        <select id="period-end-select" class="filter-select" style="width:160px;display:none;">
+            {{-- Rempli en JS quand mode = personnalise --}}
         </select>
 
         <select id="period-year-select" class="filter-select" style="width:110px;">
@@ -362,6 +369,8 @@ window.TaxModule = (function () {
     let currentPeriodType  = '{{ $periodType }}';
     let currentPeriodYear  = {{ $year }};
     let currentPeriodValue = {{ $periodValue }};
+    // FIX 2026-06-22 — Mode personnalisé : mois fin (mois début = currentPeriodValue).
+    let currentPeriodEndValue = (new Date()).getMonth() + 1; // défaut = mois courant
     let currentData = null;
     let pmContext = null;       // contexte de la modale paiement
     let activeKpiFilter = null; // filtre KPI actif (null = tous)
@@ -406,9 +415,44 @@ window.TaxModule = (function () {
                 if (i === currentPeriodValue) o.selected = true;
                 sel.appendChild(o);
             }
+        } else if (currentPeriodType === 'personnalise') {
+            // FIX 2026-06-22 — Mode personnalisé : 2 sélecteurs mois (début → fin).
+            sel.style.display = '';
+            if (currentPeriodValue < 1 || currentPeriodValue > 12) {
+                currentPeriodValue = 1;
+            }
+            for (let i = 1; i <= 12; i++) {
+                const o = document.createElement('option');
+                o.value = i;
+                o.textContent = monthNames[i - 1];
+                if (i === currentPeriodValue) o.selected = true;
+                sel.appendChild(o);
+            }
+            // Sélecteur "mois fin"
+            const endSel = document.getElementById('period-end-select');
+            endSel.innerHTML = '';
+            if (currentPeriodEndValue < currentPeriodValue || currentPeriodEndValue > 12) {
+                currentPeriodEndValue = currentPeriodValue;
+            }
+            for (let i = 1; i <= 12; i++) {
+                const o = document.createElement('option');
+                o.value = i;
+                o.textContent = monthNames[i - 1];
+                // Pas de mois fin antérieur au mois début
+                if (i < currentPeriodValue) o.disabled = true;
+                if (i === currentPeriodEndValue) o.selected = true;
+                endSel.appendChild(o);
+            }
+            endSel.style.display = '';
+            document.getElementById('period-end-arrow').style.display = '';
         } else {
             sel.style.display = 'none';
             currentPeriodValue = 0;
+        }
+        // Cache le sélecteur "mois fin" hors mode personnalisé.
+        if (currentPeriodType !== 'personnalise') {
+            document.getElementById('period-end-select').style.display = 'none';
+            document.getElementById('period-end-arrow').style.display = 'none';
         }
     }
 
@@ -423,6 +467,11 @@ window.TaxModule = (function () {
             const idx = (currentPeriodValue >= 1 && currentPeriodValue <= 4) ? currentPeriodValue - 1 : 0;
             return `${quarterNames[idx]} ${currentPeriodYear}`;
         }
+        if (currentPeriodType === 'personnalise') {
+            const startIdx = (currentPeriodValue    >= 1 && currentPeriodValue    <= 12) ? currentPeriodValue    - 1 : 0;
+            const endIdx   = (currentPeriodEndValue >= 1 && currentPeriodEndValue <= 12) ? currentPeriodEndValue - 1 : 0;
+            return `${monthNames[startIdx]} → ${monthNames[endIdx]} ${currentPeriodYear}`;
+        }
         return `Année ${currentPeriodYear}`;
     }
 
@@ -433,6 +482,10 @@ window.TaxModule = (function () {
             period_year:  String(currentPeriodYear),
             period_value: String(currentPeriodValue),
         });
+        // FIX 2026-06-22 — period_end_value envoyé uniquement en mode personnalisé.
+        if (currentPeriodType === 'personnalise') {
+            params.set('period_end_value', String(currentPeriodEndValue));
+        }
 
         try {
             const r = await fetch(`{{ route('admin.taxes.calcul') }}?${params}`, {
@@ -642,11 +695,24 @@ window.TaxModule = (function () {
                         }
                     </td>
                     <td style="text-align:center;white-space:nowrap;">
-                        <button type="button"
-                                class="tax-pay-btn ${c.payment_id ? 'tax-pay-btn-edit' : ''}"
-                                onclick="TaxModule.openPaymentModal(${c.commune_id})">
-                            ${c.payment_id ? '✏️ Modifier' : '💰 Payer'}
-                        </button>
+                        {{-- FIX 2026-06-22 — En mode "personnalisé" (période multi-mois libre)
+                             le bouton "Payer" est désactivé : un paiement doit être rattaché à
+                             une période standard (mensuel/trimestriel/annuel) pour rester
+                             traçable. L'utilisateur passe par la fiche commune ou bascule
+                             le tab pour enregistrer un versement. --}}
+                        ${currentPeriodType === 'personnalise' ? `
+                            <button type="button" class="tax-pay-btn" disabled
+                                    style="opacity:.45;cursor:not-allowed"
+                                    title="Pour enregistrer un paiement, choisis d'abord une période standard (Mensuel / Trimestriel / Annuel). Les paiements sont rattachés à des périodes officielles pour la traçabilité.">
+                                💰 Payer
+                            </button>
+                        ` : `
+                            <button type="button"
+                                    class="tax-pay-btn ${c.payment_id ? 'tax-pay-btn-edit' : ''}"
+                                    onclick="TaxModule.openPaymentModal(${c.commune_id})">
+                                ${c.payment_id ? '✏️ Modifier' : '💰 Payer'}
+                            </button>
+                        `}
                         {{-- LOT 2 — Fiche commune (suivi mensuel + cumul trim/annuel). --}}
                         <a href="/admin/taxes/commune/${c.commune_id}"
                            class="tax-pay-btn"
@@ -770,6 +836,17 @@ window.TaxModule = (function () {
             });
             document.getElementById('period-value-select').addEventListener('change', e => {
                 currentPeriodValue = parseInt(e.target.value, 10) || 0;
+                // FIX 2026-06-22 — En mode personnalisé, si le mois début passe
+                // au-dessus du mois fin, on aligne automatiquement le mois fin.
+                if (currentPeriodType === 'personnalise' && currentPeriodEndValue < currentPeriodValue) {
+                    currentPeriodEndValue = currentPeriodValue;
+                    rebuildPeriodValueOptions();
+                }
+                loadCalcul();
+            });
+            // FIX 2026-06-22 — Listener mois fin (mode personnalisé uniquement).
+            document.getElementById('period-end-select').addEventListener('change', e => {
+                currentPeriodEndValue = parseInt(e.target.value, 10) || currentPeriodValue;
                 loadCalcul();
             });
             document.getElementById('period-year-select').addEventListener('change', e => {
