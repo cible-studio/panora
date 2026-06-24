@@ -2145,6 +2145,47 @@ class CampaignController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    /**
+     * 2026-06-22 — Fiche de pose PDF d'UNE campagne.
+     *
+     * À transmettre aux équipes terrain : nom campagne + client + période
+     * + liste des panneaux avec photo, commune, format, date de pose
+     * prévue (depuis PoseTask) et technicien/équipe assigné.
+     *
+     * Pose en retard = scheduled_at < now() ET status in (planifiee, en_cours).
+     */
+    public function fichePosePdf(Campaign $campaign, Request $request)
+    {
+        $this->authorize('view', $campaign);
+
+        $campaign->load([
+            'client:id,name',
+            'panels' => fn ($q) => $q->orderBy('reference'),
+            'panels.commune:id,name',
+            'panels.format:id,name',
+            'panels.photos' => fn ($q) => $q->orderBy('ordre'),
+            'poseTasks' => fn ($q) => $q->with('technicien:id,name'),
+        ]);
+
+        // Map panel_id → la PoseTask la plus récente (1 panneau peut avoir
+        // plusieurs poses si re-planifiée). On garde la plus récente non
+        // annulée pour afficher la date prévue actuelle.
+        $poseByPanel = $campaign->poseTasks
+            ->sortByDesc('scheduled_at')
+            ->groupBy('panel_id')
+            ->map(fn ($group) => $group->reject(fn ($pt) => $pt->status === 'annulee')->first() ?? $group->first());
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.campaigns.fiche-pose-pdf', [
+            'campaign'    => $campaign,
+            'panels'      => $campaign->panels,
+            'poseByPanel' => $poseByPanel,
+            'user'        => $request->user(),
+        ])->setPaper('a4', 'portrait');
+
+        $slug = \Illuminate\Support\Str::slug($campaign->name);
+        return $pdf->download('fiche-pose-' . $slug . '-' . now()->format('Ymd') . '.pdf');
+    }
+
     // EXPORT PDF — liste filtrée, format A4 paysage
     // ══════════════════════════════════════════════════════════════
     public function exportPdf(Request $request)

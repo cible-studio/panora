@@ -1186,6 +1186,10 @@ Route::prefix('admin')
         // Routes paramétriques (id numérique uniquement)
         Route::get('campaigns/{campaign}', [CampaignController::class, 'show'])
             ->whereNumber('campaign')->name('campaigns.show');
+        // 2026-06-22 — Fiche de pose PDF (nom + client + période + panneaux
+        // avec photos + dates de pose prévues + technicien/équipe).
+        Route::get('campaigns/{campaign}/fiche-pose-pdf', [CampaignController::class, 'fichePosePdf'])
+            ->whereNumber('campaign')->name('campaigns.fiche-pose.pdf');
         Route::get('campaigns/{campaign}/progress', [CampaignController::class, 'progress'])
             ->whereNumber('campaign')->name('campaigns.progress');
         Route::get('campaigns/{campaign}/available-panels', [CampaignController::class, 'availablePanels'])

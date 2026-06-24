@@ -47,6 +47,17 @@
                 </form>
             @endif
         @endif
+        {{-- 2026-06-22 — Fiche de pose PDF (nom campagne + client + période +
+             panneaux avec photos + dates de pose prévues). À transmettre aux
+             équipes terrain. --}}
+        @if(\Illuminate\Support\Facades\Route::has('admin.campaigns.fiche-pose.pdf'))
+            <a href="{{ route('admin.campaigns.fiche-pose.pdf', $campaign) }}"
+               class="btn btn-ghost btn-sm"
+               style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);color:#b91c1c;font-weight:700"
+               title="Télécharger la fiche de pose (panneaux + photos + dates) à transmettre à l'équipe terrain">
+                📄 Fiche de pose PDF
+            </a>
+        @endif
         @php $isTermineeTop = $campaign->status->value === 'termine'; @endphp
         @if($can['update'] && !$isTermineeTop)
             <a href="{{ route('admin.campaigns.edit', $campaign) }}" class="btn btn-ghost btn-sm">✏️ Modifier</a>

@@ -118,18 +118,19 @@ class TaxCalculationService
                 $unitRate = (float) ($rates[$type] ?? 0);
                 if ($unitRate <= 0) continue; // pas tarif → ligne ignorée
 
-                // BUG TX-1 corrigé 2026-06-22 :
-                // Les tarifs ODP/TM stockés dans communes.odp_rate et tm_rate
-                // sont des tarifs ANNUELS (FCFA/m²/an). Multiplier directement
-                // par $months (=12 pour annuel) donnait ×12 le bon montant :
-                //   Plateau 246 m² × 15 000 × 12 = 44 280 000 FCFA (faux)
-                //   alors que l'attendu annuel est 246 × 15 000 = 3 690 000.
+                // FIX TX-3 (2026-06-22, validé par patronne) — RÉVERSE DU TX-1.
+                // Les tarifs ODP/TM stockés dans communes.odp_rate / tm_rate
+                // sont en réalité MENSUELS (FCFA/m²/MOIS), pas annuels.
+                // Convention officielle CIBLE CI documentée dans le seeder
+                // CommuneTaxRatesSeeder (image "NOUVEAUX TARIFS DE L'ODP/m² EN 2025").
                 //
-                // Formule correcte : tarif_annuel × surface × (nb_mois / 12)
-                //   annuel        : ×(12/12) = ×1     → 246 × 15 000 = 3 690 000 ✓
-                //   trimestriel   : ×(3/12)  = ×0.25
-                //   mensuel       : ×(1/12)
-                $amount = round($unitRate * $surface * ($months / 12), 2);
+                // Le précédent "fix TX-1" supposait à tort des tarifs annuels et
+                // divisait par 12 — donc tous les montants étaient 12× trop bas.
+                // Exemple Plateau 246 m² (15 000 FCFA/m²/mois) :
+                //   - mensuel  : 246 × 15 000 × 1  = 3 690 000 FCFA ✓
+                //   - trim     : 246 × 15 000 × 3  = 11 070 000 FCFA ✓
+                //   - annuel   : 246 × 15 000 × 12 = 44 280 000 FCFA ✓
+                $amount = round($unitRate * $surface * $months, 2);
 
                 $lines->push([
                     'commune'        => $commune->name,
@@ -306,7 +307,8 @@ class TaxCalculationService
 
     /**
      * ODP totale due pour une commune sur la période [debut, fin].
-     * Somme par panneau : tarif_ODP × surface × (mois_existence / 12).
+     * Somme par panneau : tarif_ODP_MENSUEL × surface × mois_existence.
+     * FIX TX-3 (2026-06-22) : tarifs mensuels confirmés patronne.
      */
     public function calculODPCommune(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): int
     {
@@ -318,15 +320,16 @@ class TaxCalculationService
             if ($surface <= 0) continue;
             $moisExistence = $this->moisExistencePanneau($panel, $debut, $fin);
             if ($moisExistence === 0) continue;
-            $total += $rate * $surface * ($moisExistence / 12);
+            $total += $rate * $surface * $moisExistence;
         }
         return (int) round($total);
     }
 
     /**
      * TM totale due pour une commune sur la période [debut, fin].
-     * Somme par panneau : tarif_TM × surface × (mois_occupation / 12).
+     * Somme par panneau : tarif_TM_MENSUEL × surface × mois_occupation.
      * Un panneau jamais occupé sur la période contribue 0.
+     * FIX TX-3 (2026-06-22) : tarifs mensuels confirmés patronne.
      */
     public function calculTMCommune(Commune $commune, CarbonInterface $debut, CarbonInterface $fin): int
     {
@@ -338,7 +341,7 @@ class TaxCalculationService
             if ($surface <= 0) continue;
             $moisOccupation = $this->moisOccupationPanneau($panel, $debut, $fin);
             if ($moisOccupation === 0) continue;
-            $total += $rate * $surface * ($moisOccupation / 12);
+            $total += $rate * $surface * $moisOccupation;
         }
         return (int) round($total);
     }

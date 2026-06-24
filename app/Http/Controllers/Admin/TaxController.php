@@ -790,22 +790,24 @@ class TaxController extends Controller
 
                     $m2  = round((float) $fmt->width * (float) $fmt->height, 2);
                     $qty = $panels->count();
-                    // Hotfix TX-1/TX-7 (2026-06-22) : tarifs ANNUELS.
+                    // FIX TX-3 (2026-06-22, validé patronne) — RÉVERSE DU TX-1.
+                    // Tarifs ODP/TM stockés sont MENSUELS (FCFA/m²/mois),
+                    // pas annuels. Convention officielle CIBLE CI confirmée
+                    // par la patronne. Avant : ×(nbMois/12) → 12× trop bas.
                     // ODP : forfaitaire (tous les panneaux du parc payent
                     // l'ODP, peu importe leur occupation effective).
-                    $odp = round($odpRate * $m2 * $qty * ($nbMois / 12));
+                    $odp = round($odpRate * $m2 * $qty * $nbMois);
 
-                    // Hotfix TX-OCC-1 (2026-06-22) : TM panneau-par-panneau
-                    // selon l'OCCUPATION EFFECTIVE. Un panneau jamais loué
-                    // sur la fenêtre contribue 0. Conforme à la règle métier
-                    // (TM = taxe sur l'exploitation publicitaire effective).
-                    // BOUAFLE 1 panneau libre depuis toujours : passe de
-                    // 1 667 FCFA forfaitaires à 0 attendu.
+                    // TM panneau-par-panneau selon l'OCCUPATION EFFECTIVE.
+                    // Un panneau jamais loué sur la fenêtre contribue 0.
+                    // moisOccByPanel donne le nombre de mois d'occupation
+                    // effective (déjà calculé, prend en compte les vraies
+                    // dates de campagne sur la fenêtre).
                     $tm = 0.0;
                     foreach ($panels as $p) {
                         $moisOcc = $moisOccByPanel[$p->id] ?? 0;
                         if ($moisOcc === 0) continue;
-                        $tm += $tmRate * $m2 * ($moisOcc / 12);
+                        $tm += $tmRate * $m2 * $moisOcc;
                     }
                     $tm = round($tm);
 

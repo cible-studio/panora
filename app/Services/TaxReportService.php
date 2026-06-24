@@ -146,12 +146,15 @@ class TaxReportService
         return collect($buckets)
             ->values()
             ->map(function ($b) use ($rates, $tmRates, $names) {
+                // FIX TX-3 (2026-06-22, validé patronne) : tarifs MENSUELS, pas annuels.
+                // Avant : ($annual / 12) × panels → 12× trop bas.
+                // Maintenant : tarif_mensuel × panels (le bucket représente déjà 1 mois).
                 $panelCount = count($b['panels']);
-                $odpAnnual  = (float) ($rates[$b['commune_id']] ?? 0);
-                $tmAnnual   = (float) ($tmRates[$b['commune_id']] ?? 0);
+                $odpRate    = (float) ($rates[$b['commune_id']] ?? 0);
+                $tmRate     = (float) ($tmRates[$b['commune_id']] ?? 0);
 
-                $odp = round(($odpAnnual / 12) * $panelCount, 2);
-                $tm  = round(($tmAnnual  / 12) * $panelCount, 2);
+                $odp = round($odpRate * $panelCount, 2);
+                $tm  = round($tmRate  * $panelCount, 2);
 
                 return [
                     'commune_id'  => $b['commune_id'],
