@@ -41,6 +41,10 @@
                     'this_quarter' => 'Ce trimestre',
                     'this_year'    => 'Cette année',
                     'last_90'      => '90 jours',
+                    // FIX 2026-06-22 — "Tout" : sans ça, le bouton n'existait pas et
+                    // les encaissements anciens n'étaient jamais visibles (fallback
+                    // 30 jours côté serveur).
+                    'all'          => '🌐 Tout',
                 ];
                 $activePeriod = !$isCustom && $period !== '' ? $period : (!$isCustom ? 'last_30' : '');
             @endphp

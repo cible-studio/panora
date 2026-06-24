@@ -83,11 +83,35 @@ class TaxController extends Controller
      * Filtres combinables (point 5.7 — rapports) : commune, client,
      * campagne, type, période.
      */
+    /**
+     * FIX 2026-06-22 — Normalise period_value pour qu'il soit cohérent
+     * avec period_type. Évite les crashs 500 quand un lien externe (ex :
+     * bouton "Détail panneau" du dashboard) passe un mois en mode trimestriel.
+     * Source unique pour details(), detailsPdf(), detailsExcel().
+     */
+    private function normalizePeriodValue(string $periodType, int $periodValue): int
+    {
+        if ($periodType === TaxCalculationService::PERIOD_QUARTERLY) {
+            return ($periodValue < 1 || $periodValue > 4)
+                ? max(1, min(4, (int) ceil($periodValue / 3)))  // mois→trimestre
+                : $periodValue;
+        }
+        if ($periodType === TaxCalculationService::PERIOD_MONTHLY) {
+            return ($periodValue < 1 || $periodValue > 12)
+                ? (int) date('n')
+                : $periodValue;
+        }
+        if ($periodType === TaxCalculationService::PERIOD_ANNUAL) {
+            return 0; // annuel ne prend pas de valeur
+        }
+        return $periodValue;
+    }
+
     public function details(Request $request, TaxCalculationService $calc)
     {
         $year         = (int) ($request->input('year', date('Y')));
         $periodType   = $request->input('period_type', TaxCalculationService::PERIOD_MONTHLY);
-        $periodValue  = (int) ($request->input('period_value', date('n')));
+        $periodValue  = $this->normalizePeriodValue($periodType, (int) ($request->input('period_value', date('n'))));
 
         $filters = array_filter([
             'commune_id'  => $request->input('commune_id') ?: null,
@@ -156,7 +180,8 @@ class TaxController extends Controller
     {
         $year         = (int) ($request->input('year', date('Y')));
         $periodType   = $request->input('period_type', TaxCalculationService::PERIOD_MONTHLY);
-        $periodValue  = (int) ($request->input('period_value', date('n')));
+        // FIX 2026-06-22 — normalise period_value (cf. details() pour le détail).
+        $periodValue  = $this->normalizePeriodValue($periodType, (int) ($request->input('period_value', date('n'))));
 
         $filters = array_filter([
             'commune_id'  => $request->input('commune_id') ?: null,
@@ -214,7 +239,8 @@ class TaxController extends Controller
     {
         $year         = (int) ($request->input('year', date('Y')));
         $periodType   = $request->input('period_type', TaxCalculationService::PERIOD_MONTHLY);
-        $periodValue  = (int) ($request->input('period_value', date('n')));
+        // FIX 2026-06-22 — normalise period_value (cf. details() pour le détail).
+        $periodValue  = $this->normalizePeriodValue($periodType, (int) ($request->input('period_value', date('n'))));
 
         $filters = array_filter([
             'commune_id'  => $request->input('commune_id') ?: null,

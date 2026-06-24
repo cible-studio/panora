@@ -583,6 +583,11 @@ class FinanceDashboardController extends Controller
             'this_quarter' => [$today->copy()->firstOfQuarter(),        $today->copy()->lastOfQuarter()],
             'this_year'    => [$today->copy()->startOfYear(),           $today->copy()->endOfYear()],
             'last_90'      => [$today->copy()->subDays(89),             $today->copy()],
+            // FIX 2026-06-22 — Option "Tout" : couvre tous les paiements historiques
+            // jusqu'aux paiements futurs programmés (chèques post-datés).
+            // Sans ça, le user qui choisissait "Tout" sur l'UI tombait sur le
+            // default (30 jours) et ne voyait pas ses anciens encaissements.
+            'all'          => [Carbon::create(2020, 1, 1),              $today->copy()->addYear()],
             default        => [$today->copy()->subDays(29),             $today->copy()],
         };
     }
