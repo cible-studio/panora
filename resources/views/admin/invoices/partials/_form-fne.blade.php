@@ -409,10 +409,19 @@
                         </div>
                     </div>
 
-                    {{-- Services --}}
-                    <div class="fne-recap-row fne-recap-small" style="margin-top:6px">
-                        <span class="lbl">Services TTC</span>
-                        <span class="val" id="rec-svc">0 FCFA</span>
+                    {{-- Services — 2026-06-22 : détail par ligne au lieu d'un total agrégé.
+                         Le user veut voir d'où vient le montant "Services TTC" (impression,
+                         pose, etc.) directement dans le récap. JS remplit #rec-svc-detail
+                         avec une mini-liste, et #rec-svc affiche le grand total en gras. --}}
+                    <div style="margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:8px">
+                        <div style="font-size:9.5px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Services & frais</div>
+                        <div id="rec-svc-detail" style="display:flex;flex-direction:column;gap:3px">
+                            <div style="font-size:11px;color:var(--text3);font-style:italic">Aucun service ajouté</div>
+                        </div>
+                        <div class="fne-recap-row fne-recap-small" style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);font-weight:700">
+                            <span class="lbl">Total services TTC</span>
+                            <span class="val" id="rec-svc">0 FCFA</span>
+                        </div>
                     </div>
                 </div>
 
@@ -1511,12 +1520,23 @@
         const remise   = parseFloat(document.getElementById('remise_pct').value) || 0;
 
         // ── Services annexes libres (N lignes) ──
+        // 2026-06-22 — En + du calcul du total, on construit aussi le détail
+        // pour le récap (1 ligne par service avec son label et son TTC).
         let svcHt = 0;
+        const svcDetailRows = [];
         document.querySelectorAll('#services-tbody .service-row').forEach(row => {
-            const prix = parseFloat(row.querySelector('.svc-prix')?.value) || 0;
+            const prix  = parseFloat(row.querySelector('.svc-prix')?.value) || 0;
+            const label = (row.querySelector('.svc-label')?.value || '').trim();
             svcHt += prix;
             const ttcCell = row.querySelector('.svc-ttc');
             if (ttcCell) ttcCell.textContent = prix > 0 ? fmt(prix * (1 + TVA/100)) : '—';
+            // On n'affiche dans le détail que les services > 0 (ignore les rows vides).
+            if (prix > 0) {
+                svcDetailRows.push({
+                    label: label || '(sans libellé)',
+                    ttc:   prix * (1 + TVA/100),
+                });
+            }
         });
 
         const netHt    = htBrut * (1 - remise/100);
@@ -1539,6 +1559,22 @@
         document.getElementById('rec-odp').textContent    = fmt(totalOdp);
         document.getElementById('rec-svc').textContent    = fmt(svcTtc);
         document.getElementById('rec-total').textContent  = fmt(total);
+
+        // 2026-06-22 — Détail des services dans le récap (1 ligne par service).
+        // Si aucun service : message en italique. Sinon : liste avec label + TTC.
+        const svcDetailEl = document.getElementById('rec-svc-detail');
+        if (svcDetailEl) {
+            if (svcDetailRows.length === 0) {
+                svcDetailEl.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic">Aucun service ajouté</div>';
+            } else {
+                svcDetailEl.innerHTML = svcDetailRows.map(s => `
+                    <div class="fne-recap-row fne-recap-small" style="padding:1px 0">
+                        <span class="lbl" style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%" title="${s.label.replace(/"/g, '&quot;')}">${s.label}</span>
+                        <span class="val" style="font-size:11px;font-weight:600">${fmt(s.ttc)}</span>
+                    </div>
+                `).join('');
+            }
+        }
     }
 
     // Réindexe les pastilles "1, 2, 3…" et le label "X lignes" après
