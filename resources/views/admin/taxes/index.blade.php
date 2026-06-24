@@ -90,14 +90,15 @@
         <div data-kpi="taux_couverture" style="font-size:18px;font-weight:800;color:#6366f1;font-variant-numeric:tabular-nums">—</div>
         <div style="font-size:10px;color:var(--text3);margin-top:3px">% payé / dû sur la période</div>
     </div>
-    {{-- FIX 2026-06-22 — Compteur communes SOLDÉES (cliquable pour filtrer). --}}
+    {{-- FIX 2026-06-22 — Compteur communes SOLDÉES (cliquable pour filtrer).
+         La classe tax-kpi-value est requise pour que renderKpis() remplisse la valeur. --}}
     <div class="tax-kpi-card" data-kpi-filter="communes_soldees"
          style="background:var(--surface);border:1px solid var(--border);border-left:4px solid #22c55e;border-radius:12px;padding:14px 16px;cursor:pointer;transition:box-shadow .15s,transform .1s;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
             <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px">✓ Soldé</span>
             <span style="font-size:14px">🟢</span>
         </div>
-        <div data-kpi="communes_soldees" style="font-size:18px;font-weight:800;color:#15803d;font-variant-numeric:tabular-nums">—</div>
+        <div class="tax-kpi-value" data-kpi="communes_soldees" style="font-size:18px;font-weight:800;color:#15803d;font-variant-numeric:tabular-nums">—</div>
         <div style="font-size:10px;color:var(--text3);margin-top:3px">commune(s) entièrement payée(s)</div>
     </div>
     {{-- FIX 2026-06-22 — Compteur communes PARTIELLES (cliquable pour filtrer). --}}
@@ -107,7 +108,7 @@
             <span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px">◐ Partiel</span>
             <span style="font-size:14px">🟠</span>
         </div>
-        <div data-kpi="communes_partielles" style="font-size:18px;font-weight:800;color:#b45309;font-variant-numeric:tabular-nums">—</div>
+        <div class="tax-kpi-value" data-kpi="communes_partielles" style="font-size:18px;font-weight:800;color:#b45309;font-variant-numeric:tabular-nums">—</div>
         <div style="font-size:10px;color:var(--text3);margin-top:3px">commune(s) payée(s) en partie</div>
     </div>
 </div>
