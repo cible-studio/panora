@@ -969,6 +969,11 @@ class TaxController extends Controller
                 'attestation'    => $anyAttestation,
                 'statut'         => $statut,        // statut sur la PÉRIODE courante (affichage tableau)
                 'statut_year'    => $statutYear,    // statut ANNUEL (filtres KPI Soldé/Partiel/Non payé)
+                // FIX 2026-06-22 — Cumul annuel des versements (inclut TOUS les paiements
+                // de l'année, complets + partiels, sans prorata). Utilisé pour le KPI
+                // global "Déjà payé" qui doit refléter la trésorerie réelle versée.
+                'total_paye_year' => $totalPayeYear,
+                'total_theorique_year' => $totalTheoYear,
                 'payment_id'     => $directPaymentId,
                 // LOT 1 — Champs de traçabilité pour pré-remplir la modale
                 // quand on modifie le paiement direct existant. Null si la
@@ -988,12 +993,18 @@ class TaxController extends Controller
         ->values();
 
         // KPIs globaux
+        // FIX 2026-06-22 — paye_total et solde_total sont calculés sur le CUMUL ANNUEL
+        // (tous les versements de l'année incluant les partiels), pas sur la prorata
+        // de la période courante. Sinon en mode Mensuel, "Déjà payé" affichait seulement
+        // la quote-part du mois (souvent quasi-vide alors que la régie avait versé
+        // des partiels à plusieurs mairies). Cohérent avec les compteurs Soldé/Partiel
+        // qui sont aussi sur statut_year.
         $kpi = [
             'odp_total'        => (float) $rows->sum('odp_theorique'),
             'tm_total'         => (float) $rows->sum('tm_theorique'),
             'grand_total'      => (float) $rows->sum('total_theorique'),
-            'paye_total'       => (float) $rows->sum('total_paye'),
-            'solde_total'      => (float) $rows->sum('solde'),
+            'paye_total'       => (float) $rows->sum('total_paye_year'),
+            'solde_total'      => (float) max(0, $rows->sum('total_theorique_year') - $rows->sum('total_paye_year')),
             'communes_actives' => $rows->count(),
             'panneaux_total'   => (int) $rows->sum('nb_panneaux'),
             // FIX 2026-06-22 v2 — Compteurs basés sur le statut ANNUEL
@@ -1043,8 +1054,12 @@ class TaxController extends Controller
                 'solde'           => (float) $r['solde'],
             ])
             ->values();
-        $kpi['taux_couverture'] = $kpi['grand_total'] > 0
-            ? round(($kpi['paye_total'] / $kpi['grand_total']) * 100, 1)
+        // FIX 2026-06-22 — Taux de couverture sur base ANNUELLE pour rester
+        // cohérent avec paye_total et solde_total (eux aussi annuels).
+        // Sinon ratio (annuel / mensuel) donnait des taux > 100 % absurdes.
+        $totalDueYearGlobal = (float) $rows->sum('total_theorique_year');
+        $kpi['taux_couverture'] = $totalDueYearGlobal > 0
+            ? round(($kpi['paye_total'] / $totalDueYearGlobal) * 100, 1)
             : 0;
 
         // LOT 4 (cahier 2026-06-19) — Évolution mensuelle des paiements

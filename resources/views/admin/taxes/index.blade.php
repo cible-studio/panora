@@ -62,11 +62,12 @@
 <div id="tax-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px;">
     @php
         $kpiCfg = [
-            ['key'=>'odp_total',   'label'=>'ODP théorique', 'color'=>'#3b82f6', 'icon'=>'🏛️'],
-            ['key'=>'tm_total',    'label'=>'TM théorique',  'color'=>'#a855f7', 'icon'=>'🏢'],
-            ['key'=>'grand_total', 'label'=>'Grand total',   'color'=>'#e8a020', 'icon'=>'💰'],
-            ['key'=>'paye_total',  'label'=>'Déjà payé',     'color'=>'#22c55e', 'icon'=>'✅'],
-            ['key'=>'solde_total', 'label'=>'Solde restant', 'color'=>'#ef4444', 'icon'=>'⏳'],
+            ['key'=>'odp_total',   'label'=>'ODP théorique', 'color'=>'#3b82f6', 'icon'=>'🏛️', 'sub'=>'FCFA · sur la période · cliquer pour filtrer'],
+            ['key'=>'tm_total',    'label'=>'TM théorique',  'color'=>'#a855f7', 'icon'=>'🏢', 'sub'=>'FCFA · sur la période · cliquer pour filtrer'],
+            ['key'=>'grand_total', 'label'=>'Grand total',   'color'=>'#e8a020', 'icon'=>'💰', 'sub'=>'FCFA · ODP + TM sur la période · cliquer pour filtrer'],
+            // FIX 2026-06-22 — paye_total et solde_total sont annuels (incluent partiels).
+            ['key'=>'paye_total',  'label'=>'Déjà payé',     'color'=>'#22c55e', 'icon'=>'✅', 'sub'=>'FCFA · cumul année · tous versements (complets + partiels)'],
+            ['key'=>'solde_total', 'label'=>'Solde restant', 'color'=>'#ef4444', 'icon'=>'⏳', 'sub'=>'FCFA · dû annuel − payé annuel'],
         ];
     @endphp
     @foreach($kpiCfg as $k)
@@ -78,7 +79,7 @@
             <span style="font-size:14px;">{{ $k['icon'] }}</span>
         </div>
         <div class="tax-kpi-value" data-kpi="{{ $k['key'] }}" style="font-size:18px;font-weight:800;color:{{ $k['color'] }};font-variant-numeric:tabular-nums;">—</div>
-        <div class="kpi-hint" style="font-size:10px;color:var(--text3);margin-top:3px;">FCFA · cliquer pour filtrer</div>
+        <div class="kpi-hint" style="font-size:10px;color:var(--text3);margin-top:3px;">{{ $k['sub'] ?? 'FCFA · cliquer pour filtrer' }}</div>
     </div>
     @endforeach
     {{-- LOT 4 (cahier 2026-06-19) — KPI Taux de couverture (% payé / dû). --}}
