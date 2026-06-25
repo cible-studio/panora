@@ -47,15 +47,21 @@
                 </form>
             @endif
         @endif
-        {{-- 2026-06-22 — Fiche de pose PDF (nom campagne + client + période +
-             panneaux avec photos + dates de pose prévues). À transmettre aux
-             équipes terrain. --}}
+        {{-- 2026-06-22 / 2026-06-25 — Fiche de pose PDF : 2 modes au choix
+             - mode=cards : portrait, 1 panneau par carte avec photo
+             - mode=list  : paysage, tableau compact sans photos --}}
         @if(\Illuminate\Support\Facades\Route::has('admin.campaigns.fiche-pose.pdf'))
-            <a href="{{ route('admin.campaigns.fiche-pose.pdf', $campaign) }}"
+            <a href="{{ route('admin.campaigns.fiche-pose.pdf', ['campaign' => $campaign, 'mode' => 'cards']) }}"
                class="btn btn-ghost btn-sm"
                style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);color:#b91c1c;font-weight:700"
-               title="Télécharger la fiche de pose (panneaux + photos + dates) à transmettre à l'équipe terrain">
-                📄 Fiche de pose PDF
+               title="PDF détaillé avec photos des panneaux — 1 panneau par carte (A4 portrait)">
+                📄 PDF avec photos
+            </a>
+            <a href="{{ route('admin.campaigns.fiche-pose.pdf', ['campaign' => $campaign, 'mode' => 'list']) }}"
+               class="btn btn-ghost btn-sm"
+               style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);color:#1d4ed8;font-weight:700"
+               title="PDF compact en liste — tableau A4 paysage (référence, emplacement, commune, format, technicien, équipe)">
+                📋 PDF en liste
             </a>
         @endif
         @php $isTermineeTop = $campaign->status->value === 'termine'; @endphp

@@ -148,28 +148,20 @@
                 @endif
             </div>
 
-            {{-- Bloc pose : date planifiée + équipe/technicien --}}
-            @if($pose)
-                @php
-                    $isLate = $pose->scheduled_at && $pose->scheduled_at->isPast() && in_array($pose->status, ['planifiee', 'en_cours']);
-                @endphp
-                <div class="pose-info {{ $isLate ? 'late' : '' }}">
-                    <strong>🗓 Pose prévue :</strong>
-                    @if($pose->scheduled_at)
-                        {{ $pose->scheduled_at->translatedFormat('l d F Y à H\hi') }}
-                        @if($isLate) <strong>· EN RETARD</strong> @endif
-                    @else
-                        — non datée
-                    @endif
+            {{-- Bloc pose : technicien / équipe assigné(s)
+                 2026-06-25 — Date de pose retirée (demande user). On garde
+                 uniquement l'assignation pour identifier qui fait quoi. --}}
+            @if($pose && ($pose->technicien || $pose->team_name))
+                <div class="pose-info">
                     @if($pose->technicien)
-                        <br><strong>👷 Technicien :</strong> {{ $pose->technicien->name }}
+                        <strong>👷 Technicien :</strong> {{ $pose->technicien->name }}
                     @endif
                     @if($pose->team_name)
-                        @if(!$pose->technicien) <br> @else · @endif
+                        @if($pose->technicien) · @endif
                         <strong>Équipe :</strong> {{ $pose->team_name }}
                     @endif
                 </div>
-            @else
+            @elseif(!$pose)
                 <div class="pose-info none">
                     <strong>⚠ Aucune pose planifiée</strong> pour ce panneau.
                 </div>

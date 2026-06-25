@@ -2158,32 +2158,48 @@ class CampaignController extends Controller
     {
         $this->authorize('view', $campaign);
 
-        $campaign->load([
+        // 2026-06-25 — Mode "list" (compact, sans photos, format paysage)
+        // ou "cards" (par défaut, avec photo de chaque panneau).
+        // Permet d'imprimer une liste rapide pour les équipes terrain
+        // ou un dossier détaillé selon le besoin.
+        $mode = $request->input('mode', 'cards') === 'list' ? 'list' : 'cards';
+
+        $relations = [
             'client:id,name',
             'panels' => fn ($q) => $q->orderBy('reference'),
             'panels.commune:id,name',
             'panels.format:id,name',
-            'panels.photos' => fn ($q) => $q->orderBy('ordre'),
             'poseTasks' => fn ($q) => $q->with('technicien:id,name'),
-        ]);
+        ];
+        // On ne charge les photos que pour le mode cartes (gain perf en mode liste).
+        if ($mode === 'cards') {
+            $relations['panels.photos'] = fn ($q) => $q->orderBy('ordre');
+        }
+        $campaign->load($relations);
 
         // Map panel_id → la PoseTask la plus récente (1 panneau peut avoir
         // plusieurs poses si re-planifiée). On garde la plus récente non
-        // annulée pour afficher la date prévue actuelle.
+        // annulée pour afficher le technicien/équipe assigné.
         $poseByPanel = $campaign->poseTasks
             ->sortByDesc('scheduled_at')
             ->groupBy('panel_id')
             ->map(fn ($group) => $group->reject(fn ($pt) => $pt->status === 'annulee')->first() ?? $group->first());
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.campaigns.fiche-pose-pdf', [
+        $viewName = $mode === 'list'
+            ? 'admin.campaigns.fiche-pose-pdf-liste'
+            : 'admin.campaigns.fiche-pose-pdf';
+        $paperOrientation = $mode === 'list' ? 'landscape' : 'portrait';
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView($viewName, [
             'campaign'    => $campaign,
             'panels'      => $campaign->panels,
             'poseByPanel' => $poseByPanel,
             'user'        => $request->user(),
-        ])->setPaper('a4', 'portrait');
+        ])->setPaper('a4', $paperOrientation);
 
         $slug = \Illuminate\Support\Str::slug($campaign->name);
-        return $pdf->download('fiche-pose-' . $slug . '-' . now()->format('Ymd') . '.pdf');
+        $suffix = $mode === 'list' ? '-liste' : '';
+        return $pdf->download('fiche-pose' . $suffix . '-' . $slug . '-' . now()->format('Ymd') . '.pdf');
     }
 
     // EXPORT PDF — liste filtrée, format A4 paysage
