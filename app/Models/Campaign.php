@@ -2,6 +2,7 @@
 namespace App\Models;
 
 use App\Enums\CampaignStatus;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
