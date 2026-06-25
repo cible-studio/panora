@@ -943,31 +943,12 @@ class PropositionController extends Controller
         $s = Carbon::parse($start)->startOfDay();
         $e = Carbon::parse($end)->startOfDay();
 
-        // Nombre de jours réels
+        // RÈGLE PATRONNE 2026-06-25 — identique à Campaign::billableMonths() :
+        //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5.
         $totalDays = (int) $s->diffInDays($e);
-
         if ($totalDays <= 0) return 0.5;
-
-        // Mois entiers
-        $fullMonths = (int) floor($totalDays / 30);
-
-        // Jours restants après les mois entiers
-        $remainDays = $totalDays % 30;
-
-        // Règle CIBLE CI :
-        // 1-15j restants  → + 0.5 mois
-        // 16-30j restants → + 1 mois
-        $fraction = 0;
-        if ($remainDays >= 1 && $remainDays <= 15) {
-            $fraction = 0.5;
-        } elseif ($remainDays > 15) {
-            $fraction = 1;
-        }
-
-        $result = $fullMonths + $fraction;
-
-        // Minimum : 0.5 mois (demi-mois)
-        return max($result, 0.5);
+        $mois = $totalDays / 30;
+        return max(0.5, round($mois * 2) / 2);
     }
 
 }

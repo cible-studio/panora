@@ -184,18 +184,10 @@ class ExternalPanelsExport implements FromCollection, WithHeadings, WithMapping,
         $e = \Carbon\Carbon::parse($end)->startOfDay();
         $totalDays = (int) $s->diffInDays($e);
 
+        // RÈGLE PATRONNE 2026-06-25 — identique à Campaign::billableMonths() :
+        //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5.
         if ($totalDays <= 0) return 0.5;
-
-        $fullMonths = (int) floor($totalDays / 30);
-        $remainDays = $totalDays % 30;
-
-        $fraction = 0;
-        if ($remainDays >= 1 && $remainDays <= 15) {
-            $fraction = 0.5;
-        } elseif ($remainDays > 15) {
-            $fraction = 1;
-        }
-
-        return max($fullMonths + $fraction, 0.5);
+        $mois = $totalDays / 30;
+        return max(0.5, round($mois * 2) / 2);
     }
 }

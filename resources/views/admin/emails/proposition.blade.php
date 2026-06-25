@@ -8,13 +8,12 @@
     //   1-15 jours résiduels → +0.5 mois
     //   16-30 jours          → +1 mois
     //   minimum facturable   → 0.5 mois
+    // RÈGLE PATRONNE 2026-06-25 — identique à Campaign::billableMonths() :
+    //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5.
     $sd = \Carbon\Carbon::parse($reservation->start_date)->startOfDay();
     $ed = \Carbon\Carbon::parse($reservation->end_date)->startOfDay();
-    $totalDays = max(1, (int) $sd->diffInDays($ed));
-    $fullMonths = (int) floor($totalDays / 30);
-    $remainDays = $totalDays % 30;
-    $fraction   = $remainDays === 0 ? 0 : ($remainDays <= 15 ? 0.5 : 1);
-    $months     = max(0.5, $fullMonths + $fraction);
+    $totalDays   = max(1, (int) $sd->diffInDays($ed));
+    $months      = max(0.5, round(($totalDays / 30) * 2) / 2);
     $monthsLabel = rtrim(rtrim(number_format($months, 1, ',', ''), '0'), ',');
 
     // ── Montant total : total_amount fait foi.

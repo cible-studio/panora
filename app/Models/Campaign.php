@@ -287,27 +287,36 @@ class Campaign extends Model
     }
 
     /**
-     * Nombre de mois facturables — RÈGLE UNIQUE de la régie CIBLE CI :
-     *   - 1 à 15 jours résiduels  → +0.5 mois
-     *   - 16 à 30 jours résiduels → +1 mois
-     *   - minimum facturable      → 0.5 mois
+     * Nombre de mois facturables — RÈGLE UNIQUE de la régie CIBLE CI.
      *
-     * Cette méthode est la SEULE source de vérité pour les calculs de montant
-     * (utilisée à la fois par le model et CampaignService).
+     * RÈGLE PATRONNE (validée par écrit 2026-06-25) :
+     *   mois = jours / 30                          // mois commercial
+     *   arrondi au DEMI-MOIS le plus proche
+     *   plancher 0.5 mois
+     *   → max(0.5, round(mois × 2) / 2)
+     *
+     * Exemples concrets :
+     *   1-15 j → 0.5    16-22 j → 0.5    23-30 j → 1.0
+     *   31-37 j → 1.0   38-45 j → 1.5    46-52 j → 1.5
+     *
+     * Source unique partagée par :
+     *   - CampaignService (estimation montant)
+     *   - InvoiceFromCampaignBuilder (génération facture)
+     *   - CampaignAmountConsistency (recalc cohérence)
+     *   - Reservation (proposition prix)
+     *   - Vues d'affichage (show, create, edit, emails)
+     *
+     * Non-rétroactivité (validée user 2026-06-25) :
+     *   Les factures déjà émises ne sont pas re-calculées (invoice_lines
+     *   figées en BDD au moment de l'émission). Seules les NOUVELLES
+     *   factures + estimations en cours utilisent cette règle.
      */
     public function billableMonths(): float
     {
         $days = $this->durationInDays();
         if ($days <= 0) return 0.5;
-
-        $full   = (int) floor($days / 30);
-        $remain = $days % 30;
-
-        $fraction = 0.0;
-        if ($remain >= 1 && $remain <= 15)      $fraction = 0.5;
-        elseif ($remain > 15)                    $fraction = 1.0;
-
-        return max($full + $fraction, 0.5);
+        $mois = $days / 30;
+        return max(0.5, round($mois * 2) / 2);
     }
 
     /** Alias pour compatibilité — toujours basé sur billableMonths() */

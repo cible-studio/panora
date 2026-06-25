@@ -952,21 +952,18 @@
             },
 
             getMonths() {
-                // RÈGLE UNIQUE CIBLE CI — IDENTIQUE à Reservation::billableMonths
-                // côté serveur. Avant : Math.ceil(days/30) qui SURESTIMAIT
-                // (32 jours = 2 mois affichés vs 1.5 mois réellement facturés
-                // par le serveur). Divergence créait des litiges client.
+                // RÈGLE PATRONNE 2026-06-25 — IDENTIQUE à Campaign::billableMonths()
+                // côté serveur :
+                //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5
+                // Doit rester aligné sur la formule serveur sinon divergence entre
+                // affichage saisie et facture finale (= litige client garanti).
                 if (!this.startDate || !this.endDate) return 0.5;
                 const s = new Date(this.startDate);
                 const e = new Date(this.endDate);
                 const days = Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
                 if (days <= 0) return 0.5;
-                const full = Math.floor(days / 30);
-                const remain = days % 30;
-                let fraction = 0;
-                if (remain >= 1 && remain <= 15) fraction = 0.5;
-                else if (remain > 15) fraction = 1;
-                return Math.max(full + fraction, 0.5);
+                const mois = days / 30;
+                return Math.max(0.5, Math.round(mois * 2) / 2);
             },
 
             formatPrice(price) {

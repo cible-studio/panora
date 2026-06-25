@@ -131,17 +131,12 @@ class Reservation extends Model
 
     public function billableMonths(): float
     {
+        // RÈGLE PATRONNE 2026-06-25 — identique à Campaign::billableMonths() :
+        //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5.
         $days = $this->durationInDays();
         if ($days <= 0) return 0.5;
-
-        $full   = (int) floor($days / 30);
-        $remain = $days % 30;
-
-        $fraction = 0.0;
-        if ($remain >= 1 && $remain <= 15)      $fraction = 0.5;
-        elseif ($remain > 15)                    $fraction = 1.0;
-
-        return max($full + $fraction, 0.5);
+        $mois = $days / 30;
+        return max(0.5, round($mois * 2) / 2);
     }
 
     /**

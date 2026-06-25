@@ -1408,18 +1408,15 @@
                 }
 
                 // ══ RÈGLE FACTURATION CIBLE CI ════════════════════════════
-                // Identique à PHP monthsBetween() — 15j = demi-mois
+                // RÈGLE PATRONNE 2026-06-25 — identique à Campaign::billableMonths()
+                //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5
                 function _months(startStr, endStr) {
                     const a = new Date(startStr + 'T00:00:00');
                     const b = new Date(endStr + 'T00:00:00');
                     const totalDays = Math.round((b - a) / 86400000);
                     if (totalDays <= 0) return 0.5;
-                    const fullMonths = Math.floor(totalDays / 30);
-                    const remainDays = totalDays % 30;
-                    let fraction = 0;
-                    if (remainDays >= 1 && remainDays <= 15) fraction = 0.5;
-                    else if (remainDays > 15) fraction = 1;
-                    return Math.max(fullMonths + fraction, 0.5);
+                    const mois = totalDays / 30;
+                    return Math.max(0.5, Math.round(mois * 2) / 2);
                 }
 
                 // ══ OBJET PRINCIPAL DISPO ════════════════════════════════
