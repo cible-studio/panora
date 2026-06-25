@@ -524,6 +524,64 @@
 
 @push('scripts')
 <script>
+// ════════════════════════════════════════════════════════════════════
+// RÈGLE PATRONNE v2 (2026-06-25) — Helper JS partagé.
+// Reproduit fidèlement Campaign::resolvePeriodBetween + computeBillableMonths.
+//   - Mois civils (addMonthsNoOverflow JS-style)
+//   - Grâce -1j pour absorber les fins de mois courts
+//   - Tolérance +1j au-delà de l'anniversaire mensuel
+//   - < 1 mois : 15j seuil (forfait ½ mois ou ½ mois + prorata)
+// L'équation `montant = billableMonths × tarif` est préservée pour tous les
+// call sites — pas besoin de toucher aux multiplications existantes.
+// ════════════════════════════════════════════════════════════════════
+function _addMonthsNoOverflow(date, months) {
+    const d = new Date(date);
+    const targetMonthIdx = d.getMonth() + months;
+    const targetYear  = d.getFullYear() + Math.floor(targetMonthIdx / 12);
+    const actualMonth = ((targetMonthIdx % 12) + 12) % 12;
+    const day = d.getDate();
+    // Dernier jour du mois cible (pour éviter le 31/01 + 1 mois → 03/03)
+    const lastDay = new Date(targetYear, actualMonth + 1, 0).getDate();
+    return new Date(targetYear, actualMonth, Math.min(day, lastDay));
+}
+function _resolvePeriod(startStr, endStr, tolPlus = 1) {
+    const start = new Date(startStr + 'T00:00:00');
+    const end   = new Date(endStr   + 'T00:00:00');
+    if (isNaN(start) || isNaN(end) || end < start) {
+        return { mois: 0, jours: 0, propre: true };
+    }
+    // 1) Compter mois atteints (grâce -1j)
+    let mois = 0;
+    while (true) {
+        const seuil = _addMonthsNoOverflow(start, mois + 1);
+        seuil.setDate(seuil.getDate() - 1); // -1j de grâce
+        if (end >= seuil) mois++; else break;
+    }
+    // 2) Moins d'un mois → jours réels inclusifs
+    if (mois === 0) {
+        const days = Math.round((end - start) / 86400000) + 1;
+        return { mois: 0, jours: days, propre: true };
+    }
+    // 3) Résiduel signé au dernier anniversaire
+    const anniv = _addMonthsNoOverflow(start, mois);
+    const residuel = Math.round((end - anniv) / 86400000);
+    const propre = residuel <= tolPlus;
+    return { mois, jours: propre ? 0 : residuel, propre };
+}
+function _campaignBillableMonths(startStr, endStr) {
+    const r = _resolvePeriod(startStr, endStr);
+    if (r.mois === 0) {
+        return r.jours < 15 ? 0.5 : 0.5 + (r.jours - 15) / 30;
+    }
+    return r.propre ? r.mois : r.mois + r.jours / 30;
+}
+function _campaignDurationLabel(startStr, endStr) {
+    const r = _resolvePeriod(startStr, endStr);
+    if (r.mois === 0) return r.jours + ' jour' + (r.jours > 1 ? 's' : '');
+    if (r.propre) return r.mois + ' mois';
+    return r.mois + ' mois + ' + r.jours + ' j';
+}
+
 function campaignCreate() {
     return {
         selectedClientId: '{{ old('client_id', $preselectedReservation?->client_id ?? '') }}',
@@ -539,20 +597,10 @@ function campaignCreate() {
             return Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
         },
         get durationMonths() {
-            // RÈGLE PATRONNE 2026-06-25 — IDENTIQUE à Campaign::billableMonths()
-            // côté serveur :
-            //   mois = jours / 30                          (mois commercial)
-            //   arrondi au DEMI-MOIS le plus proche
-            //   plancher 0.5 mois
-            //   → max(0.5, round(mois × 2) / 2)
-            //
-            // L'ancien calcul "seuil 15 jours" sur-facturait les campagnes
-            // courtes (16-22 jours → 1 mois au lieu de 0.5). La nouvelle
-            // règle est plus juste pour le client.
-            const d = this.durationDays;
-            if (d <= 0) return 0.5;
-            const mois = d / 30;
-            return Math.max(0.5, Math.round(mois * 2) / 2);
+            // RÈGLE PATRONNE v2 2026-06-25 — IDENTIQUE à Campaign::billableMonths().
+            // Mois civils + tolérance +1j + 2 cas <1 mois (forfait ½ mois si <15j,
+            // sinon ½ mois + prorata journalier). Utilise les chaînes ISO des dates.
+            return _campaignBillableMonths(this.startDate, this.endDate);
         },
 
         formatDate(iso) {

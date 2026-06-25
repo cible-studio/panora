@@ -1408,15 +1408,34 @@
                 }
 
                 // ══ RÈGLE FACTURATION CIBLE CI ════════════════════════════
-                // RÈGLE PATRONNE 2026-06-25 — identique à Campaign::billableMonths()
-                //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5
+                // RÈGLE PATRONNE v2 2026-06-25 — identique à Campaign::billableMonths().
+                // Reproduit le moteur unique (mois civils + grâce -1j + tolérance +1j).
+                function _addMonthsNoOverflow_local(date, months) {
+                    const d = new Date(date);
+                    const targetMonthIdx = d.getMonth() + months;
+                    const targetYear  = d.getFullYear() + Math.floor(targetMonthIdx / 12);
+                    const actualMonth = ((targetMonthIdx % 12) + 12) % 12;
+                    const day = d.getDate();
+                    const lastDay = new Date(targetYear, actualMonth + 1, 0).getDate();
+                    return new Date(targetYear, actualMonth, Math.min(day, lastDay));
+                }
                 function _months(startStr, endStr) {
-                    const a = new Date(startStr + 'T00:00:00');
-                    const b = new Date(endStr + 'T00:00:00');
-                    const totalDays = Math.round((b - a) / 86400000);
-                    if (totalDays <= 0) return 0.5;
-                    const mois = totalDays / 30;
-                    return Math.max(0.5, Math.round(mois * 2) / 2);
+                    const start = new Date(startStr + 'T00:00:00');
+                    const end   = new Date(endStr   + 'T00:00:00');
+                    if (isNaN(start) || isNaN(end) || end < start) return 0.5;
+                    let mois = 0;
+                    while (true) {
+                        const seuil = _addMonthsNoOverflow_local(start, mois + 1);
+                        seuil.setDate(seuil.getDate() - 1);
+                        if (end >= seuil) mois++; else break;
+                    }
+                    if (mois === 0) {
+                        const days = Math.round((end - start) / 86400000) + 1;
+                        return days < 15 ? 0.5 : 0.5 + (days - 15) / 30;
+                    }
+                    const anniv = _addMonthsNoOverflow_local(start, mois);
+                    const residuel = Math.round((end - anniv) / 86400000);
+                    return residuel <= 1 ? mois : mois + residuel / 30;
                 }
 
                 // ══ OBJET PRINCIPAL DISPO ════════════════════════════════

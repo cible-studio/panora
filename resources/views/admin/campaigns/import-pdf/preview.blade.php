@@ -54,9 +54,12 @@
                     // diffInDays renvoie un float quand start=00:00 et end=23:59:59
                     // → on arrondit pour afficher proprement.
                     $days = (int) round($data['start_date']->copy()->startOfDay()->diffInDays($data['end_date']->copy()->startOfDay()));
-                    // RÈGLE PATRONNE 2026-06-25 — identique à Campaign::billableMonths() :
-                    //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5
-                    $billableMonths = $days <= 0 ? 0.5 : max(0.5, round(($days / 30) * 2) / 2);
+                    // RÈGLE PATRONNE v2 2026-06-25 — délègue à Campaign::computeBillableMonths
+                    // (SOURCE UNIQUE : mois civils + tolérance +1j).
+                    $billableMonths = \App\Models\Campaign::computeBillableMonths(
+                        $data['start_date'],
+                        $data['end_date']
+                    );
                 @endphp
                 <div style="font-size:11px;color:var(--text3);margin-top:3px">{{ $days }} jour(s) — {{ rtrim(rtrim(number_format($billableMonths, 1, ',', ''), '0'), ',') }} mois</div>
             </div>

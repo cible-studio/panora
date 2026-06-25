@@ -567,15 +567,12 @@ class ClientDashboardController extends Controller
      */
     private function monthsBetween($start, $end): float
     {
-        $s = Carbon::parse($start)->startOfDay();
-        $e = Carbon::parse($end)->startOfDay();
-
-        // RÈGLE PATRONNE 2026-06-25 — identique à Campaign::billableMonths() :
-        //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5.
-        $totalDays = (int) $s->diffInDays($e);
-        if ($totalDays <= 0) return 0.5;
-        $mois = $totalDays / 30;
-        return max(0.5, round($mois * 2) / 2);
+        // RÈGLE PATRONNE v2 2026-06-25 — délègue à Campaign::computeBillableMonths
+        // (SOURCE UNIQUE).
+        return \App\Models\Campaign::computeBillableMonths(
+            Carbon::parse($start),
+            Carbon::parse($end)
+        );
     }
 
 }

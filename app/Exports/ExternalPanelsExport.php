@@ -180,14 +180,11 @@ class ExternalPanelsExport implements FromCollection, WithHeadings, WithMapping,
 
     private function calculateMonths($start, $end): float
     {
-        $s = \Carbon\Carbon::parse($start)->startOfDay();
-        $e = \Carbon\Carbon::parse($end)->startOfDay();
-        $totalDays = (int) $s->diffInDays($e);
-
-        // RÈGLE PATRONNE 2026-06-25 — identique à Campaign::billableMonths() :
-        //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5.
-        if ($totalDays <= 0) return 0.5;
-        $mois = $totalDays / 30;
-        return max(0.5, round($mois * 2) / 2);
+        // RÈGLE PATRONNE v2 2026-06-25 — délègue à Campaign::computeBillableMonths
+        // (SOURCE UNIQUE).
+        return \App\Models\Campaign::computeBillableMonths(
+            \Carbon\Carbon::parse($start),
+            \Carbon\Carbon::parse($end)
+        );
     }
 }

@@ -2,12 +2,12 @@
     $clientName = $client?->name ?? 'Client';
     $panelCount = $panels->count();
 
-    $sd = \Carbon\Carbon::parse($reservation->start_date)->startOfDay();
-    $ed = \Carbon\Carbon::parse($reservation->end_date)->startOfDay();
-    // RÈGLE PATRONNE 2026-06-25 — identique à Campaign::billableMonths() :
-    //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5.
-    $totalDays   = max(1, (int) $sd->diffInDays($ed));
-    $months      = max(0.5, round(($totalDays / 30) * 2) / 2);
+    // RÈGLE PATRONNE v2 2026-06-25 — délègue à Campaign::computeBillableMonths
+    // (SOURCE UNIQUE : mois civils + tolérance +1j).
+    $months      = \App\Models\Campaign::computeBillableMonths(
+        \Carbon\Carbon::parse($reservation->start_date),
+        \Carbon\Carbon::parse($reservation->end_date)
+    );
     $monthsLabel = rtrim(rtrim(number_format($months, 1, ',', ''), '0'), ',');
 
 @endphp

@@ -952,18 +952,34 @@
             },
 
             getMonths() {
-                // RÈGLE PATRONNE 2026-06-25 — IDENTIQUE à Campaign::billableMonths()
-                // côté serveur :
-                //   mois = jours / 30, arrondi au demi-mois le plus proche, plancher 0.5
-                // Doit rester aligné sur la formule serveur sinon divergence entre
-                // affichage saisie et facture finale (= litige client garanti).
+                // RÈGLE PATRONNE v2 2026-06-25 — IDENTIQUE à Campaign::billableMonths().
+                // Mois civils + tolérance +1j. Doit rester aligné serveur sinon
+                // divergence entre saisie et facture finale = litige client garanti.
                 if (!this.startDate || !this.endDate) return 0.5;
-                const s = new Date(this.startDate);
-                const e = new Date(this.endDate);
-                const days = Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
-                if (days <= 0) return 0.5;
-                const mois = days / 30;
-                return Math.max(0.5, Math.round(mois * 2) / 2);
+                const addMonthsNoOverflow = (date, months) => {
+                    const d = new Date(date);
+                    const idx = d.getMonth() + months;
+                    const year = d.getFullYear() + Math.floor(idx / 12);
+                    const mo = ((idx % 12) + 12) % 12;
+                    const lastDay = new Date(year, mo + 1, 0).getDate();
+                    return new Date(year, mo, Math.min(d.getDate(), lastDay));
+                };
+                const start = new Date(this.startDate);
+                const end   = new Date(this.endDate);
+                if (isNaN(start) || isNaN(end) || end < start) return 0.5;
+                let mois = 0;
+                while (true) {
+                    const seuil = addMonthsNoOverflow(start, mois + 1);
+                    seuil.setDate(seuil.getDate() - 1);
+                    if (end >= seuil) mois++; else break;
+                }
+                if (mois === 0) {
+                    const days = Math.round((end - start) / 86400000) + 1;
+                    return days < 15 ? 0.5 : 0.5 + (days - 15) / 30;
+                }
+                const anniv = addMonthsNoOverflow(start, mois);
+                const residuel = Math.round((end - anniv) / 86400000);
+                return residuel <= 1 ? mois : mois + residuel / 30;
             },
 
             formatPrice(price) {

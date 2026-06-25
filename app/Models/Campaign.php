@@ -287,36 +287,104 @@ class Campaign extends Model
     }
 
     /**
-     * Nombre de mois facturables — RÈGLE UNIQUE de la régie CIBLE CI.
+     * RÈGLE PATRONNE v2 (validée par écrit 2026-06-25) — Résout une période
+     * en {mois, jours, propre}. Le moteur unique partagé par occupation,
+     * affichage et facturation.
      *
-     * RÈGLE PATRONNE (validée par écrit 2026-06-25) :
-     *   mois = jours / 30                          // mois commercial
-     *   arrondi au DEMI-MOIS le plus proche
-     *   plancher 0.5 mois
-     *   → max(0.5, round(mois × 2) / 2)
+     *   1) Compte les mois civils atteints (addMonthsNoOverflow + grâce -1j
+     *      pour absorber les fins de mois courts type 28/29).
+     *   2) Si < 1 mois : retourne jours réels inclusifs.
+     *   3) Sinon : compte résiduel signé au dernier anniversaire. Tolérance
+     *      $tolPlus jours absorbe le dépassement (par défaut +1).
      *
-     * Exemples concrets :
-     *   1-15 j → 0.5    16-22 j → 0.5    23-30 j → 1.0
-     *   31-37 j → 1.0   38-45 j → 1.5    46-52 j → 1.5
+     * @param int $tolPlus Tolérance (en jours) au-delà de l'anniversaire
+     *                     mensuel — passe à 2 pour absorber jusqu'à +2j.
+     * @return array{mois:int, jours:int, propre:bool}
+     */
+    public static function resolvePeriodBetween(Carbon $debut, Carbon $fin, int $tolPlus = 1): array
+    {
+        $debut = $debut->copy()->startOfDay();
+        $fin   = $fin->copy()->startOfDay();
+
+        // 1) Mois atteints (grâce -1j : fin de mois civil avant l'anniv pile)
+        $mois = 0;
+        while ($fin->gte($debut->copy()->addMonthsNoOverflow($mois + 1)->subDay())) {
+            $mois++;
+        }
+
+        // 2) Moins d'un mois → jours réels inclusifs
+        if ($mois === 0) {
+            return [
+                'mois'   => 0,
+                'jours'  => (int) $debut->diffInDays($fin) + 1,
+                'propre' => true,
+            ];
+        }
+
+        // 3) Résiduel signé au dernier anniversaire
+        $anniv    = $debut->copy()->addMonthsNoOverflow($mois);
+        $residuel = (int) $anniv->diffInDays($fin, false);
+        $propre   = $residuel <= $tolPlus;
+
+        return [
+            'mois'   => $mois,
+            'jours'  => $propre ? 0 : $residuel,
+            'propre' => $propre,
+        ];
+    }
+
+    /** Version d'instance — applique resolvePeriodBetween sur les dates de la campagne. */
+    public function resolvePeriod(int $tolPlus = 1): array
+    {
+        return self::resolvePeriodBetween($this->start_date, $this->end_date, $tolPlus);
+    }
+
+    /**
+     * Nombre de mois facturables — équation préservée `montant = billableMonths × tarif`.
      *
-     * Source unique partagée par :
-     *   - CampaignService (estimation montant)
-     *   - InvoiceFromCampaignBuilder (génération facture)
-     *   - CampaignAmountConsistency (recalc cohérence)
-     *   - Reservation (proposition prix)
-     *   - Vues d'affichage (show, create, edit, emails)
+     * Cas couverts (RÈGLE PATRONNE 2026-06-25) :
+     *   < 15 j           → 0.5                            (forfait demi-mois)
+     *   15-29 j          → 0.5 + (jours - 15) / 30        (½ mois + prorata journalier)
+     *   1 mois propre    → mois                           (anniversaire ±1j de tolérance)
+     *   1 mois + Y j     → mois + Y / 30                  (mois + prorata journalier)
      *
-     * Non-rétroactivité (validée user 2026-06-25) :
-     *   Les factures déjà émises ne sont pas re-calculées (invoice_lines
-     *   figées en BDD au moment de l'émission). Seules les NOUVELLES
-     *   factures + estimations en cours utilisent cette règle.
+     * Source unique partagée par CampaignService, InvoiceFromCampaignBuilder,
+     * CampaignAmountConsistency, Reservation, exports, vues, emails.
+     *
+     * Non-rétroactivité : les factures déjà émises ont leurs invoice_lines
+     * figées en BDD au moment de l'émission. Pas de recalcul automatique.
      */
     public function billableMonths(): float
     {
-        $days = $this->durationInDays();
-        if ($days <= 0) return 0.5;
-        $mois = $days / 30;
-        return max(0.5, round($mois * 2) / 2);
+        return self::computeBillableMonths($this->start_date, $this->end_date);
+    }
+
+    /** Helper static — calcule billableMonths sur n'importe quel couple (start, end). */
+    public static function computeBillableMonths(Carbon $start, Carbon $end): float
+    {
+        $r = self::resolvePeriodBetween($start, $end);
+        if ($r['mois'] === 0) {
+            return $r['jours'] < 15 ? 0.5 : 0.5 + ($r['jours'] - 15) / 30;
+        }
+        return $r['propre'] ? (float) $r['mois'] : $r['mois'] + $r['jours'] / 30;
+    }
+
+    /**
+     * Libellé d'AFFICHAGE de la durée (RÈGLE PATRONNE 2026-06-25) :
+     *   - < 1 mois        : "X jours"
+     *   - 1 mois propre   : "X mois"
+     *   - 1 mois + Y j    : "X mois + Y j"
+     */
+    public function durationLabel(): string
+    {
+        $r = $this->resolvePeriod();
+        if ($r['mois'] === 0) {
+            return $r['jours'] . ' jour' . ($r['jours'] > 1 ? 's' : '');
+        }
+        if ($r['propre']) {
+            return $r['mois'] . ' mois';
+        }
+        return $r['mois'] . ' mois + ' . $r['jours'] . ' j';
     }
 
     /** Alias pour compatibilité — toujours basé sur billableMonths() */
