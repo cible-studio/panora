@@ -15,12 +15,17 @@
         .logo-sub { font-size:9px; color:#8a90a2; }
         .header-meta { margin-top:6px; font-size:10px; }
 
+        /* FIX 2026-06-25 — display:flex non supporté par DomPDF (les KPI
+           se retrouvaient empilés verticalement). Remplacé par display:table
+           + table-cell qui rendent correctement les colonnes horizontales. */
         .kpi-grid {
-            display:flex; gap:8px; padding:0 18px; margin-bottom:14px;
+            display:table; width:100%; padding:0 18px;
+            margin-bottom:14px; border-collapse:separate; border-spacing:6px 0;
         }
         .kpi {
-            flex:1; padding:8px 10px; border-radius:6px;
+            display:table-cell; padding:8px 10px; border-radius:6px;
             background:#f8fafc; border-left:3px solid #e8a020;
+            vertical-align:top;
         }
         .kpi .lbl { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:#6b7280; }
         .kpi .val { font-size:13px; font-weight:800; color:#0a0c10; margin-top:2px; }
