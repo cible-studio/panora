@@ -98,13 +98,31 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="filter-group">
+                {{-- FIX 2026-06-25 — Pills cliquables au lieu d'un select dropdown.
+                     L'état actif est immédiatement visible (couleur de la taxe),
+                     et le filtrage se fait en 1 clic. Cohérent avec le code couleur
+                     du reste de l'app : ODP = bleu, TM = violet. --}}
+                <div class="filter-group" style="flex:1;min-width:240px">
                     <label class="filter-label">Type taxe</label>
-                    <select name="type" class="filter-select" onchange="this.form.submit()">
-                        <option value="">Toutes</option>
-                        <option value="tm"  {{ ($filters['type'] ?? null) === 'tm'  ? 'selected' : '' }}>TM</option>
-                        <option value="odp" {{ ($filters['type'] ?? null) === 'odp' ? 'selected' : '' }}>ODP</option>
-                    </select>
+                    @php $activeType = $filters['type'] ?? ''; @endphp
+                    <input type="hidden" name="type" id="tax-type-input" value="{{ $activeType }}">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                        <button type="button" onclick="document.getElementById('tax-type-input').value='';this.form.submit()"
+                                style="padding:8px 16px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;border:1.5px solid {{ $activeType === '' ? 'var(--accent)' : 'var(--border)' }};background:{{ $activeType === '' ? 'var(--accent)' : 'var(--surface)' }};color:{{ $activeType === '' ? '#fff' : 'var(--text2)' }};transition:transform .1s,box-shadow .15s;{{ $activeType === '' ? 'box-shadow:0 2px 8px rgba(232,160,32,.30)' : '' }}"
+                                title="Voir toutes les taxes (ODP + TM)">
+                            🔍 Toutes
+                        </button>
+                        <button type="button" onclick="document.getElementById('tax-type-input').value='odp';this.form.submit()"
+                                style="padding:8px 16px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;border:1.5px solid {{ $activeType === 'odp' ? '#3b82f6' : 'var(--border)' }};background:{{ $activeType === 'odp' ? '#3b82f6' : 'var(--surface)' }};color:{{ $activeType === 'odp' ? '#fff' : '#1d4ed8' }};transition:transform .1s,box-shadow .15s;{{ $activeType === 'odp' ? 'box-shadow:0 2px 8px rgba(59,130,246,.40)' : '' }}"
+                                title="Filtrer sur la taxe ODP (Occupation Domaine Public) uniquement">
+                            🏛️ ODP seul
+                        </button>
+                        <button type="button" onclick="document.getElementById('tax-type-input').value='tm';this.form.submit()"
+                                style="padding:8px 16px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;border:1.5px solid {{ $activeType === 'tm' ? '#a855f7' : 'var(--border)' }};background:{{ $activeType === 'tm' ? '#a855f7' : 'var(--surface)' }};color:{{ $activeType === 'tm' ? '#fff' : '#7c3aed' }};transition:transform .1s,box-shadow .15s;{{ $activeType === 'tm' ? 'box-shadow:0 2px 8px rgba(168,85,247,.40)' : '' }}"
+                                title="Filtrer sur la taxe TM (Taxe Municipale publicité) uniquement">
+                            🏢 TM seul
+                        </button>
+                    </div>
                 </div>
                 @if(!empty($filters))
                 <div class="filter-group" style="display:flex;align-items:flex-end">
