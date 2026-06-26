@@ -1,6 +1,9 @@
 <x-admin-layout title="Pose OOH">
 
 <x-slot:topbarActions>
+    <a href="{{ route('admin.pose-tasks.oubliees') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px;color:#dc2626;border-color:#fecaca" title="Rattraper les poses faites sur le terrain mais oubliées en saisie">
+        🕒 Poses oubliées
+    </a>
     <a href="{{ route('admin.pose-tasks.techniciens.index') }}" class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;gap:6px" title="Gérer les techniciens (création / lien public / WhatsApp)">
         🔧 Techniciens
     </a>
