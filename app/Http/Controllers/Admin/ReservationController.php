@@ -2163,6 +2163,37 @@ class ReservationController extends Controller
         ));
     }
 
+    /**
+     * Raccourci "Créer la facture" depuis la fiche réservation.
+     * Aiguille vers le formulaire facturation prérempli :
+     *   - Si la réservation a une campagne liée → préremplit campagne + client
+     *   - Sinon → préremplit juste le client
+     *
+     * Refuse l'action si la réservation est ANNULEE (toute autre statut OK,
+     * y compris en_attente / refuse / termine — c'est l'admin qui juge).
+     *
+     * UX (2026-06-26) : on n'auto-génère pas la facture FNE même quand une
+     * campagne existe — on laisse l'admin reviser sur le formulaire avant
+     * d'enregistrer (cohérent avec /admin/invoices/create?campaign_id=X).
+     */
+    public function createInvoice(Reservation $reservation)
+    {
+        if ($reservation->status === ReservationStatus::ANNULE) {
+            return redirect()
+                ->route('admin.reservations.show', $reservation)
+                ->with('error', "Une réservation annulée ne peut pas être facturée.");
+        }
+
+        $reservation->loadMissing('campaign');
+
+        $params = ['client_id' => $reservation->client_id];
+        if ($reservation->campaign) {
+            $params['campaign_id'] = $reservation->campaign->id;
+        }
+
+        return redirect()->route('admin.invoices.create', $params);
+    }
+
     public function edit(Reservation $reservation)
     {
         if (!$reservation->isEditable())

@@ -16,6 +16,18 @@
            class="btn btn-ghost text-sm">✏️ Modifier</a>
     @endif
 
+    {{-- Raccourci "Créer la facture" (2026-06-26).
+         Apparaît pour tous les statuts SAUF "annulé" : on laisse l'admin
+         juger pour les autres cas (refusée, en attente, terminée). Le
+         controller préremplit campagne + client si présents. --}}
+    @if($reservation->status !== \App\Enums\ReservationStatus::ANNULE)
+        <a href="{{ route('admin.reservations.create-invoice', $reservation) }}"
+           class="btn btn-primary text-sm"
+           title="Ouvrir le formulaire de facturation avec les infos de cette réservation préremplies">
+            🧾 Créer la facture
+        </a>
+    @endif
+
     @if($can['delete'])
         <form method="POST"
               action="{{ route('admin.reservations.destroy', $reservation) }}"
