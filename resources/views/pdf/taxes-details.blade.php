@@ -137,8 +137,15 @@
             <td>{{ $row['client_name'] ?? '—' }}</td>
             <td>{{ $row['campaign_name'] ?? '—' }}</td>
             <td style="font-size:8px; color:#475569;">
-                {{ $row['period_start']->format('d/m/Y') }}<br>
-                → {{ $row['period_end']->format('d/m/Y') }}
+                {{-- FIX 2026-06-26 — Vraies dates de la campagne (pas le filtre).
+                     Lignes ODP sans campagne : on retombe sur la période du filtre. --}}
+                @if(!empty($row['campaign_start']) && !empty($row['campaign_end']))
+                    {{ $row['campaign_start']->format('d/m/Y') }}<br>
+                    → {{ $row['campaign_end']->format('d/m/Y') }}
+                @else
+                    {{ $row['period_start']->format('d/m/Y') }}<br>
+                    → {{ $row['period_end']->format('d/m/Y') }}
+                @endif
             </td>
             <td class="right mono" style="font-size:7.5px; color:#6b7280;">
                 {{ number_format($row['rate'], 0) }} × {{ rtrim(rtrim(number_format($row['surface'], 2), '0'), '.') }}m² × {{ $row['months'] }}m

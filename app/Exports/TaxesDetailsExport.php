@@ -80,6 +80,12 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
             'maintenance' => 'Maintenance',
         ];
 
+        // FIX 2026-06-26 — Colonnes "Période début/fin" = vraies dates de la
+        // campagne si présente ; fallback sur la période du filtre pour les
+        // lignes ODP sans campagne (aligné avec /admin/taxes/details + PDF).
+        $debut = $row['campaign_start'] ?? $row['period_start'] ?? null;
+        $fin   = $row['campaign_end']   ?? $row['period_end']   ?? null;
+
         // generateLines() retourne des arrays — accès par clé.
         return [
             $row['commune'] ?? '',
@@ -91,8 +97,8 @@ class TaxesDetailsExport implements FromCollection, WithHeadings, WithMapping, W
             $statutLabels[$row['statut'] ?? ''] ?? $row['statut'] ?? '',
             $row['client_name'] ?? '',
             $row['campaign_name'] ?? '',
-            isset($row['period_start']) ? $row['period_start']->format('d/m/Y') : '',
-            isset($row['period_end'])   ? $row['period_end']->format('d/m/Y')   : '',
+            $debut ? $debut->format('d/m/Y') : '',
+            $fin   ? $fin->format('d/m/Y')   : '',
             (int) ($row['months'] ?? 0),
             (float) ($row['rate'] ?? 0),
             (float) ($row['amount'] ?? 0),
