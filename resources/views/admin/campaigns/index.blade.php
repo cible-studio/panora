@@ -547,33 +547,62 @@
         </div>
     </div>
 
-    {{-- ══ MODAL FACTURATION RAPIDE ══ --}}
+    {{-- ══ MODAL FACTURATION RAPIDE ══
+         Hotfix 2026-06-22 : refonte affichage demandée patronne. Avant :
+         le STATUT ressemblait à un input désactivé (pas de flèche
+         dropdown visible) → on croyait qu'il était readonly. Maintenant :
+         chevron custom + libellés clairs + helpers + section "Aperçu"
+         pour rappeler le total campagne. --}}
     <div id="modal-billing" class="modal-overlay" style="display:none;">
-        <div class="modal" style="max-width:460px;width:100%;">
+        <div class="modal" style="max-width:500px;width:100%;">
             <div class="modal-header">
-                <div class="modal-title">💰 Facturation — <span id="bill-campaign-name" style="font-size:15px;font-weight:500;"></span></div>
+                <div class="modal-title">💰 Facturation rapide — <span id="bill-campaign-name" style="font-size:15px;font-weight:500;"></span></div>
                 <button class="modal-close" onclick="closeBillingModal()">✕</button>
             </div>
             <div class="modal-body">
+                {{-- Aperçu : total théorique de la campagne pour repère --}}
+                <div style="background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                    <div>
+                        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:2px">Total théorique campagne</div>
+                        <div id="bill-total-display" style="font-size:14px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums">— FCFA</div>
+                    </div>
+                    <button type="button" onclick="resetBillAmount()" style="background:none;border:1px solid var(--border);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer">↺ Pré-remplir</button>
+                </div>
+
                 <div style="display:grid;gap:14px;">
                     <div>
-                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px;">Statut</label>
-                        <select id="bill-status" style="width:100%;height:40px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);" onchange="onBillStatusChange()">
-                            <option value="brouillon">📝 Brouillon</option>
-                            <option value="envoyee">📤 Envoyée</option>
-                            <option value="payee">✅ Payée</option>
-                            <option value="annulee">🚫 Annulée</option>
+                        <label for="bill-status" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);display:block;margin-bottom:6px">
+                            Statut <span style="color:#dc2626">*</span>
+                        </label>
+                        {{-- appearance:none + chevron SVG inline pour que la liste
+                             déroulante soit explicitement signalée comme cliquable. --}}
+                        <select id="bill-status" onchange="onBillStatusChange()"
+                                style="width:100%;height:42px;padding:0 38px 0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>&quot;);background-repeat:no-repeat;background-position:right 12px center">
+                            <option value="brouillon">📝 Brouillon — à finaliser plus tard</option>
+                            <option value="envoyee">📤 Envoyée — en attente de paiement</option>
+                            <option value="payee">✅ Payée — clôt la facture</option>
+                            <option value="annulee">🚫 Annulée — historique conservé</option>
                         </select>
+                        <small id="bill-status-hint" style="display:block;font-size:10.5px;color:var(--text3);margin-top:4px"></small>
                     </div>
                     <div>
-                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px;">Montant TTC (FCFA)</label>
-                        <input type="number" id="bill-amount" step="1" min="0"
-                               style="width:100%;height:40px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);box-sizing:border-box;">
+                        <label for="bill-amount" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);display:block;margin-bottom:6px">
+                            Montant TTC <span style="color:#dc2626">*</span>
+                        </label>
+                        <div style="position:relative">
+                            <input type="number" id="bill-amount" step="1" min="0" placeholder="Ex : 3 540 000" oninput="updateBillAmountFormatted()"
+                                   style="width:100%;height:42px;padding:0 56px 0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;color:var(--text);box-sizing:border-box;font-variant-numeric:tabular-nums">
+                            <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;color:var(--text3);pointer-events:none">FCFA</span>
+                        </div>
+                        <small id="bill-amount-formatted" style="display:block;font-size:10.5px;color:var(--text3);margin-top:4px;font-variant-numeric:tabular-nums"></small>
                     </div>
                     <div id="bill-paid-at-group">
-                        <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px;">Date de paiement</label>
+                        <label for="bill-paid-at" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);display:block;margin-bottom:6px">
+                            Date de paiement <span style="color:#dc2626">*</span>
+                        </label>
                         <input type="date" id="bill-paid-at"
-                               style="width:100%;height:40px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);box-sizing:border-box;">
+                               style="width:100%;height:42px;padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;color:var(--text);box-sizing:border-box">
+                        <small style="display:block;font-size:10.5px;color:var(--text3);margin-top:4px">Visible uniquement pour le statut « Payée ».</small>
                     </div>
                 </div>
             </div>
@@ -918,13 +947,34 @@
 <script>
 // ══ MODAL FACTURATION RAPIDE ══
 let _billCampaignId = null;
+let _billTotalCampaign = 0; // Total théorique mémorisé pour "Pré-remplir"
+
+// Hotfix 2026-06-22 — helpers UX modale facturation rapide.
+function _billFmtFcfa(n) {
+    n = Math.round(Number(n) || 0);
+    return n.toLocaleString('fr-FR').replace(/ /g, ' ');
+}
+
+function updateBillAmountFormatted() {
+    const v = parseInt(document.getElementById('bill-amount').value, 10) || 0;
+    document.getElementById('bill-amount-formatted').textContent =
+        v > 0 ? '= ' + _billFmtFcfa(v) + ' FCFA' : '';
+}
+
+function resetBillAmount() {
+    document.getElementById('bill-amount').value = Math.round(_billTotalCampaign || 0);
+    updateBillAmountFormatted();
+}
 
 function openBillingModal(id, name, totalAmount, currentStatus, currentAmount, paidAt) {
     _billCampaignId = id;
+    _billTotalCampaign = Number(totalAmount) || 0;
     document.getElementById('bill-campaign-name').textContent = name;
     document.getElementById('bill-status').value = currentStatus || 'brouillon';
-    document.getElementById('bill-amount').value = currentAmount ? parseInt(currentAmount.replace(/\s/g,'')) : Math.round(totalAmount);
+    document.getElementById('bill-amount').value = currentAmount ? parseInt(String(currentAmount).replace(/\s/g,''), 10) : Math.round(_billTotalCampaign);
     document.getElementById('bill-paid-at').value = paidAt || '';
+    document.getElementById('bill-total-display').textContent = _billFmtFcfa(_billTotalCampaign) + ' FCFA';
+    updateBillAmountFormatted();
     onBillStatusChange();
     document.getElementById('modal-billing').style.display = 'flex';
 }
@@ -932,15 +982,24 @@ function openBillingModal(id, name, totalAmount, currentStatus, currentAmount, p
 function closeBillingModal() {
     document.getElementById('modal-billing').style.display = 'none';
     _billCampaignId = null;
+    _billTotalCampaign = 0;
 }
 
 function onBillStatusChange() {
     const status = document.getElementById('bill-status').value;
-    const group = document.getElementById('bill-paid-at-group');
+    const group  = document.getElementById('bill-paid-at-group');
+    const hint   = document.getElementById('bill-status-hint');
     group.style.display = status === 'payee' ? 'block' : 'none';
     if (status === 'payee' && !document.getElementById('bill-paid-at').value) {
         document.getElementById('bill-paid-at').value = new Date().toISOString().split('T')[0];
     }
+    const hintMap = {
+        brouillon: '📝 La facture reste modifiable. Aucun email envoyé au client.',
+        envoyee:   '📤 La facture est figée et compte dans le « Reste à payer » du client.',
+        payee:     '✅ Clôt la facture. Indique la date de paiement.',
+        annulee:   '🚫 Statut historique conservé pour audit, sortie des KPIs créances.',
+    };
+    if (hint) hint.textContent = hintMap[status] || '';
 }
 
 // Toast réutilisable pour la page campagnes (succès / erreur, avec lien optionnel)
