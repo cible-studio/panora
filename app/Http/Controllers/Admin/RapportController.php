@@ -529,7 +529,7 @@ class RapportController extends Controller
         $cancellationPatterns  = $kpi->cancellationPatterns();
         $cancellationRecos     = $kpi->cancellationRecommendations();
 
-        // Décappages
+        // Décapages
         $decapList         = $kpi->decapList(50);
         $upcomingEndings   = $kpi->upcomingEndings(14);
         $decapStats        = $kpi->decapStats();
@@ -1172,8 +1172,8 @@ class RapportController extends Controller
      * mis en cache. Permet d'éviter de surcharger la vue principale.
      */
     /**
-     * Marque (ou démarque) un panneau comme décappé pour une campagne donnée.
-     * Endpoint AJAX appelé depuis le rapport décappage.
+     * Marque (ou démarque) un panneau comme décapé pour une campagne donnée.
+     * Endpoint AJAX appelé depuis le rapport décapage.
      *
      * Vérifications :
      *   - Le pivot doit exister (campaign × panel)
@@ -1181,9 +1181,9 @@ class RapportController extends Controller
      *   - L'utilisateur doit avoir le droit (admin ou superadmin)
      */
     /**
-     * GET endpoint léger : renvoie les KPI décappage frais en JSON.
+     * GET endpoint léger : renvoie les KPI décapage frais en JSON.
      * Appelé par le JS après chaque mark/unmark pour rafraîchir la
-     * bannière "PANNEAUX CONCERNÉS / DÉCAPPÉS / EN ATTENTE / EN RETARD"
+     * bannière "PANNEAUX CONCERNÉS / DÉCAPÉS / EN ATTENTE / EN RETARD"
      * sans recharger toute la page (qui ferait perdre l'état des
      * <details> ouverts et le scroll position).
      */
@@ -1202,8 +1202,8 @@ class RapportController extends Controller
 
     /**
      * GET /admin/rapports/decap/pdf
-     * Export PDF "Feuille de décappage" pour les techs terrain.
-     * Liste UNIQUEMENT les panneaux non encore décappés (pending),
+     * Export PDF "Feuille de décapage" pour les techs terrain.
+     * Liste UNIQUEMENT les panneaux non encore décapés (pending),
      * groupés par campagne, avec réf, nom, commune, adresse, GPS et
      * une case à cocher pour pointer sur place au crayon.
      *
@@ -1239,7 +1239,7 @@ class RapportController extends Controller
         foreach ($campaigns as $c) {
             $daysOverdue = (int) $c->end_date->diffInDays(now(), false);
             foreach ($c->panels as $p) {
-                if ($p->decapped_at !== null) continue; // skip déjà décappés
+                if ($p->decapped_at !== null) continue; // skip déjà décapés
                 $full = $panelsFull->get($p->id);
                 $communeName = $full?->commune?->name ?? $p->commune?->name ?? 'Sans commune';
                 $communeCity = $full?->commune?->city ?? null;
@@ -1312,7 +1312,7 @@ class RapportController extends Controller
             $ok = $kpi->unmarkDecapped($request->campaign_id, $request->panel_id);
             return response()->json([
                 'ok'      => $ok,
-                'message' => $ok ? 'Décappage annulé.' : "Aucune ligne à mettre à jour.",
+                'message' => $ok ? 'Décapage annulé.' : "Aucune ligne à mettre à jour.",
             ]);
         }
 
@@ -1329,14 +1329,14 @@ class RapportController extends Controller
 
         return response()->json([
             'ok'      => $ok,
-            'message' => $ok ? 'Panneau marqué comme décappé.' : "Aucune ligne à mettre à jour.",
+            'message' => $ok ? 'Panneau marqué comme décapé.' : "Aucune ligne à mettre à jour.",
             'at'      => now()->format('d/m/Y H:i'),
             'by'      => $request->user()->name,
         ]);
     }
 
     /**
-     * Bulk action — marque tous les panneaux d'une campagne comme décappés.
+     * Bulk action — marque tous les panneaux d'une campagne comme décapés.
      */
     public function markAllDecapped(Request $request, DashboardKpiService $kpi)
     {
@@ -1358,13 +1358,13 @@ class RapportController extends Controller
         return response()->json([
             'ok'      => $count > 0,
             'count'   => $count,
-            'message' => $count > 0 ? "{$count} panneaux marqués décappés." : "Aucun panneau à décapper.",
+            'message' => $count > 0 ? "{$count} panneaux marqués décapés." : "Aucun panneau à décaper.",
         ]);
     }
 
     /**
      * Notifie le client par email SI tous les panneaux de la campagne sont
-     * désormais décappés (transition vers 100%). Évite les doublons : on
+     * désormais décapés (transition vers 100%). Évite les doublons : on
      * vérifie l'absence d'un PublicLink 'decap' existant pour cette campagne.
      */
     protected function notifyClientIfCampaignFullyDecapped(int $campaignId): void
@@ -1412,7 +1412,7 @@ class RapportController extends Controller
     /**
      * Export Excel multi-feuilles du dashboard analytique (COMMIT D).
      * Une feuille par module : synthèse, panneaux, clients, campagnes,
-     * communes, décappages, CA mensuel, prévisions.
+     * communes, décapages, CA mensuel, prévisions.
      */
     public function exportExcel(Request $request, DashboardKpiService $kpi, \App\Services\RapportFilterContextService $filterCtx)
     {

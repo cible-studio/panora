@@ -438,7 +438,7 @@ Route::prefix('admin')
             Route::get('map',              [PoseController::class, 'map'])            ->name('map');
             Route::get('map-data',         [PoseController::class, 'mapData'])        ->name('map.data');
             // Route 'sla' (admin.pose-tasks.sla) retirée le 2026-06-17 —
-            // contenu redondant avec Performance commerciale + Décappages + SLA & Retards.
+            // contenu redondant avec Performance commerciale + Décapages + SLA & Retards.
             // Calendrier hebdomadaire par technicien (planning visuel)
             Route::get('calendar',         [PoseController::class, 'calendar'])       ->name('calendar');
             // Suggestion intelligente d'un tech (zone + charge + perf)
@@ -1272,7 +1272,7 @@ Route::prefix('admin')
 
         // ── Rapports business ──
         // Politique RBAC :
-        //   • Index + AJAX + drilldown client + actions décappage + sa propre
+        //   • Index + AJAX + drilldown client + actions décapage + sa propre
         //     vue campagnes → ouvert au commercial (filtré sur son périmètre
         //     via DashboardKpiService scoping + RapportController::scopeUserCampaigns).
         //   • Taxes, exports complets, drilldown communes globales, drilldown
@@ -1285,7 +1285,7 @@ Route::prefix('admin')
             ->whereNumber('client')->name('rapports.clients.detail');
         Route::get('/rapports/campagnes', [RapportController::class, 'campagnes'])->name('rapports.campagnes');
 
-        // Actions / endpoints décappage (déjà scopés commercial — cf.
+        // Actions / endpoints décapage (déjà scopés commercial — cf.
         // DashboardKpiService::decapStats et decapList).
         Route::post('/rapports/decap/mark',     [RapportController::class, 'markDecapped'])
             ->name('rapports.decap.mark');
@@ -1293,8 +1293,8 @@ Route::prefix('admin')
             ->name('rapports.decap.markAll');
         Route::get('/rapports/decap/summary',   [RapportController::class, 'decapSummary'])
             ->name('rapports.decap.summary');
-        // 2026-06-19 — Feuille de décappage PDF imprimable pour les techs
-        // terrain. Liste les panneaux NON ENCORE décappés avec adresse + GPS.
+        // 2026-06-19 — Feuille de décapage PDF imprimable pour les techs
+        // terrain. Liste les panneaux NON ENCORE décapés avec adresse + GPS.
         Route::get('/rapports/decap/pdf',       [RapportController::class, 'decapPdf'])
             ->name('rapports.decap.pdf');
 

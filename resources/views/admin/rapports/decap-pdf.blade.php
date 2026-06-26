@@ -1,4 +1,4 @@
-{{-- 2026-06-22 — Feuille de décappage PDF pour les techs terrain.
+{{-- 2026-06-22 — Feuille de décapage PDF pour les techs terrain.
      Refonte v2 : groupage par COMMUNE (tournée géographique), logo CIBLE,
      police 11px+ pour lisibilité terrain, footer fixe avec pagination,
      pas d'emoji Unicode (DomPDF + DejaVu ne supporte pas tout).
@@ -16,7 +16,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Feuille de décappage — {{ $totals['generated_at']->format('d/m/Y') }}</title>
+<title>Feuille de décapage — {{ $totals['generated_at']->format('d/m/Y') }}</title>
 <style>
     /* Marges : 12mm haut/bas, 10mm latéraux. 18mm bas réservés au footer. */
     @page { size: A4 portrait; margin: 12mm 10mm 18mm 10mm; }
@@ -162,7 +162,7 @@
         </div>
     @endif
     <div class="title-cell">
-        <h1>FEUILLE DE DÉCAPPAGE</h1>
+        <h1>FEUILLE DE DÉCAPAGE</h1>
         <div class="subtitle">
             @if($overdueOnly)
                 Panneaux en retard ({{ $totals['overdue'] }} campagne{{ $totals['overdue'] > 1 ? 's' : '' }} &gt; 7 jours)
@@ -308,7 +308,7 @@
 
 {{-- ──────────────────────────── FOOTER FIXE ──────────────────────────── --}}
 <div class="footer">
-    <span class="left">{{ $operatorName ?? 'CIBLE CI' }} — Feuille de décappage</span>
+    <span class="left">{{ $operatorName ?? 'CIBLE CI' }} — Feuille de décapage</span>
     <span class="right">Page <span class="pagenum"></span></span>
     <span class="center">Panora · généré le {{ $totals['generated_at']->format('d/m/Y \à H\hi') }}</span>
 </div>

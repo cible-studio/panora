@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  *   - Facture à consulter sans compte
  *   - Pige photo validée
  *   - Confirmation de réservation
- *   - Récap décappage
+ *   - Récap décapage
  *
  * Sécurité : token 256 bits + expiration + révocation + audit + throttle.
  * Voir migration 2026_05_21_120000_create_public_links_table.

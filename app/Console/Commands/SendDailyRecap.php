@@ -59,7 +59,7 @@ class SendDailyRecap extends Command
             "✅ {$posesDone} pose(s) réalisée(s) aujourd'hui",
             "📸 {$pigesUploaded} pige(s) uploadée(s) aujourd'hui",
             "⏳ {$pigesPending} pige(s) en attente de validation",
-            "⚠️ {$decapOverdue} décappage(s) en retard (> 7j)",
+            "⚠️ {$decapOverdue} décapage(s) en retard (> 7j)",
         ];
 
         $hasIssue = $pigesPending > 5 || $decapOverdue > 0;
