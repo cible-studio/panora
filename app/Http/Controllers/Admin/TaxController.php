@@ -763,7 +763,10 @@ class TaxController extends Controller
                 $assignmentsByPanel = \DB::table('campaign_panels')
                     ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
                     ->whereIn('campaign_panels.panel_id', $allPanelIds)
-                    ->where('campaigns.status', \App\Enums\CampaignStatus::ACTIF->value)
+                    // FIX 2026-06-26 — Aligné avec TaxCalculationService : inclure
+                    // 'termine' pour que la fiche commune et le dashboard taxes
+                    // affichent le même montant que /admin/taxes/details.
+                    ->whereIn('campaigns.status', [\App\Enums\CampaignStatus::ACTIF->value, \App\Enums\CampaignStatus::TERMINE->value])
                     ->whereNull('campaigns.deleted_at')
                     ->where('campaigns.start_date', '<=', $periodEnd->toDateString())
                     ->where('campaigns.end_date',   '>=', $periodStart->toDateString())

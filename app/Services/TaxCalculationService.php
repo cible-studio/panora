@@ -194,7 +194,12 @@ class TaxCalculationService
             ->leftJoin('clients', 'clients.id', '=', 'campaigns.client_id')
             ->where('campaign_panels.type', 'interne')
             ->whereIn('campaign_panels.panel_id', $panelIds)
-            ->where('campaigns.status', CampaignStatus::ACTIF->value)
+            // FIX 2026-06-26 — Avant : seul 'actif' était pris en compte → les
+            // campagnes TERMINEES (ex. AXA 01/02→28/02 statut "Terminée")
+            // n'apparaissaient plus dans le détail TM des trimestres passés.
+            // Or la TM est due pour toute occupation effective des panneaux,
+            // qu'elle soit en cours ou archivée. On inclut donc 'termine'.
+            ->whereIn('campaigns.status', [CampaignStatus::ACTIF->value, CampaignStatus::TERMINE->value])
             ->where('campaigns.start_date', '<=', $periodEnd->toDateString())
             ->where('campaigns.end_date',   '>=', $periodStart->toDateString())
             ->whereNull('campaigns.deleted_at')
@@ -465,7 +470,10 @@ class TaxCalculationService
             $aCampagne = \DB::table('campaign_panels')
                 ->join('campaigns', 'campaigns.id', '=', 'campaign_panels.campaign_id')
                 ->where('campaign_panels.panel_id', $panel->id)
-                ->where('campaigns.status', CampaignStatus::ACTIF->value)
+                // FIX 2026-06-26 — Inclut 'termine' (cf. buildCampaignAssignmentMap).
+                // L'occupation passée des panneaux génère une TM même si la
+                // campagne est désormais archivée.
+                ->whereIn('campaigns.status', [CampaignStatus::ACTIF->value, CampaignStatus::TERMINE->value])
                 ->whereNull('campaigns.deleted_at')
                 ->where('campaigns.start_date', '<=', $moisFinC->toDateString())
                 ->where('campaigns.end_date',   '>=', $current->toDateString())
