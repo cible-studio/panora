@@ -477,25 +477,12 @@ class Campaign extends Model
      */
     public function durationHuman(): string
     {
-        $start = $this->start_date->copy()->startOfDay();
-        $end   = $this->end_date->copy()->startOfDay();
-        $diff  = $start->diff($end); // DateInterval
-
-        $months = (int) $diff->m + ((int) $diff->y * 12);
-        $days   = (int) $diff->d;
-        $totalDays = $this->durationInDays();
-
-        // Moins d'un mois calendaire → exprimé en jours
-        if ($months === 0) {
-            return $totalDays . ' jour' . ($totalDays > 1 ? 's' : '');
-        }
-
-        // Mois pile (jour de fin == jour de début dans le mois suivant)
-        if ($days === 0) {
-            return $months . ' mois';
-        }
-
-        return $months . ' mois ' . $days . ' j';
+        // FIX 2026-06-26 — Délègue à durationLabel() qui utilise le moteur
+        // unique resolvePeriodBetween (RÈGLE PATRONNE v2). Avant : DateInterval
+        // calculait "01/06 → 31/08" comme "2 mois 30 j" alors que c'est
+        // 3 mois civils complets. Le moteur unique gère la grâce -1j +
+        // tolérance +1j → renvoie correctement "3 mois".
+        return $this->durationLabel();
     }
 
     // ── Helpers progression (mémoïsés) ────────────────────────────
