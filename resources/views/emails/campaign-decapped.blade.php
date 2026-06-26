@@ -1,12 +1,12 @@
 @php
     $operator  = config('app.operator_name', env('OPERATOR_NAME', 'CIBLE CI'));
-    $title     = "Décappage terminé — {$campaign->name}";
+    $title     = "Décapage terminé — {$campaign->name}";
     $preheader = "Votre campagne « {$campaign->name} » est officiellement terminée — {$decappedCount} panneau(x) retiré(s).";
 @endphp
 
 <x-mail.layout :title="$title" :preheader="$preheader">
 
-    <span class="pill pill-success">✅ Campagne décappée</span>
+    <span class="pill pill-success">✅ Campagne décapée</span>
 
     <h1>Votre campagne est terminée</h1>
 
@@ -31,7 +31,7 @@
             </div>
         </div>
         <div class="info-row">
-            <div class="lbl">Panneaux décappés</div>
+            <div class="lbl">Panneaux décapés</div>
             <div class="val"><strong>{{ $decappedCount }}</strong></div>
         </div>
     </div>

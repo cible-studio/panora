@@ -28,7 +28,7 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
  *   3. Clients (top CA + inactifs)
  *   4. Campagnes (motifs annulation)
  *   5. Communes (parc + CA)
- *   6. Décappages (statut par campagne)
+ *   6. Décapages (statut par campagne)
  *   7. CA par mois (12 mois glissants)
  *   8. Prévisions (régression linéaire 3 mois)
  *
@@ -154,7 +154,7 @@ class RapportSheetSynthese extends RapportSheetBase
             ['Clients inactifs > 12 mois', $inactivity['12_plus'], 'risque churn élevé'],
             ['', '', ''],
             ['Panneaux à décaper', $decapStats['total'], '90 derniers jours'],
-            ['  → Décappés', $decapStats['decapped'], $decapStats['rate'] . '% complétés'],
+            ['  → Décapés', $decapStats['decapped'], $decapStats['rate'] . '% complétés'],
             ['  → En attente', $decapStats['pending'], ''],
             ['  → En retard (>7j)', $decapStats['overdue'], ''],
         ]);
@@ -244,13 +244,13 @@ class RapportSheetCommunes extends RapportSheetBase
     }
 }
 
-/** Feuille 6 — Décappages */
+/** Feuille 6 — Décapages */
 class RapportSheetDecappages extends RapportSheetBase
 {
-    public function title(): string { return 'Décappages'; }
+    public function title(): string { return 'Décapages'; }
     public function headings(): array
     {
-        return ['Campagne', 'Client', 'Fin', 'Panneaux', 'Décappés', 'En attente', 'Progression %', 'Statut'];
+        return ['Campagne', 'Client', 'Fin', 'Panneaux', 'Décapés', 'En attente', 'Progression %', 'Statut'];
     }
     public function collection()
     {

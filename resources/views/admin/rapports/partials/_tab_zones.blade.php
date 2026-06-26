@@ -91,7 +91,7 @@
     </div>
 
     {{-- Bloc 'Panneaux à décaper — 30 prochains jours' retiré du tab Zones
-         le 2026-06-17 (user : doit rester dans l'onglet Décappages uniquement
+         le 2026-06-17 (user : doit rester dans l'onglet Décapages uniquement
          pour éviter la duplication). KPI card 'À décaper (30j)' en haut +
-         tab Décappages ($decapList, $upcomingEndings) couvrent le besoin. --}}
+         tab Décapages ($decapList, $upcomingEndings) couvrent le besoin. --}}
 </div>

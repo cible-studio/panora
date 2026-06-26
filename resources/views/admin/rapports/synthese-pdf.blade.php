@@ -80,7 +80,7 @@
             <div class="kpi-sub">Inactifs > 6 mois</div>
         </div>
         <div class="kpi color-dec">
-            <div class="kpi-label">Décappages en retard</div>
+            <div class="kpi-label">Décapages en retard</div>
             <div class="kpi-value">{{ $decapStats['overdue'] }}</div>
             <div class="kpi-sub">Sur {{ $decapStats['total'] }} concernés</div>
         </div>
