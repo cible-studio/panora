@@ -834,7 +834,12 @@
             bottom: 0;
             background: rgba(0,0,0,0.7);
             backdrop-filter: blur(4px);
-            z-index: 1000;
+            /* Hotfix 2026-06-22 : z-index 10500 pour rester au-dessus des
+               widgets Select2 de la page (Rechercher un client, Rechercher
+               un commercial) qui sont à 10000 dans app.css. Sans ça, les
+               selects débordaient par-dessus l'overlay du modal. Aligné
+               sur le pattern de _quick_team_modal.blade.php. */
+            z-index: 10500;
             display: flex;
             align-items: center;
             justify-content: center;
