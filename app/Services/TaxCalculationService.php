@@ -147,6 +147,11 @@ class TaxCalculationService
                     'client_id'      => $assignment['client_id']      ?? null,
                     'campaign_name'  => $assignment['campaign_name']  ?? null,
                     'campaign_id'    => $assignment['campaign_id']    ?? null,
+                    // FIX 2026-06-26 — Vraies dates de campagne (null pour les
+                    // lignes ODP sans campagne). Affichées dans la colonne
+                    // "Période campagne" du détail / PDF / Excel.
+                    'campaign_start' => $assignment['campaign_start'] ?? null,
+                    'campaign_end'   => $assignment['campaign_end']   ?? null,
                     'period_start'   => $periodStart,
                     'period_end'     => $periodEnd,
                     'months'         => $months,
@@ -223,10 +228,14 @@ class TaxCalculationService
             // Premier match = plus récent (orderByDesc), on garde celui-là.
             if (!isset($map[$r->panel_id])) {
                 $map[$r->panel_id] = [
-                    'campaign_id'   => (int) $r->campaign_id,
-                    'campaign_name' => $r->campaign_name,
-                    'client_id'     => $r->client_id ? (int) $r->client_id : null,
-                    'client_name'   => $r->client_name,
+                    'campaign_id'    => (int) $r->campaign_id,
+                    'campaign_name'  => $r->campaign_name,
+                    // FIX 2026-06-26 — vraies dates de la campagne (pas le filtre).
+                    // Affichées dans la colonne "Période campagne" du détail.
+                    'campaign_start' => $r->start_date ? Carbon::parse($r->start_date) : null,
+                    'campaign_end'   => $r->end_date   ? Carbon::parse($r->end_date)   : null,
+                    'client_id'      => $r->client_id ? (int) $r->client_id : null,
+                    'client_name'    => $r->client_name,
                 ];
             }
         }

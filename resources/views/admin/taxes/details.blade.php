@@ -281,8 +281,11 @@
                             @endif
                         </td>
                         <td style="font-size:11px;color:var(--text2);">
-                            @if($row['campaign_id'])
-                                {{ $row['period_start']->format('d/m/Y') }} → {{ $row['period_end']->format('d/m/Y') }}
+                            {{-- FIX 2026-06-26 — Affiche les VRAIES dates de la
+                                 campagne (campaign_start/end), pas la période du
+                                 filtre. Pour les lignes ODP sans campagne, vide. --}}
+                            @if($row['campaign_id'] && !empty($row['campaign_start']) && !empty($row['campaign_end']))
+                                {{ $row['campaign_start']->format('d/m/Y') }} → {{ $row['campaign_end']->format('d/m/Y') }}
                             @endif
                         </td>
                         <td style="text-align:right;font-size:12px;color:var(--text2);">
