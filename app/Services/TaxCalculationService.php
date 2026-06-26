@@ -123,15 +123,38 @@ class TaxCalculationService
                 // Les tarifs ODP/TM stockés dans communes.odp_rate / tm_rate
                 // sont en réalité MENSUELS (FCFA/m²/MOIS), pas annuels.
                 // Convention officielle CIBLE CI documentée dans le seeder
-                // CommuneTaxRatesSeeder (image "NOUVEAUX TARIFS DE L'ODP/m² EN 2025").
-                //
-                // Le précédent "fix TX-1" supposait à tort des tarifs annuels et
-                // divisait par 12 — donc tous les montants étaient 12× trop bas.
-                // Exemple Plateau 246 m² (15 000 FCFA/m²/mois) :
-                //   - mensuel  : 246 × 15 000 × 1  = 3 690 000 FCFA ✓
-                //   - trim     : 246 × 15 000 × 3  = 11 070 000 FCFA ✓
-                //   - annuel   : 246 × 15 000 × 12 = 44 280 000 FCFA ✓
-                $amount = round($unitRate * $surface * $months, 2);
+                // CommuneTaxRatesSeeder.
+
+                // FIX TX-7 (2026-06-26, validé par patronne) — Mois facturables
+                // PAR LIGNE (pas durée du filtre).
+                // Avant : on multipliait par $months (durée du filtre : 1 / 3 / 12)
+                // pour TOUTES les lignes → campagne d'1 mois sur T1 facturée × 3.
+                // Maintenant :
+                //   - TM  : nb de mois calendaires où la campagne occupait
+                //           le panneau dans la période filtre (intersection
+                //           [campagne, période]).
+                //   - ODP : nb de mois calendaires d'existence du panneau dans
+                //           la période (created_at / deleted_at pris en compte).
+                // Aligné avec calculTMCommune / calculODPCommune qui faisaient
+                // déjà ce prorata par panneau — la vue détail ne le faisait pas
+                // → totaux dashboard et détail désormais cohérents.
+                if ($type === self::TYPE_TM
+                    && !empty($assignment['campaign_start'])
+                    && !empty($assignment['campaign_end'])) {
+                    $debutInter = $periodStart->copy()->max($assignment['campaign_start']);
+                    $finInter   = $periodEnd->copy()->min($assignment['campaign_end']);
+                    $lineMonths = $finInter->lessThan($debutInter)
+                        ? 0
+                        : $this->compteMoisCalendaires($debutInter, $finInter);
+                } elseif ($type === self::TYPE_ODP) {
+                    $lineMonths = $this->moisExistencePanneau($panel, $periodStart, $periodEnd);
+                } else {
+                    // Garde-fou : si TM sans dates campagne connues (rare).
+                    $lineMonths = $months;
+                }
+
+                if ($lineMonths === 0) continue;
+                $amount = round($unitRate * $surface * $lineMonths, 2);
 
                 $lines->push([
                     'commune'        => $commune->name,
@@ -154,7 +177,7 @@ class TaxCalculationService
                     'campaign_end'   => $assignment['campaign_end']   ?? null,
                     'period_start'   => $periodStart,
                     'period_end'     => $periodEnd,
-                    'months'         => $months,
+                    'months'         => $lineMonths,
                     'rate'           => $unitRate,
                     'amount'         => $amount,
                 ]);
