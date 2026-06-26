@@ -112,10 +112,10 @@ window.__RPT__ = {
     //               EBITDA, synthèse exécutive direction, exports).
     // MP          : vue PRODUCTION / opérationnelle. Parc, performance
     //               panneaux, géo, clients, taxes, motifs annulation,
-    //               décappages. PAS de CA global ni d'insights stratégiques
+    //               décapages. PAS de CA global ni d'insights stratégiques
     //               (réservés à la direction).
     // Commercial  : vue PERSONNELLE filtrée à ses campagnes. Périodes,
-    //               ses campagnes, SON CA, ses décappages.
+    //               ses campagnes, SON CA, ses décapages.
     // NB : re-resolution locale du role (cf. note sur le scope @php).
     $tabRole = auth()->user()?->role?->value;
 
@@ -128,7 +128,7 @@ window.__RPT__ = {
         ['id'=>'ca',        'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>','label'=>'CA & Revenus'],
         ['id'=>'zones',     'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>','label'=>'Zones & Communes'],
         ['id'=>'clients',   'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>','label'=>'Clients'],
-        ['id'=>'decap',     'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>','label'=>'Décappages'],
+        ['id'=>'decap',     'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>','label'=>'Décapages'],
         ['id'=>'insights',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11h.01M15 11h.01M18 21l-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3l-3 3z"/></svg>','label'=>'Insights & Alertes'],
         // 'SLA & Retards' retiré (2026-06-17) — page dédiée /admin/sla/retards
         // accessible via sidebar 'SLA & Retards'.
@@ -163,7 +163,7 @@ window.__RPT__ = {
         <span style="display:flex;align-items:center;gap:6px">
             {!! $o['icon'] !!} {{ $o['label'] }}
             @if($o['id'] === 'decap' && ($decapStats['overdue'] ?? 0) > 0)
-                <span title="Décappages en retard"
+                <span title="Décapages en retard"
                       style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#dc2626;color:#fff;font-size:10px;font-weight:800;line-height:1;animation:rpt-pulse 1.6s ease-in-out infinite">{{ $decapStats['overdue'] }}</span>
             @endif
         </span>
@@ -451,7 +451,7 @@ window.__RPT__ = {
 @endif {{-- panel-panneaux --}}
 
 {{-- ══════════════════════════════════════════════════════════════
-     ONGLET — DÉCAPPAGES (commercial OK : scopé via decapStats + decapList)
+     ONGLET — DÉCAPAGES (commercial OK : scopé via decapStats + decapList)
 ══════════════════════════════════════════════════════════════ --}}
 @if(in_array('decap', $allowedTabIds, true))
 @include('admin.rapports.partials._tab_decappages')
@@ -1724,7 +1724,7 @@ window.PanelDrilldown = (function () {
 })();
 
 // ══════════════════════════════
-// DECAP — module marquage décappage (COMMIT C)
+// DECAP — module marquage décapage (COMMIT C)
 //
 // Refactor : avant on faisait `location.reload()` après chaque action
 // → la page se rechargeait depuis le haut, le <details> ouvert se
@@ -1804,7 +1804,7 @@ window.Decap = (function () {
         if (statusCell) {
             if (done) {
                 const when = at || 'à l\'instant';
-                statusCell.innerHTML = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(34,197,94,.12);color:#16a34a">✓ Décappé le ${when}</span>`;
+                statusCell.innerHTML = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(34,197,94,.12);color:#16a34a">✓ Décapé le ${when}</span>`;
             } else {
                 statusCell.innerHTML = `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(245,158,11,.12);color:#d97706">En attente</span>`;
             }
@@ -1813,7 +1813,7 @@ window.Decap = (function () {
             if (done) {
                 actionCell.innerHTML = `<button type="button" onclick="Decap.unmark(${campaignId}, ${panelId})" style="font-size:10px;font-weight:600;padding:4px 10px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);border-radius:6px;cursor:pointer">Annuler</button>`;
             } else {
-                actionCell.innerHTML = `<button type="button" onclick="Decap.mark(${campaignId}, ${panelId})" style="font-size:10px;font-weight:700;padding:4px 10px;border:none;background:#22c55e;color:#fff;border-radius:6px;cursor:pointer">✓ Marquer décappé</button>`;
+                actionCell.innerHTML = `<button type="button" onclick="Decap.mark(${campaignId}, ${panelId})" style="font-size:10px;font-weight:700;padding:4px 10px;border:none;background:#22c55e;color:#fff;border-radius:6px;cursor:pointer">✓ Marquer décapé</button>`;
             }
         }
     }
@@ -1853,7 +1853,7 @@ window.Decap = (function () {
             const bulkWrap = bulkBtn.closest('div');
             if (pending > 1) {
                 if (bulkWrap) bulkWrap.style.display = '';
-                bulkBtn.textContent = `✓✓ Marquer tous décappés (${pending})`;
+                bulkBtn.textContent = `✓✓ Marquer tous décapés (${pending})`;
             } else {
                 if (bulkWrap) bulkWrap.style.display = 'none';
             }
@@ -1904,28 +1904,28 @@ window.Decap = (function () {
                 applyRowState(campaignId, panelId, true, res.at, res.by);
                 refreshCampaignSummary(campaignId);
                 refreshGlobalKpis();
-                toast('✓ Panneau marqué décappé');
+                toast('✓ Panneau marqué décapé');
             } catch (e) {
                 console.error(e);
                 toast('Erreur réseau.', 'error');
             }
         },
         async unmark(campaignId, panelId) {
-            if (!confirm('Annuler le décappage de ce panneau ?')) return;
+            if (!confirm('Annuler le décapage de ce panneau ?')) return;
             try {
                 const res = await postUpdate(campaignId, panelId, 'unmark');
                 if (!res.ok) { toast(res.message || 'Erreur.', 'error'); return; }
                 applyRowState(campaignId, panelId, false);
                 refreshCampaignSummary(campaignId);
                 refreshGlobalKpis();
-                toast('Décappage annulé');
+                toast('Décapage annulé');
             } catch (e) {
                 console.error(e);
                 toast('Erreur réseau.', 'error');
             }
         },
         async markAll(campaignId) {
-            if (!confirm('Marquer TOUS les panneaux de cette campagne comme décappés ?')) return;
+            if (!confirm('Marquer TOUS les panneaux de cette campagne comme décapés ?')) return;
             try {
                 const res = await postBulk(campaignId);
                 if (!res.ok) { toast(res.message || 'Erreur.', 'error'); return; }
@@ -1939,7 +1939,7 @@ window.Decap = (function () {
                 });
                 refreshCampaignSummary(campaignId);
                 refreshGlobalKpis();
-                toast('✓ ' + res.count + ' panneaux décappés');
+                toast('✓ ' + res.count + ' panneaux décapés');
             } catch (e) {
                 console.error(e);
                 toast('Erreur réseau.', 'error');

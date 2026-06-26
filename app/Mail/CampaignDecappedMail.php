@@ -11,7 +11,7 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Notifie le client que tous les panneaux de sa campagne ont été décappés
+ * Notifie le client que tous les panneaux de sa campagne ont été décapés
  * (campagne terminée + visuel retiré du terrain).
  */
 class CampaignDecappedMail extends Mailable
@@ -27,7 +27,7 @@ class CampaignDecappedMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "✅ Campagne {$this->campaign->name} — décappage terminé",
+            subject: "✅ Campagne {$this->campaign->name} — décapage terminé",
         );
     }
 

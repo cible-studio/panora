@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\DB;
  *   2. Performance panneaux — top loués / sous-performants
  *   3. Clients — top CA / inactifs (3/6/12 mois)
  *   4. Campagnes — statuts / motifs d'annulation
- *   5. Décappages — campagnes terminées à décaper
+ *   5. Décapages — campagnes terminées à décaper
  *   6. Taxes — délégation à TaxReportService (déjà optimisé)
  *   7. Financier — CA global / mensuel / par commune
  *   8. Insights — détection auto d'anomalies + recommandations
@@ -1229,19 +1229,19 @@ class DashboardKpiService
     }
 
     // ══════════════════════════════════════════════════════════════
-    // MODULE 5 — DÉCAPPAGES (campagnes terminées à décaper)
+    // MODULE 5 — DÉCAPAGES (campagnes terminées à décaper)
     // ══════════════════════════════════════════════════════════════
 
     /**
      * Liste les campagnes dont la date de fin est passée mais qui ont
      * encore des panneaux à décaper. Trié par urgence (date de fin asc).
      *
-     * Depuis COMMIT C, on track le statut décappage panneau par panneau
+     * Depuis COMMIT C, on track le statut décapage panneau par panneau
      * via la colonne `decapped_at` sur le pivot `campaign_panels`.
      * Pour chaque campagne, on calcule :
-     *   - decapped_count    : panneaux marqués comme décappés
+     *   - decapped_count    : panneaux marqués comme décapés
      *   - pending_count     : panneaux encore en attente
-     *   - is_overdue        : > 7 jours après end_date sans décappage complet
+     *   - is_overdue        : > 7 jours après end_date sans décapage complet
      */
     public function decapList(int $limit = 50): Collection
     {
@@ -1276,7 +1276,7 @@ class DashboardKpiService
 
             $campaigns = $q->limit($limit)->get();
 
-            // Chargement du statut décappage en une seule query
+            // Chargement du statut décapage en une seule query
             $campaignIds = $campaigns->pluck('id');
             $decapStatus = DB::table('campaign_panels')
                 ->whereIn('campaign_id', $campaignIds)
@@ -1290,7 +1290,7 @@ class DashboardKpiService
                 $decapped = $statuses->filter(fn($s) => $s->decapped_at !== null)->count();
                 $total    = $campaign->panels->count();
 
-                // Enrichit chaque panneau avec son statut de décappage
+                // Enrichit chaque panneau avec son statut de décapage
                 $campaign->panels->each(function ($p) use ($byPanel) {
                     $row = $byPanel->get($p->id);
                     $p->decapped_at = $row?->decapped_at;
@@ -1314,7 +1314,7 @@ class DashboardKpiService
     }
 
     /**
-     * Marque un panneau comme décappé pour une campagne donnée.
+     * Marque un panneau comme décapé pour une campagne donnée.
      * Met à jour decapped_at, decapped_by_user_id, decap_notes sur le
      * pivot campaign_panels. Invalide les caches associés.
      *
@@ -1334,8 +1334,8 @@ class DashboardKpiService
 
         if ($affected > 0) {
             // ⚠ Purger TOUS les caches dérivés du pivot decapped_at — sinon
-            // la bannière du haut (PANNEAUX CONCERNÉS / DÉCAPPÉS / EN ATTENTE
-            // / EN RETARD) et la pastille onglet "Décappages" restent
+            // la bannière du haut (PANNEAUX CONCERNÉS / DÉCAPÉS / EN ATTENTE
+            // / EN RETARD) et la pastille onglet "Décapages" restent
             // bloquées sur les vieux compteurs après reload.
             // Avant : seuls decap.v2.* étaient purgés → bug "le décompte
             // ne diminue pas" rapporté.
@@ -1348,7 +1348,7 @@ class DashboardKpiService
     }
 
     /**
-     * Marque TOUS les panneaux d'une campagne comme décappés en une seule
+     * Marque TOUS les panneaux d'une campagne comme décapés en une seule
      * opération (bulk action). Retourne le nombre de pivots affectés.
      */
     public function markAllDecapped(int $campaignId, int $userId, ?string $notes = null): int
@@ -1372,7 +1372,7 @@ class DashboardKpiService
     }
 
     /**
-     * Annule le décappage d'un panneau (en cas d'erreur de saisie).
+     * Annule le décapage d'un panneau (en cas d'erreur de saisie).
      */
     public function unmarkDecapped(int $campaignId, int $panelId): bool
     {
@@ -1398,7 +1398,7 @@ class DashboardKpiService
     }
 
     /**
-     * Synthèse globale du décappage : combien faits / en attente / en retard.
+     * Synthèse globale du décapage : combien faits / en attente / en retard.
      *
      * ⚠ Cohérence avec decapList() :
      *   - même fenêtre temporelle (60 jours) — avant 90j ici / 60j ailleurs
@@ -1468,7 +1468,7 @@ class DashboardKpiService
 
     /**
      * Campagnes qui se terminent bientôt (J+14) — opportunité de planifier
-     * le décappage à l'avance.
+     * le décapage à l'avance.
      */
     public function upcomingEndings(int $daysAhead = 14): Collection
     {
@@ -1935,7 +1935,7 @@ class DashboardKpiService
             // Risques majeurs
             $risks = collect();
             if ($decapStats['overdue'] > 0) {
-                $risks->push("⚠️ {$decapStats['overdue']} décappage(s) en retard — risque amende municipale + plainte client");
+                $risks->push("⚠️ {$decapStats['overdue']} décapage(s) en retard — risque amende municipale + plainte client");
             }
             if ($patterns['trend_direction'] === 'up' && abs($patterns['trend_pct']) > 15) {
                 $risks->push("📉 Annulations en hausse de {$patterns['trend_pct']}% — revue commerciale urgente");
@@ -1967,7 +1967,7 @@ class DashboardKpiService
             // Actions prioritaires (top 3)
             $actions = collect();
             if ($decapStats['overdue'] > 0) {
-                $actions->push(['priority' => 'high', 'action' => "Planifier décappages en retard (J+7)"]);
+                $actions->push(['priority' => 'high', 'action' => "Planifier décapages en retard (J+7)"]);
             }
             if ($patterns['dominant_reason'] && $patterns['dominant_reason']['pct'] >= 30) {
                 $code = $patterns['dominant_reason']['code'];
@@ -2081,7 +2081,7 @@ class DashboardKpiService
             ]);
         }
 
-        // ── Campagnes en retard de décappage ──────────────────────
+        // ── Campagnes en retard de décapage ──────────────────────
         $decap = $this->decapList(99999);
         $overdue = $decap->filter(fn($c) => $c->end_date->diffInDays(now(), false) > 7);
         if ($overdue->count() > 0) {
@@ -2089,8 +2089,8 @@ class DashboardKpiService
                 'severity' => 'warning',
                 'icon'     => '🟠',
                 'title'    => "{$overdue->count()} campagne(s) terminée(s) depuis plus de 7 jours",
-                'message'  => 'Vérifiez que les panneaux ont bien été décappés — risque d\'affichage périmé sur le terrain.',
-                'cta_label'=> 'Voir décappages',
+                'message'  => 'Vérifiez que les panneaux ont bien été décapés — risque d\'affichage périmé sur le terrain.',
+                'cta_label'=> 'Voir décapages',
                 // 2026-06-18 (fix lien cassé) : ID réel = panel-decap →
                 // RPT.switchTab('decap').
                 'cta_tab'  => 'decap',
@@ -2104,7 +2104,7 @@ class DashboardKpiService
                 'severity' => 'info',
                 'icon'     => '📅',
                 'title'    => "{$upcoming->count()} campagne(s) se termine(nt) dans les 7 jours",
-                'message'  => 'Planifiez les décappages et anticipez les relances clients pour renouvellement.',
+                'message'  => 'Planifiez les décapages et anticipez les relances clients pour renouvellement.',
             ]);
         }
 

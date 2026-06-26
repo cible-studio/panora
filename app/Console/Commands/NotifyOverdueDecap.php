@@ -7,7 +7,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Détecte les campagnes terminées avec des panneaux toujours non décappés
+ * Détecte les campagnes terminées avec des panneaux toujours non décapés
  * depuis plus de 7 jours et alerte l'admin + l'équipe terrain par email.
  *
  * Idempotent via le dedupKey AdminAlertNotifier (30 min de cooldown).
@@ -17,14 +17,14 @@ use Illuminate\Support\Facades\DB;
 class NotifyOverdueDecap extends Command
 {
     protected $signature = 'decap:notify-overdue {--days=7 : Seuil de retard en jours}';
-    protected $description = 'Alerte par email les décappages en retard > N jours';
+    protected $description = 'Alerte par email les décapages en retard > N jours';
 
     public function handle(): int
     {
         $days = (int) $this->option('days');
         $threshold = now()->subDays($days);
 
-        // Agrégation : campagnes terminées avec panneaux non décappés > $days
+        // Agrégation : campagnes terminées avec panneaux non décapés > $days
         $rows = DB::table('campaigns as c')
             ->join('campaign_panels as cp', 'cp.campaign_id', '=', 'c.id')
             ->join('panels as p', 'p.id', '=', 'cp.panel_id')
@@ -46,7 +46,7 @@ class NotifyOverdueDecap extends Command
             ->get();
 
         if ($rows->isEmpty()) {
-            $this->info('Aucun retard de décappage > '. $days .'j.');
+            $this->info('Aucun retard de décapage > '. $days .'j.');
             return self::SUCCESS;
         }
 
@@ -62,10 +62,10 @@ class NotifyOverdueDecap extends Command
         AdminAlertNotifier::notify(
             to: ['admin', 'mediaplanner'],
             severity: 'danger',
-            title: "{$totalPending} panneau(x) en retard de décappage (> {$days}j)",
-            summary: "Risque amende municipale + plainte client. Planifiez les tournées de décappage en urgence.",
+            title: "{$totalPending} panneau(x) en retard de décapage (> {$days}j)",
+            summary: "Risque amende municipale + plainte client. Planifiez les tournées de décapage en urgence.",
             lines: array_slice($lines, 0, 12),
-            ctaLabel: 'Ouvrir le rapport décappages →',
+            ctaLabel: 'Ouvrir le rapport décapages →',
             ctaUrl: url('/admin/rapports#tab-decap'),
             emoji: '⚠️',
             footer: 'Détection automatique quotidienne',

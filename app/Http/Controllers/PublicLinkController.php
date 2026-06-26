@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Log;
  *   invoice       → view factures publiques
  *   pige          → view pige photo client
  *   reservation   → view réservation confirmée
- *   decap         → view récap décappage
+ *   decap         → view récap décapage
  */
 class PublicLinkController extends Controller
 {

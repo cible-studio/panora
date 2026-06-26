@@ -1,6 +1,6 @@
 <div id="panel-decap" class="rpt-panel" style="display:none">
 
-    {{-- ⚠ BANDEAU CRITIQUE : campagnes expirées non décappées.
+    {{-- ⚠ BANDEAU CRITIQUE : campagnes expirées non décapées.
          Toujours rendu mais hidden via data-decap-overdue-banner pour que
          le JS puisse le réafficher en cas d'unmark sans reload de page. --}}
     <div data-decap-overdue-banner
@@ -9,9 +9,9 @@
         <div style="font-size:32px;line-height:1;animation:rpt-pulse 1.6s ease-in-out infinite;width:44px;height:44px;border-radius:50%;background:rgba(220,38,38,.15);display:flex;align-items:center;justify-content:center">⚠️</div>
         <div style="flex:1">
             <div style="font-size:14px;font-weight:800;color:#dc2626;margin-bottom:3px">
-                <span data-decap-overdue-banner-count>{{ $decapStats['overdue'] }}</span> panneau(x) en retard de décappage
+                <span data-decap-overdue-banner-count>{{ $decapStats['overdue'] }}</span> panneau(x) en retard de décapage
             </div>
-            <div style="font-size:12px;color:var(--text2);line-height:1.5">Campagne(s) terminée(s) depuis plus de <strong>7 jours</strong> avec affichage non retiré sur le terrain. Risque d'amende municipale et de plainte client. Planifiez les tournées de décappage en priorité.</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.5">Campagne(s) terminée(s) depuis plus de <strong>7 jours</strong> avec affichage non retiré sur le terrain. Risque d'amende municipale et de plainte client. Planifiez les tournées de décapage en priorité.</div>
         </div>
         <a href="#" onclick="event.preventDefault();document.getElementById('decap-overdue-list')?.scrollIntoView({behavior:'smooth',block:'start'});"
            style="padding:8px 14px;background:#dc2626;color:#fff;border-radius:8px;text-decoration:none;font-size:11px;font-weight:700;white-space:nowrap">
@@ -19,7 +19,7 @@
         </a>
     </div>
 
-    {{-- Bandeau stats décappage (COMMIT C) — data-kpi=* permet la MAJ live
+    {{-- Bandeau stats décapage (COMMIT C) — data-kpi=* permet la MAJ live
          après mark/unmark sans recharger toute la page. --}}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
         <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:12px;padding:14px">
@@ -28,7 +28,7 @@
             <div style="font-size:10px;color:var(--text3);margin-top:2px">90 derniers jours</div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid #22c55e;border-radius:12px;padding:14px">
-            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Décappés</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Décapés</div>
             <div data-decap-kpi="decapped" style="font-size:24px;font-weight:800;color:#16a34a;margin-top:4px">{{ number_format($decapStats['decapped']) }}</div>
             <div style="font-size:10px;color:#16a34a;margin-top:2px;font-weight:600"><span data-decap-kpi="rate">{{ $decapStats['rate'] }}</span>% complétés</div>
         </div>
@@ -40,7 +40,7 @@
         <div data-decap-kpi-overdue-card style="background:var(--surface);border:1px solid {{ $decapStats['overdue'] > 0 ? 'rgba(220,38,38,.4)' : 'var(--border)' }};border-left:3px solid #dc2626;border-radius:12px;padding:14px">
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">En retard</div>
             <div data-decap-kpi="overdue" style="font-size:24px;font-weight:800;color:#dc2626;margin-top:4px">{{ number_format($decapStats['overdue']) }}</div>
-            <div data-decap-kpi-overdue-sub style="font-size:10px;color:{{ $decapStats['overdue'] > 0 ? '#dc2626' : 'var(--text3)' }};margin-top:2px;font-weight:600">> 7j sans décappage</div>
+            <div data-decap-kpi-overdue-sub style="font-size:10px;color:{{ $decapStats['overdue'] > 0 ? '#dc2626' : 'var(--text3)' }};margin-top:2px;font-weight:600">> 7j sans décapage</div>
         </div>
     </div>
 
@@ -51,7 +51,7 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><polyline points="9 11 12 14 22 4"/></svg>
                 Campagnes terminées — à décaper ({{ $decapList->count() }})
             </div>
-            {{-- 2026-06-19 — Export PDF "Feuille de décappage" pour les techs.
+            {{-- 2026-06-19 — Export PDF "Feuille de décapage" pour les techs.
                  Bouton split : "Toutes" ouvre toutes les campagnes terminées,
                  "Retards uniquement" filtre sur > 7j (gain de papier sur le
                  terrain quand seules les urgentes comptent). --}}
@@ -67,7 +67,7 @@
                         <a href="{{ route('admin.rapports.decap.pdf', ['overdue' => 1]) }}"
                            target="_blank"
                            style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;background:#dc2626;color:#fff;border-radius:8px;text-decoration:none;font-size:11.5px;font-weight:700"
-                           title="PDF des panneaux en retard de décappage uniquement (> 7j)">
+                           title="PDF des panneaux en retard de décapage uniquement (> 7j)">
                             ⚠ Retards uniquement
                         </a>
                     @endif
@@ -111,7 +111,7 @@
                                 <div style="height:4px;width:80px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:4px">
                                     <div data-decap-bar style="height:100%;width:{{ $c->decap_progress }}%;background:{{ $isComplete ? '#22c55e' : ($isOverdue ? '#dc2626' : '#f59e0b') }}"></div>
                                 </div>
-                                <div style="font-size:10px;color:var(--text3);margin-top:2px"><span data-decap-pct>{{ $c->decap_progress }}</span>% décappés</div>
+                                <div style="font-size:10px;color:var(--text3);margin-top:2px"><span data-decap-pct>{{ $c->decap_progress }}</span>% décapés</div>
                             </div>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" style="flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
                         </summary>
@@ -120,7 +120,7 @@
                                 <div style="display:flex;justify-content:flex-end;padding:10px 0 2px">
                                     <button type="button" onclick="Decap.markAll({{ $c->id }})"
                                             style="font-size:10.5px;font-weight:700;padding:6px 14px;border:1px solid #22c55e;background:rgba(34,197,94,.1);color:#16a34a;border-radius:6px;cursor:pointer">
-                                        ✓✓ Marquer tous décappés ({{ $c->pending_count }})
+                                        ✓✓ Marquer tous décapés ({{ $c->pending_count }})
                                     </button>
                                 </div>
                             @endif
@@ -147,7 +147,7 @@
                                             <td style="padding:8px;color:var(--text2)">{{ $p->commune?->name ?? '—' }}</td>
                                             <td style="padding:8px" data-decap-status-cell>
                                                 @if($isDone)
-                                                    <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(34,197,94,.12);color:#16a34a">✓ Décappé le {{ \Carbon\Carbon::parse($p->decapped_at)->format('d/m H:i') }}</span>
+                                                    <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(34,197,94,.12);color:#16a34a">✓ Décapé le {{ \Carbon\Carbon::parse($p->decapped_at)->format('d/m H:i') }}</span>
                                                 @else
                                                     <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(245,158,11,.12);color:#d97706">En attente</span>
                                                 @endif
@@ -161,7 +161,7 @@
                                                 @else
                                                     <button type="button" onclick="Decap.mark({{ $c->id }}, {{ $p->id }})"
                                                             style="font-size:10px;font-weight:700;padding:4px 10px;border:none;background:#22c55e;color:#fff;border-radius:6px;cursor:pointer">
-                                                        ✓ Marquer décappé
+                                                        ✓ Marquer décapé
                                                     </button>
                                                 @endif
                                             </td>

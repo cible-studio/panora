@@ -1,10 +1,10 @@
 @extends('public.layout')
-@section('title', 'Décappage — '. $campaign->name)
+@section('title', 'Décapage — '. $campaign->name)
 @section('content')
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
         <h1>Campagne « {{ $campaign->name }} »</h1>
-        <span class="badge badge-green">✅ DÉCAPPÉE</span>
+        <span class="badge badge-green">✅ DÉCAPÉE</span>
     </div>
     <p class="muted">{{ $campaign->client?->name ?? '' }}
         @if($campaign->end_date) · Terminée le {{ \Carbon\Carbon::parse($campaign->end_date)->format('d/m/Y') }}@endif
@@ -20,7 +20,7 @@
 
     <div class="kpi-row">
         <div class="kpi">
-            <div class="kpi-label">Panneaux décappés</div>
+            <div class="kpi-label">Panneaux décapés</div>
             <div class="kpi-value" style="color:var(--green)">{{ $decappedPanels }}/{{ $totalPanels }}</div>
         </div>
         <div class="kpi">
@@ -36,7 +36,7 @@
     <h2>Panneaux et statut</h2>
     <table>
         <thead>
-            <tr><th>Référence</th><th>Commune</th><th>Décappé</th></tr>
+            <tr><th>Référence</th><th>Commune</th><th>Décapé</th></tr>
         </thead>
         <tbody>
             @forelse($campaign->panels ?? [] as $panel)
