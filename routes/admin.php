@@ -757,6 +757,25 @@ Route::prefix('admin')
         Route::post('clients/import',         [ClientController::class, 'import'])
             ->middleware('role:admin,commercial,mediaplanner')
             ->name('clients.import');
+        // Outil d'urgence (2026-06-26) — vider tous les caches en prod.
+        // Utile quand un déploiement passe (commit présent sur le serveur)
+        // mais que les fichiers PHP modifiés restent en cache OPcache.
+        // Appel direct : GET /admin/system/clear-cache (admin uniquement).
+        Route::get('system/clear-cache', function () {
+            $msgs = [];
+            \Artisan::call('view:clear');   $msgs[] = 'Vues compilées';
+            \Artisan::call('cache:clear');  $msgs[] = 'Cache app';
+            \Artisan::call('config:clear'); $msgs[] = 'Config';
+            \Artisan::call('route:clear');  $msgs[] = 'Routes';
+            if (function_exists('opcache_reset') && opcache_reset()) {
+                $msgs[] = 'OPcache ✓';
+            } else {
+                $msgs[] = 'OPcache indisponible';
+            }
+            return redirect()->route('admin.dashboard')
+                ->with('success', 'Caches vidés : ' . implode(' · ', $msgs));
+        })->middleware('role:admin')->name('system.clear-cache');
+
         // Outil one-shot — corriger les clients "PERSONNE / ENTREPRISE"
         Route::get('clients/fix-import-names',  [ClientController::class, 'fixImportNamesPreview'])
             ->middleware('role:admin')
