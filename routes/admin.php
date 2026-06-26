@@ -434,6 +434,11 @@ Route::prefix('admin')
             Route::get('progress',         [PoseController::class, 'progress'])       ->name('progress');
             // Actions groupées (sélection multiple)
             Route::post('bulk-update',     [PoseController::class, 'bulkUpdate'])     ->name('bulk-update');
+            // (2026-06-26) Écran "Poses oubliées" — liste les poses non finalisées
+            // dont la date prévue est dépassée, avec bulk "Marquer réalisées".
+            // Utile quand le MP a oublié de saisir des poses faites sur le terrain.
+            Route::get('oubliees',                [PoseController::class, 'oubliees'])             ->name('oubliees');
+            Route::post('bulk-complete-oubliees', [PoseController::class, 'bulkCompleteOubliees']) ->name('bulk-complete-oubliees');
             // Carte GPS des poses (markers colorés par statut)
             Route::get('map',              [PoseController::class, 'map'])            ->name('map');
             Route::get('map-data',         [PoseController::class, 'mapData'])        ->name('map.data');

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 
 use App\Models\Campaign;
+use App\Models\Client;
 use App\Models\Panel;
 use App\Models\Pige;
 use App\Models\PoseTask;
@@ -782,6 +783,97 @@ class PoseController extends Controller
         }
  
         return back()->with('success', $msg);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // POSES OUBLIÉES (2026-06-26)
+    // Liste les poses non finalisées dont la date prévue est dépassée —
+    // typiquement les poses faites sur le terrain mais que le MP a oublié
+    // de marquer "réalisées" sur la plateforme. Permet le rattrapage en
+    // lot avec date personnalisée (date réelle de réalisation).
+    // ══════════════════════════════════════════════════════════════
+    public function oubliees(Request $request)
+    {
+        $notDone = [
+            PoseTaskStatus::PLANNED->value,
+            PoseTaskStatus::EN_ROUTE->value,
+            PoseTaskStatus::IN_PROGRESS->value,
+        ];
+
+        $q = PoseTask::query()
+            ->with([
+                'panel:id,reference,commune_id',
+                'panel.commune:id,name',
+                'campaign:id,name,client_id',
+                'campaign.client:id,name',
+                'technicien:id,name',
+            ])
+            ->whereIn('status', $notDone)
+            ->where('scheduled_at', '<', now());
+
+        if ($request->filled('user_id')) {
+            $q->where('assigned_user_id', $request->user_id);
+        }
+        if ($request->filled('client_id')) {
+            $q->whereHas('campaign', fn($qq) => $qq->where('client_id', $request->client_id));
+        }
+        if ($request->filled('month')) {
+            try {
+                $m = \Carbon\Carbon::parse($request->month . '-01');
+                $q->whereYear('scheduled_at', $m->year)->whereMonth('scheduled_at', $m->month);
+            } catch (\Throwable $e) { /* filtre invalide → ignoré */ }
+        }
+
+        $tasks = $q->orderBy('scheduled_at', 'asc')->paginate(50)->withQueryString();
+
+        // Compteur global (avant filtres) pour le KPI du bandeau d'alerte.
+        $totalOubliees = PoseTask::whereIn('status', $notDone)
+            ->where('scheduled_at', '<', now())
+            ->count();
+
+        // Techniciens présents dans la sélection — pour le filtre déroulant.
+        $userIds = PoseTask::whereIn('status', $notDone)
+            ->where('scheduled_at', '<', now())
+            ->whereNotNull('assigned_user_id')
+            ->distinct()->pluck('assigned_user_id');
+        $users = User::whereIn('id', $userIds)->orderBy('name')->get(['id', 'name']);
+
+        $clients = Client::orderBy('name')->get(['id', 'name']);
+
+        return view('admin.poses.oubliees', compact('tasks', 'users', 'clients', 'totalOubliees'));
+    }
+
+    /**
+     * Rattrapage en lot : marque N poses "Réalisée" avec une date personnalisée
+     * (date à laquelle la pose a été effectivement faite sur le terrain — donc
+     * potentiellement dans le passé). On contourne PoseService::complete() qui
+     * forcerait done_at = now() et enverrait des alertes — non souhaitable pour
+     * une régularisation rétroactive.
+     */
+    public function bulkCompleteOubliees(Request $request)
+    {
+        $data = $request->validate([
+            'task_ids'   => 'required|array|min:1',
+            'task_ids.*' => 'integer|exists:pose_tasks,id',
+            'done_at'    => 'required|date|before_or_equal:today',
+        ]);
+
+        $doneAt = \Carbon\Carbon::parse($data['done_at'])->endOfDay();
+        $alreadyDone = [
+            PoseTaskStatus::COMPLETED->value,
+            PoseTaskStatus::CANCELLED->value,
+        ];
+
+        $count = PoseTask::whereIn('id', $data['task_ids'])
+            ->whereNotIn('status', $alreadyDone)
+            ->update([
+                'status'  => PoseTaskStatus::COMPLETED->value,
+                'done_at' => $doneAt,
+            ]);
+
+        return redirect()
+            ->route('admin.pose-tasks.oubliees', $request->only(['user_id', 'client_id', 'month']))
+            ->with('success', "✅ $count pose(s) marquée(s) réalisée(s) au " . $doneAt->format('d/m/Y') . '.');
     }
 
     // ══════════════════════════════════════════════════════════════
