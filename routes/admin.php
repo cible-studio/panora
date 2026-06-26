@@ -1044,6 +1044,13 @@ Route::prefix('admin')
         Route::get('reservations/{reservation}/status-snapshot', [ReservationController::class, 'statusSnapshot'])
             ->name('reservations.status-snapshot');
 
+        // Raccourci "Créer la facture" depuis la fiche réservation
+        // (2026-06-26) — aiguille vers /admin/invoices/create avec campaign_id
+        // et client_id préremplis. Voir ReservationController::createInvoice().
+        Route::get('reservations/{reservation}/create-invoice', [ReservationController::class, 'createInvoice'])
+            ->whereNumber('reservation')
+            ->name('reservations.create-invoice');
+
         // Lecture résa (index + show) reste ouverte aux 3 rôles staff.
         // Update/destroy ne sont pas exposés par la resource (sauf via verbes
         // dédiés ci-dessous), donc pas besoin de scinder ici.
