@@ -1419,6 +1419,27 @@
                     const lastDay = new Date(targetYear, actualMonth + 1, 0).getDate();
                     return new Date(targetYear, actualMonth, Math.min(day, lastDay));
                 }
+                // Hotfix 2026-06-22 : transforme un nombre de mois fractionnel
+                // (ex: 1.9666666666666668) en libellé humain ("1 mois 29 jours",
+                // "2 mois", "29 jours"). Approximation 1 mois = 30 jours,
+                // suffisante pour l'aperçu UI — le calcul exact reste dans
+                // _months() qui pilote le total FCFA.
+                function _humanMonths(months) {
+                    if (!isFinite(months) || months <= 0) return '';
+                    // Très proche d'un entier (< 1.5 jour d'écart) → arrondi entier.
+                    if (Math.abs(months - Math.round(months)) * 30 < 1.5) {
+                        const n = Math.round(months);
+                        return n + (n > 1 ? ' mois' : ' mois');
+                    }
+                    const moisEntier = Math.floor(months);
+                    let jours = Math.round((months - moisEntier) * 30);
+                    let mois = moisEntier;
+                    if (jours >= 30) { mois += 1; jours = 0; }
+                    if (mois === 0) return jours + ' jour' + (jours > 1 ? 's' : '');
+                    if (jours === 0) return mois + ' mois';
+                    return mois + ' mois ' + jours + ' jour' + (jours > 1 ? 's' : '');
+                }
+
                 function _months(startStr, endStr) {
                     const start = new Date(startStr + 'T00:00:00');
                     const end   = new Date(endStr   + 'T00:00:00');
@@ -1916,7 +1937,9 @@
                             monthsEl.textContent = '(montant personnalisé)';
                         } else {
                             totalEl.textContent = Math.round(total).toLocaleString('fr-FR');
-                            monthsEl.textContent = `(${months} mois)`;
+                            // Hotfix 2026-06-22 : format humain ("1 mois 29 jours")
+                            // au lieu de "(1.9666666666666668 mois)".
+                            monthsEl.textContent = `(${_humanMonths(months)})`;
                         }
 
                         const amountInput = document.getElementById('modal-amount');
