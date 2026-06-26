@@ -41,6 +41,7 @@ class TaxCalculationService
     public const PERIOD_MONTHLY    = 'mensuel';
     public const PERIOD_QUARTERLY  = 'trimestriel';
     public const PERIOD_ANNUAL     = 'annuel';
+    public const PERIOD_CUSTOM     = 'personnalise';
 
     /**
      * Produit la liste détaillée des lignes de taxes pour une période
@@ -57,9 +58,9 @@ class TaxCalculationService
      *       surface, type, statut, client_name, client_id, campaign_name,
      *       campaign_id, period_start, period_end, months, rate, amount}
      */
-    public function generateLines(string $periodType, int $periodValue, int $year, array $filters = []): Collection
+    public function generateLines(string $periodType, int $periodValue, int $year, array $filters = [], ?int $periodEndValue = null): Collection
     {
-        [$periodStart, $periodEnd, $months] = $this->resolvePeriod($periodType, $periodValue, $year);
+        [$periodStart, $periodEnd, $months] = $this->resolvePeriod($periodType, $periodValue, $year, $periodEndValue);
 
         // Pré-charge toutes les communes (pour leur historique tarifaire)
         // — peu nombreuses (~30) donc OK en mémoire.
@@ -231,7 +232,7 @@ class TaxCalculationService
      * Bornes d'une période + nombre de mois pour la formule.
      * @return array{0:Carbon, 1:Carbon, 2:int}
      */
-    public function resolvePeriod(string $periodType, int $periodValue, int $year): array
+    public function resolvePeriod(string $periodType, int $periodValue, int $year, ?int $periodEndValue = null): array
     {
         // Hotfix TX-2 v2 (2026-06-22) : assertion bornes EXPLICITE en
         // tête de méthode. Avant : un periodValue=0 en trimestriel
@@ -242,6 +243,13 @@ class TaxCalculationService
         }
         if ($periodType === self::PERIOD_QUARTERLY && ($periodValue < 1 || $periodValue > 4)) {
             throw new \InvalidArgumentException("Trimestre invalide : $periodValue (attendu 1..4).");
+        }
+        // FIX 2026-06-26 — Mode personnalisé : mois début ($periodValue) → mois fin ($periodEndValue).
+        if ($periodType === self::PERIOD_CUSTOM) {
+            if ($periodValue < 1 || $periodValue > 12 || $periodEndValue === null
+                || $periodEndValue < $periodValue || $periodEndValue > 12) {
+                throw new \InvalidArgumentException("Période personnalisée invalide : $periodValue → $periodEndValue (attendu 1..12 avec fin ≥ début).");
+            }
         }
         return match ($periodType) {
             self::PERIOD_MONTHLY => [
@@ -258,6 +266,11 @@ class TaxCalculationService
                 Carbon::create($year, 1, 1)->startOfDay(),
                 Carbon::create($year, 12, 31)->endOfDay(),
                 12,
+            ],
+            self::PERIOD_CUSTOM => [
+                Carbon::create($year, $periodValue, 1)->startOfDay(),
+                Carbon::create($year, $periodEndValue, 1)->endOfMonth(),
+                $periodEndValue - $periodValue + 1,
             ],
             default => throw new \InvalidArgumentException("Périodicité inconnue : $periodType"),
         };

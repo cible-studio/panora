@@ -9,7 +9,13 @@
         <span class="badge badge-blue">{{ $lines->count() }} ligne(s)</span>
         @if($lines->isNotEmpty())
             @php
-                $exportParams = array_merge(['year' => $year, 'period_type' => $periodType, 'period_value' => $periodValue], $filters);
+                // FIX 2026-06-26 — Propage period_end_value pour le mode personnalisé,
+                // sinon les exports PDF/Excel retombent sur 1 mois au lieu de la plage saisie.
+                $exportParams = array_merge(
+                    ['year' => $year, 'period_type' => $periodType, 'period_value' => $periodValue],
+                    $periodType === 'personnalise' ? ['period_end_value' => $periodEndValue ?? $periodValue] : [],
+                    $filters
+                );
             @endphp
             <a href="{{ route('admin.taxes.details.excel', $exportParams) }}"
                class="btn btn-ghost btn-sm">📊 Excel</a>
@@ -40,16 +46,22 @@
                 <div class="filter-group">
                     <label class="filter-label">Périodicité</label>
                     <select name="period_type" class="filter-select" onchange="this.form.submit()">
-                        <option value="mensuel"     {{ $periodType === 'mensuel'     ? 'selected' : '' }}>Mensuel</option>
-                        <option value="trimestriel" {{ $periodType === 'trimestriel' ? 'selected' : '' }}>Trimestriel</option>
-                        <option value="annuel"      {{ $periodType === 'annuel'      ? 'selected' : '' }}>Annuel</option>
+                        <option value="mensuel"      {{ $periodType === 'mensuel'      ? 'selected' : '' }}>Mensuel</option>
+                        <option value="trimestriel"  {{ $periodType === 'trimestriel'  ? 'selected' : '' }}>Trimestriel</option>
+                        <option value="annuel"       {{ $periodType === 'annuel'       ? 'selected' : '' }}>Annuel</option>
+                        {{-- FIX 2026-06-26 — Période personnalisée (mois début → mois fin) --}}
+                        <option value="personnalise" {{ $periodType === 'personnalise' ? 'selected' : '' }}>Personnalisée</option>
                     </select>
                 </div>
                 @if($periodType !== 'annuel')
                 <div class="filter-group">
-                    <label class="filter-label">{{ $periodType === 'mensuel' ? 'Mois' : 'Trimestre' }}</label>
+                    <label class="filter-label">
+                        @if($periodType === 'mensuel') Mois
+                        @elseif($periodType === 'trimestriel') Trimestre
+                        @else Mois début @endif
+                    </label>
                     <select name="period_value" class="filter-select" onchange="this.form.submit()">
-                        @if($periodType === 'mensuel')
+                        @if($periodType === 'mensuel' || $periodType === 'personnalise')
                             @foreach(range(1,12) as $m)
                                 <option value="{{ $m }}" {{ $periodValue === $m ? 'selected' : '' }}>
                                     {{ \Carbon\Carbon::create()->month($m)->translatedFormat('F') }}
@@ -60,6 +72,21 @@
                                 <option value="{{ $q }}" {{ $periodValue === $q ? 'selected' : '' }}>T{{ $q }}</option>
                             @endforeach
                         @endif
+                    </select>
+                </div>
+                @endif
+                {{-- FIX 2026-06-26 — 2e sélecteur "Mois fin" visible uniquement en mode personnalisé --}}
+                @if($periodType === 'personnalise')
+                <div class="filter-group">
+                    <label class="filter-label">Mois fin</label>
+                    <select name="period_end_value" class="filter-select" onchange="this.form.submit()">
+                        @foreach(range(1,12) as $m)
+                            <option value="{{ $m }}"
+                                    {{ ($periodEndValue ?? $periodValue) === $m ? 'selected' : '' }}
+                                    {{ $m < $periodValue ? 'disabled' : '' }}>
+                                {{ \Carbon\Carbon::create()->month($m)->translatedFormat('F') }}
+                            </option>
+                        @endforeach
                     </select>
                 </div>
                 @endif

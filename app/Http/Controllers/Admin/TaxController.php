@@ -104,6 +104,10 @@ class TaxController extends Controller
         if ($periodType === TaxCalculationService::PERIOD_ANNUAL) {
             return 0; // annuel ne prend pas de valeur
         }
+        // FIX 2026-06-26 — Mode personnalisé : clamp mois début 1..12.
+        if ($periodType === TaxCalculationService::PERIOD_CUSTOM) {
+            return ($periodValue < 1 || $periodValue > 12) ? 1 : $periodValue;
+        }
         return $periodValue;
     }
 
@@ -112,6 +116,13 @@ class TaxController extends Controller
         $year         = (int) ($request->input('year', date('Y')));
         $periodType   = $request->input('period_type', TaxCalculationService::PERIOD_MONTHLY);
         $periodValue  = $this->normalizePeriodValue($periodType, (int) ($request->input('period_value', date('n'))));
+        // FIX 2026-06-26 — Mode personnalisé : mois fin (1..12, ≥ début).
+        $periodEndValue = null;
+        if ($periodType === TaxCalculationService::PERIOD_CUSTOM) {
+            $periodEndValue = (int) $request->input('period_end_value', $periodValue);
+            if ($periodEndValue < $periodValue) $periodEndValue = $periodValue;
+            if ($periodEndValue > 12)           $periodEndValue = 12;
+        }
 
         $filters = array_filter([
             'commune_id'  => $request->input('commune_id') ?: null,
@@ -120,7 +131,7 @@ class TaxController extends Controller
             'type'        => $request->input('type')        ?: null,
         ]);
 
-        $lines  = $calc->generateLines($periodType, $periodValue, $year, $filters);
+        $lines  = $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue);
         $totals = $calc->summarize($lines);
 
         // Tri stable pour la lecture : commune > panneau > type.
@@ -165,7 +176,7 @@ class TaxController extends Controller
         );
 
         return view('admin.taxes.details', compact(
-            'lines', 'totals', 'year', 'periodType', 'periodValue',
+            'lines', 'totals', 'year', 'periodType', 'periodValue', 'periodEndValue',
             'communes', 'clients', 'campaigns', 'anneesDispos', 'filters',
             'paginator', 'perPage'
         ));
@@ -182,6 +193,10 @@ class TaxController extends Controller
         $periodType   = $request->input('period_type', TaxCalculationService::PERIOD_MONTHLY);
         // FIX 2026-06-22 — normalise period_value (cf. details() pour le détail).
         $periodValue  = $this->normalizePeriodValue($periodType, (int) ($request->input('period_value', date('n'))));
+        // FIX 2026-06-26 — Mode personnalisé : propage mois fin.
+        $periodEndValue = $periodType === TaxCalculationService::PERIOD_CUSTOM
+            ? min(12, max($periodValue, (int) $request->input('period_end_value', $periodValue)))
+            : null;
 
         $filters = array_filter([
             'commune_id'  => $request->input('commune_id') ?: null,
@@ -190,7 +205,7 @@ class TaxController extends Controller
             'type'        => $request->input('type')        ?: null,
         ]);
 
-        $lines  = $calc->generateLines($periodType, $periodValue, $year, $filters);
+        $lines  = $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue);
         $totals = $calc->summarize($lines);
         $lines  = $lines->sortBy([['commune', 'asc'], ['reference', 'asc'], ['type', 'asc']])->values();
 
@@ -200,6 +215,11 @@ class TaxController extends Controller
                 \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F') . ' ' . $year,
             TaxCalculationService::PERIOD_QUARTERLY => "T{$periodValue} {$year}",
             TaxCalculationService::PERIOD_ANNUAL    => "Année {$year}",
+            TaxCalculationService::PERIOD_CUSTOM    =>
+                \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F')
+                . ' → '
+                . \Carbon\Carbon::create()->month($periodEndValue ?? $periodValue)->translatedFormat('F')
+                . ' ' . $year,
             default => $year,
         };
 
@@ -241,6 +261,10 @@ class TaxController extends Controller
         $periodType   = $request->input('period_type', TaxCalculationService::PERIOD_MONTHLY);
         // FIX 2026-06-22 — normalise period_value (cf. details() pour le détail).
         $periodValue  = $this->normalizePeriodValue($periodType, (int) ($request->input('period_value', date('n'))));
+        // FIX 2026-06-26 — Mode personnalisé : propage mois fin.
+        $periodEndValue = $periodType === TaxCalculationService::PERIOD_CUSTOM
+            ? min(12, max($periodValue, (int) $request->input('period_end_value', $periodValue)))
+            : null;
 
         $filters = array_filter([
             'commune_id'  => $request->input('commune_id') ?: null,
@@ -249,7 +273,7 @@ class TaxController extends Controller
             'type'        => $request->input('type')        ?: null,
         ]);
 
-        $lines = $calc->generateLines($periodType, $periodValue, $year, $filters)
+        $lines = $calc->generateLines($periodType, $periodValue, $year, $filters, $periodEndValue)
             ->sortBy([['commune', 'asc'], ['reference', 'asc'], ['type', 'asc']])
             ->values();
 
@@ -258,6 +282,11 @@ class TaxController extends Controller
                 \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F') . ' ' . $year,
             TaxCalculationService::PERIOD_QUARTERLY => "T{$periodValue} {$year}",
             TaxCalculationService::PERIOD_ANNUAL    => "Année {$year}",
+            TaxCalculationService::PERIOD_CUSTOM    =>
+                \Carbon\Carbon::create()->month($periodValue)->translatedFormat('F')
+                . ' → '
+                . \Carbon\Carbon::create()->month($periodEndValue ?? $periodValue)->translatedFormat('F')
+                . ' ' . $year,
             default => (string) $year,
         };
 

@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <title>Détail Taxes — {{ $periodLabel }}</title>
     <style>
+        /* FIX 2026-06-26 — Marges de page A4 paysage + centrage tableau.
+           Avant : pas de @page → le tableau collait aux bords physiques de la
+           page (effet "tableau désaligné"). Maintenant : marges 10mm uniformes
+           + width:100% du tableau → bien centré dans la zone imprimable. */
+        @page { size: A4 landscape; margin: 10mm 10mm 12mm 10mm; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'DejaVu Sans', sans-serif; font-size:9px; color:#1a1a2e; }
 
