@@ -834,16 +834,21 @@
             bottom: 0;
             background: rgba(0,0,0,0.7);
             backdrop-filter: blur(4px);
-            /* Hotfix 2026-06-22 : z-index 10500 pour rester au-dessus des
-               widgets Select2 de la page (Rechercher un client, Rechercher
-               un commercial) qui sont à 10000 dans app.css. Sans ça, les
-               selects débordaient par-dessus l'overlay du modal. Aligné
-               sur le pattern de _quick_team_modal.blade.php. */
-            z-index: 10500;
+            /* Hotfix 2026-06-22 v2 : !important pour battre la règle
+               globale .modal-overlay {z-index:10010} d'app.css ET la
+               règle .select2-container {z-index:10000 !important} qui
+               faisait remonter les selects "Rechercher un client" et
+               "Rechercher un commercial" PAR-DESSUS l'overlay du modal
+               Facturation rapide. */
+            z-index: 10500 !important;
             display: flex;
             align-items: center;
             justify-content: center;
         }
+        /* Pendant qu'un modal est OUVERT, on neutralise le z-index
+           !important des Select2 de la page qui sinon perceraient
+           l'overlay. JS posé/retiré en open/close (body.modal-open). */
+        body.modal-open .select2-container { z-index: 1 !important; }
         .modal {
             background: var(--surface);
             border-radius: 20px;
@@ -982,12 +987,17 @@ function openBillingModal(id, name, totalAmount, currentStatus, currentAmount, p
     updateBillAmountFormatted();
     onBillStatusChange();
     document.getElementById('modal-billing').style.display = 'flex';
+    // Hotfix 2026-06-22 v2 : neutralise les Select2 de la page pendant
+    // l'ouverture du modal (filtres "Rechercher un client / commercial"
+    // qui passaient par-dessus l'overlay).
+    document.body.classList.add('modal-open');
 }
 
 function closeBillingModal() {
     document.getElementById('modal-billing').style.display = 'none';
     _billCampaignId = null;
     _billTotalCampaign = 0;
+    document.body.classList.remove('modal-open');
 }
 
 function onBillStatusChange() {
@@ -1118,9 +1128,11 @@ function openDeleteCampaign(id, name) {
     document.getElementById('del-campaign-name').textContent = name;
     document.getElementById('del-campaign-form').action = `/admin/campaigns/${id}`;
     document.getElementById('modal-delete-campaign').style.display = 'flex';
+    document.body.classList.add('modal-open');
 }
 function closeDeleteCampaign() {
     document.getElementById('modal-delete-campaign').style.display = 'none';
+    document.body.classList.remove('modal-open');
 }
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeDeleteCampaign();
