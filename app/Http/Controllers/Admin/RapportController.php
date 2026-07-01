@@ -1534,6 +1534,66 @@ class RapportController extends Controller
     }
 
     /**
+     * Export Excel — Onglet "Zones & Communes".
+     * Une ligne par commune : total, occupés, libres, maintenance, taux, CA.
+     */
+    public function exportZonesCommunesExcel(Request $request, DashboardKpiService $kpi, \App\Services\ZonesCommunesStatsService $zonesSvc)
+    {
+        $this->applyPeriodAndFilters($request, $kpi);
+        $period = $kpi->getPeriod();
+
+        $rows = $zonesSvc->build($period['from'], $period['to'], [
+            'commune_id'  => $request->input('filter_commune_id'),
+            'city'        => $request->input('filter_city'),
+            'category_id' => $request->input('filter_category_id'),
+            'zone'        => in_array($request->input('filter_zone'), ['abidjan', 'interieur'], true)
+                                ? $request->input('filter_zone') : null,
+        ]);
+        $summary = $zonesSvc->summary($rows);
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\ZonesCommunesExport($rows, $period['from'], $period['to'], $summary),
+            'zones-communes-' . now()->format('Ymd_His') . '.xlsx'
+        );
+    }
+
+    /**
+     * Export PDF — Onglet "Zones & Communes" (A4 paysage).
+     */
+    public function exportZonesCommunesPdf(
+        Request $request,
+        DashboardKpiService $kpi,
+        \App\Services\ZonesCommunesStatsService $zonesSvc,
+        \App\Services\RapportFilterContextService $filterCtx
+    ) {
+        $this->applyPeriodAndFilters($request, $kpi);
+        $period = $kpi->getPeriod();
+
+        $rows = $zonesSvc->build($period['from'], $period['to'], [
+            'commune_id'  => $request->input('filter_commune_id'),
+            'city'        => $request->input('filter_city'),
+            'category_id' => $request->input('filter_category_id'),
+            'zone'        => in_array($request->input('filter_zone'), ['abidjan', 'interieur'], true)
+                                ? $request->input('filter_zone') : null,
+        ]);
+        $summary = $zonesSvc->summary($rows);
+        $filterRecap = $filterCtx->build($request, $period['from'], $period['to']);
+        $zoneLabel = $this->zoneLabel($request->input('filter_zone'));
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.zones-communes-pdf', [
+            'rows'        => $rows,
+            'summary'     => $summary,
+            'from'        => $period['from'],
+            'to'          => $period['to'],
+            'zoneLabel'   => $zoneLabel,
+            'user'        => $request->user(),
+            'filterRecap' => $filterRecap,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download('zones-communes-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    /**
      * Export Excel — Onglet "Occupation détaillée".
      */
     public function exportOccupationDetailsExcel(Request $request, DashboardKpiService $kpi, \App\Services\OccupationDetailsService $occSvc)

@@ -1,5 +1,32 @@
 <div id="panel-panneaux" class="rpt-panel" style="display:none">
 
+    {{-- ── Bandeau exports dédiés (2026-07-01) ──────────────────
+         Réutilise les routes existantes panels-occupation-{excel,pdf}
+         qui retournent la liste complète des panneaux triés par jours
+         occupés desc, en respectant tous les filtres actifs (période,
+         zone, commune, ville, catégorie). --}}
+    <div style="background:linear-gradient(90deg,#fff7ed,#fef3c7);border:1px solid #fed7aa;border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:10px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>
+            <div>
+                <div style="font-size:12px;font-weight:800;color:#78350f">Exporter les panneaux les plus occupés</div>
+                <div style="font-size:10px;color:#92400e;margin-top:2px">Liste complète triée par jours occupés · respecte les filtres actifs</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="{{ route('admin.rapports.export.panels-occupation-excel', request()->query()) }}"
+               style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;text-transform:uppercase;letter-spacing:.5px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13l2 2 4-4"/></svg>
+                Excel
+            </a>
+            <a href="{{ route('admin.rapports.export.panels-occupation-pdf', request()->query()) }}"
+               style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;text-transform:uppercase;letter-spacing:.5px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                PDF
+            </a>
+        </div>
+    </div>
+
     {{-- Alertes performance panneaux (COMMIT E) --}}
     @if($panelAlerts->isNotEmpty())
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px">

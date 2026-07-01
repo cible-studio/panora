@@ -1,5 +1,31 @@
 <div id="panel-zones" class="rpt-panel" style="display:none">
 
+    {{-- ── Bandeau exports dédiés (2026-07-01) ──────────────────
+         Export du tableau par commune : total, occupés, libres, maint.,
+         taux, tarif moyen, CA. Respecte tous les filtres actifs (période,
+         zone, commune, ville, catégorie). --}}
+    <div style="background:linear-gradient(90deg,#eff6ff,#e0f2fe);border:1px solid #93c5fd;border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:10px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+            <div>
+                <div style="font-size:12px;font-weight:800;color:#1e3a8a">Exporter l'occupation par commune / ville</div>
+                <div style="font-size:10px;color:#1e40af;margin-top:2px">Total panneaux, occupés, libres, taux et CA par commune · respecte les filtres actifs</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="{{ route('admin.rapports.export.zones-communes-excel', request()->query()) }}"
+               style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;text-transform:uppercase;letter-spacing:.5px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13l2 2 4-4"/></svg>
+                Excel
+            </a>
+            <a href="{{ route('admin.rapports.export.zones-communes-pdf', request()->query()) }}"
+               style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;text-decoration:none;text-transform:uppercase;letter-spacing:.5px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                PDF
+            </a>
+        </div>
+    </div>
+
     {{-- Boutons mode --}}
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
         <button onclick="HM.setMode('taux')"  id="hm-btn-taux"
