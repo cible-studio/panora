@@ -1365,6 +1365,11 @@ Route::prefix('admin')
                 ->name('rapports.export.occupation-details-excel');
             Route::get('/rapports/export/occupation-details-pdf', [RapportController::class, 'exportOccupationDetailsPdf'])
                 ->name('rapports.export.occupation-details-pdf');
+            // 2026-07-01 — Onglet "Zones & Communes" (stats par commune : occupés, taux, CA)
+            Route::get('/rapports/export/zones-communes-excel', [RapportController::class, 'exportZonesCommunesExcel'])
+                ->name('rapports.export.zones-communes-excel');
+            Route::get('/rapports/export/zones-communes-pdf', [RapportController::class, 'exportZonesCommunesPdf'])
+                ->name('rapports.export.zones-communes-pdf');
         });
 
     });
