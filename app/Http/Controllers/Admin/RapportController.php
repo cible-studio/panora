@@ -1559,32 +1559,45 @@ class RapportController extends Controller
 
     /**
      * Export PDF — Onglet "Zones & Communes" (A4 paysage).
+     * Version détaillée : pour chaque commune, liste les panneaux occupés
+     * avec leurs campagnes et périodes (demande patronne 2026-07-01, pas un
+     * simple récap agrégé par commune).
      */
     public function exportZonesCommunesPdf(
         Request $request,
         DashboardKpiService $kpi,
         \App\Services\ZonesCommunesStatsService $zonesSvc,
+        \App\Services\OccupationDetailsService $occSvc,
         \App\Services\RapportFilterContextService $filterCtx
     ) {
         $this->applyPeriodAndFilters($request, $kpi);
         $period = $kpi->getPeriod();
 
-        $rows = $zonesSvc->build($period['from'], $period['to'], [
+        $filters = [
             'commune_id'  => $request->input('filter_commune_id'),
             'city'        => $request->input('filter_city'),
             'category_id' => $request->input('filter_category_id'),
             'zone'        => in_array($request->input('filter_zone'), ['abidjan', 'interieur'], true)
                                 ? $request->input('filter_zone') : null,
-        ]);
+        ];
+
+        // Stats agrégées par commune (entête de section)
+        $rows = $zonesSvc->build($period['from'], $period['to'], $filters);
         $summary = $zonesSvc->summary($rows);
+
+        // Détail panneau × campagne pour lister sous chaque commune
+        $details = $occSvc->build($period['from'], $period['to'], $filters);
+        $detailsByCommune = $details->groupBy('commune');
+
         $filterRecap = $filterCtx->build($request, $period['from'], $period['to']);
         $zoneLabel = $this->zoneLabel($request->input('filter_zone'));
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.zones-communes-pdf', [
-            'rows'        => $rows,
-            'summary'     => $summary,
-            'from'        => $period['from'],
-            'to'          => $period['to'],
+            'rows'             => $rows,
+            'summary'          => $summary,
+            'detailsByCommune' => $detailsByCommune,
+            'from'             => $period['from'],
+            'to'               => $period['to'],
             'zoneLabel'   => $zoneLabel,
             'user'        => $request->user(),
             'filterRecap' => $filterRecap,
