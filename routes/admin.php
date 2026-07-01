@@ -1350,22 +1350,35 @@ Route::prefix('admin')
         // réservées à la direction. Si MP a besoin d'un export terrain,
         // il passe par les exports modulaires (panels.export, campaigns.
         // export, taxes.export) qui restent ouverts à son périmètre.
+        // ── ADMIN uniquement : dashboard complet + synthèse exécutive ──
+        // Contiennent le CA stratégique entreprise / EBITDA / synthèse
+        // direction : hors périmètre MP.
         Route::middleware('role:admin')->group(function () {
             Route::get('/rapports/export/excel', [RapportController::class, 'exportExcel'])
                 ->name('rapports.export.excel');
             Route::get('/rapports/export/pdf', [RapportController::class, 'exportPdf'])
                 ->name('rapports.export.pdf');
-            // Export dédié : liste panneaux + taux d'occupation (Excel + PDF)
+        });
+
+        // ── ADMIN + MP : exports opérationnels des onglets Rapports ──
+        // Ouverts au Media Planner (2026-07-01) car les onglets sources
+        // (Performance panneaux, Zones & Communes, Occupation détaillée)
+        // font déjà partie de son périmètre de visibilité. Ces exports
+        // sont limités aux données opérationnelles (occupation, stats
+        // par commune, panneau × campagne) — pas de CA stratégique
+        // entreprise ni de KPI direction.
+        Route::middleware('role:admin,mediaplanner')->group(function () {
+            // Liste panneaux + taux d'occupation (onglet "Performance panneaux")
             Route::get('/rapports/export/panneaux-occupation-excel', [RapportController::class, 'exportPanelsOccupationExcel'])
                 ->name('rapports.export.panels-occupation-excel');
             Route::get('/rapports/export/panneaux-occupation-pdf', [RapportController::class, 'exportPanelsOccupationPdf'])
                 ->name('rapports.export.panels-occupation-pdf');
-            // 2026-07-01 — Onglet "Occupation détaillée" (panneau × campagne × période)
+            // Onglet "Occupation détaillée" (panneau × campagne × période)
             Route::get('/rapports/export/occupation-details-excel', [RapportController::class, 'exportOccupationDetailsExcel'])
                 ->name('rapports.export.occupation-details-excel');
             Route::get('/rapports/export/occupation-details-pdf', [RapportController::class, 'exportOccupationDetailsPdf'])
                 ->name('rapports.export.occupation-details-pdf');
-            // 2026-07-01 — Onglet "Zones & Communes" (stats par commune : occupés, taux, CA)
+            // Onglet "Zones & Communes" (stats par commune : occupés, taux, CA)
             Route::get('/rapports/export/zones-communes-excel', [RapportController::class, 'exportZonesCommunesExcel'])
                 ->name('rapports.export.zones-communes-excel');
             Route::get('/rapports/export/zones-communes-pdf', [RapportController::class, 'exportZonesCommunesPdf'])
