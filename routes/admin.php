@@ -1360,6 +1360,11 @@ Route::prefix('admin')
                 ->name('rapports.export.panels-occupation-excel');
             Route::get('/rapports/export/panneaux-occupation-pdf', [RapportController::class, 'exportPanelsOccupationPdf'])
                 ->name('rapports.export.panels-occupation-pdf');
+            // 2026-07-01 — Onglet "Occupation détaillée" (panneau × campagne × période)
+            Route::get('/rapports/export/occupation-details-excel', [RapportController::class, 'exportOccupationDetailsExcel'])
+                ->name('rapports.export.occupation-details-excel');
+            Route::get('/rapports/export/occupation-details-pdf', [RapportController::class, 'exportOccupationDetailsPdf'])
+                ->name('rapports.export.occupation-details-pdf');
         });
 
     });

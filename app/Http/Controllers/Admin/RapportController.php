@@ -569,6 +569,22 @@ class RapportController extends Controller
         // sidebar). Calcul délégué à SlaDelaysController::index() côté page
         // dédiée. Économie de perf sur chaque buildReportData() admin/MP.
 
+        // ── Onglet "Occupation détaillée" (2026-07-01) ─────────────
+        // Liste panneau × campagne active sur la période [from, to].
+        // Colonnes validées avec la patronne : Panneau (réf + nom + commune
+        // + dimensions/m²), Campagne (nom + statut), Client (nom + secteur),
+        // Période (dates + durée mois+j).
+        $occDetailsSvc = app(\App\Services\OccupationDetailsService::class);
+        $occupationDetails = $occDetailsSvc->build($dateFrom, $dateTo, [
+            'commune_id'  => $filterCommune,
+            'client_id'   => $filterClient,
+            'category_id' => $filterCategory,
+            'zone'        => $filterZone,
+            'campaign_id' => $request->input('filter_campaign_id'),
+        ]);
+        $occupationDetailsSummary = $occDetailsSvc->summary($occupationDetails);
+        $activeTab = $request->input('active_tab', $request->input('tab'));
+
         // Variables filtres exposées à la vue
         $currentPreset = $preset ?? null;
 
@@ -649,6 +665,10 @@ class RapportController extends Controller
             'allClients',
             'allCategories',
             'allCities',
+            // Onglet "Occupation détaillée"
+            'occupationDetails',
+            'occupationDetailsSummary',
+            'activeTab',
         );
     }
 
@@ -1511,6 +1531,66 @@ class RapportController extends Controller
         ])->setPaper('a4', 'landscape');
 
         return $pdf->download('occupation-panneaux-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    /**
+     * Export Excel — Onglet "Occupation détaillée".
+     */
+    public function exportOccupationDetailsExcel(Request $request, DashboardKpiService $kpi, \App\Services\OccupationDetailsService $occSvc)
+    {
+        $this->applyPeriodAndFilters($request, $kpi);
+        $period = $kpi->getPeriod();
+
+        $rows = $occSvc->build($period['from'], $period['to'], [
+            'commune_id'  => $request->input('filter_commune_id'),
+            'client_id'   => $request->input('filter_client_id'),
+            'category_id' => $request->input('filter_category_id'),
+            'zone'        => in_array($request->input('filter_zone'), ['abidjan', 'interieur'], true)
+                                ? $request->input('filter_zone') : null,
+            'campaign_id' => $request->input('filter_campaign_id'),
+        ]);
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\OccupationDetailsExport($rows, $period['from'], $period['to']),
+            'occupation-detaillee-' . now()->format('Ymd_His') . '.xlsx'
+        );
+    }
+
+    /**
+     * Export PDF — Onglet "Occupation détaillée" (A4 paysage).
+     */
+    public function exportOccupationDetailsPdf(
+        Request $request,
+        DashboardKpiService $kpi,
+        \App\Services\OccupationDetailsService $occSvc,
+        \App\Services\RapportFilterContextService $filterCtx
+    ) {
+        $this->applyPeriodAndFilters($request, $kpi);
+        $period = $kpi->getPeriod();
+
+        $rows = $occSvc->build($period['from'], $period['to'], [
+            'commune_id'  => $request->input('filter_commune_id'),
+            'client_id'   => $request->input('filter_client_id'),
+            'category_id' => $request->input('filter_category_id'),
+            'zone'        => in_array($request->input('filter_zone'), ['abidjan', 'interieur'], true)
+                                ? $request->input('filter_zone') : null,
+            'campaign_id' => $request->input('filter_campaign_id'),
+        ]);
+        $summary = $occSvc->summary($rows);
+        $filterRecap = $filterCtx->build($request, $period['from'], $period['to']);
+        $zoneLabel = $this->zoneLabel($request->input('filter_zone'));
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.rapports.occupation-details-pdf', [
+            'rows'        => $rows,
+            'summary'     => $summary,
+            'from'        => $period['from'],
+            'to'          => $period['to'],
+            'zoneLabel'   => $zoneLabel,
+            'user'        => $request->user(),
+            'filterRecap' => $filterRecap,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download('occupation-detaillee-' . now()->format('Ymd_His') . '.pdf');
     }
 
     private function zoneLabel(?string $zone): ?string

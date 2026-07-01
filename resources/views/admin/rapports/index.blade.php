@@ -121,6 +121,7 @@ window.__RPT__ = {
 
     $onglets = [
         ['id'=>'occupation','icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>','label'=>"Occupation"],
+        ['id'=>'occupation-details','icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>','label'=>'Occupation détaillée'],
         ['id'=>'panneaux',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>','label'=>'Performance panneaux'],
         ['id'=>'periodes',  'icon'=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>','label'=>'Périodes'],
         // 'Campagnes' retiré (2026-06-17) — doublon avec la carte 'Rapport campagnes'
@@ -138,7 +139,7 @@ window.__RPT__ = {
     $tabsByRole = [
         'admin'        => null, // tous (après retraits SLA + Campagnes)
         'mediaplanner' => [     // production / opérationnel
-            'occupation', 'panneaux', 'periodes',
+            'occupation', 'occupation-details', 'panneaux', 'periodes',
             'zones', 'clients', 'decap',
             // EXCLUS pour MP : 'ca' (CA stratégique entreprise),
             //                  'insights' (synthèse exécutive direction).
@@ -279,6 +280,18 @@ window.__RPT__ = {
 @include('admin.rapports.partials._tab_occupation')
 
 @endif {{-- panel-occupation --}}
+
+{{-- ══════════════════════════════════
+     ONGLET 1-bis — OCCUPATION DÉTAILLÉE (admin/MP)
+     Liste panneau × campagne active sur la période demandée.
+     Ajouté 2026-07-01 sur demande patronne pour voir concrètement qui
+     a occupé quoi durant un trimestre (retiré du module Taxes qui était
+     mal placé sémantiquement).
+══════════════════════════════════ --}}
+@if(in_array('occupation-details', $allowedTabIds, true))
+@include('admin.rapports.partials._tab_occupation_details')
+
+@endif {{-- panel-occupation-details --}}
 
 {{-- ══════════════════════════════════
      ONGLET 2 — PÉRIODES (commercial OK : scopé via applyCampaignFilters)
