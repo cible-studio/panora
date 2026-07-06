@@ -179,9 +179,12 @@ class PoseTaskPublicController extends Controller
         if ($newStatus === PoseTaskStatus::COMPLETED) {
             $task->done_at          = now();
             $task->progress_percent = 100;
-            if ($task->started_at) {
+            // 2026-07-06 : real_minutes = temps sur site (arrived_at → done_at)
+            // pour exclure le trajet. Fallback started_at si arrived_at NULL.
+            $anchor = $task->arrived_at ?? $task->started_at;
+            if ($anchor) {
                 $task->real_minutes = max(1, (int) round(
-                    $task->started_at->diffInMinutes(now())
+                    $anchor->diffInMinutes(now())
                 ));
             }
         }

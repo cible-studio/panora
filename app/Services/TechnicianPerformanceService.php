@@ -64,14 +64,25 @@ class TechnicianPerformanceService
         // poses où started_at=now() était posé en fallback au moment du
         // upload photo (bug fixé côté controllers), ce qui donnait
         // TIMESTAMPDIFF=0 min et tirait la moyenne SLA vers le bas.
+        // 2026-07-06 (validé patronne) — SLA "durée de pose" recalculée
+        // sur arrived_at → done_at (temps sur SITE, hors trajet).
+        //   réactivité   = created_at → started_at (temps entre attribution et départ)
+        //   temps trajet = started_at → arrived_at (temps de route)
+        //   temps pose   = arrived_at → done_at   (VRAI SLA — temps sur site)
+        // Fallback started_at si arrived_at NULL (rétrocompat vieilles poses).
         $tempsAvg = (clone $base)
             ->whereNotNull('started_at')
             ->selectRaw('
                 AVG(TIMESTAMPDIFF(MINUTE, created_at, started_at)) as reactivite_min,
                 AVG(CASE WHEN done_at IS NOT NULL
-                              AND TIMESTAMPDIFF(MINUTE, started_at, done_at) > 0
-                         THEN TIMESTAMPDIFF(MINUTE, started_at, done_at)
+                              AND COALESCE(arrived_at, started_at) IS NOT NULL
+                              AND TIMESTAMPDIFF(MINUTE, COALESCE(arrived_at, started_at), done_at) > 0
+                         THEN TIMESTAMPDIFF(MINUTE, COALESCE(arrived_at, started_at), done_at)
                     END) as duree_pose_min,
+                AVG(CASE WHEN arrived_at IS NOT NULL AND started_at IS NOT NULL
+                              AND TIMESTAMPDIFF(MINUTE, started_at, arrived_at) > 0
+                         THEN TIMESTAMPDIFF(MINUTE, started_at, arrived_at)
+                    END) as trajet_min,
                 AVG(CASE WHEN done_at IS NOT NULL AND estimated_minutes > 0 AND real_minutes > 0
                          THEN (real_minutes / estimated_minutes) * 100
                     END) as respect_estimation_pct
@@ -134,6 +145,7 @@ class TechnicianPerformanceService
             'taux_poses_en_retard'    => $nbTotal > 0 ? round(($nbEnRetard / $nbTotal) * 100, 1) : 0.0,
             'reactivite_avg_min'      => $tempsAvg?->reactivite_min !== null ? (int) round($tempsAvg->reactivite_min) : null,
             'duree_pose_avg_min'      => $tempsAvg?->duree_pose_min !== null ? (int) round($tempsAvg->duree_pose_min) : null,
+            'trajet_avg_min'          => $tempsAvg?->trajet_min !== null ? (int) round($tempsAvg->trajet_min) : null,
             'delai_pige_avg_h'        => $delaiPige !== null ? (int) round($delaiPige) : null,
             'respect_estimation_pct'  => $tempsAvg?->respect_estimation_pct !== null ? round($tempsAvg->respect_estimation_pct, 1) : null,
             'nb_piges_rejetees'       => $rejectedCount,
@@ -169,7 +181,7 @@ class TechnicianPerformanceService
             $aggregated['nb_signalements']     += $k['nb_signalements'];
         }
         // Moyennes (ignorer nulls)
-        foreach (['reactivite_avg_min', 'duree_pose_avg_min', 'delai_pige_avg_h', 'respect_estimation_pct'] as $field) {
+        foreach (['reactivite_avg_min', 'duree_pose_avg_min', 'trajet_avg_min', 'delai_pige_avg_h', 'respect_estimation_pct'] as $field) {
             $vals = array_filter(array_column($kpis, $field), fn ($v) => $v !== null);
             $aggregated[$field] = !empty($vals) ? round(array_sum($vals) / count($vals), 1) : null;
         }
@@ -365,9 +377,10 @@ class TechnicianPerformanceService
                 SUM(CASE WHEN status = "realisee" THEN 1 ELSE 0 END) as nb_realisees,
                 SUM(CASE WHEN status = "planifiee" AND scheduled_at < DATE_SUB(CURDATE(), INTERVAL ' . PoseTask::LATE_GRACE_DAYS . ' DAY) THEN 1 ELSE 0 END) as nb_retard,
                 AVG(CASE WHEN started_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, created_at, started_at) END) as reactivite,
-                AVG(CASE WHEN done_at IS NOT NULL AND started_at IS NOT NULL
-                              AND TIMESTAMPDIFF(MINUTE, started_at, done_at) > 0
-                         THEN TIMESTAMPDIFF(MINUTE, started_at, done_at) END) as duree_pose
+                AVG(CASE WHEN done_at IS NOT NULL
+                              AND COALESCE(arrived_at, started_at) IS NOT NULL
+                              AND TIMESTAMPDIFF(MINUTE, COALESCE(arrived_at, started_at), done_at) > 0
+                         THEN TIMESTAMPDIFF(MINUTE, COALESCE(arrived_at, started_at), done_at) END) as duree_pose
             ')
             ->first();
 
@@ -582,6 +595,7 @@ class TechnicianPerformanceService
             'nb_poses_planifiees' => 0, 'nb_poses_en_retard' => 0,
             'taux_poses_en_retard' => 0.0,
             'reactivite_avg_min' => null, 'duree_pose_avg_min' => null,
+            'trajet_avg_min' => null,
             'delai_pige_avg_h' => null, 'respect_estimation_pct' => null,
             'nb_piges_rejetees' => 0, 'taux_piges_rejetees' => 0.0,
             'nb_signalements' => 0,

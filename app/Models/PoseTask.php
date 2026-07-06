@@ -76,6 +76,7 @@ class PoseTask extends Model
         'estimated_minutes',
         'real_minutes',
         'started_at',
+        'arrived_at',  // 2026-07-06 : posé au palier 50% "Arrivé sur place"
         'whatsapp_sent_at',
         'public_token',
     ];
@@ -84,6 +85,7 @@ class PoseTask extends Model
         'scheduled_at'        => 'datetime',
         'done_at'             => 'datetime',
         'started_at'          => 'datetime',
+        'arrived_at'          => 'datetime',
         'whatsapp_sent_at'    => 'datetime',
         'tech_name_self_at'   => 'datetime',
         'progress_percent'    => 'integer',

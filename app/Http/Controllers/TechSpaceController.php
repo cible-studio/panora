@@ -861,11 +861,14 @@ class TechSpaceController extends Controller
         }
         if ($newStatus === PoseTaskStatus::COMPLETED) {
             $update['done_at'] = now();
-            // real_minutes calculable seulement si started_at était posé
-            if ($task->started_at) {
-                $update['real_minutes'] = max(1, (int) round(
-                    $task->started_at->diffInMinutes(now())
-                ));
+            // real_minutes 2026-07-06 : sémantique changée = temps réel
+            // SUR SITE (arrived_at → done_at), plus le temps total sprint
+            // incluant trajet. Le trajet reste mesurable via
+            // arrived_at - started_at côté service KPI.
+            // Fallback sur started_at si arrived_at pas posé (rétrocompat).
+            $anchor = $task->arrived_at ?? $task->started_at;
+            if ($anchor) {
+                $update['real_minutes'] = max(1, (int) round($anchor->diffInMinutes(now())));
             }
         }
 
@@ -954,6 +957,13 @@ class TechSpaceController extends Controller
         if ($newPct >= 50 && in_array($currentStatus, [PoseTaskStatus::PLANNED, PoseTaskStatus::EN_ROUTE], true)) {
             $update['status']     = PoseTaskStatus::IN_PROGRESS->value;
             $update['started_at'] = $task->started_at ?? now();
+        }
+        // arrived_at (2026-07-06) : posé au premier passage à 50%+ ("Arrivé
+        // sur place"). Sert au KPI "temps de pose réel" = done_at - arrived_at
+        // qui exclut le trajet, contrairement à real_minutes actuel qui
+        // partait de started_at (= départ du sprint).
+        if ($newPct >= 50 && !$task->arrived_at) {
+            $update['arrived_at'] = now();
         }
 
         $task->update($update);
@@ -1457,10 +1467,11 @@ class TechSpaceController extends Controller
                 'done_at'          => now(),
                 'progress_percent' => 100,
             ];
-            if ($task->started_at) {
-                $taskUpdate['real_minutes'] = max(1, (int) round(
-                    $task->started_at->diffInMinutes(now())
-                ));
+            // real_minutes 2026-07-06 : temps réel SUR SITE (arrived_at →
+            // done_at). Fallback sur started_at si arrived_at pas posé.
+            $anchor = $task->arrived_at ?? $task->started_at;
+            if ($anchor) {
+                $taskUpdate['real_minutes'] = max(1, (int) round($anchor->diffInMinutes(now())));
             }
             $task->update($taskUpdate);
         }
