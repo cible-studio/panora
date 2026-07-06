@@ -117,9 +117,10 @@ class TechSpaceController extends Controller
         $today  = Carbon::today();
         $startOfDay = $today->copy()->startOfDay();
         $endOfDay   = $today->copy()->endOfDay();
-        $isLate = function ($t) use ($today) {
+        $lateThreshold = PoseTask::lateThreshold();
+        $isLate = function ($t) use ($lateThreshold) {
             $d = $t->scheduled_at ?? $t->created_at;
-            return $d && Carbon::parse($d)->startOfDay()->lt($today);
+            return $d && Carbon::parse($d)->lt($lateThreshold);
         };
         $isTodayTask = function ($t) use ($startOfDay, $endOfDay) {
             $d = $t->scheduled_at ?? $t->created_at;
@@ -467,7 +468,7 @@ class TechSpaceController extends Controller
                 : PoseTaskStatus::tryFrom((string) $t->status);
             $firstPhoto = $t->panel?->photos?->sortBy('ordre')->first();
             $thumb = $firstPhoto ? asset('storage/' . $firstPhoto->path) : null;
-            $isLateLocal = $t->scheduled_at && Carbon::parse($t->scheduled_at)->startOfDay()->lt(Carbon::today());
+            $isLateLocal = $t->scheduled_at && Carbon::parse($t->scheduled_at)->lt(PoseTask::lateThreshold());
 
             // Texte affiché dans Select2 : ref + name + commune (court)
             $ref     = $t->panel?->reference ?? '#' . $t->id;
@@ -542,8 +543,8 @@ class TechSpaceController extends Controller
             ->orderBy('scheduled_at')
             ->get();
 
-        $today = Carbon::today();
-        $isLate = fn($t) => $t->scheduled_at && Carbon::parse($t->scheduled_at)->startOfDay()->lt($today);
+        $lateThreshold = PoseTask::lateThreshold();
+        $isLate = fn($t) => $t->scheduled_at && Carbon::parse($t->scheduled_at)->lt($lateThreshold);
 
         $groupedByCommune = $activeTasks
             ->sortBy(fn($t) => [$isLate($t) ? 0 : 1, optional($t->scheduled_at)->timestamp ?? PHP_INT_MAX])
@@ -607,9 +608,9 @@ class TechSpaceController extends Controller
             ->orderBy('scheduled_at')
             ->get();
 
-        $today = Carbon::today();
+        $lateThreshold = PoseTask::lateThreshold();
 
-        $points = $tasks->map(function ($t) use ($today) {
+        $points = $tasks->map(function ($t) use ($lateThreshold) {
             $lat = $t->panel?->latitude;
             $lng = $t->panel?->longitude;
             if ($lat === null || $lng === null) return null;
@@ -629,7 +630,7 @@ class TechSpaceController extends Controller
                 'status'   => $status?->value,
                 'status_label' => $status?->label(),
                 'status_color' => $status?->color(),
-                'is_late'  => $sched && Carbon::parse($sched)->startOfDay()->lt($today),
+                'is_late'  => $sched && Carbon::parse($sched)->lt($lateThreshold),
                 'sched'    => optional($sched)->format('d/m H:i'),
             ];
         })->filter()->values();

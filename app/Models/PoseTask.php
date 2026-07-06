@@ -13,6 +13,58 @@ use App\Enums\PoseTaskStatus;
 
 class PoseTask extends Model
 {
+    /**
+     * Délai de grâce (en jours) avant qu'une pose planifiée soit
+     * considérée "en retard".
+     *
+     * Règle métier validée par la patronne le 2026-07-06 :
+     * "Une pose planifiée aujourd'hui ne doit pas apparaître en retard
+     * dans l'instant. Le tech a jusqu'à J+2 pour effectuer la pose."
+     *
+     * Impact : lateThreshold() = today - 2 jours. Une pose est en retard
+     * uniquement si scheduled_at < aujourd'hui - 2j.
+     *
+     * Exemple avec today = 06/07 :
+     *   scheduled_at = 06/07 → OK (pas en retard)
+     *   scheduled_at = 05/07 → OK
+     *   scheduled_at = 04/07 → OK (limite)
+     *   scheduled_at = 03/07 → EN RETARD
+     *
+     * Cette constante est LA source de vérité — tous les endroits qui
+     * calculent "en retard" doivent passer par lateThreshold() ou
+     * scopeOverdue(). Cf. CLAUDE.md §1 Harmonisation.
+     */
+    public const LATE_GRACE_DAYS = 2;
+
+    /**
+     * Retourne la borne date à partir de laquelle une pose planifiée
+     * est "en retard". Utilisable en SQL via ->format('Y-m-d H:i:s').
+     */
+    public static function lateThreshold(): \Illuminate\Support\Carbon
+    {
+        return \Illuminate\Support\Carbon::today()->subDays(self::LATE_GRACE_DAYS);
+    }
+
+    /**
+     * Retourne la borne date au format SQL — utilisable dans les
+     * whereRaw / selectRaw où now() ne peut pas être injecté.
+     */
+    public static function lateThresholdSql(): string
+    {
+        return self::lateThreshold()->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * Une pose est-elle actuellement en retard ?
+     * (status planifiee + scheduled_at avant la borne de grâce)
+     */
+    public function isLate(): bool
+    {
+        if ($this->status !== \App\Enums\PoseTaskStatus::PLANNED->value) return false;
+        if (!$this->scheduled_at) return false;
+        return $this->scheduled_at->lt(self::lateThreshold());
+    }
+
     protected $fillable = [
         'panel_id', 'campaign_id',
         'assigned_user_id', 'team_name',
@@ -221,12 +273,6 @@ class PoseTask extends Model
 
     // ── HELPERS ───────────────────────────────────────────────────
  
-    public function isLate(): bool
-    {
-        return $this->status === PoseTaskStatus::PLANNED->value
-            && $this->scheduled_at?->isPast();
-    }
- 
     public function isEditable(): bool
     {
         return !in_array($this->status, [
@@ -258,8 +304,9 @@ class PoseTask extends Model
  
     public function scopeOverdue(\Illuminate\Database\Eloquent\Builder $q): \Illuminate\Database\Eloquent\Builder
     {
+        // Cf. constante LATE_GRACE_DAYS + lateThreshold() en haut de classe.
         return $q->where('status', PoseTaskStatus::PLANNED->value)
-                 ->where('scheduled_at', '<', now());
+                 ->where('scheduled_at', '<', self::lateThreshold());
     }
  
     public function scopeForCampaign(\Illuminate\Database\Eloquent\Builder $q, int $campaignId): \Illuminate\Database\Eloquent\Builder

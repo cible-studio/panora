@@ -2152,7 +2152,7 @@ class CampaignController extends Controller
      * + liste des panneaux avec photo, commune, format, date de pose
      * prévue (depuis PoseTask) et technicien/équipe assigné.
      *
-     * Pose en retard = scheduled_at < now() ET status in (planifiee, en_cours).
+     * Pose en retard = scheduled_at < PoseTask::lateThreshold() (today - LATE_GRACE_DAYS).
      */
     public function fichePosePdf(Campaign $campaign, Request $request)
     {

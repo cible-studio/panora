@@ -56,7 +56,7 @@ class TechnicianPerformanceService
         $nbPlanifiees = (clone $base)->where('status', 'planifiee')->count();
         $nbEnRetard   = (clone $base)
             ->where('status', 'planifiee')
-            ->where('scheduled_at', '<', now())
+            ->where('scheduled_at', '<', PoseTask::lateThreshold())
             ->count();
 
         // ── Temps moyens (en minutes) — via SQL pour perf
@@ -240,7 +240,9 @@ class TechnicianPerformanceService
             ->where(function ($q) {
                 $q->whereRaw('done_at > scheduled_at')
                   ->orWhere(function ($q2) {
-                      $q2->whereNull('done_at')->whereRaw('scheduled_at < NOW()');
+                      // J+2 grace : cf. PoseTask::LATE_GRACE_DAYS
+                      $q2->whereNull('done_at')
+                         ->where('scheduled_at', '<', PoseTask::lateThreshold());
                   });
             })
             ->selectRaw('YEAR(scheduled_at) as y, MONTH(scheduled_at) as m, COUNT(*) as cnt')
@@ -361,7 +363,7 @@ class TechnicianPerformanceService
             ->selectRaw('
                 COUNT(*) as nb_total,
                 SUM(CASE WHEN status = "realisee" THEN 1 ELSE 0 END) as nb_realisees,
-                SUM(CASE WHEN status = "planifiee" AND scheduled_at < NOW() THEN 1 ELSE 0 END) as nb_retard,
+                SUM(CASE WHEN status = "planifiee" AND scheduled_at < DATE_SUB(CURDATE(), INTERVAL ' . PoseTask::LATE_GRACE_DAYS . ' DAY) THEN 1 ELSE 0 END) as nb_retard,
                 AVG(CASE WHEN started_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, created_at, started_at) END) as reactivite,
                 AVG(CASE WHEN done_at IS NOT NULL AND started_at IS NOT NULL
                               AND TIMESTAMPDIFF(MINUTE, started_at, done_at) > 0

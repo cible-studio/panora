@@ -416,7 +416,7 @@ class PoseService
     public function getOverdueTasks()
     {
         return PoseTask::where('status', PoseTaskStatus::PLANNED->value)
-            ->where('scheduled_at', '<', now())
+            ->where('scheduled_at', '<', PoseTask::lateThreshold())
             ->with(['panel:id,reference,name', 'campaign:id,name'])
             ->orderBy('scheduled_at')
             ->limit(20)
