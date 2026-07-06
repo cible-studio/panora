@@ -55,9 +55,18 @@ function bindGoMaps() {
         if (!goBtn) return;
         const pose = goBtn.closest('[data-task-id]');
         if (!pose) return;
-        const currentStatus = pose.dataset.taskStatus;
-        if (currentStatus !== 'planifiee') return;
         const taskId = pose.dataset.taskId;
+        if (!taskId) return;
+        const currentStatus = pose.dataset.taskStatus;
+        // FIX 2026-07-01 (feedback patronne) : autrefois le fetch n'était
+        // envoyé QUE si status === 'planifiee'. Sur les poses déjà en_route
+        // (2ème clic Y aller, ou pose ouverte depuis le drawer avec un
+        // ancien statut), rien ne partait → sensation de bug côté tech
+        // ("ça marche sur MAINTENANT mais pas sur les autres").
+        // Aujourd'hui : on tente le bump sur tout statut non-terminal ;
+        // le serveur répond {ok:true, noop:true} si same-status → propre
+        // et cohérent entre focus card et drawer.
+        if (currentStatus === 'realisee' || currentStatus === 'annulee') return;
         try {
             const r = await postStatus(taskId, 'status=en_route');
             if (r.ok) {

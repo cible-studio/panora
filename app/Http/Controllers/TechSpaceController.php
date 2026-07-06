@@ -808,6 +808,17 @@ class TechSpaceController extends Controller
             ], 422);
         }
 
+        // Transition same-status = no-op idempotent (200 ok silencieux).
+        // Utile pour le clic répété "Y aller" quand la pose est DÉJÀ en
+        // en_route : le tech clique X fois, le serveur ne râle pas, le
+        // started_at reste posé à la première fois. Sans ça, le 2e clic
+        // renvoyait 422 → log serveur pollué, expérience tech opaque.
+        // Feedback patronne 2026-07-01 : "sur les autres poses ça a l'air
+        // différent" → cette différence perçue vient du 422 silencieux.
+        if ($newStatus === $current) {
+            return response()->json(['ok' => true, 'noop' => true]);
+        }
+
         // Vérifie la transition est autorisée (cf. PoseTaskStatus::allowedTransitions)
         if (!in_array($newStatus, $current->allowedTransitions(), true)) {
             return response()->json([

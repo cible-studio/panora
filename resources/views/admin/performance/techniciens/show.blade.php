@@ -67,17 +67,17 @@
         </div>
         <div class="perf-kpi" style="border-left-color:#0ea5e9">
             <div class="perf-kpi-label">Réactivité moy</div>
-            <div class="perf-kpi-val" style="color:#0369a1">{{ $kpis['reactivite_avg_min'] !== null ? $kpis['reactivite_avg_min'].' min' : '—' }}</div>
+            <div class="perf-kpi-val" style="color:#0369a1">{{ \App\Support\HumanDuration::fromMinutes($kpis['reactivite_avg_min']) }}</div>
             <div class="perf-kpi-sub">attribution → début</div>
         </div>
         <div class="perf-kpi" style="border-left-color:#a855f7">
             <div class="perf-kpi-label">Durée pose moy</div>
-            <div class="perf-kpi-val" style="color:#7c3aed">{{ $kpis['duree_pose_avg_min'] !== null ? $kpis['duree_pose_avg_min'].' min' : '—' }}</div>
+            <div class="perf-kpi-val" style="color:#7c3aed">{{ \App\Support\HumanDuration::fromMinutes($kpis['duree_pose_avg_min']) }}</div>
             <div class="perf-kpi-sub">{{ $kpis['respect_estimation_pct'] !== null ? 'vs estimation : '.$kpis['respect_estimation_pct'].' %' : '' }}</div>
         </div>
         <div class="perf-kpi" style="border-left-color:#6366f1">
             <div class="perf-kpi-label">Délai pige moy</div>
-            <div class="perf-kpi-val" style="color:#4338ca">{{ $kpis['delai_pige_avg_h'] !== null ? $kpis['delai_pige_avg_h'].' h' : '—' }}</div>
+            <div class="perf-kpi-val" style="color:#4338ca">{{ \App\Support\HumanDuration::fromHours($kpis['delai_pige_avg_h']) }}</div>
             <div class="perf-kpi-sub">pose → pige envoyée</div>
         </div>
         <div class="perf-kpi" style="border-left-color:{{ $kpis['taux_poses_en_retard'] <= 5 ? '#16a34a' : ($kpis['taux_poses_en_retard'] <= 15 ? '#f59e0b' : '#ef4444') }}">
@@ -161,7 +161,7 @@
                             <td style="color:var(--text3);font-size:12px">{{ $pt->scheduled_at?->format('d/m/Y H:i') }}</td>
                             <td style="color:var(--text3);font-size:12px">{{ $pt->started_at?->format('d/m H:i') ?? '—' }}</td>
                             <td style="color:var(--text3);font-size:12px">{{ $pt->done_at?->format('d/m H:i') ?? '—' }}</td>
-                            <td style="text-align:right;color:var(--text2);font-size:12px">{{ $pt->real_minutes ? $pt->real_minutes.' min' : '—' }}</td>
+                            <td style="text-align:right;color:var(--text2);font-size:12px">{{ \App\Support\HumanDuration::fromMinutes($pt->real_minutes) }}</td>
                             <td><span style="padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:700;background:var(--surface2);color:var(--text2)">{{ $pt->status }}</span></td>
                         </tr>
                     @empty

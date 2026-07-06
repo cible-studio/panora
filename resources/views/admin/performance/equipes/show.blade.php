@@ -50,7 +50,7 @@
         </div>
         <div class="perf-kpi" style="border-left-color:#0ea5e9">
             <div class="perf-kpi-label">Réactivité moy équipe</div>
-            <div class="perf-kpi-val" style="color:#0369a1">{{ $k['reactivite_avg_min'] !== null ? $k['reactivite_avg_min'].' min' : '—' }}</div>
+            <div class="perf-kpi-val" style="color:#0369a1">{{ \App\Support\HumanDuration::fromMinutes($k['reactivite_avg_min']) }}</div>
             <div class="perf-kpi-sub">attribution → début</div>
         </div>
         <div class="perf-kpi" style="border-left-color:{{ $k['taux_poses_en_retard'] <= 5 ? '#16a34a' : ($k['taux_poses_en_retard'] <= 15 ? '#f59e0b' : '#ef4444') }}">
@@ -106,7 +106,7 @@
                                 <div style="font-size:10.5px;color:var(--text3);font-family:monospace">{{ $u->agent_code }}</div>
                             </td>
                             <td style="text-align:right;font-weight:800;color:#16a34a">{{ $k2['nb_poses_realisees'] }}</td>
-                            <td style="text-align:right;color:var(--text2)">{{ $k2['reactivite_avg_min'] !== null ? $k2['reactivite_avg_min'].' min' : '—' }}</td>
+                            <td style="text-align:right;color:var(--text2)">{{ \App\Support\HumanDuration::fromMinutes($k2['reactivite_avg_min']) }}</td>
                             <td style="text-align:right;color:var(--text2)">{{ $k2['taux_poses_en_retard'] }} %</td>
                             <td style="text-align:right;color:var(--text2)">{{ $k2['taux_piges_rejetees'] }} %</td>
                             <td style="text-align:right"><a href="{{ route('admin.performance.tech.show', $u) }}" class="btn btn-ghost btn-sm" style="font-size:11px">Détail →</a></td>

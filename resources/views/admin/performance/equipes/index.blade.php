@@ -107,7 +107,7 @@
                             <td style="color:var(--text2)">{{ $team->leader?->name ?? '—' }}</td>
                             <td style="text-align:right;font-weight:700">{{ $row['members_count'] }}</td>
                             <td style="text-align:right;font-weight:800;color:#16a34a">{{ $k['nb_poses_realisees'] }}</td>
-                            <td style="text-align:right;color:var(--text2)">{{ $k['reactivite_avg_min'] !== null ? $k['reactivite_avg_min'].' min' : '—' }}</td>
+                            <td style="text-align:right;color:var(--text2)">{{ \App\Support\HumanDuration::fromMinutes($k['reactivite_avg_min']) }}</td>
                             <td style="text-align:right;font-weight:700;color:{{ $k['taux_poses_en_retard'] <= 5 ? '#15803d' : ($k['taux_poses_en_retard'] <= 15 ? '#b45309' : '#b91c1c') }}">{{ $k['taux_poses_en_retard'] }} %</td>
                             <td style="text-align:right;font-weight:700;color:{{ $k['taux_piges_rejetees'] <= 5 ? '#15803d' : ($k['taux_piges_rejetees'] <= 15 ? '#b45309' : '#b91c1c') }}">{{ $k['taux_piges_rejetees'] }} %</td>
                             <td style="text-align:right;color:var(--text2)">{{ $k['nb_signalements'] }}</td>

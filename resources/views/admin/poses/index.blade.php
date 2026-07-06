@@ -21,6 +21,85 @@
     </a>
 </x-slot:topbarActions>
 
+{{-- ════ BANDEAU "FILTRES ACTIFS DEPUIS UNE AUTRE PAGE" ════
+     Affiché quand l'utilisateur arrive ici via un lien contextuel
+     (KPI pilotage, drill-down perf tech, etc.). Résumé humain des
+     filtres actifs + boutons "Effacer" et "← Retour" pour ne pas
+     laisser l'admin bloqué sur une liste filtrée sans échappatoire.
+     Ajouté 2026-07-01 sur feedback patronne. --}}
+@php
+    $activeFilters = collect([
+        'status' => match(request('status')) {
+            'planifiee' => 'Planifiées',
+            'en_cours'  => 'En cours',
+            'realisee'  => 'Réalisées',
+            'annulee'   => 'Annulées',
+            default     => null,
+        },
+        'technicien' => request('technicien_id')
+            ? optional(\App\Models\User::find(request('technicien_id')))->name
+            : null,
+        'campagne'   => request('campaign_id')
+            ? optional(\App\Models\Campaign::find(request('campaign_id')))->name
+            : null,
+        'periode'    => (request('date_from') || request('date_to'))
+            ? trim((request('date_from') ? 'du ' . \Carbon\Carbon::parse(request('date_from'))->format('d/m/Y') : '')
+                . ' '
+                . (request('date_to')   ? 'au ' . \Carbon\Carbon::parse(request('date_to'))->format('d/m/Y') : ''))
+            : null,
+        'equipe'     => request('team_name'),
+    ])->filter();
+
+    // Détecter la page d'origine à partir du referer pour le lien "Retour"
+    $referer = url()->previous();
+    $refererLabel = null;
+    $refererUrl   = null;
+    if ($referer && $referer !== url()->current()) {
+        $host = parse_url($referer, PHP_URL_HOST);
+        $path = parse_url($referer, PHP_URL_PATH) ?? '';
+        if ($host && $host === request()->getHost()) {
+            if (str_contains($path, '/admin/pilotage')) { $refererLabel = 'Retour au Pilotage terrain'; $refererUrl = $referer; }
+            elseif (str_contains($path, '/admin/performance/techniciens')) { $refererLabel = 'Retour à la Performance technicien'; $refererUrl = $referer; }
+            elseif (str_contains($path, '/admin/dashboard')) { $refererLabel = 'Retour au Tableau de bord'; $refererUrl = $referer; }
+            elseif (str_contains($path, '/admin/rapports')) { $refererLabel = 'Retour aux Rapports'; $refererUrl = $referer; }
+        }
+    }
+@endphp
+@if($activeFilters->isNotEmpty())
+<div style="background:linear-gradient(90deg,rgba(232,160,32,.08),rgba(232,160,32,.02));border:1px solid rgba(232,160,32,.35);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:200px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8a020" stroke-width="2" style="flex-shrink:0">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        </svg>
+        <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;color:#b45309;margin-bottom:3px">
+                Filtres actifs
+            </div>
+            <div style="font-size:12px;color:var(--text);display:flex;flex-wrap:wrap;gap:6px">
+                @foreach($activeFilters as $key => $val)
+                    <span style="padding:2px 10px;background:rgba(232,160,32,.15);border-radius:12px;font-weight:600">
+                        {{ ucfirst($key) }} : {{ $val }}
+                    </span>
+                @endforeach
+            </div>
+        </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0">
+        @if($refererUrl)
+            <a href="{{ $refererUrl }}"
+               style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap">
+                ← {{ $refererLabel }}
+            </a>
+        @endif
+        <a href="{{ route('admin.pose-tasks.index') }}"
+           style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap"
+           title="Voir toutes les tâches (retirer tous les filtres)">
+            ✕ Effacer les filtres
+        </a>
+    </div>
+</div>
+@endif
+
 {{-- ════ ALERTES ACTIVITÉ DU MODULE ════
      Dismissibles par utilisateur (localStorage). La signature inclut
      l'identité utilisateur + un hash du contenu (IDs des tâches en

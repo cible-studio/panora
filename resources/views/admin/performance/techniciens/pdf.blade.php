@@ -62,12 +62,12 @@
         </div>
         <div class="kpi" style="border-left-color:#0ea5e9">
             <div class="kpi-label">Réactivité moyenne</div>
-            <div class="kpi-value">{{ $globalKpis['reactivite_avg_min'] !== null ? $globalKpis['reactivite_avg_min'].' min' : '—' }}</div>
+            <div class="kpi-value">{{ \App\Support\HumanDuration::fromMinutes($globalKpis['reactivite_avg_min']) }}</div>
             <div class="kpi-sub">attribution → début</div>
         </div>
         <div class="kpi" style="border-left-color:#a855f7">
             <div class="kpi-label">Durée pose moyenne</div>
-            <div class="kpi-value">{{ $globalKpis['duree_pose_avg_min'] !== null ? $globalKpis['duree_pose_avg_min'].' min' : '—' }}</div>
+            <div class="kpi-value">{{ \App\Support\HumanDuration::fromMinutes($globalKpis['duree_pose_avg_min']) }}</div>
         </div>
         <div class="kpi" style="border-left-color:#f59e0b">
             <div class="kpi-label">% en retard</div>
@@ -121,8 +121,8 @@
                 <td class="r b" style="color:#15803d">{{ $k['nb_poses_realisees'] }}</td>
                 <td class="r muted">{{ $k['nb_poses_planifiees'] }}</td>
                 <td class="r" style="color:{{ $k['nb_poses_en_retard'] > 0 ? '#dc2626' : '#6b7280' }}">{{ $k['nb_poses_en_retard'] }}</td>
-                <td class="r">{{ $k['reactivite_avg_min'] !== null ? $k['reactivite_avg_min'].' min' : '—' }}</td>
-                <td class="r">{{ $k['duree_pose_avg_min'] !== null ? $k['duree_pose_avg_min'].' min' : '—' }}</td>
+                <td class="r">{{ \App\Support\HumanDuration::fromMinutes($k['reactivite_avg_min']) }}</td>
+                <td class="r">{{ \App\Support\HumanDuration::fromMinutes($k['duree_pose_avg_min']) }}</td>
                 <td class="r b" style="color:{{ $rejetCol }}">{{ $k['taux_piges_rejetees'] }} %</td>
                 <td class="r muted">{{ $k['nb_signalements'] }}</td>
             </tr>

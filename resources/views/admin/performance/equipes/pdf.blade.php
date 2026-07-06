@@ -76,7 +76,7 @@
                 <td class="muted">{{ $team?->leader?->name ?? '—' }}</td>
                 <td class="r">{{ $row['members_count'] ?? 0 }}</td>
                 <td class="r b" style="color:#15803d">{{ $k['nb_poses_realisees'] ?? 0 }}</td>
-                <td class="r">{{ ($k['reactivite_avg_min'] ?? null) !== null ? $k['reactivite_avg_min'].' min' : '—' }}</td>
+                <td class="r">{{ \App\Support\HumanDuration::fromMinutes($k['reactivite_avg_min'] ?? null) }}</td>
                 <td class="r">{{ ($k['taux_poses_en_retard'] ?? 0) }} %</td>
                 <td class="r b" style="color:{{ $rejetCol }}">{{ ($k['taux_piges_rejetees'] ?? 0) }} %</td>
                 <td class="r muted">{{ $k['nb_signalements'] ?? 0 }}</td>
