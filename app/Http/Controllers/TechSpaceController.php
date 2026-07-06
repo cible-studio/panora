@@ -178,12 +178,24 @@ class TechSpaceController extends Controller
         $groupedByCommune = $activeTasks
             ->sortBy(fn($t) => [$isLate($t) ? 0 : 1, optional($t->scheduled_at)->timestamp ?? PHP_INT_MAX])
             ->groupBy(fn($t) => $t->panel?->commune?->name ?? 'Sans commune')
-            // Ordre des zones : celles qui contiennent du retard d'abord,
-            // puis les plus grosses (plus de poses) → le tech attaque le
-            // plus urgent / le plus rentable en déplacement.
+            // Ordre des zones (feedback patronne 2026-07-06) :
+            //   1. Commune avec au moins UNE pose démarrée (en_route ou en_cours)
+            //      → le tech doit finir ce qu'il a commencé avant de zapper ailleurs
+            //   2. Commune avec du retard
+            //   3. Plus grosses (plus de poses) — rentabilité de déplacement
             ->sortBy(function ($tasks) use ($isLate) {
+                $hasStarted = $tasks->contains(fn($t) => in_array(
+                    (string) $t->status,
+                    [\App\Enums\PoseTaskStatus::EN_ROUTE->value, \App\Enums\PoseTaskStatus::IN_PROGRESS->value],
+                    true
+                ));
                 $hasOverdue = $tasks->contains(fn($t) => $isLate($t));
-                return ($hasOverdue ? '0' : '1') . str_pad((string) (9999 - $tasks->count()), 4, '0', STR_PAD_LEFT);
+                // Format : [démarré=0/1][retard=0/1][taille inversée 4 digits]
+                // 000-0128 (démarré + retard + 128 poses)  < 001-0128 (juste démarré)
+                //   < 100-9999 (juste retard) < 110-0128 (rien de spécial)
+                return ($hasStarted ? '0' : '1')
+                    . ($hasOverdue ? '0' : '1')
+                    . str_pad((string) (9999 - $tasks->count()), 4, '0', STR_PAD_LEFT);
             });
 
         // ── Métriques "aujourd'hui" pour le dashboard tech ────────────
