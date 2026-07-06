@@ -450,6 +450,33 @@
             background: linear-gradient(90deg, #f97316, #ef4444);
         }
 
+        /* ═══ COMMUNE OÙ LE TECH A DÉMARRÉ (a une pose en_route/en_cours) ═══
+           Priorité visuelle > has-overdue : violet + halo + badge dédié.
+           Le tech doit finir ici avant d'aller ailleurs. */
+        .commune-header.has-started {
+            border-color: rgba(139, 92, 246, .45);
+            background: linear-gradient(180deg, rgba(139, 92, 246, .08), rgba(139, 92, 246, .02));
+            box-shadow: 0 2px 8px rgba(139, 92, 246, .18);
+        }
+        .commune-header.has-started .ch-progress-fill {
+            background: linear-gradient(90deg, #a78bfa, #8b5cf6);
+        }
+        .ch-started-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 9px;
+            background: #8b5cf6;
+            color: #fff;
+            font-size: 10.5px;
+            font-weight: 800;
+            letter-spacing: .5px;
+            border-radius: 999px;
+            box-shadow: 0 2px 5px rgba(139, 92, 246, .35);
+            white-space: nowrap;
+            margin-left: 4px;
+        }
+
         /* Ligne pose compacte — pastille + ref + statut, tap = drawer T2.
            Refonte radicale 2026-06-19 (spec T1 §3.1) : la ligne ne contient
            plus thumbnail + boutons inline. Toutes les actions sont dans le
@@ -465,6 +492,44 @@
             transition: box-shadow .15s, transform .08s;
         }
         .pose-line:active { transform: scale(.997); box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+
+        /* ═══ POSE EN COURS / EN ROUTE (démarrée mais pas terminée) ═══
+           Feedback patronne 2026-07-06 : "y'a pas de différence entre
+           pose en cours et la liste normale". Une pose que le tech a
+           démarrée (clic Y aller → en_route, ou photo à moitié → en_cours)
+           doit se DISTINGUER visuellement pour qu'il ne l'oublie pas au
+           profit d'une autre commune. */
+        .pose-line[data-task-status="en_route"],
+        .pose-line[data-task-status="en_cours"] {
+            border-color: #8b5cf6;
+            background: linear-gradient(180deg, rgba(139, 92, 246, .07), var(--surface) 60%);
+            box-shadow: 0 1px 3px rgba(139, 92, 246, .18);
+            position: relative;
+        }
+        .pose-line[data-task-status="en_route"] .pose-row::before,
+        .pose-line[data-task-status="en_cours"] .pose-row::before {
+            content: "🚗";
+            position: absolute;
+            top: 4px;
+            right: 8px;
+            font-size: 11px;
+            background: #8b5cf6;
+            color: #fff;
+            padding: 2px 8px 3px 6px;
+            border-radius: 0 12px 0 10px;
+            font-weight: 800;
+            letter-spacing: .3px;
+            line-height: 1;
+            box-shadow: 0 2px 5px rgba(139, 92, 246, .35);
+        }
+        .pose-line[data-task-status="en_cours"] .pose-row::before {
+            content: "🔧 SUR PLACE";
+            background: #3b82f6;
+            box-shadow: 0 2px 5px rgba(59, 130, 246, .35);
+        }
+        .pose-line[data-task-status="en_route"] .pose-row::before {
+            content: "🚗 EN ROUTE";
+        }
         .pose-row {
             display: flex; align-items: center; gap: 12px;
             padding: 12px 14px;
