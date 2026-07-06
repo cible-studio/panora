@@ -172,6 +172,14 @@ Route::prefix('tech')->middleware(['throttle:60,1', \App\Http\Middleware\SetFren
         ->whereNumber('task')
         ->name('tech.space.status');
 
+    // 2026-07-06 (feedback patronne) : le tech peut renseigner sa progression
+    // 0/25/50/75/100 % pendant qu'il pose, sans passer par un statut. L'admin
+    // voit la progression temps réel sur la fiche pose + le pilotage.
+    Route::post('/{token}/poses/{task}/progress', [\App\Http\Controllers\TechSpaceController::class, 'updateProgress'])
+        ->whereNumber('task')
+        ->middleware('throttle:20,1')
+        ->name('tech.space.progress');
+
     Route::post('/{token}/poses/{task}/photo', [\App\Http\Controllers\TechSpaceController::class, 'uploadPhoto'])
         ->whereNumber('task')
         ->middleware('throttle:30,1')

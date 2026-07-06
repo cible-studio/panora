@@ -109,7 +109,13 @@ function updateTechsList(techs) {
         const status = statusLabels[tech.current_status] || tech.current_status || '—';
         const loc    = tech.current_location_label ? ` · ${tech.current_location_label}` : '';
         const pose   = tech.current_pose_label ? ` · ${tech.current_pose_label}` : '';
-        row.querySelector('[data-field="tech-status"]').textContent = `${status}${loc}${pose}`;
+        // 2026-07-06 : % de progression de la pose active rapporté par le
+        // tech via ses paliers manuels (0/25/50/75/100). Ne s'affiche que
+        // si tech.current_pose_progress > 0 pour ne pas polluer les techs
+        // qui n'utilisent pas la feature.
+        const prog   = (tech.current_pose_progress != null && tech.current_pose_progress > 0)
+                       ? ` · ${tech.current_pose_progress}%` : '';
+        row.querySelector('[data-field="tech-status"]').textContent = `${status}${loc}${pose}${prog}`;
 
         const done  = tech.progress?.done  ?? 0;
         const total = tech.progress?.total ?? 0;
