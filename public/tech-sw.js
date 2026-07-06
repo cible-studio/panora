@@ -35,7 +35,9 @@
 //               fix Ouvrir Google Maps + fallback commune/nom si pas de GPS
 //   - v2.7.1  : labels paliers alignés avec le réel (En route/Arrivé/Collage/Fini)
 //               + arrived_at posé au 50%, SLA temps de pose exclut le trajet
-const SW_VERSION = 'v2.7.1';
+//   - v2.7.2  : progression AUTORISE la régression (correction saisie),
+//               responsivité modals mobile (dvh + overflow-y auto)
+const SW_VERSION = 'v2.7.2';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
