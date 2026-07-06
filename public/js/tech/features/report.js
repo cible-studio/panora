@@ -188,15 +188,32 @@ export function init() {
 
                 // Bandeau "déjà signalé" injecté sur la card sans reload.
                 // Labels motifs lus depuis TECH_CONFIG (9 DelayReason FR).
+                // 2026-07-06 : si la ligne n'avait pas de bandeau (première
+                // fois qu'un signalement est fait), on le CRÉE — sinon le
+                // tech ne voit aucun retour visuel et la ligne semble
+                // "vide" (feedback patronne : ligne blanche après signalement).
                 const TYPE_LABELS = window.TECH_CONFIG?.motifLabels || {};
+                const label = TYPE_LABELS[selectedType] || 'Problème signalé';
                 const pose = document.querySelector(`.pose-line[data-task-id="${currentTaskId}"]`);
                 if (pose) {
                     pose.classList.add('has-problem');
-                    const banner = pose.querySelector('[data-problem-banner]');
-                    const lbl = pose.querySelector('[data-problem-label]');
-                    const whn = pose.querySelector('[data-problem-when]');
-                    if (banner) banner.style.display = '';
-                    if (lbl) lbl.textContent = TYPE_LABELS[selectedType] || 'Problème signalé';
+                    pose.dataset.hasProblem = '1';
+                    let banner = pose.querySelector('[data-problem-banner]');
+                    if (!banner) {
+                        // Injection du bandeau après le badge MAINTENANT
+                        // (s'il existe) et avant .pose-row.
+                        banner = document.createElement('div');
+                        banner.className = 'pose-reported-banner';
+                        banner.setAttribute('data-problem-banner', '');
+                        banner.innerHTML = `⚠ Tu as déjà dit : <strong data-problem-label></strong> <span class="reported-when" data-problem-when></span>`;
+                        const anchor = pose.querySelector('.pose-row');
+                        if (anchor) pose.insertBefore(banner, anchor);
+                        else pose.prepend(banner);
+                    }
+                    banner.style.display = '';
+                    const lbl = banner.querySelector('[data-problem-label]');
+                    const whn = banner.querySelector('[data-problem-when]');
+                    if (lbl) lbl.textContent = label;
                     if (whn) whn.textContent = "à l'instant";
                 }
             } else {
