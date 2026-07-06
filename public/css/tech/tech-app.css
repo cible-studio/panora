@@ -655,17 +655,26 @@
 
         /* Bandeau "déjà signalé" — visible et persistent au-dessus de la
            ligne de la pose. Le tech le voit à chaque chargement et ne
-           re-signale plus le même problème sans réfléchir. */
+           re-signale plus le même problème sans réfléchir.
+           2026-07-06 : fond amber plus prononcé + liseré gauche pour
+           que le tech remarque IMMÉDIATEMENT qu'il a déjà signalé. */
         .pose-reported-banner {
             font-size: 12px; font-weight: 700;
             padding: 8px 12px;
-            background: rgba(245, 158, 11, .10);
-            color: #b45309;
-            border-bottom: 1px solid rgba(245, 158, 11, .22);
+            background: linear-gradient(90deg, rgba(245, 158, 11, .18), rgba(245, 158, 11, .06));
+            color: #92400e;
+            border-bottom: 1px solid rgba(245, 158, 11, .35);
+            border-left: 3px solid #f59e0b;
             display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+            border-radius: 12px 12px 0 0;
+        }
+        .pose-reported-banner strong {
+            color: #78350f;
         }
         .pose-reported-banner .reported-when {
-            color: #92400e; font-weight: 500;
+            color: #b45309; font-weight: 500;
+            margin-left: auto;
+            font-size: 10.5px;
         }
         /* La carte d'une pose avec problème déjà signalé a un liseré
            ambré subtil pour qu'on la repère dans la liste. */

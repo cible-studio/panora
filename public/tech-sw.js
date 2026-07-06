@@ -37,7 +37,9 @@
 //               + arrived_at posé au 50%, SLA temps de pose exclut le trajet
 //   - v2.7.2  : progression AUTORISE la régression (correction saisie),
 //               responsivité modals mobile (dvh + overflow-y auto)
-const SW_VERSION = 'v2.7.2';
+//   - v2.7.3  : bandeau signalement TOUJOURS injecté après report + fond amber
+//               plus visible (le tech voit clairement "j'ai déjà signalé")
+const SW_VERSION = 'v2.7.3';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
