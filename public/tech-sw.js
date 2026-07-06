@@ -39,7 +39,9 @@
 //               responsivité modals mobile (dvh + overflow-y auto)
 //   - v2.7.3  : bandeau signalement TOUJOURS injecté après report + fond amber
 //               plus visible (le tech voit clairement "j'ai déjà signalé")
-const SW_VERSION = 'v2.7.3';
+//   - v2.7.4  : fix rectangle blanc opaque qui masquait le contenu des lignes
+//               is-next / en_route / en_cours (gradient blanc pur à 40-60%)
+const SW_VERSION = 'v2.7.4';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
