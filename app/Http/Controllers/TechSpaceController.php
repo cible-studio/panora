@@ -328,10 +328,22 @@ class TechSpaceController extends Controller
             })
             ->all();
 
-        // "Prochaine pose" = la plus prioritaire actuellement assignée.
-        // Ordre : retard d'abord, puis aujourd'hui, puis échéance la plus
-        // proche. C'est ce qu'on met en hero "focus card" en haut.
-        $nextTask = $activeTasks->first(fn($t) => $isLate($t))
+        // "Prochaine pose" = celle sur laquelle on doit se concentrer MAINTENANT.
+        // Feedback patronne 2026-07-06 : "MAINTENANT" doit d'abord pointer sur
+        // la pose EN COURS DE RÉALISATION (le tech a déjà démarré) — sinon
+        // il voit "MAINTENANT" ailleurs alors qu'il est en route pour une
+        // autre commune → confusion.
+        // Ordre de priorité :
+        //   1. Pose en_route ou en_cours (le tech a démarré, il doit finir ça)
+        //   2. Pose en retard (dépassée depuis > 2 jours)
+        //   3. Pose du jour
+        //   4. Fallback : première pose active
+        $inProgressStatuses = [
+            PoseTaskStatus::EN_ROUTE->value,
+            PoseTaskStatus::IN_PROGRESS->value,
+        ];
+        $nextTask = $activeTasks->first(fn($t) => in_array((string) $t->status, $inProgressStatuses, true))
+                  ?? $activeTasks->first(fn($t) => $isLate($t))
                   ?? $activeTasks->first(fn($t) => $isTodayTask($t))
                   ?? $activeTasks->first();
 

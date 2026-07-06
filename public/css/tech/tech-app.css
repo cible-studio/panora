@@ -530,6 +530,14 @@
         .pose-line[data-task-status="en_route"] .pose-row::before {
             content: "🚗 EN ROUTE";
         }
+        /* 2026-07-06 : quand la ligne "MAINTENANT" est aussi en_route/en_cours,
+           on cache le badge orange (MAINTENANT) — le badge violet EN ROUTE /
+           SUR PLACE suffit et évite la surcharge visuelle (deux badges sur
+           la même ligne = confusion signalée par la patronne). */
+        .pose-line.is-next[data-task-status="en_route"] .pose-next-badge,
+        .pose-line.is-next[data-task-status="en_cours"] .pose-next-badge {
+            display: none;
+        }
         .pose-row {
             display: flex; align-items: center; gap: 12px;
             padding: 12px 14px;
