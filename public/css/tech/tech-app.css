@@ -1380,6 +1380,123 @@
             min-height: 46px; font-size: 13.5px;
         }
 
+        /* ═══ BARRE DE PROGRESSION 5 PALIERS (2026-07-06) ═══
+           Le tech clique un palier (0/25/50/75/100%) pour dire à
+           l'admin où il en est pendant la pose. Feedback patronne.
+           Feature intégrée au drawer T2 pour ne pas ajouter d'écran. */
+        .sm2-t2-progress {
+            margin-top: 20px;
+            padding: 14px 14px 12px;
+            background: linear-gradient(180deg, rgba(139, 92, 246, .06), rgba(139, 92, 246, .015));
+            border: 1px solid rgba(139, 92, 246, .22);
+            border-radius: 14px;
+        }
+        .sm2-t2-progress-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 10px;
+        }
+        .sm2-t2-progress-title {
+            font-size: 13px; font-weight: 700; color: var(--text);
+        }
+        .sm2-t2-progress-value {
+            font-size: 18px; font-weight: 900; color: #7c3aed;
+            transition: transform .2s;
+        }
+        .sm2-t2-progress-value.is-updated {
+            transform: scale(1.15);
+        }
+        .sm2-t2-progress-bar {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 4px;
+            position: relative;
+        }
+        .sm2-t2-progress-bar::before {
+            content: '';
+            position: absolute;
+            top: 14px;
+            left: 10%;
+            right: 10%;
+            height: 3px;
+            background: rgba(139, 92, 246, .18);
+            border-radius: 999px;
+            z-index: 0;
+        }
+        .sm2-t2-progress-step {
+            position: relative;
+            z-index: 1;
+            background: transparent;
+            border: none;
+            padding: 4px 2px;
+            cursor: pointer;
+            display: flex; flex-direction: column;
+            align-items: center; gap: 4px;
+            font-family: inherit;
+            transition: transform .12s;
+            min-height: 60px;
+        }
+        .sm2-t2-progress-step:active {
+            transform: scale(.95);
+        }
+        .sm2-t2-progress-dot {
+            display: inline-flex;
+            align-items: center; justify-content: center;
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid #cbd5e1;
+            color: #cbd5e1;
+            font-size: 12px;
+            transition: all .2s;
+        }
+        .sm2-t2-progress-step.is-reached .sm2-t2-progress-dot {
+            background: #8b5cf6;
+            border-color: #7c3aed;
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(139, 92, 246, .35);
+        }
+        .sm2-t2-progress-step.is-current .sm2-t2-progress-dot {
+            width: 34px; height: 34px;
+            font-size: 14px;
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, .18), 0 3px 8px rgba(139, 92, 246, .4);
+        }
+        .sm2-t2-progress-step.is-loading .sm2-t2-progress-dot {
+            animation: sm2-progress-pulse .8s ease-in-out infinite;
+        }
+        @keyframes sm2-progress-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .sm2-t2-progress-label {
+            font-size: 10px;
+            color: var(--text3);
+            text-align: center;
+            line-height: 1.25;
+            font-weight: 700;
+        }
+        .sm2-t2-progress-label small {
+            display: block;
+            font-size: 9px;
+            font-weight: 500;
+            color: var(--text3);
+            margin-top: 1px;
+        }
+        .sm2-t2-progress-step.is-reached .sm2-t2-progress-label,
+        .sm2-t2-progress-step.is-current .sm2-t2-progress-label {
+            color: #7c3aed;
+        }
+        .sm2-t2-progress-hint {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px dashed rgba(139, 92, 246, .18);
+            font-size: 11px;
+            color: var(--text3);
+            text-align: center;
+            font-style: italic;
+        }
+
         /* ─── T7 §spec — Modale "Confirmation Y aller" ───────────── */
         .sm2-t7-overlay {
             position: fixed; inset: 0; z-index: 9100;

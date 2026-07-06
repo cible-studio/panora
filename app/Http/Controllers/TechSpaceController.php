@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PoseTaskStatus;
+use App\Enums\UserRole;
 use App\Models\PoseTask;
 use App\Models\Pige;
 use App\Models\User;
@@ -887,6 +888,88 @@ class TechSpaceController extends Controller
             'status_color'  => $newStatus->color(),
             'is_terminal'   => $newStatus->isTerminal(),
             'message'       => "Statut mis à jour : {$newStatus->label()}.",
+        ]);
+    }
+
+    /**
+     * POST /tech/{token}/poses/{task}/progress
+     *
+     * Le tech renseigne sa progression manuelle (paliers 0/25/50/75/100)
+     * pendant qu'il pose. Feature demandée par la patronne le 2026-07-06
+     * pour que l'admin voie temps réel où en est le tech sur chaque pose.
+     *
+     * Règles métier :
+     *   - N'accepte que 0/25/50/75/100 (paliers validés)
+     *   - Interdit sur pose terminée (realisee/annulee) — no-op
+     *   - Interdit de RECULER : si progression actuelle >= nouvelle, no-op
+     *   - Auto-sync statut discret : si tech saute au-delà d'un palier
+     *     naturel du statut, on rattrape (mais on ne recule jamais)
+     *       25% → statut passe à en_route (si encore planifiee)
+     *       50%+ → statut passe à en_cours (si encore planifiee/en_route)
+     *     Le 100% n'est PAS forcé ici — reste au flux photo (uploadPhoto)
+     *     qui gère done_at + real_minutes proprement.
+     */
+    public function updateProgress(Request $request, string $token, int $taskId)
+    {
+        $tech = User::where('tech_public_token', $token)
+            ->where('role', UserRole::TECHNIQUE->value)
+            ->firstOrFail();
+
+        $task = PoseTask::where('id', $taskId)
+            ->where('assigned_user_id', $tech->id)
+            ->firstOrFail();
+
+        $data = $request->validate([
+            'percent' => ['required', 'integer', 'in:0,25,50,75,100'],
+        ]);
+        $newPct = (int) $data['percent'];
+
+        // Pose terminée = read-only.
+        $currentStatus = PoseTaskStatus::tryFrom((string) $task->status);
+        if ($currentStatus && $currentStatus->isTerminal()) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Cette pose est déjà clôturée.',
+            ], 422);
+        }
+
+        // Pas de retour arrière : si le tech a déjà signalé 50%, il ne peut
+        // pas revenir à 25%. Le SLA doit refléter le meilleur avancement.
+        if ($newPct <= (int) ($task->progress_percent ?? 0)) {
+            return response()->json([
+                'ok'      => true,
+                'noop'    => true,
+                'percent' => (int) $task->progress_percent,
+            ]);
+        }
+
+        $update = ['progress_percent' => $newPct];
+
+        // Auto-sync statut si le tech saute des paliers (utile quand il
+        // n'a pas cliqué "Y aller" mais tape directement 50% "collé").
+        if ($newPct >= 25 && $currentStatus === PoseTaskStatus::PLANNED) {
+            $update['status']     = PoseTaskStatus::EN_ROUTE->value;
+            $update['started_at'] = $task->started_at ?? now();
+        }
+        if ($newPct >= 50 && in_array($currentStatus, [PoseTaskStatus::PLANNED, PoseTaskStatus::EN_ROUTE], true)) {
+            $update['status']     = PoseTaskStatus::IN_PROGRESS->value;
+            $update['started_at'] = $task->started_at ?? now();
+        }
+
+        $task->update($update);
+        self::invalidateCache($tech->id);
+
+        Log::info('tech.space.progress_updated', [
+            'task_id' => $task->id,
+            'tech_id' => $tech->id,
+            'percent' => $newPct,
+            'ip'      => $request->ip(),
+        ]);
+
+        return response()->json([
+            'ok'      => true,
+            'percent' => $newPct,
+            'status'  => $update['status'] ?? $task->status,
         ]);
     }
 

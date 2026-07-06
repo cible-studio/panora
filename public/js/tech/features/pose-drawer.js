@@ -45,6 +45,7 @@ function readTaskData(poseEl) {
                 || '#',
         late:      poseEl.dataset.late === '1',
         hasReject: poseEl.dataset.hasReject === '1',
+        progress:  parseInt(poseEl.dataset.progress || '0', 10),
     };
 }
 
@@ -81,6 +82,48 @@ function populateDrawer(drawer, data) {
     // Reset l'input file pour ne pas garder une sélection précédente.
     const fileInput = drawer.querySelector('[data-photo-input]');
     if (fileInput) fileInput.value = '';
+
+    // Barre de progression 5 paliers — sync visuelle depuis la valeur DB
+    renderProgress(drawer, data.progress || 0);
+}
+
+/**
+ * Illumine les paliers <= currentPct et met à jour le badge %.
+ * Feature 2026-07-06 (patronne) : progression manuelle en 5 paliers.
+ */
+function renderProgress(drawer, currentPct) {
+    const valueEl = drawer.querySelector('[data-field="progress-percent"]');
+    if (valueEl) valueEl.textContent = currentPct + '%';
+
+    drawer.querySelectorAll('.sm2-t2-progress-step').forEach(btn => {
+        const step = parseInt(btn.dataset.progress || '0', 10);
+        const dot  = btn.querySelector('.sm2-t2-progress-dot');
+        // Active = palier atteint OU dépassé
+        if (step <= currentPct) {
+            btn.classList.add('is-reached');
+            if (dot) dot.textContent = step === currentPct ? '⬤' : '●';
+        } else {
+            btn.classList.remove('is-reached');
+            if (dot) dot.textContent = '◯';
+        }
+        // Le palier actuel = pastille pleine plus grosse
+        btn.classList.toggle('is-current', step === currentPct);
+    });
+
+    const hint = drawer.querySelector('[data-field="progress-hint"]');
+    if (hint) {
+        if (currentPct >= 100) {
+            hint.textContent = '✅ Fini — envoie la photo pour clôturer.';
+        } else if (currentPct >= 75) {
+            hint.textContent = 'Presque fini ! Photo pour valider.';
+        } else if (currentPct >= 50) {
+            hint.textContent = 'Bien avancé — continue !';
+        } else if (currentPct >= 25) {
+            hint.textContent = 'C\'est parti — indique où tu en es.';
+        } else {
+            hint.textContent = 'Touche un palier pour dire à l\'admin où tu en es.';
+        }
+    }
 }
 
 function open(poseEl, options = {}) {
@@ -126,6 +169,39 @@ function isActionable(target) {
         || target.closest('input');
 }
 
+/**
+ * POST AJAX vers /tech/{token}/poses/{taskId}/progress
+ * Feature 2026-07-06 : progression manuelle en 5 paliers.
+ * Route absolue construite depuis window.location car les templates
+ * publics tech ne partagent pas TECH_CONFIG.routes.progress à date.
+ */
+async function submitProgress(taskId, percent) {
+    // /tech/{token}/... → on garde /tech/{token} et on ajoute la sous-route
+    const pathParts = location.pathname.split('/').filter(Boolean);
+    // pathParts[0] = 'tech', pathParts[1] = token, [2] = 'poses' ou autre
+    const token = pathParts[1];
+    if (!token) return { ok: false };
+    const url = `/tech/${token}/poses/${taskId}/progress`;
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRF-TOKEN': csrf,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: 'percent=' + encodeURIComponent(percent),
+        });
+        const data = await res.json().catch(() => ({}));
+        return { ok: res.ok, data };
+    } catch (e) {
+        return { ok: false, error: e };
+    }
+}
+
 export function init() {
     if (!document.querySelector(SEL_DRAWER)) return;
 
@@ -133,6 +209,43 @@ export function init() {
     document.addEventListener('click', (e) => {
         const closeTrigger = e.target.closest('[data-action="close-detail"]');
         if (closeTrigger) { e.preventDefault(); close(); return; }
+
+        // Handler paliers de progression : capture avant qu'un autre code
+        // ne referme le drawer par erreur.
+        const stepBtn = e.target.closest('.sm2-t2-progress-step');
+        if (stepBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const drawer = document.querySelector(SEL_DRAWER);
+            const taskId = drawer?.dataset.taskId;
+            const percent = parseInt(stepBtn.dataset.progress || '0', 10);
+            if (!taskId || isNaN(percent)) return;
+
+            // Feedback optimiste immédiat (le UX prime, on ne bloque pas)
+            renderProgress(drawer, percent);
+            stepBtn.classList.add('is-loading');
+            submitProgress(taskId, percent).then(r => {
+                stepBtn.classList.remove('is-loading');
+                if (r.ok && r.data?.ok) {
+                    const applied = r.data.percent ?? percent;
+                    renderProgress(drawer, applied);
+                    // Sync la .pose-line source pour cohérence si on rouvre
+                    const line = document.querySelector(`.pose-line[data-task-id="${taskId}"]`);
+                    if (line) {
+                        line.dataset.progress = applied;
+                        if (r.data.status) line.dataset.taskStatus = r.data.status;
+                    }
+                    // Feedback discret côté badge
+                    const val = drawer.querySelector('[data-field="progress-percent"]');
+                    if (val) { val.classList.add('is-updated'); setTimeout(() => val.classList.remove('is-updated'), 600); }
+                } else {
+                    // Rollback : re-render depuis la source
+                    const line = document.querySelector(`.pose-line[data-task-id="${taskId}"]`);
+                    renderProgress(drawer, parseInt(line?.dataset.progress || '0', 10));
+                }
+            });
+            return;
+        }
 
         const overlay = e.target.closest(SEL_OVERLAY);
         if (overlay && !e.target.closest(SEL_DRAWER)) {

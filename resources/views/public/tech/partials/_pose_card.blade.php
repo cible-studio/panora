@@ -66,6 +66,7 @@
      data-lat="{{ $task->panel?->latitude }}"
      data-lng="{{ $task->panel?->longitude }}"
      data-go-url="{{ $goUrl }}"
+     data-progress="{{ (int) ($task->progress_percent ?? 0) }}"
      data-scheduled-today="{{ $isToday ? '1' : '0' }}"
      data-late="{{ $isLate ? '1' : '0' }}"
      data-has-problem="{{ $lastProblem ? '1' : '0' }}"

@@ -57,6 +57,47 @@
                     ⚠ Il y a un problème
                 </button>
             </div>
+
+            {{-- ══════════════════════════════════════════════════════════
+                 BARRE DE PROGRESSION MANUELLE — 5 paliers (2026-07-06)
+                 Feature demandée par la patronne : le tech marque où il
+                 en est pendant la pose (25/50/75%) et l'admin voit la
+                 progression temps réel dans le pilotage.
+                 Un tap sur un palier → POST AJAX vers l'endpoint
+                 tech.space.progress → progress_percent mis à jour + le
+                 statut auto-sync si sauté (25→en_route, 50→en_cours).
+                 ══════════════════════════════════════════════════════════ --}}
+            <div class="sm2-t2-progress" data-field="progress-panel">
+                <div class="sm2-t2-progress-head">
+                    <span class="sm2-t2-progress-title">📊 Où tu en es</span>
+                    <span class="sm2-t2-progress-value" data-field="progress-percent">0%</span>
+                </div>
+                <div class="sm2-t2-progress-bar" role="group" aria-label="Choisis ton avancement">
+                    <button type="button" class="sm2-t2-progress-step" data-progress="0">
+                        <span class="sm2-t2-progress-dot">◯</span>
+                        <span class="sm2-t2-progress-label">0%<br><small>Rien</small></span>
+                    </button>
+                    <button type="button" class="sm2-t2-progress-step" data-progress="25">
+                        <span class="sm2-t2-progress-dot">◯</span>
+                        <span class="sm2-t2-progress-label">25%<br><small>Arrivé</small></span>
+                    </button>
+                    <button type="button" class="sm2-t2-progress-step" data-progress="50">
+                        <span class="sm2-t2-progress-dot">◯</span>
+                        <span class="sm2-t2-progress-label">50%<br><small>Préparé</small></span>
+                    </button>
+                    <button type="button" class="sm2-t2-progress-step" data-progress="75">
+                        <span class="sm2-t2-progress-dot">◯</span>
+                        <span class="sm2-t2-progress-label">75%<br><small>Collé</small></span>
+                    </button>
+                    <button type="button" class="sm2-t2-progress-step" data-progress="100">
+                        <span class="sm2-t2-progress-dot">◯</span>
+                        <span class="sm2-t2-progress-label">100%<br><small>Fini</small></span>
+                    </button>
+                </div>
+                <div class="sm2-t2-progress-hint" data-field="progress-hint">
+                    Touche un palier pour dire à l'admin où tu en es.
+                </div>
+            </div>
         </div>
     </aside>
 </div>
