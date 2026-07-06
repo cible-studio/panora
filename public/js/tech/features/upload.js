@@ -653,18 +653,19 @@ function bindMainUpload() {
                 }, 220);
             }
             if (sourcePose) {
-                sourcePose.style.transition = 'all .4s ease-out';
-                sourcePose.style.opacity   = '0';
-                sourcePose.style.transform = 'translateX(20px)';
-                setTimeout(() => {
-                    sourcePose.remove();
-                    refreshDayCounters();
-                }, 400);
+                // 2026-07-06 (feedback patronne) : restaure l'animation
+                // douce de l'ancienne focus card (opacity 0.4 + désactivé
+                // + grayscale) au lieu du fade-out sec + remove. La ligne
+                // reste visible pendant le reload → le tech voit "elle est
+                // terminée" au lieu de "elle a disparu".
+                sourcePose.style.transition = 'all .5s ease-out';
+                sourcePose.style.opacity = '0.45';
+                sourcePose.style.filter = 'grayscale(1)';
+                sourcePose.style.pointerEvents = 'none';
+                sourcePose.style.transform = 'scale(.985)';
+                // refreshDayCounters ne dépend plus de sourcePose retirée
+                setTimeout(() => refreshDayCounters(), 400);
             }
-            // 2026-07-06 : la focus card autonome (#next-pose-hero) a été
-            // retirée — les poses sont désormais toutes dans la liste avec
-            // un badge "🔥 MAINTENANT" sur la ligne highlightée. Le fade
-            // de la ligne source (sourcePose) au-dessus suffit.
             // Recharge la page après que l'écran T4 ait fini son animation
             // (4 s) — laisse le tech voir le succès, puis le serveur
             // recalcule $nextTask = la pose suivante par priorité.
