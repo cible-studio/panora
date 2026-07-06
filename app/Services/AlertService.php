@@ -1015,7 +1015,7 @@ class AlertService
     {
         $count = 0;
         $tasks = PoseTask::where('status', 'planifiee')
-            ->where('scheduled_at', '<', now())
+            ->where('scheduled_at', '<', PoseTask::lateThreshold())
             ->with(['panel:id,reference', 'campaign:id,name'])
             ->get(['id', 'panel_id', 'campaign_id', 'scheduled_at']);
 

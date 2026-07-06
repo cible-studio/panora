@@ -132,7 +132,7 @@ class Campaign extends Model
         $openSignalPoseIds = $this->openProblemSignals()->pluck('pose_task_id')->unique()->all();
         $overdue = $this->poseTasks()
             ->where('status', 'planifiee')
-            ->where('scheduled_at', '<', now())
+            ->where('scheduled_at', '<', \App\Models\PoseTask::lateThreshold())
             ->when(!empty($openSignalPoseIds), fn ($q) => $q->whereNotIn('id', $openSignalPoseIds))
             ->with('panel:id,reference')
             ->get();

@@ -21,7 +21,7 @@
         ? $nt->status
         : \App\Enums\PoseTaskStatus::tryFrom((string) $nt->status);
     $ntSched = $nt->scheduled_at ?? $nt->created_at;
-    $ntLate  = $ntSched && \Carbon\Carbon::parse($ntSched)->startOfDay()->lt(\Carbon\Carbon::today());
+    $ntLate  = $ntSched && \Carbon\Carbon::parse($ntSched)->lt(\App\Models\PoseTask::lateThreshold());
     $ntToday = $ntSched && \Carbon\Carbon::parse($ntSched)->isToday();
     $ntFirstPhoto = $nt->panel?->photos?->sortBy('ordre')->first();
     $ntThumb = $ntFirstPhoto ? asset('storage/' . $ntFirstPhoto->path) : null;

@@ -29,7 +29,7 @@
     $statusColor = $status->color();
 
     $sched   = $task->scheduled_at ?? $task->created_at;
-    $isLate  = $sched && \Carbon\Carbon::parse($sched)->startOfDay()->lt($today);
+    $isLate  = $sched && \Carbon\Carbon::parse($sched)->lt(\App\Models\PoseTask::lateThreshold());
     $isToday = $sched && \Carbon\Carbon::parse($sched)->isToday();
 
     $searchHay = mb_strtolower(implode(' ', array_filter([

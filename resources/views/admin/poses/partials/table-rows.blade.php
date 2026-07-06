@@ -332,7 +332,7 @@
                 'annulee'   => '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
                 default     => '',
             };
-            $isLate = $task->status === 'planifiee' && $task->scheduled_at?->isPast();
+            $isLate = $task->status === 'planifiee' && $task->scheduled_at?->lt(\App\Models\PoseTask::lateThreshold());
             $pigeCount = $task->pige_count ?? 0;
             $pigeVerif = $task->pige_verifie_count ?? 0;
             $needsPige = $task->status === 'realisee' && $task->campaign_id && $pigeCount === 0;

@@ -359,7 +359,7 @@ class PoseController extends Controller
                 'annulee'   => '#ef4444',
                 default     => '#6b7280',
             };
-            $isLate = $t->status === 'planifiee' && $t->scheduled_at?->isPast();
+            $isLate = $t->status === 'planifiee' && $t->scheduled_at?->lt(PoseTask::lateThreshold());
             return [
                 'id'         => $t->id,
                 'lat'        => (float) $t->panel->latitude,
@@ -507,8 +507,7 @@ class PoseController extends Controller
             ];
         }
  
-        $isLate = $poseTask->status === PoseTaskStatus::PLANNED->value
-            && $poseTask->scheduled_at?->isPast();
+        $isLate = $poseTask->isLate();
  
         // Alertes liées à cette tâche — via AlertService (maintenant cohérent)
         $taskAlerts = $this->alertService->getForModel(PoseTask::class, $poseTask->id);
@@ -822,7 +821,7 @@ class PoseController extends Controller
                 'technicien:id,name',
             ])
             ->whereIn('status', $notDone)
-            ->where('scheduled_at', '<', now());
+            ->where('scheduled_at', '<', PoseTask::lateThreshold());
 
         if ($request->filled('user_id')) {
             $q->where('assigned_user_id', $request->user_id);
@@ -841,12 +840,12 @@ class PoseController extends Controller
 
         // Compteur global (avant filtres) pour le KPI du bandeau d'alerte.
         $totalOubliees = PoseTask::whereIn('status', $notDone)
-            ->where('scheduled_at', '<', now())
+            ->where('scheduled_at', '<', PoseTask::lateThreshold())
             ->count();
 
         // Techniciens présents dans la sélection — pour le filtre déroulant.
         $userIds = PoseTask::whereIn('status', $notDone)
-            ->where('scheduled_at', '<', now())
+            ->where('scheduled_at', '<', PoseTask::lateThreshold())
             ->whereNotNull('assigned_user_id')
             ->distinct()->pluck('assigned_user_id');
         $users = User::whereIn('id', $userIds)->orderBy('name')->get(['id', 'name']);

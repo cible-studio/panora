@@ -145,7 +145,7 @@
                                             'annulee'   => ['c'=>'#ef4444','bg'=>'rgba(239,68,68,.08)'],
                                             default     => ['c'=>'#6b7280','bg'=>'rgba(107,114,128,.08)'],
                                         };
-                                        $isLate = $task->status === 'planifiee' && $task->scheduled_at?->isPast();
+                                        $isLate = $task->status === 'planifiee' && $task->scheduled_at?->lt(\App\Models\PoseTask::lateThreshold());
                                     @endphp
                                     <a href="{{ route('admin.pose-tasks.show', $task) }}"
                                        class="cal-task"
