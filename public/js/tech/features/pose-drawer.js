@@ -98,15 +98,17 @@ function renderProgress(drawer, currentPct) {
     drawer.querySelectorAll('.sm2-t2-progress-step').forEach(btn => {
         const step = parseInt(btn.dataset.progress || '0', 10);
         const dot  = btn.querySelector('.sm2-t2-progress-dot');
-        // Active = palier atteint OU dépassé
-        if (step <= currentPct) {
+        // Active = palier atteint OU dépassé. Le palier courant reçoit
+        // en plus une pastille plus grosse. La régression est autorisée
+        // depuis 2026-07-06 : tous les paliers restent cliquables, y
+        // compris ceux inférieurs pour corriger une saisie erronée.
+        if (step > 0 && step <= currentPct) {
             btn.classList.add('is-reached');
             if (dot) dot.textContent = step === currentPct ? '⬤' : '●';
         } else {
             btn.classList.remove('is-reached');
             if (dot) dot.textContent = '◯';
         }
-        // Le palier actuel = pastille pleine plus grosse
         btn.classList.toggle('is-current', step === currentPct);
     });
 

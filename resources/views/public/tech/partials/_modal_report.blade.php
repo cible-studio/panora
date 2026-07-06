@@ -102,7 +102,7 @@
     @keyframes tsK { to{stroke-dashoffset:0} }
     .ts-msg { font-size:23px; font-weight:800; }
 
-    /* ═══ Modal report — refonte SM2 Phase 4 ═══ */
+    /* ═══ Modal report — refonte SM2 Phase 4 (2026-07-06 : responsivité mobile) ═══ */
     #ts-report-modal {
         position:fixed; inset:0; z-index:9998; display:none;
         align-items:flex-end; justify-content:center; background:rgba(15,23,42,.55); padding:0;
@@ -111,10 +111,23 @@
     .ts-report-card {
         position: relative;
         background:#fff; width:100%; max-width:520px; border-radius:18px 18px 0 0;
-        padding:16px 18px calc(18px + env(safe-area-inset-bottom)); animation:tsUp .25s ease;
-        max-height: 92vh; overflow-y: auto;
+        padding:16px 18px calc(20px + env(safe-area-inset-bottom));
+        animation:tsUp .25s ease;
+        /* 2026-07-06 : dvh > vh sur mobile (barre d'adresse dynamique).
+           95% pour laisser un peu voir l'overlay derrière → indique au
+           tech qu'il peut fermer en tapant à côté. */
+        max-height: 95dvh;
+        max-height: 95vh; /* fallback */
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
     @keyframes tsUp { from{transform:translateY(40px);opacity:.5} to{transform:translateY(0);opacity:1} }
+
+    /* Sur desktop / tablet large : centrer plutôt qu'en bas d'écran */
+    @media (min-width: 640px) {
+        #ts-report-modal { align-items: center; padding: 20px; }
+        .ts-report-card { border-radius: 18px; max-height: 88vh; }
+    }
 
     /* Étapes T5 / T6 — visibilité contrôlée par data-step sur la modale */
     .ts-report-step { display: block; }

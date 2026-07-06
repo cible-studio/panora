@@ -948,20 +948,18 @@ class TechSpaceController extends Controller
             ], 422);
         }
 
-        // Pas de retour arrière : si le tech a déjà signalé 50%, il ne peut
-        // pas revenir à 25%. Le SLA doit refléter le meilleur avancement.
-        if ($newPct <= (int) ($task->progress_percent ?? 0)) {
-            return response()->json([
-                'ok'      => true,
-                'noop'    => true,
-                'percent' => (int) $task->progress_percent,
-            ]);
+        // 2026-07-06 (feedback patronne) : régression AUTORISÉE — le tech
+        // doit pouvoir corriger une saisie erronée. No-op si valeur identique.
+        $currentPct = (int) ($task->progress_percent ?? 0);
+        if ($newPct === $currentPct) {
+            return response()->json(['ok' => true, 'noop' => true, 'percent' => $currentPct]);
         }
 
         $update = ['progress_percent' => $newPct];
 
-        // Auto-sync statut si le tech saute des paliers (utile quand il
-        // n'a pas cliqué "Y aller" mais tape directement 50% "collé").
+        // Auto-sync statut à la MONTÉE : le tech qui saute des paliers
+        // (ex : tape direct 50% sans cliquer Y aller) fait basculer le
+        // statut automatiquement.
         if ($newPct >= 25 && $currentStatus === PoseTaskStatus::PLANNED) {
             $update['status']     = PoseTaskStatus::EN_ROUTE->value;
             $update['started_at'] = $task->started_at ?? now();
@@ -970,12 +968,22 @@ class TechSpaceController extends Controller
             $update['status']     = PoseTaskStatus::IN_PROGRESS->value;
             $update['started_at'] = $task->started_at ?? now();
         }
-        // arrived_at (2026-07-06) : posé au premier passage à 50%+ ("Arrivé
-        // sur place"). Sert au KPI "temps de pose réel" = done_at - arrived_at
-        // qui exclut le trajet, contrairement à real_minutes actuel qui
-        // partait de started_at (= départ du sprint).
+
+        // arrived_at : posé au 50%+, ANNULÉ si le tech redescend sous 50%
+        // (correction de saisie). Le SLA restera juste car aucune donnée
+        // vraie ne sera perdue tant que la pose n'est pas terminée.
         if ($newPct >= 50 && !$task->arrived_at) {
             $update['arrived_at'] = now();
+        }
+        if ($newPct < 50 && $task->arrived_at) {
+            $update['arrived_at'] = null;
+        }
+        // Si le tech redescend à 0%, on remet en planifiee et on efface
+        // started_at (sinon KPI de réactivité fausse ces poses "flottantes").
+        if ($newPct === 0) {
+            $update['status']     = PoseTaskStatus::PLANNED->value;
+            $update['started_at'] = null;
+            $update['arrived_at'] = null;
         }
 
         $task->update($update);
