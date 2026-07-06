@@ -41,7 +41,9 @@
 //               plus visible (le tech voit clairement "j'ai déjà signalé")
 //   - v2.7.4  : fix rectangle blanc opaque qui masquait le contenu des lignes
 //               is-next / en_route / en_cours (gradient blanc pur à 40-60%)
-const SW_VERSION = 'v2.7.4';
+//   - v2.7.5  : bandeau signalement avec styles INLINE (indépendant du cache
+//               CSS SW qui peut servir une version périmée). Toujours amber.
+const SW_VERSION = 'v2.7.5';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

@@ -200,21 +200,33 @@ export function init() {
                     pose.dataset.hasProblem = '1';
                     let banner = pose.querySelector('[data-problem-banner]');
                     if (!banner) {
-                        // Injection du bandeau après le badge MAINTENANT
-                        // (s'il existe) et avant .pose-row.
+                        // Injection du bandeau avant .pose-row.
                         banner = document.createElement('div');
                         banner.className = 'pose-reported-banner';
                         banner.setAttribute('data-problem-banner', '');
-                        banner.innerHTML = `⚠ Tu as déjà dit : <strong data-problem-label></strong> <span class="reported-when" data-problem-when></span>`;
                         const anchor = pose.querySelector('.pose-row');
                         if (anchor) pose.insertBefore(banner, anchor);
                         else pose.prepend(banner);
                     }
-                    banner.style.display = '';
-                    const lbl = banner.querySelector('[data-problem-label]');
-                    const whn = banner.querySelector('[data-problem-when]');
-                    if (lbl) lbl.textContent = label;
-                    if (whn) whn.textContent = "à l'instant";
+                    // 2026-07-06 : styles INLINE pour être 100% indépendant
+                    // du cache CSS du navigateur (le SW peut servir un CSS
+                    // périmé pendant la mise à jour). Le tech DOIT voir un
+                    // retour visuel amber sans ambiguïté après signalement.
+                    banner.style.cssText = [
+                        'display: flex',
+                        'align-items: center',
+                        'gap: 6px',
+                        'flex-wrap: wrap',
+                        'padding: 8px 12px',
+                        'font-size: 12px',
+                        'font-weight: 700',
+                        'color: #92400e',
+                        'background: linear-gradient(90deg, rgba(245,158,11,.25), rgba(245,158,11,.08))',
+                        'border-left: 4px solid #f59e0b',
+                        'border-bottom: 1px solid rgba(245,158,11,.35)',
+                        'border-radius: 12px 12px 0 0',
+                    ].join(';');
+                    banner.innerHTML = `<span>⚠</span> <span>Signalement envoyé :</span> <strong style="color:#78350f" data-problem-label>${label}</strong> <span class="reported-when" style="margin-left:auto;font-size:10.5px;color:#b45309;font-weight:500" data-problem-when>à l'instant</span>`;
                 }
             } else {
                 toast(data.error || data.message || 'Erreur', 'error');
