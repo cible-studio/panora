@@ -1337,16 +1337,20 @@ class TechSpaceController extends Controller
         // alors que la pige était bel et bien créée.
         $currentStatus = PoseTaskStatus::tryFrom((string) $task->status);
         if ($currentStatus && !$currentStatus->isTerminal()) {
-            // Bump progression à 100% + started_at si pas déjà posé +
-            // real_minutes si on peut calculer. Cohérent avec updateStatus().
+            // Bump progression à 100% + done_at.
+            // FIX 2026-07-01 — Ne PAS poser started_at=now() en fallback quand
+            // il est NULL : ça produisait real_minutes = 0 min (durée bidon,
+            // moyenne SLA polluée). Le tracking dépend du clic "Y aller"
+            // (bindGoMaps dans status-changes.js qui bump en_route et pose
+            // started_at). Si le tech saute cette étape (offline, skip,
+            // clic direct photo), on laisse started_at NULL → la pose n'est
+            // pas comptée dans la moyenne DURÉE MOY (comportement propre).
             $taskUpdate = [
                 'status'           => PoseTaskStatus::COMPLETED->value,
                 'done_at'          => now(),
                 'progress_percent' => 100,
             ];
-            if (!$task->started_at) {
-                $taskUpdate['started_at'] = now();
-            } else {
+            if ($task->started_at) {
                 $taskUpdate['real_minutes'] = max(1, (int) round(
                     $task->started_at->diffInMinutes(now())
                 ));

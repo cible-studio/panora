@@ -54,11 +54,16 @@ class TechnicianPerformanceService
             ->count();
 
         // ── Temps moyens (en minutes) — via SQL pour perf
+        // 2026-07-01 — DUREE_POSE > 0 : filtre défensif contre les vieilles
+        // poses où started_at=now() était posé en fallback au moment du
+        // upload photo (bug fixé côté controllers), ce qui donnait
+        // TIMESTAMPDIFF=0 min et tirait la moyenne SLA vers le bas.
         $tempsAvg = (clone $base)
             ->whereNotNull('started_at')
             ->selectRaw('
                 AVG(TIMESTAMPDIFF(MINUTE, created_at, started_at)) as reactivite_min,
                 AVG(CASE WHEN done_at IS NOT NULL
+                              AND TIMESTAMPDIFF(MINUTE, started_at, done_at) > 0
                          THEN TIMESTAMPDIFF(MINUTE, started_at, done_at)
                     END) as duree_pose_min,
                 AVG(CASE WHEN done_at IS NOT NULL AND estimated_minutes > 0 AND real_minutes > 0
@@ -348,6 +353,7 @@ class TechnicianPerformanceService
                 SUM(CASE WHEN status = "planifiee" AND scheduled_at < NOW() THEN 1 ELSE 0 END) as nb_retard,
                 AVG(CASE WHEN started_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, created_at, started_at) END) as reactivite,
                 AVG(CASE WHEN done_at IS NOT NULL AND started_at IS NOT NULL
+                              AND TIMESTAMPDIFF(MINUTE, started_at, done_at) > 0
                          THEN TIMESTAMPDIFF(MINUTE, started_at, done_at) END) as duree_pose
             ')
             ->first();
