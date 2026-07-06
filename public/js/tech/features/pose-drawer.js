@@ -115,11 +115,11 @@ function renderProgress(drawer, currentPct) {
         if (currentPct >= 100) {
             hint.textContent = '✅ Fini — envoie la photo pour clôturer.';
         } else if (currentPct >= 75) {
-            hint.textContent = 'Presque fini ! Photo pour valider.';
+            hint.textContent = 'Collage en cours — bientôt la photo !';
         } else if (currentPct >= 50) {
-            hint.textContent = 'Bien avancé — continue !';
+            hint.textContent = 'Tu es sur place — bonne pose !';
         } else if (currentPct >= 25) {
-            hint.textContent = 'C\'est parti — indique où tu en es.';
+            hint.textContent = 'En route vers le panneau…';
         } else {
             hint.textContent = 'Touche un palier pour dire à l\'admin où tu en es.';
         }

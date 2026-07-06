@@ -75,19 +75,19 @@
                 <div class="sm2-t2-progress-bar" role="group" aria-label="Choisis ton avancement">
                     <button type="button" class="sm2-t2-progress-step" data-progress="0">
                         <span class="sm2-t2-progress-dot">◯</span>
-                        <span class="sm2-t2-progress-label">0%<br><small>Rien</small></span>
+                        <span class="sm2-t2-progress-label">0%<br><small>Pas commencé</small></span>
                     </button>
                     <button type="button" class="sm2-t2-progress-step" data-progress="25">
                         <span class="sm2-t2-progress-dot">◯</span>
-                        <span class="sm2-t2-progress-label">25%<br><small>Arrivé</small></span>
+                        <span class="sm2-t2-progress-label">25%<br><small>En route</small></span>
                     </button>
                     <button type="button" class="sm2-t2-progress-step" data-progress="50">
                         <span class="sm2-t2-progress-dot">◯</span>
-                        <span class="sm2-t2-progress-label">50%<br><small>Préparé</small></span>
+                        <span class="sm2-t2-progress-label">50%<br><small>Arrivé</small></span>
                     </button>
                     <button type="button" class="sm2-t2-progress-step" data-progress="75">
                         <span class="sm2-t2-progress-dot">◯</span>
-                        <span class="sm2-t2-progress-label">75%<br><small>Collé</small></span>
+                        <span class="sm2-t2-progress-label">75%<br><small>Collage</small></span>
                     </button>
                     <button type="button" class="sm2-t2-progress-step" data-progress="100">
                         <span class="sm2-t2-progress-dot">◯</span>
