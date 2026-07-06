@@ -35,8 +35,9 @@
 
         @foreach($tasks as $task)
             @include('public.tech.partials._pose_card', [
-                'task'  => $task,
-                'today' => $today,
+                'task'            => $task,
+                'today'           => $today,
+                'highlightTaskId' => $highlightTaskId ?? null,
             ])
         @endforeach
     </div>
