@@ -36,13 +36,19 @@ class TechnicianPerformanceService
     /** KPIs principaux d'un technicien sur la période. */
     public function kpis(int $techId, CarbonInterface $from, CarbonInterface $to): array
     {
-        // Périmètre : poses assignées au tech, créées sur la période
-        // OU dont scheduled_at chevauche la période.
+        // Périmètre : poses assignées au tech dont un des jalons tombe sur
+        // la période demandée : création, planification, démarrage OU
+        // réalisation. Sans ça, une pose planifiée le 21/05 mais RÉALISÉE
+        // aujourd'hui n'apparaissait pas dans le KPI "aujourd'hui" — bug
+        // signalé par la patronne 2026-07-01 (fait 2 poses aujourd'hui,
+        // KPI = 0). Fix : élargir aux 4 jalons.
         $base = PoseTask::query()
             ->where('assigned_user_id', $techId)
             ->where(function ($q) use ($from, $to) {
-                $q->whereBetween('created_at', [$from, $to])
-                  ->orWhereBetween('scheduled_at', [$from, $to]);
+                $q->whereBetween('created_at',   [$from, $to])
+                  ->orWhereBetween('scheduled_at', [$from, $to])
+                  ->orWhereBetween('started_at',   [$from, $to])
+                  ->orWhereBetween('done_at',      [$from, $to]);
             });
 
         $nbTotal      = (clone $base)->count();
@@ -344,8 +350,13 @@ class TechnicianPerformanceService
         $aggregate = DB::table('pose_tasks')
             ->whereIn('assigned_user_id', $techIds)
             ->where(function ($q) use ($from, $to) {
-                $q->whereBetween('created_at', [$from, $to])
-                  ->orWhereBetween('scheduled_at', [$from, $to]);
+                // Périmètre élargi 2026-07-01 : cohérent avec kpis() —
+                // une pose réalisée AUJOURD'HUI mais planifiée hier doit
+                // apparaître dans le KPI "aujourd'hui".
+                $q->whereBetween('created_at',   [$from, $to])
+                  ->orWhereBetween('scheduled_at', [$from, $to])
+                  ->orWhereBetween('started_at',   [$from, $to])
+                  ->orWhereBetween('done_at',      [$from, $to]);
             })
             ->selectRaw('
                 COUNT(*) as nb_total,

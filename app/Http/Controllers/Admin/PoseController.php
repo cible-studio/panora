@@ -80,8 +80,21 @@ class PoseController extends Controller
         }
         if ($request->filled('technicien_id')) $query->where('pose_tasks.assigned_user_id', $request->technicien_id);
         if ($request->filled('campaign_id'))   $query->where('pose_tasks.campaign_id',      $request->campaign_id);
-        if ($request->filled('date_from'))     $query->whereDate('pose_tasks.scheduled_at', '>=', $request->date_from);
-        if ($request->filled('date_to'))       $query->whereDate('pose_tasks.scheduled_at', '<=', $request->date_to);
+        // FIX 2026-07-01 (feedback patronne) — Le filtre date_from/date_to
+        // doit s'adapter à la colonne pertinente selon le statut demandé,
+        // sinon la KPI "Réalisées d'aujourd'hui" du pilotage renvoie 0
+        // alors que 2 poses ont été faites (leur scheduled_at reste au
+        // jour prévu, pas au jour de réalisation).
+        //   status=realisee → filtrer sur done_at
+        //   status=en_cours → filtrer sur started_at (fallback scheduled_at si NULL)
+        //   status=planifiee/annulee/tous → filtrer sur scheduled_at (comportement historique)
+        $dateColumn = match ($request->input('status')) {
+            'realisee' => 'pose_tasks.done_at',
+            'en_cours' => 'pose_tasks.started_at',
+            default    => 'pose_tasks.scheduled_at',
+        };
+        if ($request->filled('date_from'))     $query->whereDate($dateColumn, '>=', $request->date_from);
+        if ($request->filled('date_to'))       $query->whereDate($dateColumn, '<=', $request->date_to);
         // 2026-06-18 : filtre Équipe (team_name VARCHAR — pose_team_id ne vit
         // que sur users, pas sur pose_tasks ; on requête donc par nom).
         if ($request->filled('team_name'))     $query->where('pose_tasks.team_name', $request->team_name);

@@ -61,12 +61,12 @@
         </div>
         <div class="perf-kpi" style="border-left-color:#0ea5e9">
             <div class="perf-kpi-label">Réactivité moyenne</div>
-            <div class="perf-kpi-val" style="color:#0369a1">{{ $globalKpis['reactivite_avg_min'] !== null ? $globalKpis['reactivite_avg_min'].' min' : '—' }}</div>
+            <div class="perf-kpi-val" style="color:#0369a1">{{ \App\Support\HumanDuration::fromMinutes($globalKpis['reactivite_avg_min']) }}</div>
             <div class="perf-kpi-sub">attribution → début</div>
         </div>
         <div class="perf-kpi" style="border-left-color:#a855f7">
             <div class="perf-kpi-label">Durée moyenne pose</div>
-            <div class="perf-kpi-val" style="color:#7c3aed">{{ $globalKpis['duree_pose_avg_min'] !== null ? $globalKpis['duree_pose_avg_min'].' min' : '—' }}</div>
+            <div class="perf-kpi-val" style="color:#7c3aed">{{ \App\Support\HumanDuration::fromMinutes($globalKpis['duree_pose_avg_min']) }}</div>
             <div class="perf-kpi-sub">début → fin</div>
         </div>
         <div class="perf-kpi" style="border-left-color:{{ $globalKpis['taux_poses_en_retard'] <= 5 ? '#16a34a' : ($globalKpis['taux_poses_en_retard'] <= 15 ? '#f59e0b' : '#ef4444') }}">
@@ -157,8 +157,8 @@
                             </td>
                             <td style="text-align:right;font-weight:800;color:#16a34a">{{ $k['nb_poses_realisees'] }}</td>
                             <td style="text-align:right;color:var(--text2)">{{ $k['nb_poses_planifiees'] }}</td>
-                            <td style="text-align:right;color:var(--text2)">{{ $k['reactivite_avg_min'] !== null ? $k['reactivite_avg_min'].' min' : '—' }}</td>
-                            <td style="text-align:right;color:var(--text2)">{{ $k['duree_pose_avg_min'] !== null ? $k['duree_pose_avg_min'].' min' : '—' }}</td>
+                            <td style="text-align:right;color:var(--text2)">{{ \App\Support\HumanDuration::fromMinutes($k['reactivite_avg_min']) }}</td>
+                            <td style="text-align:right;color:var(--text2)">{{ \App\Support\HumanDuration::fromMinutes($k['duree_pose_avg_min']) }}</td>
                             <td style="text-align:right;font-weight:700;color:{{ $retardCol }}">{{ $k['taux_poses_en_retard'] }} %</td>
                             <td style="text-align:right;font-weight:700;color:{{ $rejetCol }}">{{ $k['taux_piges_rejetees'] }} %</td>
                             <td style="text-align:right;color:var(--text2)">{{ $k['nb_signalements'] }}</td>
