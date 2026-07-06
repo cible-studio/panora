@@ -30,7 +30,10 @@
 //   - v2.4.0  : 3 bugs critiques post-refonte (upload undefined / card rotation / off-schedule humain)
 //   - v2.5.0  : fix PHP non-évalué dans _js_config (ssrCap) qui cassait window.TECH_CONFIG
 //   - v2.6.0  : diagnostic GPS amélioré côté modale T3 (motifs d'échec)
-const SW_VERSION = 'v2.6.0';
+//   - v2.7.0  : refonte focus card → badge MAINTENANT dans liste, halo violet
+//               pose en cours, paliers de progression 5 niveaux (drawer T2),
+//               fix Ouvrir Google Maps + fallback commune/nom si pas de GPS
+const SW_VERSION = 'v2.7.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

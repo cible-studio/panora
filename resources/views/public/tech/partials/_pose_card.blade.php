@@ -49,15 +49,24 @@
     // via un badge orange + halo. Cf. TechSpaceController::$nextTask.
     $isNext       = isset($highlightTaskId) && $highlightTaskId === $task->id;
 
-    // 2026-07-06 hotfix — URL Google Maps préparée ici pour que le drawer
-    // T2 puisse la récupérer via pose-drawer.js (qui lit .querySelector('[data-go-maps]')).
-    // Sans ça, le bouton "Ouvrir Google Maps" du modal T7 restait à href="#"
-    // → clic sans effet. Cf. bug signalé par la patronne 2026-07-06.
-    $goUrl = ($task->panel?->latitude && $task->panel?->longitude)
-        ? 'https://www.google.com/maps/dir/?api=1&destination=' . $task->panel->latitude . ',' . $task->panel->longitude
-        : ($task->panel?->adresse
-            ? 'https://www.google.com/maps/search/?api=1&query=' . urlencode($task->panel->adresse . ' ' . ($task->panel?->commune?->name ?? ''))
-            : '#');
+    // 2026-07-06 hotfix v2 — URL Google Maps préparée ici pour que le drawer
+    // T2 puisse la récupérer via pose-drawer.js.
+    // Fallback en cascade pour NE JAMAIS retourner "#" (qui ne fait rien
+    // au clic) : GPS > adresse+commune > nom du panneau+commune > commune.
+    // Le pire cas donne quand même une URL Maps qui ouvre la commune.
+    if ($task->panel?->latitude && $task->panel?->longitude) {
+        $goUrl = 'https://www.google.com/maps/dir/?api=1&destination=' . $task->panel->latitude . ',' . $task->panel->longitude;
+    } else {
+        $searchQuery = trim(implode(' ', array_filter([
+            $task->panel?->adresse,
+            $task->panel?->name,
+            $task->panel?->commune?->name,
+            $task->panel?->commune?->city,
+        ])));
+        $goUrl = $searchQuery !== ''
+            ? 'https://www.google.com/maps/search/?api=1&query=' . urlencode($searchQuery)
+            : 'https://www.google.com/maps/';
+    }
 @endphp
 <div class="pose pose-line {{ $isNext ? 'is-next' : '' }} {{ $lastProblem ? 'has-problem' : '' }} {{ $rejPige ? 'has-reject' : '' }}"
      data-task-id="{{ $task->id }}"

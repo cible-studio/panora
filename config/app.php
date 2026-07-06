@@ -27,7 +27,7 @@ return [
     | Format recommandé : YYYYMMDD-suffix (ex: 20260619-hotfix1).
     | Pour les techs en PWA, bumper ÉGALEMENT SW_VERSION dans tech-sw.js.
     */
-    'version' => env('APP_VERSION', '20260622-taxes-hotfix-b'),
+    'version' => env('APP_VERSION', '20260706-tech-progress-paliers'),
 
     /*
     |--------------------------------------------------------------------------
