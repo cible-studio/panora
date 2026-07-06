@@ -661,15 +661,10 @@ function bindMainUpload() {
                     refreshDayCounters();
                 }, 400);
             }
-            // Fade-out ALSO la focus card si c'est elle qu'on vient de
-            // terminer (sinon elle reste affichée sur la pose qu'on a
-            // terminée jusqu'au reload).
-            const focusCard = document.getElementById('next-pose-hero');
-            if (focusCard && focusCard.dataset.taskId === String(taskId)) {
-                focusCard.style.transition = 'all .4s ease-out';
-                focusCard.style.opacity = '0.4';
-                focusCard.style.pointerEvents = 'none';
-            }
+            // 2026-07-06 : la focus card autonome (#next-pose-hero) a été
+            // retirée — les poses sont désormais toutes dans la liste avec
+            // un badge "🔥 MAINTENANT" sur la ligne highlightée. Le fade
+            // de la ligne source (sourcePose) au-dessus suffit.
             // Recharge la page après que l'écran T4 ait fini son animation
             // (4 s) — laisse le tech voir le succès, puis le serveur
             // recalcule $nextTask = la pose suivante par priorité.
@@ -695,40 +690,16 @@ function bindMainUpload() {
     });
 }
 
-// ── Hero "Prochaine pose" ───────────────────────────────────────
-// Hotfix 2026-06-19 (post-refonte radicale) :
-//
-// L'ancien bindHero attachait un SECOND handler 'change' direct sur
-// l'input [data-next-photo] de la focus card, qui dupliquait l'upload
-// déjà fait par bindMainUpload (handler délégué sur [data-photo-input]).
-//
-// Avant la refonte, ce double handler était inoffensif : la focus card
-// n'avait PAS data-task-id, donc bindMainUpload bailait via
-// `if (!taskId) return;` et seul le path bindHero faisait l'upload via
-// directUploadFromHero(nextTaskId) en bouclant sur la pose-line de la
-// liste (qui avait, elle, data-photo-input + data-task-id).
-//
-// Depuis la refonte (Phase 2) :
-//   - la focus card EXPOSE data-task-id → bindMainUpload fait l'upload
-//   - _pose_card compact n'a PLUS data-photo-input → bindHero tombait
-//     dans le fallback directUploadFromHero, donc DEUX uploads (double-POST)
-//     + un risque de fetch('undefined') si nextTaskId était mal lu.
-//
-// Solution : on garde uniquement le data-go-maps pour le bump
-// en_route (utile car le delegate bindGoMaps lit data-task-status).
-// Le handler change direct est RETIRÉ.
-function bindHero() {
-    const hero = document.getElementById('next-pose-hero');
-    if (!hero) return;
-    // Bump status en_route via le delegate de status-changes.js — on
-    // pose un data-go-maps explicite (l'ancien data-next-go-maps existe
-    // toujours en HTML, on s'assure que data-go-maps est là aussi).
-    hero.querySelector('[data-next-go-maps]')?.setAttribute('data-go-maps', '1');
-}
+// 2026-07-06 : la focus card autonome #next-pose-hero a été RETIRÉE
+// suite au feedback patronne. La pose la plus prioritaire est
+// maintenant highlightée dans la liste via _pose_card + badge
+// "🔥 MAINTENANT". Toutes les actions passent par le drawer T2
+// (flux unifié entre pose urgente et poses normales).
+// bindHero() supprimé — le delegate bindGoMaps de status-changes.js
+// gère tous les [data-go-maps] via event delegation.
 
 export function init() {
     bindMainUpload();
-    bindHero();
     refreshSyncBadge();
     if (navigator.onLine !== false) flushUploadQueue();
     document.getElementById('ts-sync-badge')?.addEventListener('click', flushUploadQueue);

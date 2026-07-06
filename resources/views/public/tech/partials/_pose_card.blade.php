@@ -44,8 +44,12 @@
     $problemLabel = $problemMotif?->label();
     $problemAgo   = $lastProblem?->created_at?->diffForHumans(null, true);
     $rejPige      = $task->latestRejectedPige;
+    // 2026-07-06 : la focus card "🔥 MAINTENANT" a été retirée. La pose la
+    // plus prioritaire est maintenant highlightée directement dans la liste
+    // via un badge orange + halo. Cf. TechSpaceController::$nextTask.
+    $isNext       = isset($highlightTaskId) && $highlightTaskId === $task->id;
 @endphp
-<div class="pose pose-line {{ $lastProblem ? 'has-problem' : '' }} {{ $rejPige ? 'has-reject' : '' }}"
+<div class="pose pose-line {{ $isNext ? 'is-next' : '' }} {{ $lastProblem ? 'has-problem' : '' }} {{ $rejPige ? 'has-reject' : '' }}"
      data-task-id="{{ $task->id }}"
      data-task-status="{{ $status->value }}"
      data-search="{{ $searchHay }}"
@@ -58,6 +62,15 @@
      data-scheduled-at="{{ $sched ? \Carbon\Carbon::parse($sched)->toIso8601String() : '' }}"
      data-commune="{{ $task->panel?->commune?->name }}"
      @if($lastProblem) data-blocking-signal-label="{{ $problemLabel }}" @endif>
+
+    {{-- Badge "🔥 MAINTENANT" pour la pose la plus prioritaire (nextTask).
+         Remplace visuellement l'ancienne focus card retirée le 2026-07-06. --}}
+    @if($isNext)
+        <div class="pose-next-badge">
+            <span>🔥</span>
+            <span>MAINTENANT</span>
+        </div>
+    @endif
 
     {{-- Bandeaux alerte AU-DESSUS de la ligne (visibles sans ouvrir le drawer) --}}
     @include('public.tech.partials._banner_rejected_photo', ['rejPige' => $rejPige])

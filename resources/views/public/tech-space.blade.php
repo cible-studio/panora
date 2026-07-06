@@ -88,25 +88,17 @@
             <p>Tu es à jour. Tu recevras un message WhatsApp dès qu'il y aura un nouveau panneau.</p>
         </div>
     @else
-        {{-- ── 4. Card MAINTENANT (pose courante mise en avant) ── --}}
-        @if(!empty($nextTask))
-            @include('public.tech.partials._focus_card', ['task' => $nextTask])
-        @else
-            {{-- Edge case : poses actives présentes mais pas de "next" calculée
-                 (ex : toutes les SSR sont vides). On invite à choisir dans la liste. --}}
-            <div class="empty" style="padding:24px 16px;margin-bottom:14px">
-                <div class="icon" style="font-size:36px">👇</div>
-                <p style="font-size:14px;color:var(--text2);margin:0">
-                    Choisis une pose dans la liste ci-dessous pour commencer.
-                </p>
-            </div>
-        @endif
-
-        {{-- ── 5. Liste compacte des poses groupée par commune ── --}}
+        {{-- ── Liste compacte des poses groupée par commune ──
+             2026-07-06 : la focus card "🔥 MAINTENANT" a été retirée
+             sur demande patronne — flux unifié : toutes les poses
+             passent par le drawer T2 pour éviter la double UX.
+             La pose la plus prioritaire est simplement highlightée
+             dans la liste via $highlightTaskId (badge orange + halo). --}}
         @include('public.tech.partials._pose_list', [
             'groupedByCommune' => $groupedByCommune,
             'doneByCommune'    => $doneByCommune,
             'today'            => $today,
+            'highlightTaskId'  => $nextTask?->id,
         ])
 
         {{-- ── 6. Section "🟢 Déjà faites" pliée par défaut ────── --}}
