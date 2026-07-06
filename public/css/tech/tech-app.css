@@ -498,12 +498,14 @@
            pose en cours et la liste normale". Une pose que le tech a
            démarrée (clic Y aller → en_route, ou photo à moitié → en_cours)
            doit se DISTINGUER visuellement pour qu'il ne l'oublie pas au
-           profit d'une autre commune. */
+           profit d'une autre commune.
+           2026-07-06b : suppression du gradient de fond (blanc opaque à
+           60% masquait le contenu de la ligne). On garde bordure + halo
+           + badge en overlay, largement suffisant pour différencier. */
         .pose-line[data-task-status="en_route"],
         .pose-line[data-task-status="en_cours"] {
             border-color: #8b5cf6;
-            background: linear-gradient(180deg, rgba(139, 92, 246, .07), var(--surface) 60%);
-            box-shadow: 0 1px 3px rgba(139, 92, 246, .18);
+            box-shadow: 0 0 0 2px rgba(139, 92, 246, .12), 0 2px 6px rgba(139, 92, 246, .18);
             position: relative;
         }
         .pose-line[data-task-status="en_route"] .pose-row::before,
@@ -706,11 +708,12 @@
         /* ═══ POSE "MAINTENANT" (highlight du nextTask dans la liste) ═══
            2026-07-06 : la focus card autonome a été retirée. La pose la
            plus prioritaire est maintenant highlightée directement dans
-           la liste via .pose-line.is-next + badge orange en overlay. */
+           la liste via .pose-line.is-next + badge orange en overlay.
+           2026-07-06b : suppression du gradient de fond (blanc opaque à
+           40% masquait le contenu de la ligne — feedback patronne). */
         .pose-line.is-next {
             border-color: #f97316;
             box-shadow: 0 0 0 3px rgba(249, 115, 22, .12), 0 3px 10px rgba(249, 115, 22, .18);
-            background: linear-gradient(180deg, rgba(255, 237, 213, .35), rgba(255, 255, 255, 1) 40%);
             position: relative;
             padding-top: 22px;
         }
