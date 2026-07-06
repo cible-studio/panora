@@ -48,6 +48,16 @@
     // plus prioritaire est maintenant highlightée directement dans la liste
     // via un badge orange + halo. Cf. TechSpaceController::$nextTask.
     $isNext       = isset($highlightTaskId) && $highlightTaskId === $task->id;
+
+    // 2026-07-06 hotfix — URL Google Maps préparée ici pour que le drawer
+    // T2 puisse la récupérer via pose-drawer.js (qui lit .querySelector('[data-go-maps]')).
+    // Sans ça, le bouton "Ouvrir Google Maps" du modal T7 restait à href="#"
+    // → clic sans effet. Cf. bug signalé par la patronne 2026-07-06.
+    $goUrl = ($task->panel?->latitude && $task->panel?->longitude)
+        ? 'https://www.google.com/maps/dir/?api=1&destination=' . $task->panel->latitude . ',' . $task->panel->longitude
+        : ($task->panel?->adresse
+            ? 'https://www.google.com/maps/search/?api=1&query=' . urlencode($task->panel->adresse . ' ' . ($task->panel?->commune?->name ?? ''))
+            : '#');
 @endphp
 <div class="pose pose-line {{ $isNext ? 'is-next' : '' }} {{ $lastProblem ? 'has-problem' : '' }} {{ $rejPige ? 'has-reject' : '' }}"
      data-task-id="{{ $task->id }}"
@@ -55,6 +65,7 @@
      data-search="{{ $searchHay }}"
      data-lat="{{ $task->panel?->latitude }}"
      data-lng="{{ $task->panel?->longitude }}"
+     data-go-url="{{ $goUrl }}"
      data-scheduled-today="{{ $isToday ? '1' : '0' }}"
      data-late="{{ $isLate ? '1' : '0' }}"
      data-has-problem="{{ $lastProblem ? '1' : '0' }}"

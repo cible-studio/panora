@@ -36,7 +36,13 @@ function readTaskData(poseEl) {
         ref:       poseEl.querySelector('.pose-ref')?.textContent?.trim() || '',
         name:      poseEl.querySelector('.pose-name')?.textContent?.trim() || '',
         photo:     photoUrl,
-        goUrl:     poseEl.querySelector('[data-go-maps]')?.getAttribute('href') || '#',
+        // 2026-07-06 : les .pose-line n'ont plus de descendant [data-go-maps]
+        // depuis la suppression de la focus card. On lit maintenant l'URL
+        // Maps directement depuis data-go-url sur la pose-line. Fallback sur
+        // l'ancien pattern pour compat (aucun consommateur restant à date).
+        goUrl:     poseEl.dataset.goUrl
+                || poseEl.querySelector('[data-go-maps]')?.getAttribute('href')
+                || '#',
         late:      poseEl.dataset.late === '1',
         hasReject: poseEl.dataset.hasReject === '1',
     };
