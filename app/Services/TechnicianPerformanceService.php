@@ -501,17 +501,26 @@ class TechnicianPerformanceService
             ->values();
     }
 
-    /** Liste paginée des poses du tech. */
+    /**
+     * Liste paginée des poses du tech.
+     * 2026-07-07 : périmètre aligné sur kpis() (4 jalons created/scheduled/
+     * started/done). Sans ça, une pose PLANIFIÉE pour le 08/07 mais
+     * RÉALISÉE aujourd'hui 07/07 n'apparaissait pas dans la liste
+     * "aujourd'hui", alors que les KPI la comptaient — incohérence
+     * signalée par la patronne (card = 2 poses réalisées, liste vide).
+     */
     public function posesList(int $techId, CarbonInterface $from, CarbonInterface $to, int $perPage = 20)
     {
         return PoseTask::query()
             ->where('assigned_user_id', $techId)
             ->where(function ($q) use ($from, $to) {
-                $q->whereBetween('created_at', [$from, $to])
-                  ->orWhereBetween('scheduled_at', [$from, $to]);
+                $q->whereBetween('created_at',   [$from, $to])
+                  ->orWhereBetween('scheduled_at', [$from, $to])
+                  ->orWhereBetween('started_at',   [$from, $to])
+                  ->orWhereBetween('done_at',      [$from, $to]);
             })
             ->with(['panel:id,reference,commune_id', 'panel.commune:id,name', 'campaign:id,name,client_id', 'campaign.client:id,name'])
-            ->orderByDesc('scheduled_at')
+            ->orderByDesc(DB::raw('COALESCE(done_at, started_at, scheduled_at, created_at)'))
             ->paginate($perPage);
     }
 
