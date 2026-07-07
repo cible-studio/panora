@@ -259,6 +259,20 @@ export function init() {
             arrivedBtn.innerHTML = '⏳ Enregistrement…';
             submitProgress(taskId, 50).then(r => {
                 if (r.ok && r.data?.ok) {
+                    const reverted = Array.isArray(r.data.reverted_ids) ? r.data.reverted_ids : [];
+                    // 2026-07-07 : si l'exclusivité a reposé d'autres poses,
+                    // on FORCE un reload pour éviter les désynchros DOM ↔
+                    // BDD (feedback patronne : capture montrait un état
+                    // incohérent avec badge MAINTENANT resté sur l'ancienne
+                    // pose). Le serveur détient la vérité — on la re-charge.
+                    arrivedBtn.classList.add('is-done');
+                    arrivedBtn.innerHTML = '✅ Arrivé — chrono en cours';
+                    if (reverted.length > 0) {
+                        arrivedBtn.innerHTML = '✅ Arrivé — actualisation…';
+                        setTimeout(() => window.location.reload(), 400);
+                        return;
+                    }
+                    // Sinon (cas simple), sync DOM classique sans reload
                     const nowIso = new Date().toISOString();
                     drawer.dataset.arrivedAt = nowIso;
                     drawer.dataset.taskStatus = r.data.status || 'en_cours';
@@ -268,23 +282,6 @@ export function init() {
                         line.dataset.taskStatus = r.data.status || 'en_cours';
                         line.dataset.progress = 50;
                     }
-                    // Exclusivité STRICTE : le serveur a reposé les autres
-                    // poses actives du tech à PLANIFIÉE (started_at et
-                    // arrived_at effacés). On sync leur DOM.
-                    const reverted = Array.isArray(r.data.reverted_ids) ? r.data.reverted_ids : [];
-                    reverted.forEach(id => {
-                        const other = document.querySelector(`.pose-line[data-task-id="${id}"]`);
-                        if (other) {
-                            other.dataset.startedAt = '';
-                            other.dataset.arrivedAt = '';
-                            other.dataset.taskStatus = 'planifiee';
-                            other.dataset.progress = 0;
-                            const otherDot = other.querySelector('.pose-dot');
-                            if (otherDot) otherDot.style.background = '#e8a020';
-                        }
-                    });
-                    arrivedBtn.classList.add('is-done');
-                    arrivedBtn.innerHTML = '✅ Arrivé — chrono en cours';
                     renderTimer(drawer);
                 } else {
                     arrivedBtn.disabled = false;

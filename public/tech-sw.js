@@ -69,7 +69,11 @@
 //               chargement Eloquent — garantit que $activeTasks est
 //               cohérent d'entrée (fix cas où Blade rendait encore
 //               des poses "sur place" fantômes après update tardif).
-const SW_VERSION = 'v2.8.6';
+//   - v2.8.7  : force reload de la page tech après action qui
+//               déclenche l'exclusivité (Y aller confirm + Je suis
+//               arrivé). Le serveur détient la vérité, on la re-charge
+//               au lieu de tenter un sync DOM incomplet.
+const SW_VERSION = 'v2.8.7';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
