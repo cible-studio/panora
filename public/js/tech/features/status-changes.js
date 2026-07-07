@@ -77,11 +77,19 @@ function bindGoMaps() {
 
                 // Exclusivité en_route (2026-07-07) : le serveur a reposé
                 // les autres poses en_route/en_cours du tech à planifiée.
-                // On sync leur DOM pour un rendu instantané cohérent.
+                // Si des poses ont été reposées → RELOAD pour éviter les
+                // désynchros DOM ↔ BDD (feedback patronne : capture montrait
+                // encore l'ancien état après clic). Sync manuel sinon.
                 try {
                     const data = await r.json();
-                    if (Array.isArray(data?.reverted_ids)) {
-                        data.reverted_ids.forEach(id => {
+                    const reverted = Array.isArray(data?.reverted_ids) ? data.reverted_ids : [];
+                    if (reverted.length > 0) {
+                        // Laisse Google Maps s'ouvrir dans son nouvel onglet,
+                        // puis reload la page tech dans 800ms pour donner
+                        // le temps au navigateur d'ouvrir l'onglet Maps.
+                        setTimeout(() => window.location.reload(), 800);
+                    } else {
+                        reverted.forEach(id => {
                             const other = document.querySelector(`.pose-line[data-task-id="${id}"]`);
                             if (other) {
                                 other.dataset.taskStatus = 'planifiee';
