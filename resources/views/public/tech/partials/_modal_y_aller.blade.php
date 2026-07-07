@@ -53,6 +53,12 @@
                 </div>
             </div>
 
+            {{-- Bandeau warning (2026-07-07) : affiché si le tech est déjà
+                 en route/sur place sur une AUTRE pose. Populé par
+                 y-aller-modal.js::populateModal. --}}
+            <div class="sm2-t7-switch-warning" data-field="switch-warning" hidden
+                 style="margin:12px 0;padding:12px 14px;background:linear-gradient(135deg,rgba(239,68,68,.14),rgba(220,38,38,.06));border:1px solid rgba(220,38,38,.35);border-left:4px solid #dc2626;border-radius:12px"></div>
+
             <a class="sm2-t7-btn sm2-t7-btn-primary" data-action="t7-confirm" href="#">
                 🗺️ Ouvrir Google Maps
             </a>

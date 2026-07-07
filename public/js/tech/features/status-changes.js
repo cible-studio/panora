@@ -21,8 +21,9 @@ import { urlForTask } from '../core/api.js';
 import { toast } from '../core/ui-helpers.js';
 
 const STATUS_TARGET = {
-    en_route: { color: '#8b5cf6' }, // violet
-    en_cours: { color: '#3b82f6' }, // bleu
+    en_route:  { color: '#8b5cf6' }, // violet
+    en_cours:  { color: '#3b82f6' }, // bleu
+    planifiee: { color: '#e8a020' }, // orange
 };
 
 function postStatus(taskId, body) {
@@ -73,6 +74,26 @@ function bindGoMaps() {
                 pose.dataset.taskStatus = 'en_route';
                 const dot = pose.querySelector('.pose-dot');
                 if (dot) dot.style.background = STATUS_TARGET.en_route.color;
+
+                // Exclusivité en_route (2026-07-07) : le serveur a reposé
+                // les autres poses en_route/en_cours du tech à planifiée.
+                // On sync leur DOM pour un rendu instantané cohérent.
+                try {
+                    const data = await r.json();
+                    if (Array.isArray(data?.reverted_ids)) {
+                        data.reverted_ids.forEach(id => {
+                            const other = document.querySelector(`.pose-line[data-task-id="${id}"]`);
+                            if (other) {
+                                other.dataset.taskStatus = 'planifiee';
+                                other.dataset.progress = 0;
+                                other.dataset.startedAt = '';
+                                other.dataset.arrivedAt = '';
+                                const otherDot = other.querySelector('.pose-dot');
+                                if (otherDot) otherDot.style.background = STATUS_TARGET.planifiee?.color || '#e8a020';
+                            }
+                        });
+                    }
+                } catch (_) { /* silencieux — pas critique */ }
             }
         } catch (e) { /* silencieux, on n'empêche pas Maps */ }
         // Le lien suit son cours (target=_blank) — pas de preventDefault.
