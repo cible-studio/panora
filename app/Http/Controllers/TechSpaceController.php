@@ -986,6 +986,30 @@ class TechSpaceController extends Controller
             $update['arrived_at'] = null;
         }
 
+        // EXCLUSIVITÉ "SUR PLACE" (feedback patronne 2026-07-07)
+        // Un tech ne peut être physiquement sur place qu'à UN endroit.
+        // Quand il passe une nouvelle pose à 50%+ (arrived_at posé), on
+        // repose ses AUTRES poses "sur place" à en_route (arrived_at=null,
+        // progress=25). started_at reste pour préserver la réactivité.
+        // Les IDs concernés sont retournés au client pour sync le DOM
+        // sans reload complet.
+        $revertedIds = [];
+        if ($newPct >= 50) {
+            $revertedIds = PoseTask::where('assigned_user_id', $tech->id)
+                ->where('id', '!=', $task->id)
+                ->whereNotNull('arrived_at')
+                ->whereNotIn('status', [PoseTaskStatus::COMPLETED->value, PoseTaskStatus::CANCELLED->value])
+                ->pluck('id')
+                ->all();
+            if (!empty($revertedIds)) {
+                PoseTask::whereIn('id', $revertedIds)->update([
+                    'arrived_at'       => null,
+                    'progress_percent' => 25,
+                    'status'           => PoseTaskStatus::EN_ROUTE->value,
+                ]);
+            }
+        }
+
         $task->update($update);
         self::invalidateCache($tech->id);
 
@@ -997,9 +1021,10 @@ class TechSpaceController extends Controller
         ]);
 
         return response()->json([
-            'ok'      => true,
-            'percent' => $newPct,
-            'status'  => $update['status'] ?? $task->status,
+            'ok'           => true,
+            'percent'      => $newPct,
+            'status'       => $update['status'] ?? $task->status,
+            'reverted_ids' => $revertedIds,  // IDs des poses "sur place" reposées à en_route (exclusivité)
         ]);
     }
 

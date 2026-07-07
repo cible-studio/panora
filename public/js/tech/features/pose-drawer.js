@@ -268,6 +268,18 @@ export function init() {
                         line.dataset.taskStatus = r.data.status || 'en_cours';
                         line.dataset.progress = 50;
                     }
+                    // Exclusivité "sur place" : le serveur a reposé les
+                    // autres poses "sur place" du tech à en_route → on
+                    // sync leur DOM pour que le badge change tout de suite.
+                    const reverted = Array.isArray(r.data.reverted_ids) ? r.data.reverted_ids : [];
+                    reverted.forEach(id => {
+                        const other = document.querySelector(`.pose-line[data-task-id="${id}"]`);
+                        if (other) {
+                            other.dataset.arrivedAt = '';
+                            other.dataset.taskStatus = 'en_route';
+                            other.dataset.progress = 25;
+                        }
+                    });
                     arrivedBtn.classList.add('is-done');
                     arrivedBtn.innerHTML = '✅ Arrivé — chrono en cours';
                     renderTimer(drawer);
