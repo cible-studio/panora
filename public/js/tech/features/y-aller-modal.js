@@ -91,6 +91,43 @@ async function populateModal(overlay, srcBtn) {
             overlay.querySelector('[data-field="time-est"]').textContent = formatWalkTime(m);
         }
     }
+
+    // ═══ EXCLUSIVITÉ EN ROUTE — Confirmation switch (2026-07-07) ═══
+    // Si le tech est déjà "en route" ou "sur place" sur une AUTRE pose,
+    // on affiche un bandeau warning dans le modal T7 pour qu'il confirme
+    // vraiment le changement de destination.
+    const currentTaskId = carrier?.dataset.taskId;
+    const otherActive = document.querySelector(
+        `.pose-line[data-task-status="en_route"]:not([data-task-id="${currentTaskId}"]),`
+        + `.pose-line[data-task-status="en_cours"]:not([data-task-id="${currentTaskId}"])`
+    );
+    const warnEl = overlay.querySelector('[data-field="switch-warning"]');
+    if (otherActive && warnEl) {
+        const otherRef  = otherActive.querySelector('.pose-ref')?.textContent?.trim() || 'une autre pose';
+        const otherName = otherActive.querySelector('.pose-name')?.textContent?.trim() || '';
+        const otherCommune = otherActive.dataset.commune || '';
+        const isOnSite = otherActive.dataset.taskStatus === 'en_cours';
+        warnEl.innerHTML = `
+            <div style="font-size:12.5px;font-weight:800;color:#b91c1c;margin-bottom:6px">
+                ⚠ ${isOnSite ? 'Tu es sur place' : 'Tu es déjà en route vers'} :
+            </div>
+            <div style="font-size:13px;color:#7f1d1d;line-height:1.4">
+                <strong>${otherRef}</strong>${otherName ? ' · ' + otherName : ''}${otherCommune ? ' <span style="opacity:.7">('+otherCommune+')</span>' : ''}
+            </div>
+            <div style="font-size:11.5px;color:#7f1d1d;margin-top:6px;font-style:italic">
+                Si tu confirmes, cette pose reviendra à « planifiée ».
+            </div>
+        `;
+        warnEl.hidden = false;
+        // Change le libellé du bouton confirm pour être explicite
+        const goLink = overlay.querySelector('[data-action="t7-confirm"]');
+        if (goLink) goLink.innerHTML = '🔄 Oui, changer de destination';
+    } else if (warnEl) {
+        warnEl.hidden = true;
+        warnEl.innerHTML = '';
+        const goLink = overlay.querySelector('[data-action="t7-confirm"]');
+        if (goLink) goLink.innerHTML = '🗺️ Ouvrir Google Maps';
+    }
 }
 
 function open(srcBtn) {

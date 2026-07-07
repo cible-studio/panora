@@ -58,7 +58,10 @@
 //               dynamique (source du rectangle blanc). Le tech voit
 //               UNIQUEMENT le flashSuccess plein écran. Bandeau amber
 //               rendu proprement par Blade au prochain reload.
-const SW_VERSION = 'v2.8.3';
+//   - v2.8.4  : exclusivité EN ROUTE — un tech ne peut être en route
+//               que vers UN endroit. Modal T7 affiche un warning rouge
+//               avant switch. Auto-correction au chargement page tech.
+const SW_VERSION = 'v2.8.4';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

@@ -113,8 +113,6 @@ class TechSpaceController extends Controller
         // BDD contiennent plusieurs poses arrived_at non-null pour ce tech
         // (ex : cliqués avant le fix d'exclusivité), on garde la PLUS
         // RÉCENTE et on repose les autres à en_route (arrived_at=null).
-        // Sans reload — la ligne de code fait aussi le fix en base pour
-        // que le prochain load soit clean.
         $onSitePoses = $activeTasks->whereNotNull('arrived_at');
         if ($onSitePoses->count() > 1) {
             $keepId = $onSitePoses->sortByDesc('arrived_at')->first()->id;
@@ -125,7 +123,6 @@ class TechSpaceController extends Controller
                     'progress_percent' => 25,
                     'status'           => PoseTaskStatus::EN_ROUTE->value,
                 ]);
-                // Rafraîchit la collection en mémoire pour rendre l'UI cohérente
                 foreach ($activeTasks as $t) {
                     if (in_array($t->id, $revertIds, true)) {
                         $t->arrived_at = null;
@@ -134,6 +131,40 @@ class TechSpaceController extends Controller
                     }
                 }
                 Log::info('tech.space.auto_correct_multi_arrived', [
+                    'tech_id'   => $tech->id,
+                    'kept_id'   => $keepId,
+                    'reverted'  => $revertIds,
+                ]);
+            }
+        }
+
+        // Correction automatique de cohérence "en route" (2026-07-07)
+        // Un tech ne peut être en route que vers UN endroit. Même logique
+        // que pour arrived_at : on garde la pose avec le started_at le
+        // plus récent, on repose les autres à planifiée.
+        $enRoutePoses = $activeTasks->filter(fn($t) =>
+            in_array((string) $t->status, [PoseTaskStatus::EN_ROUTE->value, PoseTaskStatus::IN_PROGRESS->value], true)
+            && $t->arrived_at === null // les "sur place" sont déjà exclues côté précédent
+        );
+        if ($enRoutePoses->count() > 1) {
+            $keepId = $enRoutePoses->sortByDesc('started_at')->first()->id;
+            $revertIds = $enRoutePoses->pluck('id')->reject(fn($id) => $id === $keepId)->all();
+            if (!empty($revertIds)) {
+                PoseTask::whereIn('id', $revertIds)->update([
+                    'status'           => PoseTaskStatus::PLANNED->value,
+                    'progress_percent' => 0,
+                    'started_at'       => null,
+                    'arrived_at'       => null,
+                ]);
+                foreach ($activeTasks as $t) {
+                    if (in_array($t->id, $revertIds, true)) {
+                        $t->status = PoseTaskStatus::PLANNED->value;
+                        $t->progress_percent = 0;
+                        $t->started_at = null;
+                        $t->arrived_at = null;
+                    }
+                }
+                Log::info('tech.space.auto_correct_multi_en_route', [
                     'tech_id'   => $tech->id,
                     'kept_id'   => $keepId,
                     'reverted'  => $revertIds,
@@ -886,6 +917,32 @@ class TechSpaceController extends Controller
             ], 422);
         }
 
+        // EXCLUSIVITÉ "EN ROUTE" (feedback patronne 2026-07-07)
+        // Un tech ne peut être en route que vers UN endroit à la fois.
+        // Si la nouvelle transition est EN_ROUTE (ou IN_PROGRESS via saut
+        // direct), on repose ses AUTRES poses "en route / sur place" à
+        // planifiée. started_at + arrived_at effacés → l'ancienne
+        // navigation est propre côté BDD.
+        // Le client peut faire un pré-check via GET /active-poses avant
+        // POST — mais on ne renvoie PAS 409 ici pour garder l'API idem-
+        // potente. La confirmation UX est gérée côté modal T7.
+        $revertedIds = [];
+        if (in_array($newStatus, [PoseTaskStatus::EN_ROUTE, PoseTaskStatus::IN_PROGRESS], true)) {
+            $revertedIds = PoseTask::where('assigned_user_id', $tech->id)
+                ->where('id', '!=', $task->id)
+                ->whereIn('status', [PoseTaskStatus::EN_ROUTE->value, PoseTaskStatus::IN_PROGRESS->value])
+                ->pluck('id')
+                ->all();
+            if (!empty($revertedIds)) {
+                PoseTask::whereIn('id', $revertedIds)->update([
+                    'status'           => PoseTaskStatus::PLANNED->value,
+                    'progress_percent' => 0,
+                    'started_at'       => null,
+                    'arrived_at'       => null,
+                ]);
+            }
+        }
+
         // Auto-sync progress_percent depuis le nouveau statut : le widget
         // admin "Progression rapportée" sur la fiche pose suit ainsi en
         // quasi temps réel l'avancée du tech sans intervention manuelle.
@@ -936,6 +993,7 @@ class TechSpaceController extends Controller
             'status_color'  => $newStatus->color(),
             'is_terminal'   => $newStatus->isTerminal(),
             'message'       => "Statut mis à jour : {$newStatus->label()}.",
+            'reverted_ids'  => $revertedIds,  // Poses "en route" reposées à planifiée (exclusivité)
         ]);
     }
 
