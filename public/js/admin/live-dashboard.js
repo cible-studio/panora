@@ -43,6 +43,22 @@ function formatRelativeSeconds(date) {
     return `il y a ${Math.floor(s / 3600)} h`;
 }
 
+/**
+ * Format court d'une durée pour la ligne pilotage.
+ *   < 60 sec  → "45 s"
+ *   < 60 min  → "12 min"
+ *   >= 1 h    → "1 h 12"
+ */
+function humanDeltaShort(ms) {
+    const totalSec = Math.max(0, Math.floor(ms / 1000));
+    if (totalSec < 60) return totalSec + ' s';
+    const totalMin = Math.floor(totalSec / 60);
+    if (totalMin < 60) return totalMin + ' min';
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h + ' h ' + m.toString().padStart(2, '0');
+}
+
 function updateAsOfBadge() {
     const el = $('[data-field="as-of"]');
     if (!el) return;
@@ -109,13 +125,20 @@ function updateTechsList(techs) {
         const status = statusLabels[tech.current_status] || tech.current_status || '—';
         const loc    = tech.current_location_label ? ` · ${tech.current_location_label}` : '';
         const pose   = tech.current_pose_label ? ` · ${tech.current_pose_label}` : '';
-        // 2026-07-06 : % de progression de la pose active rapporté par le
-        // tech via ses paliers manuels (0/25/50/75/100). Ne s'affiche que
-        // si tech.current_pose_progress > 0 pour ne pas polluer les techs
-        // qui n'utilisent pas la feature.
-        const prog   = (tech.current_pose_progress != null && tech.current_pose_progress > 0)
-                       ? ` · ${tech.current_pose_progress}%` : '';
-        row.querySelector('[data-field="tech-status"]').textContent = `${status}${loc}${pose}${prog}`;
+        // Chrono en direct (refonte 2026-07-07) : si le tech est "Sur place"
+        // (arrived_at posé), on affiche "Sur place depuis 12 min". Sinon
+        // si "En route", on affiche "En route depuis 8 min". Fallback %.
+        let live = '';
+        if (tech.current_pose_arrived_at) {
+            const diff = Date.now() - new Date(tech.current_pose_arrived_at).getTime();
+            live = ' · ⏱️ Sur place depuis ' + humanDeltaShort(diff);
+        } else if (tech.current_pose_started_at) {
+            const diff = Date.now() - new Date(tech.current_pose_started_at).getTime();
+            live = ' · 🚗 En route depuis ' + humanDeltaShort(diff);
+        } else if (tech.current_pose_progress != null && tech.current_pose_progress > 0) {
+            live = ` · ${tech.current_pose_progress}%`;
+        }
+        row.querySelector('[data-field="tech-status"]').textContent = `${status}${loc}${pose}${live}`;
 
         const done  = tech.progress?.done  ?? 0;
         const total = tech.progress?.total ?? 0;

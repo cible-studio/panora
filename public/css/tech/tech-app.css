@@ -1407,10 +1407,65 @@
             min-height: 46px; font-size: 13.5px;
         }
 
-        /* ═══ BARRE DE PROGRESSION 5 PALIERS (2026-07-06) ═══
-           Le tech clique un palier (0/25/50/75/100%) pour dire à
-           l'admin où il en est pendant la pose. Feedback patronne.
-           Feature intégrée au drawer T2 pour ne pas ajouter d'écran. */
+        /* ═══ BOUTON "JE SUIS ARRIVÉ" (2026-07-07 — refonte 3 jalons) ═══
+           Sépare le clic "arrivée sur site" du clic "photo". Pose
+           arrived_at côté serveur → démarre le chrono live. */
+        .sm2-t2-btn-arrived {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: #fff;
+            border: 1.5px solid transparent;
+            min-height: 46px; font-size: 13.5px;
+            font-weight: 800;
+            box-shadow: 0 4px 10px -2px rgba(99, 102, 241, .35);
+            cursor: pointer;
+        }
+        .sm2-t2-btn-arrived:disabled,
+        .sm2-t2-btn-arrived.is-done {
+            background: linear-gradient(135deg, #10b981, #059669);
+            box-shadow: 0 2px 6px -2px rgba(16, 185, 129, .35);
+            cursor: default;
+        }
+        .sm2-t2-btn-arrived:active:not(:disabled) { transform: scale(.98); }
+
+        /* ═══ PANNEAU CHRONO EN DIRECT (2026-07-07) ═══
+           Affiche l'étape actuelle (En route / Sur place / Terminée)
+           + le temps écoulé depuis le jalon pertinent. Rafraîchi
+           toutes les 5s par pose-drawer.js. */
+        .sm2-t2-timer {
+            margin-top: 18px;
+            padding: 14px 16px;
+            background: linear-gradient(180deg, rgba(99, 102, 241, .08), rgba(99, 102, 241, .02));
+            border: 1px solid rgba(99, 102, 241, .25);
+            border-radius: 14px;
+            text-align: center;
+        }
+        .sm2-t2-timer-stage {
+            font-size: 13px;
+            font-weight: 700;
+            color: #4338ca;
+            margin-bottom: 6px;
+            letter-spacing: .2px;
+        }
+        .sm2-t2-timer-stage strong { color: #312e81; }
+        .sm2-t2-timer-value {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+            line-height: 1.4;
+        }
+        .sm2-t2-timer-value.is-live {
+            font-size: 22px;
+            font-weight: 900;
+            color: #4338ca;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -.5px;
+        }
+
+        /* ═══ ANCIENNE BARRE 5 PALIERS (2026-07-06, retirée 2026-07-07) ═══
+           Conservée temporairement pour rétrocompat : cache le bloc si
+           quelque part quelqu'un rend encore .sm2-t2-progress. */
+        .sm2-t2-progress { display: none !important; }
+        /* Le vieux bloc suit — à supprimer proprement plus tard. */
         .sm2-t2-progress {
             margin-top: 20px;
             padding: 14px 14px 12px;

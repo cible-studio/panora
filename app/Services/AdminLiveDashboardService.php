@@ -172,10 +172,10 @@ class AdminLiveDashboardService
             'current_status'         => $status,
             'current_location_label' => $current?->panel?->commune?->name,
             'current_pose_label'     => $current?->panel?->name,
-            // 2026-07-06 : % de progression manuelle rapporté par le tech
-            // depuis les paliers 25/50/75/100 dans le drawer T2. NULL si
-            // pas de pose active. L'admin voit temps réel où en est le tech.
+            // Chrono en direct côté admin (refonte 2026-07-07 : 3 jalons)
             'current_pose_progress'  => $current?->progress_percent !== null ? (int) $current->progress_percent : null,
+            'current_pose_started_at' => optional($current?->started_at)->toIso8601String(),
+            'current_pose_arrived_at' => optional($current?->arrived_at)->toIso8601String(),
             'progress' => [
                 'done'       => $done,
                 'total'      => $total,

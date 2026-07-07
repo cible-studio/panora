@@ -45,57 +45,39 @@
                 <span>Touche le bouton orange pour ouvrir la caméra. Vert pour ouvrir Google Maps.</span>
             </div>
 
+            {{-- ══════════════════════════════════════════════════════════
+                 3 BOUTONS CHRONOLOGIQUES + CHRONO EN DIRECT (2026-07-07)
+                 Refonte demandée par la patronne : remplacement de la
+                 barre de 5 paliers par 3 jalons clairs + timer live.
+                 Chaque bouton pose un jalon en BDD :
+                   Y aller (existant)  → started_at + status en_route
+                   Je suis arrivé      → arrived_at + status en_cours
+                   Photo (existant)    → done_at + status realisee
+                 ══════════════════════════════════════════════════════════ --}}
             <div class="sm2-t2-actions">
                 <a class="sm2-t2-btn sm2-t2-btn-go" data-go-maps href="#" target="_blank" rel="noopener">
                     🗺️ Y aller en voiture
                 </a>
+                <button type="button" class="sm2-t2-btn sm2-t2-btn-arrived" data-action="mark-arrived">
+                    📍 Je suis arrivé sur place
+                </button>
                 <label class="sm2-t2-btn sm2-t2-btn-cam" data-action="photo">
                     <input type="file" accept="image/*" capture="environment" data-photo-input>
-                    📷 Je suis arrivé → photo
+                    📷 Photo (fin de pose)
                 </label>
                 <button type="button" class="sm2-t2-btn sm2-t2-btn-warn" data-action="report">
                     ⚠ Il y a un problème
                 </button>
             </div>
 
-            {{-- ══════════════════════════════════════════════════════════
-                 BARRE DE PROGRESSION MANUELLE — 5 paliers (2026-07-06)
-                 Feature demandée par la patronne : le tech marque où il
-                 en est pendant la pose (25/50/75%) et l'admin voit la
-                 progression temps réel dans le pilotage.
-                 Un tap sur un palier → POST AJAX vers l'endpoint
-                 tech.space.progress → progress_percent mis à jour + le
-                 statut auto-sync si sauté (25→en_route, 50→en_cours).
-                 ══════════════════════════════════════════════════════════ --}}
-            <div class="sm2-t2-progress" data-field="progress-panel">
-                <div class="sm2-t2-progress-head">
-                    <span class="sm2-t2-progress-title">📊 Où tu en es</span>
-                    <span class="sm2-t2-progress-value" data-field="progress-percent">0%</span>
+            {{-- Panneau chrono en direct — étape actuelle + temps écoulé.
+                 Mis à jour toutes les 5 secondes par pose-drawer.js. --}}
+            <div class="sm2-t2-timer" data-field="timer-panel">
+                <div class="sm2-t2-timer-stage" data-field="timer-stage">
+                    ⏳ Prêt à démarrer
                 </div>
-                <div class="sm2-t2-progress-bar" role="group" aria-label="Choisis ton avancement">
-                    <button type="button" class="sm2-t2-progress-step" data-progress="0">
-                        <span class="sm2-t2-progress-dot">◯</span>
-                        <span class="sm2-t2-progress-label">0%<br><small>Pas commencé</small></span>
-                    </button>
-                    <button type="button" class="sm2-t2-progress-step" data-progress="25">
-                        <span class="sm2-t2-progress-dot">◯</span>
-                        <span class="sm2-t2-progress-label">25%<br><small>En route</small></span>
-                    </button>
-                    <button type="button" class="sm2-t2-progress-step" data-progress="50">
-                        <span class="sm2-t2-progress-dot">◯</span>
-                        <span class="sm2-t2-progress-label">50%<br><small>Arrivé</small></span>
-                    </button>
-                    <button type="button" class="sm2-t2-progress-step" data-progress="75">
-                        <span class="sm2-t2-progress-dot">◯</span>
-                        <span class="sm2-t2-progress-label">75%<br><small>Collage</small></span>
-                    </button>
-                    <button type="button" class="sm2-t2-progress-step" data-progress="100">
-                        <span class="sm2-t2-progress-dot">◯</span>
-                        <span class="sm2-t2-progress-label">100%<br><small>Fini</small></span>
-                    </button>
-                </div>
-                <div class="sm2-t2-progress-hint" data-field="progress-hint">
-                    Touche un palier pour dire à l'admin où tu en es.
+                <div class="sm2-t2-timer-value" data-field="timer-value">
+                    Touche « Y aller en voiture » pour démarrer.
                 </div>
             </div>
         </div>

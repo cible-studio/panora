@@ -30,22 +30,19 @@ function readTaskData(poseEl) {
         id:        poseEl.dataset.taskId || '',
         status:    poseEl.dataset.taskStatus || '',
         commune:   poseEl.dataset.commune || '',
-        // SM2a Lot 3.1 : lat/lng remontés pour calcul Haversine côté T3
         lat:       poseEl.dataset.lat || '',
         lng:       poseEl.dataset.lng || '',
         ref:       poseEl.querySelector('.pose-ref')?.textContent?.trim() || '',
         name:      poseEl.querySelector('.pose-name')?.textContent?.trim() || '',
         photo:     photoUrl,
-        // 2026-07-06 : les .pose-line n'ont plus de descendant [data-go-maps]
-        // depuis la suppression de la focus card. On lit maintenant l'URL
-        // Maps directement depuis data-go-url sur la pose-line. Fallback sur
-        // l'ancien pattern pour compat (aucun consommateur restant à date).
         goUrl:     poseEl.dataset.goUrl
                 || poseEl.querySelector('[data-go-maps]')?.getAttribute('href')
                 || '#',
         late:      poseEl.dataset.late === '1',
         hasReject: poseEl.dataset.hasReject === '1',
-        progress:  parseInt(poseEl.dataset.progress || '0', 10),
+        // Jalons du chrono (2026-07-07 : 3-boutons + timer live)
+        startedAt: poseEl.dataset.startedAt || null,
+        arrivedAt: poseEl.dataset.arrivedAt || null,
     };
 }
 
@@ -83,49 +80,76 @@ function populateDrawer(drawer, data) {
     const fileInput = drawer.querySelector('[data-photo-input]');
     if (fileInput) fileInput.value = '';
 
-    // Barre de progression 5 paliers — sync visuelle depuis la valeur DB
-    renderProgress(drawer, data.progress || 0);
+    // Jalons chrono
+    drawer.dataset.startedAt = data.startedAt || '';
+    drawer.dataset.arrivedAt = data.arrivedAt || '';
+
+    // Bouton "Je suis arrivé" — désactivé si déjà posé, brille sinon
+    const arrivedBtn = drawer.querySelector('[data-action="mark-arrived"]');
+    if (arrivedBtn) {
+        arrivedBtn.disabled = !!data.arrivedAt;
+        arrivedBtn.classList.toggle('is-done', !!data.arrivedAt);
+        if (data.arrivedAt) arrivedBtn.innerHTML = '✅ Arrivé — chrono en cours';
+        else arrivedBtn.innerHTML = '📍 Je suis arrivé sur place';
+    }
+
+    renderTimer(drawer);
 }
 
 /**
- * Illumine les paliers <= currentPct et met à jour le badge %.
- * Feature 2026-07-06 (patronne) : progression manuelle en 5 paliers.
+ * Chrono en direct — étape actuelle + temps écoulé depuis le jalon
+ * pertinent. Rendu à l'ouverture du drawer et rafraîchi toutes les 5s
+ * par un setInterval démarré dans init().
+ *
+ * Feature 2026-07-07 (patronne) : "il faudrait un bouton en route,
+ * début de pose, fin de pose + décompte du début du compte à rebours
+ * pour timer le temps de pose".
  */
-function renderProgress(drawer, currentPct) {
-    const valueEl = drawer.querySelector('[data-field="progress-percent"]');
-    if (valueEl) valueEl.textContent = currentPct + '%';
+function renderTimer(drawer) {
+    const stageEl = drawer.querySelector('[data-field="timer-stage"]');
+    const valueEl = drawer.querySelector('[data-field="timer-value"]');
+    if (!stageEl || !valueEl) return;
 
-    drawer.querySelectorAll('.sm2-t2-progress-step').forEach(btn => {
-        const step = parseInt(btn.dataset.progress || '0', 10);
-        const dot  = btn.querySelector('.sm2-t2-progress-dot');
-        // Active = palier atteint OU dépassé. Le palier courant reçoit
-        // en plus une pastille plus grosse. La régression est autorisée
-        // depuis 2026-07-06 : tous les paliers restent cliquables, y
-        // compris ceux inférieurs pour corriger une saisie erronée.
-        if (step > 0 && step <= currentPct) {
-            btn.classList.add('is-reached');
-            if (dot) dot.textContent = step === currentPct ? '⬤' : '●';
-        } else {
-            btn.classList.remove('is-reached');
-            if (dot) dot.textContent = '◯';
-        }
-        btn.classList.toggle('is-current', step === currentPct);
-    });
-
-    const hint = drawer.querySelector('[data-field="progress-hint"]');
-    if (hint) {
-        if (currentPct >= 100) {
-            hint.textContent = '✅ Fini — envoie la photo pour clôturer.';
-        } else if (currentPct >= 75) {
-            hint.textContent = 'Collage en cours — bientôt la photo !';
-        } else if (currentPct >= 50) {
-            hint.textContent = 'Tu es sur place — bonne pose !';
-        } else if (currentPct >= 25) {
-            hint.textContent = 'En route vers le panneau…';
-        } else {
-            hint.textContent = 'Touche un palier pour dire à l\'admin où tu en es.';
-        }
+    const status = drawer.dataset.taskStatus;
+    if (status === 'realisee') {
+        stageEl.textContent = '✅ Pose terminée';
+        valueEl.textContent = 'Bravo, envoyée au bureau.';
+        return;
     }
+
+    const arrivedAt = drawer.dataset.arrivedAt ? new Date(drawer.dataset.arrivedAt) : null;
+    const startedAt = drawer.dataset.startedAt ? new Date(drawer.dataset.startedAt) : null;
+
+    if (arrivedAt && !isNaN(arrivedAt)) {
+        stageEl.innerHTML = '⏱️ <strong>Sur place</strong> — chrono actif';
+        valueEl.textContent = 'Depuis ' + humanDelta(new Date() - arrivedAt);
+        valueEl.classList.add('is-live');
+    } else if (startedAt && !isNaN(startedAt)) {
+        stageEl.innerHTML = '🚗 <strong>En route</strong>';
+        valueEl.textContent = 'Départ il y a ' + humanDelta(new Date() - startedAt) + '. Tape « Je suis arrivé » à ton arrivée pour démarrer le chrono de pose.';
+        valueEl.classList.remove('is-live');
+    } else {
+        stageEl.textContent = '⏳ Prêt à démarrer';
+        valueEl.textContent = 'Touche « Y aller en voiture » pour partir.';
+        valueEl.classList.remove('is-live');
+    }
+}
+
+/**
+ * Format humain d'une durée en millisecondes.
+ *   < 1 min       → "45 sec"
+ *   < 1 h         → "12 min 34 sec"
+ *   >= 1 h        → "1 h 12 min"
+ */
+function humanDelta(ms) {
+    if (!ms || ms < 0) ms = 0;
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return h + ' h ' + m + ' min';
+    if (m > 0) return m + ' min ' + s + ' sec';
+    return s + ' sec';
 }
 
 function open(poseEl, options = {}) {
@@ -173,15 +197,13 @@ function isActionable(target) {
 
 /**
  * POST AJAX vers /tech/{token}/poses/{taskId}/progress
- * Feature 2026-07-06 : progression manuelle en 5 paliers.
- * Route absolue construite depuis window.location car les templates
- * publics tech ne partagent pas TECH_CONFIG.routes.progress à date.
+ * Sert au bouton "Je suis arrivé" (percent=50) — pose arrived_at côté
+ * serveur + statut en_cours. Refonte 2026-07-07 : les 5 paliers ont
+ * été remplacés par 3 boutons chronologiques + chrono live.
  */
 async function submitProgress(taskId, percent) {
-    // /tech/{token}/... → on garde /tech/{token} et on ajoute la sous-route
     const pathParts = location.pathname.split('/').filter(Boolean);
-    // pathParts[0] = 'tech', pathParts[1] = token, [2] = 'poses' ou autre
-    const token = pathParts[1];
+    const token = pathParts[1]; // /tech/{token}/...
     if (!token) return { ok: false };
     const url = `/tech/${token}/poses/${taskId}/progress`;
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -204,6 +226,17 @@ async function submitProgress(taskId, percent) {
     }
 }
 
+/** Boucle 5s qui rafraîchit le chrono en direct dans le drawer ouvert. */
+let _timerInterval = null;
+function startTimerTicker() {
+    if (_timerInterval) return;
+    _timerInterval = setInterval(() => {
+        const drawer = document.querySelector(SEL_DRAWER);
+        const overlay = document.querySelector(SEL_OVERLAY + '.is-open');
+        if (drawer && overlay) renderTimer(drawer);
+    }, 5000);
+}
+
 export function init() {
     if (!document.querySelector(SEL_DRAWER)) return;
 
@@ -212,38 +245,35 @@ export function init() {
         const closeTrigger = e.target.closest('[data-action="close-detail"]');
         if (closeTrigger) { e.preventDefault(); close(); return; }
 
-        // Handler paliers de progression : capture avant qu'un autre code
-        // ne referme le drawer par erreur.
-        const stepBtn = e.target.closest('.sm2-t2-progress-step');
-        if (stepBtn) {
+        // Handler "Je suis arrivé sur place" — pose arrived_at + démarre chrono.
+        // Refonte 2026-07-07 : remplace la barre de 5 paliers par 3 boutons.
+        const arrivedBtn = e.target.closest('[data-action="mark-arrived"]');
+        if (arrivedBtn) {
             e.preventDefault();
             e.stopPropagation();
+            if (arrivedBtn.disabled) return;
             const drawer = document.querySelector(SEL_DRAWER);
             const taskId = drawer?.dataset.taskId;
-            const percent = parseInt(stepBtn.dataset.progress || '0', 10);
-            if (!taskId || isNaN(percent)) return;
-
-            // Feedback optimiste immédiat (le UX prime, on ne bloque pas)
-            renderProgress(drawer, percent);
-            stepBtn.classList.add('is-loading');
-            submitProgress(taskId, percent).then(r => {
-                stepBtn.classList.remove('is-loading');
+            if (!taskId) return;
+            arrivedBtn.disabled = true;
+            arrivedBtn.innerHTML = '⏳ Enregistrement…';
+            submitProgress(taskId, 50).then(r => {
                 if (r.ok && r.data?.ok) {
-                    const applied = r.data.percent ?? percent;
-                    renderProgress(drawer, applied);
-                    // Sync la .pose-line source pour cohérence si on rouvre
+                    const nowIso = new Date().toISOString();
+                    drawer.dataset.arrivedAt = nowIso;
+                    drawer.dataset.taskStatus = r.data.status || 'en_cours';
                     const line = document.querySelector(`.pose-line[data-task-id="${taskId}"]`);
                     if (line) {
-                        line.dataset.progress = applied;
-                        if (r.data.status) line.dataset.taskStatus = r.data.status;
+                        line.dataset.arrivedAt = nowIso;
+                        line.dataset.taskStatus = r.data.status || 'en_cours';
+                        line.dataset.progress = 50;
                     }
-                    // Feedback discret côté badge
-                    const val = drawer.querySelector('[data-field="progress-percent"]');
-                    if (val) { val.classList.add('is-updated'); setTimeout(() => val.classList.remove('is-updated'), 600); }
+                    arrivedBtn.classList.add('is-done');
+                    arrivedBtn.innerHTML = '✅ Arrivé — chrono en cours';
+                    renderTimer(drawer);
                 } else {
-                    // Rollback : re-render depuis la source
-                    const line = document.querySelector(`.pose-line[data-task-id="${taskId}"]`);
-                    renderProgress(drawer, parseInt(line?.dataset.progress || '0', 10));
+                    arrivedBtn.disabled = false;
+                    arrivedBtn.innerHTML = '📍 Je suis arrivé sur place';
                 }
             });
             return;
@@ -272,6 +302,9 @@ export function init() {
             close();
         }
     });
+
+    // Démarre le rafraîchissement 5s du chrono en direct (feature 2026-07-07).
+    startTimerTicker();
 
     // back natif du navigateur ferme le drawer
     window.addEventListener('popstate', () => {
