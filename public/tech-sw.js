@@ -43,7 +43,11 @@
 //               is-next / en_route / en_cours (gradient blanc pur à 40-60%)
 //   - v2.7.5  : bandeau signalement avec styles INLINE (indépendant du cache
 //               CSS SW qui peut servir une version périmée). Toujours amber.
-const SW_VERSION = 'v2.7.5';
+//   - v2.8.0  : REFONTE progression → 3 boutons chronologiques (En route / Je
+//               suis arrivé / Photo) + chrono en direct dans le drawer T2.
+//               Retrait de la barre de 5 paliers. Admin voit "Sur place
+//               depuis X min" en temps réel.
+const SW_VERSION = 'v2.8.0';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

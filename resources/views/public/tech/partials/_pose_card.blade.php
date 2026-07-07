@@ -76,6 +76,8 @@
      data-lng="{{ $task->panel?->longitude }}"
      data-go-url="{{ $goUrl }}"
      data-progress="{{ (int) ($task->progress_percent ?? 0) }}"
+     data-started-at="{{ $task->started_at?->toIso8601String() }}"
+     data-arrived-at="{{ $task->arrived_at?->toIso8601String() }}"
      data-scheduled-today="{{ $isToday ? '1' : '0' }}"
      data-late="{{ $isLate ? '1' : '0' }}"
      data-has-problem="{{ $lastProblem ? '1' : '0' }}"
