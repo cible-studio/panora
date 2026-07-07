@@ -50,7 +50,11 @@
 //   - v2.8.1  : exclusivité "sur place" — un tech ne peut arrived_at qu'à
 //               UN endroit. Les autres poses "sur place" reviennent auto
 //               à "en route" quand il clique "Je suis arrivé" ailleurs.
-const SW_VERSION = 'v2.8.1';
+//   - v2.8.2  : auto-correction au chargement page tech si BDD contient
+//               plusieurs arrived_at (données pré-fix). Garde la plus
+//               récente, repose les autres à en_route. + fix aria-hidden
+//               du modal report (bug console signalé par la patronne).
+const SW_VERSION = 'v2.8.2';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

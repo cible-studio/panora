@@ -70,6 +70,15 @@ export function init() {
 
     function closeModal() {
         modal.classList.remove('show');
+        // 2026-07-07 : bug console signalé par la patronne — un descendant
+        // du modal avait le focus alors que le modal restait aria-hidden.
+        // On synchronise aria-hidden avec l'état visible.
+        modal.setAttribute('aria-hidden', 'true');
+        // Retire le focus des éléments internes pour ne pas garder un
+        // focus fantôme quand le modal se cache.
+        if (document.activeElement && modal.contains(document.activeElement)) {
+            document.activeElement.blur();
+        }
         resetState();
     }
 
