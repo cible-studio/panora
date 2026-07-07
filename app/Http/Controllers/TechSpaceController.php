@@ -108,6 +108,39 @@ class TechSpaceController extends Controller
             ->orderBy('scheduled_at')
             ->get();
 
+        // Correction automatique de cohérence "sur place" (2026-07-07)
+        // Un tech ne peut être sur place qu'à UN endroit. Si les données
+        // BDD contiennent plusieurs poses arrived_at non-null pour ce tech
+        // (ex : cliqués avant le fix d'exclusivité), on garde la PLUS
+        // RÉCENTE et on repose les autres à en_route (arrived_at=null).
+        // Sans reload — la ligne de code fait aussi le fix en base pour
+        // que le prochain load soit clean.
+        $onSitePoses = $activeTasks->whereNotNull('arrived_at');
+        if ($onSitePoses->count() > 1) {
+            $keepId = $onSitePoses->sortByDesc('arrived_at')->first()->id;
+            $revertIds = $onSitePoses->pluck('id')->reject(fn($id) => $id === $keepId)->all();
+            if (!empty($revertIds)) {
+                PoseTask::whereIn('id', $revertIds)->update([
+                    'arrived_at'       => null,
+                    'progress_percent' => 25,
+                    'status'           => PoseTaskStatus::EN_ROUTE->value,
+                ]);
+                // Rafraîchit la collection en mémoire pour rendre l'UI cohérente
+                foreach ($activeTasks as $t) {
+                    if (in_array($t->id, $revertIds, true)) {
+                        $t->arrived_at = null;
+                        $t->progress_percent = 25;
+                        $t->status = PoseTaskStatus::EN_ROUTE->value;
+                    }
+                }
+                Log::info('tech.space.auto_correct_multi_arrived', [
+                    'tech_id'   => $tech->id,
+                    'kept_id'   => $keepId,
+                    'reverted'  => $revertIds,
+                ]);
+            }
+        }
+
         $totalActiveAll = $activeTasks->count();
 
         // Cap du SSR : 200 cartes max. Au-delà, on garde les plus urgentes
