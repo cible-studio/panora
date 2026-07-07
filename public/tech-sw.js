@@ -65,7 +65,11 @@
 //               ou en_cours) à la fois. Les autres reviennent à
 //               PLANIFIÉE (pas en_route). Auto-correction unifiée
 //               (priorité "sur place" > "en route").
-const SW_VERSION = 'v2.8.5';
+//   - v2.8.6  : nettoyage exclusivité fait en SQL direct AVANT le
+//               chargement Eloquent — garantit que $activeTasks est
+//               cohérent d'entrée (fix cas où Blade rendait encore
+//               des poses "sur place" fantômes après update tardif).
+const SW_VERSION = 'v2.8.6';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

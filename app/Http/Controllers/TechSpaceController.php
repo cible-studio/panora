@@ -66,6 +66,37 @@ class TechSpaceController extends Controller
      */
     protected function buildPayload(User $tech): array
     {
+        // ═══ NETTOYAGE PRÉLIMINAIRE — Exclusivité stricte (2026-07-07 v3)
+        // Avant de charger la collection Eloquent, on force en BDD la
+        // règle : maximum UNE seule pose active (en_route OU en_cours)
+        // par tech. Priorité "sur place" (arrived_at posé) > "en route",
+        // puis timestamp le plus récent. Fait en SQL direct AVANT
+        // Eloquent pour que $activeTasks soit cohérent d'entrée — sinon
+        // Blade rendait des poses "sur place" fantômes malgré l'update.
+        $activeIdsOrdered = PoseTask::where('assigned_user_id', $tech->id)
+            ->whereIn('status', [PoseTaskStatus::EN_ROUTE->value, PoseTaskStatus::IN_PROGRESS->value])
+            ->orderByRaw('CASE WHEN arrived_at IS NOT NULL THEN 1 ELSE 0 END DESC')
+            ->orderByDesc('arrived_at')
+            ->orderByDesc('started_at')
+            ->orderByDesc('id')
+            ->pluck('id');
+        if ($activeIdsOrdered->count() > 1) {
+            $keepId = $activeIdsOrdered->first();
+            $revertIds = $activeIdsOrdered->skip(1)->values()->all();
+            PoseTask::whereIn('id', $revertIds)->update([
+                'status'           => PoseTaskStatus::PLANNED->value,
+                'progress_percent' => 0,
+                'started_at'       => null,
+                'arrived_at'       => null,
+            ]);
+            Log::info('tech.space.exclusivity_cleanup', [
+                'tech_id'  => $tech->id,
+                'kept_id'  => $keepId,
+                'reverted' => $revertIds,
+                'count'    => count($revertIds),
+            ]);
+        }
+
         // Charge les poses non-terminales du tech (planifiées, en_route,
         // en_cours). On filtre AUSSI les poses orphelines (panel_id ou
         // campaign_id NULL — état dégradé qui ne devrait pas exister mais
@@ -108,48 +139,9 @@ class TechSpaceController extends Controller
             ->orderBy('scheduled_at')
             ->get();
 
-        // AUTO-CORRECTION EXCLUSIVITÉ STRICTE (2026-07-07 v2)
-        // Règle : un tech ne peut avoir qu'UNE SEULE pose active
-        // (en_route OU en_cours) à la fois. On repère TOUTES les poses
-        // actives du tech ; s'il y en a plusieurs, on garde UNE SEULE
-        // (priorité "sur place" > "en route", puis timestamp le plus
-        // récent) et on repose les autres à PLANIFIÉE. Nettoie les
-        // données incohérentes accumulées avant le fix.
-        $activePoses = $activeTasks->filter(fn($t) =>
-            in_array((string) $t->status, [PoseTaskStatus::EN_ROUTE->value, PoseTaskStatus::IN_PROGRESS->value], true)
-        );
-        if ($activePoses->count() > 1) {
-            // Priorité : "sur place" (arrived_at posé) > "en route".
-            // Puis le plus récent timestamp (arrived_at OU started_at).
-            $keeper = $activePoses->sortByDesc(function ($t) {
-                $rankArrived = $t->arrived_at ? '2' : '1';
-                $ts = $t->arrived_at ?? $t->started_at ?? $t->created_at;
-                return $rankArrived . '_' . ($ts ? $ts->timestamp : 0);
-            })->first();
-            $keepId = $keeper->id;
-            $revertIds = $activePoses->pluck('id')->reject(fn($id) => $id === $keepId)->all();
-            if (!empty($revertIds)) {
-                PoseTask::whereIn('id', $revertIds)->update([
-                    'status'           => PoseTaskStatus::PLANNED->value,
-                    'progress_percent' => 0,
-                    'started_at'       => null,
-                    'arrived_at'       => null,
-                ]);
-                foreach ($activeTasks as $t) {
-                    if (in_array($t->id, $revertIds, true)) {
-                        $t->status = PoseTaskStatus::PLANNED->value;
-                        $t->progress_percent = 0;
-                        $t->started_at = null;
-                        $t->arrived_at = null;
-                    }
-                }
-                Log::info('tech.space.auto_correct_multi_active', [
-                    'tech_id'  => $tech->id,
-                    'kept_id'  => $keepId,
-                    'reverted' => $revertIds,
-                ]);
-            }
-        }
+        // Cf. NETTOYAGE PRÉLIMINAIRE en début de buildPayload — déjà fait
+        // en SQL direct avant le chargement Eloquent, donc $activeTasks
+        // est déjà cohérent ici (max 1 pose active).
 
         $totalActiveAll = $activeTasks->count();
 
