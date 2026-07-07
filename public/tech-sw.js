@@ -61,7 +61,11 @@
 //   - v2.8.4  : exclusivité EN ROUTE — un tech ne peut être en route
 //               que vers UN endroit. Modal T7 affiche un warning rouge
 //               avant switch. Auto-correction au chargement page tech.
-const SW_VERSION = 'v2.8.4';
+//   - v2.8.5  : EXCLUSIVITÉ STRICTE — une seule pose active (en_route
+//               ou en_cours) à la fois. Les autres reviennent à
+//               PLANIFIÉE (pas en_route). Auto-correction unifiée
+//               (priorité "sur place" > "en route").
+const SW_VERSION = 'v2.8.5';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
