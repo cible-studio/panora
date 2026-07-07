@@ -54,7 +54,11 @@
 //               plusieurs arrived_at (données pré-fix). Garde la plus
 //               récente, repose les autres à en_route. + fix aria-hidden
 //               du modal report (bug console signalé par la patronne).
-const SW_VERSION = 'v2.8.2';
+//   - v2.8.3  : simplification retour signalement — plus d'injection DOM
+//               dynamique (source du rectangle blanc). Le tech voit
+//               UNIQUEMENT le flashSuccess plein écran. Bandeau amber
+//               rendu proprement par Blade au prochain reload.
+const SW_VERSION = 'v2.8.3';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
