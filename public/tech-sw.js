@@ -47,7 +47,10 @@
 //               suis arrivé / Photo) + chrono en direct dans le drawer T2.
 //               Retrait de la barre de 5 paliers. Admin voit "Sur place
 //               depuis X min" en temps réel.
-const SW_VERSION = 'v2.8.0';
+//   - v2.8.1  : exclusivité "sur place" — un tech ne peut arrived_at qu'à
+//               UN endroit. Les autres poses "sur place" reviennent auto
+//               à "en route" quand il clique "Je suis arrivé" ailleurs.
+const SW_VERSION = 'v2.8.1';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
