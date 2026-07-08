@@ -251,7 +251,16 @@
 
         /* ── Container ─────────────────────────────────────────── */
         .container { padding: 16px; max-width: 600px; margin: 0 auto; }
-        .day-section { margin-bottom: 22px; }
+        /* 2026-07-08 (feedback patronne) : mieux démarquer chaque
+           section commune. Marge accrue + fond légèrement teinté
+           pour visualiser le groupe [commune + ses poses]. */
+        .day-section {
+            margin-bottom: 32px;
+            padding: 4px 6px 8px;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, .015);
+            border: 1px solid rgba(15, 23, 42, .04);
+        }
         .day-header {
             display: flex; align-items: center; justify-content: space-between;
             margin: 0 0 10px;
@@ -406,16 +415,29 @@
         }
         .progress-meta strong { color: var(--text); }
 
-        /* En-tête de zone (commune) — avec mini barre de progression de la zone */
+        /* En-tête de zone (commune) — avec mini barre de progression.
+           2026-07-08 : titre commune + démarcation renforcée pour bien
+           distinguer visuellement chaque groupe [commune → ses poses]. */
         .commune-header {
             display: flex; align-items: center; gap: 14px;
-            width: 100%; padding: 12px 14px;
-            background: var(--surface); color: var(--text);
-            border: 1px solid var(--border); border-radius: 14px;
-            margin-bottom: 10px;
+            width: 100%; padding: 14px 16px;
+            background: linear-gradient(135deg, var(--accent-soft, #fff7ed), var(--surface));
+            color: var(--text);
+            border: 1px solid var(--accent-border, rgba(232, 160, 32, .25));
+            border-radius: 14px 14px 6px 6px;
+            margin-bottom: 12px;
             text-align: left;
-            box-shadow: 0 1px 2px rgba(15,23,42,.04);
+            box-shadow: 0 2px 4px rgba(15,23,42,.06);
             transition: box-shadow .15s, transform .08s;
+            position: relative;
+        }
+        .commune-header::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            background: var(--accent, #e8a020);
+            border-radius: 14px 0 0 6px;
         }
         .commune-header .ch-left {
             display: flex; align-items: center; gap: 10px;
@@ -1968,6 +1990,26 @@
             min-height: 44px;
             font-size: 13px;
         }
+        /* 2026-07-08 : bouton "Retour à la liste" toujours visible en
+           bas de l'écran de succès pour permettre au tech de fermer
+           manuellement sans attendre le reload auto (feedback patronne). */
+        .sm2-t4-close-btn {
+            margin-top: 18px;
+            width: 100%;
+            min-height: 46px;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, .18);
+            color: #fff;
+            border: 1.5px solid rgba(255, 255, 255, .35);
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform .08s, background .15s;
+        }
+        .sm2-t4-close-btn:hover { background: rgba(255, 255, 255, .28); }
+        .sm2-t4-close-btn:active { transform: scale(.97); }
 
         /* ─── T8 §spec — Modale "Besoin d'aide ?" ────────────────── */
         /* Hotfix 2026-06-19 :

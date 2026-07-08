@@ -73,7 +73,10 @@
 //               déclenche l'exclusivité (Y aller confirm + Je suis
 //               arrivé). Le serveur détient la vérité, on la re-charge
 //               au lieu de tenter un sync DOM incomplet.
-const SW_VERSION = 'v2.8.7';
+//   - v2.8.8  : meilleure démarcation en-tête commune vs poses (fond
+//               teinté + liseré accent). Bouton "Retour à la liste"
+//               toujours visible sur écran T4 succès photo.
+const SW_VERSION = 'v2.8.8';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;

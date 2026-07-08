@@ -61,5 +61,14 @@
                 🏠 Revenir à l'accueil
             </button>
         </div>
+
+        {{-- 2026-07-08 (feedback patronne) : bouton "Retour" TOUJOURS
+             visible pour que le tech puisse fermer manuellement l'écran
+             de succès sans attendre le reload auto (4.5s). Utile surtout
+             sur iOS où l'écran peut sembler figé. --}}
+        <button type="button" class="sm2-t4-close-btn" data-action="t4-other"
+                aria-label="Fermer et revenir à la liste">
+            ← Retour à la liste
+        </button>
     </div>
 </div>
