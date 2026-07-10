@@ -37,8 +37,16 @@
             </div>
         </section>
 
-        {{-- ═══ ÉTAT T6 — Détails du signalement ═══ --}}
-        <section class="ts-report-step ts-report-step-details" hidden>
+        {{-- ═══ ÉTAT T6 — Détails du signalement ═══
+             2026-07-08 : attribut hidden RETIRÉ car il avait priorité
+             absolue sur le CSS display:block du data-step="details" →
+             la section restait invisible même après bascule via JS.
+             La visibilité est contrôlée uniquement par les règles CSS :
+                #ts-report-modal[data-step="motif"]   → cache T6
+                #ts-report-modal[data-step="details"] → affiche T6
+             (feedback patronne : "après avoir choisi le motif, qu'est-ce
+              qui vient ?"). --}}
+        <section class="ts-report-step ts-report-step-details">
             <button type="button" class="sm2-t6-back" id="ts-report-change-motif" aria-label="Changer de motif">
                 ← Changer de motif
             </button>

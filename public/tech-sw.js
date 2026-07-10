@@ -76,7 +76,10 @@
 //   - v2.8.8  : meilleure démarcation en-tête commune vs poses (fond
 //               teinté + liseré accent). Bouton "Retour à la liste"
 //               toujours visible sur écran T4 succès photo.
-const SW_VERSION = 'v2.8.8';
+//   - v2.8.9  : fix critique modal signalement — attribut hidden retiré
+//               de la section T6 (détails). Il bloquait l'affichage
+//               après le choix du motif → tech restait coincé sur T5.
+const SW_VERSION = 'v2.8.9';
 const STATIC_CACHE  = `panora-tech-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `panora-tech-runtime-${SW_VERSION}`;
 const PAGES_CACHE   = `panora-tech-pages-${SW_VERSION}`;
