@@ -59,6 +59,17 @@ class CommercialPerformanceService
         $nbCampagnes = $this->campaignsBaseQuery($commercialId, $from, $to)->count();
         $panierMoyen = $nbCampagnes > 0 ? (int) round($caTtc / $nbCampagnes) : 0;
 
+        // Nouveau 2026-07-08 (feedback patronne) : nombre de NOUVELLES
+        // campagnes CRÉÉES dans la période (basé sur created_at) —
+        // différent de nb_campagnes qui compte les chevauchantes.
+        // Sert au classement "meilleur apporteur d'affaires".
+        $nbNouvellesCampagnes = (int) Campaign::query()
+            ->whereRaw('COALESCE(commercial_user_id, user_id) = ?', [$commercialId])
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'annule')
+            ->whereBetween('created_at', [$from, $to])
+            ->count();
+
         // ── Délai moyen de paiement (jours entre issued_at et paid_at)
         $delai = DB::table('invoices')
             ->where('commercial_user_id', $commercialId)
@@ -78,6 +89,7 @@ class CommercialPerformanceService
             'ca_ttc'                     => $caTtc,
             'ca_ht'                      => $caHt,
             'nb_campagnes'               => $nbCampagnes,
+            'nb_nouvelles_campagnes'     => $nbNouvellesCampagnes,
             'panier_moyen_ttc'           => $panierMoyen,
             'taux_recouvrement'          => (float) $fdsKpi['taux_recouvrement'],
             'encaisse'                   => (int) $fdsKpi['encaisse'],
@@ -373,14 +385,21 @@ class CommercialPerformanceService
      * @return Collection<int, array{user, ca_ttc, taux_recouvrement, panier_moyen,
      *                                nb_campagnes, encaisse, reste_du}>
      */
-    public function leaderboard(CarbonInterface $from, CarbonInterface $to): Collection
+    public function leaderboard(CarbonInterface $from, CarbonInterface $to, string $sortBy = 'ca_ttc'): Collection
     {
         // Liste des user_ids attribués (commercial OU créateur fallback) sur la période.
+        // 2026-07-08 : on inclut AUSSI les créateurs de campagnes créées
+        // dans la période (created_at) pour le classement "nouvelles
+        // campagnes" — sinon un commercial actif sur les nouvelles mais
+        // sans campagne active en cours serait absent.
         $userIds = \DB::table('campaigns')
             ->whereNull('deleted_at')
             ->where('status', '!=', 'annule')
-            ->where('start_date', '<=', $to)
-            ->where('end_date',   '>=', $from)
+            ->where(function ($q) use ($from, $to) {
+                $q->where(function ($qq) use ($from, $to) {
+                    $qq->where('start_date', '<=', $to)->where('end_date', '>=', $from);
+                })->orWhereBetween('created_at', [$from, $to]);
+            })
             ->selectRaw('DISTINCT COALESCE(commercial_user_id, user_id) as uid')
             ->pluck('uid')
             ->filter()->values()->all();
@@ -393,19 +412,29 @@ class CommercialPerformanceService
             ->orderBy('name')
             ->get(['id', 'name', 'email', 'agent_code', 'role']);
 
-        return $users->map(function (User $u) use ($from, $to) {
+        $rows = $users->map(function (User $u) use ($from, $to) {
             $k = $this->kpis($u->id, $from, $to);
             return [
-                'user'              => $u,
-                'ca_ttc'            => $k['ca_ttc'],
-                'ca_ht'             => $k['ca_ht'],
-                'taux_recouvrement' => $k['taux_recouvrement'],
-                'panier_moyen'      => $k['panier_moyen_ttc'],
-                'nb_campagnes'      => $k['nb_campagnes'],
-                'encaisse'          => $k['encaisse'],
-                'reste_du'          => $k['reste_du'],
+                'user'                    => $u,
+                'ca_ttc'                  => $k['ca_ttc'],
+                'ca_ht'                   => $k['ca_ht'],
+                'taux_recouvrement'       => $k['taux_recouvrement'],
+                'panier_moyen'            => $k['panier_moyen_ttc'],
+                'nb_campagnes'            => $k['nb_campagnes'],
+                'nb_nouvelles_campagnes'  => $k['nb_nouvelles_campagnes'],
+                'encaisse'                => $k['encaisse'],
+                'reste_du'                => $k['reste_du'],
             ];
-        })->sortByDesc('ca_ttc')->values();
+        });
+
+        // Tri paramétrable (feedback patronne 2026-07-08)
+        // Valeurs supportées : ca_ttc | nb_nouvelles_campagnes |
+        //                      nb_campagnes | encaisse | taux_recouvrement
+        $sortField = in_array($sortBy, ['nb_nouvelles_campagnes', 'nb_campagnes', 'encaisse', 'taux_recouvrement', 'panier_moyen'], true)
+            ? $sortBy
+            : 'ca_ttc';
+
+        return $rows->sortByDesc($sortField)->values();
     }
 
     /**
