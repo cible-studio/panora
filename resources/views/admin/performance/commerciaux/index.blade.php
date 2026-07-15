@@ -68,68 +68,69 @@
         $panierMoyen        = $leaderboard->avg('panier_moyen');
         $totalNouvelles     = $leaderboard->sum('nb_nouvelles_campagnes');
     @endphp
-    {{-- 2026-07-08 (feedback patronne) : cards KPI CLIQUABLES qui
-         appliquent le tri du classement. La card active (tri courant)
-         est mise en évidence (bordure + fond léger + petit indicateur).
-         Retrait de la card "Commerciaux actifs" (info déjà présente
-         dans le sous-titre du tableau — "3 commercial(ux) — ordonné par …"). --}}
+    {{-- 2026-07-15 (feedback patronne) : REFONTE des cards KPI.
+         Avant : clic = trier le classement (pas utile, invisible).
+         Maintenant : clic = DRILL-DOWN vers la liste des entités
+         qui composent le KPI. Le tri se fait via le menu déroulant
+         "Trier par" remis en place au-dessus du classement.
+         Cards actionnables (drill-down) :
+           CA HT équipe            → /admin/invoices?date_from=X&date_to=Y
+           CA TTC équipe           → /admin/campaigns?date_from=X&date_to=Y (chevauchent période)
+           Nouvelles campagnes     → /admin/campaigns?created_from=X&created_to=Y (créées sur période)
+         Cards non-actionnables (ratios, pas de drill-down utile) :
+           Taux recouvrement moyen, Panier moyen équipe --}}
     @php
-        // Construit une URL qui garde tous les filtres actuels + change le sort
-        $sortUrl = fn(string $s) => route('admin.performance.commercial.index',
-            array_merge(request()->except('sort'), ['sort' => $s])
-        );
-        $activeCardStyle = 'transform:translateY(-2px);box-shadow:0 6px 18px -6px rgba(0,0,0,.15);background:linear-gradient(135deg,#fff,#fafbfc)';
-        $activeCard      = $sortBy ?? 'ca_ttc';
+        $fromStr = $from->toDateString();
+        $toStr   = $to->toDateString();
+        $urlInvoices  = route('admin.invoices.index',  ['date_from' => $fromStr, 'date_to' => $toStr]);
+        $urlCampActive = route('admin.campaigns.index', ['date_from' => $fromStr, 'date_to' => $toStr]);
+        $urlCampNouv   = route('admin.campaigns.index', ['created_from' => $fromStr, 'created_to' => $toStr]);
     @endphp
     <style>
         a.perf-kpi { text-decoration:none; color:inherit; cursor:pointer; transition: transform .12s, box-shadow .15s; display:block; position:relative; }
         a.perf-kpi:hover { transform: translateY(-2px); box-shadow: 0 6px 18px -6px rgba(0,0,0,.12); }
-        a.perf-kpi.is-active::after {
-            content: '⇅'; position: absolute; top: 8px; right: 10px;
-            font-size: 10px; font-weight: 800; color: var(--text3);
-            background: var(--surface2); padding: 2px 6px; border-radius: 4px;
+        a.perf-kpi::after {
+            content: '→'; position: absolute; top: 10px; right: 12px;
+            font-size: 13px; font-weight: 900; color: var(--text3);
+            opacity: .6; transition: opacity .15s, transform .15s;
         }
+        a.perf-kpi:hover::after { opacity: 1; transform: translateX(3px); }
     </style>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:18px">
-        <a href="{{ $sortUrl('ca_ht') }}"
-           class="perf-kpi {{ $activeCard === 'ca_ht' ? 'is-active' : '' }}"
-           style="border-left-color:#e8a020;{{ $activeCard === 'ca_ht' ? $activeCardStyle : '' }}"
-           title="Trier par CA HT">
+        <a href="{{ $urlInvoices }}"
+           class="perf-kpi"
+           style="border-left-color:#e8a020"
+           title="Voir les factures émises sur la période">
             <div class="perf-kpi-label">CA HT équipe</div>
             <div class="perf-kpi-val" style="color:#c97d10">{{ $fmtM($totalCaHt) }} <span style="font-size:12px;color:var(--text3)">FCFA</span></div>
-            <div class="perf-kpi-sub">net_ht des factures émises</div>
+            <div class="perf-kpi-sub">→ voir les factures émises</div>
         </a>
-        <a href="{{ $sortUrl('ca_ttc') }}"
-           class="perf-kpi {{ $activeCard === 'ca_ttc' ? 'is-active' : '' }}"
-           style="border-left-color:var(--accent);{{ $activeCard === 'ca_ttc' ? $activeCardStyle : '' }}"
-           title="Trier par CA TTC">
+        <a href="{{ $urlCampActive }}"
+           class="perf-kpi"
+           style="border-left-color:var(--accent)"
+           title="Voir les campagnes actives sur la période">
             <div class="perf-kpi-label">CA TTC équipe</div>
             <div class="perf-kpi-val">{{ $fmtM($totalCa) }} <span style="font-size:12px;color:var(--text3)">FCFA</span></div>
-            <div class="perf-kpi-sub">total_amount des campagnes</div>
+            <div class="perf-kpi-sub">→ voir les campagnes actives</div>
         </a>
-        <a href="{{ $sortUrl('taux_recouvrement') }}"
-           class="perf-kpi {{ $activeCard === 'taux_recouvrement' ? 'is-active' : '' }}"
-           style="border-left-color:#16a34a;{{ $activeCard === 'taux_recouvrement' ? $activeCardStyle : '' }}"
-           title="Trier par taux de recouvrement">
+        {{-- Cards ratio non-cliquables : juste affichage --}}
+        <div class="perf-kpi" style="border-left-color:#16a34a;position:relative">
             <div class="perf-kpi-label">Taux recouvrement moyen</div>
             <div class="perf-kpi-val" style="color:#15803d">{{ $tauxMoyen }} %</div>
             <div class="perf-kpi-sub">encaissé / facturé période</div>
-        </a>
-        <a href="{{ $sortUrl('panier_moyen') }}"
-           class="perf-kpi {{ $activeCard === 'panier_moyen' ? 'is-active' : '' }}"
-           style="border-left-color:#3b82f6;{{ $activeCard === 'panier_moyen' ? $activeCardStyle : '' }}"
-           title="Trier par panier moyen">
+        </div>
+        <div class="perf-kpi" style="border-left-color:#3b82f6;position:relative">
             <div class="perf-kpi-label">Panier moyen équipe</div>
             <div class="perf-kpi-val" style="color:#1d4ed8">{{ $fmtM((int) $panierMoyen) }}</div>
             <div class="perf-kpi-sub">FCFA / campagne</div>
-        </a>
-        <a href="{{ $sortUrl('nb_nouvelles_campagnes') }}"
-           class="perf-kpi {{ $activeCard === 'nb_nouvelles_campagnes' ? 'is-active' : '' }}"
-           style="border-left-color:#7c3aed;{{ $activeCard === 'nb_nouvelles_campagnes' ? $activeCardStyle : '' }}"
-           title="Trier par nouvelles campagnes créées">
+        </div>
+        <a href="{{ $urlCampNouv }}"
+           class="perf-kpi"
+           style="border-left-color:#7c3aed"
+           title="Voir les campagnes créées sur la période">
             <div class="perf-kpi-label">Nouvelles campagnes créées</div>
             <div class="perf-kpi-val" style="color:#7c3aed">{{ number_format((int) $totalNouvelles, 0, ',', ' ') }}</div>
-            <div class="perf-kpi-sub">créées sur la période sélectionnée</div>
+            <div class="perf-kpi-sub">→ voir la liste</div>
         </a>
     </div>
 
@@ -180,14 +181,27 @@
         $currentSortLabel = $sortLabels[$currentSort] ?? 'CA TTC';
     @endphp
     <div class="perf-card">
-        <div class="perf-card-head">
+        <div class="perf-card-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
             <div>
                 <div class="perf-card-title">🏆 Classement</div>
                 <div class="perf-card-sub">
                     {{ $leaderboard->count() }} commercial(ux) — ordonné par <strong>{{ $currentSortLabel }}</strong>
-                    <span style="font-size:11px;color:var(--text3);margin-left:6px">· cliquez une card ci-dessus pour changer le tri</span>
                 </div>
             </div>
+            {{-- Menu de tri remis 2026-07-15 — les cards font maintenant
+                 du drill-down (voir la liste), le tri passe par ce select. --}}
+            <form method="GET" action="{{ route('admin.performance.commercial.index') }}" style="display:flex;align-items:center;gap:8px">
+                @foreach(request()->except('sort') as $k => $v)
+                    <input type="hidden" name="{{ $k }}" value="{{ is_array($v) ? json_encode($v) : $v }}">
+                @endforeach
+                <label for="perf-sort" style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.4px">Trier par</label>
+                <select id="perf-sort" name="sort" onchange="this.form.submit()"
+                        style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-weight:600">
+                    @foreach($sortLabels as $key => $label)
+                        <option value="{{ $key }}" {{ $currentSort === $key ? 'selected' : '' }}>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </form>
         </div>
         <div class="perf-card-body--flush">
             <table class="perf-table">

@@ -107,6 +107,12 @@ class CampaignController extends Controller
             // T12 : Filtre période personnalisée (start_date BETWEEN date_debut AND date_fin)
             ->when($request->date_debut,  fn($q, $d)  => $q->where('start_date', '>=', $d))
             ->when($request->date_fin,    fn($q, $d)  => $q->where('start_date', '<=', $d))
+            // 2026-07-15 (feedback patronne) : drill-down depuis les cards
+            // KPI de perf commerciale — filtre par DATE DE CRÉATION plutôt
+            // que par période de campagne. Sert au clic "Nouvelles
+            // campagnes créées" de /admin/performance/commerciaux.
+            ->when($request->created_from, fn($q, $d) => $q->whereDate('campaigns.created_at', '>=', $d))
+            ->when($request->created_to,   fn($q, $d) => $q->whereDate('campaigns.created_at', '<=', $d))
             ->when($request->non_facturee, fn($q)     => $q->nonFacturees())
             ->when($request->commune_id,  fn($q, $id) => $q->whereHas('panels', fn($p) => $p->where('commune_id', $id)))
             ->when($request->zone_id,     fn($q, $id) => $q->whereHas('panels', fn($p) => $p->where('zone_id', $id)))
