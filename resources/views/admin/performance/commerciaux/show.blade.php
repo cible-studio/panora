@@ -190,12 +190,25 @@
                             $totalFact   = $c->invoices->sum('total_a_payer');
                             $encaisseCmp = $c->invoices->reduce(fn ($s, $i) => $s + ($i->total_a_payer - $i->remainingAmount()), 0);
                             $reste       = $totalFact - $encaisseCmp;
+                            // 2026-07-15 (feedback patronne) : couleurs par statut
+                            // via uiConfig() de l'enum. Fallback gris si le cast
+                            // n'a pas fonctionné (status en string brut).
+                            $sCfg = $c->status instanceof \App\Enums\CampaignStatus
+                                ? $c->status->uiConfig()
+                                : ['color'=>'#6b7280','bg'=>'rgba(107,114,128,0.08)','border'=>'rgba(107,114,128,0.3)','icon'=>''];
+                            $sLbl = $c->status instanceof \App\Enums\CampaignStatus
+                                ? $c->status->label()
+                                : (string) $c->status;
                         @endphp
                         <tr>
                             <td><a href="{{ route('admin.campaigns.show', $c) }}" style="font-family:monospace;color:var(--accent);text-decoration:none;font-weight:700">{{ $c->name }}</a></td>
                             <td style="color:var(--text2)">{{ $c->client?->name ?? '—' }}</td>
                             <td style="font-size:11.5px;color:var(--text3)">{{ $c->client?->sector ?? '—' }}</td>
-                            <td><span style="padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:700;background:var(--surface2);color:var(--text2)">{{ $c->status->label() ?? $c->status }}</span></td>
+                            <td>
+                                <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:10.5px;font-weight:700;background:{{ $sCfg['bg'] }};color:{{ $sCfg['color'] }};border:1px solid {{ $sCfg['border'] }}">
+                                    <span aria-hidden="true">{{ $sCfg['icon'] }}</span> {{ $sLbl }}
+                                </span>
+                            </td>
                             <td style="color:var(--text3);font-size:12px">{{ $c->start_date?->format('d/m/Y') }}</td>
                             <td style="color:var(--text3);font-size:12px">{{ $c->end_date?->format('d/m/Y') }}</td>
                             <td style="text-align:right;font-family:monospace;font-weight:700">{{ $fmtM($c->total_amount) }}</td>
