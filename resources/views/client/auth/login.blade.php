@@ -215,8 +215,6 @@
         <div class="color-bar"></div>
         <div class="card">
             <div class="card-title">Connexion</div>
-            <div class="card-sub">Accédez à vos propositions, campagnes et factures.</div>
-
             @if(session('error'))
                 <div class="alert alert-error">⚠️ {{ session('error') }}</div>
             @endif
