@@ -428,9 +428,10 @@ class CommercialPerformanceService
         });
 
         // Tri paramétrable (feedback patronne 2026-07-08)
-        // Valeurs supportées : ca_ttc | nb_nouvelles_campagnes |
-        //                      nb_campagnes | encaisse | taux_recouvrement
-        $sortField = in_array($sortBy, ['nb_nouvelles_campagnes', 'nb_campagnes', 'encaisse', 'taux_recouvrement', 'panier_moyen'], true)
+        // Valeurs supportées : ca_ttc | ca_ht | nb_nouvelles_campagnes |
+        //                      nb_campagnes | encaisse | taux_recouvrement |
+        //                      panier_moyen
+        $sortField = in_array($sortBy, ['ca_ht', 'nb_nouvelles_campagnes', 'nb_campagnes', 'encaisse', 'taux_recouvrement', 'panier_moyen'], true)
             ? $sortBy
             : 'ca_ttc';
 
