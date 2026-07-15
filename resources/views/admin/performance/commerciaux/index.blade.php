@@ -181,27 +181,47 @@
         $currentSortLabel = $sortLabels[$currentSort] ?? 'CA TTC';
     @endphp
     <div class="perf-card">
-        <div class="perf-card-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
-            <div>
-                <div class="perf-card-title">🏆 Classement</div>
-                <div class="perf-card-sub">
-                    {{ $leaderboard->count() }} commercial(ux) — ordonné par <strong>{{ $currentSortLabel }}</strong>
+        <div class="perf-card-head" style="display:block">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:12px">
+                <div>
+                    <div class="perf-card-title">🏆 Classement</div>
+                    <div class="perf-card-sub">
+                        {{ $leaderboard->count() }} commercial(ux) — ordonné par <strong>{{ $currentSortLabel }}</strong>
+                    </div>
                 </div>
             </div>
-            {{-- Menu de tri remis 2026-07-15 — les cards font maintenant
-                 du drill-down (voir la liste), le tri passe par ce select. --}}
-            <form method="GET" action="{{ route('admin.performance.commercial.index') }}" style="display:flex;align-items:center;gap:8px">
-                @foreach(request()->except('sort') as $k => $v)
-                    <input type="hidden" name="{{ $k }}" value="{{ is_array($v) ? json_encode($v) : $v }}">
+            {{-- 2026-07-15 (feedback patronne) : chips de tri VISIBLES
+                 au lieu d'un select caché. Un chip = un critère de tri.
+                 Le chip actif est en accent. Cf. capture 2 : la patronne
+                 ne voyait pas le select à cause de sa taille. --}}
+            @php
+                $sortShort = [
+                    'ca_ttc'                 => 'CA TTC',
+                    'ca_ht'                  => 'CA HT',
+                    'nb_nouvelles_campagnes' => 'Nouvelles',
+                    'nb_campagnes'           => 'Actives',
+                    'encaisse'               => 'Encaissé',
+                    'taux_recouvrement'      => 'Taux',
+                    'panier_moyen'           => 'Panier moyen',
+                ];
+                $sortLinkFor = fn(string $s) => route('admin.performance.commercial.index',
+                    array_merge(request()->except('sort'), ['sort' => $s])
+                );
+            @endphp
+            <div style="display:flex;flex-wrap:wrap;gap:6px;padding:2px 0 4px">
+                <span style="font-size:10.5px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;align-self:center;margin-right:4px">Trier par :</span>
+                @foreach($sortShort as $key => $short)
+                    @php $active = $currentSort === $key; @endphp
+                    <a href="{{ $sortLinkFor($key) }}"
+                       style="padding:5px 12px;border-radius:999px;font-size:11.5px;font-weight:700;text-decoration:none;transition:transform .1s,box-shadow .12s;
+                              {{ $active
+                                    ? 'background:linear-gradient(135deg,#e8a020,#ea580c);color:#fff;box-shadow:0 3px 8px -2px rgba(234,88,12,.4)'
+                                    : 'background:var(--surface2);color:var(--text2);border:1px solid var(--border)' }}"
+                       title="Trier par {{ $sortLabels[$key] ?? $short }}">
+                        {{ $short }}{{ $active ? ' ✓' : '' }}
+                    </a>
                 @endforeach
-                <label for="perf-sort" style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.4px">Trier par</label>
-                <select id="perf-sort" name="sort" onchange="this.form.submit()"
-                        style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-weight:600">
-                    @foreach($sortLabels as $key => $label)
-                        <option value="{{ $key }}" {{ $currentSort === $key ? 'selected' : '' }}>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </form>
+            </div>
         </div>
         <div class="perf-card-body--flush">
             <table class="perf-table">
@@ -215,7 +235,7 @@
                         <th style="text-align:right">Reste dû</th>
                         <th style="text-align:right">Taux</th>
                         <th style="text-align:right">Panier moyen</th>
-                        <th style="text-align:right" title="Campagnes actives sur la période">Campagnes</th>
+                        <th style="text-align:right" title="Actives sur la période / Créées sur la période">Campagnes<br><span style="font-size:9px;font-weight:500;color:var(--text3);text-transform:none;letter-spacing:0">actives · nouvelles</span></th>
                         <th></th>
                     </tr>
                 </thead>
@@ -239,9 +259,24 @@
                             <td style="text-align:right;font-family:monospace;color:{{ $row['reste_du'] > 0 ? '#b91c1c' : 'var(--text3)' }}">{{ $fmtM($row['reste_du']) }}</td>
                             <td style="text-align:right;font-weight:700;color:{{ $tauxCol }}">{{ $row['taux_recouvrement'] }} %</td>
                             <td style="text-align:right;font-family:monospace;color:var(--text2)">{{ $fmtM($row['panier_moyen']) }}</td>
-                            <td style="text-align:right;font-weight:700">{{ $row['nb_campagnes'] }}</td>
+                            {{-- 2026-07-15 : afficher actives ET nouvelles pour cohérence avec le tri.
+                                 Si tri = nb_nouvelles_campagnes → "nouvelles" en gras violet ; sinon "actives" en gras. --}}
+                            <td style="text-align:right;font-weight:700;white-space:nowrap">
+                                @if($currentSort === 'nb_nouvelles_campagnes')
+                                    <span style="color:var(--text3);font-weight:500">{{ $row['nb_campagnes'] }}</span>
+                                    <span style="color:var(--text3);font-weight:400;margin:0 4px">·</span>
+                                    <span style="color:#7c3aed;font-weight:800">{{ $row['nb_nouvelles_campagnes'] ?? 0 }}</span>
+                                @else
+                                    <span>{{ $row['nb_campagnes'] }}</span>
+                                    <span style="color:var(--text3);font-weight:400;margin:0 4px">·</span>
+                                    <span style="color:var(--text3);font-weight:500">{{ $row['nb_nouvelles_campagnes'] ?? 0 }}</span>
+                                @endif
+                            </td>
                             <td style="text-align:right;white-space:nowrap">
-                                <a href="{{ route('admin.performance.commercial.show', $row['user']) }}"
+                                <a href="{{ route('admin.performance.commercial.show', array_merge(
+                                        ['user' => $row['user']],
+                                        array_filter(request()->only(['from', 'to', 'preset']))
+                                   )) }}"
                                    class="btn btn-ghost btn-sm" style="font-size:11px">Détail →</a>
                             </td>
                         </tr>
@@ -291,7 +326,10 @@
                             <tr>
                                 <td style="font-weight:700;color:var(--text)">{{ $row['sector'] }}</td>
                                 <td>
-                                    <a href="{{ route('admin.performance.commercial.show', $row['commercial_id']) }}"
+                                    <a href="{{ route('admin.performance.commercial.show', array_merge(
+                                            ['user' => $row['commercial_id']],
+                                            array_filter(request()->only(['from', 'to', 'preset']))
+                                       )) }}"
                                        style="color:var(--accent);text-decoration:none;font-weight:600">
                                         {{ $row['commercial_name'] }}
                                     </a>
