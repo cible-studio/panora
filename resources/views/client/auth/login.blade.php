@@ -204,6 +204,13 @@
             </div>
         </div>
 
+        {{-- 2026-07-08 (feedback patronne) : baseline explicative entre
+             le badge et le card pour donner immédiatement le sens de
+             l'espace (propositions, campagnes, factures). --}}
+        <p style="text-align:center;font-size:14px;color:#64748b;margin:-4px 0 14px;line-height:1.5">
+            Accédez à vos propositions, campagnes et factures.
+        </p>
+
         {{-- Barre couleurs + Card --}}
         <div class="color-bar"></div>
         <div class="card">
