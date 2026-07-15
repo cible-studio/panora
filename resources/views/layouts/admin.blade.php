@@ -350,6 +350,17 @@
                 <div class="topbar-title">{{ $title ?? 'Dashboard' }}</div>
 
                 <div class="topbar-actions">
+                    {{-- 2026-07-08 (WIP develop) : lien vers la landing publique
+                         Panora en cours de conception. À retirer / adapter
+                         quand un sous-domaine dédié sera mis en place. --}}
+                    @if(auth()->user()?->role?->value === 'admin')
+                        <a href="{{ route('landing.show') }}" target="_blank" rel="noopener"
+                           class="btn btn-ghost btn-sm"
+                           style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1px solid rgba(234,88,12,.35);color:#9a3412;font-weight:800"
+                           title="Aperçu de la landing publique Panora (WIP develop)">
+                            🌐 Landing (aperçu)
+                        </a>
+                    @endif
                     <label class="theme-switch" title="Changer de thème">
                         <input type="checkbox" id="theme-toggle" onchange="toggleThemeSwitch()">
                         <span class="slider"></span>
