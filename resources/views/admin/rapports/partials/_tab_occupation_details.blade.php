@@ -192,31 +192,190 @@
                 </tbody>
             </table>
         </div>
+
+        {{-- ── Pagination client (2026-07-15, feedback patronne) ────────
+             Le rendu SSR met TOUTES les lignes dans le DOM, la
+             pagination ci-dessous n'en affiche qu'une tranche à la
+             fois pour la lisibilité et la perf. Compatible avec le
+             filtre libre : on repagine après chaque filtrage. --}}
+        <div id="occ-details-pagination"
+             style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-top:1px solid var(--border);background:var(--surface2);flex-wrap:wrap"
+             hidden>
+            <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text3)">
+                <label for="occ-details-page-size" style="font-weight:600">Lignes par page</label>
+                <select id="occ-details-page-size" onchange="RPT.setOccDetailsPageSize(this.value)"
+                        style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:11px">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                </select>
+                <span id="occ-details-range" style="font-weight:600;color:var(--text2)">—</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px">
+                <button type="button" onclick="RPT.goOccDetailsPage(1)"
+                        class="occ-details-pg-btn" title="Première page"
+                        style="padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-size:12px;font-weight:700">«</button>
+                <button type="button" onclick="RPT.goOccDetailsPage('prev')"
+                        class="occ-details-pg-btn" title="Précédente"
+                        style="padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-size:12px;font-weight:700">‹</button>
+                <span id="occ-details-pages" style="display:inline-flex;gap:3px;align-items:center;font-size:11px"></span>
+                <button type="button" onclick="RPT.goOccDetailsPage('next')"
+                        class="occ-details-pg-btn" title="Suivante"
+                        style="padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-size:12px;font-weight:700">›</button>
+                <button type="button" onclick="RPT.goOccDetailsPage('last')"
+                        class="occ-details-pg-btn" title="Dernière page"
+                        style="padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-size:12px;font-weight:700">»</button>
+            </div>
+        </div>
         @endif
     </div>
 
     @if($occupationDetails->count() >= 3000)
         <div style="margin-top:12px;padding:10px 14px;background:#f59e0b22;border:1px solid #f59e0b;border-radius:8px;font-size:11px;color:#f59e0b">
-            <b>{{ number_format($occupationDetails->count(), 0, ',', ' ') }} lignes</b> affichées. Utilisez les filtres (commune, client, zone) ou réduisez la période pour affiner.
+            <b>{{ number_format($occupationDetails->count(), 0, ',', ' ') }} lignes</b> au total. Utilisez les filtres (commune, client, zone) ou réduisez la période pour affiner.
         </div>
     @endif
 </div>
 
+<style>
+    .occ-details-pg-btn:hover { background: var(--surface2); border-color: var(--text3); }
+    .occ-details-pg-btn.is-current {
+        background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+    .occ-details-pg-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .occ-details-pg-btn.ellipsis {
+        border: none; background: transparent; color: var(--text3); cursor: default;
+    }
+</style>
+
 <script>
-// Filtre libre côté client — ne recharge pas la page.
+// Filtre libre + pagination client (2026-07-15).
+// Le rendu SSR contient toutes les lignes ; on masque/affiche selon
+// (filtre libre) ∩ (page courante). Recompose la pagination à chaque
+// changement pour ne pas afficher de trous.
 (function() {
     if (!window.RPT) return;
-    window.RPT.filterOccDetails = function(q) {
-        const s = (q || '').toLowerCase().trim();
-        const rows = document.querySelectorAll('#occ-details-table .occ-details-row');
-        let visible = 0;
-        rows.forEach(tr => {
-            const match = !s || (tr.dataset.search || '').indexOf(s) !== -1;
-            tr.style.display = match ? '' : 'none';
-            if (match) visible++;
-        });
-        const c = document.getElementById('occ-details-count');
-        if (c) c.textContent = s ? `${visible} / ${rows.length} lignes` : '';
+
+    const STATE = {
+        query: '',
+        page: 1,
+        pageSize: 50,
     };
+
+    function getAllRows() {
+        return Array.from(document.querySelectorAll('#occ-details-table .occ-details-row'));
+    }
+
+    function getFilteredRows() {
+        const s = STATE.query;
+        if (!s) return getAllRows();
+        return getAllRows().filter(tr => (tr.dataset.search || '').indexOf(s) !== -1);
+    }
+
+    function render() {
+        const all = getAllRows();
+        const filtered = getFilteredRows();
+        const total = filtered.length;
+        const pageSize = STATE.pageSize;
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        if (STATE.page > totalPages) STATE.page = totalPages;
+        if (STATE.page < 1) STATE.page = 1;
+
+        const start = (STATE.page - 1) * pageSize;
+        const end   = Math.min(start + pageSize, total);
+        const visibleIds = new Set(filtered.slice(start, end).map(r => r));
+
+        // Masque tout, puis affiche seulement les lignes de la page
+        all.forEach(tr => tr.style.display = visibleIds.has(tr) ? '' : 'none');
+
+        // Compteur "X / Y lignes"
+        const cCount = document.getElementById('occ-details-count');
+        if (cCount) cCount.textContent = STATE.query ? `${total} / ${all.length} lignes` : '';
+
+        // Pagination visible seulement s'il y a plus d'une page OU si search actif
+        const pagBox = document.getElementById('occ-details-pagination');
+        if (pagBox) pagBox.hidden = total <= pageSize && !STATE.query;
+
+        // Range "1 à 50 sur 199"
+        const rangeEl = document.getElementById('occ-details-range');
+        if (rangeEl) {
+            rangeEl.textContent = total === 0
+                ? 'Aucune ligne'
+                : `${start + 1}–${end} sur ${total}`;
+        }
+
+        // Reconstruit les boutons de page (ellipsis au-delà de 7 pages)
+        const pagesEl = document.getElementById('occ-details-pages');
+        if (pagesEl) {
+            pagesEl.innerHTML = '';
+            const pages = pageNumbers(STATE.page, totalPages);
+            pages.forEach(p => {
+                if (p === '…') {
+                    const span = document.createElement('span');
+                    span.className = 'occ-details-pg-btn ellipsis';
+                    span.textContent = '…';
+                    span.style.cssText = 'padding:5px 4px;font-size:12px';
+                    pagesEl.appendChild(span);
+                } else {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'occ-details-pg-btn' + (p === STATE.page ? ' is-current' : '');
+                    btn.textContent = p;
+                    btn.style.cssText = 'padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-size:12px;font-weight:700;min-width:30px';
+                    if (p === STATE.page) btn.style.cssText += ';background:var(--accent);color:#fff;border-color:var(--accent)';
+                    btn.onclick = () => window.RPT.goOccDetailsPage(p);
+                    pagesEl.appendChild(btn);
+                }
+            });
+        }
+    }
+
+    function pageNumbers(current, total) {
+        if (total <= 7) return Array.from({length: total}, (_, i) => i + 1);
+        const pages = new Set([1, 2, total - 1, total, current - 1, current, current + 1]);
+        const sorted = Array.from(pages).filter(p => p >= 1 && p <= total).sort((a, b) => a - b);
+        const out = [];
+        let prev = 0;
+        sorted.forEach(p => {
+            if (p - prev > 1) out.push('…');
+            out.push(p);
+            prev = p;
+        });
+        return out;
+    }
+
+    window.RPT.filterOccDetails = function(q) {
+        STATE.query = (q || '').toLowerCase().trim();
+        STATE.page = 1;  // Reset à la page 1 après filtre
+        render();
+    };
+    window.RPT.goOccDetailsPage = function(p) {
+        const all = getAllRows();
+        const total = Math.max(1, Math.ceil(getFilteredRows().length / STATE.pageSize));
+        if (p === 'prev') p = Math.max(1, STATE.page - 1);
+        else if (p === 'next') p = Math.min(total, STATE.page + 1);
+        else if (p === 'last') p = total;
+        else p = parseInt(p, 10);
+        if (!Number.isFinite(p)) return;
+        STATE.page = p;
+        render();
+        // Scroll doux vers le haut du tableau
+        const tbl = document.getElementById('occ-details-table');
+        if (tbl) tbl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    window.RPT.setOccDetailsPageSize = function(size) {
+        STATE.pageSize = parseInt(size, 10) || 50;
+        STATE.page = 1;
+        render();
+    };
+
+    // Init à l'ouverture de l'onglet
+    document.addEventListener('DOMContentLoaded', render);
+    // Re-render au switch d'onglet (si RPT expose un hook, on l'utilise)
+    if (typeof window.RPT._onOccDetailsInit === 'undefined') {
+        window.RPT._onOccDetailsInit = true;
+        setTimeout(render, 100);
+    }
 })();
 </script>
