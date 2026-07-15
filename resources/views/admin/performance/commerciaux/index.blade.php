@@ -125,12 +125,37 @@
     </div>
 
     {{-- Tableau leaderboard --}}
+    @php
+        $sortLabels = [
+            'ca_ttc'                 => 'CA TTC',
+            'nb_nouvelles_campagnes' => 'Nouvelles campagnes créées',
+            'nb_campagnes'           => 'Campagnes actives sur la période',
+            'encaisse'               => 'Montant encaissé',
+            'taux_recouvrement'      => 'Taux de recouvrement',
+            'panier_moyen'           => 'Panier moyen',
+        ];
+        $currentSort = $sortBy ?? 'ca_ttc';
+        $currentSortLabel = $sortLabels[$currentSort] ?? 'CA TTC';
+    @endphp
     <div class="perf-card">
-        <div class="perf-card-head">
+        <div class="perf-card-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
             <div>
                 <div class="perf-card-title">🏆 Classement</div>
-                <div class="perf-card-sub">{{ $leaderboard->count() }} commercial(ux) — ordonné par CA TTC</div>
+                <div class="perf-card-sub">{{ $leaderboard->count() }} commercial(ux) — ordonné par {{ $currentSortLabel }}</div>
             </div>
+            {{-- Menu de tri (feedback patronne 2026-07-08) --}}
+            <form method="GET" action="{{ route('admin.performance.commercial.index') }}" style="display:flex;align-items:center;gap:8px">
+                @foreach(request()->except('sort') as $k => $v)
+                    <input type="hidden" name="{{ $k }}" value="{{ is_array($v) ? json_encode($v) : $v }}">
+                @endforeach
+                <label for="perf-sort" style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.4px">Trier par</label>
+                <select id="perf-sort" name="sort" onchange="this.form.submit()"
+                        style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-weight:600">
+                    @foreach($sortLabels as $key => $label)
+                        <option value="{{ $key }}" {{ $currentSort === $key ? 'selected' : '' }}>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </form>
         </div>
         <div class="perf-card-body--flush">
             <table class="perf-table">
@@ -144,7 +169,8 @@
                         <th style="text-align:right">Reste dû</th>
                         <th style="text-align:right">Taux</th>
                         <th style="text-align:right">Panier moyen</th>
-                        <th style="text-align:right">Campagnes</th>
+                        <th style="text-align:right" title="Campagnes qui chevauchent la période">Actives</th>
+                        <th style="text-align:right;color:#7c3aed" title="Campagnes créées dans la période">Nouvelles</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -169,13 +195,14 @@
                             <td style="text-align:right;font-weight:700;color:{{ $tauxCol }}">{{ $row['taux_recouvrement'] }} %</td>
                             <td style="text-align:right;font-family:monospace;color:var(--text2)">{{ $fmtM($row['panier_moyen']) }}</td>
                             <td style="text-align:right;font-weight:700">{{ $row['nb_campagnes'] }}</td>
+                            <td style="text-align:right;font-weight:800;color:#7c3aed">{{ $row['nb_nouvelles_campagnes'] ?? 0 }}</td>
                             <td style="text-align:right;white-space:nowrap">
                                 <a href="{{ route('admin.performance.commercial.show', $row['user']) }}"
                                    class="btn btn-ghost btn-sm" style="font-size:11px">Détail →</a>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text3);font-style:italic">Aucun commercial actif.</td></tr>
+                        <tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3);font-style:italic">Aucun commercial actif.</td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -38,7 +38,11 @@ class CommercialPerformanceController extends Controller
         }
 
         [$from, $to] = $this->resolvePeriod($request);
-        $leaderboard = $this->perf->leaderboard($from, $to);
+        // Tri paramétrable (feedback patronne 2026-07-08) : ?sort=nb_nouvelles_campagnes
+        // permet de classer par nombre de nouvelles campagnes créées dans
+        // la période au lieu du CA TTC par défaut.
+        $sortBy = $request->input('sort', 'ca_ttc');
+        $leaderboard = $this->perf->leaderboard($from, $to, $sortBy);
         // Top commercial par secteur d'activité — vue "qui domine quoi"
         $topBySector = $this->perf->topCommercialBySector($from, $to);
         // Courbe globale équipe — évolution CA sur 12 mois
@@ -51,6 +55,7 @@ class CommercialPerformanceController extends Controller
             'from'        => $from,
             'to'          => $to,
             'preset'      => $request->input('preset'),
+            'sortBy'      => $sortBy,
         ]);
     }
 
