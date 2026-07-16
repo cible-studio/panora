@@ -1432,12 +1432,37 @@
                     }),
                     processResults: (data, params) => {
                         params.page = params.page || 1;
+                        // Filtre panneaux déjà pris (2026-07-16) : on retire de
+                        // la liste tout panneau dont l'id (int_X ou ext_X) est
+                        // déjà présent dans une AUTRE ligne de la facture.
+                        // On garde l'item si c'est la ligne courante (le user
+                        // peut vouloir juste rouvrir le dropdown sans changer).
+                        const takenInt = window.takenPanelsCache?.int || new Set();
+                        const takenExt = window.takenPanelsCache?.ext || new Set();
+                        const ownPanelId = row.querySelector('.line-panel-id')?.value || '';
+                        const ownExtId   = row.querySelector('.line-external-panel-id')?.value || '';
+                        const filtered = (data.results || []).filter(r => {
+                            const id = String(r.id || '');
+                            if (id.startsWith('int_')) {
+                                const pid = id.slice(4);
+                                return pid === ownPanelId || !takenInt.has(pid);
+                            }
+                            if (id.startsWith('ext_')) {
+                                const eid = id.slice(4);
+                                return eid === ownExtId || !takenExt.has(eid);
+                            }
+                            return true;
+                        });
                         return {
-                            results: data.results || [],
+                            results: filtered,
                             pagination: { more: data.pagination?.more === true },
                         };
                     },
-                    cache: true,
+                    // cache désactivé (2026-07-16) — sinon le filtre "panneaux
+                    // pris" ne se recalcule pas quand l'utilisateur ajoute une
+                    // ligne : Select2 servirait la liste initiale (avant sélection)
+                    // et permettrait de re-sélectionner un panneau déjà pris.
+                    cache: false,
                 },
                 createTag: (params) => {
                     const term = (params.term || '').trim();
@@ -1528,6 +1553,9 @@
                 if (item.commune_id) {
                     $commune.val(String(item.commune_id)).trigger('change');
                 }
+                // Rafraîchir le cache "panneaux pris" pour que la prochaine
+                // ligne ajoutée ne propose plus celui qu'on vient de choisir.
+                if (typeof refreshTakenPanelsCache === 'function') refreshTakenPanelsCache();
                 recompute();
             });
             $design.on('select2:clear', function () {
@@ -1539,6 +1567,7 @@
                 const extPanelIdField = row.querySelector('.line-external-panel-id');
                 if (panelIdField) panelIdField.value = '';
                 if (extPanelIdField) extPanelIdField.value = '';
+                if (typeof refreshTakenPanelsCache === 'function') refreshTakenPanelsCache();
                 recompute();
             });
         }
@@ -1733,6 +1762,9 @@
             }
             row.remove();
             renumberLines();
+            // Le panneau qui était dans cette ligne redevient disponible
+            // dans le dropdown des autres lignes (2026-07-16).
+            if (typeof refreshTakenPanelsCache === 'function') refreshTakenPanelsCache();
             recompute();
         });
     }
@@ -1801,6 +1833,22 @@
     addBtn?.addEventListener('click', addLine);
     tbody.querySelectorAll('.line-row').forEach(bindRow);
 
+    // Guard boot (2026-07-16) — filet indépendant du handler select2.
+    // Si un input critique arrive VIDE (cache navigateur ancien HTML,
+    // old() Laravel avec chaîne vide, race JS…), on force un défaut
+    // visible avant même que l'utilisateur ne clique quelque part.
+    // Garantit que les colonnes M², QTÉ, MOIS ne restent JAMAIS vides.
+    tbody.querySelectorAll('.line-row').forEach(row => {
+        const q = row.querySelector('.line-qte');
+        const m = row.querySelector('.line-mois');
+        const s = row.querySelector('.line-m2');
+        const p = row.querySelector('.line-pu');
+        if (q && (q.value === '' || Number(q.value) < 1))   q.value = '1';
+        if (m && (m.value === '' || Number(m.value) < 0.5)) m.value = '1';
+        if (s && s.value === '') s.value = '0';
+        if (p && p.value === '') p.value = '0';
+    });
+
     ['remise_pct'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', recompute);
     });
@@ -1809,7 +1857,39 @@
         el.addEventListener('input', recompute);
     });
 
+    // Filtre panneaux déjà sélectionnés — mise à jour après chaque changement
+    // de désignation dans une ligne. Rebindé sur toutes les lignes existantes.
+    tbody.addEventListener('change', function(e) {
+        if (e.target && (e.target.classList.contains('line-designation') ||
+                         e.target.classList.contains('line-panel-id') ||
+                         e.target.classList.contains('line-external-panel-id'))) {
+            refreshTakenPanelsCache();
+        }
+    });
+    // Init cache à l'ouverture
+    refreshTakenPanelsCache();
+
     recompute();
 })();
+
+/**
+ * Cache des panel_id / external_panel_id déjà sélectionnés dans la facture.
+ * Consommé par le processResults() du Select2 panneau (bug 3 — 2026-07-16)
+ * pour retirer visuellement les panneaux déjà pris — l'utilisateur ne peut
+ * plus les re-sélectionner, ce qui prévient les doublons AVANT le POST.
+ * (La validation serveur reste en place comme filet de sécurité.)
+ */
+window.takenPanelsCache = { int: new Set(), ext: new Set() };
+function refreshTakenPanelsCache() {
+    const cache = window.takenPanelsCache;
+    cache.int.clear();
+    cache.ext.clear();
+    document.querySelectorAll('#lines-tbody .line-row').forEach(row => {
+        const p = row.querySelector('.line-panel-id')?.value;
+        const e = row.querySelector('.line-external-panel-id')?.value;
+        if (p) cache.int.add(String(p));
+        if (e) cache.ext.add(String(e));
+    });
+}
 </script>
 @endpush
