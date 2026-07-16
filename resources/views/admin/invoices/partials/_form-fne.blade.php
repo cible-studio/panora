@@ -140,6 +140,21 @@
                 </div>
             </div>
 
+    {{-- ════ BANDEAU VERSION (diagnostic cache navigateur) ════
+         2026-07-16 : la patronne voyait encore l'ancien comportement
+         (M²/QTÉ vides, panneaux non filtrés) alors que le fix serveur
+         est déployé. Symptôme classique de cache navigateur agressif.
+         Ce bandeau lui permet de vérifier d'un coup d'œil quelle
+         version du script tourne dans son navigateur.  --}}
+    <div id="form-fne-version-banner"
+         style="margin: 12px 0; padding: 10px 14px; background: #ecfdf5; border: 1px solid #86efac; border-radius: 10px; font-size: 12px; color: #166534; display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 16px;">✅</span>
+        <span>
+            <strong>Formulaire v2026-07-16c</strong> · corrections M²/QTÉ/MOIS + filtre panneaux déjà pris actifs.
+            Si tu vois des cases vides ou un panneau dupliqué dans la liste, fais <strong>Ctrl+F5</strong> pour vider le cache navigateur.
+        </span>
+    </div>
+
     {{-- ════ LIGNES ÉDITABLES (refonte design) ════ --}}
     <div class="invoice-lines-card">
         <div class="invoice-lines-header">
@@ -1833,21 +1848,31 @@
     addBtn?.addEventListener('click', addLine);
     tbody.querySelectorAll('.line-row').forEach(bindRow);
 
+    // Sentinelle de version (2026-07-16c) — permet de vérifier depuis
+    // la console du navigateur que le NOUVEAU script tourne bien.
+    // Si le log n'apparaît pas → c'est du cache navigateur agressif,
+    // faire Ctrl+F5 (ou Ctrl+Shift+R sur Firefox).
+    console.log('[FORM-FNE] v2026-07-16c chargé — guard M²/QTÉ/MOIS + filtre panneaux actif');
+
     // Guard boot (2026-07-16) — filet indépendant du handler select2.
     // Si un input critique arrive VIDE (cache navigateur ancien HTML,
     // old() Laravel avec chaîne vide, race JS…), on force un défaut
     // visible avant même que l'utilisateur ne clique quelque part.
     // Garantit que les colonnes M², QTÉ, MOIS ne restent JAMAIS vides.
+    let guardFixCount = 0;
     tbody.querySelectorAll('.line-row').forEach(row => {
         const q = row.querySelector('.line-qte');
         const m = row.querySelector('.line-mois');
         const s = row.querySelector('.line-m2');
         const p = row.querySelector('.line-pu');
-        if (q && (q.value === '' || Number(q.value) < 1))   q.value = '1';
-        if (m && (m.value === '' || Number(m.value) < 0.5)) m.value = '1';
-        if (s && s.value === '') s.value = '0';
-        if (p && p.value === '') p.value = '0';
+        if (q && (q.value === '' || Number(q.value) < 1))   { q.value = '1'; guardFixCount++; }
+        if (m && (m.value === '' || Number(m.value) < 0.5)) { m.value = '1'; guardFixCount++; }
+        if (s && s.value === '') { s.value = '0'; guardFixCount++; }
+        if (p && p.value === '') { p.value = '0'; guardFixCount++; }
     });
+    if (guardFixCount > 0) {
+        console.log('[FORM-FNE] guard boot a corrigé ' + guardFixCount + ' champ(s) vide(s)');
+    }
 
     ['remise_pct'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', recompute);
