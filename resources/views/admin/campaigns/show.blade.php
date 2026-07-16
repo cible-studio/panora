@@ -55,13 +55,13 @@
                class="btn btn-ghost btn-sm"
                style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);color:#b91c1c;font-weight:700"
                title="PDF détaillé avec photos des panneaux — 1 panneau par carte (A4 portrait)">
-                📄 PDF avec photos
+                📄 <span class="btn-label">PDF avec photos</span>
             </a>
             <a href="{{ route('admin.campaigns.fiche-pose.pdf', ['campaign' => $campaign, 'mode' => 'list']) }}"
-               class="btn btn-ghost btn-sm"
+               class="btn btn-ghost btn-sm action-icon-only-mobile"
                style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);color:#1d4ed8;font-weight:700"
                title="PDF compact en liste — tableau A4 paysage (référence, emplacement, commune, format, technicien, équipe)">
-                📋 PDF en liste
+                📋 <span class="btn-label">PDF en liste</span>
             </a>
         @endif
         @php $isTermineeTop = $campaign->status->value === 'termine'; @endphp
@@ -77,8 +77,9 @@
         @if($can['delete'])
             <button type="button"
                     onclick="openDeleteModal({{ $campaign->id }}, @js($campaign->name))"
-                    class="btn btn-ghost btn-sm text-red-400 border-red-500/30 hover:bg-red-500/20">
-                🗑 Supprimer
+                    title="Supprimer la campagne"
+                    class="btn btn-ghost btn-sm text-red-400 border-red-500/30 hover:bg-red-500/20 action-icon-only-mobile">
+                🗑 <span class="btn-label">Supprimer</span>
             </button>
         @endif
     </x-slot:topbarActions>
