@@ -11,12 +11,17 @@ Route::get('/health', fn() => response()->json(['status' => 'ok', 'time' => now(
 Route::get('/', fn() => view('auth.login'));
 
 // ─── Landing publique — vitrine commerciale Panora (WIP develop) ───
-// Domaine final à décider — accessible temporairement via /decouvrir.
-Route::get('/decouvrir', [\App\Http\Controllers\LandingController::class, 'show'])
-    ->name('landing.show');
-Route::post('/decouvrir/demande-demo', [\App\Http\Controllers\LandingController::class, 'submitDemoRequest'])
-    ->middleware('throttle:5,10')
-    ->name('landing.demo.submit');
+// Refonte V2 (2026-07-15) : direction éditoriale premium avec 5 sous-pages.
+Route::prefix('decouvrir')->name('landing.')->group(function () {
+    Route::get('/',                   [\App\Http\Controllers\LandingController::class, 'home'])->name('show');
+    Route::get('/produit',            [\App\Http\Controllers\LandingController::class, 'produit'])->name('produit');
+    Route::get('/pour-directions',    [\App\Http\Controllers\LandingController::class, 'pourDirections'])->name('pour-directions');
+    Route::get('/pour-commerciaux',   [\App\Http\Controllers\LandingController::class, 'pourCommerciaux'])->name('pour-commerciaux');
+    Route::get('/demo',               [\App\Http\Controllers\LandingController::class, 'demo'])->name('demo');
+    Route::post('/demande-demo',      [\App\Http\Controllers\LandingController::class, 'submitDemoRequest'])
+        ->middleware('throttle:5,10')
+        ->name('demo.submit');
+});
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
