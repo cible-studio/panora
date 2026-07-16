@@ -23,7 +23,7 @@ class InvoiceLine extends Model implements Auditable
     protected $auditExclude = ['updated_at'];
 
     protected $fillable = [
-        'invoice_id', 'panel_id', 'commune_id',
+        'invoice_id', 'panel_id', 'external_panel_id', 'commune_id',
         'designation', 'snapshot_commune_name', 'dimension_m2',
         'pu_ht_mensuel', 'quantite', 'duree_mois',
         'montant_ht_ligne',
@@ -58,6 +58,11 @@ class InvoiceLine extends Model implements Auditable
     public function panel(): BelongsTo
     {
         return $this->belongsTo(Panel::class);
+    }
+
+    public function externalPanel(): BelongsTo
+    {
+        return $this->belongsTo(ExternalPanel::class);
     }
 
     public function commune(): BelongsTo
