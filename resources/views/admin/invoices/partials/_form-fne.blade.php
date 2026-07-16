@@ -27,11 +27,17 @@
                         'duree_mois'        => $l->duree_mois,
                         'odp_rate_applique' => $l->odp_rate_applique,
                         'tm_rate_applique'  => $l->tm_rate_applique,
+                        // Bug 3a (2026-07-16) : conserver le lien panneau pour
+                        // validation d'unicité en édition (sinon un update
+                        // enlèverait le panel_id sur les lignes existantes).
+                        'panel_id'          => $l->panel_id ?? null,
+                        'external_panel_id' => $l->external_panel_id ?? null,
                     ])->all()
                     : [
                         // ligne vide par défaut en create
                         ['designation' => '', 'dimension_m2' => 0, 'pu_ht_mensuel' => 0,
-                         'quantite' => 1, 'duree_mois' => 1, 'odp_rate_applique' => 0, 'tm_rate_applique' => 1000],
+                         'quantite' => 1, 'duree_mois' => 1, 'odp_rate_applique' => 0, 'tm_rate_applique' => 1000,
+                         'panel_id' => null, 'external_panel_id' => null],
                     ]);
     $communes  = \App\Models\Commune::orderBy('name')->get(['id', 'name', 'odp_rate', 'tm_rate']);
     $tvaRate   = (float) config('billing.tva_rate', 18);
@@ -167,9 +173,15 @@
                             <td class="col-num"><span class="row-number">{{ $i + 1 }}</span></td>
                             <td class="col-designation">
                                 {{-- Select2 AJAX panneau (filtré par la campagne sélectionnée
-                                     en haut). À la sélection, auto-remplit commune + m² + PU. --}}
+                                     en haut). À la sélection, auto-remplit commune + m² + PU
+                                     + panel_id (hidden) pour permettre validation d'unicité. --}}
                                 <select name="lines[{{ $i }}][designation_picker]" class="line-designation" style="width:100%"></select>
                                 <input type="hidden" name="lines[{{ $i }}][designation]" class="line-designation-value" value="{{ $l['designation'] ?? '' }}">
+                                {{-- Bug 3a (2026-07-16) : hidden panel_id / external_panel_id
+                                     transmis au controller pour validation d'unicité
+                                     (aucun panneau facturé 2× dans la même facture). --}}
+                                <input type="hidden" name="lines[{{ $i }}][panel_id]" class="line-panel-id" value="{{ $l['panel_id'] ?? '' }}">
+                                <input type="hidden" name="lines[{{ $i }}][external_panel_id]" class="line-external-panel-id" value="{{ $l['external_panel_id'] ?? '' }}">
                             </td>
                             <td class="col-commune">
                                 <select name="lines[{{ $i }}][commune_id]" class="line-commune" required style="width:100%">
@@ -185,23 +197,26 @@
                                 </select>
                             </td>
                             <td class="num col-m2">
+                                {{-- ?: (pas ??) — bouclier contre old() qui renvoie
+                                     une string vide après un échec de validation :
+                                     "" n'est pas null, donc ?? ne fallback pas. --}}
                                 <input type="number" name="lines[{{ $i }}][dimension_m2]" class="line-m2" required
-                                       value="{{ $l['dimension_m2'] ?? 0 }}" min="0" step="0.01">
+                                       value="{{ $l['dimension_m2'] ?: 0 }}" min="0" step="0.01">
                             </td>
                             <td class="num col-pu">
                                 {{-- step="1" (FCFA entier, pas de centimes) — 2026-06-18 :
                                      l'ancien step="1000" rejetait les prix négociés non
                                      arrondis (ex. 435 600). --}}
                                 <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required
-                                       value="{{ $l['pu_ht_mensuel'] ?? 0 }}" min="0" step="1">
+                                       value="{{ $l['pu_ht_mensuel'] ?: 0 }}" min="0" step="1">
                             </td>
                             <td class="num col-qte">
                                 <input type="number" name="lines[{{ $i }}][quantite]" class="line-qte" required
-                                       value="{{ $l['quantite'] ?? 1 }}" min="1" step="1">
+                                       value="{{ $l['quantite'] ?: 1 }}" min="1" step="1">
                             </td>
                             <td class="num col-mois">
                                 <input type="number" name="lines[{{ $i }}][duree_mois]" class="line-mois" required
-                                       value="{{ $l['duree_mois'] ?? 1 }}" min="0.5" step="0.5">
+                                       value="{{ $l['duree_mois'] ?: 1 }}" min="0.5" step="0.5">
                             </td>
                             <td class="num col-total line-total">0 FCFA</td>
                             <td class="act">
@@ -1449,31 +1464,65 @@
                     return;
                 }
 
-                // Cas panneau : on remplit tout (designation, commune, m², PU)
+                // Cas panneau : on remplit tout (designation, commune, m², PU, qté, mois)
                 designationField.value = item.designation || item.text;
 
-                // Hotfix TX-UX-1 (2026-06-22) : autofill ROBUSTE — toujours
-                // setter le champ m² (même 0), pour que la patronne voie
-                // tout de suite si le format du panneau n'est pas renseigné
-                // côté BDD (au lieu d'un champ vide où elle ne sait pas
-                // quoi faire). Pareil pour PU. Le user corrigera la valeur
-                // manuellement si elle est 0 ou suspecte.
+                // Panel_id (Bug 3a — 2026-07-16) : capté depuis l'item.id
+                // Select2 format "int_289" ou "ext_42". Alimente le hidden
+                // panel_id / external_panel_id transmis au backend pour
+                // validation d'unicité (aucun doublon panneau par facture).
+                const panelIdField = row.querySelector('.line-panel-id');
+                const extPanelIdField = row.querySelector('.line-external-panel-id');
+                if (panelIdField) panelIdField.value = '';
+                if (extPanelIdField) extPanelIdField.value = '';
+                const idStr = String(item.id || '');
+                if (idStr.startsWith('int_') && panelIdField) {
+                    panelIdField.value = idStr.slice(4);
+                } else if (idStr.startsWith('ext_') && extPanelIdField) {
+                    extPanelIdField.value = idStr.slice(4);
+                }
+
+                // M² : TOUJOURS visible même si 0 (bordure orange en indicateur
+                // si le format du panneau n'est pas renseigné en base).
+                // Corrigé 2026-07-16 : l'ancien hotfix TX-UX-1 blanchissait le
+                // champ, ce qui laissait l'utilisateur perplexe. Maintenant on
+                // affiche 0 avec bordure orange — c'est un signal clair "à
+                // saisir manuellement" plutôt qu'un mystère.
                 if (m2Field) {
                     const m2Val = Number(item.dimension_m2 || 0);
-                    m2Field.value = m2Val > 0 ? m2Val : '';
-                    // Indice visuel discret si la surface est inconnue.
+                    m2Field.value = m2Val > 0 ? m2Val : 0;
                     if (m2Val <= 0) {
-                        m2Field.setAttribute('title', "Surface inconnue côté panneau — saisis-la à la main.");
+                        m2Field.setAttribute('title', "Surface inconnue côté panneau — corrige à la main.");
                         m2Field.style.borderColor = '#f59e0b';
+                        m2Field.style.background = '#fffbeb';
                     } else {
                         m2Field.removeAttribute('title');
                         m2Field.style.borderColor = '';
+                        m2Field.style.background = '';
                     }
                 }
                 if (puField) {
                     const puVal = Math.round(Number(item.pu_suggested || 0));
-                    puField.value = puVal > 0 ? puVal : '';
+                    puField.value = puVal > 0 ? puVal : 0;
+                    if (puVal <= 0) {
+                        puField.setAttribute('title', "Prix mensuel non configuré — saisis-le à la main.");
+                        puField.style.borderColor = '#f59e0b';
+                        puField.style.background = '#fffbeb';
+                    } else {
+                        puField.removeAttribute('title');
+                        puField.style.borderColor = '';
+                        puField.style.background = '';
+                    }
                 }
+
+                // Bug 2 fix (2026-07-16) : forcer qté=1 et mois=1 par défaut
+                // au moment de la sélection panneau, pour que ces champs
+                // soient TOUJOURS visibles avec une valeur. Le user peut
+                // ensuite les changer s'il veut (ex : 6 mois de campagne).
+                const qteField  = row.querySelector('.line-qte');
+                const moisField = row.querySelector('.line-mois');
+                if (qteField  && (!qteField.value  || Number(qteField.value)  < 1))   qteField.value  = '1';
+                if (moisField && (!moisField.value || Number(moisField.value) < 0.5)) moisField.value = '1';
 
                 // Sélectionner la commune dans le select Commune
                 if (item.commune_id) {
@@ -1483,6 +1532,13 @@
             });
             $design.on('select2:clear', function () {
                 row.querySelector('.line-designation-value').value = '';
+                // Vider les hidden panel_id / external_panel_id (Bug 3a) — le
+                // user a désélectionné le panneau, la ligne ne pointe plus vers
+                // un panneau connu (elle redevient tag libre).
+                const panelIdField = row.querySelector('.line-panel-id');
+                const extPanelIdField = row.querySelector('.line-external-panel-id');
+                if (panelIdField) panelIdField.value = '';
+                if (extPanelIdField) extPanelIdField.value = '';
                 recompute();
             });
         }

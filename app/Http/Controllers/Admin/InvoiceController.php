@@ -389,36 +389,58 @@ class InvoiceController extends Controller
         ]);
     }
 
-    public function store(Request $request, \App\Services\InvoiceCalculator $calculator)
+    public function store(Request $request, \App\Services\InvoiceCalculator $calculator, \App\Services\PanelBillingChecker $billingChecker)
     {
         $data = $request->validate([
-            'client_id'             => 'required|exists:clients,id',
-            'campaign_id'           => 'nullable|exists:campaigns,id',
-            'reference'             => 'required|unique:invoices,reference',
-            'issued_at'             => 'required|date',
-            'notes_client'          => 'nullable|string|max:2000',
-            'remise_pct'            => 'nullable|numeric|min:0|max:100',
+            'client_id'                    => 'required|exists:clients,id',
+            'campaign_id'                  => 'nullable|exists:campaigns,id',
+            'reference'                    => 'required|unique:invoices,reference',
+            'issued_at'                    => 'required|date',
+            'notes_client'                 => 'nullable|string|max:2000',
+            'remise_pct'                   => 'nullable|numeric|min:0|max:100',
             // Services annexes libres (prompt v2). Champs LEGACY conservés
             // pour rétrocompat (factures historiques) mais ignorés si on
             // reçoit le tableau moderne 'services'.
-            'services'              => 'nullable|array|max:30',
-            'services.*.label'      => 'required_with:services|string|max:200',
-            'services.*.prix_ht'    => 'required_with:services|numeric|min:0',
-            'services_impression'   => 'nullable|numeric|min:0',
-            'services_pose_depose'  => 'nullable|numeric|min:0',
-            'lines'                 => 'required|array|min:1',
-            'lines.*.designation'   => 'required|string|max:200',
-            'lines.*.commune_id'    => 'required|exists:communes,id',
-            'lines.*.dimension_m2'  => 'required|numeric|min:0',
-            'lines.*.pu_ht_mensuel' => 'required|numeric|min:0',
-            'lines.*.quantite'      => 'required|integer|min:1',
-            'lines.*.duree_mois'    => 'required|numeric|min:0.5',
+            'services'                     => 'nullable|array|max:30',
+            'services.*.label'             => 'required_with:services|string|max:200',
+            'services.*.prix_ht'           => 'required_with:services|numeric|min:0',
+            'services_impression'          => 'nullable|numeric|min:0',
+            'services_pose_depose'         => 'nullable|numeric|min:0',
+            'lines'                        => 'required|array|min:1',
+            'lines.*.designation'          => 'required|string|max:200',
+            'lines.*.commune_id'           => 'required|exists:communes,id',
+            'lines.*.dimension_m2'         => 'required|numeric|min:0',
+            'lines.*.pu_ht_mensuel'        => 'required|numeric|min:0',
+            'lines.*.quantite'             => 'required|integer|min:1',
+            'lines.*.duree_mois'           => 'required|numeric|min:0.5',
+            // Bug 3a — panel_id / external_panel_id transmis pour validation
+            // d'unicité. Nullable pour rétrocompat avec les lignes libres
+            // (saisie en tag Select2 sans panneau matché).
+            'lines.*.panel_id'             => 'nullable|exists:panels,id',
+            'lines.*.external_panel_id'    => 'nullable|exists:external_panels,id',
         ], [
             'lines.required'        => 'Au moins une ligne de facturation est requise.',
             'lines.*.commune_id.required' => 'Chaque ligne doit avoir une commune (pour résoudre ODP).',
             'services.*.label.required_with'   => 'Chaque service annexe doit avoir un libellé.',
             'services.*.prix_ht.required_with' => 'Chaque service annexe doit avoir un prix HT.',
         ]);
+
+        // Bug 3b — validation métier : pas de doublon panneau intra-facture + qté=1 forcée
+        $intraErrors = $billingChecker->validatePayload($data['lines']);
+        if (!empty($intraErrors)) {
+            return back()->withInput()->withErrors($intraErrors);
+        }
+
+        // Bug 3c — validation métier : pas de doublon panneau inter-factures (période chevauchante)
+        $interErrors = $billingChecker->assertNotAlreadyBilled(
+            $data['lines'],
+            \Carbon\Carbon::parse($data['issued_at']),
+            !empty($data['campaign_id']) ? (int) $data['campaign_id'] : null,
+            null // pas d'exclusion en create
+        );
+        if (!empty($interErrors)) {
+            return back()->withInput()->withErrors($interErrors);
+        }
 
         // Cohérence campagne ↔ client : le client de la campagne fait foi.
         $clientId = (int) $data['client_id'];
@@ -515,6 +537,11 @@ class InvoiceController extends Controller
                 'odp_rate_applique'     => (float) $rates['odp'],
                 'tm_rate_applique'      => (float) $rates['tm'],
                 'order_index'           => $orderIdx++,
+                // Bug 3a (2026-07-16) : lien vers le panneau physique
+                // (interne ou externe). Permet la validation d'unicité
+                // et la traçabilité complète (fiche panneau → factures).
+                'panel_id'              => !empty($l['panel_id'])          ? (int) $l['panel_id']          : null,
+                'external_panel_id'     => !empty($l['external_panel_id']) ? (int) $l['external_panel_id'] : null,
             ];
 
             // Pré-calcul des totaux ligne (montant_ht, odp, tm)
@@ -693,7 +720,7 @@ class InvoiceController extends Controller
         ));
     }
 
-    public function update(Request $request, Invoice $invoice, \App\Services\InvoiceCalculator $calculator)
+    public function update(Request $request, Invoice $invoice, \App\Services\InvoiceCalculator $calculator, \App\Services\PanelBillingChecker $billingChecker)
     {
         $this->authorize('update', $invoice);
 
@@ -707,30 +734,50 @@ class InvoiceController extends Controller
         }
 
         $data = $request->validate([
-            'client_id'             => 'required|exists:clients,id',
-            'campaign_id'           => 'nullable|exists:campaigns,id',
-            'reference'             => 'required|unique:invoices,reference,' . $invoice->id,
-            'issued_at'             => 'required|date',
-            'notes_client'          => 'nullable|string|max:2000',
-            'remise_pct'            => 'nullable|numeric|min:0|max:100',
+            'client_id'                    => 'required|exists:clients,id',
+            'campaign_id'                  => 'nullable|exists:campaigns,id',
+            'reference'                    => 'required|unique:invoices,reference,' . $invoice->id,
+            'issued_at'                    => 'required|date',
+            'notes_client'                 => 'nullable|string|max:2000',
+            'remise_pct'                   => 'nullable|numeric|min:0|max:100',
             // Services annexes libres (prompt v2)
-            'services'              => 'nullable|array|max:30',
-            'services.*.label'      => 'required_with:services|string|max:200',
-            'services.*.prix_ht'    => 'required_with:services|numeric|min:0',
+            'services'                     => 'nullable|array|max:30',
+            'services.*.label'             => 'required_with:services|string|max:200',
+            'services.*.prix_ht'           => 'required_with:services|numeric|min:0',
             // Legacy : conservés pour rétrocompat factures historiques
-            'services_impression'   => 'nullable|numeric|min:0',
-            'services_pose_depose'  => 'nullable|numeric|min:0',
-            'lines'                 => 'required|array|min:1',
-            'lines.*.designation'   => 'required|string|max:200',
-            'lines.*.commune_id'    => 'required|exists:communes,id',
-            'lines.*.dimension_m2'  => 'required|numeric|min:0',
-            'lines.*.pu_ht_mensuel' => 'required|numeric|min:0',
-            'lines.*.quantite'      => 'required|integer|min:1',
-            'lines.*.duree_mois'    => 'required|numeric|min:0.5',
+            'services_impression'          => 'nullable|numeric|min:0',
+            'services_pose_depose'         => 'nullable|numeric|min:0',
+            'lines'                        => 'required|array|min:1',
+            'lines.*.designation'          => 'required|string|max:200',
+            'lines.*.commune_id'           => 'required|exists:communes,id',
+            'lines.*.dimension_m2'         => 'required|numeric|min:0',
+            'lines.*.pu_ht_mensuel'        => 'required|numeric|min:0',
+            'lines.*.quantite'             => 'required|integer|min:1',
+            'lines.*.duree_mois'           => 'required|numeric|min:0.5',
+            // Bug 3a — panel_id / external_panel_id transmis pour validation d'unicité
+            'lines.*.panel_id'             => 'nullable|exists:panels,id',
+            'lines.*.external_panel_id'    => 'nullable|exists:external_panels,id',
         ], [
             'services.*.label.required_with'   => 'Chaque service annexe doit avoir un libellé.',
             'services.*.prix_ht.required_with' => 'Chaque service annexe doit avoir un prix HT.',
         ]);
+
+        // Bug 3b — pas de doublon panneau intra-facture + qté=1 forcée
+        $intraErrors = $billingChecker->validatePayload($data['lines']);
+        if (!empty($intraErrors)) {
+            return back()->withInput()->withErrors($intraErrors);
+        }
+
+        // Bug 3c — pas de doublon panneau inter-factures (exclure la facture courante)
+        $interErrors = $billingChecker->assertNotAlreadyBilled(
+            $data['lines'],
+            \Carbon\Carbon::parse($data['issued_at']),
+            !empty($data['campaign_id']) ? (int) $data['campaign_id'] : null,
+            $invoice->id
+        );
+        if (!empty($interErrors)) {
+            return back()->withInput()->withErrors($interErrors);
+        }
 
         // Cohérence campagne ↔ client (cf. store).
         $clientId = (int) $data['client_id'];
