@@ -1916,9 +1916,17 @@
  * pour retirer visuellement les panneaux déjà pris — l'utilisateur ne peut
  * plus les re-sélectionner, ce qui prévient les doublons AVANT le POST.
  * (La validation serveur reste en place comme filet de sécurité.)
+ *
+ * Fix 2026-07-16d : function refreshTakenPanelsCache() est hoisted mais
+ * window.takenPanelsCache = {...} est une assignment NON hoisted. Résultat :
+ * quand l'IIFE ci-dessus appelle refreshTakenPanelsCache() à l'init,
+ * window.takenPanelsCache est encore undefined → « Cannot read 'int' ».
+ * Solution : initialiser DANS la fonction si absent (lazy init).
  */
-window.takenPanelsCache = { int: new Set(), ext: new Set() };
 function refreshTakenPanelsCache() {
+    if (!window.takenPanelsCache) {
+        window.takenPanelsCache = { int: new Set(), ext: new Set() };
+    }
     const cache = window.takenPanelsCache;
     cache.int.clear();
     cache.ext.clear();
