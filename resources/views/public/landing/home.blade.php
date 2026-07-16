@@ -6,41 +6,203 @@
 @section('content')
 
     {{-- ═══════════════════ HERO ═══════════════════ --}}
-    <section style="padding-top: 120px; padding-bottom: 60px;">
-        <div class="wrap">
-            <span class="eyebrow">Plateforme d'exploitation OOH · Côte d'Ivoire</span>
-            <h1 class="hero-title">
-                Une régie OOH ne se pilote plus<br>
-                dans <em>un tableur.</em>
-            </h1>
-            <p class="lead">
-                Panora réunit dans une seule plateforme tout ce qu'exige aujourd'hui l'exploitation
-                d'une régie d'affichage extérieur : inventaire des panneaux, planification des campagnes,
-                pilotage terrain jusqu'au technicien, facturation conforme FNE, taxes communales,
-                relation client, alertes et performance. C'est le tissu numérique d'une régie moderne.
-            </p>
-            <div style="display: flex; gap: 14px; flex-wrap: wrap;">
-                <a href="{{ route('landing.demo') }}" class="btn btn-dark">Demander une démo</a>
-                <a href="{{ route('landing.produit') }}" class="btn btn-outline">Voir le produit en détail</a>
+    <section class="hero-lp has-grain" style="padding: 90px 0 40px; position: relative; overflow: hidden; background: linear-gradient(180deg, #ffffff 0%, var(--bg-cream) 100%);">
+        <span class="brand-blot blot-a"></span>
+        <span class="brand-blot blot-d"></span>
+
+        <div class="wrap" style="position: relative; z-index: 2;">
+            <div class="hero-grid">
+                <div>
+                    <span class="eyebrow">Plateforme d'exploitation OOH · Côte d'Ivoire</span>
+                    <h1 class="hero-title" style="margin-bottom: 24px;">
+                        Une régie OOH<br>
+                        ne se pilote plus<br>
+                        dans <em>un tableur.</em>
+                    </h1>
+                    <p class="lead">
+                        Panora réunit dans une seule plateforme tout ce qu'exige aujourd'hui l'exploitation
+                        d'une régie d'affichage extérieur : inventaire, campagnes, terrain, facturation FNE,
+                        taxes communales, relation client, performance. Le tissu numérique d'une régie moderne.
+                    </p>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 32px;">
+                        <a href="{{ route('landing.demo') }}" class="btn btn-dark">Demander une démo</a>
+                        <a href="{{ route('landing.produit') }}" class="btn btn-outline">Voir le produit</a>
+                    </div>
+
+                    <div class="hero-badges">
+                        <span><strong>337</strong> panneaux</span>
+                        <span><strong>31</strong> communes</span>
+                        <span><strong>FNE</strong> conforme</span>
+                    </div>
+                </div>
+
+                <div class="hero-visual">
+                    <div class="hero-parrot">
+                        <img src="{{ asset('images/peroquet.jpg') }}" alt="Panora — vision à 360°" loading="eager">
+                        <div class="parrot-caption">
+                            <span class="parrot-caption-eyebrow">Panora By CIBLE</span>
+                            La vision à 360°<br>de votre régie.
+                        </div>
+                    </div>
+                    <div class="hero-mini-cards">
+                        <div class="mini-card">
+                            <span>CA du mois</span>
+                            <strong>6.6M<em>FCFA</em></strong>
+                        </div>
+                        <div class="mini-card">
+                            <span>Panneaux actifs</span>
+                            <strong>364</strong>
+                        </div>
+                        <div class="mini-card">
+                            <span>Poses aujourd'hui</span>
+                            <strong>15</strong>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
 
     {{-- ═══════════════════ SCREENSHOT HERO ═══════════════════ --}}
-    <section style="padding-top: 20px; padding-bottom: 100px; border: none;">
+    <section style="padding: 40px 0 100px; border: none; background: var(--bg-cream);">
         <div class="wrap">
+            <div style="text-align: center; margin-bottom: 40px;">
+                <span class="eyebrow">L'écran d'ouverture, chaque matin</span>
+                <h2 class="section-title" style="max-width: 700px; margin: 0 auto;">
+                    Tout ce qui compte, <em>en 30 secondes.</em>
+                </h2>
+            </div>
             @include('public.landing._screenshot', [
                 'src'     => 'dashboard-admin.png',
                 'alt'     => 'Tableau de bord Panora — vue direction',
-                'caption' => 'Tableau de bord direction — panneaux actifs, chiffre d\'affaires, factures en retard, alertes terrain, top clients, top communes. Rafraîchi en continu.',
+                'caption' => 'Panneaux actifs · CA mensuel · Factures en retard · Prévision 30 j · Top clients · Top communes · Alertes terrain. Aucune ressaisie.',
                 'accent'  => true,
             ])
         </div>
     </section>
 
+    @push('head')
+    <style>
+        /* HERO : grille 2 colonnes avec parrot signature à droite */
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1.05fr 1fr;
+            gap: 70px;
+            align-items: center;
+        }
+        .hero-badges {
+            display: flex; gap: 8px; flex-wrap: wrap;
+            margin-top: 48px;
+            padding-top: 28px;
+            border-top: 1px solid rgba(11,15,25,0.08);
+        }
+        .hero-badges span {
+            display: inline-flex; align-items: baseline; gap: 6px;
+            padding: 8px 14px;
+            background: rgba(255,255,255,0.7);
+            border: 1px solid rgba(11,15,25,0.08);
+            border-radius: 999px;
+            font-size: 13px;
+            color: var(--ink-3);
+        }
+        .hero-badges strong {
+            font-family: 'Fraunces', serif;
+            color: var(--ink);
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        /* Visuel perroquet stylé */
+        .hero-visual { position: relative; }
+        .hero-parrot {
+            position: relative;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 40px 80px -20px rgba(11,15,25,0.35),
+                        0 20px 40px -20px rgba(217,78,31,0.25);
+            aspect-ratio: 4/5;
+            background: #0b0f19;
+        }
+        .hero-parrot img {
+            width: 100%; height: 100%;
+            object-fit: cover; object-position: center;
+        }
+        .parrot-caption {
+            position: absolute;
+            left: 24px; bottom: 24px; right: 24px;
+            font-family: 'Fraunces', serif;
+            font-size: 26px;
+            font-weight: 400;
+            line-height: 1.15;
+            color: #fff;
+            letter-spacing: -0.02em;
+            text-shadow: 0 2px 20px rgba(0,0,0,0.5);
+        }
+        .parrot-caption-eyebrow {
+            display: block;
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--brand-yellow);
+            margin-bottom: 10px;
+        }
+
+        /* Mini cards flottantes */
+        .hero-mini-cards {
+            position: absolute;
+            right: -30px;
+            bottom: -30px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .mini-card {
+            background: #fff;
+            padding: 14px 18px;
+            border-radius: 12px;
+            box-shadow: 0 12px 28px -10px rgba(11,15,25,0.25);
+            border: 1px solid var(--line);
+            min-width: 170px;
+        }
+        .mini-card span {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink-4);
+            margin-bottom: 4px;
+        }
+        .mini-card strong {
+            font-family: 'Fraunces', serif;
+            font-size: 26px;
+            font-weight: 500;
+            color: var(--ink);
+            letter-spacing: -0.02em;
+        }
+        .mini-card strong em {
+            font-family: 'Inter', sans-serif;
+            font-style: normal;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--ink-4);
+            margin-left: 4px;
+        }
+
+        @media (max-width: 980px) {
+            .hero-grid { grid-template-columns: 1fr; gap: 50px; }
+            .hero-mini-cards { position: static; flex-direction: row; margin-top: 20px; overflow-x: auto; }
+            .mini-card { min-width: 150px; flex-shrink: 0; }
+        }
+    </style>
+    @endpush
+
     {{-- ═══════════════════ MANIFESTE ═══════════════════ --}}
-    <section style="background: var(--bg-cream);">
-        <div class="wrap">
+    <section class="has-grain" style="background: var(--bg-warm); position: relative; overflow: hidden;">
+        <span class="brand-blot blot-c"></span>
+        <div class="wrap" style="position: relative; z-index: 2;">
             <div class="split-2">
                 <div>
                     <span class="eyebrow">Ce que Panora défend</span>
@@ -89,9 +251,9 @@
                 </p>
             </div>
 
-            <div class="card-list" style="grid-template-columns: 1fr 1fr;">
-                <div class="card-item">
-                    <div class="num">01 · Inventaire</div>
+            <div class="pillars-grid">
+                <div class="pillar" style="--pcolor: var(--brand-blue);">
+                    <div class="pillar-top"><span class="pillar-num">01</span><span class="pillar-tag">Inventaire</span></div>
                     <h4>Le parc, tel qu'il est réellement.</h4>
                     <p>
                         Chaque panneau — interne ou régie partenaire — porte sa fiche, ses photos,
@@ -101,8 +263,8 @@
                     <a href="{{ route('landing.produit') }}#inventaire" class="arrow-link">Voir le module</a>
                 </div>
 
-                <div class="card-item">
-                    <div class="num">02 · Commercial &amp; campagnes</div>
+                <div class="pillar" style="--pcolor: var(--brand-yellow);">
+                    <div class="pillar-top"><span class="pillar-num">02</span><span class="pillar-tag">Commercial &amp; campagnes</span></div>
                     <h4>De la proposition à la campagne terminée.</h4>
                     <p>
                         Propositions envoyées au client, réservations engageantes, campagnes
@@ -112,8 +274,8 @@
                     <a href="{{ route('landing.produit') }}#campagnes" class="arrow-link">Voir le module</a>
                 </div>
 
-                <div class="card-item">
-                    <div class="num">03 · Terrain</div>
+                <div class="pillar" style="--pcolor: var(--brand-purple);">
+                    <div class="pillar-top"><span class="pillar-num">03</span><span class="pillar-tag">Terrain</span></div>
                     <h4>La pose et la pige, jusqu'au technicien.</h4>
                     <p>
                         Chaque campagne génère ses tâches de pose. Chaque tâche est assignée à un
@@ -123,8 +285,8 @@
                     <a href="{{ route('landing.produit') }}#terrain" class="arrow-link">Voir le module</a>
                 </div>
 
-                <div class="card-item">
-                    <div class="num">04 · Comptable &amp; fiscal</div>
+                <div class="pillar" style="--pcolor: var(--brand-green);">
+                    <div class="pillar-top"><span class="pillar-num">04</span><span class="pillar-tag">Comptable &amp; fiscal</span></div>
                     <h4>FNE, taxes communales, encaissements.</h4>
                     <p>
                         Factures FNE conformes CGI Côte d'Ivoire, taxes communales calculées par
@@ -134,6 +296,90 @@
                     <a href="{{ route('landing.produit') }}#comptable" class="arrow-link">Voir le module</a>
                 </div>
             </div>
+
+            @push('head')
+            <style>
+                .pillars-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 24px;
+                }
+                .pillar {
+                    position: relative;
+                    background: #fff;
+                    border: 1px solid var(--line);
+                    border-radius: 20px;
+                    padding: 40px 34px 34px;
+                    overflow: hidden;
+                    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+                }
+                .pillar::before {
+                    content: '';
+                    position: absolute; top: 0; left: 0; right: 0;
+                    height: 4px;
+                    background: var(--pcolor);
+                }
+                .pillar::after {
+                    content: '';
+                    position: absolute;
+                    top: -80px; right: -80px;
+                    width: 220px; height: 220px;
+                    border-radius: 50%;
+                    background: var(--pcolor);
+                    opacity: 0.05;
+                    transition: transform 0.4s ease, opacity 0.3s ease;
+                }
+                .pillar:hover {
+                    transform: translateY(-4px);
+                    box-shadow: 0 30px 60px -20px rgba(11,15,25,0.15);
+                    border-color: var(--pcolor);
+                }
+                .pillar:hover::after {
+                    transform: scale(1.15);
+                    opacity: 0.10;
+                }
+                .pillar-top {
+                    display: flex; align-items: center; gap: 14px;
+                    margin-bottom: 20px;
+                }
+                .pillar-num {
+                    display: inline-flex;
+                    align-items: center; justify-content: center;
+                    width: 44px; height: 44px;
+                    background: var(--pcolor);
+                    color: #fff;
+                    font-family: 'Fraunces', serif;
+                    font-weight: 600;
+                    font-size: 16px;
+                    border-radius: 50%;
+                }
+                .pillar-tag {
+                    font-size: 11.5px;
+                    font-weight: 700;
+                    color: var(--pcolor);
+                    letter-spacing: 0.12em;
+                    text-transform: uppercase;
+                }
+                .pillar h4 {
+                    font-family: 'Fraunces', serif;
+                    font-size: 24px;
+                    font-weight: 500;
+                    letter-spacing: -0.01em;
+                    margin-bottom: 14px;
+                    color: var(--ink);
+                    line-height: 1.2;
+                }
+                .pillar p {
+                    font-size: 15px;
+                    color: var(--ink-3);
+                    line-height: 1.65;
+                    margin-bottom: 18px;
+                }
+                @media (max-width: 780px) {
+                    .pillars-grid { grid-template-columns: 1fr; }
+                }
+            </style>
+            @endpush
         </div>
     </section>
 
@@ -208,10 +454,11 @@
     </section>
 
     {{-- ═══════════════════ CHIFFRES CIBLE ═══════════════════ --}}
-    <section style="background: var(--bg-soft);">
-        <div class="wrap">
-            <div style="max-width: 680px; margin-bottom: 50px;">
-                <span class="eyebrow">En production</span>
+    <section class="has-grid" style="background: var(--bg-cream); position: relative; overflow: hidden;">
+        <span class="brand-blot blot-b"></span>
+        <div class="wrap" style="position: relative; z-index: 2;">
+            <div style="max-width: 720px; margin-bottom: 60px;">
+                <span class="eyebrow">En production, aujourd'hui</span>
                 <h2 class="section-title">Une régie ivoirienne exploite <em>Panora en continu.</em></h2>
                 <p class="body" style="font-size: 17px; color: var(--ink-3);">
                     Panora n'est pas un prototype. La plateforme tourne aujourd'hui sur un parc
@@ -220,34 +467,89 @@
                 </p>
             </div>
 
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px;">
-                <div>
-                    <div style="font-family: 'Fraunces', serif; font-size: 56px; font-weight: 400; color: var(--ink); letter-spacing: -0.03em; line-height: 1;">337</div>
-                    <div style="font-size: 13px; color: var(--ink-4); margin-top: 8px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600;">Panneaux gérés</div>
+            <div class="metrics-grid">
+                <div class="metric">
+                    <span class="metric-num">337</span>
+                    <span class="metric-label">Panneaux gérés</span>
+                    <span class="metric-hint">Internes + régies partenaires</span>
                 </div>
-                <div>
-                    <div style="font-family: 'Fraunces', serif; font-size: 56px; font-weight: 400; color: var(--ink); letter-spacing: -0.03em; line-height: 1;">31</div>
-                    <div style="font-size: 13px; color: var(--ink-4); margin-top: 8px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600;">Communes couvertes</div>
+                <div class="metric">
+                    <span class="metric-num">31</span>
+                    <span class="metric-label">Communes couvertes</span>
+                    <span class="metric-hint">Abidjan + intérieur CI</span>
                 </div>
-                <div>
-                    <div style="font-family: 'Fraunces', serif; font-size: 56px; font-weight: 400; color: var(--ink); letter-spacing: -0.03em; line-height: 1;">10<span style="color: var(--accent);">+</span></div>
-                    <div style="font-size: 13px; color: var(--ink-4); margin-top: 8px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600;">Modules intégrés</div>
+                <div class="metric">
+                    <span class="metric-num">11<em>+</em></span>
+                    <span class="metric-label">Modules intégrés</span>
+                    <span class="metric-hint">Une seule donnée source</span>
                 </div>
-                <div>
-                    <div style="font-family: 'Fraunces', serif; font-size: 56px; font-weight: 400; color: var(--ink); letter-spacing: -0.03em; line-height: 1;">FNE</div>
-                    <div style="font-size: 13px; color: var(--ink-4); margin-top: 8px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600;">Conforme CGI 2026</div>
+                <div class="metric">
+                    <span class="metric-num" style="color: var(--accent);">FNE</span>
+                    <span class="metric-label">Conforme CGI 2026</span>
+                    <span class="metric-hint">Ventilation TVA + taxes locales</span>
                 </div>
             </div>
-
-            <style>
-                @media (max-width: 720px) {
-                    section [style*="grid-template-columns: repeat(4, 1fr)"] {
-                        grid-template-columns: repeat(2, 1fr) !important;
-                        gap: 32px 24px !important;
-                    }
-                }
-            </style>
         </div>
+
+        @push('head')
+        <style>
+            .metrics-grid {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 0;
+                background: rgba(255,255,255,0.6);
+                border: 1px solid rgba(11,15,25,0.08);
+                border-radius: 20px;
+                overflow: hidden;
+                backdrop-filter: blur(10px);
+            }
+            .metric {
+                padding: 40px 30px 34px;
+                position: relative;
+                text-align: left;
+                border-right: 1px solid rgba(11,15,25,0.08);
+            }
+            .metric:last-child { border-right: none; }
+            .metric-num {
+                display: block;
+                font-family: 'Fraunces', serif;
+                font-size: 80px;
+                font-weight: 400;
+                color: var(--ink);
+                letter-spacing: -0.04em;
+                line-height: 0.95;
+                margin-bottom: 14px;
+            }
+            .metric-num em {
+                font-style: normal;
+                color: var(--accent);
+                font-weight: 300;
+            }
+            .metric-label {
+                display: block;
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--ink-2);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                margin-bottom: 6px;
+            }
+            .metric-hint {
+                display: block;
+                font-size: 13px;
+                color: var(--ink-4);
+                font-style: italic;
+            }
+            @media (max-width: 900px) {
+                .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+                .metric:nth-child(2) { border-right: none; }
+                .metric:nth-child(1), .metric:nth-child(2) {
+                    border-bottom: 1px solid rgba(11,15,25,0.08);
+                }
+                .metric-num { font-size: 60px; }
+            }
+        </style>
+        @endpush
     </section>
 
     {{-- ═══════════════════ CTA FINAL ═══════════════════ --}}

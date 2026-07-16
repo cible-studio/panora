@@ -54,12 +54,57 @@
             --line:     #e5e7eb;
             --line-2:   #f3f4f6;
             --bg:       #ffffff;
-            --bg-soft:  #fafaf7;
-            --bg-cream: #fbf9f4;
+            --bg-soft:  #faf7f2;
+            --bg-cream: #f5efe4;
+            --bg-warm:  #ede4d3;
             --accent:   #d94e1f;
             --accent-2: #b83d15;
+            --accent-3: #f0782f;
             --accent-soft: #fdf5f0;
+            --brand-blue:   #1e6ba8;
+            --brand-yellow: #f4b400;
+            --brand-red:    #d62828;
+            --brand-green:  #2d9e3e;
+            --brand-purple: #6f4a9e;
         }
+
+        /* ═══════════════════ TEXTURES DÉCORATIVES ═══════════════════ */
+        /* Grain subtil sur les sections crème pour éviter le "blanc désert" */
+        .has-grain {
+            position: relative;
+        }
+        .has-grain::before {
+            content: '';
+            position: absolute; inset: 0;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.06 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
+            opacity: 0.7;
+            pointer-events: none;
+            mix-blend-mode: multiply;
+        }
+        .has-grain > * { position: relative; z-index: 1; }
+
+        /* Grille fine décorative (fond dashboard-like) */
+        .has-grid {
+            background-image:
+                linear-gradient(rgba(11,15,25,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(11,15,25,0.04) 1px, transparent 1px);
+            background-size: 44px 44px;
+        }
+
+        /* Cercle décoratif de marque en filigrane */
+        .brand-blot {
+            position: absolute;
+            width: 480px; height: 480px;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.16;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .brand-blot.blot-a { background: var(--accent);      top: -180px; right: -140px; }
+        .brand-blot.blot-b { background: var(--brand-blue);  top: 40%;    left: -220px; }
+        .brand-blot.blot-c { background: var(--brand-yellow); bottom: -160px; right: -100px; opacity: 0.20; }
+        .brand-blot.blot-d { background: var(--brand-purple); top: -100px; left: 20%; opacity: 0.12; }
 
         .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
         .wrap-narrow { max-width: 780px; margin: 0 auto; padding: 0 24px; }
@@ -68,24 +113,24 @@
         /* ═══════════════════ NAVIGATION ═══════════════════ */
         header.nav {
             position: sticky; top: 0; z-index: 100;
-            background: rgba(255, 255, 255, 0.86);
+            background: rgba(255, 255, 255, 0.92);
             backdrop-filter: saturate(180%) blur(14px);
             -webkit-backdrop-filter: saturate(180%) blur(14px);
             border-bottom: 1px solid rgba(0,0,0,0.06);
         }
         .nav-inner {
-            max-width: 1120px; margin: 0 auto;
+            max-width: 1200px; margin: 0 auto;
             display: flex; align-items: center; justify-content: space-between;
-            padding: 18px 24px;
+            padding: 14px 24px;
         }
         .nav-brand {
-            font-family: 'Fraunces', serif;
-            font-weight: 600;
-            font-size: 22px;
-            letter-spacing: -0.03em;
-            color: var(--ink);
+            display: inline-flex; align-items: center;
         }
-        .nav-brand::first-letter { color: var(--accent); }
+        .nav-brand img {
+            height: 38px; width: auto; display: block;
+            transition: transform 0.2s ease;
+        }
+        .nav-brand:hover img { transform: scale(1.03); }
         .nav-links {
             display: flex; align-items: center; gap: 32px;
             font-size: 14px; font-weight: 500;
@@ -316,13 +361,11 @@
             flex-wrap: wrap; gap: 30px;
         }
         .footer-brand {
-            font-family: 'Fraunces', serif;
-            font-size: 24px;
-            font-weight: 500;
-            color: #fff;
-            letter-spacing: -0.02em;
+            display: inline-block;
         }
-        .footer-brand::first-letter { color: var(--accent); }
+        .footer-brand img {
+            height: 44px; width: auto; display: block;
+        }
         .footer-brand-baseline {
             display: block;
             font-family: 'Inter', sans-serif;
@@ -361,7 +404,9 @@
     {{-- ═══════════════════ NAVIGATION ═══════════════════ --}}
     <header class="nav">
         <div class="nav-inner">
-            <a href="{{ route('landing.show') }}" class="nav-brand">Panora</a>
+            <a href="{{ route('landing.show') }}" class="nav-brand" aria-label="Panora — accueil">
+                <img src="{{ asset('images/panora.png') }}" alt="Panora">
+            </a>
             <nav class="nav-links">
                 @foreach($nav as $item)
                     @if(!empty($item['is_brand'])) @continue @endif
@@ -385,7 +430,9 @@
         <div class="wrap">
             <div class="footer-inner">
                 <div>
-                    <span class="footer-brand">Panora</span>
+                    <span class="footer-brand">
+                        <img src="{{ asset('images/panora-blanc.png') }}" alt="Panora">
+                    </span>
                     <span class="footer-brand-baseline">Le système d'exploitation<br>des régies OOH en Afrique de l'Ouest.</span>
                 </div>
                 <div class="footer-links">
