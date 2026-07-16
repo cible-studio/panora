@@ -37,7 +37,7 @@
 @endphp
 <tr data-campaign-row="{{ $campaign->id }}" style="{{ $endingSoon ? 'background:rgba(232,160,32,0.03);' : '' }}">
     @if(in_array(auth()->user()?->role?->value, ['admin', 'mediaplanner'], true))
-    <td style="text-align:center;">
+    <td class="col-check" style="text-align:center;">
         <input type="checkbox" class="bulk-checkbox"
                value="{{ $campaign->id }}"
                data-status="{{ $campaign->status->value }}"
@@ -45,7 +45,7 @@
     </td>
     @endif
     {{-- ═══ COLONNE FUSIONNÉE : Campagne / Client ═══ --}}
-    <td class="col-campaign">
+    <td class="col-campaign" data-label="Campagne / Client">
         <a href="{{ route('admin.campaigns.show', $campaign) }}" class="campaign-name" title="{{ $campaign->name }}">
             {{ $campaign->name }}
         </a>
@@ -70,13 +70,13 @@
     </td>
 
     {{-- ═══ COLONNE FUSIONNÉE : Période + Durée ═══ --}}
-    <td class="date-range">
+    <td class="date-range" data-label="Période">
         <div>{{ $campaign->start_date->format('d/m/y') }} <span>→</span> {{ $campaign->end_date->format('d/m/y') }}</div>
         <div style="font-size:10.5px;color:var(--text3);margin-top:1px">⏱ {{ $campaign->durationHuman() }}</div>
     </td>
 
     {{-- ═══ COLONNE FUSIONNÉE : Panneaux + Montant ═══ --}}
-    <td class="text-center">
+    <td class="text-center col-panels-amount" data-label="Panneaux / Montant">
         <span class="badge-panels">{{ ($campaign->panels_count ?? 0) + ($campaign->external_panels_count ?? 0) }} 🪧</span>
         <div class="amount" style="margin-top:3px;font-size:11.5px">
             @if($campaign->total_amount !== null && (float) $campaign->total_amount > 0)
@@ -86,7 +86,7 @@
             @endif
         </div>
     </td>
-    <td>
+    <td class="col-status" data-label="Statut">
         <span class="status-badge" style="background:{{ $statusCfg['bg'] }};color:{{ $statusCfg['color'] }};border-color:{{ $statusCfg['border'] }}">
             {{ $statusCfg['icon'] }} {{ $campaign->status->label() }}
         </span>
@@ -117,7 +117,7 @@
         }
     @endphp
     @if($rowCanSeeBilling)
-    <td>
+    <td class="col-billing" data-label="Facturation">
         @if($latestInvoice)
             <button type="button"
                     class="billing-btn"
@@ -139,7 +139,7 @@
         @endif
     </td>
     @endif
-    <td class="col-commercial">
+    <td class="col-commercial" data-label="Commercial">
         @if($rowCommercial)
             {{-- Email retiré de l'affichage : trop large, déjà accessible
                  depuis la fiche détail. On le met juste en tooltip. --}}
@@ -148,7 +148,7 @@
             <span class="badge-muted">—</span>
         @endif
     </td>
-    <td>
+    <td class="col-actions" data-label="Actions">
         <div class="actions">
             <a href="{{ route('admin.campaigns.show', $campaign) }}" class="btn-icon" title="Voir">👁</a>
             @can('update', $campaign)

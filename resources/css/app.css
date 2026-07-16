@@ -1353,7 +1353,29 @@ button.kpi-card { width: 100%; }
   [style*="grid-template-columns:260px"],
   [style*="grid-template-columns: 260px"],
   [style*="grid-template-columns:1fr 300px"],
-  [style*="grid-template-columns: 1fr 300px"] {
+  [style*="grid-template-columns: 1fr 300px"],
+  /* 2026-07-16 : ajout des variantes 280 / 320 / 360 / 400 qui échappaient
+     au filet (audit responsive admin). Fixe en une passe les fiches
+     panneau/maintenance/message et le panneau de validation piges. */
+  [style*="grid-template-columns:1fr 280px"],
+  [style*="grid-template-columns: 1fr 280px"],
+  [style*="grid-template-columns:1fr 320px"],
+  [style*="grid-template-columns: 1fr 320px"],
+  [style*="grid-template-columns:1fr 340px"],
+  [style*="grid-template-columns: 1fr 340px"],
+  [style*="grid-template-columns:1fr 360px"],
+  [style*="grid-template-columns: 1fr 360px"],
+  [style*="grid-template-columns:1fr 380px"],
+  [style*="grid-template-columns: 1fr 380px"],
+  [style*="grid-template-columns:1fr 400px"],
+  [style*="grid-template-columns: 1fr 400px"],
+  /* Variantes label:input (180px 1fr, etc.) qui écrasent l'input mobile. */
+  [style*="grid-template-columns:180px 1fr"],
+  [style*="grid-template-columns: 180px 1fr"],
+  [style*="grid-template-columns:200px 1fr"],
+  [style*="grid-template-columns: 200px 1fr"],
+  [style*="grid-template-columns:220px 1fr"],
+  [style*="grid-template-columns: 220px 1fr"] {
     grid-template-columns: 1fr !important;
   }
 
