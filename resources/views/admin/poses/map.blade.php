@@ -81,6 +81,41 @@
         border-radius:8px; text-decoration:none; font-size:12px; font-weight:700;
     }
     .pose-popup-cta:hover { opacity:.9; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Responsive mobile (2026-07-16 — audit responsive admin)
+       Sous 900px la carte et le panneau filtres s'empilent verticalement.
+       Le panneau reste accessible (max-height 45vh, scroll interne) et
+       la carte prend le reste. Sous 560px, panneau plus tassé.
+       ═══════════════════════════════════════════════════════════════ */
+    @media (max-width: 900px) {
+        .map-page-wrap {
+            flex-direction: column;
+            height: auto;
+            min-height: 0;
+            gap: 10px;
+        }
+        .map-filters-panel {
+            width: 100%;
+            max-height: 45vh;
+            padding: 14px;
+            gap: 12px;
+        }
+        .map-container-wrap {
+            height: 60vh;
+            min-height: 380px;
+        }
+    }
+    @media (max-width: 560px) {
+        .map-filters-panel {
+            max-height: 40vh;
+            padding: 12px;
+        }
+        .map-container-wrap {
+            height: 55vh;
+            min-height: 320px;
+        }
+    }
 </style>
 
 <div class="map-page-wrap">

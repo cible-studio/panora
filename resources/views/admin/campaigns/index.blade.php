@@ -731,10 +731,10 @@
         .total-count { font-size: 12px; color: var(--text2); }
         .new-badge { font-size: 11px; font-weight: 600; color: var(--warning); background: rgba(232,160,32,0.1); padding: 3px 10px; border-radius: 20px; }
 
-        /* Phase audit 8E refonte : pas de scroll horizontal.
-           overflow-x: hidden + table-layout fixed + widths calés
-           pour que la table tienne dans 1280px sans déborder. */
-        .table-responsive { overflow-x: hidden; }
+        /* 2026-07-16 : le overflow-x:hidden clippait Commercial + Actions
+           sur mobile (audit responsive). Restauré en auto (scroll horizontal
+           en desktop-tablette étroite) + card view sous 900px (voir plus bas). */
+        .table-responsive { overflow-x: auto; }
         .data-table {
             width: 100%;
             border-collapse: collapse;
@@ -917,6 +917,113 @@
             .filters-grid { grid-template-columns: 1fr; }
             .data-table { font-size: 12px; }
             .data-table th, .data-table td { padding: 8px 10px; }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           Card view mobile (2026-07-16 — audit responsive admin)
+           Sous 900px, la table 7 colonnes devient inutilisable même en
+           scroll. Repli en cards empilées avec label auto via data-label.
+           Les cellules gardent leur position via CSS grid nommé.
+           ═══════════════════════════════════════════════════════════════ */
+        @media (max-width: 900px) {
+            /* KPI : 2 cartes par ligne au lieu de 3, plus lisible */
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+
+            /* Le wrapper table ne scrolle plus horizontalement */
+            .table-responsive { overflow-x: visible; }
+
+            /* Header table caché — labels via data-label */
+            .data-table thead { display: none; }
+
+            /* Chaque ligne devient une card */
+            .data-table,
+            .data-table tbody { display: block; }
+            .data-table tr {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                grid-template-areas:
+                    "check         actions"
+                    "campaign      campaign"
+                    "status        status"
+                    "period        panels"
+                    "billing       commercial";
+                gap: 8px 12px;
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                margin-bottom: 12px;
+                padding: 14px;
+                background: var(--surface);
+            }
+            .data-table td {
+                padding: 0 !important;
+                border: none !important;
+            }
+            .data-table td::before {
+                content: attr(data-label);
+                display: block;
+                font-size: 10px;
+                font-weight: 800;
+                letter-spacing: .04em;
+                text-transform: uppercase;
+                color: var(--text3);
+                margin-bottom: 4px;
+            }
+            .data-table td:not([data-label])::before,
+            .data-table td.col-check::before,
+            .data-table td.col-actions::before { display: none; }
+
+            /* Placement des colonnes */
+            .data-table td.col-check       { grid-area: check; text-align: left; }
+            .data-table td.col-actions     { grid-area: actions; text-align: right; }
+            .data-table td.col-campaign    { grid-area: campaign; }
+            .data-table td.col-status      { grid-area: status; }
+            .data-table td.date-range      { grid-area: period; }
+            .data-table td.col-panels-amount { grid-area: panels; text-align: left; }
+            .data-table td.col-billing     { grid-area: billing; }
+            .data-table td.col-commercial  { grid-area: commercial; }
+
+            /* Progress bar reste utile en card */
+            .data-table td.col-status .progress-bar { margin-top: 6px; }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           Barre d'actions groupées mobile — se plie proprement
+           Sous 720px, on cache les labels texte des boutons, on garde
+           uniquement les icônes pour tenir sur une seule ligne.
+           ═══════════════════════════════════════════════════════════════ */
+        @media (max-width: 720px) {
+            .camp-selbar {
+                left: 12px !important;
+                right: 12px !important;
+                bottom: 12px !important;
+                transform: translateY(180%);
+                width: auto !important;
+                max-width: none !important;
+                padding: 8px !important;
+                gap: 8px !important;
+                border-radius: 12px !important;
+            }
+            .camp-selbar.is-open {
+                transform: translateY(0) !important;
+            }
+            .camp-selbar-actions {
+                gap: 4px !important;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .camp-selbar .csa {
+                padding: 8px 10px !important;
+                font-size: 11px !important;
+            }
+            .camp-selbar .csa span {
+                display: none;  /* icônes seules, gain d'espace */
+            }
+            .camp-selbar-count {
+                font-size: 12px;
+            }
+            .camp-selbar-word {
+                display: none;  /* juste le nombre */
+            }
         }
     </style>
 
