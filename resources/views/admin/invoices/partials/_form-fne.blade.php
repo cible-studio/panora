@@ -140,21 +140,6 @@
                 </div>
             </div>
 
-    {{-- ════ BANDEAU VERSION (diagnostic cache navigateur) ════
-         2026-07-16 : la patronne voyait encore l'ancien comportement
-         (M²/QTÉ vides, panneaux non filtrés) alors que le fix serveur
-         est déployé. Symptôme classique de cache navigateur agressif.
-         Ce bandeau lui permet de vérifier d'un coup d'œil quelle
-         version du script tourne dans son navigateur.  --}}
-    <div id="form-fne-version-banner"
-         style="margin: 12px 0; padding: 10px 14px; background: #ecfdf5; border: 1px solid #86efac; border-radius: 10px; font-size: 12px; color: #166534; display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 16px;">✅</span>
-        <span>
-            <strong>Formulaire v2026-07-16c</strong> · corrections M²/QTÉ/MOIS + filtre panneaux déjà pris actifs.
-            Si tu vois des cases vides ou un panneau dupliqué dans la liste, fais <strong>Ctrl+F5</strong> pour vider le cache navigateur.
-        </span>
-    </div>
-
     {{-- ════ LIGNES ÉDITABLES (refonte design) ════ --}}
     <div class="invoice-lines-card">
         <div class="invoice-lines-header">
@@ -1522,15 +1507,28 @@
                     extPanelIdField.value = idStr.slice(4);
                 }
 
-                // M² : TOUJOURS visible même si 0 (bordure orange en indicateur
-                // si le format du panneau n'est pas renseigné en base).
-                // Corrigé 2026-07-16 : l'ancien hotfix TX-UX-1 blanchissait le
-                // champ, ce qui laissait l'utilisateur perplexe. Maintenant on
-                // affiche 0 avec bordure orange — c'est un signal clair "à
-                // saisir manuellement" plutôt qu'un mystère.
+                // Helper : setter ULTRA-DÉFENSIF (triple-write + events).
+                // Contournement des cas edge observés (2026-07-16) où
+                // input.value = X ne s'affichait pas visuellement pour
+                // certains inputs alors qu'il fonctionnait pour d'autres
+                // dans la même ligne. La cause exacte reste inconnue, mais
+                // combiner value + defaultValue + attribute + input event
+                // couvre tous les mécanismes DOM/React-like/browser cache.
+                function forceInputValue(field, value, tag) {
+                    if (!field) { console.warn('[FORM-FNE]', tag, 'field null'); return; }
+                    const before = field.value;
+                    field.value = String(value);
+                    field.defaultValue = String(value);
+                    field.setAttribute('value', String(value));
+                    field.dispatchEvent(new Event('input',  { bubbles: true }));
+                    field.dispatchEvent(new Event('change', { bubbles: true }));
+                    console.log('[FORM-FNE]', tag, 'was:', JSON.stringify(before), '→ now:', JSON.stringify(field.value));
+                }
+
+                // M² : TOUJOURS visible (0 avec bordure orange si inconnu).
                 if (m2Field) {
                     const m2Val = Number(item.dimension_m2 || 0);
-                    m2Field.value = m2Val > 0 ? m2Val : 0;
+                    forceInputValue(m2Field, m2Val > 0 ? m2Val : 0, 'M²');
                     if (m2Val <= 0) {
                         m2Field.setAttribute('title', "Surface inconnue côté panneau — corrige à la main.");
                         m2Field.style.borderColor = '#f59e0b';
@@ -1543,7 +1541,7 @@
                 }
                 if (puField) {
                     const puVal = Math.round(Number(item.pu_suggested || 0));
-                    puField.value = puVal > 0 ? puVal : 0;
+                    forceInputValue(puField, puVal > 0 ? puVal : 0, 'PU');
                     if (puVal <= 0) {
                         puField.setAttribute('title', "Prix mensuel non configuré — saisis-le à la main.");
                         puField.style.borderColor = '#f59e0b';
@@ -1555,14 +1553,29 @@
                     }
                 }
 
-                // Bug 2 fix (2026-07-16) : forcer qté=1 et mois=1 par défaut
-                // au moment de la sélection panneau, pour que ces champs
-                // soient TOUJOURS visibles avec une valeur. Le user peut
-                // ensuite les changer s'il veut (ex : 6 mois de campagne).
+                // QTÉ et MOIS : forcer valeur par défaut si vide ou aberrante.
                 const qteField  = row.querySelector('.line-qte');
                 const moisField = row.querySelector('.line-mois');
-                if (qteField  && (!qteField.value  || Number(qteField.value)  < 1))   qteField.value  = '1';
-                if (moisField && (!moisField.value || Number(moisField.value) < 0.5)) moisField.value = '1';
+                if (qteField  && (!qteField.value  || Number(qteField.value)  < 1))   forceInputValue(qteField,  1, 'QTÉ');
+                if (moisField && (!moisField.value || Number(moisField.value) < 0.5)) forceInputValue(moisField, 1, 'MOIS');
+
+                // Vérification différée (100ms après le handler) : si quelque
+                // chose blanchit ces champs APRÈS notre write (race JS d'un
+                // autre listener), on re-force. C'est du filet de sécurité
+                // pur — si on voit ce log en console, c'est qu'un tiers
+                // écrit. Debug utile.
+                setTimeout(() => {
+                    [['m2', m2Field, Number(item.dimension_m2 || 0) > 0 ? Number(item.dimension_m2) : 0],
+                     ['qté', qteField, 1],
+                     ['mois', moisField, 1],
+                     ['pu', puField, Math.round(Number(item.pu_suggested || 0)) > 0 ? Math.round(Number(item.pu_suggested)) : 0]
+                    ].forEach(([tag, field, expected]) => {
+                        if (field && field.value === '' && expected != null) {
+                            console.warn('[FORM-FNE] ⚠ ' + tag + ' a été blanchi APRÈS handler (race JS) — re-force à', expected);
+                            forceInputValue(field, expected, tag + ' (re-force)');
+                        }
+                    });
+                }, 100);
 
                 // Sélectionner la commune dans le select Commune
                 if (item.commune_id) {
