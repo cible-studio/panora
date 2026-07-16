@@ -171,7 +171,7 @@
                     @foreach($lines as $i => $l)
                         <tr class="line-row" data-index="{{ $i }}">
                             <td class="col-num"><span class="row-number">{{ $i + 1 }}</span></td>
-                            <td class="col-designation">
+                            <td class="col-designation" data-label="Panneau">
                                 {{-- Select2 AJAX panneau (filtré par la campagne sélectionnée
                                      en haut). À la sélection, auto-remplit commune + m² + PU
                                      + panel_id (hidden) pour permettre validation d'unicité. --}}
@@ -183,7 +183,7 @@
                                 <input type="hidden" name="lines[{{ $i }}][panel_id]" class="line-panel-id" value="{{ $l['panel_id'] ?? '' }}">
                                 <input type="hidden" name="lines[{{ $i }}][external_panel_id]" class="line-external-panel-id" value="{{ $l['external_panel_id'] ?? '' }}">
                             </td>
-                            <td class="col-commune">
+                            <td class="col-commune" data-label="Commune">
                                 <select name="lines[{{ $i }}][commune_id]" class="line-commune" required style="width:100%">
                                     <option value=""></option>
                                     @foreach($communes as $c)
@@ -196,29 +196,29 @@
                                     @endforeach
                                 </select>
                             </td>
-                            <td class="num col-m2">
+                            <td class="num col-m2" data-label="m²">
                                 {{-- ?: (pas ??) — bouclier contre old() qui renvoie
                                      une string vide après un échec de validation :
                                      "" n'est pas null, donc ?? ne fallback pas. --}}
                                 <input type="number" name="lines[{{ $i }}][dimension_m2]" class="line-m2" required
                                        value="{{ $l['dimension_m2'] ?: 0 }}" min="0" step="0.01">
                             </td>
-                            <td class="num col-pu">
+                            <td class="num col-pu" data-label="PU HT/mois">
                                 {{-- step="1" (FCFA entier, pas de centimes) — 2026-06-18 :
                                      l'ancien step="1000" rejetait les prix négociés non
                                      arrondis (ex. 435 600). --}}
                                 <input type="number" name="lines[{{ $i }}][pu_ht_mensuel]" class="line-pu" required
                                        value="{{ $l['pu_ht_mensuel'] ?: 0 }}" min="0" step="1">
                             </td>
-                            <td class="num col-qte">
+                            <td class="num col-qte" data-label="Qté">
                                 <input type="number" name="lines[{{ $i }}][quantite]" class="line-qte" required
                                        value="{{ $l['quantite'] ?: 1 }}" min="1" step="1">
                             </td>
-                            <td class="num col-mois">
+                            <td class="num col-mois" data-label="Mois">
                                 <input type="number" name="lines[{{ $i }}][duree_mois]" class="line-mois" required
                                        value="{{ $l['duree_mois'] ?: 1 }}" min="0.5" step="0.5">
                             </td>
-                            <td class="num col-total line-total">0 FCFA</td>
+                            <td class="num col-total line-total" data-label="Total HT">0 FCFA</td>
                             <td class="act">
                                 <button type="button" class="btn-line-remove line-remove" title="Supprimer la ligne" aria-label="Supprimer cette ligne">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -1232,6 +1232,119 @@
     .s2-camp-row { padding: 2px 0; }
     .s2-camp-name { font-weight: 700; color: var(--text); font-size: 12.5px; }
     .s2-camp-meta { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+
+    /* ══════════════════════════════════════════════════════════════
+       RESPONSIVE — Vue card sous 900px (mobile + tablette portrait)
+       2026-07-16d : le tableau des lignes de facture avait 8 colonnes
+       et débordait sur mobile (scroll horizontal pénible). En dessous
+       de 900px, chaque ligne devient une CARD empilée avec labels
+       inline (data-label) pour rester lisible et utilisable.
+       ══════════════════════════════════════════════════════════════ */
+    @media (max-width: 900px) {
+        /* Le container ne scrolle plus horizontal — plus besoin */
+        .fne-main .invoice-lines-body,
+        .invoice-lines-body { overflow-x: visible; }
+
+        /* Repli des éléments table en block */
+        .lines-table,
+        .lines-table thead,
+        .lines-table tbody,
+        .lines-table tr,
+        .lines-table td,
+        .lines-table th { display: block; width: 100%; }
+
+        /* Header table caché (labels dans data-label maintenant) */
+        .lines-table thead { display: none; }
+
+        /* Chaque ligne devient une card verticale */
+        .lines-table tbody tr {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px 14px 8px;
+            margin-bottom: 14px;
+            background: var(--surface);
+            box-shadow: 0 2px 6px -4px rgba(0,0,0,0.06);
+        }
+        .lines-table tbody tr:hover { background: var(--surface); }
+
+        /* Cellules empilées avec label au-dessus */
+        .lines-table td {
+            padding: 8px 0 !important;
+            border: none !important;
+            text-align: left !important;
+        }
+        .lines-table td::before {
+            content: attr(data-label);
+            display: block;
+            font-size: 10.5px;
+            font-weight: 800;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--text3);
+            margin-bottom: 6px;
+        }
+        .lines-table td:not([data-label])::before { display: none; }
+
+        /* Cellule # : le numéro en pastille en tête de card,
+           sans label (le contexte "ligne N" est évident). */
+        .lines-table td.col-num {
+            padding: 0 0 8px !important;
+            text-align: left !important;
+            width: auto !important;
+            border-bottom: 1px dashed var(--border) !important;
+            margin-bottom: 6px;
+        }
+        .lines-table td.col-num::before { display: none; }
+
+        /* Cellule action (suppression) : bouton visible plein à droite */
+        .lines-table td.act {
+            padding: 10px 0 4px !important;
+            text-align: right !important;
+            width: auto !important;
+        }
+        .lines-table td.act::before { display: none; }
+
+        /* Colonne Total HT : en fin de card, style résumé */
+        .lines-table td.col-total {
+            padding: 12px 0 6px !important;
+            text-align: right !important;
+            font-size: 16px !important;
+            border-top: 1px dashed var(--border) !important;
+            margin-top: 4px;
+        }
+
+        /* Layout de la card ligne — grid avec zones nommées.
+           M², QTÉ, MOIS côte à côte (chiffres courts → gain d'espace). */
+        .lines-table tbody tr {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-areas:
+                "num  num  num"
+                "designation designation designation"
+                "commune commune commune"
+                "m2   qte  mois"
+                "pu   pu   pu"
+                "total total total"
+                "act  act  act";
+            gap: 4px 10px;
+        }
+        .lines-table td.col-num         { grid-area: num; }
+        .lines-table td.col-designation { grid-area: designation; }
+        .lines-table td.col-commune     { grid-area: commune; }
+        .lines-table td.col-m2          { grid-area: m2; }
+        .lines-table td.col-qte         { grid-area: qte; }
+        .lines-table td.col-mois        { grid-area: mois; }
+        .lines-table td.col-pu          { grid-area: pu; }
+        .lines-table td.col-total       { grid-area: total; }
+        .lines-table td.act             { grid-area: act; }
+    }
+
+    /* Encore plus dense sous 560px (téléphones) : hero mode empilé */
+    @media (max-width: 560px) {
+        .invoice-lines-card { border-radius: 10px; padding: 10px; }
+        .lines-table tbody tr { padding: 10px 12px 6px; }
+        .lines-table input[type="number"] { font-size: 14px !important; height: 42px !important; }
+    }
 </style>
 @endpush
 
