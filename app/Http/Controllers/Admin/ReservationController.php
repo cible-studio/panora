@@ -2579,10 +2579,15 @@ class ReservationController extends Controller
 
     public function annuler(Request $request, Reservation $reservation)
     {
+        // Autorisation explicite (défense en profondeur : le middleware role
+        // filtre déjà admin+MP, mais on double-check pour la policy fine —
+        // ownership commercial, statut annulable, etc.).
+        $this->authorize('annuler', $reservation);
+
         if ($reservation->client?->trashed())
             abort(403, 'Impossible : client supprimé.');
         if (!$reservation->isCancellable())
-            abort(403, 'Réservation non annulable.');
+            abort(403, 'Réservation non annulable (statut « ' . $reservation->status->value . ' »).');
 
         // Catégorie d'annulation obligatoire (auditabilité), précisions
         // libres optionnelles. Si l'admin n'a rien tapé dans le textarea,
@@ -2610,18 +2615,35 @@ class ReservationController extends Controller
             'cancelled_at'  => now(),
             'cancelled_by'  => auth()->id(),
         ];
-        
-        $this->reservationService->cancel($reservation, $cancelData);
-        
-        // Alerte annulation
-        AlertService::create(
-            'reservation',
-            'danger',
-            '🚫 Réservation annulée — ' . ($reservation->client?->name ?? ''),
-            auth()->user()->name . ' a annulé la réservation ' . $reservation->reference . ' (Motif: ' . ($cancelData['cancel_type'] ?? 'autre') . ')',
-            $reservation
-        );
-        
+
+        // Try/catch pour capturer toute erreur en prod. 2026-07-17 : la patronne
+        // a signalé une erreur silencieuse sur la résa 67. Ce filet loggue
+        // le contexte complet et retourne un message clair à l'utilisateur
+        // au lieu du classique "Whoops something went wrong".
+        try {
+            $this->reservationService->cancel($reservation, $cancelData);
+
+            AlertService::create(
+                'reservation',
+                'danger',
+                '🚫 Réservation annulée — ' . ($reservation->client?->name ?? ''),
+                auth()->user()->name . ' a annulé la réservation ' . $reservation->reference . ' (Motif: ' . ($cancelData['cancel_type'] ?? 'autre') . ')',
+                $reservation
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('reservation.cancel.failed', [
+                'reservation_id' => $reservation->id,
+                'reference'      => $reservation->reference,
+                'user_id'        => auth()->id(),
+                'cancel_type'    => $cancelType,
+                'error'          => $e->getMessage(),
+                'file'           => $e->getFile() . ':' . $e->getLine(),
+            ]);
+            return back()->withInput()->with('error',
+                'Annulation impossible : ' . $e->getMessage() . '. Contacte le support si le problème persiste.'
+            );
+        }
+
         return redirect()->route('admin.reservations.index')
             ->with('success', "Réservation annulée. {$panelCount} panneau(x) libéré(s).");
     }
