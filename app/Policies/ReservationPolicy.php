@@ -90,24 +90,24 @@ class ReservationPolicy
     /**
      * Annuler une réservation :
      *   - Admin (via before)  : toujours
-     *   - MP                  : oui, tant que pas encore confirmée par
-     *                           le client (status='confirme' = signée).
-     *                           Cela couvre les résa en_attente que le
-     *                           MP veut annuler avant ou après envoi
-     *                           commercial (ex: erreur, client refuse
-     *                           verbalement, demande de remplacement).
+     *   - MP                  : oui, sur toute résa annulable (en_attente
+     *                           ou confirmée). Cf. arbitrage patronne
+     *                           2026-07-17 : le MP gère les cas où le
+     *                           client refuse verbalement après signature,
+     *                           demande un remplacement, ou annule avant
+     *                           la pose. Le MP porte la responsabilité
+     *                           métier de libérer les panneaux dès que
+     *                           l'accord est rompu — inutile de faire
+     *                           remonter chaque annulation à l'admin.
      *   - Commercial          : non — il n'a pas la responsabilité
      *                           d'annuler, il relance.
      *
-     * Cf. docs/ROLES_VALIDES.md : "Annuler proposition déjà signée par
-     * le client (admin only)" — donc avant signature, MP autorisé.
+     * Cf. docs/ROLES_VALIDES.md — section mise à jour après cet arbitrage.
      */
     public function annuler(User $user, Reservation $reservation): bool
     {
         if (!$reservation->isCancellable()) return false;
         if ($reservation->client?->trashed()) return false;
-        // Si status = 'confirme' (signée client), seul admin (before).
-        if ($reservation->status?->value === 'confirme') return false;
         return $user->role === UserRole::MEDIAPLANNER;
     }
 
