@@ -1,6 +1,6 @@
 @extends('public.cible._layout', [
-    'seo_title'       => 'CIBLE CI — 30 ans, 364 panneaux, 31 communes. Régie N°1 en Côte d\'Ivoire',
-    'seo_description' => 'CIBLE CI : première régie publicitaire de Côte d\'Ivoire. 30 ans d\'expertise · 364 panneaux · 31 communes · affichage, mobile, digital. Vous visez juste.',
+    'seo_title'       => 'CIBLE CI — 30 ans, 364 panneaux, 31 communes en Côte d\'Ivoire',
+    'seo_description' => 'CIBLE CI : régie publicitaire ivoirienne. 30 ans d\'expertise · 364 panneaux · 31 communes · affichage, mobile, digital. Vous visez juste.',
 ])
 
 @section('content')
@@ -19,10 +19,10 @@
                         des <em>marques ivoiriennes.</em>
                     </h1>
                     <p class="lead reveal" data-delay="2">
-                        Première régie publicitaire de Côte d'Ivoire, CIBLE opère un réseau
-                        de 364 panneaux répartis dans 31 communes. De la stratégie à la pose,
-                        du panneau statique à la campagne 360°, nous portons la parole des
-                        marques qui comptent.
+                        Régie publicitaire ivoirienne, CIBLE opère un réseau de 364 panneaux
+                        répartis dans 31 communes. De la stratégie à la pose, du panneau
+                        statique à la campagne 360°, nous portons la parole des marques
+                        qui comptent.
                     </p>
                     <div class="reveal" data-delay="3" style="display: flex; gap: 14px; flex-wrap: wrap; margin-top: 32px;">
                         <a href="{{ route('cible.contact') }}" class="btn btn-accent"><span>Demander un devis</span></a>
@@ -62,8 +62,8 @@
                     <span class="metric-label">Communes couvertes</span>
                 </div>
                 <div class="metric-item reveal" data-delay="4" style="--c: var(--cible-bleu);">
-                    <span class="metric-num">N°<em>1</em></span>
-                    <span class="metric-label">Réseau en CI</span>
+                    <span class="metric-num count-up" data-target="3">0</span>
+                    <span class="metric-label">Pôles de métier</span>
                 </div>
             </div>
         </div>
@@ -164,19 +164,34 @@
                 <h2 class="section-title">Des marques qui pèsent,<br><em>qui reviennent.</em></h2>
             </div>
 
-            <div class="clients-strip">
-                @foreach([
+            @php
+                // Set complet des partenaires — inclut les 6 principaux + 6 autres.
+                // Dupliqué 2× dans le track pour un défilement infini sans coupure.
+                $partners = [
                     ['Danone',            'client-danone.png'],
                     ['SIPRA',             'client-sipra.png'],
                     ['Moov Africa',       'client-moov.png'],
                     ['Banque Atlantique', 'client-banque-atlantique.png'],
                     ['BGFIBank',          'client-bgfibank.png'],
                     ['Rimco Motors',      'client-rimco.png'],
-                ] as $i => [$nom, $file])
-                    <div class="client-logo-tile reveal reveal-scale" data-delay="{{ min($i+1, 6) }}" title="{{ $nom }}">
-                        <img src="{{ asset('images/cible/' . $file) }}" alt="{{ $nom }}" loading="lazy">
-                    </div>
-                @endforeach
+                    ['Partenaire',        'client-autre-1.png'],
+                    ['Partenaire',        'client-autre-2.png'],
+                    ['Partenaire',        'client-autre-3.png'],
+                    ['Partenaire',        'client-autre-4.png'],
+                    ['Partenaire',        'client-autre-5.png'],
+                    ['Partenaire',        'client-autre-6.png'],
+                ];
+            @endphp
+            <div class="clients-marquee reveal reveal-fade" role="region" aria-label="Nos clients et partenaires">
+                <div class="clients-marquee-track">
+                    @for($rep = 0; $rep < 2; $rep++)
+                        @foreach($partners as [$nom, $file])
+                            <div class="client-logo-tile" title="{{ $nom }}" aria-hidden="{{ $rep === 1 ? 'true' : 'false' }}">
+                                <img src="{{ asset('images/cible/' . $file) }}" alt="{{ $nom }}" loading="lazy">
+                            </div>
+                        @endforeach
+                    @endfor
+                </div>
             </div>
 
             <div style="text-align: center; margin-top: 30px;">

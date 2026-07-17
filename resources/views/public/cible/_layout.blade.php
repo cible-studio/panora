@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ $seo_title ?? 'CIBLE CI — Régie publicitaire N°1 en Côte d\'Ivoire' }}</title>
+    <title>{{ $seo_title ?? 'CIBLE CI — Régie publicitaire en Côte d\'Ivoire' }}</title>
     <meta name="description" content="{{ $seo_description ?? 'CIBLE CI · 30 ans d\'expertise · 364 panneaux dans 31 communes. Régie publicitaire, communication mobile et 360°. Vous visez juste.' }}">
 
     <link rel="icon" href="{{ asset('images/faviconl.png') }}" media="(prefers-color-scheme: light)">
@@ -360,6 +360,7 @@
             transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
                         border-color 0.3s ease,
                         box-shadow 0.3s ease;
+            flex-shrink: 0;
         }
         .client-logo-tile img {
             max-width: 100%;
@@ -377,6 +378,49 @@
         .client-logo-tile:hover img {
             filter: grayscale(0%);
             transform: scale(1.05);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           Marquee — carrousel infini des partenaires
+           Le track contient 2 copies identiques des logos. On anime le
+           translate de 0 à -50 % en linéaire → défilement continu sans
+           coupure visible. Pause au hover pour permettre la lecture.
+           ═══════════════════════════════════════════════════════════════ */
+        .clients-marquee {
+            overflow: hidden;
+            position: relative;
+            width: 100%;
+            padding: 20px 0;
+            /* Fade sur les bords pour un effet doux */
+            mask-image: linear-gradient(90deg,
+                transparent 0%, #000 8%, #000 92%, transparent 100%);
+            -webkit-mask-image: linear-gradient(90deg,
+                transparent 0%, #000 8%, #000 92%, transparent 100%);
+        }
+        .clients-marquee-track {
+            display: flex;
+            gap: 20px;
+            width: max-content;
+            animation: cible-marquee 40s linear infinite;
+        }
+        .clients-marquee:hover .clients-marquee-track {
+            animation-play-state: paused;
+        }
+        .clients-marquee .client-logo-tile {
+            width: 200px;
+            aspect-ratio: unset;
+            height: 110px;
+        }
+        @keyframes cible-marquee {
+            from { transform: translateX(0); }
+            to   { transform: translateX(-50%); }
+        }
+        @media (max-width: 720px) {
+            .clients-marquee .client-logo-tile { width: 160px; height: 90px; padding: 18px 14px; }
+            .clients-marquee-track { animation-duration: 30s; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .clients-marquee-track { animation: none; }
         }
 
         /* Aside note */
@@ -752,7 +796,7 @@
                 <div>
                     <div class="footer-brand-block">
                         <img src="{{ asset('images/logon.png') }}" alt="CIBLE — Vous visez juste">
-                        <p>Régie publicitaire N°1 en Côte d'Ivoire.<br>30 ans d'expertise en communication extérieure.</p>
+                        <p>Régie publicitaire en Côte d'Ivoire.<br>30 ans d'expertise en communication extérieure.</p>
                     </div>
                 </div>
                 <div class="footer-col">

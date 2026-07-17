@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * Site vitrine CIBLE CI — régie publicitaire N°1 en Côte d'Ivoire.
+ * Site vitrine CIBLE CI — régie publicitaire en Côte d'Ivoire.
  *
  * Contexte : CIBLE CI est la régie qui utilise Panora en interne. Ce
  * site vitrine est la face publique de la régie (annonceurs, agences,
