@@ -31,17 +31,26 @@
 
             <div class="secteur-blocks">
                 @foreach([
-                    ['Agroalimentaire', ['Danone', 'SIPRA']],
-                    ['Télécoms',        ['Moov Africa']],
-                    ['Banque & Finance', ['Banque Atlantique', 'BGFIBank']],
-                    ['Automobile',      ['Rimco Motors']],
-                    ['Autres secteurs', ['+ 6 marques', '(logos à intégrer)']],
-                ] as [$secteur, $marques])
-                    <div class="secteur-block">
+                    ['Agroalimentaire',  [['Danone', 'client-danone.png'], ['SIPRA', 'client-sipra.png']]],
+                    ['Télécoms',         [['Moov Africa', 'client-moov.png']]],
+                    ['Banque & Finance', [['Banque Atlantique', 'client-banque-atlantique.png'], ['BGFIBank', 'client-bgfibank.png']]],
+                    ['Automobile',       [['Rimco Motors', 'client-rimco.png']]],
+                    ['Autres partenaires', [
+                        ['Partenaire 1', 'client-autre-1.png'],
+                        ['Partenaire 2', 'client-autre-2.png'],
+                        ['Partenaire 3', 'client-autre-3.png'],
+                        ['Partenaire 4', 'client-autre-4.png'],
+                        ['Partenaire 5', 'client-autre-5.png'],
+                        ['Partenaire 6', 'client-autre-6.png'],
+                    ]],
+                ] as $i => [$secteur, $marques])
+                    <div class="secteur-block reveal" data-delay="{{ min($i+1, 5) }}">
                         <div class="secteur-label">{{ $secteur }}</div>
                         <div class="secteur-marques">
-                            @foreach($marques as $m)
-                                <div class="marque-chip">{{ $m }}</div>
+                            @foreach($marques as [$nom, $file])
+                                <div class="marque-logo" title="{{ $nom }}">
+                                    <img src="{{ asset('images/cible/' . $file) }}" alt="{{ $nom }}" loading="lazy">
+                                </div>
                             @endforeach
                         </div>
                     </div>
@@ -113,18 +122,24 @@
             </div>
 
             <div class="galerie-grid">
-                @for($i = 1; $i <= 6; $i++)
-                    <div class="galerie-tile">
-                        <div class="galerie-placeholder">
-                            <strong>Photo campagne #{{ $i }}</strong>
-                            <small>public/images/cible/campagne-{{ $i }}.jpg</small>
+                @foreach([
+                    ['campagne-5.jpg', 'Guinness', 'Campagne « Audacieux et Vivant » · Abidjan'],
+                    ['campagne-6.jpg', 'Uber', 'Campagne « Y\'a pas pareil » · Boulevard Cocody'],
+                    ['pole-1-affichage.jpg', 'GNA CI', 'Campagne assurance TRH · Plateau'],
+                    ['campagne-1.jpg', 'CIBLE — Régie', 'Communication digitale de la régie'],
+                    ['campagne-2.jpg', 'Campagne institutionnelle', 'Communication CIBLE'],
+                    ['campagne-3.jpg', 'Campagne événement', 'Opération marketing terrain'],
+                ] as $i => [$file, $client, $desc])
+                    <div class="galerie-tile reveal reveal-scale" data-delay="{{ min($i+1, 6) }}">
+                        <div class="photo-tile" style="aspect-ratio: 4/3; border-radius: 0;">
+                            <img src="{{ asset('images/cible/' . $file) }}" alt="{{ $client }}">
                         </div>
                         <div class="galerie-caption">
-                            <span>Nom campagne</span>
-                            <small>Client · Année</small>
+                            <span>{{ $client }}</span>
+                            <small>{{ $desc }}</small>
                         </div>
                     </div>
-                @endfor
+                @endforeach
             </div>
         </div>
     </section>
@@ -182,6 +197,29 @@
             font-size: 15px;
             color: var(--ink);
         }
+        .marque-logo {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 12px 18px;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            height: 66px;
+            transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+        .marque-logo img {
+            max-height: 40px;
+            width: auto;
+            max-width: 130px;
+            object-fit: contain;
+            filter: grayscale(15%);
+            transition: filter 0.25s;
+        }
+        .marque-logo:hover {
+            border-color: var(--cible-jaune);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -12px rgba(15, 23, 42, 0.15);
+        }
+        .marque-logo:hover img { filter: grayscale(0%); }
         @media (max-width: 720px) {
             .secteur-block { grid-template-columns: 1fr; gap: 12px; }
         }

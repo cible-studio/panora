@@ -142,11 +142,11 @@
                     disponible pour identifier chaque emplacement individuel.
                 </p>
             </div>
-            <div class="terrain-placeholder" style="aspect-ratio: 16/9; max-width: none;">
-                <div>
-                    <strong>Carte interactive à intégrer</strong>
-                    Leaflet + JSON communes CI + pins CIBLE<br>
-                    <small>Prévoir : coordonnées GPS des 364 panneaux → clustering par zoom</small>
+            <div class="photo-tile reveal has-caption" style="aspect-ratio: 16/9; max-width: none;">
+                <img src="{{ asset('images/cible/hero-plateau-night.jpg') }}" alt="Panneau CIBLE Abidjan — extrait du réseau">
+                <div class="photo-caption">
+                    <strong>Carte interactive à venir</strong>
+                    <small>Coordonnées GPS des 364 panneaux · clustering par zoom (à intégrer avec Leaflet)</small>
                 </div>
             </div>
         </div>

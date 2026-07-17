@@ -61,12 +61,8 @@
                     </div>
                 </div>
                 <div>
-                    <div class="terrain-placeholder" style="aspect-ratio: 4/5; margin-bottom: 20px;">
-                        <div>
-                            <strong>Photo lumipub nuit</strong>
-                            Panneau éclairé Plateau
-                            <small>public/images/cible/regie-lumipub.jpg</small>
-                        </div>
+                    <div class="photo-tile reveal reveal-right" style="aspect-ratio: 4/5; margin-bottom: 20px;">
+                        <img src="{{ asset('images/cible/regie-lumipub.jpg') }}" alt="Panneau publicitaire CIBLE — pôle régie">
                     </div>
                     <div class="dispositifs-mini">
                         <h4>6 dispositifs affichage</h4>
@@ -137,12 +133,8 @@
                     </div>
                 </div>
                 <div style="direction: ltr;">
-                    <div class="terrain-placeholder" style="aspect-ratio: 4/5;">
-                        <div>
-                            <strong>Photo camion pub</strong>
-                            Traversant Cocody
-                            <small>public/images/cible/mobile-camion.jpg</small>
-                        </div>
+                    <div class="photo-tile reveal reveal-left" style="aspect-ratio: 4/5;">
+                        <img src="{{ asset('images/cible/mobile-camion.jpg') }}" alt="Camion publicitaire CIBLE — écran LED mobile">
                     </div>
                 </div>
             </div>
@@ -179,12 +171,8 @@
                     </div>
                 </div>
                 <div>
-                    <div class="terrain-placeholder" style="aspect-ratio: 4/5;">
-                        <div>
-                            <strong>Photo studio création</strong>
-                            Équipe designer au travail
-                            <small>public/images/cible/pole-3-studio.jpg</small>
-                        </div>
+                    <div class="photo-tile reveal reveal-right" style="aspect-ratio: 4/5;">
+                        <img src="{{ asset('images/cible/hero-plateau-night.jpg') }}" alt="Panneau CIBLE Guinness — campagne 360°">
                     </div>
                 </div>
             </div>

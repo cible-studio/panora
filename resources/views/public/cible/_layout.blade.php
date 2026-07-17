@@ -269,7 +269,57 @@
             .split-2 { grid-template-columns: 1fr; gap: 40px; }
         }
 
-        /* Placeholder terrain */
+        /* Photo tile — image réelle avec zoom subtle au hover
+           Utilisé pour donner de la vie aux sections (photos terrain,
+           campagnes, panneaux). Uniformise le rendu de toute image. */
+        .photo-tile {
+            display: block;
+            aspect-ratio: 4 / 3;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--ink);
+            position: relative;
+            box-shadow: 0 12px 30px -14px rgba(15, 23, 42, 0.25);
+        }
+        .photo-tile img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .photo-tile:hover img { transform: scale(1.06); }
+        .photo-tile::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(180deg, transparent 60%, rgba(15, 23, 42, 0.4) 100%);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .photo-tile.has-caption::after { opacity: 1; }
+        .photo-tile .photo-caption {
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            padding: 20px 22px;
+            color: #fff;
+            z-index: 2;
+        }
+        .photo-tile .photo-caption strong {
+            font-family: 'Inter', sans-serif;
+            font-weight: 800;
+            font-size: 16px;
+            display: block;
+            line-height: 1.3;
+            letter-spacing: -0.01em;
+        }
+        .photo-tile .photo-caption small {
+            font-size: 12px;
+            color: rgba(255,255,255,0.75);
+            font-weight: 500;
+            margin-top: 4px;
+            display: block;
+        }
+
+        /* Placeholder terrain (fallback si l'image n'existe pas) */
         .terrain-placeholder {
             background: linear-gradient(135deg, var(--bg-cream), var(--bg-warm));
             border: 1px solid var(--line);
@@ -297,6 +347,36 @@
             margin-bottom: 6px;
             text-transform: uppercase;
             letter-spacing: 0.04em;
+        }
+
+        /* Client logo tile — logo sur fond crème avec hover subtile */
+        .client-logo-tile {
+            display: flex; align-items: center; justify-content: center;
+            aspect-ratio: 3 / 2;
+            padding: 24px 20px;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                        border-color 0.3s ease,
+                        box-shadow 0.3s ease;
+        }
+        .client-logo-tile img {
+            max-width: 100%;
+            max-height: 60px;
+            width: auto; height: auto;
+            object-fit: contain;
+            filter: grayscale(20%);
+            transition: filter 0.3s ease, transform 0.3s ease;
+        }
+        .client-logo-tile:hover {
+            transform: translateY(-3px);
+            border-color: var(--cible-jaune);
+            box-shadow: 0 16px 32px -14px rgba(15, 23, 42, 0.15);
+        }
+        .client-logo-tile:hover img {
+            filter: grayscale(0%);
+            transform: scale(1.05);
         }
 
         /* Aside note */

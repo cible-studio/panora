@@ -32,12 +32,8 @@
                 </div>
 
                 <div class="hero-visual reveal reveal-right" data-delay="2">
-                    <div class="terrain-placeholder" style="aspect-ratio: 4/5; border-radius: 4px;">
-                        <div>
-                            <strong>Photo hero terrain</strong>
-                            Lumipub Plateau nuit
-                            <small>public/images/cible/hero-plateau-night.jpg</small>
-                        </div>
+                    <div class="photo-tile" style="aspect-ratio: 4/5;">
+                        <img src="{{ asset('images/cible/hero-plateau-night.jpg') }}" alt="Panneau publicitaire CIBLE à Abidjan">
                     </div>
                     <div class="hero-chip">
                         <span class="hero-chip-num">30</span>
@@ -88,12 +84,8 @@
 
             <div class="pillars-grid-cible">
                 <a href="{{ route('cible.services') }}#regie" class="pillar-c reveal" data-delay="1" style="--c: var(--cible-bleu);">
-                    <div class="terrain-placeholder" style="aspect-ratio: 16/10; margin-bottom: 22px; border-radius: 4px;">
-                        <div>
-                            <strong>Panneau lumipub</strong>
-                            Réseau affichage classique
-                            <small>public/images/cible/pole-1-affichage.jpg</small>
-                        </div>
+                    <div class="photo-tile" style="aspect-ratio: 16/10; margin-bottom: 22px;">
+                        <img src="{{ asset('images/cible/pole-1-affichage.jpg') }}" alt="Panneau publicitaire CIBLE — pôle régie">
                     </div>
                     <div class="pillar-num">01 · Régie</div>
                     <h3 class="block-title">Régie publicitaire</h3>
@@ -102,12 +94,8 @@
                 </a>
 
                 <a href="{{ route('cible.services') }}#mobile" class="pillar-c reveal" data-delay="2" style="--c: var(--cible-rouge);">
-                    <div class="terrain-placeholder" style="aspect-ratio: 16/10; margin-bottom: 22px; border-radius: 4px;">
-                        <div>
-                            <strong>Camion pub en action</strong>
-                            Communication mobile
-                            <small>public/images/cible/pole-2-mobile.jpg</small>
-                        </div>
+                    <div class="photo-tile" style="aspect-ratio: 16/10; margin-bottom: 22px;">
+                        <img src="{{ asset('images/cible/pole-2-mobile.jpg') }}" alt="Camion publicitaire CIBLE — communication mobile">
                     </div>
                     <div class="pillar-num">02 · Mobile</div>
                     <h3 class="block-title">Communication mobile</h3>
@@ -116,12 +104,8 @@
                 </a>
 
                 <a href="{{ route('cible.services') }}#globale" class="pillar-c reveal" data-delay="3" style="--c: var(--cible-vert);">
-                    <div class="terrain-placeholder" style="aspect-ratio: 16/10; margin-bottom: 22px; border-radius: 4px;">
-                        <div>
-                            <strong>Studio création</strong>
-                            Stratégie · digital
-                            <small>public/images/cible/pole-3-360.jpg</small>
-                        </div>
+                    <div class="photo-tile" style="aspect-ratio: 16/10; margin-bottom: 22px;">
+                        <img src="{{ asset('images/cible/regie-lumipub.jpg') }}" alt="Panneau CIBLE — communication 360°">
                     </div>
                     <div class="pillar-num">03 · 360°</div>
                     <h3 class="block-title">Communication 360°</h3>
@@ -181,10 +165,16 @@
             </div>
 
             <div class="clients-strip">
-                @foreach(['Danone', 'SIPRA', 'Moov Africa', 'Banque Atlantique', 'BGFIBank', 'Rimco Motors'] as $i => $c)
-                    <div class="client-tile reveal reveal-scale" data-delay="{{ min($i+1, 6) }}">
-                        <span>{{ $c }}</span>
-                        <small>logo à intégrer</small>
+                @foreach([
+                    ['Danone',            'client-danone.png'],
+                    ['SIPRA',             'client-sipra.png'],
+                    ['Moov Africa',       'client-moov.png'],
+                    ['Banque Atlantique', 'client-banque-atlantique.png'],
+                    ['BGFIBank',          'client-bgfibank.png'],
+                    ['Rimco Motors',      'client-rimco.png'],
+                ] as $i => [$nom, $file])
+                    <div class="client-logo-tile reveal reveal-scale" data-delay="{{ min($i+1, 6) }}" title="{{ $nom }}">
+                        <img src="{{ asset('images/cible/' . $file) }}" alt="{{ $nom }}" loading="lazy">
                     </div>
                 @endforeach
             </div>
