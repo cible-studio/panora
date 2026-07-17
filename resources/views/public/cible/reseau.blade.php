@@ -187,7 +187,7 @@
             background: var(--line);
         }
         .split-num {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-size: 90px;
             font-weight: 400;
             color: var(--accent);
@@ -244,7 +244,7 @@
         }
         .reseau-table td.num {
             text-align: right;
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-weight: 500;
             font-size: 18px;
             color: var(--accent);
@@ -266,7 +266,7 @@
         }
         .reseau-table tr.tot td.num strong {
             color: var(--accent);
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-size: 22px;
         }
     </style>

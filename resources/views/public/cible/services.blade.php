@@ -255,7 +255,7 @@
         }
         .format-tile strong {
             display: block;
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-weight: 500;
             font-size: 15px;
             color: var(--ink);
@@ -267,7 +267,7 @@
             margin-top: 2px;
         }
         .format-tile span {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-weight: 500;
             font-size: 15px;
             color: var(--accent);
@@ -317,7 +317,7 @@
             justify-content: center;
         }
         .dispositifs-list strong {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-weight: 500;
             font-size: 19px;
             color: var(--ink);
@@ -342,7 +342,7 @@
             border-radius: 4px;
         }
         .offer-item h4 {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-size: 18px;
             font-weight: 500;
             margin-bottom: 6px;
@@ -367,7 +367,7 @@
             border-top: 3px solid var(--accent);
         }
         .wfc-num {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-size: 28px;
             color: var(--accent);
             line-height: 1;

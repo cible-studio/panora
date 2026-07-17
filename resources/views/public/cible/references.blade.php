@@ -177,7 +177,7 @@
             background: var(--bg-cream);
             border: 1px solid var(--line);
             border-radius: 4px;
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-weight: 500;
             font-size: 15px;
             color: var(--ink);
@@ -200,7 +200,7 @@
             justify-content: space-between;
         }
         .tem-quote {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-style: italic;
             font-size: 18px;
             line-height: 1.55;
@@ -246,7 +246,7 @@
         }
         .galerie-placeholder strong {
             display: block;
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-weight: 500;
             font-size: 16px;
             color: rgba(255,255,255,0.8);
@@ -265,7 +265,7 @@
         }
         .galerie-caption span {
             display: block;
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-weight: 500;
             font-size: 16px;
             color: #fff;

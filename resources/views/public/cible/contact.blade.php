@@ -27,7 +27,7 @@
                 <div>
                     @if(session('devis_sent'))
                         <div style="padding: 40px; background: #f0f9f0; border: 1px solid #86e186; border-radius: 8px; text-align: center;">
-                            <div style="font-family: 'Playfair Display', serif; font-size: 32px; color: #1a7a1a; margin-bottom: 12px;">Bien reçu.</div>
+                            <div style="font-family: 'Inter', sans-serif; font-size: 32px; color: #1a7a1a; margin-bottom: 12px;">Bien reçu.</div>
                             <p style="color: #2d5f2d; font-size: 15px; line-height: 1.6;">
                                 Votre demande est arrivée. Notre équipe commerciale vous
                                 recontacte dans la journée ouvrée à l'adresse fournie.
@@ -275,7 +275,7 @@
             margin-bottom: 4px;
         }
         .coord-val {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-size: 17px;
             font-weight: 500;
             color: var(--ink);

@@ -191,14 +191,14 @@
         }
         .tl-item:last-child { border-bottom: none; }
         .tl-year {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-weight: 500;
             font-size: 22px;
             color: var(--accent);
             line-height: 1.2;
         }
         .tl-content h3 {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-size: 22px;
             font-weight: 500;
             margin-bottom: 8px;
@@ -229,7 +229,7 @@
             border-left: 3px solid var(--accent);
         }
         .team-card h4 {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Inter', sans-serif;
             font-size: 19px;
             font-weight: 500;
             color: var(--ink);
