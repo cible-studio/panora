@@ -33,7 +33,7 @@
 
                 <div class="hero-visual reveal reveal-right" data-delay="2">
                     <div class="photo-tile" style="aspect-ratio: 4/5;">
-                        <img src="{{ asset('images/cible/hero-plateau-night.jpg') }}" alt="Panneau publicitaire CIBLE à Abidjan">
+                        <img src="{{ asset('images/perroquet-cible.jpg') }}" alt="Perroquets CIBLE — la marque qui vous fait remarquer" fetchpriority="high">
                     </div>
                     <div class="hero-chip">
                         <span class="hero-chip-num">30</span>
