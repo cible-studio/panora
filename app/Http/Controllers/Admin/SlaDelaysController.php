@@ -62,8 +62,10 @@ class SlaDelaysController extends Controller
         if ($status === 'resolved') $query->where(fn($q) => $q->whereNotNull('resolved_at')->orWhereNotNull('maintenance_id'));
         if (!empty($filters['commune_id'])) $query->whereHas('task.panel', fn($p) => $p->where('commune_id', $filters['commune_id']));
         if (!empty($filters['client_id']))  $query->whereHas('task.campaign', fn($c) => $c->where('client_id', $filters['client_id']));
-        if (($filters['zone'] ?? null) === 'abidjan')   $query->whereHas('task.panel.commune', fn($c) => $c->where('city', 'Abidjan'));
-        if (($filters['zone'] ?? null) === 'interieur') $query->whereHas('task.panel.commune', fn($c) => $c->where('city', '!=', 'Abidjan'));
+        // 2026-07-16 : règle officielle (whitelist Commune) au lieu de city='Abidjan'
+        $abidjanIds = \App\Models\Commune::abidjanIds();
+        if (($filters['zone'] ?? null) === 'abidjan')   $query->whereHas('task.panel', fn($p) => $p->whereIn('commune_id', $abidjanIds));
+        if (($filters['zone'] ?? null) === 'interieur') $query->whereHas('task.panel', fn($p) => $p->whereNotIn('commune_id', $abidjanIds));
 
         $signalements = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
 
@@ -130,8 +132,10 @@ class SlaDelaysController extends Controller
         if ($status === 'resolved') $query->where(fn($q) => $q->whereNotNull('resolved_at')->orWhereNotNull('maintenance_id'));
         if (!empty($filters['commune_id'])) $query->whereHas('task.panel', fn($p) => $p->where('commune_id', $filters['commune_id']));
         if (!empty($filters['client_id']))  $query->whereHas('task.campaign', fn($c) => $c->where('client_id', $filters['client_id']));
-        if (($filters['zone'] ?? null) === 'abidjan')   $query->whereHas('task.panel.commune', fn($c) => $c->where('city', 'Abidjan'));
-        if (($filters['zone'] ?? null) === 'interieur') $query->whereHas('task.panel.commune', fn($c) => $c->where('city', '!=', 'Abidjan'));
+        // 2026-07-16 : règle officielle (whitelist Commune) au lieu de city='Abidjan'
+        $abidjanIds = \App\Models\Commune::abidjanIds();
+        if (($filters['zone'] ?? null) === 'abidjan')   $query->whereHas('task.panel', fn($p) => $p->whereIn('commune_id', $abidjanIds));
+        if (($filters['zone'] ?? null) === 'interieur') $query->whereHas('task.panel', fn($p) => $p->whereNotIn('commune_id', $abidjanIds));
 
         $signalements = $query->orderByDesc('created_at')->limit(100)->get();
         if ($motifFilter) {

@@ -274,8 +274,9 @@ class DelayReasonsService
                 if (!empty($filters['commune_id']))  $p->where('commune_id', $filters['commune_id']);
                 if (!empty($filters['category_id'])) $p->where('category_id', $filters['category_id']);
                 if (!empty($filters['city']))        $p->whereHas('commune', fn ($c) => $c->where('city', $filters['city']));
-                if (($filters['zone'] ?? null) === 'abidjan')   $p->whereHas('commune', fn ($c) => $c->where('city', 'Abidjan'));
-                if (($filters['zone'] ?? null) === 'interieur') $p->whereHas('commune', fn ($c) => $c->where('city', '!=', 'Abidjan'));
+                // 2026-07-16 : règle officielle (whitelist Commune) au lieu de city='Abidjan'
+                if (($filters['zone'] ?? null) === 'abidjan')   $p->whereIn('commune_id', \App\Models\Commune::abidjanIds());
+                if (($filters['zone'] ?? null) === 'interieur') $p->whereNotIn('commune_id', \App\Models\Commune::abidjanIds());
             });
         }
         if (!empty($filters['client_id'])) {

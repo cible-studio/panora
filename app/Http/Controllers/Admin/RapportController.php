@@ -475,8 +475,10 @@ class RapportController extends Controller
         // BUG A : le filtre zone (abidjan/intérieur) n'était pas propagé ici.
         // → quand le user filtrait Intérieur, des panneaux Abidjan apparaissaient
         //   quand même dans la liste à décaper.
-        if ($filterZone === 'abidjan')   $decapQuery->where('c2.city', 'Abidjan');
-        if ($filterZone === 'interieur') $decapQuery->where('c2.city', '!=', 'Abidjan');
+        // 2026-07-16 : règle officielle (whitelist Commune) au lieu de c2.city='Abidjan'
+        $abidjanIds = \App\Models\Commune::abidjanIds();
+        if ($filterZone === 'abidjan')   $decapQuery->whereIn('c2.id', $abidjanIds);
+        if ($filterZone === 'interieur') $decapQuery->whereNotIn('c2.id', $abidjanIds);
         $aDecaper = $decapQuery
             ->select('p.reference', 'c2.name as commune', 'cl.name as client_name', 'cp.end_date',
                      DB::raw('DATEDIFF(cp.end_date, NOW()) as jours_restants'))

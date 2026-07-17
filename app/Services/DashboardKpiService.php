@@ -130,10 +130,16 @@ class DashboardKpiService
         }
         if (!empty($this->filters['zone']) && in_array('panel', $options['targets'] ?? ['panel'], true)) {
             $zone = $this->filters['zone'];
-            $q->whereIn("{$panelAlias}.commune_id", function ($sub) use ($zone) {
-                $sub->select('id')->from('communes');
-                $zone === 'abidjan' ? $sub->where('city', 'Abidjan') : $sub->where('city', '!=', 'Abidjan');
-            });
+            // 2026-07-16 : utilise la règle officielle Commune::abidjanIds()
+            // (whitelist des 13 communes du District + autoroute) au lieu
+            // de city='Abidjan' qui donnait des faux positifs (ASSINIE) et
+            // des faux négatifs (TREICH-VILLE via bug normalisation).
+            $abidjanIds = \App\Models\Commune::abidjanIds();
+            if ($zone === 'abidjan') {
+                $q->whereIn("{$panelAlias}.commune_id", $abidjanIds);
+            } else {
+                $q->whereNotIn("{$panelAlias}.commune_id", $abidjanIds);
+            }
         }
         if (!empty($this->filters['client_id']) && in_array('campaign', $options['targets'] ?? ['campaign'], true)) {
             $q->where("{$campaignAlias}.client_id", $this->filters['client_id']);
@@ -155,9 +161,13 @@ class DashboardKpiService
         }
         if (!empty($this->filters['zone'])) {
             $zone = $this->filters['zone'];
-            $query->whereHas('commune', fn($c) => $zone === 'abidjan'
-                ? $c->where('city', 'Abidjan')
-                : $c->where('city', '!=', 'Abidjan'));
+            // 2026-07-16 : règle officielle (whitelist) au lieu de city='Abidjan'.
+            $abidjanIds = \App\Models\Commune::abidjanIds();
+            if ($zone === 'abidjan') {
+                $query->whereIn('commune_id', $abidjanIds);
+            } else {
+                $query->whereNotIn('commune_id', $abidjanIds);
+            }
         }
         return $query;
     }
@@ -472,7 +482,9 @@ class DashboardKpiService
                 ->get()
                 ->map(function ($row) use ($periodDays) {
                     $row->occupation_rate = round(min(100, ((int) $row->days_occupied / $periodDays) * 100), 1);
-                    $row->zone = ($row->city === 'Abidjan') ? 'Abidjan' : 'Intérieur';
+                    // 2026-07-16 : règle officielle (whitelist commune) au lieu
+                    // de city='Abidjan' — cohérence avec les autres KPI.
+                    $row->zone = \App\Models\Commune::nameIsAbidjan($row->commune_name) ? 'Abidjan' : 'Intérieur';
                     return $row;
                 });
         });
