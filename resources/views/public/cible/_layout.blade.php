@@ -321,6 +321,245 @@
                 var(--cible-jaune)  80%,  var(--cible-jaune)  100%);
         }
 
+        /* ═══════════════════════════════════════════════════════════════
+           SYSTÈME D'ANIMATION REVEAL — mouvement au scroll
+           IntersectionObserver ajoute .is-revealed sur les éléments
+           .reveal quand ils entrent dans le viewport. Le CSS anime.
+           ═══════════════════════════════════════════════════════════════ */
+        .reveal {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+                        transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal.is-revealed {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .reveal.reveal-fade { transform: none; }
+        .reveal.reveal-fade.is-revealed { transform: none; }
+        .reveal.reveal-scale { transform: scale(0.94); }
+        .reveal.reveal-scale.is-revealed { transform: scale(1); }
+        .reveal.reveal-left  { transform: translateX(-30px); }
+        .reveal.reveal-right { transform: translateX(30px); }
+        .reveal.reveal-left.is-revealed,
+        .reveal.reveal-right.is-revealed { transform: translateX(0); }
+
+        /* Delays via data-delay */
+        .reveal[data-delay="1"] { transition-delay: 0.08s; }
+        .reveal[data-delay="2"] { transition-delay: 0.16s; }
+        .reveal[data-delay="3"] { transition-delay: 0.24s; }
+        .reveal[data-delay="4"] { transition-delay: 0.32s; }
+        .reveal[data-delay="5"] { transition-delay: 0.40s; }
+        .reveal[data-delay="6"] { transition-delay: 0.48s; }
+        .reveal[data-delay="7"] { transition-delay: 0.56s; }
+        .reveal[data-delay="8"] { transition-delay: 0.64s; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .reveal, .reveal.is-revealed { opacity: 1; transform: none; transition: none; }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           COMPOSANTS RÉUTILISABLES — pour homogénéité inter-pages
+           ═══════════════════════════════════════════════════════════════ */
+
+        /* Stat card (chiffre + label) — 4 déclinaisons via --c */
+        .stat-card {
+            padding: 26px 24px;
+            border: 1px solid var(--line);
+            border-top: 4px solid var(--c, var(--cible-jaune));
+            background: #fff;
+            border-radius: 6px;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                        box-shadow 0.3s ease,
+                        border-color 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px -18px rgba(15, 23, 42, 0.18);
+        }
+        .stat-card .stat-num {
+            display: block;
+            font-family: 'Inter', sans-serif;
+            font-size: 56px;
+            font-weight: 900;
+            color: var(--c, var(--cible-jaune));
+            line-height: 0.95;
+            margin-bottom: 10px;
+            letter-spacing: -0.03em;
+        }
+        .stat-card .stat-num em { font-style: normal; opacity: 0.6; }
+        .stat-card .stat-label {
+            display: block;
+            font-size: 11.5px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--ink);
+        }
+        .stat-card .stat-hint {
+            display: block;
+            font-size: 12.5px;
+            color: var(--ink-4);
+            margin-top: 6px;
+            font-weight: 500;
+        }
+
+        /* Feature card (icône + titre + texte) */
+        .feature-card {
+            padding: 30px 28px;
+            border: 1px solid var(--line);
+            background: #fff;
+            border-radius: 6px;
+            border-top: 4px solid var(--c, var(--cible-jaune));
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                        box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: -60px; right: -60px;
+            width: 140px; height: 140px;
+            border-radius: 50%;
+            background: var(--c, var(--cible-jaune));
+            opacity: 0.06;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 24px 48px -20px rgba(15, 23, 42, 0.20);
+        }
+        .feature-card:hover::before { transform: scale(1.4); }
+        .feature-card h4 {
+            font-size: 20px;
+            font-weight: 800;
+            margin-bottom: 12px;
+            letter-spacing: -0.01em;
+            position: relative;
+        }
+        .feature-card p {
+            font-size: 14.5px;
+            color: var(--ink-3);
+            line-height: 1.65;
+            position: relative;
+        }
+
+        /* Quote card (témoignage) */
+        .quote-card {
+            padding: 32px 28px;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            border-left: 4px solid var(--cible-jaune);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            display: flex; flex-direction: column;
+            gap: 20px;
+        }
+        .quote-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 40px -18px rgba(15, 23, 42, 0.15);
+        }
+        .quote-card .q-mark {
+            font-family: 'Inter', sans-serif;
+            font-size: 42px;
+            font-weight: 900;
+            color: var(--cible-jaune);
+            line-height: 0.8;
+            margin-bottom: -10px;
+        }
+        .quote-card .q-text {
+            font-size: 16px;
+            font-style: italic;
+            line-height: 1.6;
+            color: var(--ink-2);
+            flex: 1;
+        }
+        .quote-card .q-auteur strong {
+            display: block;
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--ink);
+        }
+        .quote-card .q-auteur small {
+            display: block;
+            font-size: 12.5px;
+            color: var(--ink-4);
+            margin-top: 3px;
+            font-weight: 500;
+        }
+
+        /* Section CTA blocs finaux — style uniforme */
+        .cta-block {
+            text-align: center;
+            padding: 80px 30px;
+            background: linear-gradient(135deg, var(--bg-cream), #fff);
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+        .cta-block::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0;
+            height: 4px;
+            background: linear-gradient(90deg,
+                var(--cible-bleu) 0%, var(--cible-bleu) 20%,
+                var(--cible-violet) 20%, var(--cible-violet) 40%,
+                var(--cible-vert) 40%, var(--cible-vert) 60%,
+                var(--cible-rouge) 60%, var(--cible-rouge) 80%,
+                var(--cible-jaune) 80%, var(--cible-jaune) 100%);
+        }
+
+        /* Micro-interactions boutons — subtile pulsation d'accent */
+        .btn-accent {
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-accent::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 0; height: 0;
+            border-radius: 50%;
+            background: rgba(15, 23, 42, 0.15);
+            transform: translate(-50%, -50%);
+            transition: width 0.5s ease, height 0.5s ease;
+        }
+        .btn-accent:hover::after { width: 300px; height: 300px; }
+        .btn-accent > * { position: relative; z-index: 1; }
+
+        /* Blob décoratif de fond (pattern discret) */
+        .bg-dots {
+            position: relative;
+        }
+        .bg-dots::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(circle, rgba(15, 23, 42, 0.06) 1px, transparent 1px);
+            background-size: 24px 24px;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        .bg-dots > * { position: relative; z-index: 1; }
+
+        /* Blob coloré filigrane (rappel de l'objectif du logo) */
+        .brand-blob {
+            position: absolute;
+            width: 380px; height: 380px;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.10;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .brand-blob.b-jaune  { background: var(--cible-jaune); }
+        .brand-blob.b-rouge  { background: var(--cible-rouge); }
+        .brand-blob.b-bleu   { background: var(--cible-bleu); }
+        .brand-blob.b-vert   { background: var(--cible-vert); }
+        .brand-blob.b-violet { background: var(--cible-violet); }
+
         /* ═══════════════════ FOOTER ═══════════════════ */
         footer.site-footer {
             background: var(--deep);
@@ -464,6 +703,51 @@
         </div>
     </footer>
 
+    {{-- ═══════════════════════════════════════════════════════════════
+         Reveal-on-scroll + compteur animé
+         Léger, dépendance zéro. S'active dès que l'élément entre à
+         12% du bas du viewport. Ignore si prefers-reduced-motion.
+         ═══════════════════════════════════════════════════════════════ --}}
+    <script>
+    (function () {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            document.querySelectorAll('.reveal').forEach(el => el.classList.add('is-revealed'));
+            return;
+        }
+
+        // Reveal-on-scroll
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('is-revealed');
+                    revealObserver.unobserve(entry.target);
+                }
+            });
+        }, { rootMargin: '0px 0px -12% 0px', threshold: 0.05 });
+
+        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+        // Compteur animé sur .count-up (attribut data-target avec le chiffre final)
+        const countObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                const el = entry.target;
+                const target = parseInt(el.dataset.target || '0', 10);
+                const duration = 1200;
+                const start = performance.now();
+                function step(now) {
+                    const p = Math.min(1, (now - start) / duration);
+                    const eased = 1 - Math.pow(1 - p, 3);
+                    el.textContent = Math.round(target * eased).toLocaleString('fr-FR');
+                    if (p < 1) requestAnimationFrame(step);
+                }
+                requestAnimationFrame(step);
+                countObserver.unobserve(el);
+            });
+        }, { threshold: 0.4 });
+        document.querySelectorAll('.count-up').forEach(el => countObserver.observe(el));
+    })();
+    </script>
     @stack('scripts')
 </body>
 </html>

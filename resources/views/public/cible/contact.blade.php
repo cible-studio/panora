@@ -8,11 +8,11 @@
     {{-- ═══════════════════ HERO ═══════════════════ --}}
     <section style="padding-top: 100px; padding-bottom: 40px;">
         <div class="wrap-narrow" style="text-align: center;">
-            <span class="eyebrow">Contact</span>
-            <h1 class="hero-title" style="font-size: clamp(38px, 5vw, 56px);">
+            <span class="eyebrow reveal reveal-fade">Contact</span>
+            <h1 class="hero-title reveal" data-delay="1" style="font-size: clamp(38px, 5vw, 56px);">
                 Parlons de <em>votre campagne.</em>
             </h1>
-            <p class="lead" style="margin: 0 auto;">
+            <p class="lead reveal" data-delay="2" style="margin: 0 auto;">
                 Décrivez votre besoin en quelques champs. Notre équipe commerciale vous
                 rappelle dans la journée ouvrée avec une proposition sur mesure.
             </p>
@@ -137,8 +137,8 @@
                 {{-- Coordonnées --}}
                 <div>
                     <div style="position: sticky; top: 100px;">
-                        <span class="eyebrow">Coordonnées</span>
-                        <h2 class="section-title" style="font-size: 30px; margin-bottom: 30px;">
+                        <span class="eyebrow reveal reveal-fade">Coordonnées</span>
+                        <h2 class="section-title reveal" data-delay="1" style="font-size: 30px; margin-bottom: 30px;">
                             Ou appelez<br>directement.
                         </h2>
 
@@ -188,8 +188,8 @@
     {{-- ═══════════════════ RÉSEAUX ═══════════════════ --}}
     <section style="text-align: center;">
         <div class="wrap-narrow">
-            <span class="eyebrow">Suivez-nous</span>
-            <h2 class="section-title" style="font-size: 30px; margin-bottom: 24px;">
+            <span class="eyebrow reveal reveal-fade">Suivez-nous</span>
+            <h2 class="section-title reveal" data-delay="1" style="font-size: 30px; margin-bottom: 24px;">
                 Retrouvez-nous <em>sur les réseaux.</em>
             </h2>
             <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">

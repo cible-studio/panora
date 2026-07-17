@@ -8,13 +8,13 @@
     {{-- ═══════════════════ HERO ═══════════════════ --}}
     <section style="padding-top: 100px; padding-bottom: 40px;">
         <div class="wrap-narrow">
-            <span class="eyebrow">Le réseau</span>
-            <h1 class="hero-title" style="font-size: clamp(38px, 5vw, 60px);">
+            <span class="eyebrow reveal reveal-fade">Le réseau</span>
+            <h1 class="hero-title reveal" data-delay="1" style="font-size: clamp(38px, 5vw, 60px);">
                 364 panneaux.<br>
                 31 communes.<br>
                 <em>Toute la Côte d'Ivoire.</em>
             </h1>
-            <p class="lead">
+            <p class="lead reveal" data-delay="2">
                 Notre patrimoine terrain n'est pas un slogan. Chaque panneau est référencé,
                 localisé, contrôlé — voici la répartition complète, par zone puis par commune.
             </p>
@@ -44,8 +44,8 @@
     <section id="abidjan" style="background: var(--bg-cream);">
         <div class="wrap">
             <div style="max-width: 720px; margin-bottom: 40px;">
-                <span class="eyebrow">Zone Abidjan · 180 panneaux</span>
-                <h2 class="section-title">14 communes couvertes<br><em>dans le Grand Abidjan.</em></h2>
+                <span class="eyebrow reveal reveal-fade">Zone Abidjan · 180 panneaux</span>
+                <h2 class="section-title reveal" data-delay="1">14 communes couvertes<br><em>dans le Grand Abidjan.</em></h2>
             </div>
 
             <div class="reseau-table-wrap">
@@ -89,8 +89,8 @@
     <section id="interieur">
         <div class="wrap">
             <div style="max-width: 720px; margin-bottom: 40px;">
-                <span class="eyebrow">Zone Intérieur · 184 panneaux</span>
-                <h2 class="section-title">17 villes<br><em>à travers le pays.</em></h2>
+                <span class="eyebrow reveal reveal-fade">Zone Intérieur · 184 panneaux</span>
+                <h2 class="section-title reveal" data-delay="1">17 villes<br><em>à travers le pays.</em></h2>
             </div>
 
             <div class="reseau-table-wrap">
@@ -135,8 +135,8 @@
     <section style="background: var(--bg-cream);">
         <div class="wrap">
             <div style="max-width: 720px; margin-bottom: 40px;">
-                <span class="eyebrow">Carte du réseau</span>
-                <h2 class="section-title">Visualisation <em>géographique.</em></h2>
+                <span class="eyebrow reveal reveal-fade">Carte du réseau</span>
+                <h2 class="section-title reveal" data-delay="1">Visualisation <em>géographique.</em></h2>
                 <p class="body">
                     Chaque pin représente un cluster de panneaux dans une commune. Zoom
                     disponible pour identifier chaque emplacement individuel.
@@ -155,11 +155,11 @@
     {{-- ═══════════════════ CTA ═══════════════════ --}}
     <section style="text-align: center; border: none;">
         <div class="wrap-narrow">
-            <span class="eyebrow">Un besoin ciblé ?</span>
-            <h2 class="section-title" style="margin-bottom: 26px;">
+            <span class="eyebrow reveal reveal-fade">Un besoin ciblé ?</span>
+            <h2 class="section-title reveal" data-delay="1" style="margin-bottom: 26px;">
                 Choisissons <em>ensemble</em> vos emplacements.
             </h2>
-            <p class="lead" style="margin: 0 auto 32px; text-align: center;">
+            <p class="lead reveal" data-delay="2" style="margin: 0 auto 32px; text-align: center;">
                 Notre équipe commerciale connaît le terrain par cœur. Dites-nous votre cible,
                 votre budget, votre période — nous vous proposons les meilleurs emplacements.
             </p>

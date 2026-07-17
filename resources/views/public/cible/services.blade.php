@@ -8,12 +8,12 @@
     {{-- ═══════════════════ HERO ═══════════════════ --}}
     <section style="padding-top: 100px; padding-bottom: 60px;">
         <div class="wrap-narrow">
-            <span class="eyebrow">Nos services</span>
-            <h1 class="hero-title" style="font-size: clamp(38px, 5vw, 60px);">
+            <span class="eyebrow reveal reveal-fade">Nos services</span>
+            <h1 class="hero-title reveal" data-delay="1" style="font-size: clamp(38px, 5vw, 60px);">
                 Trois pôles complémentaires,<br>
                 <em>un seul interlocuteur.</em>
             </h1>
-            <p class="lead">
+            <p class="lead reveal" data-delay="2">
                 Peu importe la forme que prendra votre campagne — panneau statique, camion
                 mobile, écran digital, opération street ou dispositif global — vous
                 travaillez avec la même équipe, du premier brief à la pige photo finale.
@@ -26,8 +26,8 @@
         <div class="wrap">
             <div class="split-2">
                 <div>
-                    <span class="eyebrow">Pôle 01 · Régie publicitaire</span>
-                    <h2 class="section-title">La force d'un <em>réseau national.</em></h2>
+                    <span class="eyebrow reveal reveal-fade">Pôle 01 · Régie publicitaire</span>
+                    <h2 class="section-title reveal" data-delay="1">La force d'un <em>réseau national.</em></h2>
                     <p class="body">
                         Notre cœur de métier depuis 30 ans. 364 panneaux stratégiquement placés
                         couvrent 31 communes du pays. Chaque emplacement est référencé, contrôlé,
@@ -89,8 +89,8 @@
         <div class="wrap">
             <div class="split-2" style="direction: rtl;">
                 <div style="direction: ltr;">
-                    <span class="eyebrow">Pôle 02 · Communication mobile</span>
-                    <h2 class="section-title">Votre message <em>en mouvement.</em></h2>
+                    <span class="eyebrow reveal reveal-fade">Pôle 02 · Communication mobile</span>
+                    <h2 class="section-title reveal" data-delay="1">Votre message <em>en mouvement.</em></h2>
                     <p class="body">
                         Là où le panneau statique attend son public, la publicité mobile va
                         vers lui. Traversée d'Abidjan aux heures de pointe, présence pendant
@@ -154,8 +154,8 @@
         <div class="wrap">
             <div class="split-2">
                 <div>
-                    <span class="eyebrow">Pôle 03 · Communication 360°</span>
-                    <h2 class="section-title">De l'idée <em>à l'exécution.</em></h2>
+                    <span class="eyebrow reveal reveal-fade">Pôle 03 · Communication 360°</span>
+                    <h2 class="section-title reveal" data-delay="1">De l'idée <em>à l'exécution.</em></h2>
                     <p class="body">
                         Un panneau vide ne dit rien. Un panneau mal conçu dit mal. Nous
                         proposons une chaîne complète : stratégie, création graphique,
@@ -196,7 +196,7 @@
         <div class="wrap">
             <div style="max-width: 720px; margin-bottom: 60px;">
                 <span class="eyebrow" style="color: var(--accent);">Notre méthode</span>
-                <h2 class="section-title" style="color: #fff;">De la demande <em>à l'affichage.</em></h2>
+                <h2 class="section-title reveal" data-delay="1" style="color: #fff;">De la demande <em>à l'affichage.</em></h2>
                 <p class="body" style="color: rgba(255,255,255,0.75); font-size: 17px;">
                     Huit étapes, un interlocuteur unique, une traçabilité complète.
                     Vous recevez la pige photo horodatée dès que votre affichage est
@@ -228,8 +228,8 @@
     {{-- ═══════════════════ CTA ═══════════════════ --}}
     <section style="text-align: center; border: none;">
         <div class="wrap-narrow">
-            <span class="eyebrow">Prochaine étape</span>
-            <h2 class="section-title" style="margin-bottom: 26px;">
+            <span class="eyebrow reveal reveal-fade">Prochaine étape</span>
+            <h2 class="section-title reveal" data-delay="1" style="margin-bottom: 26px;">
                 Un besoin en tête ? <em>Parlons-en.</em>
             </h2>
             <a href="{{ route('cible.contact') }}" class="btn btn-accent" style="font-size: 16px; padding: 17px 34px;">

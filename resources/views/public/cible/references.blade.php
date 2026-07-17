@@ -8,12 +8,12 @@
     {{-- ═══════════════════ HERO ═══════════════════ --}}
     <section style="padding-top: 100px; padding-bottom: 60px;">
         <div class="wrap-narrow">
-            <span class="eyebrow">Nos références</span>
-            <h1 class="hero-title" style="font-size: clamp(38px, 5vw, 60px);">
+            <span class="eyebrow reveal reveal-fade">Nos références</span>
+            <h1 class="hero-title reveal" data-delay="1" style="font-size: clamp(38px, 5vw, 60px);">
                 Trente ans à porter<br>
                 la parole des marques qui <em>font l'économie ivoirienne.</em>
             </h1>
-            <p class="lead">
+            <p class="lead reveal" data-delay="2">
                 De l'agroalimentaire à la banque, des télécoms à l'automobile, les grands
                 noms de l'économie nous ont confié leur voix publique. Voici quelques-unes
                 des marques qui nous font confiance — souvent depuis plusieurs années.
@@ -25,8 +25,8 @@
     <section style="background: var(--bg-cream);">
         <div class="wrap">
             <div style="max-width: 720px; margin-bottom: 50px;">
-                <span class="eyebrow">Ils nous font confiance</span>
-                <h2 class="section-title">Des <em>secteurs variés,</em> une même exigence.</h2>
+                <span class="eyebrow reveal reveal-fade">Ils nous font confiance</span>
+                <h2 class="section-title reveal" data-delay="1">Des <em>secteurs variés,</em> une même exigence.</h2>
             </div>
 
             <div class="secteur-blocks">
@@ -54,8 +54,8 @@
     <section>
         <div class="wrap">
             <div style="max-width: 720px; margin-bottom: 60px;">
-                <span class="eyebrow">Ils en parlent</span>
-                <h2 class="section-title">Ce qu'ils disent <em>de nous.</em></h2>
+                <span class="eyebrow reveal reveal-fade">Ils en parlent</span>
+                <h2 class="section-title reveal" data-delay="1">Ce qu'ils disent <em>de nous.</em></h2>
                 <p class="body" style="font-size: 17px; color: var(--ink-3);">
                     Trois témoignages courts de directeurs marketing qui ont travaillé
                     avec CIBLE ces dernières années.
@@ -105,7 +105,7 @@
         <div class="wrap">
             <div style="max-width: 720px; margin-bottom: 50px;">
                 <span class="eyebrow" style="color: var(--accent);">Galerie de campagnes</span>
-                <h2 class="section-title" style="color: #fff;">Nos affichages <em>en situation.</em></h2>
+                <h2 class="section-title reveal" data-delay="1" style="color: #fff;">Nos affichages <em>en situation.</em></h2>
                 <p class="body" style="color: rgba(255,255,255,0.75); font-size: 17px;">
                     Quelques campagnes emblématiques que nous avons opérées ces dernières
                     années. Chaque affichage a été posé, contrôlé, pigé par nos équipes.
@@ -132,10 +132,10 @@
     {{-- ═══════════════════ CTA ═══════════════════ --}}
     <section style="text-align: center; border: none;">
         <div class="wrap-narrow">
-            <h2 class="section-title" style="margin-bottom: 26px;">
+            <h2 class="section-title reveal" data-delay="1" style="margin-bottom: 26px;">
                 Rejoignez-les <em>sur nos murs.</em>
             </h2>
-            <p class="lead" style="margin: 0 auto 32px; text-align: center;">
+            <p class="lead reveal" data-delay="2" style="margin: 0 auto 32px; text-align: center;">
                 Votre marque mérite d'être vue avec la même qualité d'exécution.
             </p>
             <a href="{{ route('cible.contact') }}" class="btn btn-accent" style="font-size: 16px; padding: 17px 34px;">

@@ -7,29 +7,31 @@
 
     {{-- ═══════════════════ HERO ═══════════════════ --}}
     <section class="hero-cible" style="padding: 90px 0 100px; position: relative; overflow: hidden; background: linear-gradient(180deg, #ffffff 0%, var(--bg-cream) 100%);">
+        <span class="brand-blob b-jaune" style="top: -100px; right: -80px;"></span>
+        <span class="brand-blob b-rouge" style="bottom: -140px; left: -100px; opacity: 0.06;"></span>
         <div class="wrap" style="position: relative; z-index: 2;">
             <div class="hero-grid">
                 <div>
-                    <span class="eyebrow">Depuis 1994 · Côte d'Ivoire</span>
-                    <h1 class="hero-title">
+                    <span class="eyebrow reveal reveal-fade">Depuis 1994 · Côte d'Ivoire</span>
+                    <h1 class="hero-title reveal" data-delay="1">
                         30 ans<br>
                         à porter la voix<br>
                         des <em>marques ivoiriennes.</em>
                     </h1>
-                    <p class="lead">
+                    <p class="lead reveal" data-delay="2">
                         Première régie publicitaire de Côte d'Ivoire, CIBLE opère un réseau
                         de 364 panneaux répartis dans 31 communes. De la stratégie à la pose,
                         du panneau statique à la campagne 360°, nous portons la parole des
                         marques qui comptent.
                     </p>
-                    <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-top: 32px;">
-                        <a href="{{ route('cible.contact') }}" class="btn btn-accent">Demander un devis</a>
+                    <div class="reveal" data-delay="3" style="display: flex; gap: 14px; flex-wrap: wrap; margin-top: 32px;">
+                        <a href="{{ route('cible.contact') }}" class="btn btn-accent"><span>Demander un devis</span></a>
                         <a href="{{ route('cible.reseau') }}" class="btn btn-outline">Voir le réseau</a>
                     </div>
-                    <div class="hero-signature">« Vous visez juste »</div>
+                    <div class="hero-signature reveal" data-delay="4">« Vous visez juste »</div>
                 </div>
 
-                <div class="hero-visual">
+                <div class="hero-visual reveal reveal-right" data-delay="2">
                     <div class="terrain-placeholder" style="aspect-ratio: 4/5; border-radius: 4px;">
                         <div>
                             <strong>Photo hero terrain</strong>
@@ -51,19 +53,19 @@
     <section class="metrics-cible" style="background: var(--ink); color: #fff; border: none;">
         <div class="wrap">
             <div class="metrics-grid">
-                <div class="metric-item" style="--c: var(--cible-jaune);">
-                    <span class="metric-num">30</span>
+                <div class="metric-item reveal" data-delay="1" style="--c: var(--cible-jaune);">
+                    <span class="metric-num count-up" data-target="30">0</span>
                     <span class="metric-label">Années d'expertise</span>
                 </div>
-                <div class="metric-item" style="--c: var(--cible-rouge);">
-                    <span class="metric-num">364</span>
+                <div class="metric-item reveal" data-delay="2" style="--c: var(--cible-rouge);">
+                    <span class="metric-num count-up" data-target="364">0</span>
                     <span class="metric-label">Panneaux</span>
                 </div>
-                <div class="metric-item" style="--c: var(--cible-vert);">
-                    <span class="metric-num">31</span>
+                <div class="metric-item reveal" data-delay="3" style="--c: var(--cible-vert);">
+                    <span class="metric-num count-up" data-target="31">0</span>
                     <span class="metric-label">Communes couvertes</span>
                 </div>
-                <div class="metric-item" style="--c: var(--cible-bleu);">
+                <div class="metric-item reveal" data-delay="4" style="--c: var(--cible-bleu);">
                     <span class="metric-num">N°<em>1</em></span>
                     <span class="metric-label">Réseau en CI</span>
                 </div>
@@ -74,7 +76,7 @@
     {{-- ═══════════════════ 3 PÔLES ═══════════════════ --}}
     <section>
         <div class="wrap">
-            <div style="max-width: 720px; margin-bottom: 60px;">
+            <div class="reveal" style="max-width: 720px; margin-bottom: 60px;">
                 <span class="eyebrow">Nos pôles de métier</span>
                 <h2 class="section-title">Trois métiers,<br><em>une même exigence.</em></h2>
                 <p class="body" style="font-size: 17px; color: var(--ink-3);">
@@ -85,7 +87,7 @@
             </div>
 
             <div class="pillars-grid-cible">
-                <a href="{{ route('cible.services') }}#regie" class="pillar-c" style="--c: var(--cible-bleu);">
+                <a href="{{ route('cible.services') }}#regie" class="pillar-c reveal" data-delay="1" style="--c: var(--cible-bleu);">
                     <div class="terrain-placeholder" style="aspect-ratio: 16/10; margin-bottom: 22px; border-radius: 4px;">
                         <div>
                             <strong>Panneau lumipub</strong>
@@ -99,7 +101,7 @@
                     <span class="pillar-cta">Découvrir →</span>
                 </a>
 
-                <a href="{{ route('cible.services') }}#mobile" class="pillar-c" style="--c: var(--cible-rouge);">
+                <a href="{{ route('cible.services') }}#mobile" class="pillar-c reveal" data-delay="2" style="--c: var(--cible-rouge);">
                     <div class="terrain-placeholder" style="aspect-ratio: 16/10; margin-bottom: 22px; border-radius: 4px;">
                         <div>
                             <strong>Camion pub en action</strong>
@@ -113,7 +115,7 @@
                     <span class="pillar-cta">Découvrir →</span>
                 </a>
 
-                <a href="{{ route('cible.services') }}#globale" class="pillar-c" style="--c: var(--cible-vert);">
+                <a href="{{ route('cible.services') }}#globale" class="pillar-c reveal" data-delay="3" style="--c: var(--cible-vert);">
                     <div class="terrain-placeholder" style="aspect-ratio: 16/10; margin-bottom: 22px; border-radius: 4px;">
                         <div>
                             <strong>Studio création</strong>
@@ -131,10 +133,11 @@
     </section>
 
     {{-- ═══════════════════ COUVERTURE GÉOGRAPHIQUE ═══════════════════ --}}
-    <section style="background: var(--bg-cream);">
-        <div class="wrap">
+    <section style="background: var(--bg-cream); position: relative; overflow: hidden;">
+        <span class="brand-blob b-vert" style="top: -100px; right: 15%;"></span>
+        <div class="wrap" style="position: relative; z-index: 2;">
             <div class="split-2" style="align-items: center;">
-                <div>
+                <div class="reveal reveal-left">
                     <span class="eyebrow">Notre couverture</span>
                     <h2 class="section-title">Présents dans <em>31 communes</em>,<br>de Bouaké à San-Pédro.</h2>
                     <p class="body">
@@ -152,7 +155,7 @@
                         <a href="{{ route('cible.reseau') }}" class="arrow-link">Voir le réseau complet</a>
                     </div>
                 </div>
-                <div>
+                <div class="reveal reveal-right" data-delay="1">
                     <div class="terrain-placeholder" style="aspect-ratio: 4/3;">
                         <div>
                             <strong>Carte réseau CI</strong>
@@ -172,14 +175,14 @@
     {{-- ═══════════════════ CLIENTS ═══════════════════ --}}
     <section>
         <div class="wrap">
-            <div style="text-align: center; max-width: 620px; margin: 0 auto 50px;">
+            <div class="reveal" style="text-align: center; max-width: 620px; margin: 0 auto 50px;">
                 <span class="eyebrow">Ils nous font confiance</span>
                 <h2 class="section-title">Des marques qui pèsent,<br><em>qui reviennent.</em></h2>
             </div>
 
             <div class="clients-strip">
-                @foreach(['Danone', 'SIPRA', 'Moov Africa', 'Banque Atlantique', 'BGFIBank', 'Rimco Motors'] as $c)
-                    <div class="client-tile">
+                @foreach(['Danone', 'SIPRA', 'Moov Africa', 'Banque Atlantique', 'BGFIBank', 'Rimco Motors'] as $i => $c)
+                    <div class="client-tile reveal reveal-scale" data-delay="{{ min($i+1, 6) }}">
                         <span>{{ $c }}</span>
                         <small>logo à intégrer</small>
                     </div>
@@ -193,9 +196,11 @@
     </section>
 
     {{-- ═══════════════════ DISTINCTIONS ═══════════════════ --}}
-    <section style="background: var(--ink); color: #fff; border: none;">
-        <div class="wrap">
-            <div style="max-width: 720px; margin-bottom: 60px;">
+    <section style="background: var(--ink); color: #fff; border: none; position: relative; overflow: hidden;">
+        <span class="brand-blob b-jaune" style="top: 20%; left: -100px; opacity: 0.08;"></span>
+        <span class="brand-blob b-rouge" style="bottom: 10%; right: -100px; opacity: 0.06;"></span>
+        <div class="wrap" style="position: relative; z-index: 2;">
+            <div class="reveal" style="max-width: 720px; margin-bottom: 60px;">
                 <span class="eyebrow">Reconnaissances officielles</span>
                 <h2 class="section-title" style="color: #fff;">Trois distinctions<br><em>de l'État ivoirien.</em></h2>
                 <p class="body" style="color: rgba(255,255,255,0.7); font-size: 17px;">
@@ -205,17 +210,17 @@
             </div>
 
             <div class="honors-grid">
-                <div class="honor-card" style="--c: var(--cible-jaune);">
+                <div class="honor-card reveal" data-delay="1" style="--c: var(--cible-jaune);">
                     <div class="honor-medal">2016</div>
                     <h3>2ème prix<br>du meilleur publicitaire</h3>
                     <p>Distinction professionnelle du secteur de la publicité ivoirienne.</p>
                 </div>
-                <div class="honor-card" style="--c: var(--cible-rouge);">
+                <div class="honor-card reveal" data-delay="2" style="--c: var(--cible-rouge);">
                     <div class="honor-medal">2019</div>
                     <h3>Chevalier<br>de l'Ordre du Mérite<br>de la Communication</h3>
                     <p>Reconnaissance de la contribution à la structuration du métier.</p>
                 </div>
-                <div class="honor-card" style="--c: var(--cible-bleu);">
+                <div class="honor-card reveal" data-delay="3" style="--c: var(--cible-bleu);">
                     <div class="honor-medal">2020</div>
                     <h3>Officier<br>de l'Ordre du Mérite<br>National</h3>
                     <p>Distinction républicaine pour services rendus au pays.</p>
@@ -225,9 +230,9 @@
     </section>
 
     {{-- ═══════════════════ WORKFLOW CLIENT ═══════════════════ --}}
-    <section style="background: var(--bg-cream);">
+    <section class="bg-dots" style="background: var(--bg-cream);">
         <div class="wrap">
-            <div style="max-width: 720px; margin-bottom: 60px;">
+            <div class="reveal" style="max-width: 720px; margin-bottom: 60px;">
                 <span class="eyebrow">Notre méthode</span>
                 <h2 class="section-title">De la demande à l'affichage,<br><em>en 8 étapes.</em></h2>
                 <p class="body" style="font-size: 17px; color: var(--ink-3);">
@@ -246,8 +251,8 @@
                     ['6', 'Pose des visuels', 'Nos techniciens interviennent sur site à date programmée.'],
                     ['7', 'Pige photo', 'Preuve terrain horodatée : votre affichage est en place.'],
                     ['8', 'Suivi de campagne', 'Espace client dédié en ligne pour suivre votre campagne.'],
-                ] as [$n, $t, $d])
-                    <div class="wf-step">
+                ] as $i => [$n, $t, $d])
+                    <div class="wf-step reveal reveal-scale" data-delay="{{ min($i+1, 8) }}">
                         <div class="wf-num">{{ $n }}</div>
                         <h4>{{ $t }}</h4>
                         <p>{{ $d }}</p>
@@ -263,22 +268,24 @@
     </section>
 
     {{-- ═══════════════════ CTA FINAL ═══════════════════ --}}
-    <section style="text-align: center; border: none;">
-        <div class="wrap-narrow">
-            <span class="eyebrow">Prochaine étape</span>
-            <h2 class="section-title" style="margin-bottom: 26px;">
-                Votre campagne<br><em>commence ici.</em>
-            </h2>
-            <p class="lead" style="margin: 0 auto 36px; text-align: center;">
-                Décrivez-nous votre besoin en 2 minutes. Notre équipe commerciale vous
-                rappelle dans la journée ouvrée avec une proposition sur mesure.
-            </p>
-            <a href="{{ route('cible.contact') }}" class="btn btn-accent" style="font-size: 15px; padding: 17px 34px;">
-                Demander un devis
-            </a>
-            <p style="margin-top: 24px; font-size: 13.5px; color: var(--ink-5);">
-                Ou appelez directement le <a href="tel:+2250798496674" style="color: var(--ink-3); border-bottom: 1px solid var(--line);">07 98 49 66 74</a>
-            </p>
+    <section style="border: none; padding: 60px 0;">
+        <div class="wrap">
+            <div class="cta-block reveal reveal-scale">
+                <span class="eyebrow">Prochaine étape</span>
+                <h2 class="section-title" style="margin-bottom: 26px;">
+                    Votre campagne<br><em>commence ici.</em>
+                </h2>
+                <p class="lead" style="margin: 0 auto 36px; text-align: center;">
+                    Décrivez-nous votre besoin en 2 minutes. Notre équipe commerciale vous
+                    rappelle dans la journée ouvrée avec une proposition sur mesure.
+                </p>
+                <a href="{{ route('cible.contact') }}" class="btn btn-accent" style="font-size: 15px; padding: 17px 34px;">
+                    <span>Demander un devis</span>
+                </a>
+                <p style="margin-top: 24px; font-size: 13.5px; color: var(--ink-5);">
+                    Ou appelez directement le <a href="tel:+2250798496674" style="color: var(--ink-3); border-bottom: 1px solid var(--line);">07 98 49 66 74</a>
+                </p>
+            </div>
         </div>
     </section>
 

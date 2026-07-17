@@ -8,11 +8,11 @@
     {{-- ═══════════════════ HERO ═══════════════════ --}}
     <section style="padding-top: 100px; padding-bottom: 60px;">
         <div class="wrap-narrow">
-            <span class="eyebrow">Qui sommes-nous</span>
-            <h1 class="hero-title" style="font-size: clamp(38px, 5vw, 60px);">
+            <span class="eyebrow reveal reveal-fade">Qui sommes-nous</span>
+            <h1 class="hero-title reveal" data-delay="1" style="font-size: clamp(38px, 5vw, 60px);">
                 Trois décennies<br>à porter la parole<br>des <em>marques ivoiriennes.</em>
             </h1>
-            <p class="lead">
+            <p class="lead reveal" data-delay="2">
                 Fondée en 1994, CIBLE CI a grandi avec l'économie ivoirienne. Nous avons vu
                 les grandes marques nationales émerger, les enseignes internationales
                 s'installer, la publicité extérieure devenir une industrie. À chaque étape,
@@ -26,8 +26,8 @@
     <section style="background: var(--bg-cream);">
         <div class="wrap">
             <div style="max-width: 720px; margin-bottom: 60px;">
-                <span class="eyebrow">Notre histoire</span>
-                <h2 class="section-title">Trente ans, <em>une même vocation.</em></h2>
+                <span class="eyebrow reveal reveal-fade">Notre histoire</span>
+                <h2 class="section-title reveal" data-delay="1">Trente ans, <em>une même vocation.</em></h2>
             </div>
 
             <div class="timeline">
@@ -98,7 +98,7 @@
             <div class="split-2">
                 <div>
                     <span class="eyebrow" style="color: var(--accent);">Reconnaissances</span>
-                    <h2 class="section-title" style="color: #fff;">
+                    <h2 class="section-title reveal" data-delay="1" style="color: #fff;">
                         Trois fois honorée<br>par <em>la République.</em>
                     </h2>
                     <p class="body" style="color: rgba(255,255,255,0.75); font-size: 17px;">
@@ -130,8 +130,8 @@
     <section>
         <div class="wrap">
             <div style="max-width: 720px; margin-bottom: 60px;">
-                <span class="eyebrow">L'équipe</span>
-                <h2 class="section-title">Chaque campagne mobilise <em>plusieurs métiers.</em></h2>
+                <span class="eyebrow reveal reveal-fade">L'équipe</span>
+                <h2 class="section-title reveal" data-delay="1">Chaque campagne mobilise <em>plusieurs métiers.</em></h2>
                 <p class="body" style="font-size: 17px; color: var(--ink-3);">
                     De votre premier appel à la pose de votre affichage, sept métiers se
                     coordonnent chez CIBLE pour que votre campagne soit livrée dans les
@@ -161,10 +161,10 @@
     {{-- ═══════════════════ CTA ═══════════════════ --}}
     <section style="text-align: center; background: var(--bg-cream); border: none;">
         <div class="wrap-narrow">
-            <h2 class="section-title" style="margin-bottom: 26px;">
+            <h2 class="section-title reveal" data-delay="1" style="margin-bottom: 26px;">
                 Rejoignez les marques qui <em>nous font confiance.</em>
             </h2>
-            <p class="lead" style="margin: 0 auto 32px; text-align: center;">
+            <p class="lead reveal" data-delay="2" style="margin: 0 auto 32px; text-align: center;">
                 Danone, SIPRA, Moov Africa, les banques ivoiriennes — elles ont toutes
                 choisi CIBLE pour une raison : le sérieux du réseau et la clarté du suivi.
             </p>
