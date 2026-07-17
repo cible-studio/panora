@@ -19,19 +19,25 @@ class Commune extends Model
     ];
 
     /**
-     * Liste officielle des 13 communes du District Autonome d'Abidjan.
+     * Liste officielle des communes/zones du District Autonome d'Abidjan.
      *
      * Source unique pour la classification "Abidjan vs Intérieur" — préférée
      * au champ `city` qui n'est pas fiable (selon l'import, on peut avoir
      * city='Abidjan' ou city='Bingerville' pour Bingerville). Cette liste
      * blanche garantit qu'un nouvel ajout n'oublie pas la classification.
      *
-     * Match case-insensitive + tolérance des accents et tirets.
+     * Match case-insensitive + tolérance des accents et tirets
+     * (cf. nameIsAbidjan() — compare la version canonique sans tirets).
+     *
+     * 2026-07-16 — Ajout `autoroute-du-nord` (pseudo-commune couvrant
+     * les panneaux le long de la N1 dans la zone métropolitaine d'Abidjan,
+     * traitée comme Abidjan pour tous les KPI géographiques).
      */
     public const ABIDJAN_COMMUNES = [
         'abobo', 'adjame', 'attecoube', 'cocody', 'koumassi', 'marcory',
         'plateau', 'port-bouet', 'treichville', 'yopougon',
         'anyama', 'bingerville', 'songon',
+        'autoroute-du-nord',
     ];
 
     /**
@@ -49,16 +55,28 @@ class Commune extends Model
      *
      * Tolérance aux suffixes : on matche aussi les variantes comme
      * "COCODY ANGRÉ", "ABOBO 1", "PORT-BOUET RIVIERA". Strategy :
-     *   - équivalence exacte ("cocody" == "cocody")  → vrai
+     *   - équivalence exacte sur forme CANONIQUE (sans tirets/espaces)
+     *     → "TREICH-VILLE" et "TREICHVILLE" matchent tous deux "treichville"
      *   - préfixe + séparateur ("cocody-angre" commence par "cocody-") → vrai
      *   - rien d'autre  → faux (évite faux positifs sur ex. "abobosso")
+     *
+     * 2026-07-16 — Fix bug : "TREICH-VILLE" en base ne matchait pas
+     * "treichville" dans la whitelist (le tiret bloquait). 14 panneaux
+     * étaient faussement classés "Intérieur" dans tous les KPI.
      */
     public static function nameIsAbidjan(?string $name): bool
     {
         if (empty($name)) return false;
         $normalized = self::normalizeForMatch($name);
+        $canonical  = str_replace(['-', ' '], '', $normalized);
         foreach (self::ABIDJAN_COMMUNES as $abj) {
-            if ($normalized === $abj) return true;
+            // Match sur forme canonique (sans tirets/espaces) : couvre
+            // "treich-ville" == "treichville", "port-bouet" == "portbouet",
+            // "autoroute du nord" == "autoroutedunord", etc.
+            $abjCanonical = str_replace(['-', ' '], '', $abj);
+            if ($canonical === $abjCanonical) return true;
+            // Préfixe avec séparateur : "cocody-angre" contient "cocody-"
+            // → sous-quartier de Cocody, toujours Abidjan.
             if (str_starts_with($normalized, $abj . '-')) return true;
         }
         return false;
