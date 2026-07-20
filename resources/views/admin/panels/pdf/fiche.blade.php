@@ -14,7 +14,12 @@
             line-height: 1.45;
         }
 
-        .container { padding: 24px 28px; }
+        /* Padding-bottom au container pour laisser la place au footer
+           position:fixed. 2026-07-17 : bug rapporté par la patronne où
+           la fin de la description était masquée par le footer sur
+           page 2 (contenu long débordant). Le footer fait ~40px avec
+           border-top + padding — on marge 60px pour sécurité. */
+        .container { padding: 24px 28px 60px; }
 
         /* ── HEADER UNIFORME (logo gauche / titre centre / méta droite) ── */
         .pdf-header {
@@ -289,8 +294,19 @@
 
         @if(!empty($panel['zone_description']))
             <h2 class="section">Description / Environnement</h2>
-            <div style="font-size:11px;color:#374151;line-height:1.5;border:1px solid #e5e7eb;border-radius:4px;padding:10px 12px;background:#fafafa;">
-                {{ $panel['zone_description'] }}
+            {{--
+              2026-07-17 (bug patronne) : le texte long était tronqué visuellement
+              en PDF pour deux raisons :
+                1. le footer position:fixed masquait la fin sur page 2 → fixé
+                   par padding-bottom:60px sur .container (voir CSS ci-dessus)
+                2. les sauts de ligne du textarea n'étaient pas rendus → fixé
+                   par nl2br() qui convertit \n en <br>
+              word-wrap:break-word garantit qu'un mot très long ne dépasse pas
+              la largeur de la boîte. page-break-inside:auto permet à DomPDF de
+              couper le bloc entre 2 pages si besoin (plutôt qu'un débordement).
+            --}}
+            <div style="font-size:11px;color:#374151;line-height:1.5;border:1px solid #e5e7eb;border-radius:4px;padding:10px 12px;background:#fafafa;word-wrap:break-word;page-break-inside:auto;">
+                {!! nl2br(e($panel['zone_description'])) !!}
             </div>
         @endif
 
