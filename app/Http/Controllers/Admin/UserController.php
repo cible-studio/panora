@@ -79,15 +79,33 @@ class UserController extends Controller
         // manuellement, on respecte tel quel.
         $agentCode = $request->agent_code ?: User::generateAgentCode($request->role);
 
-        $user = User::create([
-            'name'            => $request->name,
-            'email'           => $request->email,
-            'password'        => Hash::make($plainPassword),
-            'role'            => $request->role,
-            'agent_code'      => $agentCode,
-            'whatsapp_number' => $whatsapp,
-            'is_active'       => true,
-        ]);
+        // Try/catch (2026-07-20) : le create peut planter si l'ENUM MySQL
+        // users.role n'a pas la valeur reçue (ex: 'comptable' non présent
+        // avant la migration add_comptable_to_users_role_enum). Au lieu
+        // du 500 silencieux, on log et on retourne un message clair.
+        try {
+            $user = User::create([
+                'name'            => $request->name,
+                'email'           => $request->email,
+                'password'        => Hash::make($plainPassword),
+                'role'            => $request->role,
+                'agent_code'      => $agentCode,
+                'whatsapp_number' => $whatsapp,
+                'is_active'       => true,
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('user.create.failed', [
+                'email'       => $request->email,
+                'role'        => $request->role,
+                'created_by'  => auth()->id(),
+                'error'       => $e->getMessage(),
+                'file'        => $e->getFile() . ':' . $e->getLine(),
+            ]);
+            return back()->withInput()->with('error',
+                'Création impossible : ' . $e->getMessage()
+                . '. Contacte le support si le problème persiste.'
+            );
+        }
 
         // Alerte création utilisateur
         $roleLabel = UserRole::labelFor($request->role);
