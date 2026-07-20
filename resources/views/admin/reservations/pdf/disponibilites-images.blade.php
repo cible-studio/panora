@@ -545,9 +545,18 @@
             </table>
 
             @if($zoneDesc)
-                <div class="extra">
+                {{--
+                  2026-07-17 (bug patronne) : Str::limit(320) tronquait la
+                  description avec « ... » — la patronne saisit des textes
+                  plus longs et voulait TOUT voir. Retrait du limit + nl2br
+                  pour respecter les sauts de ligne saisis + word-wrap pour
+                  éviter qu'un mot très long dépasse. La card autorise
+                  page-break-inside:auto pour laisser DomPDF couper
+                  proprement si le contenu déborde de la page.
+                --}}
+                <div class="extra" style="word-wrap:break-word;">
                     <strong style="color:#e8a020;font-size:9px;text-transform:uppercase;letter-spacing:0.8px;">Description / Environnement</strong><br>
-                    {{ \Illuminate\Support\Str::limit($zoneDesc, 320) }}
+                    {!! nl2br(e($zoneDesc)) !!}
                 </div>
             @endif
 
