@@ -60,16 +60,25 @@
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#e20613" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
                         <span class="nav-text">Tableau de bord</span>
                     </a>
-                    @php $u = auth()->user(); $isAdmin = $u?->role?->value === 'admin'; $isMP = $u?->role?->value === 'mediaplanner'; $isCom = $u?->role?->value === 'commercial'; @endphp
+                    @php
+                        $u = auth()->user();
+                        $isAdmin     = $u?->role?->value === 'admin';
+                        $isMP        = $u?->role?->value === 'mediaplanner';
+                        $isCom       = $u?->role?->value === 'commercial';
+                        $isComptable = $u?->role?->value === 'comptable';
+                    @endphp
                     {{-- 2026-06-19 — "Pilotage terrain" déplacé en section "Opérations"
                          juste sous "Gestion Pose OOH" (regroupement logique demandé
                          par la patronne : suivi tech terrain à côté de la gestion). --}}
-                    {{-- Disponibilités : visible aux 3 rôles staff (admin, MP, commercial)
-                         depuis l'ouverture aux commerciaux pour faire des réservations. --}}
+                    {{-- Disponibilités : visible aux 3 rôles staff (admin, MP, commercial).
+                         2026-07-21 : caché pour comptable (pas dans son périmètre
+                         — la route est déjà bloquée middleware, on évite un clic 403). --}}
+                    @if(!$isComptable)
                     <a href="{{ route('admin.reservations.disponibilites') }}" data-tooltip="Disponibilités" class="nav-item {{ request()->routeIs('admin.reservations.disponibilites') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#fab80b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span>
                         <span class="nav-text">Disponibilités</span>
                     </a>
+                    @endif
                     <a href="{{ route('admin.panels.index') }}" data-tooltip="Inventaire" class="nav-item {{ request()->routeIs('admin.panels.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3f7fc0" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
                         <span class="nav-text">Inventaire</span>
@@ -115,13 +124,17 @@
                          les équipes"). Les routes /admin/teams restent accessibles
                          via URL directe si besoin futur. --}}
                     @endif
-                    @if($isAdmin || $isMP)
+                    {{-- 2026-07-21 : Taxes Communes ouvert au comptable
+                         (suivi mensuel des taxes ODP+TM à payer aux mairies). --}}
+                    @if($isAdmin || $isMP || $isComptable)
                     <a href="{{ route('admin.taxes.index') }}" data-tooltip="Taxes Communes" class="nav-item {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#81358a" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
                         <span class="nav-text">Taxes Communes</span>
                     </a>
                     @endif
-                    @if(Auth::user()?->role === \App\Enums\UserRole::ADMIN)
+                    {{-- 2026-07-21 : Facturation ouvert au comptable + commercial
+                         (émission, édition, envoi + saisie versements + relances). --}}
+                    @if($isAdmin || $isComptable || $isCom)
                     <a href="{{ route('admin.invoices.index') }}" data-tooltip="Facturation" class="nav-item {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#3aa835" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
                         <span class="nav-text">Facturation</span>
@@ -262,10 +275,10 @@
                     </a>
                     @endif
 
-                    {{-- Tableau de bord FINANCIER — Admin + Commercial.
-                         Cohérent avec la matrice facturation : MP/Technique
-                         ne touchent pas aux finances. --}}
-                    @if($isAdmin || ($isCommercial ?? auth()->user()?->role?->value === 'commercial'))
+                    {{-- Tableau de bord FINANCIER — Admin + Commercial + Comptable.
+                         2026-07-21 : ajout comptable (recouvrement, ancienneté
+                         créances, relances — c'est son écran clé). --}}
+                    @if($isAdmin || $isCom || $isComptable)
                     <a href="{{ route('admin.finance.index') }}" data-tooltip="Tableau de bord financier" class="nav-item {{ request()->routeIs('admin.finance.*') ? 'active' : '' }}">
                         <span class="icon"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
                         <span class="nav-text">Finance</span>
