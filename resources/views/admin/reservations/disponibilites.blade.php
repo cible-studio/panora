@@ -349,6 +349,12 @@
                         onclick="DISPO.exportSelPdf('images')">📄 PDF images</button>
                     <button class="btn btn-ghost btn-sm" style="color:var(--blue);border-color:rgba(59,130,246,.4)"
                         onclick="DISPO.exportSelPdf('liste')">📋 PDF liste</button>
+                    @if(in_array(auth()->user()?->role?->value, ['admin', 'commercial'], true))
+                    <button class="btn btn-ghost btn-sm" style="color:#8b5cf6;border-color:rgba(139,92,246,.4)"
+                        onclick="DISPO.createQuote()" title="Créer un devis commercial avec cette sélection (non bloquant)">
+                        💼 Créer un devis
+                    </button>
+                    @endif
                     <button class="btn btn-primary" onclick="DISPO.openConfirmModal()">✅ Confirmer la
                         sélection</button>
                 </div>
@@ -1669,6 +1675,24 @@
                             return;
                         }
                         this._submitExcelForm(ids);
+                    },
+
+                    // ── CRÉER UN DEVIS DEPUIS LA SÉLECTION ────────────────
+                    // Filtre uniquement les panneaux internes (le devis actuel
+                    // ne gère pas encore les ext_<id> à l'auto-pré-remplissage).
+                    // On passe aussi la période sélectionnée en filtre pour
+                    // pré-remplir period_start / period_end du devis.
+                    createQuote() {
+                        const idsInternes = S.sel.ids.filter(id => !String(id).startsWith('ext_'));
+                        if (!idsInternes.length) {
+                            alert('Sélectionne au moins un panneau interne pour créer un devis.');
+                            return;
+                        }
+                        const params = new URLSearchParams();
+                        idsInternes.forEach(id => params.append('panel_ids[]', id));
+                        if (S.f.du) params.append('period_start', S.f.du);
+                        if (S.f.au) params.append('period_end',   S.f.au);
+                        window.location.href = '{{ route('admin.quotes.create') }}?' + params.toString();
                     },
 
                     _submitExcelForm(ids) {

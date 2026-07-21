@@ -49,7 +49,8 @@ Ainsi qu'un bloc **« Votre interlocuteur »** avec la photo, le nom et l'email 
 
 ### Principal
 - **Tableau de bord** — vos KPI d'ouverture
-- **Propositions** — devis reçus (en attente, signés, refusés)
+- **Propositions** — offres commerciales signées (en attente, signées, refusées)
+- **Devis** — devis reçus à consulter, accepter ou refuser (nouveauté)
 - **Campagnes** — historique complet de vos campagnes
 - **Piges d'affichage** — preuves photos de vos campagnes
 - **Contacter la régie** — envoyer un message à votre commercial
@@ -80,6 +81,29 @@ Votre commercial vous a préparé un devis. Vous recevez un email « Nouvelle pr
    - **🔁 Demander un décalage** — si la période ne vous convient pas, proposer d'autres dates → votre commercial vous fera une contre-proposition
 
 **💡 Astuce** : vous pouvez consulter la proposition plusieurs fois avant de signer. Tant que vous ne cliquez pas **Accepter**, rien n'est engagé.
+
+### 5.1bis Traiter un devis reçu
+
+Un **devis** est une offre commerciale chiffrée que votre commercial vous envoie pour valider un projet (ex: 10 panneaux sur 3 mois pour votre lancement produit). Contrairement à une proposition, un devis est **non-bloquant** : les panneaux ne sont pas encore réservés pour vous — ils le seront à votre acceptation.
+
+**Recevoir un devis** :
+1. Vous recevez un email « Devis CIBLE · [titre] (référence) » avec le PDF joint
+2. Cliquez sur le bouton **Consulter le devis en ligne** dans le mail
+   - Si vous avez un compte Panora → vous serez invité à vous connecter
+   - Sinon → un lien direct sans connexion (via un jeton sécurisé)
+3. Vous voyez :
+   - Le message personnalisé de votre commercial
+   - Le détail des panneaux (adresse, commune, format, prix, durée)
+   - Les services annexes éventuels (impression, pose)
+   - Le montant HT, TVA, taxes, **Total à payer**
+   - La **date de validité** (30 jours par défaut) — au-delà, le devis expire automatiquement
+
+**Trois choix** :
+- **✅ Accepter** — le devis est verrouillé, une réservation ferme est créée dans notre système, les panneaux vous sont attribués. Votre commercial vous contacte pour finaliser (contrat, planning)
+- **❌ Refuser** — motif optionnel, votre commercial est notifié pour comprendre ce qui n'allait pas
+- **🔁 Demander une modification** — décrivez ce que vous voulez changer (prix, durée, panneaux, dates) → votre commercial préparera une nouvelle version du devis
+
+**⚠️ Bon à savoir** : entre l'envoi du devis et votre acceptation, un panneau peut être réservé par un autre client. Si cela arrive au moment où vous acceptez, votre commercial vous contactera **immédiatement** pour vous proposer une alternative équivalente.
 
 ### 5.2 Suivre une campagne active
 

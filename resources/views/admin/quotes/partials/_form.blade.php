@@ -14,6 +14,9 @@
 @php
     $isEdit = isset($quote) && $quote !== null;
     $oldLines = old('lines');
+    // Priorité : anciennes valeurs (repost validation) > lignes du devis en édition
+    //          > lignes pré-remplies depuis Disponibilités > une ligne vide.
+    $prefilled = $prefilledLines ?? [];
     $lines = $oldLines ?: ($isEdit && $quote->lines->count() > 0
         ? $quote->lines->map(fn($l) => [
             'designation'   => $l->designation,
@@ -25,7 +28,9 @@
             'panel_id'      => $l->panel_id,
             'external_panel_id' => $l->external_panel_id,
         ])->all()
-        : [['designation'=>'', 'dimension_m2'=>0, 'pu_ht_mensuel'=>0, 'quantite'=>1, 'duree_mois'=>1, 'panel_id'=>null, 'external_panel_id'=>null]]);
+        : (!empty($prefilled)
+            ? $prefilled
+            : [['designation'=>'', 'dimension_m2'=>0, 'pu_ht_mensuel'=>0, 'quantite'=>1, 'duree_mois'=>1, 'panel_id'=>null, 'external_panel_id'=>null]]));
 
     $oldServices = old('services');
     $services = $oldServices ?: ($isEdit && $quote->services->count() > 0
@@ -78,11 +83,11 @@
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:12px">
             <div>
                 <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Période début</label>
-                <input type="date" name="period_start" value="{{ old('period_start', $isEdit ? $quote->period_start?->format('Y-m-d') : '') }}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px">
+                <input type="date" name="period_start" value="{{ old('period_start', $isEdit ? $quote->period_start?->format('Y-m-d') : ($preselect['period_start'] ?? '')) }}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px">
             </div>
             <div>
                 <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Période fin</label>
-                <input type="date" name="period_end" value="{{ old('period_end', $isEdit ? $quote->period_end?->format('Y-m-d') : '') }}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px">
+                <input type="date" name="period_end" value="{{ old('period_end', $isEdit ? $quote->period_end?->format('Y-m-d') : ($preselect['period_end'] ?? '')) }}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px">
             </div>
             <div>
                 <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Validité (jours)</label>
@@ -113,7 +118,15 @@
                 <tbody id="quote-lines-tbody">
                     @foreach($lines as $i => $l)
                         <tr class="ql-row">
-                            <td style="padding:6px"><input type="text" name="lines[{{ $i }}][designation]" required maxlength="200" value="{{ $l['designation'] ?? '' }}" placeholder="ex. SP-001 — San-Pedro Triangle" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:5px"></td>
+                            <td style="padding:6px">
+                                @if(!empty($l['panel_id']))
+                                    <input type="hidden" name="lines[{{ $i }}][panel_id]" value="{{ $l['panel_id'] }}">
+                                @endif
+                                @if(!empty($l['external_panel_id']))
+                                    <input type="hidden" name="lines[{{ $i }}][external_panel_id]" value="{{ $l['external_panel_id'] }}">
+                                @endif
+                                <input type="text" name="lines[{{ $i }}][designation]" required maxlength="200" value="{{ $l['designation'] ?? '' }}" placeholder="ex. SP-001 — San-Pedro Triangle" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:5px">
+                            </td>
                             <td style="padding:6px">
                                 <select name="lines[{{ $i }}][commune_id]" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:5px">
                                     <option value="">—</option>

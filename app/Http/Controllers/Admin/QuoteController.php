@@ -93,14 +93,36 @@ class QuoteController extends Controller
         $preselect = [
             'client_id'   => $request->query('client_id'),
             'campaign_id' => $request->query('campaign_id'),
+            'period_start'=> $request->query('period_start'),
+            'period_end'  => $request->query('period_end'),
         ];
+
+        // Préselection de panneaux depuis la vue Disponibilités.
+        // On charge les Panels + leur commune pour pré-remplir les lignes du form.
+        $prefilledLines = [];
+        $panelIds = array_filter(array_map('intval', (array) $request->query('panel_ids', [])));
+        if (!empty($panelIds)) {
+            $panels = \App\Models\Panel::with('commune')->whereIn('id', $panelIds)->get();
+            foreach ($panels as $p) {
+                $prefilledLines[] = [
+                    'panel_id'         => $p->id,
+                    'designation'      => trim(($p->reference ?? '') . ' — ' . ($p->address ?? '')),
+                    'dimension_m2'     => (float) ($p->width * $p->height ?? 0),
+                    'pu_ht_mensuel'    => (int) ($p->monthly_rate ?? 0),
+                    'quantite'         => 1,
+                    'duree_mois'       => 1,
+                    'commune_id'       => $p->commune_id,
+                    'commune_name'     => $p->commune?->name,
+                ];
+            }
+        }
 
         $clients  = Client::orderBy('name')->get(['id', 'name', 'ncc', 'email']);
         $campaigns = Campaign::orderBy('name')->get(['id', 'name', 'client_id']);
         $communes = Commune::orderBy('name')->get(['id', 'name']);
         $validDays = (int) config('billing.quote_valid_days_default', 30);
 
-        return view('admin.quotes.create', compact('clients', 'campaigns', 'communes', 'preselect', 'validDays'));
+        return view('admin.quotes.create', compact('clients', 'campaigns', 'communes', 'preselect', 'validDays', 'prefilledLines'));
     }
 
     public function store(Request $request, QuoteBuilder $builder)
