@@ -100,7 +100,8 @@
     @php
         // Facturation : visible pour admin + commercial. Cachée pour MP.
         $rowAuthRole = auth()->user()?->role?->value;
-        $rowCanSeeBilling = in_array($rowAuthRole, ['admin', 'commercial'], true);
+        // 2026-07-21 : comptable ajouté (facturer depuis liste campagnes)
+        $rowCanSeeBilling = in_array($rowAuthRole, ['admin', 'commercial', 'comptable'], true);
 
         // Commercial suivant le dossier — priorité campaign.commercial_user_id,
         // fallback résa source. On n'affiche QUE si le user est commercial

@@ -512,6 +512,10 @@
                         $billedHt   = $campaign->alreadyBilledHt();
                         $remainHt   = max(0.0, $expectedHt - $billedHt);
                         $isAdmin    = auth()->user()?->role?->value === 'admin';
+                        // 2026-07-21 : le comptable a le même droit que l'admin
+                        // sur la facturation depuis la campagne (générer FNE,
+                        // facturer manuellement, facture complémentaire).
+                        $canBill    = $isAdmin || auth()->user()?->role?->value === 'comptable';
                     @endphp
 
                     @if($campaign->invoices->isNotEmpty())
@@ -578,7 +582,7 @@
                             @endforeach
                         </div>
 
-                        @if($isAdmin && $remainHt > 0)
+                        @if($canBill && $remainHt > 0)
                             {{-- Reste à facturer connu → bouton complémentaire. --}}
                             <div class="mt-3 flex items-center justify-between gap-3 p-3 rounded-xl border border-dashed"
                                  data-billing-remain-row
@@ -605,7 +609,7 @@
                                     Aucune facture émise pour le moment
                                 @endif
                             </div>
-                            @if($isAdmin)
+                            @if($canBill)
                                 <div style="display:flex;flex-direction:column;gap:6px;align-items:center;margin-top:12px">
                                     {{-- Génération automatique FNE : crée invoice + lignes
                                          + résout tarifs ODP/TM historisés en un clic. --}}
